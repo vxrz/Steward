@@ -170,6 +170,13 @@ export const guardedLookup: LookupFunction = (hostname, options, callback) => {
   );
 };
 
+/** The address a connection to `host` may use: resolved and checked like guardedLookup does (literals as they are). */
+export function checkedAddress(host: string): Promise<string> {
+  return new Promise((resolve, reject) =>
+    guardedLookup(host, {}, (err, address) => (err ? reject(err) : resolve(typeof address === 'string' ? address : String(address)))),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Origin policy
 // ---------------------------------------------------------------------------

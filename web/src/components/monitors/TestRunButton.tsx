@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { MonitorStatus } from '@sm/shared';
 import { notifyError, post } from '../../api';
 import { MonitorStatusBadge } from './status';
+import { TableScroll } from '../TableScroll';
 
 interface TestResult {
   checkId: string;
@@ -42,7 +43,7 @@ export function TestRunButton({ monitorId }: { monitorId: string }) {
             <Text size="sm" c="dimmed">
               {t('testRun.help')}
             </Text>
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" aria-label={t('testRun.title')}>
                 <Table.Thead>
                   <Table.Tr>
@@ -78,7 +79,7 @@ export function TestRunButton({ monitorId }: { monitorId: string }) {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           </Stack>
         </Modal>
       )}

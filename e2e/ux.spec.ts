@@ -130,7 +130,7 @@ test.describe('lists, dialogs and help (admin)', () => {
       'Reviews due',
       'Duties due',
       'Services needing attention',
-      'Waiting on vendors',
+      'Waiting on vendor tickets',
     ]);
     for (const n of names) expect(n).toMatch(/^.+ \d+ \S.*$/);
     expect(await links.evaluateAll((l) => l.map((a) => a.getAttribute('href')))).toEqual(
@@ -147,7 +147,7 @@ test.describe('lists, dialogs and help (admin)', () => {
         '/tickets?waiting=vendor',
       ].map(appHref),
     );
-    const vendor = tiles.getByRole('link', { name: /^Waiting on vendors [1-9]\d* oldest \d+ days$/ });
+    const vendor = tiles.getByRole('link', { name: /^Waiting on vendor tickets [1-9]\d* oldest \d+ days$/ });
     await expect(vendor).toHaveAttribute('data-state', 'attention');
     // keyboard: the tiles are in the tab order
     await links.nth(8).focus();
@@ -277,7 +277,7 @@ test.describe('start page zero state (viewer)', () => {
     await expect(tiles.getByRole('link', { name: 'Monitors down 0 All quiet' })).toBeVisible();
     await expect(page.getByTestId('start-dashboards').getByRole('link', { name: /Access governance/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Recent runs' })).toHaveCount(0);
-    await expect(tiles.getByRole('link', { name: 'Waiting on vendors 0 All quiet' })).toBeVisible();
+    await expect(tiles.getByRole('link', { name: 'Waiting on vendor tickets 0 All quiet' })).toBeVisible();
     await expect(tiles.getByText(/Undocumented access changes|Credentials due/)).toHaveCount(0);
     await expectAccessible(page, 'start page zero state');
     // the full operations start page stays one click away (and is remembered)
@@ -361,7 +361,7 @@ test.describe('phone @mobile', () => {
     await page.reload();
     await settle(page);
     const folded = page.getByTestId('tiles-not-set-up');
-    await expect(folded.getByRole('link')).toHaveText(['Monitors down', 'Waiting on vendors']);
+    await expect(folded.getByRole('link')).toHaveText(['Monitors down', 'Waiting on vendor tickets']);
     await expect(page.getByTestId('start-tiles').getByTestId('tile-monitors')).toHaveCount(0);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });

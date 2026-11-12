@@ -182,7 +182,9 @@ export function UsersPage() {
         )}
 
         <Group justify="space-between" mt="md">
-          <Title order={4}>{t('teams.title')}</Title>
+          <Title order={2} size="h4">
+            {t('teams.title')}
+          </Title>
           <Button size="xs" variant="light" leftSection={<IconUsersGroup size={14} />} onClick={() => setTeamEdit('new')}>
             {t('teams.new')}
           </Button>
@@ -251,7 +253,7 @@ export function UsersPage() {
         <SsoSection />
 
         <Card withBorder mt="md">
-          <Title order={5} mb="xs">
+          <Title order={2} size="h5" mb="xs">
             {t('roles.title')}
           </Title>
           <Stack gap={4}>

@@ -276,6 +276,33 @@ describe('authentication', () => {
     expect(missing.headers.get('content-type')).toContain('application/problem+json');
   });
 
+  it('proposes plant registry changes for review with a full-access token only (0.19.0), as documented', async () => {
+    const body = JSON.stringify({
+      title: 'API profile',
+      rationale: 'From a repository of device profiles',
+      document: { version: 1, device_profile: { id: 'api-v1-profile', name: 'API profile', interfaces: [] } },
+    });
+    const headers = { 'content-type': 'application/json' };
+    const read = await v1(tokens.admin, '/plant/proposals', { method: 'POST', headers, body });
+    expect(read.status).toBe(403);
+    expect(read.body.type).toContain('#token-scope');
+    // audrey (auditor) may not propose
+    const auditor = await v1(tokens.audrey, '/plant/proposals', { method: 'POST', headers, body });
+    expect(auditor.status).toBe(403);
+    const full = await newToken(s.api, 'admin full', 'full');
+    const r = await v1(full, '/plant/proposals', { method: 'POST', headers, body });
+    expect(r.status).toBe(201);
+    const op = doc.paths['/plant/proposals'].post;
+    const fn = ajv.compile(withRefs(op.responses['201'].content['application/json'].schema) as object);
+    expect(fn(r.body), ajv.errorsText(fn.errors)).toBe(true);
+    expect(r.body.changeSet).toMatchObject({ state: 'proposed', source: 'api' });
+    // nothing written until a person applies it
+    expect((await v1(full, '/plant/profiles/api-v1-profile')).status).toBe(404);
+    const bad = await v1(full, '/plant/proposals', { method: 'POST', headers, body: JSON.stringify({ title: 'x' }) });
+    expect(bad.status).toBe(400);
+    expect(bad.headers.get('content-type')).toContain('application/problem+json');
+  });
+
   it('records token use in the audit log once per day', async () => {
     const t = await newToken(s.api, 'daily');
     await v1(t, '/me');
@@ -468,7 +495,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const x of await listAll('/schedules', '/schedules')) await get('/schedules/{scheduleId}', `/schedules/${x.id}`);
   for (const x of await listAll('/triggers', '/triggers')) await get('/triggers/{triggerId}', `/triggers/${x.id}`);
   await get('/semantic-model', '/semantic-model');
-  for (const x of await listAll('/platforms', '/platforms')) await get('/platforms/{platformId}', `/platforms/${x.id}`);
+  const platformList = await listAll('/platforms', '/platforms');
+  for (const x of platformList) await get('/platforms/{platformId}', `/platforms/${x.id}`);
+  // a platform's own cost plan (0.19.0, ADR 0032)
+  for (const x of platformList.slice(0, 2)) await get('/platforms/{platformId}/cost-plan', `/platforms/${x.id}/cost-plan`);
   for (const x of await listAll('/datasets', '/datasets')) {
     await get('/datasets/{datasetKey}', `/datasets/${encodeURIComponent(x.key)}`);
     await listAll('/datasets/{datasetKey}/rows', `/datasets/${encodeURIComponent(x.key)}/rows`);
@@ -503,10 +533,14 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   if (apiService) await listAll('/services/{serviceId}/documents', `/services/${apiService}/documents`);
   for (const x of (await listAll('/applications', '/applications?archived=include')).slice(0, 5)) {
     await get('/applications/{applicationId}', `/applications/${x.id}`);
+    await get('/applications/{applicationId}/cost-attribution', `/applications/${x.id}/cost-attribution`);
     await listAll('/applications/{applicationId}/documents', `/applications/${x.id}/documents`);
   }
   await get('/cia-scale', '/cia-scale');
-  for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
+  for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) {
+    await get('/systems/{systemId}', `/systems/${x.id}`);
+    await get('/systems/{systemId}/cost-attribution', `/systems/${x.id}/cost-attribution`);
+  }
   // suppliers (0.17, ADR 0029)
   for (const x of (await listAll('/suppliers', '/suppliers')).slice(0, 5)) await get('/suppliers/{supplierId}', `/suppliers/${x.id}`);
   // the statement of applicability, the responsibility matrix and corrective actions (0.17, ADR 0029)
@@ -569,6 +603,11 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   for (const id of ['rvs-mill-02', 'hlc-im-01']) await get('/plant/assets/{assetId}/advisories', `/plant/assets/${id}/advisories`);
   await get('/plant/export', '/plant/export');
   await get('/plant/export', '/plant/export?part=catalogue');
+  // 0.19.0: change sets (the example imports made some) with their operations
+  for (const x of (await listAll('/plant/change-sets', '/plant/change-sets')).slice(0, 3)) {
+    await get('/plant/change-sets/{changeSetId}', `/plant/change-sets/${x.id}`);
+    await listAll('/plant/change-sets/{changeSetId}/operations', `/plant/change-sets/${x.id}/operations`);
+  }
   // database schemas (#222): the demo database platform (read) and a system (a tbls import)
   for (const [kind, ids] of [
     ['platforms', (await listAll('/platforms', '/platforms?kind=database')).map((x) => x.id)],
@@ -724,8 +763,8 @@ describe('every endpoint', () => {
 
   it('matches the OpenAPI document', async () => {
     const templates = new Set(adminCrawl.map((c) => c.template));
-    // every documented GET operation (except the document itself) was exercised
-    for (const p of Object.keys(doc.paths)) if (p !== '/openapi.json') expect(templates, p).toContain(p);
+    // every documented GET operation (except the document itself) was exercised; the one POST (0.19.0) below
+    for (const p of Object.keys(doc.paths)) if (p !== '/openapi.json' && !doc.paths[p].post) expect(templates, p).toContain(p);
     for (const c of adminCrawl) {
       expect(c.res.status, c.url).toBe(200);
       validate(c.template, c.res);
@@ -984,14 +1023,15 @@ describe('OpenAPI document', () => {
     for (const [p, item] of Object.entries<any>(doc.paths)) {
       expect(p.startsWith('/')).toBe(true);
       expect(p).not.toMatch(/:|\/api\/v1/);
-      expect(Object.keys(item)).toEqual(['get']);
-      const op = item.get;
+      // read-only, except proposing plant registry changes for review (0.19.0)
+      expect(Object.keys(item)).toEqual([p === '/plant/proposals' ? 'post' : 'get']);
+      const op = item.get ?? item.post;
       expect(op.operationId).toMatch(/^[a-z][A-Za-z]+$/);
       expect(opIds.has(op.operationId)).toBe(false);
       opIds.add(op.operationId);
       expect(op.summary).toBeTruthy();
       for (const t of op.tags) expect(tagNames.has(t)).toBe(true);
-      expect(op.responses['200']).toBeTruthy();
+      expect(op.responses[item.post ? '201' : '200']).toBeTruthy();
       for (const param of (p.match(/\{(\w+)\}/g) ?? []).map((x) => x.slice(1, -1))) {
         expect(op.parameters.find((x: any) => x.in === 'path' && x.name === param)?.required).toBe(true);
       }

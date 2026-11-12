@@ -80,6 +80,7 @@ import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
 import { TableFieldView, tableText } from '../components/records/TableField';
 import { FirewallContextPanel } from '../components/records/FirewallContext';
+import { TableScroll } from '../components/TableScroll';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs', 'access'] as const;
 type Tab = (typeof TABS)[number];
@@ -429,7 +430,7 @@ function VersionsTab({ rec }: { rec: RecordDetail }) {
   const options = list.map((v) => ({ value: String(v.version), label: t('versions.option', { version: v.version, revision: v.revision, author: v.author }) }));
   return (
     <Stack gap="md">
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('versions.title')}>
           <Table.Thead>
             <Table.Tr>
@@ -456,7 +457,7 @@ function VersionsTab({ rec }: { rec: RecordDetail }) {
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       {list.length < 2 ? (
         <Text size="sm" c="dimmed">
           {t('versions.onlyOne')}
@@ -571,7 +572,7 @@ function AttachmentsTab({ rec, onChange }: { rec: RecordDetail; onChange: () => 
 function AttachmentTable({ rec, items, canRemove, onChange }: { rec: RecordDetail; items: RecordAttachment[]; canRemove?: boolean; onChange: () => void }) {
   const { t } = useTranslation('records');
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="sm" aria-label={t('attachments.title')}>
         <Table.Thead>
           <Table.Tr>
@@ -621,7 +622,7 @@ function AttachmentTable({ rec, items, canRemove, onChange }: { rec: RecordDetai
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -742,7 +743,7 @@ function PdfTab({ rec, onGenerate, onChange }: { rec: RecordDetail; onGenerate: 
             {t('pdf.none')}
           </Text>
         ) : (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-label={t('pdf.generatedTitle')}>
               <Table.Thead>
                 <Table.Tr>
@@ -780,7 +781,7 @@ function PdfTab({ rec, onGenerate, onChange }: { rec: RecordDetail; onGenerate: 
                 })}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Stack>
       <Stack gap="xs">

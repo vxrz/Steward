@@ -6,6 +6,7 @@ import type { BackgroundJob } from '../../../../shared/src/system';
 import { get, notifyError, notifyOk, post } from '../../api';
 import { fmtDate, fmtDuration, fmtRelative } from '../../format';
 import { QueryState } from '../common';
+import { TableScroll } from '../TableScroll';
 
 const RESULT_COLOR = { succeeded: 'green', failed: 'red', timedOut: 'orange' } as const;
 
@@ -60,7 +61,7 @@ export function BackgroundJobs() {
         </Text>
       )}
       {!!jobs.length && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" verticalSpacing={4} data-testid="background-jobs">
             <Table.Thead>
               <Table.Tr>
@@ -143,7 +144,7 @@ export function BackgroundJobs() {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
     </Card>
   );

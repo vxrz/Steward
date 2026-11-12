@@ -49,7 +49,7 @@ import { EmptyState, FilterPanel, QueryState, TONE, useCreateParam } from '../co
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
-import { fmtDate, fmtDay, fmtRelative } from '../format';
+import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { OwningTeams } from '../components/OwningTeams';
 import { ListPage } from '../components/page/ListPage';
@@ -57,6 +57,7 @@ import { CopiedFromNote, DuplicateButton } from '../components/duplicate/Duplica
 import { EntraImportButton } from '../components/credentials/EntraImport';
 import { ShowAll, useShowMore } from '../components/page/ShowAll';
 import { PrivilegedBadge } from '../components/platform/PrivilegedBadge';
+import { TableScroll } from '../components/TableScroll';
 
 /** "Used by" entries listed before "Show all" */
 const USED_BY_FIRST = 5;
@@ -680,7 +681,7 @@ function CredentialDrawer({
           </Field>
           <Field label={t('fields.roles')}>
             {c.roles.length ? (
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm" data-testid="credential-roles">
                   <Table.Thead>
                     <Table.Tr>
@@ -703,7 +704,7 @@ function CredentialDrawer({
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             ) : (
               <Text size="sm" c="dimmed">
                 {t('roles.none')}
@@ -864,7 +865,7 @@ function ActionForm({
   onCancel: () => void;
 }) {
   const { t } = useTranslation(['credentials', 'common']);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => localToday());
   const [comment, setComment] = useState('');
   const [expires, setExpires] = useState('');
   const [busy, setBusy] = useState(false);
@@ -891,7 +892,7 @@ function ActionForm({
           label={kind === 'rotated' ? t('detail.rotatedOn') : t('detail.reviewedOn')}
           value={date}
           onChange={(e) => setDate(e.currentTarget.value)}
-          max={new Date().toISOString().slice(0, 10)}
+          max={localToday()}
         />
         {kind === 'rotated' && (
           <TextInput

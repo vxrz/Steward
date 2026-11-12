@@ -7,6 +7,7 @@ import {
   supplierContactInput,
   supplierContractInput,
   supplierContractServiceInput,
+  supplierContractPlatformInput,
   supplierInput,
   supplierMergeInput,
   supplierOpenInput,
@@ -16,6 +17,7 @@ import { ACCESS } from '../auth/access.js';
 import type { StepUpRule } from '../auth/step-up.js';
 import { teamsGrantAccess } from '../auth/scope-routes.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule } from '../auth/named-grants.js';
 import * as s from './service.js';
 import * as shared from './shared.js';
 import { contractScopeNotice, dismissContractScopeNotice } from './contract-scope.js';
@@ -32,6 +34,9 @@ import { contractScopeNotice, dismissContractScopeNotice } from './contract-scop
  *   GET    /suppliers/:id/contracts/:contractId              the contract page (404 for who may not see it)
  *   PUT|DELETE /suppliers/:id/contracts/:contractId/services/:serviceId   add, purpose, confirm; leave or dismiss
  *   GET    /services/:id/contracts                            the contracts covering a service (its "Suppliers" section)
+ *   PUT|DELETE /suppliers/:id/contracts/:contractId/platforms/:platformId   add, purpose; take off (0.19.0, ADR 0032)
+ *   GET    /platforms/:id/contracts                           the contracts covering a platform (its cost plan, 0.19.0)
+ *   GET    /services/:id/contract-items                       its applications and systems a contract can name (0.19.0)
  *   GET    /suppliers/shared-suggestions, POST …/:key/keep-separate   "Same supplier in several teams" (administrators)
  *   POST   /suppliers/merge/preview | merge                    a merge of up to ten suppliers (widening: administrators)
  *   POST   /suppliers/:id/open/preview | open                  new owning teams with the protections (administrators)
@@ -75,7 +80,12 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     const d = s.getSupplier(params(req).id!);
     return viaToken(req) ? s.toPublic(d) : d;
   });
-  app.put('/suppliers/:id', session, async (req) => s.updateSupplier(params(req).id!, supplierInput.parse(req.body)));
+  // owners from outside the owning teams ask for the step-up like an access list (#195)
+  app.put(
+    '/suppliers/:id',
+    { config: { access: ACCESS.session, stepUp: namedGrantRule((req) => s.supplierNamesOutsiders(params(req).id!, req.body)) } },
+    async (req) => s.updateSupplier(params(req).id!, supplierInput.parse(req.body)),
+  );
   app.post('/suppliers/:id/archive', session, async (req) => s.setSupplierArchived(params(req).id!, supplierArchiveInput.parse(req.body).archived));
   // the "To confirm" list: decisions of people in a session (ADR 0029, decided 9)
   app.post('/suppliers/:id/confirm', session, async (req) => s.confirmSupplier(params(req).id!));
@@ -141,9 +151,16 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   );
   app.delete('/suppliers/:id/contacts/:contactId', session, async (req) => s.removeContact(params(req).id!, params(req).contactId!));
 
-  app.post('/suppliers/:id/contracts', session, async (req) => s.addContract(params(req).id!, supplierContractInput.parse(req.body)));
-  app.put('/suppliers/:id/contracts/:contractId', session, async (req) =>
-    s.updateContract(params(req).id!, params(req).contractId!, supplierContractInput.parse(req.body)),
+  // contract owners from outside the contract's teams ask for the step-up like an access list (#195)
+  app.post(
+    '/suppliers/:id/contracts',
+    { config: { access: ACCESS.session, stepUp: namedGrantRule((req) => s.contractNamesOutsiders(params(req).id!, null, req.body)) } },
+    async (req) => s.addContract(params(req).id!, supplierContractInput.parse(req.body)),
+  );
+  app.put(
+    '/suppliers/:id/contracts/:contractId',
+    { config: { access: ACCESS.session, stepUp: namedGrantRule((req) => s.contractNamesOutsiders(params(req).id!, params(req).contractId!, req.body)) } },
+    async (req) => s.updateContract(params(req).id!, params(req).contractId!, supplierContractInput.parse(req.body)),
   );
   app.delete('/suppliers/:id/contracts/:contractId', session, async (req) =>
     s.removeContract(params(req).id!, params(req).contractId!, removeContractQuery.parse(req.query ?? {})),
@@ -161,6 +178,27 @@ export async function supplierRoutes(app: FastifyInstance): Promise<void> {
     s.removeContractService(params(req).id!, params(req).contractId!, params(req).serviceId!),
   );
   app.get('/services/:id/contracts', async (req) => s.serviceContracts(params(req).id!));
+  // platforms covered by a contract (0.19.0, ADR 0032): covering one lets its managers see a team-owned contract
+  // a platform of another team gives it the contract: confirmed like naming an owner (security review 0.19.0 M1)
+  app.put(
+    '/suppliers/:id/contracts/:contractId/platforms/:platformId',
+    {
+      config: {
+        access: ACCESS.session,
+        stepUp: namedGrantRule((req) => {
+          supplierContractPlatformInput.parse(req.body ?? {});
+          return s.contractPlatformNamesOutsiders(params(req).id!, params(req).contractId!, params(req).platformId!);
+        }),
+      },
+    },
+    async (req) =>
+      s.setContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!, supplierContractPlatformInput.parse(req.body ?? {})),
+  );
+  app.delete('/suppliers/:id/contracts/:contractId/platforms/:platformId', session, async (req) =>
+    s.removeContractPlatform(params(req).id!, params(req).contractId!, params(req).platformId!),
+  );
+  app.get('/platforms/:id/contracts', async (req) => s.platformContracts(params(req).id!));
+  app.get('/services/:id/contract-items', async (req) => ({ items: s.serviceContractItems(params(req).id!) }));
 
   app.post('/suppliers/:id/certificates', session, async (req) => s.addCertificate(params(req).id!, supplierCertificateInput.parse(req.body)));
   app.put('/suppliers/:id/certificates/:certificateId', session, async (req) =>

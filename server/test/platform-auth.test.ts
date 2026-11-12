@@ -99,6 +99,7 @@ describe('AWS Signature Version 4', () => {
           aws: { region: 'eu-central-1', service: 'execute-api', roleArn: 'arn:aws:iam::123456789012:role/steward-read', stsEndpoint: `${mockBase}/aws/sts` },
         },
       },
+      credentials: 'keep',
     });
     const r2 = await request(p.id, '/echo-signed');
     expect(r2.body.headers.authorization).toContain('Credential=ASIATEMPDEMO/');
@@ -108,6 +109,7 @@ describe('AWS Signature Version 4', () => {
     expect(Date.parse(renewed.token.expiresAt)).toBeGreaterThan(Date.now() + 50 * 60_000);
     await s.api('PUT', `/platforms/${p.id}`, {
       config: { ...p.config, auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 'x', roleArn: 'not-an-arn' } } },
+      credentials: 'keep',
     });
     await expect(request(p.id, '/echo-signed')).rejects.toThrow(/not an IAM role/);
   });

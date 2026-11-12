@@ -79,7 +79,7 @@ npx playwright show-report           # HTML report of the last run (playwright-r
 How it works:
 
 - `e2e/global-setup.ts` starts one demo server (`SM_DEMO=1`) on a free port with a fresh temporary data directory. It creates the admin `admin` / `Admin-password-1`, loads the demo data with its service half (`POST /api/demo/setup` with `{ "services": true }`: services, documents, credential entries, duties, a maintenance window, a status page – the server tests load the demo without it and get an empty catalogue), waits for the first feeder runs, and stores a signed-in session for `admin`, `dana`, `olivia`, `adam`, `audrey` and `vera` in `e2e/.auth/`. The server log is written to `e2e/.auth/server.log`. The server is stopped and its data deleted at the end; set `SM_E2E_KEEP_DATA=1` to keep the data.
-- Projects: **desktop** (Chromium 1440×900) runs everything except tests tagged `@mobile`. **mobile** (390×844, touch) runs only the `@mobile` tests.
+- Projects: **desktop** (Chromium 1440×900) runs everything except tests tagged `@mobile`. **mobile** (390×844, touch) runs only the `@mobile` tests. `expectNoHorizontalScroll` compares the page's width with `document.documentElement.clientWidth`: with `isMobile` Chromium widens `window.innerWidth` to the content, so a page that overflows would pass against it.
 - Every test fails when the page logs a console error or throws an uncaught error. Known harmless messages are listed with a reason in `BENIGN_CONSOLE` in `e2e/support/fixtures.ts`.
 - Tests create their own data with unique names and run in parallel (4 workers locally, 2 in CI). Other knobs: `SM_E2E_WORKERS`, `SM_E2E_PORT`, and `SM_E2E_SERVER=dist`, which starts the test servers from the compiled server (`server/dist`, built by `npm run build`) – what the container image runs – instead of the TypeScript sources.
 - **Under a path prefix:** `E2E_BASE_PATH=/steward npm run test:ui` runs the whole suite with Steward under `/steward` (`SM_BASE_PATH`) behind a small reverse proxy (`scripts/reverse-proxy.mjs`: passes the path on, sets `X-Forwarded-For/-Proto/-Host`; `E2E_PROXY_PROTO=https` sends `https`). Write app paths as at the root – `page.goto('/runs')`, `request.get('/api/runs')`: `e2e/support/basePath.ts` puts the base path in front of what the tests pass in, never in front of what the app requests. Compare links the app renders with `appHref('/runs')` from `e2e/support/env.ts`, and build storage states with `origin()` (an origin has no path). CI runs both variants (`.github/workflows/ui-tests.yml`).
@@ -90,7 +90,6 @@ How it works:
 
 - Process cards, platform cards and dashboard cards are clickable areas, not links. With the keyboard, use the command palette (Ctrl+K) or the card's buttons instead.
 - The flow canvas (React Flow) can only be edited with a mouse. The _Source_ tab (YAML) is the keyboard alternative.
-- Plain scrolling tables (`.table-scroll`) are only made focusable on dashboards. On narrow screens other wide tables scroll but cannot be focused.
 
 ### Adding a UI test
 
@@ -231,6 +230,7 @@ Do this on a **test tenant / test IEM** before any production use.
 ## 6. Performance and volume
 
 - **Large tenants.** Use a sandbox with thousands of users/assets, or extend the mock. Check pagination page sizes (`pageSize` 100–500), _For each_ with `parallel` (e.g. 4–8) and `delayMs` against rate limits, `maxItems` safety limits, and task tables with >1,000 rows (filter, "showing the first 1000").
+- **Statements per request.** Every database statement on PostgreSQL is a round trip that blocks the event loop (ADR 0001), so a page that reads per item slows down everyone. `server/test/hot-pages-statements.test.ts` counts the statements of the start page, the scorecard, the costs overview, the monitor, platform, process and schedule lists before and after adding many services, processes, schedules and monitors: the counts must stay the same. A new per-item read on these pages fails it; read in bulk instead (one statement for all items, or a correlated subquery inside one statement).
 - **Long-running schedules.** Let hourly feeders run for a week and watch run duration, memory of the server process, `/api/metrics` (run counts, durations, HTTP errors) and dashboard staleness.
 - **Database size and retention.** Settings → Data retention shows database and evidence size. Set _Keep runs_ (e.g. 180 days) and check _Clean up now_. The audit log is never pruned, so estimate its growth (entries per day × size). On PostgreSQL, watch table sizes and vacuum.
 - **UI.** Open dashboards with many widgets and long tables on a slow laptop. The run page polls while active and the editor should stay responsive with 100+ nodes.

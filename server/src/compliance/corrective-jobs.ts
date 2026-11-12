@@ -2,7 +2,7 @@ import { CA_LIMITS, CORRECTIVE_DATASET, type DatasetRow } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { publishDataset } from '../dashboards/datasets.js';
-import { t, type MessageKey } from '../i18n/index.js';
+import { formatDay, t, type MessageKey } from '../i18n/index.js';
 import { nowIso, parseJson } from '../util.js';
 import { caToday } from './corrective.js';
 import { scanSuggestions } from './corrective-sources.js';
@@ -69,7 +69,7 @@ export async function remindActions(now = Date.now()): Promise<number> {
       event: 'corrective.action_due',
       text: (l) => ({
         title: t(l, `corrective.${kind}.title` as MessageKey, { ...params, action: titleName(a.title) }),
-        body: t(l, `corrective.${kind}.body` as MessageKey, params),
+        body: t(l, `corrective.${kind}.body` as MessageKey, { ...params, due: formatDay(l, params.due) }),
       }),
       link: `/compliance/corrective-actions/${a.finding_id}`,
       recipients,

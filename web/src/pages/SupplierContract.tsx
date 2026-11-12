@@ -6,7 +6,7 @@ import { IconEdit, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { SupplierContract, SupplierContractDetail, SupplierDetail } from '@sm/shared';
 import { get } from '../api';
-import { DetailState, subjectLabel } from '../components/common';
+import { DetailState } from '../components/common';
 import { CopyId } from '../components/CopyId';
 import { Field } from '../components/records/common';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -16,9 +16,10 @@ import { useModuleOn } from '../modules';
 import { DueDate } from './Suppliers';
 import { DocLink, DpaState, RemoveContractModal } from '../components/suppliers/contractParts';
 import { ContractModal } from '../components/suppliers/ContractForm';
-import { ContractServices } from '../components/suppliers/ContractServices';
+import { ContractPlatforms, ContractServices } from '../components/suppliers/ContractServices';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { ContractPayments } from '../components/costs/ContractPayments';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** A value of the contract, in grey with "from the master agreement" when the order form inherits it (ADR 0031). */
 function Inherited({ c, field, children }: { c: SupplierContract; field: SupplierContract['inherited'][number]; children: React.ReactNode }) {
@@ -41,6 +42,7 @@ function Inherited({ c, field, children }: { c: SupplierContract; field: Supplie
  */
 export function SupplierContractPage() {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   const { id, contractId } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -117,10 +119,16 @@ export function SupplierContractPage() {
               <Text fw={600}>{t('contract.services')}</Text>
               <ContractServices supplierId={d.supplier.id} contract={c} onChanged={refresh} />
             </Stack>
+            {(c.platforms.length > 0 || c.hiddenPlatforms > 0 || c.canEdit) && (
+              <Stack gap="xs" data-testid="contract-platforms-section">
+                <Text fw={600}>{t('contract.platforms')}</Text>
+                <ContractPlatforms supplierId={d.supplier.id} contract={c} onChanged={refresh} />
+              </Stack>
+            )}
             <Stack gap="xs">
               <Text fw={600}>{t('contract.term')}</Text>
               <Group gap="lg" wrap="wrap" align="flex-start">
-                <Field label={t('contract.term')}>{terms || '–'}</Field>
+                <Field label={t('contract.termField')}>{terms || '–'}</Field>
                 <Field label={t('contracts.noticeBy')}>
                   <DueDate date={c.noticeBy} state={c.noticeState} />
                 </Field>
@@ -222,13 +230,18 @@ export function SupplierContractPage() {
                 <Text fw={600} size="sm">
                   {t('contract.visibility')}
                 </Text>
-                <Field label={t('contractForm.owners')}>{c.owners.length ? c.owners.map(subjectLabel).join(', ') : '–'}</Field>
+                <Field label={t('contractForm.owners')}>{c.owners.length ? c.owners.map(ownerLabel).join(', ') : '–'}</Field>
                 <Text size="sm">
                   {d.visibility.open ? t('contract.visibleOpen') : t('contract.visibleTeam', { teams: d.visibility.teams.join(', ') || '–' })}
                 </Text>
                 {!d.visibility.open && d.visibility.services.length > 0 && (
                   <Text size="xs" c="dimmed">
                     {t('contract.visibleServices', { services: d.visibility.services.map((x) => x.name).join(', ') })}
+                  </Text>
+                )}
+                {!d.visibility.open && d.visibility.platforms.length > 0 && (
+                  <Text size="xs" c="dimmed" data-testid="contract-visible-platforms">
+                    {t('contract.visiblePlatforms', { platforms: d.visibility.platforms.map((x) => x.name).join(', ') })}
                   </Text>
                 )}
                 <Text size="xs" c="dimmed">

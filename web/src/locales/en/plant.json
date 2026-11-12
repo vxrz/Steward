@@ -378,7 +378,26 @@
     },
     "checks_one": "{{count}} note of the checks",
     "checks_other": "{{count}} notes of the checks",
-    "checksHelp": "What Steward finds in the entries of the files once they are imported. These do not stop the import."
+    "checksHelp": "What Steward finds in the entries of the files once they are imported. These do not stop the import.",
+    "steward": {
+      "title_one": "{{count}} field changed in Steward since the last import",
+      "title_other": "{{count}} fields changed in Steward since the last import",
+      "intro": "Someone changed these fields in Steward after the last import wrote them, and the file would change them again. Steward is the source of truth: each keeps Steward’s value unless you take the file’s.",
+      "keepAll": "Keep all of Steward’s",
+      "takeAll": "Take all from the file",
+      "kept": "{{kept}} of {{total}} keep Steward’s value",
+      "listLabel": "Fields changed in Steward",
+      "legend": "{{kind}} {{name}}: {{path}}",
+      "lastImport": "Last import",
+      "keep": "Keep Steward’s",
+      "take": "Take the file’s",
+      "unknown": "Not known (imported before 0.13)",
+      "wholeEntry": "Imported before 0.13 and edited since: every field the file changes is listed.",
+      "showMore": "Show {{count}} more",
+      "rest_one": "{{count}} more field is not listed: it follows the choice for all.",
+      "rest_other": "{{count}} more fields are not listed: they follow the choice for all.",
+      "updated": "Preview updated: {{kept}} of {{total}} fields keep Steward’s value"
+    }
   },
   "settings": {
     "title": "Plant registry",

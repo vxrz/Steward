@@ -25,6 +25,7 @@ import {
   DB_SCHEMA_LIMITS,
   LIBRARY_LIMITS,
   PLANT_LIMITS,
+  PLANT_PROPOSAL_LIMITS,
   PLANT_COLLECTION_LIMITS,
   PLANT_IH_LIMITS,
   RECORDING_LIMITS,
@@ -71,6 +72,8 @@ export const LARGE_BODIES = {
     ],
     bytes: jsonText(DATA_CONTRACT_LIMITS.yamlBytes),
   },
+  /** 0.19.0: a proposal of plant registry changes from CI (/api/v1): a document of PLANT_PROPOSAL_LIMITS.totalBytes (1 MB) as JSON */
+  plantProposalApi: { routes: ['POST /api/v1/plant/proposals'], bytes: PLANT_PROPOSAL_LIMITS.totalBytes + 64 * KIB },
   recordings: { routes: ['POST /api/platforms/:id/recordings', 'PUT /api/platforms/:id/recordings/:recId'], bytes: jsonText(RECORDING_LIMITS.bodyBytes) },
   /** Running one node (ADR 0010): sample data up to DEBUG_LIMITS.sampleBytes (1 MB), the unsaved node and a pasted answer of the same size */
   debugNode: { routes: ['POST /api/processes/:id/debug/node'], bytes: jsonText(2 * DEBUG_LIMITS.sampleBytes) },
@@ -161,7 +164,13 @@ export const LARGE_BODIES = {
   },
   /** A CSV file of cost entries (0.18.0, ADR 0030): COST_ENTRY_IMPORT_LIMITS.bytes (5 MB) as text in the web app's JSON body, with its mapping */
   costEntryImport: {
-    routes: ['POST /api/costs/plans/:serviceId/entries/import/preview', 'POST /api/costs/plans/:serviceId/entries/import'],
+    routes: [
+      'POST /api/costs/plans/:serviceId/entries/import/preview',
+      'POST /api/costs/plans/:serviceId/entries/import',
+      // a platform's own cost plan (0.19.0, ADR 0032)
+      'POST /api/costs/platform-plans/:platformId/entries/import/preview',
+      'POST /api/costs/platform-plans/:platformId/entries/import',
+    ],
     bytes: jsonText(COST_ENTRY_IMPORT_LIMITS.bytes, 16 * KIB),
   },
   /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */

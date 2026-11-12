@@ -104,11 +104,11 @@
     "service": "Wer den Service bearbeiten darf, darf den Befund ändern",
     "supplier": "Der Lieferant, um den es im Befund geht, zum Beispiel aus einer Lieferantenbewertung",
     "owner": "Wer den Befund verfolgt und erinnert wird",
-    "contract": "Optional: einer der Verträge des Lieferanten – seine Eigentümer lesen die Feststellung."
+    "contract": "Optional: einer der Verträge des Lieferanten – seine Eigentümer lesen den Befund."
   },
   "form": {
     "newTitle": "Befund erfassen",
-    "editTitle": "Befund {{number}} ändern",
+    "editTitle": "Befund {{number}} bearbeiten",
     "confirmTitle": "Als Befund bestätigen",
     "confirmIntro": "Der Befund ist aus dem Vorschlag vorausgefüllt. Ändern Sie, was nötig ist; er verweist auf das, woher er stammt.",
     "saved": "Gespeichert",
@@ -123,7 +123,7 @@
     "edit": "Bearbeiten",
     "markInProgress": "Arbeit beginnen",
     "markImplemented": "Als umgesetzt markieren",
-    "reopen": "Zurück auf in Arbeit",
+    "reopen": "Wieder öffnen",
     "checkEffectiveness": "Wirksamkeit prüfen",
     "cancel": "Befund stornieren",
     "statusChanged": "Status geändert",
@@ -145,12 +145,12 @@
   "actions": {
     "title": "Maßnahmen",
     "add": "Maßnahme hinzufügen",
-    "edit": "Maßnahme ändern",
+    "edit": "Maßnahme bearbeiten",
     "remove": "Maßnahme „{{title}}“ entfernen",
     "removeConfirm": "Die Maßnahme „{{title}}“ entfernen?",
     "markDone": "„{{title}}“ als erledigt markieren",
     "markOpen": "„{{title}}“ als nicht erledigt markieren",
-    "editAction": "„{{title}}“ ändern",
+    "editAction": "„{{title}}“ bearbeiten",
     "fieldTitle": "Maßnahme",
     "owners": "Verantwortliche",
     "ownersHint": "Sie werden vor der Fälligkeit, am Fälligkeitstag und wöchentlich während der Überfälligkeit erinnert.",

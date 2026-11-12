@@ -31,7 +31,7 @@
     "credentialsSplit": "{{overdue}} überfällig · {{dueSoon}} bald fällig",
     "findings": "Undokumentierte Zugriffsänderungen",
     "findingsDetail": "Offene Befunde zum Dokumentieren",
-    "vendorTickets": "Wartet auf Hersteller",
+    "vendorTickets": "Warten auf Hersteller-Tickets",
     "oldest_one": "ältestes seit {{count}} Tag",
     "oldest_other": "ältestes seit {{count}} Tagen",
     "oldestToday": "ältestes seit heute",

@@ -4,27 +4,29 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconArrowLeft, IconCalendarDollar, IconDownload } from '@tabler/icons-react';
-import type { CostCommitment, CostCommitments, CostOverview, ServiceSummary } from '@sm/shared';
+import type { CostCommitment, CostCommitments, CostOverview, Platform, ServiceSummary } from '@sm/shared';
 import { apiUrl, get } from '../api';
 import { QueryState } from '../components/common';
 import { ListPage } from '../components/page/ListPage';
 import { ServiceTabs } from '../components/page/LinkTabs';
 import { CommitmentsNote, CommitmentsTable, CommitmentTotals } from '../components/costs/Commitments';
 import { useSupplierOptions } from '../components/suppliers/SupplierPicker';
-import { costKeys } from '../queryKeys';
+import { costKeys, platformKeys } from '../queryKeys';
 import '../components/dashboard/viz.css';
 
 type Group = 'supplier' | 'service' | 'team';
 
 /**
- * Costs → Commitments (0.18.0, ADR 0030, docs/COSTS.md#commitments): every payment schedule of the services the reader
- * may see – grouped by supplier, service or team, columns for the current and the next four fiscal years and later,
- * totals per currency, the notice warnings first; filters team, service, supplier and "ending within … days"; CSV.
+ * Costs → Commitments (0.18.0, ADR 0030, docs/COSTS.md#commitments): every payment schedule of the services and (0.19.0,
+ * ADR 0032) platforms the reader may see – grouped by supplier, payer (service or platform) or team, what is owed to
+ * contract end and to the earliest exit first, then the current and the next four fiscal years and later, totals per
+ * currency, the warnings first; filters team, service, platform, supplier and "ends within (days)"; CSV.
  */
 export function CostCommitmentsPage() {
   const { t } = useTranslation('costs');
   const [team, setTeam] = useState<string | null>(null);
   const [service, setService] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<string | null>(null);
   const [supplier, setSupplier] = useState<string | null>(null);
   const [days, setDays] = useState<string | number>('');
   const [group, setGroup] = useState<Group>('supplier');
@@ -33,18 +35,20 @@ export function CostCommitmentsPage() {
     const p = new URLSearchParams();
     if (team) p.set('teamId', team);
     if (service) p.set('serviceId', service);
+    if (platform) p.set('platformId', platform);
     if (supplier) p.set('supplierId', supplier);
     if (days !== '' && Number(days) > 0) p.set('endingWithinDays', String(days));
     return p.toString();
-  }, [team, service, supplier, days]);
+  }, [team, service, platform, supplier, days]);
   const q = useQuery({ queryKey: costKeys.commitments(qs), queryFn: () => get<CostCommitments>(`/costs/commitments${qs ? `?${qs}` : ''}`) });
   const teams = useQuery({ queryKey: costKeys.overview('team'), queryFn: () => get<CostOverview>('/costs?scope=team') });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const suppliers = useSupplierOptions();
   const c = q.data;
   const needle = search.trim().toLowerCase();
   const rows = (c?.rows ?? []).filter(
-    (r) => !needle || [r.title, r.serviceName, r.supplier?.name ?? '', r.contract?.title ?? ''].some((x) => x.toLowerCase().includes(needle)),
+    (r) => !needle || [r.title, r.payer.name, r.supplier?.name ?? '', r.contract?.title ?? ''].some((x) => x.toLowerCase().includes(needle)),
   );
   const groups = useMemo(() => {
     const out = new Map<string, { label: string; rows: CostCommitment[] }>();
@@ -52,7 +56,12 @@ export function CostCommitmentsPage() {
       group === 'supplier'
         ? [{ key: r.supplier?.id ?? '', label: r.supplier?.name ?? t('commitments.hiddenSupplier') }]
         : group === 'service'
-          ? [{ key: r.serviceId, label: r.serviceName }]
+          ? [
+              {
+                key: `${r.payer.kind}:${r.payer.id}`,
+                label: r.payer.kind === 'platform' ? t('commitments.platformGroup', { name: r.payer.name }) : r.payer.name,
+              },
+            ]
           : r.teams.length
             ? r.teams.map((x) => ({ key: x.id, label: x.name }))
             : [{ key: '', label: t('commitments.noTeam') }];
@@ -63,10 +72,12 @@ export function CostCommitmentsPage() {
         out.set(k.key, g);
       }
     return [...out.entries()].sort(
-      ([, a], [, b]) => Number(b.rows.some((r) => r.warning)) - Number(a.rows.some((r) => r.warning)) || a.label.localeCompare(b.label),
+      ([, a], [, b]) =>
+        Number(b.rows.some((r) => r.warning || r.volume?.warnings.length)) - Number(a.rows.some((r) => r.warning || r.volume?.warnings.length)) ||
+        a.label.localeCompare(b.label),
     );
   }, [rows, group, t]);
-  const active = [team, service, supplier, days !== '' ? days : null].filter((x) => x !== null).length;
+  const active = [team, service, platform, supplier, days !== '' ? days : null].filter((x) => x !== null).length;
   return (
     <ListPage
       tabs={<ServiceTabs active="/costs" />}
@@ -95,6 +106,7 @@ export function CostCommitmentsPage() {
         <Group gap="xs" align="flex-end" wrap="wrap">
           <Select
             label={t('commitments.filters.team')}
+            placeholder={t('commitments.filters.all')}
             clearable
             searchable
             w={200}
@@ -104,6 +116,7 @@ export function CostCommitmentsPage() {
           />
           <Select
             label={t('commitments.filters.service')}
+            placeholder={t('commitments.filters.all')}
             clearable
             searchable
             w={220}
@@ -112,7 +125,19 @@ export function CostCommitmentsPage() {
             onChange={setService}
           />
           <Select
+            label={t('commitments.filters.platform')}
+            placeholder={t('commitments.filters.all')}
+            clearable
+            searchable
+            w={220}
+            data={(platforms.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+            value={platform}
+            onChange={setPlatform}
+            data-testid="commitments-platform"
+          />
+          <Select
             label={t('commitments.filters.supplier')}
+            placeholder={t('commitments.filters.all')}
             clearable
             searchable
             w={220}

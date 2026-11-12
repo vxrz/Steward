@@ -20,7 +20,7 @@
     "notice": "Nächste Kündigungsfrist",
     "certificate": "Nächster Zertifikatsablauf",
     "usage": "Verknüpft",
-    "owners": "Eigentümer",
+    "owners": "Verantwortlich",
     "spellings": "Schreibweisen",
     "updated": "Geändert",
     "dpa": "AV-Vertrag"
@@ -51,8 +51,8 @@
     "type": "Art",
     "description": "Beschreibung",
     "website": "Webseite",
-    "owners": "Eigentümer",
-    "ownersHelp": "Steward-Benutzer und Teams, die für den Lieferanten verantwortlich sind: Sie ändern ihn und erhalten seine Erinnerungen.",
+    "owners": "Verantwortlich",
+    "ownersHelp": "Erhalten die Erinnerungen zum Lieferanten und dürfen ihn ändern. Anders als die zuständigen Teams schränken sie nicht ein, wer ihn sieht – wer von außerhalb dieser Teams benannt wird, sieht ihn ebenfalls.",
     "personalData": "Verarbeitet personenbezogene Daten für unsere Services",
     "dpaStatus": "Auftragsverarbeitungsvertrag",
     "dpaSince": "Gültig seit",
@@ -90,7 +90,7 @@
   "actions": {
     "create": "Anlegen",
     "confirm": "Bestätigen",
-    "merge": "Zusammenführen mit …",
+    "merge": "Mit anderem Lieferanten zusammenführen",
     "notSupplier": "Kein Lieferant",
     "archive": "Archivieren",
     "unarchive": "Aus dem Archiv zurückholen",
@@ -104,16 +104,16 @@
   "confirmArchive": "„{{name}}“ archivieren? Er bleibt dort verknüpft, wo er es ist, und wird in Formularen nicht mehr angeboten.",
   "merge": {
     "title": "„{{name}}“ mit einem anderen Lieferanten zusammenführen",
-    "intro": "Seine Verknüpfungen, Kontakte, Verträge, Zertifikate und Schreibweisen gehen auf den gewählten Lieferanten über, „{{name}}“ wird entfernt. Der andere Lieferant behält Namen, Art und Eigentümer.",
+    "intro": "Seine Verknüpfungen, Kontakte, Verträge, Zertifikate und Schreibweisen gehen auf den gewählten Lieferanten über, „{{name}}“ wird entfernt. Der andere Lieferant behält Namen, Art und Verantwortliche.",
     "into": "Zusammenführen mit",
     "submit": "Zusammenführen"
   },
   "contacts": {
     "title": "Kontakte",
-    "help": "Ansprechpersonen beim Lieferanten. E-Mail und Telefon bleiben in der App: API, MCP, Datensätze und Exporte lassen sie weg.",
+    "help": "Ansprechpersonen beim Lieferanten. E-Mail und Telefon bleiben in der App: API, MCP, Datenquellen und Exporte lassen sie weg.",
     "empty": "Noch keine Kontakte.",
     "add": "Kontakt hinzufügen",
-    "edit": "Kontakt ändern",
+    "edit": "Kontakt bearbeiten",
     "name": "Name",
     "role": "Rolle",
     "email": "E-Mail",
@@ -133,7 +133,7 @@
     "help": "Laufzeit, Kündigungsfrist und Verlängerung ergeben das Kündigungsdatum: den letzten Tag, um zu kündigen. Die Eigentümer werden 90 und 30 Tage vorher erinnert.",
     "empty": "Noch keine Verträge.",
     "add": "Vertrag hinzufügen",
-    "edit": "Vertrag ändern",
+    "edit": "Vertrag bearbeiten",
     "titleField": "Titel",
     "reference": "Vertragsnummer",
     "startsOn": "Beginn",
@@ -166,10 +166,10 @@
   },
   "certificates": {
     "title": "Zertifikate und Berichte",
-    "help": "Die Eigentümer werden 90 und 30 Tage vor dem Ablauf eines Zertifikats erinnert. Ein SOC-2-Bericht gilt zwölf Monate nach dem Ende seines Zeitraums, wenn Sie kein anderes Datum eintragen.",
+    "help": "Die Verantwortlichen des Lieferanten und die Eigentümer seiner Verträge werden 90 und 30 Tage vor dem Ablauf eines Zertifikats erinnert. Ein SOC-2-Bericht gilt zwölf Monate nach dem Ende seines Zeitraums, wenn Sie kein anderes Datum eintragen.",
     "empty": "Noch keine Zertifikate.",
     "add": "Zertifikat hinzufügen",
-    "edit": "Zertifikat ändern",
+    "edit": "Zertifikat bearbeiten",
     "kind": "Art",
     "name": "Name",
     "nameHint": "Bei „Sonstiges“: worum es sich handelt",
@@ -210,7 +210,7 @@
     }
   },
   "duties": {
-    "title": "Lieferantenprüfung",
+    "title": "Lieferantenbewertung",
     "help": "Eine Pflicht eines Service, die diesen Lieferanten nennt, zum Beispiel mit dem Beispielprozess „Supplier review“.",
     "empty": "Noch prüft keine Pflicht diesen Lieferanten.",
     "lastPeriods": "Letzte Zeiträume"
@@ -251,9 +251,10 @@
   "contract": {
     "services": "Services und Zweck",
     "term": "Laufzeit und Kündigung",
+    "termField": "Laufzeit",
     "payments": "Zahlungen",
-    "reviews": "Prüfungen und Feststellungen",
-    "noReviews": "Keine Lieferantenprüfung und keine Feststellung nennt diesen Vertrag.",
+    "reviews": "Bewertungen und Befunde",
+    "noReviews": "Keine Lieferantenbewertung und kein Befund nennt diesen Vertrag.",
     "visibility": "Eigentümer und Sichtbarkeit",
     "visibleOpen": "Kein Team ist unter seinen Eigentümern: Jeder, der den Lieferanten sehen darf, sieht diesen Vertrag.",
     "visibleTeam": "Sichtbar für die Mitglieder von {{teams}}, seine Benutzer als Eigentümer, wer einen abgedeckten Service sehen darf, Administratoren und Auditoren.",
@@ -263,7 +264,8 @@
       "admin": "Sie sehen ihn als Administrator.",
       "auditor": "Sie sehen ihn als Auditor.",
       "owner": "Sie sehen ihn als einer seiner Eigentümer.",
-      "service": "Sie sehen ihn, weil Sie einen Service sehen, den er abdeckt."
+      "service": "Sie sehen ihn, weil Sie einen Service sehen, den er abdeckt.",
+      "platform": "Sie sehen ihn, weil Sie eine Plattform verwalten, die er abdeckt."
     },
     "dataProtection": "Datenschutz",
     "noPersonalData": "Keine personenbezogenen Daten",
@@ -274,8 +276,8 @@
     },
     "personalDataFrom": {
       "contract": "Eigene Antwort.",
-      "master": "Personenbezogene Daten: wie der Rahmenvertrag.",
-      "supplier": "Personenbezogene Daten: wie der Lieferant."
+      "master": "Aus dem Rahmenvertrag übernommen.",
+      "supplier": "Aus den Angaben zum Lieferanten übernommen."
     },
     "personalDataOwn": "Personenbezogene Daten: eigene Antwort.",
     "fromMaster": "aus dem Rahmenvertrag",
@@ -290,8 +292,10 @@
     "removed": "Vertrag entfernt",
     "removeMaster_one": "Dieser Rahmenvertrag hat {{count}} Einzelvertrag. Er wird eigenständig, die geerbten Werte werden übernommen. Rahmenvertrag entfernen?",
     "removeMaster_other": "Dieser Rahmenvertrag hat {{count}} Einzelverträge. Sie werden eigenständig, die geerbten Werte werden übernommen. Rahmenvertrag entfernen?",
-    "replacedBy": "Ersetzt durch …",
-    "replacedByHint": "Optional: Ein anderer Vertrag dieses Lieferanten, den Sie ändern dürfen, übernimmt Services, Zahlungspläne, Planzeilen, Buchungen, Matrixzeilen, Pflichten, Feststellungen und Kontakte."
+    "replacedBy": "Durch anderen Vertrag ersetzen",
+    "replacedByHint": "Optional: Ein anderer Vertrag dieses Lieferanten, den Sie ändern dürfen, übernimmt Services, Zahlungspläne, Planpositionen, Buchungen, Matrixzeilen, Pflichten, Befunde und Kontakte.",
+    "platforms": "Abgedeckte Plattformen",
+    "visiblePlatforms": "Auch sichtbar für die Verwalter und zuständigen Teams von: {{platforms}}"
   },
   "contractForm": {
     "services": "Abgedeckte Services",
@@ -313,7 +317,9 @@
       "yes": "Ja",
       "no": "Nein"
     },
-    "dpaInherited": "Wie Rahmenvertrag oder Lieferant"
+    "dpaInherited": "Wie Rahmenvertrag oder Lieferant",
+    "platforms": "Abgedeckte Plattformen",
+    "platformsHint": "Optional: ein eigener Vertrag eines Plattform-Teams (Kapazität, eine Cloud-Ausgabenzusage). Ihre Verwalter und zuständigen Teams sehen ihn."
   },
   "contractServices": {
     "none": "Keine Services – eine unternehmensweite Vereinbarung.",
@@ -331,10 +337,10 @@
     "confirmed": "Service bestätigt",
     "dismiss": "Nicht dieser Service",
     "dismissed": "Vorschlag verworfen",
-    "dismissConfirm": "Der Vertrag deckt „{{service}}“ nicht ab? Planzeilen und Matrixzeilen, die ihn nennen, bleiben, wie sie sind.",
+    "dismissConfirm": "Der Vertrag deckt „{{service}}“ nicht ab? Planpositionen und Matrixzeilen, die ihn nennen, bleiben, wie sie sind.",
     "leave": "Vertrag verlassen",
     "left": "Service hat den Vertrag verlassen",
-    "leaveConfirm": "„{{service}}“ aus dem Vertrag „{{contract}}“ nehmen? Planzeilen und Matrixzeilen, die den Vertrag nennen, behalten ihn.",
+    "leaveConfirm": "„{{service}}“ aus dem Vertrag „{{contract}}“ nehmen? Planpositionen und Matrixzeilen, die den Vertrag nennen, behalten ihn.",
     "editPurpose": "Zweck ändern",
     "purpose": "Zweck",
     "purposeTitle": "Zweck für „{{service}}“",
@@ -343,7 +349,15 @@
     "hidden_other": "und {{count}} Services, die Sie nicht sehen dürfen",
     "add": "Service hinzufügen",
     "added": "Service zum Vertrag hinzugefügt",
-    "service": "Service"
+    "service": "Service",
+    "itemsFor": "Für:",
+    "items": "Anwendungen und Systeme",
+    "itemsHint": "Optional: wofür im Service der Vertrag gilt. Keine: der Service als Ganzes.",
+    "itemsNone": "Der Service als Ganzes",
+    "itemKinds": {
+      "application": "Anwendung",
+      "system": "System"
+    }
   },
   "scopedContacts": {
     "appliesTo": "Gilt für",
@@ -387,7 +401,7 @@
     "wholeInstance": "die ganze Instanz",
     "counts": "{{contracts}} Verträge, {{contacts}} Kontakte",
     "proposed": "Vorgeschlagener gemeinsamer Lieferant",
-    "merge": "Zusammenführen …",
+    "merge": "Zusammenführen",
     "keepSeparate": "Getrennt lassen",
     "keptSeparate": "Getrennt gelassen",
     "previewTitle": "Zu einem gemeinsamen Lieferanten zusammenführen",
@@ -422,8 +436,29 @@
     "noticeText_other": "Seit dem Update haben Verträge eigene Eigentümer. {{count}} Verträge, deren Lieferant ein Team unter seinen Eigentümern hatte, sind jetzt nur noch für ihre Eigentümer, wer einen abgedeckten Service sehen darf, Administratoren und Auditoren sichtbar. Wenn Sie das Team als Eigentümer entfernen, ist ein Vertrag wieder offen.",
     "noticeClose": "Hinweis schließen",
     "proposedTitle": "Verträge mit Services zu bestätigen",
-    "proposedIntro": "Das Update auf 0.18 hat diese Services aus den Planzeilen, Kostenbuchungen und Matrixzeilen vorgeschlagen, die die Verträge nennen. Bestätigen Sie jeden oder wählen Sie „Nicht dieser Service“."
+    "proposedIntro": "Das Update auf 0.18 hat diese Services aus den Planpositionen, Kostenbuchungen und Matrixzeilen vorgeschlagen, die die Verträge nennen. Bestätigen Sie jeden oder wählen Sie „Nicht dieser Service“."
   },
   "dpaMissingCount_one": "{{count}} Vertrag ohne AV-Vertrag",
-  "dpaMissingCount_other": "{{count}} Verträge ohne AV-Vertrag"
+  "dpaMissingCount_other": "{{count}} Verträge ohne AV-Vertrag",
+  "filterAll": "Alle",
+  "contractPlatforms": {
+    "leave": "Aus dem Vertrag nehmen",
+    "leaveConfirm": "„{{platform}}“ aus dem Vertrag „{{contract}}“ nehmen?",
+    "left": "Plattform aus dem Vertrag genommen",
+    "none": "Keine Plattformen",
+    "hidden_one": "und {{count}} Plattform, die Sie nicht sehen dürfen",
+    "hidden_other": "und {{count}} Plattformen, die Sie nicht sehen dürfen",
+    "add": "Plattform hinzufügen",
+    "added": "Plattform hinzugefügt",
+    "platform": "Plattform",
+    "addHint": "Ein eigener Vertrag eines Plattform-Teams. Seine Verwalter und die Mitglieder seiner zuständigen Teams sehen dann einen Vertrag mit Team als Eigentümer."
+  },
+  "platformContracts": {
+    "title": "Verträge",
+    "help": "Die Verträge, die diese Plattform abdecken – die eigenen des Plattform-Teams. Fügen Sie Zahlungen hinzu, um sie zu planen; die Kosten eines Vertrags werden nie auf die Services verteilt, die die Plattform nutzen.",
+    "empty": "Noch deckt kein Vertrag diese Plattform ab.",
+    "teamOwned": "Team als Eigentümer",
+    "noticeBy": "Kündigen bis {{date}}",
+    "leaveConfirm": "Diese Plattform aus dem Vertrag „{{contract}}“ nehmen?"
+  }
 }

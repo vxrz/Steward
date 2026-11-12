@@ -106,7 +106,7 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await page.goto('/costs/commitments');
   await expect(page.getByTestId('commitments-page')).toContainText(f.supplier.name);
   await expect(page.getByTestId('commitments-page')).toContainText('Base fee');
-  await page.getByTestId('commitments-group').getByText('Service', { exact: true }).click();
+  await page.getByTestId('commitments-group').getByText('Service or platform', { exact: true }).click();
   await expect(page.getByTestId('commitment-group').filter({ hasText: f.service.name })).toBeVisible();
   await expectAccessible(page, 'commitments');
   if (mobile) await expectNoHorizontalScroll(page);

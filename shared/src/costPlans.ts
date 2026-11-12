@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { checkCurrencyDecimals, currencyMinorUnits, isoCurrencyCode, toMicros } from './costs.js';
 import type { SupplierRef } from './suppliers.js';
-import type { CostContractChange } from './costContracts.js';
+import type { CostContractChange, CostPayer, CostVolumeBilling, CostVolumeConsumption, CostVolumeStatus } from './costContracts.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): what a service plans to spend on the
@@ -385,6 +385,11 @@ export interface CostPlanLine {
   twoLines: boolean;
   /** The schedule's payment date per month of the year (Book's default date; null: none, or not a schedule line) */
   paymentDates: (string | null)[] | null;
+  /**
+   * A line of a volume schedule (0.19.0, ADR 0032): how it is billed and where the use comes from; `suggested` – for
+   * Book on a line billed by use: the average use per month so far in the period (Book asks for the actual amount)
+   */
+  volume: { billing: CostVolumeBilling; consumption: CostVolumeConsumption; suggested: string | null } | null;
   /** Book is offered (monthly, quarterly and one-off lines with a planned amount) */
   bookable: boolean;
   /** Months (YYYY-MM) that are over, and the current one, with a planned payment and no entry on the line */
@@ -433,6 +438,17 @@ export interface CostEntry {
   /** No plan line of this fiscal year */
   unplanned: boolean;
   /**
+   * The part of the entry drawn from a prepaid volume of its contract (0.19.0, ADR 0032): use of what was paid up front,
+   * not counted as incurred again (null: none)
+   */
+  drawn: string | null;
+  /**
+   * It counts for a prepaid volume of its contract the reader may not see in full – its payer, its amounts, or another
+   * service or platform using it (security review 0.19.0 M2): the entry counts in full here, nothing of that volume is
+   * shown as drawn ("possibly covered by a prepaid volume you may not see")
+   */
+  drawnHidden: boolean;
+  /**
    * The fiscal year of its plan line when that is another one than the entry's (the fiscal year start changed since
    * the entry was linked): the link stays, the entry counts as unplanned in its own year (docs/COSTS.md).
    */
@@ -459,6 +475,11 @@ export interface CostPlanCurrency extends CostPlanFigures {
   read: { incurredToDate: string | null; expected: string | null; months: (string | null)[] } | null;
   /** Entries without a plan line */
   unplanned: { incurredToDate: string | null; expected: string | null; count: number };
+  /**
+   * Use drawn from prepaid volumes (0.19.0, ADR 0032): read costs (a platform's plan) and entries covered by what was
+   * paid up front – shown, not counted as incurred (null: none)
+   */
+  drawn: { toDate: string | null; months: (string | null)[] } | null;
 }
 
 /** shown: the reader sees every application of the service; hidden: they do not, so no cloud figures; none: nothing read. */
@@ -475,6 +496,9 @@ export interface FiscalYearChange {
 }
 
 export interface CostPlanYear {
+  /** Whose plan it is (0.19.0, ADR 0032): a service, or a platform's own cost plan */
+  owner: CostPayer;
+  /** The service ('' for a platform's plan) */
   serviceId: string;
   serviceName: string;
   fiscalYear: number;
@@ -493,8 +517,10 @@ export interface CostPlanYear {
   currencies: CostPlanCurrency[];
   /** Renewals of the service's plan lines in the next 90 days (any fiscal year) */
   renewals: { lineId: string; title: string; fiscalYear: number; renewalDate: string; days: number }[];
-  /** Applications and systems of the service (for the forms; only those the reader may see) */
+  /** Applications and systems of the service (for the forms; only those the reader may see; none for a platform) */
   targets: { kind: 'application' | 'system'; id: string; name: string }[];
+  /** The volume schedules the plan's owner pays, each with its current period (0.19.0, ADR 0032) */
+  volumes: (CostVolumeStatus & { scheduleId: string; title: string; contractId: string; contractHidden: boolean })[];
   /** Fiscal years with plan lines or entries, and the current and next one */
   years: { fiscalYear: number; label: string }[];
   limits: { linesPerYear: number; entriesPerYear: number };
@@ -520,7 +546,7 @@ export interface CostPlanYear {
   copyResult?: { copied: string[]; proposed: string[]; shortened: string[]; leftOut: string[] };
 }
 
-/** The plans of a team's services in one fiscal year (a service of two teams counts for both). */
+/** The plans of a team's services (and, since 0.19.0, platforms) in one fiscal year (one of two teams counts for both). */
 export interface CostPlanTeamYear {
   teamId: string;
   teamName: string;
@@ -535,7 +561,79 @@ export interface CostPlanTeamYear {
     shared: boolean;
     currencies: ({ currency: string } & CostPlanFigures)[];
   }[];
-  /** Per currency over the services whose amounts the reader sees */
+  /** The team's platforms with a cost plan in the year (0.19.0, ADR 0032): the same figures */
+  platforms: {
+    id: string;
+    name: string;
+    amountsVisible: boolean;
+    shared: boolean;
+    currencies: ({ currency: string } & CostPlanFigures)[];
+  }[];
+  /** Per currency over the services and platforms whose amounts the reader sees */
   totals: ({ currency: string } & CostPlanFigures)[];
   years: { fiscalYear: number; label: string }[];
+}
+
+/**
+ * An application's or system's "Costs and contracts" (0.19.0, ADR 0032 part 1): attribution, not a plan – the services
+ * plan and pay. Contracts that name it for a covered service, or that its lines, entries and schedules pay for; the plan
+ * lines, entries and payment schedules that name it in the services that use it, each counted once; totals per fiscal
+ * year and currency. Only what the reader may see; amounts null where they may not see the service's amounts.
+ */
+export interface CostAttribution {
+  kind: 'application' | 'system';
+  id: string;
+  name: string;
+  fiscalYear: number;
+  label: string;
+  years: { fiscalYear: number; label: string }[];
+  contracts: {
+    id: string;
+    title: string;
+    reference: string;
+    supplier: SupplierRef | null;
+    endsOn: string | null;
+    /** The covered services (the reader sees) for which the contract names it */
+    services: { id: string; name: string; purpose: string }[];
+    /** Named on the contract for a covered service (else only through a line, entry or schedule) */
+    named: boolean;
+  }[];
+  lines: {
+    id: string;
+    serviceId: string;
+    serviceName: string;
+    title: string;
+    category: CostPlanCategory;
+    cadence: CostPlanCadence;
+    currency: string;
+    amount: string | null;
+    planned: string | null;
+    contract: { id: string; title: string } | null;
+    contractHidden: boolean;
+  }[];
+  entries: {
+    id: string;
+    serviceId: string;
+    serviceName: string;
+    date: string;
+    currency: string;
+    amount: string | null;
+    reference: string;
+    planLineTitle: string | null;
+  }[];
+  schedules: {
+    id: string;
+    serviceId: string;
+    serviceName: string;
+    title: string;
+    billing: string;
+    currency: string;
+    amount: string | null;
+    contract: { id: string; title: string } | null;
+    contractHidden: boolean;
+  }[];
+  /** Per fiscal year and currency over what the reader sees with amounts: planned (lines) and incurred (entries) */
+  totals: { fiscalYear: number; label: string; currency: string; planned: string; incurred: string }[];
+  /** Lines, entries or schedules of services whose amounts the reader may not see are listed without amounts and not totalled */
+  amountsHidden: boolean;
 }

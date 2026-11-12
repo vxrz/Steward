@@ -20,7 +20,7 @@
     "notice": "Next notice date",
     "certificate": "Next certificate expiry",
     "usage": "Linked",
-    "owners": "Owners",
+    "owners": "Responsible",
     "spellings": "Spellings",
     "updated": "Updated",
     "dpa": "DPA"
@@ -51,8 +51,8 @@
     "type": "Type",
     "description": "Description",
     "website": "Website",
-    "owners": "Owners",
-    "ownersHelp": "Steward users and teams responsible for the supplier: they change it and get its reminders.",
+    "owners": "Responsible",
+    "ownersHelp": "Get the supplier's reminders and may change it. Unlike the owning teams, they do not limit who sees it – someone named from outside those teams can see it too.",
     "personalData": "Processes personal data for our services",
     "dpaStatus": "Data processing agreement",
     "dpaSince": "In place since",
@@ -90,7 +90,7 @@
   "actions": {
     "create": "Create",
     "confirm": "Confirm",
-    "merge": "Merge into …",
+    "merge": "Merge into another supplier",
     "notSupplier": "Not a supplier",
     "archive": "Archive",
     "unarchive": "Take back from the archive",
@@ -104,7 +104,7 @@
   "confirmArchive": "Archive “{{name}}”? It stays linked where it is and is no longer offered in forms.",
   "merge": {
     "title": "Merge “{{name}}” into another supplier",
-    "intro": "Its links, contacts, contracts, certificates and spellings move to the supplier you choose, and “{{name}}” goes. The other supplier keeps its name, type and owners.",
+    "intro": "Its links, contacts, contracts, certificates and spellings move to the supplier you choose, and “{{name}}” goes. The other supplier keeps its name, type and who is responsible.",
     "into": "Merge into",
     "submit": "Merge"
   },
@@ -113,7 +113,7 @@
     "help": "People at the supplier. Their e-mail and phone stay in the app: the API, MCP, datasets and exports leave them out.",
     "empty": "No contacts yet.",
     "add": "Add contact",
-    "edit": "Change contact",
+    "edit": "Edit contact",
     "name": "Name",
     "role": "Role",
     "email": "E-mail",
@@ -133,7 +133,7 @@
     "help": "Term, notice period and renewal give the notice-by date: the last day to give notice. The owners are reminded 90 and 30 days before it.",
     "empty": "No contracts yet.",
     "add": "Add contract",
-    "edit": "Change contract",
+    "edit": "Edit contract",
     "titleField": "Title",
     "reference": "Contract number",
     "startsOn": "Start",
@@ -166,10 +166,10 @@
   },
   "certificates": {
     "title": "Certificates and reports",
-    "help": "The owners are reminded 90 and 30 days before a certificate runs out. A SOC 2 report is valid for twelve months after the end of its period unless you enter another date.",
+    "help": "Those responsible for the supplier and the owners of its contracts are reminded 90 and 30 days before a certificate runs out. A SOC 2 report is valid for twelve months after the end of its period unless you enter another date.",
     "empty": "No certificates yet.",
     "add": "Add certificate",
-    "edit": "Change certificate",
+    "edit": "Edit certificate",
     "kind": "Kind",
     "name": "Name",
     "nameHint": "For “Other”: what it is",
@@ -251,6 +251,7 @@
   "contract": {
     "services": "Services and purpose",
     "term": "Term and notice",
+    "termField": "Term",
     "payments": "Payments",
     "reviews": "Reviews and findings",
     "noReviews": "No supplier review or finding names this contract.",
@@ -263,7 +264,8 @@
       "admin": "You see it as an administrator.",
       "auditor": "You see it as an auditor.",
       "owner": "You see it as one of its owners.",
-      "service": "You see it because you see a service it covers."
+      "service": "You see it because you see a service it covers.",
+      "platform": "You see it because you manage a platform it covers."
     },
     "dataProtection": "Data protection",
     "noPersonalData": "No personal data",
@@ -274,8 +276,8 @@
     },
     "personalDataFrom": {
       "contract": "Its own answer.",
-      "master": "Personal data: as the master agreement.",
-      "supplier": "Personal data: as the supplier."
+      "master": "Taken from the master agreement.",
+      "supplier": "Taken from the supplier."
     },
     "personalDataOwn": "Personal data: its own answer.",
     "fromMaster": "from the master agreement",
@@ -290,8 +292,10 @@
     "removed": "Contract removed",
     "removeMaster_one": "This master agreement has {{count}} order form. It becomes standalone, with the values it inherited copied into it. Remove the master agreement?",
     "removeMaster_other": "This master agreement has {{count}} order forms. They become standalone, with the values they inherited copied into them. Remove the master agreement?",
-    "replacedBy": "Replaced by …",
-    "replacedByHint": "Optional: another contract of this supplier that you may change takes over its services, payment schedules, plan lines, entries, matrix rows, duties, findings and contacts."
+    "replacedBy": "Replace with another contract",
+    "replacedByHint": "Optional: another contract of this supplier that you may change takes over its services, payment schedules, plan lines, entries, matrix rows, duties, findings and contacts.",
+    "platforms": "Platforms covered",
+    "visiblePlatforms": "Also seen by the managers and owning teams of: {{platforms}}"
   },
   "contractForm": {
     "services": "Services covered",
@@ -313,7 +317,9 @@
       "yes": "Yes",
       "no": "No"
     },
-    "dpaInherited": "As the master agreement or supplier"
+    "dpaInherited": "As the master agreement or supplier",
+    "platforms": "Platforms covered",
+    "platformsHint": "Optional: a platform team's own contract (capacity, a cloud spend commitment). Their managers and owning teams see it."
   },
   "contractServices": {
     "none": "No services – a company-wide agreement.",
@@ -341,9 +347,17 @@
     "saved": "Purpose saved",
     "hidden_one": "and {{count}} service you may not see",
     "hidden_other": "and {{count}} services you may not see",
-    "add": "Add a service",
+    "add": "Add service",
     "added": "Service added to the contract",
-    "service": "Service"
+    "service": "Service",
+    "itemsFor": "For:",
+    "items": "Applications and systems",
+    "itemsHint": "Optional: what of the service the contract is for. None: the service as a whole.",
+    "itemsNone": "The service as a whole",
+    "itemKinds": {
+      "application": "application",
+      "system": "system"
+    }
   },
   "scopedContacts": {
     "appliesTo": "Applies to",
@@ -387,7 +401,7 @@
     "wholeInstance": "the whole instance",
     "counts": "{{contracts}} contracts, {{contacts}} contacts",
     "proposed": "Proposed shared supplier",
-    "merge": "Merge …",
+    "merge": "Merge",
     "keepSeparate": "Keep separate",
     "keptSeparate": "Kept separate",
     "previewTitle": "Merge into one shared supplier",
@@ -425,5 +439,26 @@
     "proposedIntro": "The update to 0.18 proposed these services from the plan lines, cost entries and matrix rows that name the contracts. Confirm each one, or choose “Not this service”."
   },
   "dpaMissingCount_one": "{{count}} contract without a DPA",
-  "dpaMissingCount_other": "{{count}} contracts without a DPA"
+  "dpaMissingCount_other": "{{count}} contracts without a DPA",
+  "filterAll": "All",
+  "contractPlatforms": {
+    "leave": "Take off the contract",
+    "leaveConfirm": "Take “{{platform}}” off the contract “{{contract}}”?",
+    "left": "Platform taken off the contract",
+    "none": "No platforms",
+    "hidden_one": "and {{count}} platform you may not see",
+    "hidden_other": "and {{count}} platforms you may not see",
+    "add": "Add platform",
+    "added": "Platform added",
+    "platform": "Platform",
+    "addHint": "A platform team's own contract. Its managers and the members of its owning teams then see a team-owned contract."
+  },
+  "platformContracts": {
+    "title": "Contracts",
+    "help": "The contracts covering this platform – the platform team's own. Add payments to plan them; a contract's costs are never split among the services that use the platform.",
+    "empty": "No contract covers this platform yet.",
+    "teamOwned": "Team-owned",
+    "noticeBy": "Notice by {{date}}",
+    "leaveConfirm": "Take this platform off the contract “{{contract}}”?"
+  }
 }

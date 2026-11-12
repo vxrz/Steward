@@ -8,6 +8,7 @@ import { notifyError, post, put } from '../api';
 import { PageHeader, QueryState, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { LinkTypeIconView, useLinkTypeName, useLinkTypes } from '../components/records/linkTypes';
+import { TableScroll } from '../components/TableScroll';
 
 /** Types of external links: the built-in ones, and the administrators' own (name and icon; renamed and archived, never deleted). */
 export function LinkTypesPage() {
@@ -37,7 +38,7 @@ export function LinkTypesPage() {
         </Alert>
       )}
       <QueryState query={types} />
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-label={t('linkTypes.title')}>
           <Table.Thead>
             <Table.Tr>
@@ -76,7 +77,7 @@ export function LinkTypesPage() {
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       {editing && <LinkTypeModal type={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );

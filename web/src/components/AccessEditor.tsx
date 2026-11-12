@@ -6,6 +6,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { MONITOR_PERMISSIONS, PLANT_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
 import { get } from '../api';
 import i18n from '../i18n';
+import { TableScroll } from './TableScroll';
 
 type Perm = 'view' | 'propose' | 'run' | 'edit' | 'approve' | 'manage' | 'use' | 'acknowledge';
 /** A platform identity (0.13.0, ADR 0009): its access list gives "use" only */
@@ -144,7 +145,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       )}
 
       <Paper withBorder p="sm">
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" verticalSpacing={6}>
             <Table.Thead>
               <Table.Tr>
@@ -202,7 +203,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
         {!readOnly && (
           <Group mt="sm" gap="xs" align="flex-end">
             <Autocomplete

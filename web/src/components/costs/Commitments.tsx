@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Text, Title, Tooltip } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -9,14 +9,16 @@ import { get } from '../../api';
 import { DataTable, type DataColumn } from '../DataTable';
 import { costKeys } from '../../queryKeys';
 import { fmtDay, listFormat } from '../../format';
-import { fmtMoney, fmtMonth } from './common';
+import { fmtMoney, fmtMonth, planPath, type PlanOwner } from './common';
 import { ScheduleDialog } from './ContractPayments';
+import { VolumeUse, VolumeWarningBadge } from './Volumes';
 
 /**
- * Commitments (0.18.0, ADR 0030 part 5, docs/COSTS.md#commitments): what the payment schedules still owe – scheduled
- * payments dated today or later, to contract end and to the earliest exit, per fiscal year and per currency (never
- * converted, entries not subtracted). Three places: a service's cost plan (its Contracts), Costs → Commitments and the
- * supplier page.
+ * Commitments (0.18.0, ADR 0030 part 5, docs/COSTS.md#commitments): what supplier contracts still owe under their
+ * payment schedules – scheduled payments dated today or later, to contract end and to the earliest exit, per fiscal
+ * year and per currency (never converted, entries not subtracted). Three places: a service's or (0.19.0) a platform's
+ * cost plan (its Contracts), Costs → Commitments and the supplier page. A volume (ADR 0032) owes only what is committed;
+ * what it may bill beyond that is "up to …", never part of what is owed.
  */
 
 /** "Notice by 2 Nov 2027 – FY 2027/28 not planned yet": orange within 90 days, like the supplier's notice state. */
@@ -30,7 +32,7 @@ export function NoticeWarning({ r }: { r: Pick<CostCommitment, 'warning' | 'noti
         color={r.warning.soon ? 'orange' : 'yellow'}
         leftSection={<IconAlertTriangle size={12} aria-hidden />}
         data-testid="commitment-warning"
-        style={{ whiteSpace: 'normal', height: 'auto' }}
+        className="badge-wrap"
       >
         {t('commitments.warning', { date: fmtDay(r.warning.noticeBy), label: r.warning.label })}
       </Badge>
@@ -69,7 +71,16 @@ export function ContractName({ r }: { r: CostCommitment }) {
 
 const money = (r: CostCommitment, v: string | null) => <span className="viz-num">{r.amountsVisible ? fmtMoney(v, r.currency) : '–'}</span>;
 
-/** Badges of a row: Contract changed, the months not booked. */
+/** Who pays a row: the service's cost plan, or (0.19.0) the platform's. */
+export function PayerLink({ r }: { r: CostCommitment }) {
+  return (
+    <Anchor component={Link} to={planPath(r.payer)} size="xs" data-testid="commitment-payer">
+      {r.payer.name}
+    </Anchor>
+  );
+}
+
+/** Badges of a row: Contract changed, the months not booked, the warnings of a volume. */
 function RowHints({ r }: { r: CostCommitment }) {
   const { t } = useTranslation('costs');
   return (
@@ -84,13 +95,46 @@ function RowHints({ r }: { r: CostCommitment }) {
           {t('plan.book.notBooked', { months: listFormat().format(r.notBooked.map((m) => fmtMonth(m))) })}
         </Badge>
       )}
+      {r.volume?.warnings.map((w) => (
+        <VolumeWarningBadge key={w} w={w} runsOutOn={r.volume?.runsOutOn ?? null} />
+      ))}
     </>
   );
 }
 
-/** The commitments as a table (cards on a phone): per schedule the fiscal-year columns, later, the totals and the notice. */
+/** An amount with the day it runs to as a dimmed second line (no tooltip: keyboard and touch read it too). */
+function UntilCell({ r, v, until }: { r: CostCommitment; v: string | null; until: string | null }) {
+  const { t } = useTranslation('costs');
+  return (
+    <Stack gap={0}>
+      {money(r, v)}
+      <Text size="xs" c="dimmed">
+        {until ? t('commitments.until', { date: fmtDay(until) }) : r.contractHidden ? t('commitments.hiddenDates') : ''}
+      </Text>
+    </Stack>
+  );
+}
+
+/** A row that still owes something (or may bill, warns, or is a volume still in use): paid schedules are folded away. */
+const owes = (r: CostCommitment, today: string) =>
+  !r.amountsVisible ||
+  Number(r.toContractEnd ?? 0) !== 0 ||
+  Number(r.upTo ?? 0) !== 0 ||
+  !!r.warning ||
+  !!r.volume?.warnings.length ||
+  (!!r.volume && r.volume.period.to >= today);
+
+/**
+ * The commitments as a table (cards on a phone): per schedule what it owes to contract end and to the earliest exit
+ * and the notice-by date first (0.19 review M9), then the billing, the next payment, the fiscal-year columns, later and
+ * a volume's use; schedules that owe nothing any more behind "Show paid schedules".
+ */
 export function CommitmentsTable({ c, withService = true, testId = 'commitment-rows' }: { c: CostCommitments; withService?: boolean; testId?: string }) {
   const { t } = useTranslation('costs');
+  const [paid, setPaid] = useState(false);
+  const done = c.rows.filter((r) => !owes(r, c.today)).length;
+  const rows = paid ? c.rows : c.rows.filter((r) => owes(r, c.today));
+  const volumes = c.rows.some((r) => r.volume);
   const columns: DataColumn<CostCommitment>[] = [
     {
       key: 'schedule',
@@ -105,15 +149,35 @@ export function CommitmentsTable({ c, withService = true, testId = 'commitment-r
             <RowHints r={r} />
           </Group>
           <ContractName r={r} />
-          {withService && (
-            <Anchor component={Link} to={`/services/${r.serviceId}?tab=costs`} size="xs">
-              {r.serviceName}
-            </Anchor>
-          )}
+          {withService && <PayerLink r={r} />}
         </Stack>
       ),
     },
-    { key: 'billing', header: t('commitments.columns.billing'), cell: (r) => `${t(`schedules.billings.${r.billing}`)} · ${r.currency}`, nowrap: true },
+    {
+      key: 'toEnd',
+      header: t('commitments.columns.toContractEnd'),
+      cell: (r) => <UntilCell r={r} v={r.toContractEnd} until={r.contractEnd} />,
+      sortValue: (r) => Number(r.toContractEnd ?? ''),
+      nowrap: true,
+    },
+    {
+      key: 'toExit',
+      header: t('commitments.columns.toEarliestExit'),
+      cell: (r) => <UntilCell r={r} v={r.toEarliestExit} until={r.earliestExit} />,
+      sortValue: (r) => Number(r.toEarliestExit ?? ''),
+      nowrap: true,
+    },
+    { key: 'notice', header: t('commitments.columns.noticeBy'), cell: (r) => <NoticeWarning r={r} />, sortValue: (r) => r.noticeBy ?? '' },
+    ...(volumes
+      ? [
+          {
+            key: 'volume',
+            header: t('volumes.column'),
+            cell: (r: CostCommitment) => (r.volume ? <VolumeUse v={r.volume} upTo={r.upTo} /> : '–'),
+          },
+        ]
+      : []),
+    { key: 'billing', header: t('commitments.columns.billing'), cell: (r) => billingText(t, r), nowrap: true },
     {
       key: 'next',
       header: t('commitments.columns.next'),
@@ -129,29 +193,6 @@ export function CommitmentsTable({ c, withService = true, testId = 'commitment-r
       nowrap: true,
     })),
     { key: 'later', header: t('commitments.columns.later'), cell: (r) => money(r, r.later), nowrap: true },
-    {
-      key: 'toEnd',
-      header: t('commitments.columns.toContractEnd'),
-      cell: (r) => (
-        <Tooltip label={r.contractEnd ? t('commitments.until', { date: fmtDay(r.contractEnd) }) : t('commitments.hiddenDates')} withArrow>
-          {money(r, r.toContractEnd)}
-        </Tooltip>
-      ),
-      sortValue: (r) => Number(r.toContractEnd ?? ''),
-      nowrap: true,
-    },
-    {
-      key: 'toExit',
-      header: t('commitments.columns.toEarliestExit'),
-      cell: (r) => (
-        <Tooltip label={r.earliestExit ? t('commitments.until', { date: fmtDay(r.earliestExit) }) : t('commitments.hiddenDates')} withArrow>
-          {money(r, r.toEarliestExit)}
-        </Tooltip>
-      ),
-      sortValue: (r) => Number(r.toEarliestExit ?? ''),
-      nowrap: true,
-    },
-    { key: 'notice', header: t('commitments.columns.noticeBy'), cell: (r) => <NoticeWarning r={r} />, sortValue: (r) => r.noticeBy ?? '' },
   ];
   const card = (r: CostCommitment) => (
     <Stack gap={4} data-testid="commitment-card">
@@ -162,11 +203,7 @@ export function CommitmentsTable({ c, withService = true, testId = 'commitment-r
         <RowHints r={r} />
       </Group>
       <ContractName r={r} />
-      {withService && (
-        <Anchor component={Link} to={`/services/${r.serviceId}?tab=costs`} size="xs">
-          {r.serviceName}
-        </Anchor>
-      )}
+      {withService && <PayerLink r={r} />}
       <SimpleGrid cols={2} spacing={4} verticalSpacing={2}>
         <Text size="xs" c="dimmed">
           {t('commitments.columns.thisYear', { label: c.years[0]?.label ?? '' })}
@@ -186,11 +223,46 @@ export function CommitmentsTable({ c, withService = true, testId = 'commitment-r
         <Text size="xs" ta="right">
           {money(r, r.toEarliestExit)}
         </Text>
+        {r.upTo !== null && (
+          <>
+            <Text size="xs" c="dimmed">
+              {t('volumes.upToLabel')}
+            </Text>
+            <Text size="xs" ta="right">
+              {money(r, r.upTo)}
+            </Text>
+          </>
+        )}
       </SimpleGrid>
-      <NoticeWarning r={r} />
+      {r.volume && <VolumeUse v={r.volume} upTo={null} />}
+      {r.warning ? (
+        <NoticeWarning r={r} />
+      ) : r.noticeBy ? (
+        <Text size="xs" data-testid="commitment-notice-by">
+          {t('commitments.noticeByLine', { date: fmtDay(r.noticeBy) })}
+        </Text>
+      ) : null}
     </Stack>
   );
-  return <DataTable rows={c.rows} columns={columns} rowKey={(r) => r.scheduleId} ariaLabel={t('commitments.title')} card={card} testId={testId} />;
+  return (
+    <Stack gap="xs">
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.scheduleId} ariaLabel={t('commitments.title')} card={card} testId={testId} />
+      {done > 0 && (
+        <Group>
+          <Button size="compact-xs" variant="subtle" onClick={() => setPaid((v) => !v)} aria-pressed={paid} data-testid="commitments-show-paid">
+            {paid ? t('commitments.hidePaid') : t('commitments.showPaid', { count: done })}
+          </Button>
+        </Group>
+      )}
+    </Stack>
+  );
+}
+
+/** "Monthly · EUR", or for a volume "Volume, prepaid · USD". */
+function billingText(t: (k: string) => string, r: CostCommitment): string {
+  return r.volume
+    ? `${t('schedules.billings.volume')}, ${t(`volumes.billing.${r.volume.billing}`)} · ${r.currency}`
+    : `${t(`schedules.billings.${r.billing}`)} · ${r.currency}`;
 }
 
 /** Totals per currency (only the amounts the reader sees). */
@@ -210,20 +282,26 @@ export function CommitmentTotals({ c }: { c: CostCommitments }) {
           <Text size="xs" c="dimmed">
             {t('commitments.totalExit', { amount: fmtMoney(x.toEarliestExit, x.currency), thisYear: fmtMoney(x.owedThisYear, x.currency) })}
           </Text>
+          {Number(x.upTo) !== 0 && (
+            <Text size="xs" c="dimmed" data-testid="commitment-total-up-to">
+              {t('volumes.upToTotal', { amount: fmtMoney(x.upTo, x.currency) })}
+            </Text>
+          )}
         </Paper>
       ))}
     </SimpleGrid>
   );
 }
 
-/** A service's cost plan, section Contracts: the contracts the service pays, what they owe, and "Add payments". */
-export function ServiceContracts({ serviceId, canEdit }: { serviceId: string; canEdit: boolean }) {
+/** A cost plan's section Contracts: the contracts the service (or platform, 0.19.0) pays, what they owe, and "Add payments". */
+export function ServiceContracts({ owner, canEdit }: { owner: PlanOwner; canEdit: boolean }) {
   const { t } = useTranslation('costs');
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const qs = `${owner.kind === 'service' ? 'serviceId' : 'platformId'}=${encodeURIComponent(owner.id)}`;
   const q = useQuery({
-    queryKey: costKeys.commitments(`serviceId=${serviceId}`),
-    queryFn: () => get<CostCommitments>(`/costs/commitments?serviceId=${encodeURIComponent(serviceId)}`),
+    queryKey: costKeys.commitments(qs),
+    queryFn: () => get<CostCommitments>(`/costs/commitments?${qs}`),
   });
   const c = q.data;
   if (!c || (!c.rows.length && !canEdit)) return null;
@@ -254,7 +332,7 @@ export function ServiceContracts({ serviceId, canEdit }: { serviceId: string; ca
       )}
       {adding && (
         <ScheduleDialog
-          serviceId={serviceId}
+          payer={owner}
           schedule={null}
           onClose={() => setAdding(false)}
           onSaved={(_l: CostScheduleList) => void qc.invalidateQueries({ queryKey: costKeys.all })}

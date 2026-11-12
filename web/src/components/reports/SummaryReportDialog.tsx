@@ -8,6 +8,7 @@ import { get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { fmtDate, fmtDay } from '../../format';
 import { LangControl, browserTimeZone, defaultReportLang } from './RunReports';
 import { processKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -168,7 +169,7 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
           {(previous.data?.length ?? 0) > 0 && (
             <>
               <Divider label={t('summary.recent')} labelPosition="left" />
-              <div className="table-scroll">
+              <TableScroll>
                 <Table fz="sm" striped>
                   <Table.Tbody>
                     {previous.data!.map((r) => (
@@ -191,7 +192,7 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
                     ))}
                   </Table.Tbody>
                 </Table>
-              </div>
+              </TableScroll>
             </>
           )}
         </Stack>

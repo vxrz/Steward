@@ -8,9 +8,9 @@ One Steward can serve several teams: members of a team see and change their team
 - A role applies to the **instance** (the roles on the user) or to a **team** (the roles a member has in that team, set on the team in _Users → Teams_). Within a team's resources, a member has their instance roles _and_ their team roles; the higher one wins.
 - A resource's **owning teams** are its scope. A resource can have several owning teams.
 - **Allowed** means one of these grants it: an instance role on a resource without owning teams, a role in one of the resource's owning teams, or an access list entry. Rights only add up, and there are no deny rules.
-- Administrators may do everything. Auditors may view everything. A resource's own owner (the owner of a process, monitor or dashboard, a document's owner, the named owners of a service or credential, a ticket's responsibles) keeps their rights on it.
+- Administrators may do everything. Auditors may view everything. A resource's own owner (the owner of a process, monitor or dashboard, a document's owner, the named owners of a service or credential, a ticket's responsibles) keeps their rights on it. Naming an owner or responsible from outside the owning teams is a grant across teams: it asks for the step-up ([below](#named-owners-and-responsibles)).
 
-Everyone else does not see a team-owned resource. It answers like one that does not exist (404), and it is left out of lists, search, link pickers, backlinks, start page tiles, the daily summary, reports, evidence packs, the scorecard, the public API and MCP tools.
+Everyone else does not see a team-owned resource. It answers like one that does not exist (404), and it is left out of lists, search, link pickers, backlinks, start page tiles, the daily summary, reports, evidence packs, the scorecard, the public API and MCP tools. Names are unique, so a new or renamed service, application or supplier cannot take the name of one you may not see: Steward then says only that the name cannot be used (`SERVICE_NAME_TAKEN`, `APPLICATION_NAME_TAKEN`, `SUPPLIER_NAME_TAKEN`), without naming or linking it.
 
 ## What can have owning teams
 
@@ -63,7 +63,37 @@ Only administrators change owning teams. Adding a team, and removing every team 
 
 **Deleting a team** removes it from owner lists, but an entry that restricts who sees something stays as an entry that matches nobody: access lists and the owners of supplier contracts keep it, so deleting a team never widens anyone's access ([USERS.md](USERS.md)).
 
-**Why do I have access?** On every owning-teams panel, this button shows your rights and where each one comes from, for example "designer in team Orders", "access list team:payments: use" or "Auditor: view". Administrators and auditors can ask the same for any user. Access reviews use the same explanation.
+**Why do I have access?** On every owning-teams panel, this button shows your rights and where each one comes from, for example "designer in team Orders", "access list team:payments: use", "Named owner (user:vic): view, edit", "Named responsible (team:payments): view, edit" or "Auditor: view". Administrators and auditors can ask the same for any user. Access reviews use the same explanation.
+
+## Named owners and responsibles
+
+The people who change a team's item can name a `user:` or `team:` as its owner or responsible – also one from **outside the owning teams**, for example a contact person in another team. That subject then sees the item and changes it: a grant across teams without an administrator. It stays possible, but it is as deliberate as changing an access list (0.19.0, #195):
+
+- **Covered** subjects need nothing: a member of one of the item's owning teams, or one of those teams itself.
+- An item **without owning teams** belongs to the whole instance: naming anyone there grants nothing new, so nothing is asked.
+- **Adding** an uncovered subject asks for the **step-up** (_Name an owner or responsible from outside the owning teams_, the baseline control point `access.grant` – [SECURITY-HARDENING.md](SECURITY-HARDENING.md#step-up-re-authentication), [ASSURANCE.md](ASSURANCE.md)). **Removing** one, or keeping one already named, never asks.
+- It is audited as an **access change**: `access.named_subjects_granted` on the item, with the field, who was granted (`granted`), what they may do (`rights`) and the owning teams they are outside of (`owningTeams`), and the step-up's proof (`assurance`) – so it appears in the assurance report and the evidence packs that include it. The ordinary change entry (`credential.updated`, `service.updated` …) is written as before.
+- **API tokens** cannot confirm, so they are refused (`SESSION_REQUIRED`), as for access lists; a change that only names covered subjects works with a token as before. Every other path – duplicates, suggestions turned into findings, a merge of suppliers – asks the same in the service before it writes anything, so nothing is granted without a confirmation. The public API (`/api/v1`) is read-only.
+- The forms say it **before saving**: "user:vic is not in the owning teams (Orders) and will see and change this item" (`POST /api/access/named-outside`, for who may change the item).
+
+| Field                                                          | The item's owning teams                                                                                                                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Credential: _Owners in Steward_                                | the credential's (a new one: those it gets from its creator)                                                                                                               |
+| Ticket reference: _Responsible_                                | the ticket reference's (a new one: its creator's)                                                                                                                          |
+| Service, application, system: _Owners_                         | the item's; an application without its own: those of its services (a new one: its creator's)                                                                               |
+| Supplier: _Owners_                                             | the supplier's (a new supplier has none); also the owners chosen when suppliers are merged                                                                                 |
+| Supplier contract: _Owners_                                    | the teams among the contract's owners; without one, the supplier's (a new contract: its creator's teams for new resources, else the supplier's)                            |
+| Supplier contract: a covered platform (0.19.0)                 | the teams among the contract's owners (a contract without a team among its owners: nothing to confirm) – the platform's owning teams and `manage` entries are the subjects |
+| Document (record): its owner (hand-over)                       | the record's (`PUT /api/records/:id` with `owner`)                                                                                                                         |
+| Measure of an incident review: _Owners_                        | the review's                                                                                                                                                               |
+| Duty: _Owners_                                                 | the service's                                                                                                                                                              |
+| Corrective action: the finding's owner and the actions' owners | the finding's service's (an incident finding's actions: the review's); a finding without a service belongs to the whole instance                                           |
+
+**Covering a platform** (security review 0.19.0, M1): a platform a team-owned contract covers lets its owning teams' members who see it read the contract and the subjects of its `manage` entries change it. Adding a platform whose owning teams or `manage` entries are outside the contract's teams is therefore a named grant like the others: _Add a platform_ says who will see the contract, adding it asks for the step-up, and it is audited as `access.named_subjects_granted` with field `platforms` (and `platformId`). Payment schedules, plan lines and entries, the CSV import of entries and _Replaced by…_ never add such a platform on the side (`SUPPLIER_CONTRACT_PLATFORM_GRANT`).
+
+The hint for a **new item** (`POST /api/access/named-outside` without `id`) answers only who may create such an item – a supplier contract: who may add one to the supplier; others get `FORBIDDEN` (security review 0.19.0, L6).
+
+Not affected: the statement of applicability and maintenance windows have no owning teams (their owners and responsibles are the whole instance's); the owner of a process or monitor and every access list already ask for the step-up on their _Access_ tab; a dashboard's owner is its creator.
 
 ## Example: one team per service
 
@@ -95,6 +125,7 @@ An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **
 | `PUT /api/owning-teams/:kind/:id`      | `{ teamIds }`: set them (administrators)                                           |
 | `POST /api/owning-teams/bulk`          | `{ teamIds, mode: set\|add\|remove, resources?: [{kind,id}], service?, preview? }` |
 | `GET /api/access/explain?kind&id&user` | the rights of a user and where they come from                                      |
+| `POST /api/access/named-outside`       | `{ kind, id?, supplierId?, subjects }`: which are outside the item's owning teams  |
 | `GET/PUT /api/me/new-resource-teams`   | the owning teams of your new resources and your choice (`{ teamId \| null }`)      |
 
 `kind` is one of `process`, `platform`, `service`, `application`, `system`, `record`, `credential`, `monitor`, `dashboard` and `ticket`. Report schedules keep their own rule (owner, recipients, auditors and administrators) and have no owning teams.

@@ -41,6 +41,7 @@ export const NOTIFICATION_EVENTS = [
   'supplier.notice_due',
   'soa.approval_waiting',
   'cost.booking_due',
+  'cost.volume',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -71,6 +72,7 @@ const ALERT_EVENTS: readonly NotificationEvent[] = [
   'platform.failing',
   'ai.budget',
   'cost.budget',
+  'cost.volume',
   'contract.failed',
   'plant.advisory_matched',
 ];
@@ -117,6 +119,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'supplier.notice_due': 'The last day to give notice on a contract of a supplier you own is 90 or 30 days away',
   'soa.approval_waiting': 'A version of a statement of applicability was submitted and waits for your approval (approvers and administrators)',
   'cost.booking_due': 'Contract payments of last month of a service you own have no cost entry yet (off by default: turn it on in your profile)',
+  'cost.volume':
+    'A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum',
 };
 
 /**

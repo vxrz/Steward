@@ -404,8 +404,15 @@ export function auditFacets(limit = 500): AuditFacets {
 }
 
 /** The entries after `afterSeq` in order (the chain an export holds). */
-export function chainEntriesAscending(afterSeq: number): AuditEntry[] {
-  return db().all<AuditRow>(`SELECT * FROM audit_log WHERE seq > ? AND ${VALID_SEQ} ORDER BY seq`, afterSeq).map(toEntry);
+/** One page of the chain after `afterSeq` up to `uptoSeq`, oldest first (the interactive export reads it page by page). */
+export function chainEntriesPage(afterSeq: number, uptoSeq: number, limit: number): AuditEntry[] {
+  return db().all<AuditRow>(`SELECT * FROM audit_log WHERE seq > ? AND seq <= ? AND ${VALID_SEQ} ORDER BY seq LIMIT ?`, afterSeq, uptoSeq, limit).map(toEntry);
+}
+
+/** How many entries of the chain lie after `afterSeq` (the export's audit entry), and the newest seq. */
+export function chainExtent(afterSeq: number): { count: number; lastSeq: number } {
+  const r = db().get<{ n: number; last: number | null }>(`SELECT COUNT(*) AS n, MAX(seq) AS last FROM audit_log WHERE seq > ? AND ${VALID_SEQ}`, afterSeq);
+  return { count: Number(r?.n ?? 0), lastSeq: Number(r?.last ?? afterSeq) };
 }
 
 export function allAuditAscending(runId?: string): AuditEntry[] {

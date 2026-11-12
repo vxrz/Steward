@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import * as duties from './service.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule } from '../auth/named-grants.js';
 
 const listQuery = z.object({
   serviceId: z.string().max(200).optional(),
@@ -19,9 +20,14 @@ export async function dutyRoutes(app: FastifyInstance): Promise<void> {
     const q = listQuery.parse(req.query);
     return duties.listDuties({ serviceId: q.serviceId, applicationId: q.applicationId, archived: q.archived === '1' });
   });
-  app.post('/duties', async (req) => duties.createDuty(duties.dutyInput.parse(req.body)));
+  // owners from outside the service's owning teams ask for the step-up like an access list (#195)
+  app.post('/duties', { config: { stepUp: namedGrantRule((req) => duties.dutyNamesOutsiders(null, req.body)) } }, async (req) =>
+    duties.createDuty(duties.dutyInput.parse(req.body)),
+  );
   app.get('/duties/:id', async (req) => duties.getDuty(params(req).id!));
-  app.put('/duties/:id', async (req) => duties.updateDuty(params(req).id!, duties.dutyUpdate.parse(req.body)));
+  app.put('/duties/:id', { config: { stepUp: namedGrantRule((req) => duties.dutyNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
+    duties.updateDuty(params(req).id!, duties.dutyUpdate.parse(req.body)),
+  );
   app.post('/duties/:id/archive', async (req) =>
     duties.setDutyArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
   );

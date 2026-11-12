@@ -7,6 +7,7 @@ import type { GatusEndpointState, GatusMetricsSource, Platform } from '@sm/share
 import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { fmtDay, fmtNumber, fmtRelative } from '../../format';
 import { confirmDanger } from '../confirm';
+import { TableScroll } from '../TableScroll';
 
 interface Draft {
   enabled: boolean;
@@ -181,7 +182,7 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
         </Stack>
       </Paper>
       {source && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" highlightOnHover aria-label={t('endpoints')}>
             <Table.Thead>
               <Table.Tr>
@@ -233,7 +234,7 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
     </Stack>
   );

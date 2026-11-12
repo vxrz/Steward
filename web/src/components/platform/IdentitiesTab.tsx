@@ -50,6 +50,7 @@ import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger } from '../confirm';
 import { useMe } from '../../auth';
 import { PrivilegedBadge } from './PrivilegedBadge';
+import { TableScroll } from '../TableScroll';
 
 /**
  * The identities of a platform (ADR 0009; 0.13.0: editable). A row per identity; its managers add identities and change
@@ -685,7 +686,7 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
           {t('credentials.none')}
         </Text>
       ) : (
-        <div className="table-scroll">
+        <TableScroll>
           <Table aria-label={t('identities.credentials')}>
             <Table.Tbody>
               {identity.secretKeys.map((k) => (
@@ -708,7 +709,7 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       <form
         onSubmit={(e) => {

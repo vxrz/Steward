@@ -210,6 +210,10 @@
       "booking_due": {
         "label": "Contract payments not booked",
         "info": "Contract payments of last month of a service you own have no cost entry yet (off by default: turn it on in your profile)"
+      },
+      "volume": {
+        "label": "Contract volume",
+        "info": "A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum"
       }
     },
     "contract": {

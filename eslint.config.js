@@ -182,6 +182,11 @@ export default defineConfig(
           selector,
           message: "Buttons use the theme: leave out color for the primary colour; only 'red', 'orange', 'green', 'gray', 'dark' or 'accent' are allowed.",
         })),
+        // today in the browser is the local day, not the UTC one (yesterday shortly after midnight in Europe)
+        {
+          selector: "CallExpression[callee.property.name='slice'][callee.object.callee.property.name='toISOString'][arguments.0.value=0][arguments.1.value=10]",
+          message: "toISOString().slice(0, 10) is the day in UTC. Use localToday() from web/src/format.ts for today's date in the browser.",
+        },
       ],
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',

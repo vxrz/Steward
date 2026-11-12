@@ -41,7 +41,8 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, memberships, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, memberships, newResourceTeams, owningTeams, teamScoped } from '../auth/policy.js';
+import { auditNamedGrant, requireNamedGrant, uncoveredSubjects, type NamedGrant } from '../auth/named-grants.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -143,7 +144,8 @@ export function credentialPermissions(u: AuthUser | null, r: Pick<CredentialRow,
 /** Who may see and change an entry, and why (#131: members of its owning teams only, when it has some). */
 export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id' | 'owner_subjects' | 'archived'>) {
   const ALL = ['view', 'edit', 'archive', 'delete'] as const;
-  const owner = !!u && isOwner(u, r);
+  const named = u ? parseJson<string[]>(r.owner_subjects, []).find((s) => matches(u, s)) : undefined;
+  const owner = !!named;
   const byRole = (role: string): CredentialPermission[] => [
     ...(READ_ROLES.includes(role) ? (['view'] as const) : []),
     ...(EDIT_ROLES.includes(role) ? (['edit'] as const) : []),
@@ -154,7 +156,7 @@ export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id'
     {
       all: ALL,
       byRole,
-      personal: owner ? { permissions: ['view', 'edit'] } : null,
+      personal: named ? { permissions: ['view', 'edit'], subject: named, as: 'owner' } : null,
       auditor: ['view'],
       unscoped: () => {
         if (!u) return [];
@@ -842,6 +844,34 @@ function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<s
   return { values, certificate };
 }
 
+/**
+ * The owners a change names (#195): those of a new entry (given, or else the owners of what it belongs to) or the new
+ * list of a stored one, with the entry's owning teams – a new entry gets its creator's.
+ */
+function namedOwners(id: string | null, b: CredentialInput, ownerSubjects?: string): NamedGrant {
+  const before = id ? credentialRow(id) : undefined;
+  let after = ownerSubjects !== undefined ? parseJson<string[]>(ownerSubjects, []) : [...new Set(b.ownerSubjects)];
+  if (ownerSubjects === undefined && !before && !after.length && b.belongsTo) after = belongsTarget(b.belongsTo.kind, b.belongsTo.id)?.owners ?? [];
+  return {
+    entityType: 'credential',
+    entityId: before?.id ?? null,
+    label: `credential "${b.name}"`,
+    field: 'ownerSubjects',
+    teams: before ? owningTeams('credential', before.id) : newResourceTeams(currentUser()).teams,
+    before: before ? parseJson<string[]>(before.owner_subjects, []) : [],
+    after,
+    rights: ['view', 'edit'],
+  };
+}
+
+/** The route's step-up rule (#195): owners from outside the entry's owning teams in the request ([] for a body the route refuses). */
+export function credentialNamesOutsiders(id: string | null, body: unknown): string[] {
+  const p = credentialInputSchema.safeParse(body ?? {});
+  if (!p.success) return [];
+  const g = namedOwners(id, p.data);
+  return uncoveredSubjects(g.teams, g.before, g.after);
+}
+
 export function createCredential(b: CredentialInput): Credential {
   const u = me();
   if (!canCreateCredentials(u))
@@ -852,6 +882,9 @@ export function createCredential(b: CredentialInput): Credential {
     const owners = belongsTarget(b.belongsTo.kind, b.belongsTo.id)?.owners ?? [];
     if (owners.length) values.owner_subjects = JSON.stringify([...new Set(owners)]);
   }
+  // owners from outside the owning teams it gets: confirmed like an access list (#195)
+  const grant = namedOwners(null, b, String(values.owner_subjects));
+  const named = requireNamedGrant(grant);
   const id = newId('cred_');
   const now = nowIso();
   const row = {
@@ -883,6 +916,7 @@ export function createCredential(b: CredentialInput): Credential {
       summary: `Credential register: "${b.name}" (${b.type}) added`,
       details: auditView(values, certificate),
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return toCredential(credentialRow(id), u);
 }
@@ -919,6 +953,9 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
   if (certificate !== undefined) values.certificate = certificate ? JSON.stringify(certificate) : null;
   const changed = Object.keys(values).filter((k) => String((before as unknown as Record<string, unknown>)[k] ?? '') !== String(values[k] ?? ''));
   if (!changed.length) return toCredential(before, u);
+  // owners from outside the owning teams: confirmed like an access list (#195)
+  const grant = namedOwners(id, b, String(values.owner_subjects));
+  const named = requireNamedGrant(grant);
   const now = nowIso();
   db().tx(() => {
     const r = db().run(
@@ -940,6 +977,7 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
         parseJson<CredentialRole[]>(String(values.roles), []),
         b.rolesComment,
       );
+    auditNamedGrant({ ...grant, entityId: id }, named);
     const fields = changed.filter((c) => c !== 'roles');
     if (!fields.length) return;
     addEvent(id, 'updated', u.username, '', { fields });

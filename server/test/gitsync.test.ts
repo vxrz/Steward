@@ -102,6 +102,39 @@ describe('Git sync sources', () => {
     expect(await status(s.api('GET', `/sync-sources/${src.id}`))).toBe(404);
   });
 
+  it('asks for a step-up when the repository, its ref, signing or auto-accept loosens (security review 0.19.0 L1, L5)', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/a.yaml': proc('Step-up test') });
+    const { source: src } = await source(repo, { token: TOKEN, requireSignedCommits: true, allowedSigners: ['alice'] });
+    const fresh = await s.as('admin', 'Admin-password-1', { autoStepUp: false });
+    await fresh('DELETE', '/auth/step-up');
+    const code = (p: Promise<unknown>) =>
+      p.then(
+        () => 'ok',
+        (e: { body: { code: string } }) => e.body.code,
+      );
+    const body = { ...src, token: undefined };
+    // everyday and tightening changes: no confirmation
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, name: 'Renamed library', intervalMinutes: 60 }))).toBe('ok');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, allowedSigners: [], requireSignedCommits: true }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, repoUrl: `${s.base}/mock/git/team/other-library` }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, apiUrl: 'https://api.invented.example' }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, requireSignedCommits: false }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, allowedSigners: ['alice', 'mallory'] }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, autoAcceptNew: true }))).toBe('STEP_UP_REQUIRED');
+    // L5: where in the repository definitions come from – another branch (one more people may push to), ref type,
+    // pre-releases or folder
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, branch: 'feature/unreviewed' }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, refType: 'tag' }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, allowPrereleases: true }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('PUT', `/sync-sources/${src.id}`, { ...body, folder: 'other' }))).toBe('STEP_UP_REQUIRED');
+    expect(await code(fresh('POST', '/sync-sources', { name: 'New', provider: 'forgejo', repoUrl: `${s.base}/mock/git/${repo}`, kinds: ['process'] }))).toBe(
+      'STEP_UP_REQUIRED',
+    );
+    expect((await s.api('GET', `/sync-sources/${src.id}`)).repoUrl).toBe(src.repoUrl);
+    await s.api('DELETE', `/sync-sources/${src.id}`);
+  });
+
   it('refuses unsafe repository settings', async () => {
     const base = { name: 'x', provider: 'forgejo', kinds: ['process'] };
     expect(await errorOf(s.api('POST', '/sync-sources', { ...base, repoUrl: 'http://git.example.com/a/b' }))).toContain('only https://');

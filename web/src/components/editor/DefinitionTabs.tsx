@@ -41,6 +41,7 @@ import { VersionCompare } from './VersionDiff';
 import { issueText } from '../../i18n/meta';
 import { ApplicationSelect, ApplicationsMultiSelect } from '../catalogue/ApplicationSelect';
 import { processKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 type Def = ProcessDefinition;
 type SetDef = (d: Def) => void;
@@ -490,7 +491,7 @@ export function VersionsPanel({
           />
         </Paper>
       )}
-      <div className="table-scroll">
+      <TableScroll>
         <Table striped highlightOnHover miw={560}>
           <Table.Thead>
             <Table.Tr>
@@ -526,7 +527,7 @@ export function VersionsPanel({
             ))}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       <Modal opened={!!viewing} onClose={() => setViewing(null)} title={t('versions.title', { version: viewVersion })} size="xl">
         {viewing && (
           <Stack>

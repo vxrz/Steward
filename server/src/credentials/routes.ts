@@ -10,6 +10,7 @@ import { parseCertificate, certificateBytes } from './certificates.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, me } from '../auth/access.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule, serves } from '../auth/named-grants.js';
 
 /**
  * Credentials register (mounted under /api). Documentation only: no route
@@ -19,9 +20,9 @@ import { params } from '../routes/params.js';
  *   GET    /credentials/summary           due soon / overdue / expired (home page)
  *   GET    /credentials/settings          reminder defaults; PUT: administrators
  *   POST   /credentials/certificate/parse parse a public certificate (preview, nothing stored)
- *   POST   /credentials                   create
+ *   POST   /credentials                   create (owners from outside the owning teams: step-up grantNamedAccess, #195)
  *   GET    /credentials/:id               entry
- *   PUT    /credentials/:id               update
+ *   PUT    /credentials/:id               update (the same)
  *   GET    /credentials/:id/history       events
  *   POST   /credentials/:id/rotated       mark rotated {rotatedAt?, comment, expiresAt?, certificate?}
  *   POST   /credentials/:id/reviewed      mark reviewed {reviewedAt?, comment}
@@ -125,7 +126,11 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     return parseCertificate(data);
   });
 
-  app.post('/credentials', async (req) => svc.createCredential(svc.credentialInputSchema.parse(req.body ?? {})));
+  // owners from outside the owning teams ask for the step-up like an access list (#195)
+  const creates = () => svc.canCreateCredentials(me());
+  app.post('/credentials', { config: { stepUp: namedGrantRule((req) => svc.credentialNamesOutsiders(null, req.body), creates) } }, async (req) =>
+    svc.createCredential(svc.credentialInputSchema.parse(req.body ?? {})),
+  );
 
   // Entra ID (v0.5.0): app registration secrets and certificates as entries, their expiry kept up to date
   app.post('/credentials/import/entra', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
@@ -135,7 +140,10 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/credentials/:id', async (req) => svc.getCredential(params(req).id!));
 
-  app.put('/credentials/:id', async (req) => svc.updateCredential(params(req).id!, svc.credentialInputSchema.parse(req.body ?? {})));
+  const edits = serves((req) => svc.requireCredential(params(req).id!, 'edit'));
+  app.put('/credentials/:id', { config: { stepUp: namedGrantRule((req) => svc.credentialNamesOutsiders(params(req).id!, req.body), edits) } }, async (req) =>
+    svc.updateCredential(params(req).id!, svc.credentialInputSchema.parse(req.body ?? {})),
+  );
 
   app.get('/credentials/:id/history', async (req) => svc.credentialHistory(params(req).id!));
 

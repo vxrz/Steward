@@ -176,6 +176,10 @@ function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['
       return t('owning.reason.instanceRole', { role, rights });
     case 'teamRole':
       return t('owning.reason.teamRole', { role, team: r.team, rights });
+    case 'named':
+      return r.as === 'responsible'
+        ? t('owning.reason.namedResponsible', { subject: r.subject, rights })
+        : t('owning.reason.namedOwner', { subject: r.subject, rights });
     default:
       return t('owning.reason.accessList', { subject: r.subject, rights });
   }

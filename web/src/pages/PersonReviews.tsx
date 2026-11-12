@@ -38,6 +38,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { DetailHeader } from '../components/page/DetailPage';
 import { fmtDate, fmtRelative, fmtDay } from '../format';
+import { TableScroll } from '../components/TableScroll';
 
 const STATUS_COLOR: Record<PersonReview['status'], string> = { open: TONE.active, submitted: TONE.attention, approved: TONE.ok, closed: TONE.neutral };
 
@@ -541,7 +542,7 @@ export function PersonReviewDetailPage() {
           {t('personReviews.noRights')}
         </Alert>
       ) : (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('personReviews.rights')}>
             <Table.Thead>
               <Table.Tr>
@@ -634,7 +635,7 @@ export function PersonReviewDetailPage() {
               })}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
     </>
   );

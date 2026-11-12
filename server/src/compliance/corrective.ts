@@ -22,6 +22,8 @@ import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { hasRole, isAdmin, matches } from '../auth/permissions.js';
 import { assertKnownSubjects, subjectExists } from '../auth/subjects.js';
+import { catalogueTeams, owningTeams } from '../auth/policy.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, userSubject, type NamedGrant } from '../auth/named-grants.js';
 import { findUserByName } from '../auth/users.js';
 import { checkFourEyes, fourEyesRequired } from '../auth/assurance.js';
 import { canEditService, canReadRecordRow, canViewCatalogue } from '../records/access.js';
@@ -611,6 +613,66 @@ export interface NewFinding {
   suggestionId: string | null;
 }
 
+/**
+ * The owners a finding or one of its actions names (#195): they read the finding and mark actions done – from outside
+ * the owning teams of its service (an incident finding's actions: of its review), a grant. A finding without a service
+ * is the whole instance's.
+ */
+function findingGrant(
+  f: { id: string | null; number: string; serviceId: string | null; recordId?: string | null },
+  field: 'owner' | 'actions',
+  before: readonly string[],
+  after: readonly string[],
+): NamedGrant {
+  const teams = field === 'actions' && f.recordId ? owningTeams('record', f.recordId) : f.serviceId ? catalogueTeams('service', f.serviceId) : [];
+  return {
+    entityType: 'corrective_finding',
+    entityId: f.id,
+    label: `finding ${f.number || '(new)'}`,
+    field: field === 'owner' ? 'owner' : 'action owners',
+    teams,
+    before,
+    after,
+    rights: field === 'owner' ? ['view'] : ['view', 'markDone'],
+  };
+}
+
+const ownerOf = (name: string | null | undefined): string[] => {
+  const user = name ? findUserByName(name) : undefined;
+  return userSubject(user?.username ?? name);
+};
+
+/**
+ * The routes' step-up rule (#195): owners from outside the owning teams in a new or changed finding (`findingId` null:
+ * a new one) or one of its actions (`actionId` null: a new action; undefined: the finding itself).
+ */
+export function findingNamesOutsiders(findingId: string | null, actionId: string | null | undefined, body: unknown): string[] {
+  const u = me();
+  if (!findingId) {
+    const v = caFindingInput.parse(body);
+    return outsidersOf(findingGrant({ id: null, number: '', serviceId: v.serviceId }, 'owner', [], ownerOf(v.owner)));
+  }
+  const ctx = new CaContext();
+  const f = readableFinding(findingId, ctx, u);
+  const ref = { id: f.id, number: f.number, serviceId: f.service_id, recordId: f.record_id };
+  if (actionId === undefined) {
+    const v = caFindingUpdate.parse(body);
+    if (!canEditFinding(u, f, ctx)) return [];
+    const serviceId = v.serviceId !== undefined ? v.serviceId : f.service_id;
+    return v.owner === undefined ? [] : outsidersOf(findingGrant({ ...ref, serviceId }, 'owner', userSubject(f.owner), ownerOf(v.owner)));
+  }
+  if (!canEditFinding(u, f, ctx)) return [];
+  if (actionId === null) return outsidersOf(findingGrant(ref, 'actions', [], caActionInput.parse(body).owners));
+  const v = caActionUpdate.parse(body);
+  if (!v.owners) return [];
+  const a = db().get<{ owners: string }>(
+    f.record_id ? 'SELECT owners FROM record_measures WHERE id = ? AND record_id = ?' : 'SELECT owners FROM ca_actions WHERE id = ? AND finding_id = ?',
+    actionId,
+    f.record_id ?? f.id,
+  );
+  return a ? outsidersOf(findingGrant(ref, 'actions', parseJson<string[]>(a.owners, []), v.owners)) : [];
+}
+
 /** Stores a finding (in the caller's transaction for a confirmed suggestion); checks the rights and the limit. */
 export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): FindingRow {
   if (!hasRole(u, ['admin', 'designer']) && !editsService(u, ctx.service(n.serviceId)))
@@ -620,6 +682,9 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
   const supplierContractId = resolveSupplierContract(supplierId, n.supplierContractId ?? null, null);
   checkControls(n.controlIds, ctx);
   const owner = checkOwner(n.owner);
+  // an owner from outside the service's owning teams: confirmed like an access list (#195)
+  const grant = findingGrant({ id: null, number: '', serviceId: n.serviceId }, 'owner', [], userSubject(owner));
+  const named = requireNamedGrant(grant);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM ca_findings')!.n) >= CA_LIMITS.findings)
     throw new HttpError(400, `At most ${CA_LIMITS.findings} findings`, 'CA_FINDING_LIMIT', { max: CA_LIMITS.findings });
   const id = newId('caf_');
@@ -679,6 +744,7 @@ export function insertFinding(n: NewFinding, ctx = new CaContext(), u = me()): F
         suggestionId: n.suggestionId,
       },
     });
+    auditNamedGrant({ ...grant, entityId: id, label: `finding ${number}` }, named);
   });
   return db().get<FindingRow>('SELECT * FROM ca_findings WHERE id = ?', id)!;
 }
@@ -775,6 +841,14 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
     after.status = v.status;
   }
   if (!sets.length) return toFinding(f, ctx, u);
+  // a new owner from outside the service's owning teams: confirmed like an access list (#195)
+  const grant = findingGrant(
+    { id: f.id, number: f.number, serviceId: v.serviceId !== undefined ? v.serviceId : f.service_id },
+    'owner',
+    userSubject(f.owner),
+    userSubject(v.owner === undefined ? f.owner : v.owner),
+  );
+  const named = ownerChanged || changed.includes('serviceId') ? requireNamedGrant(grant) : [];
   const now = nowIso();
   db().tx(() => {
     db().run(`UPDATE ca_findings SET ${sets.join(', ')}, updated_at = ?, updated_by = ? WHERE id = ?`, ...args, now, u.username, f.id);
@@ -789,6 +863,7 @@ export function updateFinding(id: string, input: z.input<typeof caFindingUpdate>
       summary: `Finding ${f.number} changed: ${changed.join(', ')}${after.status ? ` (status ${f.status} → ${String(after.status)})` : ''}`,
       details: { number: f.number, fields: changed, before, after },
     });
+    auditNamedGrant({ ...grant, entityId: f.id }, named);
   });
   return getFinding(f.id);
 }
@@ -847,6 +922,9 @@ export async function addAction(findingId: string, input: z.input<typeof caActio
   }
   if (!canEditFinding(u, f, ctx)) forbid('change the actions of this finding', 'editCorrective');
   assertKnownSubjects(v.owners);
+  // owners from outside the service's owning teams: confirmed like an access list (#195)
+  const grant = findingGrant({ id: f.id, number: f.number, serviceId: f.service_id }, 'actions', [], v.owners);
+  const named = requireNamedGrant(grant);
   const now = nowIso();
   const id = newId('caa_');
   db().tx(() => {
@@ -873,6 +951,7 @@ export async function addAction(findingId: string, input: z.input<typeof caActio
       summary: `Action "${v.title}" added to ${f.number} (due ${v.dueDate})`,
       details: { number: f.number, actionId: id, owners: v.owners, dueDate: v.dueDate, done: !!v.done },
     });
+    auditNamedGrant({ ...grant, entityId: f.id, details: { actionId: id } }, named);
     noteParticipants(f.id, [...v.owners, v.done ? u.username : null, f.status === 'implemented' ? u.username : null]);
     if (!v.done) touchStatus(f, 'inProgress', 'an action was added', u);
   });
@@ -902,6 +981,9 @@ export async function updateAction(findingId: string, actionId: string, input: z
   const now = nowIso();
   const done = v.done === undefined ? !!a.done_at : v.done;
   const ownersBefore = parseJson<string[]>(a.owners, []);
+  // owners from outside the service's owning teams: confirmed like an access list (#195)
+  const grant = findingGrant({ id: f.id, number: f.number, serviceId: f.service_id }, 'actions', ownersBefore, v.owners ?? ownersBefore);
+  const named = requireNamedGrant(grant);
   const ownersChanged =
     !!v.owners && JSON.stringify(v.owners.map((x) => x.toLowerCase()).sort()) !== JSON.stringify(ownersBefore.map((x) => x.toLowerCase()).sort());
   db().tx(() => {
@@ -927,6 +1009,7 @@ export async function updateAction(findingId: string, actionId: string, input: z
       a.id,
     );
     auditActionChange(f, a, v, u, false);
+    auditNamedGrant({ ...grant, entityId: f.id, details: { actionId: a.id } }, named);
   });
   return getFinding(f.id);
 }

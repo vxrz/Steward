@@ -37,6 +37,7 @@ import {
   insertChangeSet,
   insertOp,
   isAuthor,
+  operationsFor,
   opsOf,
   previewOf,
   rememberWhere,
@@ -46,6 +47,7 @@ import {
   setCatalogueReview,
   stepUpPointsOf,
   summaryOf,
+  summariesOf,
   touch,
   visibleRow,
   whereOfOps,
@@ -63,7 +65,7 @@ import { notifyDecided, notifyProposed, registerChangeSetHeldCheck } from './not
  *   GET    change-sets/open?kind=&scope=&id= | ?site=     open changes of an entry or a site (the chips)
  *   GET    change-sets/settings, PUT …                    plant.changeSet and the catalogue's switch
  *   GET    change-sets/:id, PATCH …                       one change set; its title, "current draft"
- *   POST   change-sets/:id/operations (:id may be "current"), PUT|DELETE …/operations/:seq
+ *   POST   change-sets/:id/operations (:id may be "current"; 0.19: also { op: collections }), PUT|DELETE …/operations/:seq
  *   POST   change-sets/:id/preview | propose | withdraw | return | resolve | apply | reject | revert | copy
  *   GET    history?kind=&scope=&id=, POST history/:id/revert
  */
@@ -108,7 +110,7 @@ export function listChangeSets(q: z.infer<typeof listQuery>, u: AuthUser = me())
     })
     .filter((r) => !q.site || parseJson<string[]>(r.sites, []).includes(q.site))
     .slice(0, LIST_LIMIT);
-  return { items: items.map((r) => summaryOf(r, u)), toReview: toReview(u) };
+  return { items: summariesOf(items, u), toReview: toReview(u) };
 }
 
 /** How many proposed change sets `u` may decide (the count on Plant → Changes). */
@@ -275,7 +277,7 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
     return db().tx(() => {
       const r = draftOf(id, u);
       const op =
-        raw.op === 'import' || raw.op === 'bulk' || raw.op === 'move'
+        raw.op === 'import' || raw.op === 'bulk' || raw.op === 'move' || raw.op === 'collections'
           ? documentOperation(raw.op, raw.value, u)
           : operationOf(plantChangeOperationInput.parse(req.body), u);
       const seq = addOperation(r, op, u);
@@ -380,7 +382,8 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
     const u = me();
     const r = visibleRow((req.params as { changeSetId: string }).changeSetId, u);
     const { comment } = plantChangeCommentInput.parse(req.body ?? {});
-    if (r.state !== 'proposed' || isAuthor(r, u) || rightsProblem(r, u) || r.source === 'assistant')
+    // a proposal (an assistant's, or one sent through the public API) is rejected with a comment, not returned
+    if (r.state !== 'proposed' || isAuthor(r, u) || rightsProblem(r, u) || r.source === 'assistant' || r.source === 'api')
       throw new HttpError(409, 'Only a reviewer returns a proposed change set to its author', 'PLANT_CHANGESET_DECIDE', { id: r.id });
     db().tx(() => {
       db().run(
@@ -476,6 +479,18 @@ export async function changeSetRoutes(app: FastifyInstance): Promise<void> {
     const r = visibleRow((req.params as { changeSetId: string }).changeSetId, u);
     if (!['rejected', 'withdrawn', 'expired'].includes(r.state) || r.source === 'assistant' || !plantProposesSome(u))
       throw new HttpError(409, 'Only a rejected, withdrawn or expired change set is copied into a new draft', 'PLANT_CHANGESET_DECIDE', { id: r.id });
+    // a copy holds only what the copier may see (security review 0.19.0, informational): someone else's change set with
+    // operations on sites they may not see, or with imported files, is copied by one of its authors
+    if (!isAuthor(r, u)) {
+      const hasSources = !!db().get('SELECT 1 AS x FROM plant_change_sources WHERE change_set_id = ?', r.id);
+      if (operationsFor(r, u).hidden > 0 || hasSources)
+        throw new HttpError(
+          409,
+          'The change set has changes in sites you may not see, or imported files – one of its authors can copy it',
+          'PLANT_CHANGESET_COPY_PARTIAL',
+          { id: r.id },
+        );
+    }
     checkOpenLimits(u);
     const id = db().tx(() => {
       const id = insertChangeSet({ state: 'draft', source: 'draft', title: r.title, by: u.username, current: true, copiedFrom: r.id });

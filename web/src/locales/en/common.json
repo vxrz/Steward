@@ -101,6 +101,7 @@
   },
   "breadcrumb": "Breadcrumb",
   "loadFailed": "Could not load this page",
+  "notFound": "Not found",
   "retry": "Try again",
   "filters": "Filters",
   "filtersActive_one": "Filters ({{count}} active)",
@@ -147,6 +148,11 @@
       "button": "Confirm"
     }
   },
+  "formModal": {
+    "discardTitle": "Discard your changes?",
+    "discardMessage": "What you entered in this dialog is not saved."
+  },
+  "tableScroll": "Table (scrolls sideways)",
   "table": {
     "sortBy": "Sort by",
     "sortedAsc": "Ascending – switch to descending",

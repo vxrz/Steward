@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, List, Modal, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, List, Paper, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconGitMerge } from '@tabler/icons-react';
@@ -7,9 +7,10 @@ import { useTranslation } from 'react-i18next';
 import type { SupplierContactChoice, SupplierMergePreview, SupplierProposedServices, SupplierSharedSuggestion } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../../api';
 import { useMe } from '../../auth';
-import { subjectLabel } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { supplierKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
+import { useSubjectLabel } from '../SubjectsInput';
 
 /** The administrators' one-time notice after the update to 0.18: contracts now seen only by their owners and services. */
 export function ContractScopeNotice() {
@@ -178,7 +179,7 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
   };
   const pending = p?.contacts.filter((c) => c.action === 'choose' && !choices[c.id]) ?? [];
   return (
-    <Modal opened onClose={onClose} size="lg" title={t('shared.previewTitle')}>
+    <FormModal onClose={onClose} size="lg" title={t('shared.previewTitle')}>
       {!p ? (
         <Text size="sm" c="dimmed">
           {t('common:loading')}
@@ -186,21 +187,26 @@ export function MergePreviewModal({ intoId, ids, onClose, onMerged }: { intoId: 
       ) : (
         <Stack gap="sm" data-testid="merge-preview">
           <PreviewDetails p={p} choices={choices} setChoices={setChoices} />
-          <SubjectsInput label={t('shared.owners')} value={owners ?? p.owners} onChange={setOwners} max={20} />
+          <SubjectsInput
+            label={t('shared.owners')}
+            value={owners ?? p.owners}
+            onChange={setOwners}
+            max={20}
+            scope={{ kind: 'supplier', id: intoId }}
+            saved={p.owners}
+          />
           <Text size="xs" c="dimmed">
             {t('shared.moves', { spellings: p.moves.spellings.length, schedules: p.moves.schedules })}
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button onClick={() => void merge()} loading={busy} disabled={pending.length > 0} data-testid="merge-confirm">
               {t('merge.submit')}
             </Button>
           </Group>
         </Stack>
       )}
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -219,6 +225,7 @@ function PreviewDetails({
   setChoices: (c: Record<string, SupplierContactChoice>) => void;
 }) {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   return (
     <>
       {p.widens && (
@@ -241,7 +248,7 @@ function PreviewDetails({
             {p.contracts.map((c) => (
               <List.Item key={c.id}>
                 {c.title}
-                {c.reference ? ` · ${c.reference}` : ''}: {c.ownersAfter.length ? c.ownersAfter.map(subjectLabel).join(', ') : t('shared.noOwners')}
+                {c.reference ? ` · ${c.reference}` : ''}: {c.ownersAfter.length ? c.ownersAfter.map(ownerLabel).join(', ') : t('shared.noOwners')}
                 {c.sameReference && (
                   <Badge size="xs" color="yellow" variant="light" ml={4}>
                     {t('shared.sameReference')}
@@ -312,7 +319,7 @@ export function OpenSupplierModal({ id, teamIds, onClose, onDone }: { id: string
   };
   const pending = p?.contacts.filter((c) => c.action === 'choose' && !choices[c.id]) ?? [];
   return (
-    <Modal opened onClose={onClose} size="lg" title={t('shared.openTitle')}>
+    <FormModal onClose={onClose} size="lg" title={t('shared.openTitle')}>
       {!p ? (
         <Text size="sm" c="dimmed">
           {t('common:loading')}
@@ -324,15 +331,13 @@ export function OpenSupplierModal({ id, teamIds, onClose, onDone }: { id: string
           </Text>
           <PreviewDetails p={p} choices={choices} setChoices={setChoices} />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button onClick={() => void open()} loading={busy} disabled={pending.length > 0} data-testid="open-confirm">
               {t('shared.openConfirm')}
             </Button>
           </Group>
         </Stack>
       )}
-    </Modal>
+    </FormModal>
   );
 }

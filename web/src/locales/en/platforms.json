@@ -245,7 +245,8 @@
       "watches": "Watches",
       "clusters": "Clusters",
       "subjects": "Schemas",
-      "apiKeys": "API keys"
+      "apiKeys": "API keys",
+      "costPlan": "Cost plan"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
     "typeToConfirm": "Type \"{{name}}\" to confirm"
@@ -450,6 +451,13 @@
       "jwt": "Key-pair JWT (Snowflake, service accounts)",
       "aws_sigv4": "AWS request signing (SigV4)"
     },
+    "destinationKeepTitle": "Send the stored credentials to the new address?",
+    "destinationKeepText": "The changed settings send the credentials of “{{name}}” somewhere else. Keep them only if you trust the new address; otherwise remove them and enter them again for it.",
+    "destinationKeep": "Send them",
+    "destinationClear": "Remove them",
+    "destinationClearTitle": "The stored credentials will be removed",
+    "destinationClearText": "The changed settings send the credentials of “{{name}}” somewhere else, so they are removed when you save. Enter them again under Credentials afterwards.",
+    "destinationSave": "Save and remove them",
     "saved": "Platform saved",
     "notSaved": "Not saved",
     "general": "General",

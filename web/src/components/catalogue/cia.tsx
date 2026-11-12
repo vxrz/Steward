@@ -17,6 +17,7 @@ import { get, notifyError, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { fmtDate } from '../../format';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { TableScroll } from '../TableScroll';
 
 /** The CIA scale in use (levels per dimension, lowest first). */
 export function useCiaScale() {
@@ -163,7 +164,7 @@ export function RatingPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
     >
       <Stack gap="xs">
         {invalid && <ScaleInvalidAlert />}
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-labelledby="cia-rating-title">
             <Table.Tbody>
               {CIA_DIMENSIONS.map((d) => {
@@ -208,7 +209,7 @@ export function RatingPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
               })}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
         {editing && <RatingModal app={app} onClose={() => setEditing(false)} onSaved={onSaved} />}
       </Stack>
     </CollapsibleSection>
@@ -324,7 +325,7 @@ export function ProtectionNeedPanel({ service, onSaved }: { service: ServiceDeta
         {t('need.help')}
       </Text>
       {invalid && <ScaleInvalidAlert />}
-      <div className="table-scroll">
+      <TableScroll>
         <Table fz="sm" aria-labelledby="protection-need-title">
           <Table.Thead>
             <Table.Tr>
@@ -387,7 +388,7 @@ export function ProtectionNeedPanel({ service, onSaved }: { service: ServiceDeta
             })}
           </Table.Tbody>
         </Table>
-      </div>
+      </TableScroll>
       {editing && <OverrideModal service={service} onClose={() => setEditing(false)} onSaved={onSaved} />}
     </Stack>
   );

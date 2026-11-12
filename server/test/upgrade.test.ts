@@ -212,7 +212,9 @@ describe.each(versions)('upgrade from %s', (version) => {
       let hasContracts = false;
       try {
         old.get('SELECT id FROM supplier_contracts LIMIT 1');
-        hasContracts = !!team;
+        // only a fixture from before 0.18: from then on the contracts already have their owners and services
+        const scoped = old.all<{ name: string }>('SELECT name FROM schema_migrations').some((r) => r.name === 'suppliers-003-contract-scope');
+        hasContracts = !!team && !scoped;
       } catch {
         // suppliers came with 0.17
       }

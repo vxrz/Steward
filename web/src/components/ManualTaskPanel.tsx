@@ -37,6 +37,7 @@ import { subjectLabel } from './common';
 import { confirmDanger } from './confirm';
 import { MarkdownView } from './records/MarkdownView';
 import { TaskHeader } from './TaskHeader';
+import { TableScroll } from './TableScroll';
 
 type Field = ManualTaskSpec['fields'][number];
 
@@ -398,7 +399,7 @@ function EvidenceList({ task, canRemove }: { task: TaskRecord; canRemove: boolea
     }
   };
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="sm" aria-label={t('manual.evidence')}>
         <Table.Thead>
           <Table.Tr>
@@ -437,7 +438,7 @@ function EvidenceList({ task, canRemove }: { task: TaskRecord; canRemove: boolea
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -498,7 +499,7 @@ function SubmissionView({ task, sub }: { task: TaskRecord; sub: ManualSubmission
         </List>
       )}
       {spec.fields.length > 0 && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" withTableBorder aria-label={t('manual.fields')}>
             <Table.Tbody>
               {spec.fields.map((f) => (
@@ -517,7 +518,7 @@ function SubmissionView({ task, sub }: { task: TaskRecord; sub: ManualSubmission
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {spec.evidence !== 'off' && (
         <>

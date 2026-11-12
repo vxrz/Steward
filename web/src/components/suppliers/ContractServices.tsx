@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Group, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconCheck, IconDoorExit, IconEdit, IconPlus, IconX } from '@tabler/icons-react';
+import { IconCheck, IconDoorExit, IconEdit, IconPlus, IconUserShare, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { SUPPLIER_LIMITS, type ServiceSummary, type SupplierContract, type SupplierContractService } from '@sm/shared';
-import { del, get, notifyError, notifyOk, put } from '../../api';
+import {
+  SUPPLIER_LIMITS,
+  type Platform,
+  type ServiceSummary,
+  type SupplierContract,
+  type SupplierContractItemKind,
+  type SupplierContractPlatform,
+  type SupplierContractService,
+} from '@sm/shared';
+import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { confirmDanger } from '../confirm';
+import { accessKeys, platformKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * The services a contract covers, each with its purpose (ADR 0031): proposed ones with _Confirm_ and _Not this service_,
@@ -82,6 +92,20 @@ export function ContractServices({
                 s.proposedFrom.length > 0 &&
                 ` · ${t('contractServices.proposedFrom', { from: s.proposedFrom.map((x) => t(`contractServices.sources.${x}`)).join(', ') })}`}
             </Text>
+            {s.items.length > 0 && (
+              <Group gap={4} wrap="wrap" data-testid={`contract-service-items-${s.id}`}>
+                <Text size="xs" c="dimmed">
+                  {t('contractServices.itemsFor')}
+                </Text>
+                {s.items.map((x) => (
+                  <Badge key={`${x.kind}:${x.id}`} size="xs" variant="outline" color="gray">
+                    <Anchor component={Link} to={x.kind === 'application' ? `/applications/${x.id}` : `/systems/${x.id}`} size="xs" inherit>
+                      {x.name}
+                    </Anchor>
+                  </Badge>
+                ))}
+              </Group>
+            )}
           </div>
           {s.canChange && (
             <Group gap={4} wrap="nowrap">
@@ -128,7 +152,7 @@ export function ContractServices({
         <PurposeModal
           service={purpose}
           onClose={() => setPurpose(null)}
-          onSave={(p) => run(() => put(`${base}/${purpose.id}`, { purpose: p }), t('contractServices.saved')).then(() => setPurpose(null))}
+          onSave={(p, items) => run(() => put(`${base}/${purpose.id}`, { purpose: p, items }), t('contractServices.saved')).then(() => setPurpose(null))}
         />
       )}
       {adding && (
@@ -142,11 +166,34 @@ export function ContractServices({
   );
 }
 
-function PurposeModal({ service, onClose, onSave }: { service: SupplierContractService; onClose: () => void; onSave: (p: string) => Promise<void> }) {
+type Item = { kind: SupplierContractItemKind; id: string };
+
+/** The purpose of a covered service and (0.19.0, ADR 0032) the applications and systems of it the contract is for. */
+function PurposeModal({
+  service,
+  onClose,
+  onSave,
+}: {
+  service: SupplierContractService;
+  onClose: () => void;
+  onSave: (p: string, items: Item[]) => Promise<void>;
+}) {
   const { t } = useTranslation(['suppliers', 'common']);
   const [value, setValue] = useState(service.purpose);
+  const options = useQuery({
+    queryKey: ['suppliers', 'service-items', service.id],
+    queryFn: () => get<{ items: (Item & { name: string })[] }>(`/services/${encodeURIComponent(service.id)}/contract-items`),
+  });
+  const [items, setItems] = useState<string[]>(service.items.map((x) => `${x.kind}:${x.id}`));
+  const data = [
+    ...(options.data?.items ?? []).map((x) => ({ value: `${x.kind}:${x.id}`, label: `${x.name} (${t(`contractServices.itemKinds.${x.kind}`)})` })),
+    ...service.items
+      .filter((x) => !(options.data?.items ?? []).some((o) => o.kind === x.kind && o.id === x.id))
+      .map((x) => ({ value: `${x.kind}:${x.id}`, label: x.name })),
+  ];
+  const parsed = items.map((v) => ({ kind: v.slice(0, v.indexOf(':')) as SupplierContractItemKind, id: v.slice(v.indexOf(':') + 1) }));
   return (
-    <Modal opened onClose={onClose} title={t('contractServices.purposeTitle', { service: service.name })}>
+    <FormModal onClose={onClose} title={t('contractServices.purposeTitle', { service: service.name })}>
       <Stack gap="sm">
         <TextInput
           label={t('contractServices.purpose')}
@@ -155,14 +202,26 @@ function PurposeModal({ service, onClose, onSave }: { service: SupplierContractS
           onChange={(e) => setValue(e.currentTarget.value)}
           data-autofocus
         />
+        <MultiSelect
+          label={t('contractServices.items')}
+          description={t('contractServices.itemsHint')}
+          placeholder={items.length ? undefined : t('contractServices.itemsNone')}
+          data={data}
+          value={items}
+          onChange={setItems}
+          searchable
+          clearable
+          maxValues={SUPPLIER_LIMITS.contractItems}
+          data-testid="contract-service-items"
+        />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
+          <FormModalCancel />
+          <Button onClick={() => void onSave(value.trim(), parsed)} data-testid="contract-service-save">
+            {t('common:save')}
           </Button>
-          <Button onClick={() => void onSave(value.trim())}>{t('common:save')}</Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -172,7 +231,7 @@ function AddServiceModal({ taken, onClose, onSave }: { taken: string[]; onClose:
   const [id, setId] = useState<string | null>(null);
   const [purpose, setPurpose] = useState('');
   return (
-    <Modal opened onClose={onClose} title={t('contractServices.add')}>
+    <FormModal onClose={onClose} title={t('contractServices.add')}>
       <Stack gap="sm">
         <Select
           label={t('contractServices.service')}
@@ -190,14 +249,196 @@ function AddServiceModal({ taken, onClose, onSave }: { taken: string[]; onClose:
           onChange={(e) => setPurpose(e.currentTarget.value)}
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button disabled={!id} onClick={() => id && void onSave(id, purpose.trim())} data-testid="add-service-save">
             {t('common:add')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
+  );
+}
+
+/**
+ * The platforms a contract covers (0.19.0, ADR 0032), each with its purpose: a platform team's own contract. Covering a
+ * platform lets its managers and the members of its owning teams see a team-owned contract. _Add a platform_ for who
+ * may change the contract; the purpose and _Take off the contract_ also for who manages the platform.
+ */
+export function ContractPlatforms({
+  supplierId,
+  contract,
+  onChanged,
+}: {
+  supplierId: string;
+  contract: SupplierContract;
+  onChanged: (gone?: boolean) => void;
+}) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  const [editing, setEditing] = useState<SupplierContractPlatform | null>(null);
+  const [adding, setAdding] = useState(false);
+  const base = `/suppliers/${supplierId}/contracts/${contract.id}/platforms`;
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
+    try {
+      const r = await fn();
+      notifyOk(ok);
+      onChanged(!!r && typeof r === 'object' && 'ok' in r);
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const leave = async (p: SupplierContractPlatform) => {
+    if (
+      !(await confirmDanger({
+        action: 'remove',
+        title: t('contractPlatforms.leave'),
+        confirmLabel: t('contractPlatforms.leave'),
+        message: t('contractPlatforms.leaveConfirm', { platform: p.name, contract: contract.title }),
+      }))
+    )
+      return;
+    await run(() => del(`${base}/${p.id}`), t('contractPlatforms.left'));
+  };
+  if (!contract.platforms.length && !contract.hiddenPlatforms && !contract.canEdit) return null;
+  return (
+    <Stack gap="xs" data-testid="contract-platforms-list">
+      {contract.platforms.length === 0 && contract.hiddenPlatforms === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('contractPlatforms.none')}
+        </Text>
+      )}
+      {contract.platforms.map((p) => (
+        <Group key={p.id} justify="space-between" wrap="nowrap" align="flex-start" data-testid={`contract-platform-${p.id}`}>
+          <div style={{ minWidth: 0 }}>
+            <Anchor component={Link} to={`/platforms/${p.id}`} size="sm" fw={500}>
+              {p.name}
+            </Anchor>
+            <Text size="xs" c="dimmed">
+              {p.purpose || t('contractServices.noPurpose')}
+            </Text>
+          </div>
+          {p.canChange && (
+            <Group gap={4} wrap="nowrap">
+              <ActionIcon variant="subtle" aria-label={t('contractServices.editPurpose')} onClick={() => setEditing(p)}>
+                <IconEdit size={14} />
+              </ActionIcon>
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                aria-label={t('contractPlatforms.leave')}
+                onClick={() => void leave(p)}
+                data-testid={`leave-platform-${p.id}`}
+              >
+                <IconDoorExit size={14} />
+              </ActionIcon>
+            </Group>
+          )}
+        </Group>
+      ))}
+      {contract.hiddenPlatforms > 0 && (
+        <Text size="xs" c="dimmed" data-testid="contract-hidden-platforms">
+          {t('contractPlatforms.hidden', { count: contract.hiddenPlatforms })}
+        </Text>
+      )}
+      {contract.canEdit && (
+        <Group>
+          <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setAdding(true)} data-testid="contract-add-platform">
+            {t('contractPlatforms.add')}
+          </Button>
+        </Group>
+      )}
+      {(editing || adding) && (
+        <PlatformModal
+          supplierId={supplierId}
+          contractId={contract.id}
+          current={editing}
+          taken={contract.platforms.map((p) => p.id)}
+          onClose={() => {
+            setEditing(null);
+            setAdding(false);
+          }}
+          onSave={(id, purpose) =>
+            run(() => put(`${base}/${id}`, { purpose }), editing ? t('contractServices.saved') : t('contractPlatforms.added')).then(() => {
+              setEditing(null);
+              setAdding(false);
+            })
+          }
+        />
+      )}
+    </Stack>
+  );
+}
+
+/**
+ * Says before adding a platform that its managers or owning teams from outside the contract's teams will see the
+ * contract (security review 0.19.0 M1): adding it asks the person to confirm it is them, like naming an owner.
+ */
+function PlatformOutsideHint({ supplierId, contractId, platformId }: { supplierId: string; contractId: string; platformId: string }) {
+  const { t } = useTranslation('access');
+  const q = useQuery({
+    queryKey: accessKeys.platformOutside(supplierId, contractId, platformId),
+    queryFn: () =>
+      post<{ teams: string[]; outside: string[] }>('/access/named-outside', { kind: 'supplierContract', id: contractId, supplierId, subjects: [], platformId }),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const outside = q.data?.outside ?? [];
+  if (!outside.length) return null;
+  return (
+    <Alert color="yellow" variant="light" p="xs" icon={<IconUserShare size={16} />} data-testid="platform-outside-hint">
+      <Text size="sm">{t('namedOutside.platformHint', { count: outside.length, names: outside.join(', '), teams: (q.data?.teams ?? []).join(', ') })}</Text>
+    </Alert>
+  );
+}
+
+function PlatformModal({
+  supplierId,
+  contractId,
+  current,
+  taken,
+  onClose,
+  onSave,
+}: {
+  supplierId: string;
+  contractId: string;
+  current: SupplierContractPlatform | null;
+  taken: string[];
+  onClose: () => void;
+  onSave: (id: string, purpose: string) => Promise<void>;
+}) {
+  const { t } = useTranslation(['suppliers', 'common']);
+  const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms'), enabled: !current });
+  const [id, setId] = useState<string | null>(current?.id ?? null);
+  const [purpose, setPurpose] = useState(current?.purpose ?? '');
+  return (
+    <FormModal onClose={onClose} title={current ? t('contractServices.purposeTitle', { service: current.name }) : t('contractPlatforms.add')}>
+      <Stack gap="sm">
+        {!current && (
+          <Select
+            label={t('contractPlatforms.platform')}
+            description={t('contractPlatforms.addHint')}
+            data={(platforms.data ?? []).filter((p) => !taken.includes(p.id)).map((p) => ({ value: p.id, label: p.name }))}
+            value={id}
+            onChange={setId}
+            searchable
+            data-autofocus
+            data-testid="add-platform-select"
+          />
+        )}
+        {!current && id && <PlatformOutsideHint supplierId={supplierId} contractId={contractId} platformId={id} />}
+        <TextInput
+          label={t('contractServices.purpose')}
+          maxLength={SUPPLIER_LIMITS.purpose}
+          value={purpose}
+          onChange={(e) => setPurpose(e.currentTarget.value)}
+          data-testid="add-platform-purpose"
+        />
+        <Group justify="flex-end">
+          <FormModalCancel />
+          <Button disabled={!id} onClick={() => id && void onSave(id, purpose.trim())} data-testid="add-platform-save">
+            {current ? t('common:save') : t('common:add')}
+          </Button>
+        </Group>
+      </Stack>
+    </FormModal>
   );
 }

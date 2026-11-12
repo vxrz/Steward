@@ -7,7 +7,11 @@ import type { CostPlanYear, CostProposalLine, CostProposals } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../../api';
 import { costKeys } from '../../queryKeys';
 import { fmtDay } from '../../format';
-import { fmtMoney, fmtMonth } from './common';
+import { fmtMoney, fmtMonth, ownerKey, type PlanOwner } from './common';
+
+/** The API path of a cost plan (a service's or a platform's) – spelled out in this file so the route contract test follows it. */
+const planBase = (o: PlanOwner): string =>
+  o.kind === 'service' ? `/costs/plans/${encodeURIComponent(o.id)}` : `/costs/platform-plans/${encodeURIComponent(o.id)}`;
 
 /**
  * The contract lines of a service's cost plan (0.18.0, ADR 0030 part 3): "Contract payments to plan" – the payment
@@ -36,8 +40,8 @@ export function ProposalsPanel({ d, onSaved }: { d: CostPlanYear; onSaved: (y: C
   const { t } = useTranslation('costs');
   const tt = t as unknown as Tt;
   const q = useQuery({
-    queryKey: costKeys.proposals(d.serviceId, d.fiscalYear),
-    queryFn: () => get<CostProposals>(`/costs/plans/${encodeURIComponent(d.serviceId)}/proposals?fiscalYear=${d.fiscalYear}`),
+    queryKey: costKeys.proposals(ownerKey(d.owner), d.fiscalYear),
+    queryFn: () => get<CostProposals>(`${planBase(d.owner)}/proposals?fiscalYear=${d.fiscalYear}`),
   });
   const [chosen, setChosen] = useState<Set<string> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,7 +51,7 @@ export function ProposalsPanel({ d, onSaved }: { d: CostPlanYear; onSaved: (y: C
   const add = async () => {
     setBusy(true);
     try {
-      onSaved(await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(d.serviceId)}/proposals`, { fiscalYear: d.fiscalYear, scheduleIds: [...selected] }));
+      onSaved(await post<CostPlanYear>(`${planBase(d.owner)}/proposals`, { fiscalYear: d.fiscalYear, scheduleIds: [...selected] }));
       notifyOk(t('contractLines.added'));
       setChosen(null);
     } catch (e) {
@@ -117,7 +121,7 @@ export function ChangesPanel({ d, onSaved }: { d: CostPlanYear; onSaved: (y: Cos
     setBusy(true);
     try {
       onSaved(
-        await post<CostPlanYear>(`/costs/plans/${encodeURIComponent(d.serviceId)}/contract-updates`, {
+        await post<CostPlanYear>(`${planBase(d.owner)}/contract-updates`, {
           fiscalYear: d.fiscalYear,
           changes: [...selected].map((k) => ({ scheduleId: k.slice(0, k.indexOf('|')), part: k.slice(k.indexOf('|') + 1) })),
         }),

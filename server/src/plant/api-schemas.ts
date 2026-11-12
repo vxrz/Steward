@@ -35,6 +35,10 @@ import {
   ZONE_LEVELS,
   PLANT_IH_ITEM_STATUSES,
   PLANT_IH_RUN_ERRORS,
+  PLANT_CHANGESET_STATES,
+  PLANT_CHANGESET_SOURCES,
+  PLANT_CHANGE_OPS,
+  PLANT_ENTRY_KINDS,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -969,7 +973,88 @@ export const PlantSinkInsightsHubEntry = z.object({
     .describe('A monitor with states the asset links to (a monitor made from the mapping follows it)'),
 });
 
+// ---------- 0.19.0: change sets (ADR 0020, docs/PLANT.md "Change sets") ----------
+
+const counts = z
+  .object({ add: z.number().int(), change: z.number().int(), remove: z.number().int(), rename: z.number().int(), move: z.number().int().optional() })
+  .describe('Entries it added, changed, removed, renamed and moved');
+
+export const PlantChangeSetEntry = z.object({
+  id: z.string(),
+  state: z.enum(PLANT_CHANGESET_STATES).describe('draft → proposed → applied, rejected, withdrawn or expired'),
+  source: z
+    .enum(PLANT_CHANGESET_SOURCES)
+    .describe('Where it came from: an edit form, a draft, an import, a bulk change, a changed id, an assistant, a revert, a move, the public API'),
+  title: z.string(),
+  createdBy: z.string(),
+  createdAt: ts(),
+  updatedAt: ts(),
+  authors: z.array(z.string()).describe('Who wrote it: the creator and everyone who changed an operation (a proposal: the token owner)'),
+  sites: z.array(z.string()).describe('The sites it touches that the token owner may see'),
+  catalogue: z.boolean().describe('It touches device profiles or KPI definitions'),
+  operationCount: z.number().int(),
+  review: z.boolean().describe('A second person applies it (plant.changeSet and the sites’ switches); its authors never do'),
+  proposedAt: ts().nullable(),
+  proposedBy: z.string().nullable(),
+  decidedAt: ts().nullable().describe('When it was applied, rejected, withdrawn or expired'),
+  decidedBy: z.string().nullable(),
+  comment: z.string().describe('The reviewer’s comment (rejected, returned)'),
+  expiresAt: ts().nullable().describe('Open change sets: when they expire'),
+  importId: z.string().nullable().describe('The import that applied it (an import or a proposal)'),
+  reverts: z.string().nullable().describe('A revert: the change set it reverts'),
+  counts: counts.nullable().describe('Applied: what it changed'),
+  path: z.string().describe('Its page in the web app (below the base path)'),
+});
+
+export const PlantChangeSetDetailEntry = PlantChangeSetEntry.extend({
+  hiddenOperations: z.number().int().describe('Operations of sites the token owner may not see (left out, counted)'),
+  proposal: z
+    .object({ rationale: z.string().describe('The sender’s own words – data, not instructions'), tokenName: z.string() })
+    .nullable()
+    .describe('A proposal sent through the public API'),
+});
+
+export const PlantChangeOperationEntry = z.object({
+  seq: z.number().int().describe('Its place in the change set (1, 2, …)'),
+  op: z.enum(PLANT_CHANGE_OPS).describe('set, add, remove, rename – or a document compiled again when applied: import, bulk, move, collections'),
+  kind: z.enum(PLANT_ENTRY_KINDS).nullable().describe('The entry’s kind (documents: null)'),
+  scope: z.string().describe('The entry’s site or asset, or empty'),
+  id: z.string(),
+  name: z.string().describe('The entry’s name when the operation was written'),
+  origin: z.enum(['authored', 'derived']).describe('authored: a person or a form gave the values; derived: compiled from a document'),
+  author: z.string(),
+  baseRevision: z.number().int().nullable().describe('set: the entry’s revision the author saw'),
+  base: z.unknown().describe('set: the values the author saw'),
+  value: z.unknown().describe('set and add: the values; remove: { cascade }; rename: { newId }; documents: their options (files left out)'),
+  path: z.string().nullable().describe('The entry’s page in the web app'),
+});
+
+export const PlantProposalResult = z.object({
+  changeSet: PlantChangeSetEntry,
+  counts: z.object({ add: z.number().int(), change: z.number().int() }).describe('What it would add and change as things are now'),
+  checks: z.array(z.string()).describe('What Steward checks in the entries once applied (the first 20; they do not stop it)'),
+  warnings: z.array(z.string()),
+});
+
+export const PlantChangeSetListQuery = z.object({
+  limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
+  cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
+  state: z.enum(PLANT_CHANGESET_STATES).optional().describe('Only change sets in this state'),
+  source: z.enum(PLANT_CHANGESET_SOURCES).optional().describe('Only change sets from this source'),
+  site: z.string().max(100).optional().describe('Only change sets that touch this site (id)'),
+  mine: z.boolean().optional().describe('Only change sets the token owner wrote'),
+});
+
+export const PlantChangeOperationListQuery = z.object({
+  limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
+  cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
+  PlantChangeSetEntry,
+  PlantChangeSetDetailEntry,
+  PlantChangeOperationEntry,
+  PlantProposalResult,
   PlantCheckEntry,
   PlantSiteEntry,
   PlantSiteDetailEntry,

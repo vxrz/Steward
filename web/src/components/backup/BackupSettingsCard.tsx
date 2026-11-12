@@ -10,7 +10,9 @@ export function BackupSettingsCard() {
     <Card withBorder>
       <Group gap="xs" mb="sm" wrap="nowrap">
         <IconCloudUpload size={18} aria-hidden />
-        <Title order={5}>{t('backups.title')}</Title>
+        <Title order={2} size="h5">
+          {t('backups.title')}
+        </Title>
       </Group>
       <Text size="sm" c="dimmed" mb="sm">
         {t('backups.card')}

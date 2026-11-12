@@ -23,7 +23,8 @@
     "lastMonth": "Letzter Monat",
     "change": "Änderung",
     "unassigned": "Nicht zugeordnet",
-    "budget": "Budget"
+    "budget": "Budget",
+    "plan": "Kostenplan"
   },
   "totals": "Plattformen diesen Monat ({{currency}})",
   "totalsLast": "Letzter Monat: {{amount}}",
@@ -384,7 +385,7 @@
       "forHint": "Eine Anwendung oder ein System des Service (für Cloud-Positionen eine Plattform)",
       "noTarget": "Keiner Anwendung und keinem System zugeordnet",
       "cloudHint": "Eine Cloud-Position für eine Anwendung oder Plattform wird mit den Kosten verglichen, die Steward dafür liest (bei einer Plattform: der Anteil der Anwendungen des Service).",
-      "vendor": "Anbieter oder Vertrag",
+      "vendor": "Lieferant (Freitext)",
       "vendorHint": "Freitext, z. B. der Anbieter und die Vertragsnummer",
       "cadence": "Turnus",
       "amount": {
@@ -455,7 +456,8 @@
       "cloudHidden": "Cloud-Zahlen verborgen",
       "totals": "Alle Services ({{currency}})",
       "none": "Keiner der Services des Teams hat einen Plan für {{label}}.",
-      "totalsLine": "{{planned}} geplant · {{expected}} erwartet"
+      "totalsLine": "{{planned}} geplant · {{expected}} erwartet",
+      "platform": "Plattform"
     },
     "costsRead": "Gelesene Kosten",
     "costsReadHint": "Die Kosten, die Steward für diesen Service Monat für Monat von den Plattformen liest",
@@ -498,7 +500,8 @@
       "quarterly": "vierteljährlich",
       "yearly": "jährlich",
       "once": "einmalig",
-      "dates": "datierte Zahlungen"
+      "dates": "datierte Zahlungen",
+      "volume": "Volumen"
     },
     "form": {
       "title": "Titel",
@@ -527,8 +530,14 @@
       "addPayment": "Zahlung hinzufügen",
       "removePayment": "Diese Zahlung entfernen",
       "paymentsInvalid": "Jede Zahlung braucht ein Datum und einen Betrag mit den Nachkommastellen der Währung.",
-      "noProRata": "Eine Zahlung zählt im Monat ihres Datums – keine anteilige Berechnung. Eine anteilig abgerechnete erste Rechnung erfassen Sie als datierte Zahlung."
-    }
+      "noProRata": "Eine Zahlung zählt im Monat ihres Datums – keine anteilige Berechnung. Eine anteilig abgerechnete erste Rechnung erfassen Sie als datierte Zahlung.",
+      "payer": "Bezahlt von",
+      "payerService": "Service",
+      "payerPlatform": "Plattform",
+      "platform": "Zahlende Plattform",
+      "platformHint": "Der eigene Kostenplan der Plattform erhält die Positionen; der Vertrag muss sie abdecken"
+    },
+    "paidByPlatform": "{{name}} (Plattform)"
   },
   "contractLines": {
     "changed": "Vertrag geändert",
@@ -562,8 +571,8 @@
     "unlinkPending": "Beim Speichern wird dies eine gewöhnliche Position ohne Vertragshinweise."
   },
   "commitments": {
-    "title": "Verpflichtungen",
-    "description": "Was die Zahlungspläne von Lieferantenverträgen noch schulden, je Geschäftsjahr und Währung – geplante Zahlungen ab heute, keine Verbindlichkeiten.",
+    "title": "Zahlungsverpflichtungen",
+    "description": "Was Lieferantenverträge laut ihren Zahlungsplänen noch kosten, je Geschäftsjahr und Währung.",
     "back": "Kosten",
     "export": "Exportieren (CSV)",
     "search": "Zahlungspläne, Services und Lieferanten suchen",
@@ -571,12 +580,14 @@
       "team": "Team",
       "service": "Service",
       "supplier": "Lieferant",
-      "ending": "Endet in … Tagen"
+      "ending": "Endet innerhalb von (Tagen)",
+      "platform": "Plattform",
+      "all": "Alle"
     },
     "groupBy": "Gruppieren nach",
     "groups": {
       "supplier": "Lieferant",
-      "service": "Service",
+      "service": "Service oder Plattform",
       "team": "Team"
     },
     "warnings_one": "{{count}} Kündigungsfrist vor einem ungeplanten Jahr",
@@ -601,12 +612,17 @@
     "total": "Geschuldet in {{currency}} bis Vertragsende",
     "totalExit": "Bis zum frühesten Ausstieg {{amount}} · dieses Geschäftsjahr {{thisYear}}",
     "serviceTitle": "Verträge",
-    "help": "Die Verträge, die dieser Service bezahlt, aus ihren Zahlungsplänen: was ab heute noch geschuldet ist, bis Vertragsende und bis zum frühesten Ausstieg (dem Ende der Laufzeit nach der nächsten Kündigungsfrist). Buchungen werden nicht abgezogen.",
+    "help": "Die Verträge, die dieser Plan bezahlt, aus ihren Zahlungsplänen: was ab heute noch geschuldet ist, bis Vertragsende und bis zum frühesten Ausstieg (das Ende der Laufzeit nach dem nächsten Kündigungstermin). Buchungen werden nicht abgezogen; ein Volumen schuldet nur, was zugesagt ist.",
     "noneForService": "Noch keine Zahlungspläne für diesen Service.",
-    "supplierTitle": "Zahlungen und Verpflichtungen",
+    "supplierTitle": "Zahlungen und Zahlungsverpflichtungen",
     "supplierHelp": "Die Zahlungspläne der Verträge dieses Lieferanten für Services, die Sie sehen dürfen, was sie noch schulden, und was beim Lieferanten angefallen ist.",
     "incurred": "Angefallen (Buchungen mit diesem Lieferanten)",
-    "note": "Verpflichtungen sind die geplanten Zahlungen von Verträgen ab heute – keine Verbindlichkeiten, keine Buchhaltung. Summen gelten je Währung und zählen nur Beträge, die Sie sehen dürfen."
+    "note": "Zahlungsverpflichtungen sind die geplanten Zahlungen von Verträgen ab heute – keine Verbindlichkeiten, keine Buchhaltung. Summen gelten je Währung und zählen nur Beträge, die Sie sehen dürfen.",
+    "platformGroup": "{{name}} (Plattform)",
+    "noticeByLine": "Kündigen bis {{date}}",
+    "showPaid_one": "{{count}} bezahlten Zahlungsplan zeigen",
+    "showPaid_other": "{{count}} bezahlte Zahlungspläne zeigen",
+    "hidePaid": "Bezahlte Zahlungspläne ausblenden"
   },
   "entryImport": {
     "button": "Kostenbuchungen importieren (CSV)",
@@ -614,6 +630,7 @@
     "help": "Für Rechnungslisten und ERP-Exporte: UTF-8, durch Kommas, Semikolons oder Tabulatoren getrennt, mit einer Kopfzeile. Ordnen Sie die Spalten zu, prüfen Sie die Vorschau und importieren Sie dann die Zeilen ohne Probleme in einem Schritt – alles oder nichts. Höchstens 5 MB und 5.000 Zeilen.",
     "file": "CSV-Datei",
     "fileHint": "Die Vorschau speichert nichts; die Datei wird beim Import erneut gelesen.",
+    "filePlaceholder": "CSV-Datei auswählen",
     "tooLarge": "Die Datei ist größer als 5 MB.",
     "dateFormat": "Datumsformat",
     "dateFormatHint": "Gewählt, nie geraten",
@@ -662,11 +679,13 @@
       "supplierArchived": "Archivierter Lieferant",
       "contractUnknown": "Unbekannter Vertrag oder einer, den Sie nicht sehen dürfen",
       "contractNotCovering": "Der Vertrag deckt diesen Service nicht ab, und Sie dürfen den Service nicht hinzufügen",
+      "contractPlatformGrant": "Der Vertrag deckt diese Plattform nicht ab, und sie hier hinzuzufügen würde den Vertrag einem anderen Team zeigen oder das Limit an Plattformen überschreiten – fügen Sie die Plattform zuerst beim Vertrag hinzu",
       "targetUnknown": "Unbekannte Anwendung oder unbekanntes System",
       "limit": "Über der Grenze an Buchungen je Geschäftsjahr"
     },
     "import_one": "{{count}} Zeile importieren",
     "import_other": "{{count}} Zeilen importieren",
+    "importNone": "Importieren",
     "done_one": "{{count}} Buchung importiert",
     "done_other": "{{count}} Buchungen importiert",
     "failed": "Nichts importiert",
@@ -678,5 +697,111 @@
     "removeConfirm_other": "Den Import von {{name}} entfernen? Seine {{count}} noch vorhandenen Buchungen entfallen.",
     "removed": "Import entfernt",
     "clearFile": "Datei entfernen"
+  },
+  "platformPlan": {
+    "help": "Was das Plattform-Team je Geschäftsjahr für die eigenen Verträge der Plattform ausgeben will – Kapazität, eine Cloud-Ausgabenzusage, ein Abonnement –, gegenübergestellt der ganzen Rechnung der Plattform, wie Steward sie liest, und den Kostenbuchungen. Die Kosten werden nicht auf die Services verteilt, die die Plattform nutzen.",
+    "readLine": "Gelesene Kosten der Plattform, die keine Position übernimmt: bisher {{soFar}}, erwartet im Jahr {{expected}}.",
+    "cloudHint": "Eine Position der Kategorie Cloud übernimmt die gelesenen Kosten der Plattform in ihrer Währung (die älteste solche Position); ein nach Nutzung abgerechnetes Volumen aus den gelesenen Kosten übernimmt die seiner Monate zuerst."
+  },
+  "volumes": {
+    "title": "Volumen",
+    "help": "Vertragsvolumen, die dieser Plan bezahlt: was der laufende Zeitraum genutzt hat, was übrig ist und – geschätzt bei der Rate der letzten Monate – wo er endet. Ein vorausbezahltes Volumen deckt die Nutzung, bis es aufgebraucht ist; diese Nutzung zählt nicht noch einmal als angefallen.",
+    "estimateNote": "Schätzungen sind linear: die Nutzung je Tag der letzten 90 Tage mal die verbleibenden Tage. Sie ändern sich, wenn sich die Nutzung ändert.",
+    "column": "Volumen",
+    "drawnLine": "Aus vorausbezahlten Volumen genutzt: bisher {{soFar}} – gezeigt, nicht noch einmal gezählt (die Zahlung sind die Kosten).",
+    "bookHelp": "Ein nach Nutzung abgerechnetes Volumen wird mit dem Betrag der Rechnung gebucht. Die durchschnittliche Nutzung je Monat im Zeitraum ist als Vorschlag eingetragen.",
+    "entryDrawn": "{{amount}} aus einem vorausbezahlten Volumen",
+    "entryDrawnHidden": "Möglicherweise von einem vorausbezahlten Volumen gedeckt, das Sie nicht sehen dürfen – voll gezählt",
+    "billing": {
+      "prepaid": "Vorausbezahlt",
+      "byUse": "Nach Nutzung"
+    },
+    "committed": {
+      "full": "Voll zugesagt",
+      "minimum": "Zugesagtes Minimum",
+      "none": "Nur Obergrenze"
+    },
+    "consumption": {
+      "entries": "Nutzung aus Kostenbuchungen",
+      "read": "Nutzung aus den gelesenen Kosten der Plattform"
+    },
+    "warnings": {
+      "runsOut": "Vor Ende des Zeitraums aufgebraucht (Schätzung)",
+      "runsOutOn": "Etwa am {{date}} aufgebraucht (Schätzung)",
+      "usedUp": "Aufgebraucht",
+      "shortfall": "Deutlich unter dem zugesagten Minimum (Schätzung)",
+      "ceiling": "Voraussichtlich über der Obergrenze (Schätzung)",
+      "overCeiling": "Über der Obergrenze"
+    },
+    "per": {
+      "year": "Vertragsjahr {{from}} – {{to}}",
+      "term": "Laufzeit {{from}} – {{to}}"
+    },
+    "shareLabel": "{{pct}} % genutzt",
+    "usedOf": "{{used}} von {{amount}} genutzt ({{pct}} %)",
+    "left": "{{left}} übrig",
+    "minimum": "Minimum {{amount}}",
+    "estimate": "Schätzung: {{amount}} bis {{date}}",
+    "tooEarly": "Noch keine Schätzung: weniger als 28 Tage Nutzung.",
+    "stateOnly": "Die Nutzung zählt Services oder Plattformen, die Sie nicht sehen dürfen: nur die Warnungen.",
+    "amountsHidden": "Beträge sind ausgeblendet.",
+    "upTo": "Bis zu {{amount}} können noch berechnet werden",
+    "upToLabel": "Bis zu (nicht geschuldet)",
+    "upToTotal": "Volumen können bis zu {{amount}} mehr berechnen – nicht geschuldet",
+    "summary": {
+      "year": "{{amount}} je Vertragsjahr",
+      "term": "{{amount}} für die Laufzeit"
+    },
+    "form": {
+      "amount": "Volumen",
+      "amountHint": "Vertragsjahr 1 oder die ganze Laufzeit",
+      "help": "Der Vertrag nennt einen Betrag, der ganz oder teilweise genutzt wird. Vorausbezahlt: zu Beginn jedes Zeitraums bezahlt, dann aufgebraucht. Nach Nutzung: nach dem Genutzten abgerechnet; wählen Sie, was zugesagt ist.",
+      "per": "Volumen je",
+      "perOptions": {
+        "year": "Vertragsjahr",
+        "term": "Ganze Laufzeit"
+      },
+      "billing": "Abrechnung",
+      "billingOptions": {
+        "prepaid": "Vorausbezahlt (vorab bezahlt, aufgebraucht)",
+        "byUse": "Nach Nutzung (nach dem Genutzten abgerechnet)"
+      },
+      "committed": "Zugesagt",
+      "committedOptions": {
+        "full": "Das ganze Volumen (verfällt, wenn ungenutzt)",
+        "minimum": "Ein Minimum – der Rest ist eine Obergrenze",
+        "none": "Nichts – nur eine Obergrenze"
+      },
+      "minimumAs": "Minimum als",
+      "minimumPct": "Prozentsatz",
+      "minimumAmount": "Betrag je Zeitraum",
+      "consumption": "Nutzung aus",
+      "consumptionHint": "Den gelesenen Kosten der Plattform oder den Kostenbuchungen zum Vertrag – eines davon, nie beides."
+    }
+  },
+  "attribution": {
+    "title": "Kosten und Verträge",
+    "help": {
+      "application": "Die Services planen und bezahlen; hier steht, was sie der Anwendung zuordnen – jede Position, Buchung und jeder Zahlungsplan einmal, auch wenn mehrere Services sie nutzen.",
+      "system": "Die Services planen und bezahlen; hier steht, was sie dem System zuordnen – jede Position, Buchung und jeder Zahlungsplan einmal, auch wenn mehrere Services es nutzen."
+    },
+    "amountsHidden": "Einige Beträge sind für Sie ausgeblendet und nicht in den Summen.",
+    "columns": {
+      "year": "Geschäftsjahr",
+      "currency": "Währung",
+      "incurred": "Angefallen"
+    },
+    "contracts": "Verträge",
+    "named": "Genannt für {{services}}",
+    "viaLines": "Über Positionen oder Buchungen",
+    "endsOn": "endet am {{date}}",
+    "lines": "Planpositionen in {{label}}",
+    "schedules": "Zahlungspläne",
+    "entries_one": "{{count}} Kostenbuchung in {{label}}",
+    "entries_other": "{{count}} Kostenbuchungen in {{label}}",
+    "empty": {
+      "application": "Kein Vertrag, keine Planposition und keine Kostenbuchung nennt diese Anwendung.",
+      "system": "Kein Vertrag, keine Planposition und keine Kostenbuchung nennt dieses System."
+    }
   }
 }

@@ -27,6 +27,7 @@ import { cleanAcl } from '../auth/permissions.js';
 import { forgetOwningTeams, identityAccess } from '../auth/policy.js';
 import { invalidateIdentityCaches, invalidatePlatformCaches } from './http.js';
 import { requireIdentityIntact, requirePlatformIntact, sealIdentity } from './integrity.js';
+import { authUrls, fillUrl } from './destination.js';
 import { fixedVariables, identityRow, identityRows, parseMcp, type IdentityRow } from './identities.js';
 import { getConnection, getPlatform, listOperations, storedConfig } from './service.js';
 import { cleanFilter, filterWidens, resolveOperationRef, specPathOf } from './operationFilter.js';
@@ -110,7 +111,10 @@ function cleanVariables(platformId: string, input: unknown, auth: AuthConfig | n
   const entries = Object.entries(input as Record<string, unknown>);
   if (entries.length > IDENTITY_LIMITS.variables) throw new HttpError(400, `At most ${IDENTITY_LIMITS.variables} variables`, 'IDENTITY_VARIABLES_INVALID');
   const p = getPlatform(platformId);
-  const fixed = fixedVariables({ baseUrl: p.baseUrl, auth: p.config.auth as never, http: p.config.http, portalUrl: p.config.portalUrl }, auth as never);
+  const fixed = fixedVariables(
+    { kind: p.kind, baseUrl: p.baseUrl, auth: p.config.auth as never, http: p.config.http, portalUrl: p.config.portalUrl },
+    auth as never,
+  );
   const out: Record<string, string> = {};
   for (const [k, v] of entries) {
     if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(k)) throw new HttpError(400, `Invalid variable name "${k.slice(0, 64)}"`, 'IDENTITY_VARIABLES_INVALID');
@@ -125,29 +129,6 @@ function cleanVariables(platformId: string, input: unknown, auth: AuthConfig | n
     out[k] = v;
   }
   return out;
-}
-
-/** The URLs of sign-in settings that credentials go to: token URL, login and refresh requests, the AWS STS endpoint. */
-function authUrls(a: AuthConfig | null | undefined): { field: string; url: string }[] {
-  if (!a) return [];
-  const out: { field: string; url: string }[] = [];
-  const add = (field: string, v: unknown) => typeof v === 'string' && v.trim() && out.push({ field, url: v.trim() });
-  add('tokenUrl', a.tokenUrl);
-  add('request.url', a.request?.url);
-  add('refresh.request.url', a.refresh?.request?.url);
-  add('aws.stsEndpoint', a.aws?.stsEndpoint);
-  return out;
-}
-
-/**
- * A URL template with only {{ baseUrl }} and {{ vars.x }} filled in – synchronously, so the check needs no expression
- * engine. Anything else in {{ … }} cannot be checked: null.
- */
-function fillUrl(template: string, baseUrl: string, vars: Record<string, string>): string | null {
-  const filled = template.replace(/\{\{\s*(baseUrl|vars\.([A-Za-z_][A-Za-z0-9_]*))\s*\}\}/g, (_m, what: string, name?: string) =>
-    what === 'baseUrl' ? baseUrl.replace(/\/+$/, '') : (vars[name!] ?? ''),
-  );
-  return filled.includes('{{') || filled.includes('}}') ? null : filled;
 }
 
 const originOf = (url: string | null): string | null => {
@@ -493,6 +474,29 @@ export function setIdentitySecrets(platformId: string, identityId: string, patch
   return view(platformId, r.id);
 }
 
+/** Whether any identity of the platform holds stored credentials (security review 0.19.0 H1). */
+export function hasStoredCredentials(platformId: string): boolean {
+  return !!db().get('SELECT 1 AS x FROM platform_identities WHERE platform_id = ? AND secrets IS NOT NULL', platformId);
+}
+
+/**
+ * Removes the stored credentials of every identity of the platform (its destination changed and they are not to be sent
+ * there: routes/platforms.ts). Returns the names of the identities that had some. The caller writes the audit entry.
+ */
+export function clearStoredCredentials(platformId: string): string[] {
+  const rows = db().all<{ id: string; name: string }>('SELECT id, name FROM platform_identities WHERE platform_id = ? AND secrets IS NOT NULL', platformId);
+  if (!rows.length) return [];
+  const ts = nowIso();
+  db().tx(() => {
+    for (const r of rows) {
+      db().run('UPDATE platform_identities SET secrets = NULL, updated_at = ?, updated_by = ? WHERE id = ? AND platform_id = ?', ts, actor(), r.id, platformId);
+      sealIdentity(r.id);
+    }
+  });
+  for (const r of rows) invalidateIdentityCaches(platformId, r.id);
+  return rows.map((r) => r.name);
+}
+
 /** The access list of an identity that is not the default (the default identity is open to everyone with `use`). */
 export function setIdentityAccess(platformId: string, identityId: string, aclInput: unknown): PlatformIdentity {
   const p = getPlatform(platformId);
@@ -676,7 +680,7 @@ export function identitySettings(platformId: string, identityId: string): Platfo
     auth,
     variables: parseJson<Record<string, string>>(r.variables, {}),
     fixedVariables: [
-      ...fixedVariables({ baseUrl: p.baseUrl, auth: stored.auth as never, http: stored.http, portalUrl: stored.portalUrl }, auth as never),
+      ...fixedVariables({ kind: p.kind, baseUrl: p.baseUrl, auth: stored.auth as never, http: stored.http, portalUrl: stored.portalUrl }, auth as never),
     ].sort(),
     operations: (filter?.operations ?? []).map((ref) => {
       const o = resolveOperationRef(ref, ops);

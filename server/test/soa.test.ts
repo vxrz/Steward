@@ -174,8 +174,9 @@ describe('the statement of applicability', () => {
     expect(list.catalogues.map((c: any) => c.key)).toContain('ISO27001');
     const soa = await dana('POST', '/compliance/soa', { catalogueId: 'ISO27001', scopeName: 'Payroll and archive', scopeServiceIds: [svcA, svcB] });
     expect(soa.entries.length).toBe(Object.keys(ctl).length);
-    expect(soa.counts).toMatchObject({ controls: soa.entries.length, undecided: soa.entries.length, applicable: 0 });
-    expect(soa.entries.every((e: any) => e.applicable === null && !e.decided)).toBe(true);
+    // undecided rows count as undecided, not also as reviews due
+    expect(soa.counts).toMatchObject({ controls: soa.entries.length, undecided: soa.entries.length, applicable: 0, reviewDue: 0 });
+    expect(soa.entries.every((e: any) => e.applicable === null && !e.decided && !e.reviewDue)).toBe(true);
     expect(soa.fourEyes).toBe(true);
     expect(soa.scopeServices.map((x: any) => x.name)).toEqual(['Archive (soa)', 'Payroll (soa)']);
     expect(soa.permissions).toMatchObject({ edit: true, submit: false, submitBlocked: 'undecided', areaControls: false });

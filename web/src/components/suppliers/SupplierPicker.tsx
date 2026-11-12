@@ -176,11 +176,14 @@ export function NewSupplierModal({
   );
 }
 
-/** A linked supplier as a link, else the free-text vendor. */
+/**
+ * A linked supplier as a link, else the free-text vendor. Underlined: it stands next to dimmed text (the contract), from
+ * which colour alone does not tell it apart in the dark scheme (WCAG 1.4.1).
+ */
 export function SupplierText({ supplier, vendor }: { supplier: SupplierRef | null | undefined; vendor?: string }) {
   if (supplier)
     return (
-      <Anchor component={Link} to={`/suppliers/${supplier.id}`} size="sm" onClick={(e) => e.stopPropagation()}>
+      <Anchor component={Link} to={`/suppliers/${supplier.id}`} size="sm" underline="always" onClick={(e) => e.stopPropagation()}>
         {supplier.name}
       </Anchor>
     );

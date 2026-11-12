@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { AuditArchiveStatus, AuditVerificationRecord } from '@sm/shared';
 import { apiUrl, confirmedDownload, get, notifyError, notifyOk, post, put } from '../../api';
 import { fmtBytes, fmtDate } from '../../format';
+import { TableScroll } from '../TableScroll';
 
 type RunResult = AuditArchiveStatus & { run: { archived: number; uploaded: number; deleted: number; problems: string[] } };
 
@@ -181,7 +182,7 @@ export function AuditArchivePanel({ canManage }: { canManage: boolean }) {
           </Stack>
         )}
         {s.archives.length > 0 && (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" mt="xs" striped>
               <Table.Thead>
                 <Table.Tr>
@@ -242,7 +243,7 @@ export function AuditArchivePanel({ canManage }: { canManage: boolean }) {
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         <Text size="xs" c="dimmed">
           {t('archive.offline')} <Code>npm run audit:verify-archive -- archive.zip --public-key steward-audit-public-key.pem</Code>

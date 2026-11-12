@@ -41,9 +41,12 @@ import { fieldDiff } from '../diff.js';
 import { applyBulk, bulkNeedsStepUp } from '../bulk.js';
 import { applyMove, moveNeedsStepUp, moveRegion } from '../move.js';
 import { applyImport, importInput, importKindsOf, importStepUpPoints, type ImportInput } from '../import.js';
+import { applyCollectionImport, collectionsOperationInput, type CollectionImportInput } from '../collections-import.js';
 import { CATALOGUE_KINDS, KINDS, PER_ASSET, assetSites, bodyOf, entryKey, entryPagePath, readEntry, type EntrySnap } from './entries.js';
 import { joinRegions, recordBaselines, tracked, type EntryChange, type Region } from './track.js';
 import { compactHistory, historyRetention, pruneBaselines } from './retention.js';
+import { withSteward } from './steward.js';
+import { proposalSources } from '../proposal-sources.js';
 import { historyValues } from './values.js';
 import * as svc from '../service.js';
 
@@ -196,10 +199,33 @@ export const isAuthor = (r: CsRow, u: AuthUser): boolean => authorsOf(r).some((a
 const daysFrom = (at: string, days: number) => new Date(new Date(at).getTime() + days * 86_400_000).toISOString();
 const notFound = (id: string) => new HttpError(404, `Change set ${id} not found`, 'PLANT_CHANGESET_NOT_FOUND', { id });
 
-export function summaryOf(r: CsRow, u: AuthUser | null = currentUser()): PlantChangeSetSummary {
-  const rights = u ? siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u) : new Map<string, PlantPermission[]>();
+export const summaryOf = (r: CsRow, u: AuthUser | null = currentUser()): PlantChangeSetSummary => summariesOf([r], u)[0]!;
+
+/**
+ * Summaries of change sets as `u` may read them – in a fixed number of statements however many (0.19.0: the lists of
+ * the inbox and of /api/v1): the sites' rights and switches once, the operations counted per 500 change sets.
+ */
+export function summariesOf(rows: CsRow[], u: AuthUser | null = currentUser()): PlantChangeSetSummary[] {
+  if (!rows.length) return [];
+  const siteRows = db().all<{ id: string; acl: string; review: number }>('SELECT id, acl, review FROM plant_sites');
+  const rights = u ? siteRights(siteRows, u) : new Map<string, PlantPermission[]>();
   const known = new Set(rights.keys());
-  return {
+  const level = changeSetLevel();
+  const catalogueOn = level === 'optional' && catalogueReview();
+  const reviewed = new Set(siteRows.filter((x) => Number(x.review) === 1).map((x) => x.id));
+  const review = (sites: string[], catalogue: boolean) =>
+    level === 'required' || (level === 'optional' && ((catalogue && catalogueOn) || sites.some((x) => reviewed.has(x))));
+  const ops = new Map<string, number>();
+  const ids = rows.map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    for (const x of db().all<{ change_set_id: string; n: number }>(
+      `SELECT change_set_id, COUNT(*) AS n FROM plant_change_ops WHERE change_set_id IN (${part.map(() => '?').join(', ')}) GROUP BY change_set_id`,
+      ...part,
+    ))
+      ops.set(x.change_set_id, Number(x.n));
+  }
+  return rows.map((r) => ({
     id: r.id,
     state: r.state,
     source: r.source,
@@ -211,7 +237,7 @@ export function summaryOf(r: CsRow, u: AuthUser | null = currentUser()): PlantCh
     // sites the reader may not see are left out (new sites a change set adds are shown)
     sites: sitesOf(r).filter((s) => !known.has(s) || rights.get(s)!.includes('view')),
     catalogue: !!Number(r.catalogue),
-    operationCount: Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_change_ops WHERE change_set_id = ?', r.id)?.n ?? 0),
+    operationCount: ops.get(r.id) ?? 0,
     mcpRequestId: r.mcp_request_id,
     importId: r.import_id,
     reverts: r.reverts,
@@ -220,9 +246,9 @@ export function summaryOf(r: CsRow, u: AuthUser | null = currentUser()): PlantCh
     decidedAt: r.decided_at,
     decidedBy: r.decided_by,
     comment: r.comment,
-    review: reviewNeeded(sitesOf(r), !!Number(r.catalogue)),
+    review: review(sitesOf(r), !!Number(r.catalogue)),
     expiresAt: PLANT_CHANGESET_OPEN.includes(r.state) ? r.expires_at : null,
-  };
+  }));
 }
 
 /** Whether `u` may see the change set: its authors always; others not a draft, and only when they see one of its sites. */
@@ -454,7 +480,7 @@ export function touch(csId: string, by: string): void {
   // where its operations reach (a document's: what its last preview found, too)
   const ops = opsOf(csId);
   const w = whereOfOps(ops);
-  const docs = ops.some((o) => o.op === 'import' || o.op === 'bulk' || o.op === 'rename' || o.op === 'move');
+  const docs = ops.some((o) => o.op === 'import' || o.op === 'bulk' || o.op === 'rename' || o.op === 'move' || o.op === 'collections');
   const sites = docs ? [...new Set([...sitesOf(r), ...w.sites])].sort() : w.sites;
   db().run(
     'UPDATE plant_change_sets SET authors = ?, updated_by = ?, updated_at = ?, bytes = ?, expires_at = ?, sites = ?, catalogue = ? WHERE id = ?',
@@ -479,6 +505,15 @@ export function whereOfOps(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id'
     if (o.op === 'move') {
       const m = plantMoveInput.safeParse(parseJson(o.value, null));
       if (m.success) assets.push(...(moveRegion(m.data).assets ?? []));
+      continue;
+    }
+    // 0.19: a collection import names its asset (and, adding known-as names or data points there, the catalogue)
+    if (o.op === 'collections') {
+      const c = collectionsTarget(o);
+      if (c) {
+        assets.push(c.assetId);
+        if (c.profile) catalogue = true;
+      }
       continue;
     }
     if (!o.kind) continue;
@@ -536,6 +571,12 @@ export function regionOf(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id' |
       if (docs.all && !docs.kinds) return docs;
       continue;
     }
+    if (o.op === 'collections') {
+      const c = collectionsTarget(o);
+      docs = joinRegions(docs, c ? collectionsRegion(c.assetId, c.profile) : { all: true });
+      if (docs.all) return docs;
+      continue;
+    }
     if (o.op === 'rename' || !o.kind) return { all: true };
     if (o.op === 'set') {
       if (o.kind === 'node') sites.add(o.scope);
@@ -571,6 +612,36 @@ export function regionOf(ops: Pick<OpRow, 'op' | 'kind' | 'scope' | 'entry_id' |
     assignments: catalogue,
     ...(entries.length ? { entries } : {}),
   });
+}
+
+/**
+ * 0.19.0: what a collection import reaches – the asset with its collections and assignment; the device profile, when
+ * a decision adds a known-as name or a data point there.
+ */
+export function collectionsRegion(assetId: string, profile: boolean): Region {
+  const profileId = profile
+    ? db().get<{ profile_id: string | null }>('SELECT profile_id FROM plant_assignments WHERE asset_id = ?', assetId)?.profile_id
+    : null;
+  return { assets: [assetId], ...(profileId ? { entries: [{ kind: 'profile' as const, scope: '', id: profileId }] } : {}) };
+}
+
+/** Whether a collection import's decisions change the device profile (a known-as name or a data point there). */
+export const collectionsTouchProfile = (input: Pick<CollectionImportInput, 'decisions'>): boolean =>
+  input.decisions.some((d) => d.alias === 'profile' || d.add?.target === 'profile');
+
+/** The asset of a `collections` operation, and whether it may change the device profile (null: not readable). */
+function collectionsTarget(o: Pick<OpRow, 'value'>): { assetId: string; profile: boolean } | null {
+  const v = parseJson<{ assetId?: unknown; decisions?: unknown } | null>(o.value, null);
+  if (!v || typeof v.assetId !== 'string') return null;
+  const decisions = Array.isArray(v.decisions) ? (v.decisions as CollectionImportInput['decisions']) : [];
+  return { assetId: v.assetId, profile: collectionsTouchProfile({ decisions }) };
+}
+
+/** The asset and input of a `collections` operation: its options and the files kept with it. */
+export function collectionsOf(o: Pick<OpRow, 'change_set_id' | 'seq' | 'value'>): { assetId: string; input: CollectionImportInput } {
+  const files = parseJson<Record<string, unknown>>(sourceOf(o.change_set_id, o.seq) ?? '{}', {});
+  const { assetId, ...input } = collectionsOperationInput.parse({ ...parseJson<Record<string, unknown>>(o.value, {}), ...files });
+  return { assetId, input };
 }
 
 /** What an import reaches: every entry of the kinds its files hold (when it removes and renames nothing), else everything. */
@@ -616,6 +687,8 @@ export interface RunOutcome {
   imports: PlantImportResult[];
   /** Imports whose baselines are recorded once the change set's revisions are written (the last operation) */
   baselinesAfter: string[];
+  /** 0.19.0: then the baselines of entries that kept Steward's values (what the file said) */
+  keptAfter: (() => void)[];
 }
 
 interface Choice {
@@ -674,8 +747,8 @@ export function mergeOf(o: OpRow, now: EntrySnap, choices: Choice[]): { body: un
 }
 
 /** Runs the operations in order, as the person they run for (inside a transaction). Refusals become problems. */
-export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): RunOutcome {
-  const out: RunOutcome = { problems: [], conflicts: [], stale: [], importIds: [], imports: [], baselinesAfter: [] };
+export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'> & { source?: PlantChangeSetSource }, ops: OpRow[]): RunOutcome {
+  const out: RunOutcome = { problems: [], conflicts: [], stale: [], importIds: [], imports: [], baselinesAfter: [], keptAfter: [] };
   const choices = parseJson<Choice[]>(cs.resolutions, []);
   for (const o of ops) {
     try {
@@ -720,12 +793,30 @@ export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): Run
           renameId({ kind: o.kind as PlantIdKind, scope: o.scope, id: o.entry_id, newId: String(value?.newId ?? '') });
           break;
         case 'import': {
-          const r = applyImport(importOf(o));
+          const input = importOf(o);
+          // 0.19.0: a proposal (an assistant's, or one sent through the public API) is a change in Steward, not a load
+          // from a source: it takes its document's values and records no baselines – a file import after it flags what
+          // it changed
+          if (value?.proposal === true) {
+            const r = applyImport(input);
+            if (cs.source === 'api') refuseProposalDrops(r);
+            out.importIds.push(r.import.id);
+            out.imports.push(r);
+            break;
+          }
+          // fields changed in Steward since the last import keep Steward's value unless the file's is taken (0.19.0)
+          const st = withSteward(input, () => applyImport(input));
+          const r = st.result;
           out.importIds.push(r.import.id);
           out.imports.push(r);
           // the last operation: its baselines are the entries' revisions at the end; otherwise what it left, as values
-          if (o === ops.at(-1)) out.baselinesAfter.push(r.import.id);
-          else recordBaselines(r.import.id, { values: true });
+          if (o === ops.at(-1)) {
+            out.baselinesAfter.push(r.import.id);
+            out.keptAfter.push(() => st.recordKept(r.import.id));
+          } else {
+            recordBaselines(r.import.id, { values: true });
+            st.recordKept(r.import.id);
+          }
           break;
         }
         case 'bulk':
@@ -734,6 +825,12 @@ export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): Run
         case 'move':
           applyMove(plantMoveInput.parse(value));
           break;
+        case 'collections': {
+          // 0.19.0: a collector's files into an asset's data collections, as the person who applies
+          const c = collectionsOf(o);
+          applyCollectionImport(c.assetId, c.input);
+          break;
+        }
       }
     } catch (e) {
       const p = problemOf(e);
@@ -742,6 +839,19 @@ export function runOps(cs: Pick<CsRow, 'id' | 'resolutions'>, ops: OpRow[]): Run
     }
   }
   return out;
+}
+
+/**
+ * A proposal sent through the public API (0.19.0) keeps the rules of assistants' proposals when it is applied: when the
+ * registry changed since so that it would drop an item from a list inside an entry, or rename one, it is refused.
+ */
+function refuseProposalDrops(r: PlantImportResult): void {
+  if (r.renames.length) throw new HttpError(409, 'A proposal cannot change ids', 'PLANT_PROPOSAL_INVALID', { count: r.renames.length });
+  const c = r.changes.find((x) => x.drops?.length);
+  if (c) {
+    const d = { entry: `${c.kind} "${c.id}"`, path: c.drops![0]! };
+    throw new HttpError(409, `A proposal may not drop items from an entry: ${d.entry} would lose ${d.path}`, 'PLANT_PROPOSAL_REMOVES', d);
+  }
 }
 
 /**
@@ -904,6 +1014,7 @@ export function applyStored(
       tracked(regionOf(ops), { changeSetId: id, author: authors.join(', '), appliedBy: u.username }, () => runOps(r, ops)),
     );
     for (const importId of t.result.baselinesAfter) recordBaselines(importId);
+    for (const kept of t.result.keptAfter) kept();
     const p = t.result.problems[0];
     if (p)
       throw new HttpError(
@@ -989,6 +1100,8 @@ export function applyDirect<T>(o: {
   changedCode?: string;
   /** The import's id, for its baselines */
   importIdOf?: (result: T) => string | null;
+  /** 0.19.0: after the import's baselines (those of entries that kept Steward's values) */
+  afterBaselines?: (result: T) => void;
   mcpRequestId?: string;
   author?: string;
 }): { result: T; changeSetId: string | null; changes: EntryChange[] } {
@@ -1000,6 +1113,7 @@ export function applyDirect<T>(o: {
     if (o.fingerprint !== undefined && fingerprintOf(t.changes) !== o.fingerprint) throw changedError(o.changedCode);
     const importId = o.importIdOf?.(t.result) ?? null;
     if (importId) recordBaselines(importId);
+    o.afterBaselines?.(t.result);
     if (!t.changes.length) return { result: t.result, changeSetId: null, changes: [] };
     // a move's sites it leaves count too (0.16)
     const where = touched(
@@ -1087,7 +1201,7 @@ export function operationsFor(r: CsRow, u: AuthUser): { operations: PlantChangeO
         baseRevision: o.base_revision === null ? null : Number(o.base_revision),
         base: parseJson<unknown>(o.base, null),
         // a document is shown by its size and hash (the files themselves are in the import's preview)
-        value: o.op === 'import' ? { ...(value as object), files: undefined } : value,
+        value: o.op === 'import' || o.op === 'collections' ? { ...(value as object), files: undefined, mappingFile: undefined } : value,
         path: o.kind ? entryPagePath(o.kind, o.scope, o.entry_id) : null,
       };
     }),
@@ -1119,11 +1233,32 @@ export function detailOf(r: CsRow, u: AuthUser = me()): PlantChangeSetDetail {
     canWithdraw: open && author && r.source !== 'assistant' ? true : open && r.source === 'assistant' && samePersonAny([r.created_by], u),
     canApply: !blocked,
     canReject: r.state === 'proposed' && !author && !rightsProblem(r, u),
-    canReturn: r.state === 'proposed' && !author && !blocked && r.source !== 'assistant',
+    canReturn: r.state === 'proposed' && !author && !blocked && r.source !== 'assistant' && r.source !== 'api',
     canRevert: r.state === 'applied' && plantProposesSome(u),
-    canCopy: (r.state === 'rejected' || r.state === 'withdrawn' || r.state === 'expired') && plantProposesSome(u) && r.source !== 'assistant',
+    // someone else's change set with changes the reader may not see, or imported files: copied by one of its authors
+    canCopy:
+      (r.state === 'rejected' || r.state === 'withdrawn' || r.state === 'expired') &&
+      plantProposesSome(u) &&
+      r.source !== 'assistant' &&
+      (author || (!hidden && !db().get('SELECT 1 AS x FROM plant_change_sources WHERE change_set_id = ?', r.id))),
     copiedFrom: r.copied_from,
     ...(r.state === 'applied' ? { applied: appliedEntries(r.id, u) } : {}),
+    ...(r.source === 'api' ? { proposal: apiProposalOf(r, u) } : {}),
+  };
+}
+
+/** 0.19.0: a proposal sent through the public API – its rationale, token and the sources of its data points. */
+function apiProposalOf(r: CsRow, u: AuthUser): NonNullable<PlantChangeSetDetail['proposal']> {
+  const o = opsOf(r.id).find((x) => x.op === 'import');
+  const value = parseJson<{ rationale?: unknown; tokenName?: unknown }>(o?.value ?? '{}', {});
+  const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);
+  const sees = (siteId: string | null) => !siteId || !rights.has(siteId) || !!rights.get(siteId)?.includes('view');
+  const s = o ? proposalSources(sourceOf(r.id, o.seq) ?? '{}', sees) : { groups: [], more: 0 };
+  return {
+    rationale: typeof value.rationale === 'string' ? value.rationale : '',
+    tokenName: typeof value.tokenName === 'string' ? value.tokenName : '',
+    sources: s.groups,
+    sourcesMore: s.more,
   };
 }
 

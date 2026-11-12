@@ -7,6 +7,7 @@ import { IconCalendarPlus, IconCheck, IconPackages, IconPlayerPlay, IconPlugConn
 import type { Platform, TemplateBundle, TemplateBundleSetupItem, TemplateBundleSetupResult } from '@sm/shared';
 import { notifyError, post } from '../api';
 import { DescriptionText } from './DescriptionText';
+import { TableScroll } from './TableScroll';
 
 const ACTION_COLORS: Record<TemplateBundleSetupItem['action'], string> = {
   created: 'green',
@@ -163,7 +164,7 @@ export function BundleSetup({
             <Title order={6} c="dimmed" tt="uppercase" fz="xs">
               {t(`bundles.types.${g.type}`)}
             </Title>
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm">
                 <Table.Tbody>
                   {g.items.map((i, n) => (
@@ -191,7 +192,7 @@ export function BundleSetup({
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           </Stack>
         ))}
         {toTurnOn > 0 && !turnedOn && (

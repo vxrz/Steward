@@ -50,6 +50,7 @@ import { useCollapsible } from '../components/page/CollapsibleSection';
 import { ShowAll, useShowMore } from '../components/page/ShowAll';
 import { processKeys, runKeys } from '../queryKeys';
 import { useMe } from '../auth';
+import { TableScroll } from '../components/TableScroll';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -385,7 +386,7 @@ export function RunDetailPage() {
                   )}
                   <Markdown text={rep.text} />
                   {rep.rows && (
-                    <div className="table-scroll">
+                    <TableScroll>
                       <Table striped withTableBorder fz="sm" mt="xs">
                         <Table.Thead>
                           <Table.Tr>
@@ -413,7 +414,7 @@ export function RunDetailPage() {
                           ))}
                         </Table.Tbody>
                       </Table>
-                    </div>
+                    </TableScroll>
                   )}
                 </Paper>
               ))}
@@ -421,7 +422,7 @@ export function RunDetailPage() {
           </Tabs.Panel>
 
           <Tabs.Panel value="checks" pt="sm">
-            <div className="table-scroll">
+            <TableScroll>
               <Table withTableBorder fz="sm">
                 <Table.Thead>
                   <Table.Tr>
@@ -455,7 +456,7 @@ export function RunDetailPage() {
                   })}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
           </Tabs.Panel>
 
           <Tabs.Panel value="decisions" pt="sm">
@@ -485,7 +486,7 @@ export function RunDetailPage() {
           </Tabs.Panel>
 
           <Tabs.Panel value="log" pt="sm">
-            <div className="table-scroll">
+            <TableScroll>
               <Table fz="sm" verticalSpacing={2}>
                 <Table.Tbody>
                   {logs.items.map((l) => (
@@ -509,7 +510,7 @@ export function RunDetailPage() {
                   ))}
                 </Table.Tbody>
               </Table>
-            </div>
+            </TableScroll>
             <ShowAll
               state={logs}
               id="log"
@@ -767,7 +768,7 @@ function RunAudit({ runId }: { runId: string }) {
   const { t } = useTranslation('runs');
   const q = useQuery({ queryKey: ['audit', 'run', runId], queryFn: () => get<AuditEntry[]>(`/audit?runId=${runId}&limit=1000`) });
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="sm" striped>
         <Table.Thead>
           <Table.Tr>
@@ -790,7 +791,7 @@ function RunAudit({ runId }: { runId: string }) {
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }
 

@@ -111,6 +111,12 @@ export const collectionImportInput = z
   .strict();
 export type CollectionImportInput = z.infer<typeof collectionImportInput>;
 
+/**
+ * 0.19.0: a collection import as an operation of a change set (ADR 0020): the asset, the importer's options and
+ * decisions (the operation's value) and its files (kept apart, as an import's).
+ */
+export const collectionsOperationInput = collectionImportInput.extend({ assetId: z.string().trim().min(1).max(120) });
+
 // ---------- reading the files ----------
 
 /** Node-RED keeps sign-in data in a node's `credentials`: dropped before any importer looks at the flow. */

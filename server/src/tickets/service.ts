@@ -27,7 +27,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, teamScoped } from '../auth/policy.js';
+import { auditNamedGrant, requireNamedGrant, uncoveredSubjects, type NamedGrant } from '../auth/named-grants.js';
 import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 
 /**
@@ -148,7 +149,8 @@ export function ticketPermissions(u: AuthUser | null, r: Pick<TicketRow, 'id' | 
  * it. With owning teams (#131): members of those teams, its responsibles, administrators and auditors only.
  */
 export function ticketAccess(u: AuthUser | null, r: Pick<TicketRow, 'id' | 'responsible'>) {
-  const responsible = isResponsible(u, r);
+  const named = u ? parseJson<string[]>(r.responsible, []).find((s) => matches(u, s)) : undefined;
+  const responsible = !!named;
   const byRole = (role: string): ('view' | 'edit')[] => (TICKET_EDITOR_ROLES.includes(role) ? ['view', 'edit'] : ['view']);
   return teamScoped<'view' | 'edit' | 'delete'>(
     u,
@@ -156,7 +158,7 @@ export function ticketAccess(u: AuthUser | null, r: Pick<TicketRow, 'id' | 'resp
     {
       all: ['view', 'edit', 'delete'],
       byRole,
-      personal: responsible ? { permissions: ['view', 'edit'] } : null,
+      personal: named ? { permissions: ['view', 'edit'], subject: named, as: 'responsible' } : null,
       auditor: ['view'],
       unscoped: () => (!u ? [] : ['view', ...(isEditorRole(u) || responsible ? (['edit'] as const) : []), ...(isAdmin(u) ? (['delete'] as const) : [])]),
     },
@@ -312,7 +314,7 @@ export function ticketRow(id: string): TicketRow {
   return r;
 }
 
-function requireTicket(id: string, perm?: TicketPermission): TicketRow {
+export function requireTicket(id: string, perm?: TicketPermission): TicketRow {
   const u = me();
   const r = ticketRow(id);
   if (perm && !ticketPermissions(u, r).includes(perm))
@@ -555,6 +557,28 @@ function syncLinks(ticketId: string, wanted: TicketInput['links'], label: string
 
 const labelOf = (r: { source: string; external_number: string }) => `ticket reference ${r.external_number}`;
 
+/** The responsibles a change names (#195), with the reference's owning teams – a new one gets its creator's. */
+function namedResponsibles(before: TicketRow | undefined, b: TicketInput): NamedGrant {
+  return {
+    entityType: 'ticket',
+    entityId: before?.id ?? null,
+    label: `ticket reference ${b.externalNumber}`,
+    field: 'responsible',
+    teams: before ? owningTeams('ticket', before.id) : newResourceTeams(currentUser()).teams,
+    before: before ? parseJson<string[]>(before.responsible, []) : [],
+    after: [...new Set(b.responsible)],
+    rights: ['view', 'edit'],
+  };
+}
+
+/** The route's step-up rule (#195): responsibles from outside the owning teams in the request ([] for a body the route refuses). */
+export function ticketNamesOutsiders(id: string | null, body: unknown): string[] {
+  const p = ticketInputSchema.safeParse(body ?? {});
+  if (!p.success) return [];
+  const g = namedResponsibles(id ? requireTicket(id, 'edit') : undefined, p.data);
+  return uncoveredSubjects(g.teams, g.before, g.after);
+}
+
 export function createTicket(b: TicketInput): TicketDetail {
   const u = me();
   if (!canCreateTickets(u)) throw new HttpError(403, 'You are not allowed to add ticket references', 'TICKET_CREATE_FORBIDDEN');
@@ -565,6 +589,9 @@ export function createTicket(b: TicketInput): TicketDetail {
   const resolvedAt = resolvedFor(b.status, null, b.resolvedAt);
   checkDates(openedAt, resolvedAt);
   const supplierId = resolveSupplierLink(b.supplierId, null);
+  // responsibles from outside the owning teams it gets: confirmed like an access list (#195)
+  const grant = namedResponsibles(undefined, b);
+  const named = requireNamedGrant(grant);
   const id = newId('tkt_');
   const now = nowIso();
   db().tx(() => {
@@ -608,6 +635,7 @@ export function createTicket(b: TicketInput): TicketDetail {
         reminderDays: b.reminderDays,
       },
     });
+    auditNamedGrant({ ...grant, entityId: id }, named);
     syncLinks(id, b.links, labelOf({ source: b.source, external_number: b.externalNumber }));
   });
   return getTicket(id);
@@ -625,6 +653,9 @@ export function updateTicket(id: string, b: TicketInput): TicketDetail {
   if (!isEditorRole(u) && !isResponsible(u, { responsible: JSON.stringify(responsible) }))
     throw new HttpError(400, 'You edit this entry as one of the responsible people: keep yourself (or your team) in the list', 'TICKET_RESPONSIBLE_REQUIRED');
   checkDuplicate(b.source, b.externalNumber, id);
+  // responsibles from outside the owning teams: confirmed like an access list (#195)
+  const grant = namedResponsibles(before, b);
+  const named = requireNamedGrant(grant);
   const openedAt = b.openedAt ?? before.opened_at;
   const resolvedAt = resolvedFor(b.status, before, b.resolvedAt);
   checkDates(openedAt, resolvedAt);
@@ -676,6 +707,7 @@ export function updateTicket(id: string, b: TicketInput): TicketDetail {
           ...(statusChanged && b.comment ? { comment: b.comment } : {}),
         },
       });
+    auditNamedGrant({ ...grant, entityId: id }, named);
   });
   return getTicket(id);
 }

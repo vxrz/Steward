@@ -5,6 +5,7 @@ import { audit } from '../audit.js';
 import { HttpError } from '../util.js';
 import * as platforms from '../platforms/service.js';
 import * as identities from '../platforms/identityService.js';
+import { guardDestinationSecrets } from '../platforms/destinationChange.js';
 import { renewToken, usesCachedToken } from '../platforms/http.js';
 import { redactSecrets, runConnectionTest } from '../platforms/testConnection.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
@@ -111,6 +112,8 @@ export async function platformIdentityRoutes(app: FastifyInstance): Promise<void
     // "This is a rotation" (0.14.0, ADR 0009 step 4): ?rotation=1 records it on the register entries that document the identity
     const { rotation } = z.object({ rotation: z.enum(['0', '1']).optional() }).parse(req.query ?? {});
     const patch = boundedRecord(z.string().max(20000).nullable(), 100).parse(req.body);
+    // a secret a destination template names decides where the credentials go (security review 0.19.0 L3)
+    guardDestinationSecrets(id, identityId, patch);
     const out = identities.setIdentitySecrets(id, identityId, patch);
     // a new value, not only removed ones
     if (rotation === '1' && Object.values(patch).some((v) => !!v)) {

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { installRequestTimeout, serverTimeouts } from '../requestTimeout.js';
 import { config } from '../config.js';
 import { tlsServerOptions } from '../tls.js';
 import { logger } from '../log.js';
@@ -19,7 +20,10 @@ export async function buildBotApp(): Promise<FastifyInstance> {
     bodyLimit: BOT_BODY_LIMIT + 1024,
     // the same TLS settings as the main server (TLS 1.2+, forward-secret AEAD suites, SM_TLS_CIPHERS): this port faces the internet
     ...(config.tls ? { https: tlsServerOptions()! } : {}),
+    // the same connection limits as the main server (security review 0.19.0 M1)
+    ...serverTimeouts(),
   }) as unknown as FastifyInstance;
+  installRequestTimeout(app);
   // the body is read as text: the handler checks size and JSON itself (415 for anything else)
   app.removeAllContentTypeParsers();
   app.addContentTypeParser('*', { parseAs: 'string' }, (_req, body, done) => done(null, body));

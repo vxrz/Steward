@@ -75,11 +75,13 @@
     "explainFailed": "Der Zugriff konnte nicht erklärt werden.",
     "reason": {
       "admin": "Als Administrator: {{rights}}",
-      "owner": "Eigentümer des Prozesses: {{rights}}",
+      "owner": "Eigentümer: {{rights}}",
       "auditor": "Als Auditor: {{rights}}",
       "instanceRole": "Rolle {{role}}: {{rights}}",
       "teamRole": "{{role}} im Team {{team}}: {{rights}}",
-      "accessList": "Zugriffsliste ({{subject}}): {{rights}}"
+      "accessList": "Zugriffsliste ({{subject}}): {{rights}}",
+      "namedOwner": "Als Eigentümer benannt ({{subject}}): {{rights}}",
+      "namedResponsible": "Als Verantwortliche benannt ({{subject}}): {{rights}}"
     },
     "save": "Zuständige Teams speichern",
     "bulk": {
@@ -130,5 +132,11 @@
   "defaultsIdentity": "<b>Geschlossen:</b> Nur Administratoren und Mitglieder der zuständigen Teams (Designer, Operatoren) dürfen diese Identität verwenden. Fügen Sie die Benutzer, Teams oder Rollen hinzu, die sie benötigen.",
   "helpIdentity": {
     "use": "Diese Identität in Ausführungen, Zeitplänen, Triggern, Monitoren und über MCP verwenden (setzt „Nutzen“ auf der Plattform voraus)"
+  },
+  "namedOutside": {
+    "hint_one": "{{names}} gehört nicht zu den zuständigen Teams ({{teams}}) und wird diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",
+    "hint_other": "{{names}} gehören nicht zu den zuständigen Teams ({{teams}}) und werden diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",
+    "platformHint_one": "{{names}} gehört nicht zu den zuständigen Teams des Vertrags ({{teams}}) und wird ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind.",
+    "platformHint_other": "{{names}} gehören nicht zu den zuständigen Teams des Vertrags ({{teams}}) und werden ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind."
   }
 }

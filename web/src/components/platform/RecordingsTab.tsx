@@ -9,6 +9,7 @@ import { EmptyState, Hint, QueryState } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtBytes, fmtRelative } from '../../format';
 import { platformKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Recorded responses of a platform (#105): answers that a test run of a process or monitor uses instead of the
@@ -60,7 +61,7 @@ export function RecordingsTab({ platform, readOnly }: { platform: Platform; read
         </EmptyState>
       )}
       {list.length > 0 && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" highlightOnHover aria-label={t('recordings.title')}>
             <Table.Thead>
               <Table.Tr>
@@ -123,7 +124,7 @@ export function RecordingsTab({ platform, readOnly }: { platform: Platform; read
               })}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {editing && (
         <RecordingModal

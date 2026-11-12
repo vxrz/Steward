@@ -29,7 +29,7 @@ import { env } from '../config.js';
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model.
+const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model. One endpoint writes, and only for review: \`POST /plant/proposals\` proposes changes to the plant registry that a person applies or rejects in the web UI (a token with scope *full*).
 
 **Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
 
@@ -219,14 +219,14 @@ async function v1Scope(app: FastifyInstance, opts: { spec: () => Doc }): Promise
     };
     if (err instanceof ProblemError) return sendProblem(req, reply, err.status, err.init);
     if (e.validation) {
-      const where = e.validationContext === 'params' ? 'path' : 'query';
+      const where = e.validationContext === 'params' ? 'path' : e.validationContext === 'body' ? 'body' : 'query';
       return sendProblem(req, reply, 400, {
         type: 'validation-error',
         title: 'Invalid request',
         detail: e.message,
         errors: e.validation.map((v) => ({
           in: where,
-          name: (v.instancePath ?? '').replace(/^\//, '').split('/')[0] || v.params?.missingProperty || '',
+          name: (v.instancePath ?? '').replace(/^\//, '').split('/')[0] || v.params?.missingProperty || v.params?.additionalProperty || '',
           message: v.message ?? 'invalid',
         })),
       });

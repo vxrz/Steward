@@ -382,7 +382,9 @@ function LanguageCard({ d }: { d: Draft }) {
     <Card withBorder>
       <Group gap="xs" mb="sm" wrap="nowrap">
         <IconLanguage size={18} />
-        <Title order={5}>{t('language.title')}</Title>
+        <Title order={2} size="h5">
+          {t('language.title')}
+        </Title>
       </Group>
       <Select
         label={t('language.default')}
@@ -405,7 +407,7 @@ function BrowserCard({ d, browserAvailable }: { d: Draft; browserAvailable: bool
   const { s, setS } = d;
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('browser.title')}
       </Title>
       {!browserAvailable && (
@@ -441,7 +443,7 @@ function OutboundCard({ d }: { d: Draft }) {
   const policy = s.outboundPolicy ?? 'platforms';
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('outbound.title')}
       </Title>
       <Stack gap="xs">
@@ -503,7 +505,7 @@ function ComplianceCard({ d }: { d: Draft }) {
   const { s, setS } = d;
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('compliance.title')}
       </Title>
       <Switch
@@ -521,7 +523,7 @@ function RetentionCard({ d }: { d: Draft }) {
   const { s, setS } = d;
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('retention.title')}
       </Title>
       <Stack>
@@ -581,7 +583,7 @@ function PublicApiCard({ d }: { d: Draft }) {
   if (!publicApi.data) return null;
   return (
     <Card withBorder>
-      <Title order={5} mb="sm">
+      <Title order={2} size="h5" mb="sm">
         {t('publicApi.title')}
       </Title>
       <Stack gap="xs">
@@ -623,7 +625,9 @@ function EndOfLifeCard() {
     <Card withBorder>
       <Group gap="xs" mb="xs">
         <IconBuildingFactory2 size={18} />
-        <Title order={5}>{t('endOfLife.title')}</Title>
+        <Title order={2} size="h5">
+          {t('endOfLife.title')}
+        </Title>
       </Group>
       <Text size="sm" c="dimmed" mb="sm">
         {t('endOfLife.hint')}
@@ -647,7 +651,7 @@ function UnattendedCard() {
   const { t } = useTranslation('settings');
   return (
     <Card withBorder data-testid="unattended-card">
-      <Title order={5} mb="xs">
+      <Title order={2} size="h5" mb="xs">
         {t('unattended.title')}
       </Title>
       <Text size="sm" mb="sm">
@@ -779,7 +783,9 @@ function AdminTokensCard() {
   };
   return (
     <Card withBorder>
-      <Title order={5}>{t('tokens.title')}</Title>
+      <Title order={2} size="h5">
+        {t('tokens.title')}
+      </Title>
       <Text size="sm" c="dimmed" mb="sm">
         {t('tokens.hint')}
       </Text>

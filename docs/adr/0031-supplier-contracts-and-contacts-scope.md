@@ -278,6 +278,10 @@ A security review of the build found no critical or high issues; these changes c
 10. **Adding a covered service needs a session.** Choosing a contract that does not cover the service on a plan line, an entry, a duty or a matrix row adds the service – refused for API tokens (`SUPPLIER_CONTRACT_COVER_SESSION`, ADR 0029 decision 9); linking a covering contract stays allowed.
 11. **The supplier picker** (`GET /api/suppliers/options`) names only the covered services the reader may see.
 
+## Changed in 0.19.0
+
+- **Contract owners from outside the contract's teams ask for the step-up** (#195, [TEAMS.md](../TEAMS.md#named-owners-and-responsibles)): naming a user or team who is not in the teams among the contract's owners (without one, the supplier's owning teams; a new contract: the creator's teams for new resources) grants them the contract like an access list – the control point `access.grant`, audited as `access.named_subjects_granted` beside `supplier.contract_changed`. The same holds for the supplier's own owners and for the owners chosen in a merge. Removing an owner, and a contract that is the whole instance's, need nothing.
+
 ## Consequences
 
 - One company is one record: certificates, the company-wide DPA and company contacts are kept and reviewed once, while each team manages its own contracts, terms, reminders and contacts without seeing the others'.

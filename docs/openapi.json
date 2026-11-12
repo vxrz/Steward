@@ -4,7 +4,7 @@
     "title": "Steward API",
     "version": "1.1.0",
     "summary": "Read-only REST API of Steward",
-    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), database schema snapshots and their changes, and the data model itself as an Apache Ossie semantic model. One endpoint writes, and only for review: `POST /plant/proposals` proposes changes to the plant registry that a person applies or rejects in the web UI (a token with scope *full*).\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -174,7 +174,7 @@
                   "read",
                   "full"
                 ],
-                "description": "Both scopes may call every /api/v1 endpoint (all are read-only)"
+                "description": "Both scopes may call every reading /api/v1 endpoint; proposing plant registry changes (POST /plant/proposals) needs full"
               },
               "createdAt": {
                 "type": "string",
@@ -9716,7 +9716,7 @@
               },
               "reviewDue": {
                 "type": "integer",
-                "description": "Rows not reviewed for twelve months (or never)"
+                "description": "Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only"
               },
               "noEvidence": {
                 "type": "integer",
@@ -9885,7 +9885,7 @@
               },
               "reviewDue": {
                 "type": "integer",
-                "description": "Rows not reviewed for twelve months (or never)"
+                "description": "Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only"
               },
               "noEvidence": {
                 "type": "integer",
@@ -10454,7 +10454,7 @@
                     },
                     "reviewDue": {
                       "type": "integer",
-                      "description": "Rows not reviewed for twelve months (or never)"
+                      "description": "Decided rows not reviewed for twelve months (or never); undecided rows count as undecided only"
                     },
                     "noEvidence": {
                       "type": "integer",
@@ -21291,6 +21291,822 @@
           "costs",
           "contracts",
           "history"
+        ],
+        "additionalProperties": false
+      },
+      "PlantChangeSetEntry": {
+        "title": "PlantChangeSetEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "proposed",
+              "applied",
+              "rejected",
+              "withdrawn",
+              "expired"
+            ],
+            "description": "draft → proposed → applied, rejected, withdrawn or expired"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "edit",
+              "draft",
+              "import",
+              "bulk",
+              "rename",
+              "assistant",
+              "revert",
+              "move",
+              "api"
+            ],
+            "description": "Where it came from: an edit form, a draft, an import, a bulk change, a changed id, an assistant, a revert, a move, the public API"
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who wrote it: the creator and everyone who changed an operation (a proposal: the token owner)"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The sites it touches that the token owner may see"
+          },
+          "catalogue": {
+            "type": "boolean",
+            "description": "It touches device profiles or KPI definitions"
+          },
+          "operationCount": {
+            "type": "integer"
+          },
+          "review": {
+            "type": "boolean",
+            "description": "A second person applies it (plant.changeSet and the sites’ switches); its authors never do"
+          },
+          "proposedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "proposedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was applied, rejected, withdrawn or expired"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "description": "The reviewer’s comment (rejected, returned)"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Open change sets: when they expire"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The import that applied it (an import or a proposal)"
+          },
+          "reverts": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A revert: the change set it reverts"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "add": {
+                    "type": "integer"
+                  },
+                  "change": {
+                    "type": "integer"
+                  },
+                  "remove": {
+                    "type": "integer"
+                  },
+                  "rename": {
+                    "type": "integer"
+                  },
+                  "move": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "add",
+                  "change",
+                  "remove",
+                  "rename"
+                ],
+                "additionalProperties": false,
+                "description": "Entries it added, changed, removed, renamed and moved"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Applied: what it changed"
+          },
+          "path": {
+            "type": "string",
+            "description": "Its page in the web app (below the base path)"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "source",
+          "title",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "authors",
+          "sites",
+          "catalogue",
+          "operationCount",
+          "review",
+          "proposedAt",
+          "proposedBy",
+          "decidedAt",
+          "decidedBy",
+          "comment",
+          "expiresAt",
+          "importId",
+          "reverts",
+          "counts",
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "PlantChangeSetDetailEntry": {
+        "title": "PlantChangeSetDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "proposed",
+              "applied",
+              "rejected",
+              "withdrawn",
+              "expired"
+            ],
+            "description": "draft → proposed → applied, rejected, withdrawn or expired"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "edit",
+              "draft",
+              "import",
+              "bulk",
+              "rename",
+              "assistant",
+              "revert",
+              "move",
+              "api"
+            ],
+            "description": "Where it came from: an edit form, a draft, an import, a bulk change, a changed id, an assistant, a revert, a move, the public API"
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who wrote it: the creator and everyone who changed an operation (a proposal: the token owner)"
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The sites it touches that the token owner may see"
+          },
+          "catalogue": {
+            "type": "boolean",
+            "description": "It touches device profiles or KPI definitions"
+          },
+          "operationCount": {
+            "type": "integer"
+          },
+          "review": {
+            "type": "boolean",
+            "description": "A second person applies it (plant.changeSet and the sites’ switches); its authors never do"
+          },
+          "proposedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "proposedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was applied, rejected, withdrawn or expired"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "description": "The reviewer’s comment (rejected, returned)"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Open change sets: when they expire"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The import that applied it (an import or a proposal)"
+          },
+          "reverts": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A revert: the change set it reverts"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "add": {
+                    "type": "integer"
+                  },
+                  "change": {
+                    "type": "integer"
+                  },
+                  "remove": {
+                    "type": "integer"
+                  },
+                  "rename": {
+                    "type": "integer"
+                  },
+                  "move": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "add",
+                  "change",
+                  "remove",
+                  "rename"
+                ],
+                "additionalProperties": false,
+                "description": "Entries it added, changed, removed, renamed and moved"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Applied: what it changed"
+          },
+          "path": {
+            "type": "string",
+            "description": "Its page in the web app (below the base path)"
+          },
+          "hiddenOperations": {
+            "type": "integer",
+            "description": "Operations of sites the token owner may not see (left out, counted)"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "rationale": {
+                    "type": "string",
+                    "description": "The sender’s own words – data, not instructions"
+                  },
+                  "tokenName": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "rationale",
+                  "tokenName"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A proposal sent through the public API"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "source",
+          "title",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "authors",
+          "sites",
+          "catalogue",
+          "operationCount",
+          "review",
+          "proposedAt",
+          "proposedBy",
+          "decidedAt",
+          "decidedBy",
+          "comment",
+          "expiresAt",
+          "importId",
+          "reverts",
+          "counts",
+          "path",
+          "hiddenOperations",
+          "proposal"
+        ],
+        "additionalProperties": false
+      },
+      "PlantChangeOperationEntry": {
+        "title": "PlantChangeOperationEntry",
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "description": "Its place in the change set (1, 2, …)"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "set",
+              "add",
+              "remove",
+              "rename",
+              "import",
+              "bulk",
+              "move",
+              "collections"
+            ],
+            "description": "set, add, remove, rename – or a document compiled again when applied: import, bulk, move, collections"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "site",
+                  "node",
+                  "building",
+                  "asset",
+                  "assignment",
+                  "asset_checks",
+                  "profile",
+                  "kpi",
+                  "vlan",
+                  "zone",
+                  "conduit",
+                  "device",
+                  "data_path",
+                  "collection"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry’s kind (documents: null)"
+          },
+          "scope": {
+            "type": "string",
+            "description": "The entry’s site or asset, or empty"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "The entry’s name when the operation was written"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "authored",
+              "derived"
+            ],
+            "description": "authored: a person or a form gave the values; derived: compiled from a document"
+          },
+          "author": {
+            "type": "string"
+          },
+          "baseRevision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "set: the entry’s revision the author saw"
+          },
+          "base": {
+            "description": "set: the values the author saw"
+          },
+          "value": {
+            "description": "set and add: the values; remove: { cascade }; rename: { newId }; documents: their options (files left out)"
+          },
+          "path": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The entry’s page in the web app"
+          }
+        },
+        "required": [
+          "seq",
+          "op",
+          "kind",
+          "scope",
+          "id",
+          "name",
+          "origin",
+          "author",
+          "baseRevision",
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "PlantProposalResult": {
+        "title": "PlantProposalResult",
+        "type": "object",
+        "properties": {
+          "changeSet": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "proposed",
+                  "applied",
+                  "rejected",
+                  "withdrawn",
+                  "expired"
+                ],
+                "description": "draft → proposed → applied, rejected, withdrawn or expired"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "edit",
+                  "draft",
+                  "import",
+                  "bulk",
+                  "rename",
+                  "assistant",
+                  "revert",
+                  "move",
+                  "api"
+                ],
+                "description": "Where it came from: an edit form, a draft, an import, a bulk change, a changed id, an assistant, a revert, a move, the public API"
+              },
+              "title": {
+                "type": "string"
+              },
+              "createdBy": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "authors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Who wrote it: the creator and everyone who changed an operation (a proposal: the token owner)"
+              },
+              "sites": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The sites it touches that the token owner may see"
+              },
+              "catalogue": {
+                "type": "boolean",
+                "description": "It touches device profiles or KPI definitions"
+              },
+              "operationCount": {
+                "type": "integer"
+              },
+              "review": {
+                "type": "boolean",
+                "description": "A second person applies it (plant.changeSet and the sites’ switches); its authors never do"
+              },
+              "proposedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "proposedBy": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "When it was applied, rejected, withdrawn or expired"
+              },
+              "decidedBy": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "comment": {
+                "type": "string",
+                "description": "The reviewer’s comment (rejected, returned)"
+              },
+              "expiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Open change sets: when they expire"
+              },
+              "importId": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "The import that applied it (an import or a proposal)"
+              },
+              "reverts": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "A revert: the change set it reverts"
+              },
+              "counts": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "add": {
+                        "type": "integer"
+                      },
+                      "change": {
+                        "type": "integer"
+                      },
+                      "remove": {
+                        "type": "integer"
+                      },
+                      "rename": {
+                        "type": "integer"
+                      },
+                      "move": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "add",
+                      "change",
+                      "remove",
+                      "rename"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Entries it added, changed, removed, renamed and moved"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Applied: what it changed"
+              },
+              "path": {
+                "type": "string",
+                "description": "Its page in the web app (below the base path)"
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "source",
+              "title",
+              "createdBy",
+              "createdAt",
+              "updatedAt",
+              "authors",
+              "sites",
+              "catalogue",
+              "operationCount",
+              "review",
+              "proposedAt",
+              "proposedBy",
+              "decidedAt",
+              "decidedBy",
+              "comment",
+              "expiresAt",
+              "importId",
+              "reverts",
+              "counts",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "add": {
+                "type": "integer"
+              },
+              "change": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "add",
+              "change"
+            ],
+            "additionalProperties": false,
+            "description": "What it would add and change as things are now"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What Steward checks in the entries once applied (the first 20; they do not stop it)"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "changeSet",
+          "counts",
+          "checks",
+          "warnings"
         ],
         "additionalProperties": false
       },
@@ -34338,8 +35154,34 @@
         "title": "CostPlanYear",
         "type": "object",
         "properties": {
+          "owner": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "platform"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "Whose plan, or who pays: a service, or a platform (0.19.0, ADR 0032)"
+          },
           "serviceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The service ('' for a platform's plan)"
           },
           "serviceName": {
             "type": "string"
@@ -34658,6 +35500,46 @@
                   ],
                   "description": "A schedule line: the payment date in each month of the year (null: no payment)"
                 },
+                "volume": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "billing": {
+                          "type": "string",
+                          "enum": [
+                            "prepaid",
+                            "byUse"
+                          ]
+                        },
+                        "consumption": {
+                          "type": "string",
+                          "enum": [
+                            "entries",
+                            "read"
+                          ]
+                        },
+                        "suggested": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Book: the average use per month so far – a decimal in the currency; null when the token owner may not see amounts"
+                        }
+                      },
+                      "required": [
+                        "billing",
+                        "consumption",
+                        "suggested"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "A line of a volume schedule (0.19.0)"
+                },
                 "bookable": {
                   "type": "boolean",
                   "description": "Monthly, quarterly and one-off lines with a payment: a person can book them"
@@ -34777,6 +35659,7 @@
                 "contractEnds",
                 "twoLines",
                 "paymentDates",
+                "volume",
                 "bookable",
                 "notBooked",
                 "months",
@@ -34965,6 +35848,17 @@
                   "type": "boolean",
                   "description": "No plan line of this fiscal year"
                 },
+                "drawn": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The part drawn from a prepaid volume of its contract (0.19.0): not counted as incurred again – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "drawnHidden": {
+                  "type": "boolean",
+                  "description": "It counts for a prepaid volume the token owner may not see in full (its payer, amounts or other users): counted in full, nothing drawn shown"
+                },
                 "planLineYear": {
                   "anyOf": [
                     {
@@ -35020,6 +35914,8 @@
                 "reference",
                 "note",
                 "unplanned",
+                "drawn",
+                "drawnHidden",
                 "planLineYear",
                 "createdAt",
                 "createdBy",
@@ -35181,6 +36077,40 @@
                     "count"
                   ],
                   "additionalProperties": false
+                },
+                "drawn": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "toDate": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Drawn so far – a decimal in the currency; null when the token owner may not see amounts"
+                        },
+                        "months": {
+                          "type": "array",
+                          "items": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "toDate",
+                        "months"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Use drawn from prepaid volumes (read costs, entries): shown, not counted as incurred (0.19.0)"
                 }
               },
               "required": [
@@ -35192,7 +36122,8 @@
                 "expected",
                 "difference",
                 "read",
-                "unplanned"
+                "unplanned",
+                "drawn"
               ],
               "additionalProperties": false
             }
@@ -35254,6 +36185,200 @@
               ],
               "additionalProperties": false
             }
+          },
+          "volumes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheduleId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "contractId": {
+                  "type": "string"
+                },
+                "contractHidden": {
+                  "type": "boolean"
+                },
+                "per": {
+                  "type": "string",
+                  "enum": [
+                    "year",
+                    "term"
+                  ]
+                },
+                "billing": {
+                  "type": "string",
+                  "enum": [
+                    "prepaid",
+                    "byUse"
+                  ]
+                },
+                "committed": {
+                  "type": "string",
+                  "enum": [
+                    "full",
+                    "minimum",
+                    "none"
+                  ]
+                },
+                "consumption": {
+                  "type": "string",
+                  "enum": [
+                    "entries",
+                    "read"
+                  ],
+                  "description": "Where the use comes from: the entries booked to the contract, or the paying platform’s read costs"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "period": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "from",
+                    "to"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The current period: a contract year or the whole term"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The volume of the period – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "minimum": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "What is committed of it (full: the volume; none: 0) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "used": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Used from the period’s first day up to today – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "left": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The volume minus what is used – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "sharePct": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "expectedAtEnd": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "An estimate: the use at the period’s end at the rate of the recent months (null: too early) – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "runsOutOn": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "An estimate: the day the volume is used up at that rate, when inside the period"
+                },
+                "ratePerDay": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Use per day of the estimate’s window – a decimal in the currency; null when the token owner may not see amounts"
+                },
+                "window": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "runsOut",
+                      "usedUp",
+                      "shortfall",
+                      "ceiling",
+                      "overCeiling"
+                    ]
+                  }
+                },
+                "stateOnly": {
+                  "type": "boolean",
+                  "description": "The use counts entries of services or platforms the token owner may not see: warnings only, no figures"
+                }
+              },
+              "required": [
+                "scheduleId",
+                "title",
+                "contractId",
+                "contractHidden",
+                "per",
+                "billing",
+                "committed",
+                "consumption",
+                "currency",
+                "period",
+                "amount",
+                "minimum",
+                "used",
+                "left",
+                "sharePct",
+                "expectedAtEnd",
+                "runsOutOn",
+                "ratePerDay",
+                "window",
+                "warnings",
+                "stateOnly"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The volume schedules the plan’s owner pays, each with its current period (0.19.0)"
           },
           "years": {
             "type": "array",
@@ -35382,6 +36507,7 @@
           }
         },
         "required": [
+          "owner",
           "serviceId",
           "serviceName",
           "fiscalYear",
@@ -35399,6 +36525,7 @@
           "currencies",
           "renewals",
           "targets",
+          "volumes",
           "years",
           "limits",
           "prepaid",
@@ -35419,10 +36546,36 @@
             "description": "The payment schedule"
           },
           "serviceId": {
-            "type": "string"
+            "type": "string",
+            "description": "The paying service ('' when a platform pays)"
           },
           "serviceName": {
             "type": "string"
+          },
+          "payer": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "platform"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "Whose plan, or who pays: a service, or a platform (0.19.0, ADR 0032)"
           },
           "teams": {
             "type": "array",
@@ -35442,7 +36595,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "The paying service's owning teams"
+            "description": "The payer's owning teams"
           },
           "supplier": {
             "anyOf": [
@@ -35514,7 +36667,8 @@
               "quarterly",
               "yearly",
               "once",
-              "dates"
+              "dates",
+              "volume"
             ]
           },
           "currency": {
@@ -35662,6 +36816,195 @@
               "type": "string"
             },
             "description": "Months of the current fiscal year with a payment of its lines and no entry"
+          },
+          "upTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A volume that is not fully committed: what it may still bill at most beyond what is owed – never part of what is owed (0.19.0) – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "per": {
+                    "type": "string",
+                    "enum": [
+                      "year",
+                      "term"
+                    ]
+                  },
+                  "billing": {
+                    "type": "string",
+                    "enum": [
+                      "prepaid",
+                      "byUse"
+                    ]
+                  },
+                  "committed": {
+                    "type": "string",
+                    "enum": [
+                      "full",
+                      "minimum",
+                      "none"
+                    ]
+                  },
+                  "consumption": {
+                    "type": "string",
+                    "enum": [
+                      "entries",
+                      "read"
+                    ],
+                    "description": "Where the use comes from: the entries booked to the contract, or the paying platform’s read costs"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "period": {
+                    "type": "object",
+                    "properties": {
+                      "index": {
+                        "type": "integer"
+                      },
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The current period: a contract year or the whole term"
+                  },
+                  "amount": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The volume of the period – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "minimum": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "What is committed of it (full: the volume; none: 0) – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "used": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Used from the period’s first day up to today – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "left": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The volume minus what is used – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "sharePct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "expectedAtEnd": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "An estimate: the use at the period’s end at the rate of the recent months (null: too early) – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "runsOutOn": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "An estimate: the day the volume is used up at that rate, when inside the period"
+                  },
+                  "ratePerDay": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Use per day of the estimate’s window – a decimal in the currency; null when the token owner may not see amounts"
+                  },
+                  "window": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "from",
+                          "to"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "warnings": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "runsOut",
+                        "usedUp",
+                        "shortfall",
+                        "ceiling",
+                        "overCeiling"
+                      ]
+                    }
+                  },
+                  "stateOnly": {
+                    "type": "boolean",
+                    "description": "The use counts entries of services or platforms the token owner may not see: warnings only, no figures"
+                  }
+                },
+                "required": [
+                  "per",
+                  "billing",
+                  "committed",
+                  "consumption",
+                  "currency",
+                  "period",
+                  "amount",
+                  "minimum",
+                  "used",
+                  "left",
+                  "sharePct",
+                  "expectedAtEnd",
+                  "runsOutOn",
+                  "ratePerDay",
+                  "window",
+                  "warnings",
+                  "stateOnly"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A volume's current period (0.19.0)"
           }
         },
         "required": [
@@ -35669,6 +37012,7 @@
           "title",
           "serviceId",
           "serviceName",
+          "payer",
           "teams",
           "supplier",
           "contract",
@@ -35688,7 +37032,411 @@
           "noticeBy",
           "warning",
           "changed",
-          "notBooked"
+          "notBooked",
+          "upTo",
+          "volume"
+        ],
+        "additionalProperties": false
+      },
+      "CostAttribution": {
+        "title": "CostAttribution",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "application",
+              "system"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fiscalYear": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "years": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fiscalYear",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "supplier": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "unconfirmed",
+                            "active",
+                            "archived"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endsOn": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "services": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "purpose"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "named": {
+                  "type": "boolean",
+                  "description": "Named on the contract for a covered service; else only through a line, entry or schedule"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "reference",
+                "supplier",
+                "endsOn",
+                "services",
+                "named"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "licence",
+                    "cloud",
+                    "support",
+                    "hardware",
+                    "other"
+                  ]
+                },
+                "cadence": {
+                  "type": "string",
+                  "enum": [
+                    "yearly",
+                    "monthly",
+                    "quarterly",
+                    "once"
+                  ]
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "As entered – null when the token owner may not see the service's amounts"
+                },
+                "planned": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Planned for the fiscal year – null when the token owner may not see the service's amounts"
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contractHidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "serviceName",
+                "title",
+                "category",
+                "cadence",
+                "currency",
+                "amount",
+                "planned",
+                "contract",
+                "contractHidden"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The amount – null when the token owner may not see the service's amounts"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "planLineTitle": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "serviceName",
+                "date",
+                "currency",
+                "amount",
+                "reference",
+                "planLineTitle"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "billing": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Per payment in contract year 1, or the volume – null when the token owner may not see the service's amounts"
+                },
+                "contract": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "contractHidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "serviceId",
+                "serviceName",
+                "title",
+                "billing",
+                "currency",
+                "amount",
+                "contract",
+                "contractHidden"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "planned": {
+                  "type": "string"
+                },
+                "incurred": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fiscalYear",
+                "label",
+                "currency",
+                "planned",
+                "incurred"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "amountsHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "fiscalYear",
+          "label",
+          "years",
+          "contracts",
+          "lines",
+          "entries",
+          "schedules",
+          "totals",
+          "amountsHidden"
         ],
         "additionalProperties": false
       },
@@ -36528,17 +38276,70 @@
                           "proposed"
                         ],
                         "description": "proposed: by the 0.18 upgrade, waiting for a person"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "application",
+                                "system"
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "description": "The applications and systems of the service the contract is for (0.19.0; those the token owner may see; empty: the service as a whole)"
                       }
                     },
                     "required": [
                       "id",
                       "name",
                       "purpose",
-                      "status"
+                      "status",
+                      "items"
                     ],
                     "additionalProperties": false
                   },
                   "description": "The services it covers that the token owner may see (no count of others)"
+                },
+                "platforms": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "purpose": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "purpose"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "The platforms it covers that the token owner may see (0.19.0, ADR 0032; no count of others)"
                 },
                 "parentId": {
                   "type": [
@@ -36679,6 +38480,7 @@
                 "owners",
                 "teamOwned",
                 "services",
+                "platforms",
                 "parentId",
                 "parentHidden",
                 "endsAfterMaster",
@@ -37185,17 +38987,70 @@
                               "proposed"
                             ],
                             "description": "proposed: by the 0.18 upgrade, waiting for a person"
+                          },
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "application",
+                                    "system"
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "The applications and systems of the service the contract is for (0.19.0; those the token owner may see; empty: the service as a whole)"
                           }
                         },
                         "required": [
                           "id",
                           "name",
                           "purpose",
-                          "status"
+                          "status",
+                          "items"
                         ],
                         "additionalProperties": false
                       },
                       "description": "The services it covers that the token owner may see (no count of others)"
+                    },
+                    "platforms": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "purpose"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "The platforms it covers that the token owner may see (0.19.0, ADR 0032; no count of others)"
                     },
                     "parentId": {
                       "type": [
@@ -37326,6 +39181,7 @@
                     "owners",
                     "teamOwned",
                     "services",
+                    "platforms",
                     "parentId",
                     "parentHidden",
                     "endsAfterMaster",
@@ -47315,6 +49171,442 @@
         }
       }
     },
+    "/plant/change-sets": {
+      "get": {
+        "operationId": "listPlantChangeSets",
+        "summary": "List change sets of the plant registry",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Change sets – drafts, proposals, applied and closed ones – newest first, as the token owner may see them: their own drafts, and the others of sites they see (docs/PLANT.md \"Change sets\"). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "proposed",
+                "applied",
+                "rejected",
+                "withdrawn",
+                "expired"
+              ]
+            },
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "description": "Only change sets in this state"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "edit",
+                "draft",
+                "import",
+                "bulk",
+                "rename",
+                "assistant",
+                "revert",
+                "move",
+                "api"
+              ]
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only change sets from this source"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "site",
+            "required": false,
+            "description": "Only change sets that touch this site (id)"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "description": "Only change sets the token owner wrote"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of change sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of change sets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantChangeSetEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/change-sets/{changeSetId}": {
+      "get": {
+        "operationId": "getPlantChangeSet",
+        "summary": "Get a change set and its status",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Its state (proposed, applied, rejected …), who wrote, proposed and decided it, whether a second person applies it, the reviewer’s comment and what it changed once applied. A change set the token owner may not see answers 404. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "changeSetId",
+            "required": true,
+            "description": "Change set id (pcs_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantChangeSetDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/change-sets/{changeSetId}/operations": {
+      "get": {
+        "operationId": "listPlantChangeSetOperations",
+        "summary": "List the operations of a change set",
+        "tags": [
+          "Plant"
+        ],
+        "description": "In order: set, add, remove and rename of single entries with their values (and, for set, the revision and values the author saw), and documents (an import, a bulk change, a move, a collection import) with their options – their files are left out. Operations of sites the token owner may not see are left out (counted as `hiddenOperations` of the change set). Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "changeSetId",
+            "required": true,
+            "description": "Change set id (pcs_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of operations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of operations",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantChangeOperationEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/proposals": {
+      "post": {
+        "operationId": "proposePlantChanges",
+        "summary": "Propose changes to the plant registry (for review)",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Proposes additions and changes as a document of the plant import format – for example from a CI job that keeps device profiles in a repository. It is checked like an assistant’s proposal (docs/PLANT.md \"Proposals from assistants\"): the import’s preview with the token owner’s rights (their _propose_ right counts), only adding and changing – `remove`, renaming ids and dropping an item from a list inside an entry are refused –, never a credential, at most 1 MB. It lands as a proposed change set that a person reviews and applies in Steward (Plant → Changes); this call never applies it, and where a site needs a second person the token owner never applies it either.\n\nNeeds a token with the scope _Full access_ (a read-only token answers 403 `token-scope`). Answers 201 with the change set; follow it with `GET /plant/change-sets/{changeSetId}`. A refused document answers 400 `proposal-refused` with the places in `errors`.\n\nOnly while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 120,
+                    "description": "What the changes are, in a few words"
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 500,
+                    "description": "Why, and where the information comes from – the reviewer sees it"
+                  },
+                  "document": {
+                    "maxProperties": 64,
+                    "description": "A document of the plant import format (docs/plant/plant-registry-1.schema.json), version 1 – adding and changing only; at most 1 MB",
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "remove": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "removeMissing": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "cascade": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "idMap": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "renames": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "rename": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "mode": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "missing": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  },
+                  "replaces": {
+                    "not": {},
+                    "description": "Not part of a proposal: it only adds and changes (refused)"
+                  }
+                },
+                "required": [
+                  "title",
+                  "rationale",
+                  "document"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proposed: the change set waits for review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantProposalResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/platforms/{platformId}/schema/snapshots": {
       "get": {
         "operationId": "listPlatformSchemaSnapshots",
@@ -48606,6 +50898,240 @@
         }
       }
     },
+    "/platforms/{platformId}/cost-plan": {
+      "get": {
+        "operationId": "getPlatformCostPlan",
+        "summary": "Get the cost plan of a platform for a fiscal year",
+        "tags": [
+          "Costs"
+        ],
+        "description": "A platform's own cost plan (0.19.0, docs/COSTS.md#planning-per-platform): its plan lines and cost entries of a fiscal year, set against the platform's whole bill as Steward reads it, per line and currency planned, to date, incurred, expected and the difference; use drawn from prepaid volumes (shown, not counted again); its volumes with use, what is left and a linear estimate; and the schedules it pays (commitments). The shape of the service cost plan, with `owner.kind` platform and `serviceId` empty. Not paged: at most 200 plan lines and 2,000 entries per fiscal year.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "fiscalYear",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "The id of the platform"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostPlanYear"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/applications/{applicationId}/cost-attribution": {
+      "get": {
+        "operationId": "getApplicationCostAttribution",
+        "summary": "Get the costs and contracts of an application",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Attribution, not a plan (0.19.0, docs/COSTS.md#costs-and-contracts-of-an-application-or-system): the contracts that name the application for a covered service or that its lines, entries and payment schedules pay for, and those lines, entries and schedules in the services that use it – each counted once – with totals per fiscal year and currency. Only what the token owner may see; amounts null where they may not see a service's amounts.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "fiscalYear",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "description": "The id of the application"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAttribution"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}/cost-attribution": {
+      "get": {
+        "operationId": "getSystemCostAttribution",
+        "summary": "Get the costs and contracts of a system",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Attribution, not a plan (0.19.0, docs/COSTS.md#costs-and-contracts-of-an-application-or-system): the contracts that name the system for a covered service or that its lines, entries and payment schedules pay for, and those lines, entries and schedules in the services that use it – each counted once – with totals per fiscal year and currency. Only what the token owner may see; amounts null where they may not see a service's amounts.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 2100
+            },
+            "in": "query",
+            "name": "fiscalYear",
+            "required": false,
+            "description": "The fiscal year (the calendar year it starts in); default: the current one"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "The id of the system"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAttribution"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/cost-commitments": {
       "get": {
         "operationId": "listCostCommitments",
@@ -48613,7 +51139,7 @@
         "tags": [
           "Costs"
         ],
-        "description": "What the payment schedules of supplier contracts still owe (docs/COSTS.md#commitments): per schedule of a service the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
+        "description": "What supplier contracts still owe under their payment schedules (docs/COSTS.md#commitments): per schedule of a service or platform the token owner may see, the scheduled payments dated today or later – to contract end and to the earliest exit, per fiscal year (the current one and the next four) and later – the next payment, the notice-by date and the notice warning. Scheduled payments, not liabilities: entries are not subtracted; amounts per currency, never converted, null where the token owner may not see the paying service's amounts. Notice warnings first.",
         "parameters": [
           {
             "schema": {
@@ -48631,9 +51157,19 @@
               "maxLength": 100
             },
             "in": "query",
+            "name": "platformId",
+            "required": false,
+            "description": "Only the schedules this platform pays (0.19.0)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
             "name": "teamId",
             "required": false,
-            "description": "Only this team's services"
+            "description": "Only this team's services and platforms"
           },
           {
             "schema": {

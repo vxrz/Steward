@@ -150,7 +150,7 @@
     "access": {
       "grant": {
         "label": "Rechte in einer Zugriffsliste vergeben",
-        "description": "Zugriffslisten von Plattformen, Prozessen und Monitoren, zuständige Teams, Kopien mit ihren Zugriffseinstellungen."
+        "description": "Zugriffslisten von Plattformen, Prozessen und Monitoren, zuständige Teams, Kopien mit ihren Zugriffseinstellungen, Eigentümer und Verantwortliche außerhalb der zuständigen Teams."
       }
     },
     "sso": {
@@ -329,6 +329,12 @@
         "description": "Wer eine Änderung am Anlagenregister übernimmt. Optional: Jeder Standort entscheidet mit seinem Schalter „Änderungen brauchen eine zweite Person“ (der Katalog in den Einstellungen des Anlagenregisters); erforderlich: jede Änderung. Unter Prüfung geht jede Änderung über einen Entwurf, und niemand übernimmt seine eigene – auch Administratoren nicht."
       }
     },
+    "sync": {
+      "sources": {
+        "label": "Eine Git-Sync-Quelle ändern",
+        "description": "Eine neue Quelle, ein anderes Repository oder eine andere API-URL, signierte Commits nicht mehr verlangt, eine neue erlaubte Signatur oder neue Einträge automatisch übernommen."
+      }
+    },
     "library": {
       "publishers": {
         "label": "Einem Bibliotheksherausgeber vertrauen",
@@ -361,6 +367,10 @@
       "privilegedIdentity": {
         "label": "Eine privilegierte Plattform-Identität verwenden",
         "description": "Eine Ausführung starten, einen Zeitplan oder Webhook-Auslöser speichern, eine Anfrage im Request-Explorer oder eine MCP-Anfrage freigeben – mit einer privilegierten Identität. Vier-Augen-Prinzip: Die Ausführung wartet auf die Freigabe ihres Starts durch eine zweite Person – aus: nur wo ein Prozess es verlangt; erforderlich: bei jeder solchen Ausführung."
+      },
+      "destination": {
+        "label": "Die Zugangsdaten einer Plattform an eine neue Adresse senden",
+        "description": "Eine neue Basis-URL, vertrauenswürdige Origin, Anmeldeadresse, ein neuer Proxy, Broker oder Datenbank-Host einer Plattform mit gespeicherten Zugangsdaten. Nur in angemeldeten Sitzungen; die Zugangsdaten werden entfernt, sofern eine Administratorin oder ein Administrator sie nicht behält."
       }
     },
     "correctiveAction": {

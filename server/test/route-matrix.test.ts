@@ -337,6 +337,26 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
   'DELETE /api/costs/plans/:serviceId/entries/:entryId': DESIGN,
   'GET /api/costs/team-plans/:teamId': ADMIN_AUDITOR,
+  // a platform's own cost plan (0.19.0, ADR 0032): who may see the platform reads it; its managers and owning teams change it
+  'GET /api/costs/platform-plans/:platformId': RECON_READ,
+  'GET /api/costs/platform-plans/:platformId/export': RECON_READ,
+  'POST /api/costs/platform-plans/:platformId/lines': DESIGN,
+  'PUT /api/costs/platform-plans/:platformId/lines/:lineId': DESIGN,
+  'DELETE /api/costs/platform-plans/:platformId/lines/:lineId': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/copy': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/lines/:lineId/book': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/entries': DESIGN,
+  'PUT /api/costs/platform-plans/:platformId/entries/:entryId': DESIGN,
+  'DELETE /api/costs/platform-plans/:platformId/entries/:entryId': DESIGN,
+  'GET /api/costs/platform-plans/:platformId/proposals': RECON_READ,
+  'POST /api/costs/platform-plans/:platformId/proposals': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/contract-updates': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/entries/import/preview': DESIGN,
+  'POST /api/costs/platform-plans/:platformId/entries/import': DESIGN,
+  'GET /api/costs/platform-plans/:platformId/imports': RECON_READ,
+  'DELETE /api/costs/platform-plans/:platformId/imports/:importId': DESIGN,
+  // an application's or system's "Costs and contracts" (0.19.0): who may see it
+  'GET /api/costs/attribution/:kind/:id': ALL,
   // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
   // them, operators test them, designers create and change them
   'GET /api/data-contracts': ALL,
@@ -791,6 +811,11 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId': DESIGN,
   'DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId': DESIGN,
   'GET /api/services/:id/contracts': ALL,
+  // 0.19.0 (ADR 0032): platforms covered by a contract, a platform's contracts, a service's applications and systems
+  'PUT /api/suppliers/:id/contracts/:contractId/platforms/:platformId': DESIGN,
+  'DELETE /api/suppliers/:id/contracts/:contractId/platforms/:platformId': DESIGN,
+  'GET /api/platforms/:id/contracts': RECON_READ,
+  'GET /api/services/:id/contract-items': ALL,
   'POST /api/suppliers/:id/certificates': DESIGN,
   'PUT /api/suppliers/:id/certificates/:certificateId': DESIGN,
   'DELETE /api/suppliers/:id/certificates/:certificateId': DESIGN,
@@ -950,6 +975,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/applications': ALL,
   'GET /api/v1/applications/:applicationId': ALL,
+  // cost attribution and a platform's cost plan (0.19.0, ADR 0032)
+  'GET /api/v1/applications/:applicationId/cost-attribution': ALL,
+  'GET /api/v1/systems/:systemId/cost-attribution': ALL,
+  'GET /api/v1/platforms/:platformId/cost-plan': RECON_READ,
   'GET /api/v1/suppliers': ALL,
   'GET /api/v1/suppliers/:supplierId': ALL,
   'GET /api/v1/systems': ALL,
@@ -978,6 +1007,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/assets/:assetId/advisories': PLANT,
   'GET /api/v1/plant/assets/:assetId/documentation': PLANT,
   'GET /api/v1/plant/assets/:assetId/collections/:collectionId/sinks/:sinkId/insights-hub': PLANT,
+  // 0.19.0: change sets (a proposed one is seen by who sees its site) and proposals from CI (a full-access token of who
+  // may propose; read tokens are refused with token-scope)
+  'GET /api/v1/plant/change-sets': PLANT,
+  'GET /api/v1/plant/change-sets/:changeSetId': PLANT,
+  'GET /api/v1/plant/change-sets/:changeSetId/operations': PLANT,
+  'POST /api/v1/plant/proposals': PROPOSE,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
   'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
@@ -1081,6 +1116,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/owning-teams/bulk': ADMIN,
   // own rights on what one can see; others' rights for administrators and auditors (checked in team-scopes.test.ts)
   'GET /api/access/explain': ALL,
+  // which named users and teams are outside an item's owning teams (#195): the forms' hint; who may change the item
+  'POST /api/access/named-outside': ALL,
 
   // ---- daily summary ----
   'GET /api/me/daily-summary': ALL,
@@ -1305,7 +1342,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
   'DELETE /api/plant/assets/:assetId/collections/:collectionId': DESIGN,
   'GET /api/plant/assets/:assetId/collections/:collectionId/mapping': PLANT,
-  'POST /api/plant/assets/:assetId/collections/import/preview': DESIGN,
+  // 0.19.0: who may propose previews a collector's files to add them to their draft (importing stays with who manages)
+  'POST /api/plant/assets/:assetId/collections/import/preview': PROPOSE,
   'POST /api/plant/assets/:assetId/collections/import': DESIGN,
   // 0.12: where the data goes, the kept files of imports (secrets removed) and the Documents panel: who sees the entry
   'GET /api/plant/assets/:assetId/collections/:collectionId/flow': PLANT,
@@ -1363,6 +1401,8 @@ const SESSION_ONLY = [
   'DELETE /api/suppliers/:id/contracts/:contractId',
   'PUT /api/suppliers/:id/contracts/:contractId/services/:serviceId',
   'DELETE /api/suppliers/:id/contracts/:contractId/services/:serviceId',
+  'PUT /api/suppliers/:id/contracts/:contractId/platforms/:platformId',
+  'DELETE /api/suppliers/:id/contracts/:contractId/platforms/:platformId',
   'DELETE /api/suppliers/scope-notice',
   'POST /api/suppliers/shared-suggestions/:key/keep-separate',
   'POST /api/suppliers/merge/preview',
@@ -1381,6 +1421,12 @@ const SESSION_ONLY = [
   'POST /api/costs/plans/:serviceId/entries/import/preview',
   'POST /api/costs/plans/:serviceId/entries/import',
   'DELETE /api/costs/plans/:serviceId/imports/:importId',
+  'POST /api/costs/platform-plans/:platformId/lines/:lineId/book',
+  'POST /api/costs/platform-plans/:platformId/proposals',
+  'POST /api/costs/platform-plans/:platformId/contract-updates',
+  'POST /api/costs/platform-plans/:platformId/entries/import/preview',
+  'POST /api/costs/platform-plans/:platformId/entries/import',
+  'DELETE /api/costs/platform-plans/:platformId/imports/:importId',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -1562,6 +1608,10 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     },
     path: () => `/api/suppliers/${fx.supplierTeam}/merge`,
   },
+  // #195: naming an owner or responsible from outside the owning teams (vera; the administrator is a member of
+  // "Matrix owners", which owns the *Team fixtures and is chosen for the administrator's new resources in this test)
+  // grants access like an access list; a covered subject or an invalid body is harmless
+  ...namedGrantRoutes(),
   'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
   'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
   'POST /api/users/:id/reset-password': 'always',
@@ -1587,6 +1637,30 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/plant/advisory-sources': 'always',
   'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',
   'DELETE /api/plant/advisory-sources/:advisorySourceId': 'always',
+  // Git sync sources (security review 0.19.0 L1, control point sync.sources): a new source, another repository, signing
+  // loosened or auto-accept on; harmless: an invalid body (refused by the route) and the fixture's own settings
+  'POST /api/sync-sources': {
+    get sensitive() {
+      return SYNC_SOURCE;
+    },
+    harmless: { name: '!' },
+  },
+  'PUT /api/sync-sources/:id': {
+    get sensitive() {
+      return SYNC_SOURCE;
+    },
+    get harmless() {
+      return { ...SYNC_SOURCE, repoUrl: `${s.base}/mock/git/steward/library`, folder: 'steward', kinds: ['dashboard'] };
+    },
+  },
+  // a new address of a platform's stored credentials (security review 0.19.0 H1, control point platform.destination)
+  'PUT /api/platforms/:id': { sensitive: { baseUrl: 'https://matrix.example' }, harmless: {} },
+  'PUT /api/platforms/:id/database': {
+    sensitive: { dialect: 'postgresql', host: 'db.example.com', database: 'shop' },
+    // (not a valid connection: refused by the route's validation, the fixture stays)
+    harmless: { dialect: 'postgresql' },
+    path: () => `/api/platforms/${fx.dbPlatform}/database`,
+  },
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
     harmless: { acl: 'not a list' },
@@ -1745,6 +1819,130 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
 };
 
+/** The step-up table of named owners and responsibles from outside the owning teams (#195). */
+function namedGrantRoutes(): typeof STEP_UP {
+  type Rule = Exclude<(typeof STEP_UP)[string], 'always'>;
+  const rule = (sensitive: () => unknown, harmless: () => unknown, path?: () => string): Rule => ({
+    get sensitive() {
+      return sensitive();
+    },
+    get harmless() {
+      return harmless();
+    },
+    ...(path ? { path } : {}),
+  });
+  // (read when the test runs: the bodies are defined further down)
+  const credential = () => ({ ...CREDENTIAL, name: 'Matrix team credential' });
+  const ticket = () => ({ ...TICKET, externalNumber: 'INC-MATRIX-T', title: 'Matrix team ticket' });
+  const duty = () => ({ name: 'Matrix team duty', processId: fx.process, interval: 'monthly', level: 'mandatory' });
+  return {
+    'POST /api/credentials': rule(
+      () => ({ ...CREDENTIAL, name: 'Matrix new credential', ownerSubjects: ['user:vera'] }),
+      () => ({ name: '' }),
+    ),
+    'PUT /api/credentials/:id': rule(
+      () => ({ ...credential(), ownerSubjects: ['user:vera'] }),
+      () => ({ ...credential(), ownerSubjects: ['team:matrix owners'] }),
+      () => `/api/credentials/${fx.credentialTeam}`,
+    ),
+    'POST /api/ticket-references': rule(
+      () => ({ ...TICKET, externalNumber: 'INC-MATRIX-N', responsible: ['user:vera'] }),
+      () => ({ source: '' }),
+    ),
+    'PUT /api/ticket-references/:id': rule(
+      () => ({ ...ticket(), responsible: ['user:vera'] }),
+      () => ({ ...ticket(), responsible: ['user:admin'] }),
+      () => `/api/ticket-references/${fx.ticketTeam}`,
+    ),
+    ...Object.fromEntries(
+      (['services', 'applications', 'systems'] as const).flatMap((kind) => {
+        const extra = kind === 'systems' ? { kind: 'server' } : {};
+        const name = `Matrix team ${kind.slice(0, -1)}`;
+        return [
+          [
+            `POST /api/${kind}`,
+            rule(
+              () => ({ name: `Matrix new ${kind}`, ...extra, owners: ['user:vera'] }),
+              () => ({ name: '' }),
+            ),
+          ],
+          [
+            `PUT /api/${kind}/:id`,
+            rule(
+              () => ({ name, ...extra, owners: ['user:vera'] }),
+              () => ({ name, ...extra, owners: ['team:matrix owners'] }),
+              () => `/api/${kind}/${fx[`${kind.slice(0, -1)}Team`]}`,
+            ),
+          ],
+        ];
+      }),
+    ),
+    'PUT /api/suppliers/:id': rule(
+      () => ({ name: 'Matrix team supplier', type: 'saas', owners: ['user:vera'] }),
+      () => ({ name: '' }),
+      () => `/api/suppliers/${fx.supplierTeam}`,
+    ),
+    'POST /api/suppliers/:id/contracts': rule(
+      () => ({ title: 'Matrix new contract', owners: ['user:vera'] }),
+      () => ({ title: '' }),
+      () => `/api/suppliers/${fx.supplierTeam}/contracts`,
+    ),
+    'PUT /api/suppliers/:id/contracts/:contractId': rule(
+      () => ({ title: 'Matrix team contract', owners: ['team:matrix owners', 'user:vera'] }),
+      () => ({ title: 'Matrix team contract', owners: ['team:matrix owners', 'user:admin'] }),
+      () => `/api/suppliers/${fx.supplierTeam}/contracts/${fx.contractTeam}`,
+    ),
+    'PUT /api/suppliers/:id/contracts/:contractId/platforms/:platformId': rule(
+      () => ({ purpose: 'Matrix' }),
+      () => ({ purpose: 5 }),
+      () => `/api/suppliers/${fx.supplierTeam}/contracts/${fx.contractTeam}/platforms/${fx.platformOutside}`,
+    ),
+    'PUT /api/records/:id': rule(
+      () => ({ owner: 'vera' }),
+      () => ({ owner: 'admin' }),
+      () => `/api/records/${fx.reviewTeam}`,
+    ),
+    'POST /api/records/:id/measures': rule(
+      () => ({ title: 'Matrix new measure', owners: ['user:vera'], dueDate: '2030-01-01' }),
+      () => ({ title: '' }),
+      () => `/api/records/${fx.reviewTeam}/measures`,
+    ),
+    'PUT /api/records/:id/measures/:measureId': rule(
+      () => ({ owners: ['user:vera'] }),
+      () => ({ owners: ['user:admin'] }),
+      () => `/api/records/${fx.reviewTeam}/measures/${fx.measureTeam}`,
+    ),
+    'POST /api/duties': rule(
+      () => ({ serviceId: fx.serviceTeam, ...duty(), name: 'Matrix new duty', owners: ['user:vera'] }),
+      () => ({ serviceId: fx.serviceTeam, name: '' }),
+    ),
+    'PUT /api/duties/:id': rule(
+      () => ({ ...duty(), owners: ['user:vera'] }),
+      () => ({ ...duty(), owners: [] }),
+      () => `/api/duties/${fx.dutyTeam}`,
+    ),
+    'POST /api/compliance/corrective-actions': rule(
+      () => ({ title: 'Matrix new finding', source: 'internalAudit', serviceId: fx.serviceTeam, owner: 'vera' }),
+      () => ({ title: '' }),
+    ),
+    'PUT /api/compliance/corrective-actions/:findingId': rule(
+      () => ({ owner: 'vera' }),
+      () => ({ title: 'Matrix team finding' }),
+      () => `/api/compliance/corrective-actions/${fx.findingTeam}`,
+    ),
+    'POST /api/compliance/corrective-actions/:findingId/actions': rule(
+      () => ({ title: 'Matrix new action', owners: ['user:vera'], dueDate: '2030-01-01' }),
+      () => ({ title: '' }),
+      () => `/api/compliance/corrective-actions/${fx.findingTeam}/actions`,
+    ),
+    'PUT /api/compliance/corrective-actions/:findingId/actions/:actionId': rule(
+      () => ({ owners: ['user:vera'] }),
+      () => ({ owners: ['user:admin'] }),
+      () => `/api/compliance/corrective-actions/${fx.findingTeam}/actions/${fx.actionTeam}`,
+    ),
+  };
+}
+
 /**
  * Control points whose step-up the assurance policy turns on (#210, auth/assurance.ts) – off by default, so they never
  * ask with the default policy (server/test/assurance.test.ts turns them on).
@@ -1824,6 +2022,7 @@ function fill(url: string): string {
       .replace(/\/api\/settings\/modules\/:id/, '/api/settings/modules/statusPages')
       .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
       .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
+      .replace(/\/api\/costs\/attribution\/:kind\/:id/, `/api/costs/attribution/application/${fx.application}`)
       // database schemas (#222): the demo database platform, the newest snapshot
       .replace(/\/api\/db-schemas\/:kind\/:id/, `/api/db-schemas/platform/${fx.dbPlatform}`)
       .replace(/\/schema\/snapshots\/:snapshotId/, '/schema/snapshots/latest')
@@ -2012,6 +2211,7 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/runs/:id/debug': { type: 'debug.continue' },
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
+  'POST /api/access/named-outside': { kind: 'service', subjects: ['user:vera'] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },
@@ -2439,6 +2639,46 @@ beforeAll(async () => {
   // a supplier of that team (ADR 0031): merging it into one of the whole instance widens who sees it
   const supplierTeam = (await a('POST', '/suppliers', { name: 'Matrix team supplier', type: 'saas' })).id as string;
   await a('PUT', `/owning-teams/supplier/${supplierTeam}`, { teamIds: [team.id] });
+  // #195: a team of the administrator that owns a service, application, system, credential, ticket reference and
+  // incident review (with a measure), a duty and a finding of its service, and a contract of the team's supplier
+  const owners = await a('POST', '/teams', { name: 'Matrix owners', members: ['admin'] });
+  const owned = async (kind: string, path: string, body: unknown) => {
+    const made = await a('POST', path, body);
+    await a('PUT', `/owning-teams/${kind}/${made.id}`, { teamIds: [owners.id] });
+    return made.id as string;
+  };
+  const reviewTeam = await owned('record', '/records', { type: 'PIR', title: 'Matrix team review' });
+  const findingTeamService = await owned('service', '/services', { name: 'Matrix team service', owners: [] });
+  const findingTeam = (
+    await a('POST', '/compliance/corrective-actions', { title: 'Matrix team finding', source: 'internalAudit', serviceId: findingTeamService })
+  ).id as string;
+  const teamFixtures = {
+    ownersTeam: owners.id as string,
+    serviceTeam: findingTeamService,
+    applicationTeam: await owned('application', '/applications', { name: 'Matrix team application', owners: [] }),
+    systemTeam: await owned('system', '/systems', { name: 'Matrix team system', kind: 'server' }),
+    credentialTeam: await owned('credential', '/credentials', { ...CREDENTIAL, name: 'Matrix team credential' }),
+    ticketTeam: await owned('ticket', '/ticket-references', { ...TICKET, externalNumber: 'INC-MATRIX-T', title: 'Matrix team ticket' }),
+    reviewTeam,
+    measureTeam: (await a('POST', `/records/${reviewTeam}/measures`, { title: 'Matrix team measure', owners: ['user:admin'], dueDate: '2030-01-01' })).items[0]
+      .id as string,
+    dutyTeam: (
+      await a('POST', '/duties', { serviceId: findingTeamService, name: 'Matrix team duty', processId: proc.id, interval: 'monthly', level: 'mandatory' })
+    ).id as string,
+    findingTeam,
+    actionTeam: (
+      await a('POST', `/compliance/corrective-actions/${findingTeam}/actions`, { title: 'Matrix team action', owners: ['user:admin'], dueDate: '2030-01-01' })
+    ).actions[0].id as string,
+    contractTeam: (await a('POST', `/suppliers/${supplierTeam}/contracts`, { title: 'Matrix team contract', owners: ['team:matrix owners'] })).contracts.find(
+      (c: { title: string }) => c.title === 'Matrix team contract',
+    ).id as string,
+    // a platform of another team (security review 0.19.0 M1): covering it gives that team the contract
+    platformOutside: await (async () => {
+      const id = (await a('POST', '/platforms', { name: 'Matrix outside platform', kind: 'rest', baseUrl: 'https://matrix-outside.example' })).id as string;
+      await a('PUT', `/owning-teams/platform/${id}`, { teamIds: [team.id] });
+      return id;
+    })(),
+  };
   const report = await a('POST', `/runs/${run.id}/reports`, {});
   const users = await a('GET', '/users');
   const syncSource = (
@@ -2526,6 +2766,7 @@ beforeAll(async () => {
     advisorySource,
     siteLink,
     assetLink,
+    ...teamFixtures,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   QUERY['GET /api/runs/compare'] = `?a=${run.id}&b=${run.id}`;
@@ -2786,6 +3027,14 @@ describe('route permission matrix', () => {
     const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
     const ended = await fetch(`${s.base}/api/auth/step-up`, { method: 'DELETE', headers: { 'x-sm-client': '1', ...authHeaders(cookie) } });
     expect(ended.status).toBe(200);
+    // the administrator's new resources go to "Matrix owners" (#195: naming vera on a new item grants across teams)
+    const choose = async (teamId: string | null) =>
+      fetch(`${s.base}/api/me/new-resource-teams`, {
+        method: 'PUT',
+        headers: { 'x-sm-client': '1', 'content-type': 'application/json', ...authHeaders(cookie) },
+        body: JSON.stringify({ teamId }),
+      });
+    expect((await choose(fx.ownersTeam!)).status).toBe(200);
     const send = async (headers: Record<string, string>, k: string, body: unknown, query = '') => {
       const [method, url] = k.split(' ') as [string, string];
       const send = method !== 'DELETE' && method !== 'GET';
@@ -2811,6 +3060,7 @@ describe('route permission matrix', () => {
         if (harmless.code === 'STEP_UP_REQUIRED') problems.push(`${k} harmless change: asks for a step-up`);
       }
     }
+    expect((await choose(null)).status).toBe(200);
     expect(problems).toEqual([]);
   });
 

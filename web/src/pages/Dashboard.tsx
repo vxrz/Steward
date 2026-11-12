@@ -30,7 +30,15 @@ const FOCUS_TILES: Record<StartFocus, readonly TileKey[] | undefined> = {
 export function DashboardPage({ demo }: { demo: boolean }) {
   const { t } = useTranslation('dashboard');
   const qc = useQueryClient();
-  const d = useQuery({ queryKey: dashboardKeys.details, queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
+  // every 30 s, and again when the tab comes back; not while it is hidden (TanStack Query's default) – security review
+  // 0.19.0 H2: every open start page asked every 5 s
+  const d = useQuery({
+    queryKey: dashboardKeys.details,
+    queryFn: () => get<DashboardData>('/dashboard'),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
   const { isAdmin } = useMe();
   // operations (admins, designers, operators), compliance (auditors) or viewer – and "show everything"
   const { focus, full, setFull } = useStartFocus();
@@ -143,13 +151,13 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           {ops && (
             <SimpleGrid cols={{ base: 1, lg: 3 }}>
               <Card withBorder style={{ gridColumn: 'span 2' }}>
-                <Title order={5} mb="xs">
+                <Title order={2} size="h5" mb="xs">
                   {t('recentRuns')}
                 </Title>
                 <RunTable runs={data.recentRuns} compact />
               </Card>
               <Card withBorder>
-                <Title order={5} mb="xs">
+                <Title order={2} size="h5" mb="xs">
                   {t('upcoming')}
                 </Title>
                 {data.upcoming.length === 0 && (

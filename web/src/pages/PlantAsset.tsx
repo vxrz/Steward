@@ -13,7 +13,7 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { Field, LinksPanel } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
-import { fmtDate, fmtDay } from '../format';
+import { fmtDate, fmtDay, localToday } from '../format';
 import { plantKeys } from '../queryKeys';
 import { AssetStatusBadge, FieldValuesView, NotInSourceBadge, PreviewBadge, RefsView, useNameOf, usePlantLabel } from '../components/plant/common';
 import { AssetFormModal } from '../components/plant/forms';
@@ -102,7 +102,7 @@ export function PlantAssetPage() {
       .filter((x): x is NonNullable<typeof x> => !!x)
       .map((n) => ({ to: `/plant/assets?site=${encodeURIComponent(loc.site.id)}&node=${encodeURIComponent(n.id)}`, label: nameOf(n) })),
   ];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const eos = a.endOfSupport;
   return (
     <>

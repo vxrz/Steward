@@ -15,6 +15,7 @@ import { isAdmin } from '../auth/permissions.js';
 import { catalogueAccess, forgetOwningTeams, owningTeams, setOwningTeams, type OwningTeam } from '../auth/policy.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
+import { auditNamedGrant, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 import { canViewCatalogue, forbid, me } from '../records/access.js';
 import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
@@ -408,6 +409,18 @@ export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail 
     });
   const owners = [...new Set(input.owners ?? p.preview.owners)];
   assertKnownSubjects(owners, [...ownersOf(target), ...sources.flatMap(ownersOf)]);
+  // owners of the result none of the suppliers had, from outside its owning teams: confirmed like an access list (#195)
+  const grant: NamedGrant = {
+    entityType: 'supplier',
+    entityId: target.id,
+    label: `supplier "${target.name}"`,
+    field: 'owners',
+    teams: owningTeams('supplier', target.id),
+    before: [...ownersOf(target), ...sources.flatMap(ownersOf)],
+    after: owners,
+    rights: ['view', 'edit'],
+  };
+  const named = requireNamedGrant(grant);
   const count = (table: string, ids: string[]) =>
     Number(db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE supplier_id IN (${ids.map(() => '?').join(', ')})`, ...ids)?.n ?? 0);
   const ids = [target.id, ...sources.map((x) => x.id)];
@@ -480,6 +493,7 @@ export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail 
         teams: p.preview.teams,
       },
     });
+    auditNamedGrant({ ...grant, entityId: target.id }, named);
   });
   return getSupplier(target.id);
 }

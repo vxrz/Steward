@@ -21,9 +21,9 @@ import * as monitors from '../monitors/service.js';
 import * as triggers from '../triggers/service.js';
 import * as tickets from '../tickets/service.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
-import { planYear } from '../costs/plans.js';
+import { planYear, platformPlanYear } from '../costs/plans.js';
 import { commitments } from '../costs/commitments.js';
-import type { CostCommitment } from '@sm/shared';
+import type { CostCommitment, CostPlanYear } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
 import { systemStatus } from '../system/routes.js';
 import { HttpError } from '../util.js';
@@ -41,7 +41,9 @@ import { zodJsonSchema } from '../jsonSchema.js';
 const commitmentForTool = (r: CostCommitment) => ({
   scheduleId: r.scheduleId,
   title: r.title,
+  // the paying service (empty when a platform pays, 0.19.0) and who pays
   service: { id: r.serviceId, name: r.serviceName },
+  payer: r.payer,
   supplier: r.supplier ? { id: r.supplier.id, name: r.supplier.name } : null,
   contract: r.contractHidden ? 'a contract of a supplier you may not see' : (r.contract?.title ?? null),
   billing: r.billing,
@@ -58,7 +60,82 @@ const commitmentForTool = (r: CostCommitment) => ({
   warning: r.warning,
   contractChanged: r.changed,
   notBooked: r.notBooked,
+  // a volume (0.19.0, ADR 0032): what it may still bill beyond what is owed, and its current period (estimates)
+  upTo: r.upTo,
+  volume: r.volume,
 });
+
+/** A cost plan year as the MCP tools give it (a service's or, since 0.19.0, a platform's). */
+function planForTool(y: CostPlanYear) {
+  const fig = (x: {
+    planned: string | null;
+    plannedToDate: string | null;
+    incurredToDate: string | null;
+    expected: string | null;
+    difference: string | null;
+  }) => ({
+    planned: x.planned,
+    plannedToDate: x.plannedToDate,
+    incurredToDate: x.incurredToDate,
+    expected: x.expected,
+    difference: x.difference,
+  });
+  return {
+    owner: y.owner,
+    serviceId: y.serviceId,
+    serviceName: y.serviceName,
+    fiscalYear: y.fiscalYear,
+    label: y.label,
+    from: y.from,
+    to: y.to,
+    amountsVisible: y.amountsVisible,
+    cloud: y.cloud,
+    currencies: y.currencies.map((c) => ({
+      currency: c.currency,
+      ...fig(c),
+      read: c.read && { incurredToDate: c.read.incurredToDate, expected: c.read.expected },
+      unplanned: c.unplanned,
+      drawn: c.drawn && { toDate: c.drawn.toDate },
+    })),
+    lines: y.lines.map((l) => ({
+      id: l.id,
+      title: l.title,
+      category: l.category,
+      for: l.target && l.target.visible ? { kind: l.target.kind, id: l.target.id, name: l.target.name } : null,
+      vendor: short(l.vendor, 200),
+      supplier: l.supplier ? { id: l.supplier.id, name: l.supplier.name, contract: l.supplierContract?.title ?? null } : null,
+      currency: l.currency,
+      cadence: l.cadence,
+      onceMonth: l.onceMonth,
+      fromMonth: l.fromMonth,
+      toMonth: l.toMonth,
+      coversFrom: l.coversFrom,
+      coversTo: l.coversTo,
+      schedule: l.schedule,
+      notBooked: l.notBooked,
+      renewalDate: l.renewalDate,
+      read: l.read,
+      ...fig(l),
+    })),
+    entries: y.entries.map((e) => ({
+      date: e.date,
+      amount: e.amount,
+      currency: e.currency,
+      planLine: e.planLineTitle,
+      unplanned: e.unplanned,
+      supplier: e.supplier ? { id: e.supplier.id, name: e.supplier.name, contract: e.supplierContract?.title ?? null } : null,
+      importId: e.importId,
+      drawn: e.drawn,
+      drawnHidden: e.drawnHidden,
+      reference: e.reference,
+      note: short(e.note, 200),
+    })),
+    renewals: y.renewals,
+    prepaid: y.prepaid,
+    contractChanges: y.contractChanges.map((c) => ({ scheduleId: c.scheduleId, title: c.title, changes: c.changes.length })),
+    volumes: y.volumes,
+  };
+}
 
 export { ToolError, type McpPrincipal, type ToolContext, type ToolDef } from './tooling.js';
 
@@ -680,70 +757,35 @@ const steward: ToolDef[] = [
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Service ${a.serviceId}`);
         throw e;
       }
-      const fig = (x: {
-        planned: string | null;
-        plannedToDate: string | null;
-        incurredToDate: string | null;
-        expected: string | null;
-        difference: string | null;
-      }) => ({
-        planned: x.planned,
-        plannedToDate: x.plannedToDate,
-        incurredToDate: x.incurredToDate,
-        expected: x.expected,
-        difference: x.difference,
-      });
       return {
-        serviceId: y.serviceId,
-        serviceName: y.serviceName,
-        fiscalYear: y.fiscalYear,
-        label: y.label,
-        from: y.from,
-        to: y.to,
-        amountsVisible: y.amountsVisible,
-        cloud: y.cloud,
-        currencies: y.currencies.map((c) => ({
-          currency: c.currency,
-          ...fig(c),
-          read: c.read && { incurredToDate: c.read.incurredToDate, expected: c.read.expected },
-          unplanned: c.unplanned,
-        })),
-        lines: y.lines.map((l) => ({
-          id: l.id,
-          title: l.title,
-          category: l.category,
-          for: l.target && l.target.visible ? { kind: l.target.kind, id: l.target.id, name: l.target.name } : null,
-          vendor: short(l.vendor, 200),
-          supplier: l.supplier ? { id: l.supplier.id, name: l.supplier.name, contract: l.supplierContract?.title ?? null } : null,
-          currency: l.currency,
-          cadence: l.cadence,
-          onceMonth: l.onceMonth,
-          fromMonth: l.fromMonth,
-          toMonth: l.toMonth,
-          coversFrom: l.coversFrom,
-          coversTo: l.coversTo,
-          schedule: l.schedule,
-          notBooked: l.notBooked,
-          renewalDate: l.renewalDate,
-          read: l.read,
-          ...fig(l),
-        })),
-        entries: y.entries.map((e) => ({
-          date: e.date,
-          amount: e.amount,
-          currency: e.currency,
-          planLine: e.planLineTitle,
-          unplanned: e.unplanned,
-          supplier: e.supplier ? { id: e.supplier.id, name: e.supplier.name, contract: e.supplierContract?.title ?? null } : null,
-          importId: e.importId,
-          reference: e.reference,
-          note: short(e.note, 200),
-        })),
-        renewals: y.renewals,
-        prepaid: y.prepaid,
-        contractChanges: y.contractChanges.map((c) => ({ scheduleId: c.scheduleId, title: c.title, changes: c.changes.length })),
+        ...planForTool(y),
         commitments: commitments({ serviceId: a.serviceId }).rows.map(commitmentForTool),
       };
+    },
+  }),
+
+  defineTool({
+    name: 'get_platform_cost_plan',
+    title: 'Get the cost plan of a platform',
+    description:
+      "A platform's own cost plan (Costs module, 0.19.0): the platform team's contracts and spend commitments planned per fiscal year, set against the platform's whole bill as Steward reads it (AWS, Snowflake, Confluent, AI gateways, FOCUS files) plus its cost entries – per line and currency planned, to date, incurred, expected and the difference; use drawn from prepaid volumes (not counted again); the platform's volumes with what they used, what is left and a linear estimate. Amounts are decimals in their currency (never converted); null where you may not see the platform's amounts. Not paged: at most 200 plan lines and 2,000 entries per fiscal year.",
+    input: z
+      .object({
+        platformId: idArg('The id of the platform'),
+        fiscalYear: z.number().int().min(2000).max(2100).optional().describe('The calendar year the fiscal year starts in; default: the current one'),
+      })
+      .strict(),
+    visible: () => moduleEnabled('costs'),
+    handler: (a) => {
+      if (!moduleEnabled('costs')) throw new ToolError('The Costs module is switched off');
+      let y;
+      try {
+        y = platformPlanYear(a.platformId, a.fiscalYear);
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Platform ${a.platformId}`);
+        throw e;
+      }
+      return { ...planForTool(y), commitments: commitments({ platformId: a.platformId }).rows.map(commitmentForTool) };
     },
   }),
 
@@ -751,11 +793,12 @@ const steward: ToolDef[] = [
     name: 'list_cost_commitments',
     title: 'List cost commitments',
     description:
-      "What the payment schedules of supplier contracts still owe (Costs module, docs/COSTS.md#commitments): per schedule of a service you may see, the scheduled payments dated today or later – to contract end and to the earliest exit (the end of the term after the next notice-by date), per fiscal year (the current one and the next four) and later – the next payment, the contract's notice-by date and the notice warning (the notice-by date is ahead and the fiscal year of the next term is not planned yet). Scheduled payments, not liabilities: entries are not subtracted. Amounts are decimals in their currency (never converted); null where you may not see the paying service's amounts. Notice warnings first. Read only: confirming proposals, booking and imports stay with people in the app.",
+      "What supplier contracts still owe under their payment schedules (Costs module, docs/COSTS.md#commitments): per schedule of a service or platform you may see, the scheduled payments dated today or later – to contract end and to the earliest exit (the end of the term after the next notice-by date), per fiscal year (the current one and the next four) and later – the next payment, the contract's notice-by date and the notice warning (the notice-by date is ahead and the fiscal year of the next term is not planned yet). Scheduled payments, not liabilities: entries are not subtracted. Amounts are decimals in their currency (never converted); null where you may not see the paying service's amounts. Notice warnings first. Read only: confirming proposals, booking and imports stay with people in the app.",
     input: z
       .object({
         serviceId: z.string().max(100).optional().describe('Only this service'),
-        teamId: z.string().max(100).optional().describe("Only this team's services"),
+        platformId: z.string().max(100).optional().describe('Only the schedules this platform pays'),
+        teamId: z.string().max(100).optional().describe("Only this team's services and platforms"),
         supplierId: z.string().max(100).optional().describe("Only this supplier's contracts"),
         currency: z.string().length(3).optional().describe('Only this currency'),
         cursor: cursorArg,
@@ -767,15 +810,18 @@ const steward: ToolDef[] = [
       if (!moduleEnabled('costs')) throw new ToolError('The Costs module is switched off');
       let c;
       try {
-        c = commitments({ serviceId: a.serviceId, teamId: a.teamId, supplierId: a.supplierId, currency: a.currency });
+        c = commitments({ serviceId: a.serviceId, platformId: a.platformId, teamId: a.teamId, supplierId: a.supplierId, currency: a.currency });
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404)
-          throw notFound(a.serviceId ? `Service ${a.serviceId}` : a.teamId ? `Team ${a.teamId}` : `Supplier ${a.supplierId}`);
+          throw notFound(
+            a.serviceId ? `Service ${a.serviceId}` : a.platformId ? `Platform ${a.platformId}` : a.teamId ? `Team ${a.teamId}` : `Supplier ${a.supplierId}`,
+          );
         throw e;
       }
       const rows = c.rows.map(commitmentForTool);
-      const page = pageArray(rows, (r) => [r.warning ? 0 : 1, r.service.name.toLowerCase(), r.title.toLowerCase(), r.scheduleId], a, {
+      const page = pageArray(rows, (r) => [r.warning ? 0 : 1, r.payer.name.toLowerCase(), r.title.toLowerCase(), r.scheduleId], a, {
         serviceId: a.serviceId,
+        platformId: a.platformId,
         teamId: a.teamId,
         supplierId: a.supplierId,
         currency: a.currency,

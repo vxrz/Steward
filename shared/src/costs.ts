@@ -203,9 +203,6 @@ export function fromMicros(micros: number, min = 2): string {
   return `${neg && abs !== 0n ? '-' : ''}${whole}${frac ? `.${frac}` : ''}`;
 }
 
-/** Rounded to cents (two decimals) as a decimal string. */
-export const microsToCents = (micros: number): string => fromMicros(Math.round(micros / 10_000) * 10_000);
-
 /**
  * Whole millionths rounded (half away from zero) to the minor units of the currency: 1500.5 JPY → 1501 JPY. The one
  * rounding of amounts to their currency – display, CSV and the check of typed amounts (fitsCurrency) use it.

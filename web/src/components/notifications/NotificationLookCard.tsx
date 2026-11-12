@@ -220,7 +220,9 @@ export function NotificationLookCard() {
 
   return (
     <Card withBorder>
-      <Title order={5}>{t('look.title')}</Title>
+      <Title order={2} size="h5">
+        {t('look.title')}
+      </Title>
       <Text size="sm" c="dimmed" mb="sm">
         {t('look.intro')}
       </Text>

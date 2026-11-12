@@ -30,6 +30,7 @@ import { dbSchemaKeys } from '../../queryKeys';
 import { CopyBlock } from '../monitors/dialogs';
 import { ciCommands } from './dialogs';
 import type { SchemaSubject } from './SchemaView';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Push tokens of the tbls import from CI (#222): bound to this platform or system, they can do nothing but push its
@@ -155,7 +156,7 @@ export function PushTokensPanel({ subject }: { subject: SchemaSubject }) {
         </Stack>
       )}
       {list.length > 0 && !phone && (
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('schema.push.title')}>
             <Table.Thead>
               <Table.Tr>
@@ -187,7 +188,7 @@ export function PushTokensPanel({ subject }: { subject: SchemaSubject }) {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
       )}
       {creating && (
         <CreateModal

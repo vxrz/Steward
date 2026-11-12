@@ -398,12 +398,14 @@ export type OwnedKind = (typeof OWNED_KINDS)[number];
 
 /** Why someone has a right on a resource (#131): shown in the UI and used in access reviews. */
 export interface AccessReason {
-  /** admin | owner | auditor | instanceRole | teamRole | accessList */
-  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList';
+  /** admin | owner | auditor | instanceRole | teamRole | accessList | named (a named owner or responsible, #195) */
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named';
   /** The role, the team, or the access list subject the right comes from */
   role?: Role;
   team?: string;
   subject?: string;
+  /** source named: named as an owner or as a responsible (ticket references) */
+  as?: 'owner' | 'responsible';
   permissions: string[];
 }
 
@@ -469,7 +471,8 @@ export interface AuthStatus {
   /** 'adminsOnly': password sign-in is limited to administrators (break-glass); 'none': single sign-on only */
   passwordLogin: PasswordLogin;
   demo: boolean;
-  version: string;
+  /** The server's version – only for a signed-in caller (0.19.0) */
+  version?: string;
   browserAvailable: boolean;
 }
 
@@ -546,6 +549,13 @@ export const STEP_UP_ACTIONS = [
   // approver off (control point soa.approve)
   'approveSoa',
   'changeSoaApproval',
+  // 0.19.0 (#195): naming an owner or responsible from outside the owning teams of an item (control point access.grant)
+  'grantNamedAccess',
+  // 0.19.0 (security review H1): a new address of a platform's stored credentials (base URL, trusted origins, sign-in,
+  // proxy, broker or database host)
+  'changePlatformDestination',
+  // 0.19.0 (security review L1): a Git sync source – a new one, another repository or API URL, signing loosened, auto-accept on
+  'changeSyncSources',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

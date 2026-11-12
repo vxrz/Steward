@@ -6,6 +6,7 @@ import type { DailySummaryAdmin } from '@sm/shared';
 import { getOptional, notifyError, notifyOk, put } from '../../api';
 import { fmtRelative } from '../../format';
 import { useSaveSection } from '../settings/SaveBar';
+import { TableScroll } from '../TableScroll';
 
 /**
  * Settings → Daily summaries (administrators): the global switch and who subscribed – never the content. The switch is
@@ -38,7 +39,7 @@ export function DailySummaryAdminCard() {
   const d = q.data;
   return (
     <Card withBorder>
-      <Title order={5} mb="xs">
+      <Title order={2} size="h5" mb="xs">
         {t('dailySummary.title')}
       </Title>
       <Text size="xs" c="dimmed" mb="sm">
@@ -61,7 +62,7 @@ export function DailySummaryAdminCard() {
           <Text size="sm" mb={4}>
             {t('dailySummary.subscribers', { count: d.subscribers.length })}
           </Text>
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-label={t('dailySummary.title')}>
               <Table.Thead>
                 <Table.Tr>
@@ -89,7 +90,7 @@ export function DailySummaryAdminCard() {
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         </>
       )}
     </Card>

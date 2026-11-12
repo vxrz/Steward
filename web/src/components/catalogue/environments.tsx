@@ -15,6 +15,7 @@ import {
   type EnvironmentSettings,
 } from '@sm/shared';
 import { get, notifyError, put } from '../../api';
+import { TableScroll } from '../TableScroll';
 
 /**
  * The environments of the catalogue (#129): the ordered list from the settings, a badge in the environment's colour,
@@ -140,7 +141,7 @@ export function EnvironmentsCard() {
         {t('environments.help')}
       </Text>
       <Stack gap="xs">
-        <div className="table-scroll">
+        <TableScroll>
           <Table fz="sm" aria-label={t('environments.title')}>
             <Table.Thead>
               <Table.Tr>
@@ -215,7 +216,7 @@ export function EnvironmentsCard() {
               ))}
             </Table.Tbody>
           </Table>
-        </div>
+        </TableScroll>
         {q.data.unlisted.filter((u) => !listed.has(u.name.toLowerCase())).length > 0 && (
           <Stack gap={4}>
             <Text size="xs" c="dimmed">

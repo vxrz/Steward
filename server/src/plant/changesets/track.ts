@@ -161,12 +161,21 @@ function rawSnapshot(region: Region): Map<string, RawEntry> {
   return out;
 }
 
-/** The values of raw entries (one read per kind). */
+/**
+ * The values of raw entries (one read per kind). A site's or asset's external references are those of the snapshot:
+ * read again after the change, a removed entry's (or a changed list's) would be what is stored now.
+ */
 function snapsOf(list: RawEntry[]): Map<string, EntrySnap> {
   const out = new Map<string, EntrySnap>();
   const byKind = new Map<PlantEntryKind, Row[]>();
   for (const e of list) byKind.set(e.kind, [...(byKind.get(e.kind) ?? []), e.row]);
-  for (const [kind, rows] of byKind) for (const e of KINDS[kind].read(rows)) out.set(entryKey(e), e);
+  const refs = new Map(list.filter((e) => e.refs !== null).map((e) => [entryKey(e), e.refs!]));
+  for (const [kind, rows] of byKind)
+    for (const e of KINDS[kind].read(rows)) {
+      const k = entryKey(e);
+      const r = refs.get(k);
+      out.set(k, r === undefined ? e : { ...e, values: { ...e.values, refs: JSON.parse(r) as unknown } });
+    }
   return out;
 }
 
@@ -494,6 +503,23 @@ export function recordBaselines(importId: string, o: { values?: boolean } = {}):
       );
   }
   return n;
+}
+
+/**
+ * 0.19.0: baselines with stored values for entries an import wrote – those where Steward's values of fields changed since
+ * the last import were kept (changesets/steward.ts): the baseline is what the file said, so the field stays flagged.
+ * Written after recordBaselines() of the same import (they replace its rows for these entries), 200 a statement.
+ */
+export function recordBaselineValues(importId: string, list: { kind: PlantEntryKind; scope: string; id: string; values: Record<string, unknown> }[]): void {
+  const at = nowIso();
+  const seq = nextSeq();
+  for (const part of chunks(list))
+    db().run(
+      `INSERT INTO plant_entry_baselines (kind, scope, entry_id, import_id, seq, revision, field_values, recorded_at)
+       VALUES ${part.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+       ON CONFLICT (kind, scope, entry_id, import_id) DO UPDATE SET seq = excluded.seq, revision = excluded.revision, field_values = excluded.field_values, recorded_at = excluded.recorded_at`,
+      ...part.flatMap((e) => [e.kind, e.scope, e.id, importId, seq, null, storedValues(JSON.stringify(e.values)), at]),
+    );
 }
 
 /** Baselines of an entry in the order they were recorded (a counter that never goes back within the process; time otherwise). */

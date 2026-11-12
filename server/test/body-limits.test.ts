@@ -8,6 +8,8 @@ import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServe
  */
 let s: TestServer;
 let admin: Record<string, string>;
+/** The public API takes tokens only, no session cookie (POST /api/v1/plant/proposals is its one large route) */
+let v1Token: string;
 // imported after the test server has set its data folder (the module loads the configuration)
 let bodyTooLarge: typeof BodyLimits.bodyTooLarge;
 let DEFAULT_BODY_LIMIT: number;
@@ -15,7 +17,7 @@ let LARGE_BODIES: typeof BodyLimits.LARGE_BODIES;
 const MB = 1024 * 1024;
 
 async function send(method: string, url: string, body: string | FormData): Promise<{ status: number; body: any }> {
-  const headers: Record<string, string> = { 'x-sm-client': '1', ...admin };
+  const headers: Record<string, string> = url.startsWith('/v1/') ? { authorization: `Bearer ${v1Token}` } : { 'x-sm-client': '1', ...admin };
   if (typeof body === 'string') headers['content-type'] = 'application/json';
   const res = await fetch(s.base + '/api' + url, { method, headers, body });
   const text = await res.text();
@@ -34,6 +36,12 @@ beforeAll(async () => {
   ({ bodyTooLarge, DEFAULT_BODY_LIMIT, LARGE_BODIES } = await import('../src/bodyLimits.js'));
   await setup(s);
   admin = authHeaders(await loginCookie(s.base, ADMIN.username, ADMIN.password));
+  const created = await fetch(s.base + '/api/me/tokens', {
+    method: 'POST',
+    headers: { 'x-sm-client': '1', 'content-type': 'application/json', ...admin },
+    body: JSON.stringify({ name: 'body limits', scope: 'full' }),
+  });
+  v1Token = ((await created.json()) as { token: string }).token;
 });
 
 describe('request body limits', () => {
@@ -61,7 +69,9 @@ describe('request body limits', () => {
       }
       const { method, url } = target(l.routes[0]!);
       const over = await send(method, url, padded(l.bytes + 1024));
-      expect(over, name).toMatchObject({ status: 413, body: { code: 'BODY_TOO_LARGE', params: bodyTooLarge(l.bytes).params } });
+      // the public API answers with a problem document (generic HTTP errors there are "about:blank", docs/API.md)
+      if (url.startsWith('/v1/')) expect(over, name).toMatchObject({ status: 413, body: { type: 'about:blank', status: 413 } });
+      else expect(over, name).toMatchObject({ status: 413, body: { code: 'BODY_TOO_LARGE', params: bodyTooLarge(l.bytes).params } });
     }
   }, 120_000);
 

@@ -56,6 +56,9 @@ export const SUPPLIER_LIMITS = {
   contracts: 200,
   /** Services one contract covers, its owners and the purpose of each covered service (ADR 0031) */
   contractServices: 50,
+  /** Platforms one contract covers, and applications and systems per covered service (0.19.0, ADR 0032) */
+  contractPlatforms: 20,
+  contractItems: 50,
   contractOwners: 20,
   purpose: 200,
   certificates: 20,
@@ -210,7 +213,14 @@ export const SUPPLIER_CONTRACT_PROPOSAL_SOURCES = ['costPlanLine', 'costEntry', 
 export type SupplierContractProposalSource = (typeof SUPPLIER_CONTRACT_PROPOSAL_SOURCES)[number];
 
 const purpose = z.string().trim().max(SUPPLIER_LIMITS.purpose).default('');
-const contractServiceItem = z.object({ serviceId: z.string().trim().min(1).max(100), purpose }).strict();
+/** An application or system of a covered service the contract is for (0.19.0, ADR 0032). */
+export const SUPPLIER_CONTRACT_ITEM_KINDS = ['application', 'system'] as const;
+export type SupplierContractItemKind = (typeof SUPPLIER_CONTRACT_ITEM_KINDS)[number];
+const contractItem = z.object({ kind: z.enum(SUPPLIER_CONTRACT_ITEM_KINDS), id: z.string().trim().min(1).max(100) }).strict();
+const contractServiceItem = z
+  .object({ serviceId: z.string().trim().min(1).max(100), purpose, items: z.array(contractItem).max(SUPPLIER_LIMITS.contractItems).optional() })
+  .strict();
+const contractPlatformItem = z.object({ platformId: z.string().trim().min(1).max(100), purpose }).strict();
 
 export const supplierContractInput = z
   .object({
@@ -238,6 +248,8 @@ export const supplierContractInput = z
     owners: z.array(ownerSubject).max(SUPPLIER_LIMITS.contractOwners).optional(),
     /** On create: the services it covers, each with its purpose (later: the routes of the covered services) */
     services: z.array(contractServiceItem).max(SUPPLIER_LIMITS.contractServices).optional(),
+    /** On create (0.19.0, ADR 0032): the platforms it covers, each with its purpose (later: the routes of the covered platforms) */
+    platforms: z.array(contractPlatformItem).max(SUPPLIER_LIMITS.contractPlatforms).optional(),
     /** A change that leaves no team among the owners opens the contract to every reader of the supplier: say so */
     confirmOpen: z.boolean().optional(),
     /** The master agreement it belongs to (one level, the same supplier); null: none. Missing: on change it stays */
@@ -282,9 +294,18 @@ export type SupplierCertificateInput = z.input<typeof supplierCertificateInput>;
 
 /** A covered service of a contract: its purpose, and confirming a proposed one. Adds the service when it is not covered yet. */
 export const supplierContractServiceInput = z
-  .object({ purpose: z.string().trim().max(SUPPLIER_LIMITS.purpose).optional(), confirm: z.boolean().optional() })
+  .object({
+    purpose: z.string().trim().max(SUPPLIER_LIMITS.purpose).optional(),
+    confirm: z.boolean().optional(),
+    /** The applications and systems of the service the contract is for (0.19.0; replaces the list; missing keeps it) */
+    items: z.array(contractItem).max(SUPPLIER_LIMITS.contractItems).optional(),
+  })
   .strict();
 export type SupplierContractServiceInput = z.input<typeof supplierContractServiceInput>;
+
+/** A covered platform of a contract and its purpose (0.19.0, ADR 0032). Adds the platform when it is not covered yet. */
+export const supplierContractPlatformInput = z.object({ purpose: z.string().trim().max(SUPPLIER_LIMITS.purpose).optional() }).strict();
+export type SupplierContractPlatformInput = z.input<typeof supplierContractPlatformInput>;
 
 /** Merge a supplier into another: its links, contacts, contracts, certificates and spellings move. */
 export const supplierMergeInput = z.object({ into: z.string().trim().min(1).max(100) }).strict();
@@ -360,6 +381,19 @@ export interface SupplierContractService {
   canChange: boolean;
   /** The reader edits this service (the filter "Covering services I edit") */
   editsService: boolean;
+  /** The applications and systems of the service the contract is for (0.19.0; those the reader may see; none: the service as a whole) */
+  items: { kind: SupplierContractItemKind; id: string; name: string }[];
+}
+
+/** A platform a contract covers, as the reader may see it (0.19.0, ADR 0032). */
+export interface SupplierContractPlatform {
+  id: string;
+  name: string;
+  purpose: string;
+  /** The reader may change the purpose or take the platform off the contract */
+  canChange: boolean;
+  /** The reader manages the platform (the right `manage`; membership of its owning teams alone does not count) */
+  managesPlatform: boolean;
 }
 
 /** The SLA values an order form takes from its master agreement while its own are empty (ADR 0031 part 3). */
@@ -441,7 +475,7 @@ export function effectiveTerms(
 }
 
 /** Why the reader sees a contract (the contract page's "Owners and visibility"). */
-export type SupplierContractReadReason = 'supplierReaders' | 'admin' | 'auditor' | 'owner' | 'service';
+export type SupplierContractReadReason = 'supplierReaders' | 'admin' | 'auditor' | 'owner' | 'service' | 'platform';
 
 export interface SupplierContract {
   id: string;
@@ -494,6 +528,10 @@ export interface SupplierContract {
   services: SupplierContractService[];
   /** Covered services the reader may not see – counted only for its owners and who may change it, else 0 */
   hiddenServices: number;
+  /** The covered platforms the reader may see (0.19.0, ADR 0032) */
+  platforms: SupplierContractPlatform[];
+  /** Covered platforms the reader may not see – counted like hiddenServices */
+  hiddenPlatforms: number;
   /** Why the reader sees it */
   readReason: SupplierContractReadReason;
   /** The reader is among its owners (the filter "Mine") */
@@ -649,12 +687,28 @@ export interface ServiceContracts {
   canEdit: boolean;
 }
 
+/** The contracts covering a platform (0.19.0, ADR 0032): the platform's cost plan shows them. */
+export interface PlatformContracts {
+  platformId: string;
+  contracts: { supplier: SupplierRef; contract: SupplierContract; purpose: string; canChange: boolean }[];
+  /** Add a contract for the platform / the platform to a contract: who manages it or is a member of its owning teams */
+  canEdit: boolean;
+}
+
 /** The contract page (ADR 0031): the contract with its supplier and who sees it and why. */
 export interface SupplierContractDetail {
   supplier: SupplierRef & { owners: string[]; teams: string[] };
   contract: SupplierContract;
   /** Who sees it: the supplier's readers (no team owner), or the owning teams, user owners and the readers of the covered services */
-  visibility: { open: boolean; teams: string[]; users: string[]; services: { id: string; name: string }[]; hiddenServices: number };
+  visibility: {
+    open: boolean;
+    teams: string[];
+    users: string[];
+    services: { id: string; name: string }[];
+    hiddenServices: number;
+    /** 0.19.0 (ADR 0032): covered platforms – their managers and the members of their owning teams see the contract */
+    platforms: { id: string; name: string }[];
+  };
   /** The contacts scoped to the contract that the reader may see */
   contacts: SupplierContact[];
   /** Supplier review duties and corrective action findings that name the contract (those the reader may see) */
@@ -675,13 +729,22 @@ export interface ScopedContacts {
  */
 export function contractReaders(
   contract: { owners: readonly string[] },
-  reader: { seesSupplier: boolean; admin: boolean; auditor: boolean; owner: boolean; seesCoveredService: boolean },
+  reader: {
+    seesSupplier: boolean;
+    admin: boolean;
+    auditor: boolean;
+    owner: boolean;
+    seesCoveredService: boolean;
+    /** 0.19.0 (ADR 0032): sees a covered platform and manages it or is a member of its owning teams – not every reader of the platform */
+    managesCoveredPlatform?: boolean;
+  },
 ): SupplierContractReadReason | null {
   if (!reader.seesSupplier) return null;
   if (!contract.owners.some((o) => o.toLowerCase().startsWith('team:'))) return 'supplierReaders';
   if (reader.admin) return 'admin';
   if (reader.owner) return 'owner';
   if (reader.seesCoveredService) return 'service';
+  if (reader.managesCoveredPlatform) return 'platform';
   if (reader.auditor) return 'auditor';
   return null;
 }

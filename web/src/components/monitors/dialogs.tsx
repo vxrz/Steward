@@ -17,6 +17,7 @@ import { monitorStatusLabel } from './status';
 import { appUrl } from '../../basePath';
 import { PlatformChoices, chosenPlatforms, platformsComplete } from './PlatformChoices';
 import { monitorKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 export function CopyBlock({ label, text }: { label: string; text: string }) {
   const { t } = useTranslation('common');
@@ -340,7 +341,7 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
 export function ResultsTable({ rows }: { rows: { ts: string; status: string; message: string; durationMs?: number | null }[] }) {
   const { t } = useTranslation('monitors');
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <Table fz="xs">
         <Table.Thead>
           <Table.Tr>
@@ -361,6 +362,6 @@ export function ResultsTable({ rows }: { rows: { ts: string; status: string; mes
           ))}
         </Table.Tbody>
       </Table>
-    </div>
+    </TableScroll>
   );
 }

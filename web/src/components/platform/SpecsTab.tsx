@@ -28,6 +28,7 @@ import { Hint } from '../common';
 import { fmtDate } from '../../format';
 import { OperationPath } from './OperationPath';
 import { platformKeys } from '../../queryKeys';
+import { TableScroll } from '../TableScroll';
 
 export const METHOD_COLORS: Record<string, string> = {
   GET: 'blue',
@@ -372,7 +373,7 @@ export function SpecsTab({
           </Text>
         )}
         {!!specs.data?.length && (
-          <div className="table-scroll">
+          <TableScroll>
             <Table>
               <Table.Thead>
                 <Table.Tr>
@@ -444,7 +445,7 @@ export function SpecsTab({
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
       </Paper>
 
@@ -467,7 +468,7 @@ export function SpecsTab({
             </Group>
           </Group>
           <Hint>{t('specs.clickHint')}</Hint>
-          <div className="table-scroll">
+          <TableScroll>
             <Table highlightOnHover mt="xs">
               <Table.Thead>
                 <Table.Tr>
@@ -498,7 +499,7 @@ export function SpecsTab({
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
           {filtered.length > 500 && (
             <Text size="xs" c="dimmed" mt="xs">
               {t('specs.truncated', { count: 500 })}

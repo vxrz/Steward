@@ -31,6 +31,10 @@ import type { NamedMigration } from '../db.js';
  * suppliers-004-contract-links (0.18.0, ADR 0031): a service duty and a corrective action finding can name a contract
  * of their supplier; supplier_merge_dismissals remembers the groups of "Same supplier in several teams" an
  * administrator kept separate (the group key: the normalised name and the suppliers' ids).
+ *
+ * suppliers-005-contract-platforms-items (0.19.0, ADR 0032): supplier_contract_platforms – the platforms a contract
+ * covers besides services (a platform team's own contract), each with its purpose; supplier_contract_items – per
+ * covered service, the applications and systems of that service the contract is for (none: the service as a whole).
  */
 export const SUPPLIER_MIGRATIONS: NamedMigration[] = [
   {
@@ -221,6 +225,31 @@ export const SUPPLIER_MIGRATIONS: NamedMigration[] = [
         dismissed_by TEXT NOT NULL,
         dismissed_at TEXT NOT NULL
       );
+    `,
+  },
+  {
+    name: 'suppliers-005-contract-platforms-items',
+    sql: `
+      CREATE TABLE supplier_contract_platforms (
+        contract_id TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        purpose TEXT NOT NULL DEFAULT '',
+        added_by TEXT NOT NULL DEFAULT '',
+        added_at TEXT NOT NULL,
+        PRIMARY KEY (contract_id, platform_id)
+      );
+      CREATE INDEX supplier_contract_platforms_platform ON supplier_contract_platforms(platform_id);
+
+      CREATE TABLE supplier_contract_items (
+        contract_id TEXT NOT NULL,
+        service_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        added_by TEXT NOT NULL DEFAULT '',
+        added_at TEXT NOT NULL,
+        PRIMARY KEY (contract_id, service_id, kind, item_id)
+      );
+      CREATE INDEX supplier_contract_items_item ON supplier_contract_items(kind, item_id);
     `,
   },
 ];

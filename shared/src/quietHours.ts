@@ -84,6 +84,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'ai.budget': 'costs',
   'cost.budget': 'costs',
   'cost.booking_due': 'costs',
+  'cost.volume': 'costs',
   'summary.daily': null,
   'security.emergency': null,
 };

@@ -15,6 +15,7 @@ import { PreviewBadge } from '../components/plant/common';
 import { FieldDiffs } from '../components/plant/changes';
 import { showValue } from '../components/plant/changes/EntryConflictDialog';
 import { SourceBadge, StateBadge, useKindName } from '../components/plant/changes/common';
+import { Sources as ProposalSources } from '../components/mcp/PlantProposalReview';
 
 const ACTIONS = ['change', 'add', 'rename', 'move', 'remove'] as const;
 const ACTION_COLOR = { add: 'green', change: 'blue', remove: 'red', rename: 'violet', move: 'grape' } as const;
@@ -231,6 +232,30 @@ export function PlantChangeSetPage() {
         {announce}
       </div>
       <Stack gap="md">
+        {d.proposal && (
+          // 0.19.0: a proposal sent through the public API (a CI job): why, the token, the sources of its data points
+          <Paper withBorder p="sm" data-testid="cs-api-proposal">
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>
+                {t('detail.apiProposal.title')}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {t('detail.apiProposal.token', { token: d.proposal.tokenName, by: d.createdBy })}
+              </Text>
+              {d.proposal.rationale && (
+                <div>
+                  <Text size="xs" c="dimmed">
+                    {t('detail.apiProposal.rationale')}
+                  </Text>
+                  <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                    {d.proposal.rationale}
+                  </Text>
+                </div>
+              )}
+              <ProposalSources p={{ sources: d.proposal.sources, sourcesMore: d.proposal.sourcesMore }} />
+            </Stack>
+          </Paper>
+        )}
         {d.comment && (
           <Alert variant="light" color={d.state === 'rejected' ? 'red' : 'blue'} title={t('detail.comment')}>
             <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>

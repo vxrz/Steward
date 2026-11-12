@@ -95,9 +95,15 @@ const SupplierContractEntry = z.object({
         name: z.string(),
         purpose: z.string(),
         status: z.enum(SUPPLIER_CONTRACT_SERVICE_STATUSES).describe('proposed: by the 0.18 upgrade, waiting for a person'),
+        items: z
+          .array(z.object({ kind: z.enum(['application', 'system']), id: z.string(), name: z.string() }))
+          .describe('The applications and systems of the service the contract is for (0.19.0; those the token owner may see; empty: the service as a whole)'),
       }),
     )
     .describe('The services it covers that the token owner may see (no count of others)'),
+  platforms: z
+    .array(z.object({ id: z.string(), name: z.string(), purpose: z.string() }))
+    .describe('The platforms it covers that the token owner may see (0.19.0, ADR 0032; no count of others)'),
   parentId: z.string().nullable().describe('The master agreement it belongs to (0.18.0, one level; null: none, or one the token owner may not see)'),
   parentHidden: z.boolean().describe('Part of a master agreement the token owner may not see: its values apply, its title does not show'),
   endsAfterMaster: z.boolean().describe('An order form that ends after its master agreement (a hint)'),

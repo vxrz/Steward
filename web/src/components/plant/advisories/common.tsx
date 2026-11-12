@@ -15,7 +15,7 @@ import {
   type PlantChangeSetList,
 } from '@sm/shared';
 import { get, notifyError, put } from '../../../api';
-import { fmtDate } from '../../../format';
+import { fmtDate, localToday } from '../../../format';
 
 /** Security advisories (0.14, docs/ADVISORIES.md): what the list, the advisory page and the asset page share. */
 
@@ -259,7 +259,7 @@ export function RemediationModal({
             label={t('fix.until')}
             required
             value={until}
-            min={new Date().toISOString().slice(0, 10)}
+            min={localToday()}
             onChange={(e) => setUntil(e.currentTarget.value)}
             data-testid="remediation-until"
           />

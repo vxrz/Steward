@@ -5,6 +5,7 @@ import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import * as svc from './service.js';
 import { params } from '../routes/params.js';
+import { namedGrantRule, serves } from '../auth/named-grants.js';
 
 /**
  * Ticket references (mounted under /api). Every route checks permissions in the service.
@@ -12,9 +13,9 @@ import { params } from '../routes/params.js';
  *   GET    /ticket-references/settings        sources and the reminder default; PUT: administrators
  *   GET    /ticket-references/vendors         vendors of earlier entries (suggestions)
  *   GET    /ticket-references/open-counts     open tickets per affected item of a kind (?kind=service&vendorOnly=1)
- *   POST   /ticket-references                 create
+ *   POST   /ticket-references                 create (responsibles from outside the owning teams: step-up grantNamedAccess, #195)
  *   GET    /ticket-references/:id             entry with history
- *   PUT    /ticket-references/:id             update
+ *   PUT    /ticket-references/:id             update (the same)
  *   POST   /ticket-references/:id/status      change the status {status, comment?, resolvedAt?}
  *   POST   /ticket-references/:id/checked     mark checked {comment?}
  *   DELETE /ticket-references/:id             administrators
@@ -68,9 +69,32 @@ export async function ticketRoutes(app: FastifyInstance): Promise<void> {
     return svc.openCounts(q.kind, q.vendorOnly === '1');
   });
 
-  app.post('/ticket-references', async (req) => svc.createTicket(svc.ticketInputSchema.parse(req.body ?? {})));
+  // responsibles from outside the owning teams ask for the step-up like an access list (#195)
+  app.post(
+    '/ticket-references',
+    {
+      config: {
+        stepUp: namedGrantRule(
+          (req) => svc.ticketNamesOutsiders(null, req.body),
+          () => svc.canCreateTickets(currentUser()),
+        ),
+      },
+    },
+    async (req) => svc.createTicket(svc.ticketInputSchema.parse(req.body ?? {})),
+  );
   app.get('/ticket-references/:id', async (req) => svc.getTicket(params(req).id!));
-  app.put('/ticket-references/:id', async (req) => svc.updateTicket(params(req).id!, svc.ticketInputSchema.parse(req.body ?? {})));
+  app.put(
+    '/ticket-references/:id',
+    {
+      config: {
+        stepUp: namedGrantRule(
+          (req) => svc.ticketNamesOutsiders(params(req).id!, req.body),
+          serves((req) => svc.requireTicket(params(req).id!, 'edit')),
+        ),
+      },
+    },
+    async (req) => svc.updateTicket(params(req).id!, svc.ticketInputSchema.parse(req.body ?? {})),
+  );
   app.post('/ticket-references/:id/status', async (req) => svc.setStatus(params(req).id!, svc.statusSchema.parse(req.body ?? {})));
   app.post('/ticket-references/:id/checked', async (req) => svc.markChecked(params(req).id!, svc.checkedSchema.parse(req.body ?? {})));
   app.delete('/ticket-references/:id', async (req) => {

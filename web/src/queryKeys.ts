@@ -200,6 +200,8 @@ export const costKeys = {
   supplierCosts: (supplierId: string) => ['costs', 'supplier', supplierId] as const,
   /** CSV imports of a service's entries */
   entryImports: (serviceId: string) => ['costs', 'entry-imports', serviceId] as const,
+  /** An application's or system's "Costs and contracts" of a fiscal year (0.19.0, ADR 0032) */
+  attribution: (kind: string, id: string, year: number | null) => ['costs', 'attribution', kind, id, year ?? 'current'] as const,
 };
 
 /** Data contracts (#221): the list, one contract, its versions, comparisons and test runs. */
@@ -255,4 +257,18 @@ export const soaKeys = {
 /** The responsibility matrix of a service (ADR 0029 part 2). */
 export const responsibilityKeys = {
   service: (serviceId: string) => ['responsibilities', serviceId] as const,
+};
+
+/** Owning teams and access (#131, #195): who a form names from outside an item's owning teams. */
+export const accessKeys = {
+  namedOutside: (kind: string, id: string | null | undefined, supplierId: string | undefined, subjects: readonly string[]) =>
+    ['access', 'named-outside', kind, id ?? null, supplierId ?? null, [...subjects].sort().join('\n')] as const,
+  /** Who covering a platform gives a contract to from outside its teams (security review 0.19.0 M1) */
+  platformOutside: (supplierId: string, contractId: string, platformId: string) =>
+    ['access', 'named-outside', 'platform', supplierId, contractId, platformId] as const,
+};
+
+/** Users, teams and roles for owner pickers and owner names (`GET /api/subjects`; empty for read-only accounts). */
+export const subjectKeys = {
+  all: ['subjects'] as const,
 };

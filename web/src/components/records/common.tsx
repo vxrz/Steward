@@ -28,6 +28,7 @@ import { useFieldErrors } from '../common';
 import { LinkTypeIconView, linkTypeOf, useLinkTypeName, useLinkTypes } from './linkTypes';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 import { ShowAll, useShowMore } from '../page/ShowAll';
+import { TableScroll } from '../TableScroll';
 
 /** Links listed before "Show all"; more backlinks than this start folded. */
 const LINKS_FIRST = 10;
@@ -157,7 +158,7 @@ export function LinksPanel({
           </Text>
         )}
         {internalShown.length > 0 && (
-          <div className="table-scroll">
+          <TableScroll>
             <Table fz="sm" aria-label={t('links.title')}>
               <Table.Thead>
                 <Table.Tr>
@@ -202,7 +203,7 @@ export function LinksPanel({
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </TableScroll>
         )}
         {external.length > 0 && (
           <Stack gap="sm" data-testid="external-links">

@@ -382,7 +382,7 @@ function ConnectorCard({ c, cluster }: { c: ConfluentConnectorView; cluster: str
               component="button"
               type="button"
               size="xs"
-              c="red.8"
+              c="red"
               onClick={() => setTraces((x) => !x)}
               aria-expanded={traces}
               data-testid="confluent-trace-toggle"
