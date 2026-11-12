@@ -5003,6 +5003,7 @@ export interface Resources {
     'codes.NOT_PDF': string;
     'codes.USER_NOT_FOUND': string;
     'codes.TEAM_NOT_FOUND': string;
+    'codes.TEAM_OWNS_RESOURCES': string;
     'codes.PLATFORM_NOT_FOUND': string;
     'codes.IDENTITY_NOT_FOUND': string;
     'codes.PLATFORM_NOT_FOUND_kind': string;

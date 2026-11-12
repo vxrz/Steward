@@ -89,6 +89,7 @@
     "NOT_PDF": "This is not a PDF file.",
     "USER_NOT_FOUND": "User “{{name}}” not found.",
     "TEAM_NOT_FOUND": "Team “{{name}}” not found.",
+    "TEAM_OWNS_RESOURCES": "The team “{{name}}” is the only owning team of {{total}} item(s). Choose the team they move to, or give them other owning teams first – deleting it must not open them to everyone.",
     "PLATFORM_NOT_FOUND": "Platform {{id}} not found.",
     "IDENTITY_NOT_FOUND": "Identity {{id}} not found.",
     "PLATFORM_NOT_FOUND_kind": "Platform “{{id}}” not found (expected a platform of kind {{kind}}).",
