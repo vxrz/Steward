@@ -175,5 +175,9 @@
   "state": {
     "on": "On",
     "off": "Off"
+  },
+  "notYours": {
+    "title": "You do not use this module",
+    "text": "Ask an administrator if you need it."
   }
 }

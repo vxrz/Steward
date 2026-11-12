@@ -98,6 +98,53 @@ test.describe('switching a module (own server)', () => {
     expect(await srv.api('GET', '/costs?scope=service')).toEqual(before);
   });
 
+  test('a module the person does not use (ADR 0034): gone from the sidebar and tabs, its pages say so, its API answers 404', async ({ browser }) => {
+    test.setTimeout(120_000);
+    // restricting narrows: no step-up; the administrators (and auditors) keep it
+    await srv.api('PUT', '/settings/modules/costs/access', { mode: 'selected', grants: [] });
+    try {
+      const login = await fetch(`${srv.baseURL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
+        body: JSON.stringify({ username: USERS.vera.username, password: USERS.vera.password }),
+      });
+      expect(login.ok).toBe(true);
+      const cookie = login.headers.get('set-cookie')!.split(';')[0]!;
+      const sessionKey = login.headers.get('x-sm-session-key') ?? '';
+      const ctx = await browser.newContext({
+        baseURL: srv.baseURL,
+        serviceWorkers: 'block',
+        locale: 'en-GB',
+        viewport: { width: 1280, height: 900 },
+        storageState: sessionState(srv.baseURL, cookie, { sessionKey, linkKey: login.headers.get('x-sm-link-key') ?? '' }),
+      });
+      contexts.push(ctx);
+      const page = await ctx.newPage();
+      await page.goto('/services');
+      await settle(page);
+      await expect(page.getByRole('navigation', { name: 'Services' }).getByRole('link')).toHaveText(['Services', 'Scorecard']);
+      await page.goto('/costs');
+      const notYours = page.getByTestId('module-not-yours');
+      await expect(notYours).toContainText('You do not use this module');
+      await expect(notYours).toContainText('Ask an administrator if you need it.');
+      await expect(notYours.getByRole('link')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Costs', level: 1 })).toBeVisible();
+      await expectAccessible(page, 'module not used page');
+      const res = await page.request.get(`${srv.baseURL}/api/costs`, { headers: { 'x-sm-session': sessionKey } });
+      expect(res.status()).toBe(404);
+      expect((await res.json()).code).toBe('MODULE_NO_ACCESS');
+      // the administrator still has it
+      const admin = await open(browser);
+      await admin.goto('/costs');
+      await settle(admin);
+      await expect(admin.getByTestId('module-not-yours')).toHaveCount(0);
+      await expect(admin.getByTestId('module-off')).toHaveCount(0);
+    } finally {
+      await srv.api('POST', '/auth/step-up', { password: USERS.admin.password });
+      await srv.api('PUT', '/settings/modules/costs/access', { mode: 'everyone', grants: [] });
+    }
+  });
+
   test('a switched-off area leaves the sidebar; its pages are explained on a phone, too', async ({ browser }) => {
     await srv.api('PUT', '/settings/modules/compliance', { enabled: false });
     try {

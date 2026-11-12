@@ -380,6 +380,7 @@
     "labelPlaceholder": "e.g. ServiceNow CHG0042",
     "empty": "No links yet.",
     "notVisible": "Not visible to you",
+    "otherModule": "An item of a module you do not use ({{module}})",
     "remove": "Remove link",
     "removeNamed": "Remove link to {{name}}",
     "removeConfirm": "Remove this link?",
