@@ -435,7 +435,6 @@ const MISSED_LISTED = 10;
 const MISSED_COUNT_LIMIT = 10000;
 
 let running = false;
-export const schedulerRunning = (): boolean => running;
 
 /** Records that the scheduler runs now (only while it does: while the vault is locked nothing fires either). */
 export function recordAlive(at = new Date()): void {

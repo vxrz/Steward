@@ -279,10 +279,6 @@ export function setGraphConsent(roles: string[] | null): void {
 export function setGraphLicence(l: Licence): void {
   licence = l;
 }
-/** Answer the next second page of the users with 429 once more. */
-export function throttleGraphOnce(): void {
-  throttleArmed = true;
-}
 /** A public certificate (PEM) of the app registration: client assertions signed with its key are accepted. */
 export function setGraphCertificate(pem: string): void {
   certificates.push(pem);

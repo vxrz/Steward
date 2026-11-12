@@ -1,6 +1,5 @@
 import type { ZodType } from 'zod';
 import type { ReportLang } from '@sm/shared';
-import { parseJson } from '../util.js';
 import { registerSectionDrawer, type ReportSectionDraw } from './section-draw.js';
 
 export type { SectionRender, ReportSectionDraw } from './section-draw.js';
@@ -62,5 +61,3 @@ export function parseSections(input: unknown): Record<string, unknown> {
 }
 
 export const sectionOrder = (ids: string[]): string[] => reportSectionIds().filter((id) => ids.includes(id));
-
-export const parseSectionsJson = (s: string): Record<string, unknown> => parseJson<Record<string, unknown>>(s, {});

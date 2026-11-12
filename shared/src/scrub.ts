@@ -191,11 +191,6 @@ function deep(v: unknown, secrets: string[], depth: number, seen: WeakSet<object
   return out;
 }
 
-/** Deep scrub of any JSON-like value (sensitive keys are masked, strings scrubbed). */
-export function scrubValue<T>(v: T, opts: ScrubOptions = {}): T {
-  return deep(v, secretList(opts), 0, new WeakSet()) as T;
-}
-
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
 

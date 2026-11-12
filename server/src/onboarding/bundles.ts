@@ -19,7 +19,7 @@ import { logger } from '../log.js';
 import { HttpError, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { capabilities } from '../auth/permissions.js';
-import { currentActor, currentUser } from '../auth/context.js';
+import { currentActor } from '../auth/context.js';
 import { authorizeStart, startProblem } from '../engine/commands.js';
 import { me } from '../auth/access.js';
 import { getPlatform } from '../platforms/service.js';
@@ -454,6 +454,3 @@ export async function turnOnBundle(id: string, input: z.infer<typeof turnOnInput
   });
   return { items };
 }
-
-/** Whether the current user may set up bundles (the gallery shows the button). */
-export const canSetUpBundles = () => capabilities(currentUser()).createProcesses;

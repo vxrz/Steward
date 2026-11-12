@@ -190,11 +190,6 @@ export function tableRows(value: string | null | undefined): Record<string, stri
   }
 }
 
-/** A table value as text lines (version comparison, plain exports): one line per row, the cells separated by " | ". */
-export function tableAsText(columns: readonly Pick<RecordTableColumn, 'key'>[], value: string | null | undefined): string[] {
-  return tableRows(value).map((r) => columns.map((c) => r[c.key] ?? '').join(' | '));
-}
-
 export interface RecordFieldDef {
   /** camelCase key in `fields` */
   key: string;

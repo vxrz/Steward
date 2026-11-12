@@ -83,12 +83,6 @@ export function markAllRead(userId: string, events?: readonly string[]): void {
   else db().run('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0', userId);
 }
 
-/** Retention: read notifications older than `days`. */
-export function deleteReadOlderThan(days: number): number {
-  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
-  return db().run('DELETE FROM notifications WHERE read = 1 AND ts < ?', cutoff).changes;
-}
-
 /**
  * External sends are de-duplicated per channel + event + entity: returns true
  * (and records the send) when nothing was sent for `key` within `windowMs`.
