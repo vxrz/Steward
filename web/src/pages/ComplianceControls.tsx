@@ -375,8 +375,10 @@ function CoverageTable({
                     <Anchor size="sm" component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={500}>
                       <Text span className="mono" size="sm">
                         {c.control.ref}
-                      </Text>{' '}
-                      – {capFirst(c.control.title)}
+                      </Text>
+                      {/* a table cell's link is a flex box (styles.css): a plain space after the number would collapse */}
+                      {'\u00a0– '}
+                      {capFirst(c.control.title)}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
