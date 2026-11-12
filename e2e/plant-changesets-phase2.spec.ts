@@ -2,7 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
-import { expectNoHorizontalScroll, uniq } from './support/helpers';
+import { VERA_DRAFT_LOCK, expectNoHorizontalScroll, uniq, withLock } from './support/helpers';
 
 /**
  * Plant change sets, phase 2 (0.19.0, docs/PLANT.md "Modes" and "Change sets", ADR 0020 "Built in 0.19.0"): the
@@ -163,38 +163,42 @@ test.describe('a collection import by who may only propose', () => {
   test.use({ storageState: authFile('vera') });
 
   test('previews a collector’s files and adds the import to the draft', async ({ page, apiAs }) => {
-    const admin = await apiAs('admin');
-    const { site, asset } = await seed(admin);
-    const vera = await apiAs('vera');
-    try {
-      await ok(admin.put(`/api/plant/sites/${site}/access`, { data: { acl: [{ subject: 'user:vera', permissions: ['view', 'propose'] }] } }));
-      await page.goto(`/plant/assets/${asset}/collections`);
-      await page.getByTestId('collections-import').click();
-      const dialog = page.getByTestId('collections-import-dialog');
-      await dialog.getByTestId('collector-ref').fill('line-gateway-e2e');
-      const chooser = page.waitForEvent('filechooser');
-      await dialog.getByTestId('collections-files').click();
-      await (
-        await chooser
-      ).setFiles({
-        name: 'gateway.csv',
-        mimeType: 'text/csv',
-        buffer: Buffer.from('collection,source_address,output_name\nstate,/Bag/State/opMode[u1],OpMode\n'),
-      });
-      await dialog.getByTestId('collections-preview').click();
-      const result = dialog.getByTestId('collections-preview-result');
-      await expect(result).toContainText('state');
-      await expect(result.getByTestId('collections-apply')).toHaveCount(0);
-      await result.getByTestId('collections-add-to-draft').click();
-      await expect(dialog.getByTestId('collections-import-change-set')).toContainText('Changes by vera');
-      await expectAccessible(page, 'collection import added to the draft');
-      // nothing is imported yet
-      const now = await (await admin.get(`/api/plant/assets/${asset}/collections`)).json();
-      expect(now.collections).toEqual([]);
-    } finally {
-      const cfg = await (await vera.get('/api/plant/config')).json();
-      if (cfg.changeSets?.draft) await vera.post(`/api/plant/change-sets/${cfg.changeSets.draft.id}/withdraw`);
-      await cleanUp(admin, site, asset);
-    }
+    test.setTimeout(240_000);
+    // vera's one draft is shared with another spec running alongside
+    await withLock(VERA_DRAFT_LOCK, async () => {
+      const admin = await apiAs('admin');
+      const { site, asset } = await seed(admin);
+      const vera = await apiAs('vera');
+      try {
+        await ok(admin.put(`/api/plant/sites/${site}/access`, { data: { acl: [{ subject: 'user:vera', permissions: ['view', 'propose'] }] } }));
+        await page.goto(`/plant/assets/${asset}/collections`);
+        await page.getByTestId('collections-import').click();
+        const dialog = page.getByTestId('collections-import-dialog');
+        await dialog.getByTestId('collector-ref').fill('line-gateway-e2e');
+        const chooser = page.waitForEvent('filechooser');
+        await dialog.getByTestId('collections-files').click();
+        await (
+          await chooser
+        ).setFiles({
+          name: 'gateway.csv',
+          mimeType: 'text/csv',
+          buffer: Buffer.from('collection,source_address,output_name\nstate,/Bag/State/opMode[u1],OpMode\n'),
+        });
+        await dialog.getByTestId('collections-preview').click();
+        const result = dialog.getByTestId('collections-preview-result');
+        await expect(result).toContainText('state');
+        await expect(result.getByTestId('collections-apply')).toHaveCount(0);
+        await result.getByTestId('collections-add-to-draft').click();
+        await expect(dialog.getByTestId('collections-import-change-set')).toContainText('Changes by vera');
+        await expectAccessible(page, 'collection import added to the draft');
+        // nothing is imported yet
+        const now = await (await admin.get(`/api/plant/assets/${asset}/collections`)).json();
+        expect(now.collections).toEqual([]);
+      } finally {
+        const cfg = await (await vera.get('/api/plant/config')).json();
+        if (cfg.changeSets?.draft) await vera.post(`/api/plant/change-sets/${cfg.changeSets.draft.id}/withdraw`);
+        await cleanUp(admin, site, asset);
+      }
+    });
   });
 });

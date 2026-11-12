@@ -11,9 +11,18 @@ export async function animationsDone(page: Page) {
 
 /** axe-core WCAG 2.1 A/AA scan; fails on "serious" or "critical" violations (same rules as accessibility.spec.ts). */
 export async function expectAccessible(page: Page, name: string) {
-  await animationsDone(page);
-  const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
-  const bad = result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+  const scan = async () => {
+    await animationsDone(page);
+    const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    return result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+  };
+  let bad = await scan();
+  // a notification that appeared after the wait is still fading in: its colours are not final yet – scan once more
+  const inNotification = (v: (typeof bad)[number]) => v.nodes.every((n) => n.target.join(' ').includes('mantine-Notification'));
+  if (bad.length && bad.every(inNotification)) {
+    await page.waitForTimeout(500);
+    bad = await scan();
+  }
   const report = bad.map(
     (v) =>
       `${v.impact} ${v.id}: ${v.help}\n${v.nodes

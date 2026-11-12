@@ -151,6 +151,8 @@ export function settingsSave(page: Page): Locator {
  */
 export const FISCAL_YEAR_LOCK = 'fiscal-year-start';
 export const FISCAL_YEAR_TIMEOUT = 300_000;
+/** vera's plant draft: one per person, used by plant-changesets and plant-changesets-phase2 */
+export const VERA_DRAFT_LOCK = 'vera-plant-draft';
 
 /**
  * A lock across the test workers (a directory in e2e/.auth, removed by the global setup): around a test that changes

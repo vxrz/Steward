@@ -2,7 +2,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible, settle } from './support/axe';
-import { expectNoHorizontalScroll, uniq } from './support/helpers';
+import { VERA_DRAFT_LOCK, expectNoHorizontalScroll, uniq, withLock } from './support/helpers';
 
 /**
  * Plant change sets (0.13.0, docs/PLANT.md "Change sets", ADR 0020): a viewer with the propose right drafts a change
@@ -71,71 +71,75 @@ test.describe('a proposer drafts, a second person applies', () => {
   test.use({ storageState: authFile('vera') });
 
   test('draft → propose → review three ways → apply → history → revert', async ({ page, apiAs, loginAs }) => {
-    const admin = await apiAs('admin');
-    const { site, asset } = await seed(admin);
-    try {
-      // Vera may only propose: the form saves into her draft
-      await page.goto(`/plant/assets/${asset}`);
-      await page.getByTestId('asset-propose-edit').click();
-      const dialog = page.getByRole('dialog');
-      await dialog.getByLabel('Model').fill('SP-200');
-      await dialog.getByLabel('Manufacturer').fill('Example Presses Ltd');
-      await dialog.getByRole('button', { name: 'Save' }).click();
-      await expect(dialog).toBeHidden();
-      const bar = page.getByRole('region', { name: 'Your draft' });
-      await expect(bar.getByTestId('draft-bar-count')).toHaveText('1 change');
-      await expect(page.getByTestId('changed-in-draft')).toBeVisible();
-      // nothing is in Steward yet
-      expect((await (await admin.get(`/api/plant/assets/${asset}`)).json()).model).toBe('SP-100');
+    test.setTimeout(240_000);
+    // vera's one draft is shared with another spec running alongside
+    await withLock(VERA_DRAFT_LOCK, async () => {
+      const admin = await apiAs('admin');
+      const { site, asset } = await seed(admin);
+      try {
+        // Vera may only propose: the form saves into her draft
+        await page.goto(`/plant/assets/${asset}`);
+        await page.getByTestId('asset-propose-edit').click();
+        const dialog = page.getByRole('dialog');
+        await dialog.getByLabel('Model').fill('SP-200');
+        await dialog.getByLabel('Manufacturer').fill('Example Presses Ltd');
+        await dialog.getByRole('button', { name: 'Save' }).click();
+        await expect(dialog).toBeHidden();
+        const bar = page.getByRole('region', { name: 'Your draft' });
+        await expect(bar.getByTestId('draft-bar-count')).toHaveText('1 change');
+        await expect(page.getByTestId('changed-in-draft')).toBeVisible();
+        // nothing is in Steward yet
+        expect((await (await admin.get(`/api/plant/assets/${asset}`)).json()).model).toBe('SP-100');
 
-      await bar.getByTestId('draft-bar-review').click();
-      await expect(page.getByTestId('cs-group-change')).toContainText('model');
-      await expectAccessible(page, 'change set draft review');
-      await page.getByTestId('cs-propose').click();
-      await expect(page.getByTestId('change-set-state')).toHaveText('Proposed');
-      const id = page.url().split('/').pop()!;
+        await bar.getByTestId('draft-bar-review').click();
+        await expect(page.getByTestId('cs-group-change')).toContainText('model');
+        await expectAccessible(page, 'change set draft review');
+        await page.getByTestId('cs-propose').click();
+        await expect(page.getByTestId('change-set-state')).toHaveText('Proposed');
+        const id = page.url().split('/').pop()!;
 
-      // meanwhile someone changes the model in Steward: a conflict for the reviewer
-      await ok(admin.put(`/api/plant/assets/${asset}`, { data: await assetBody(admin, asset, { model: 'SP-150', role: 'press' }) }));
+        // meanwhile someone changes the model in Steward: a conflict for the reviewer
+        await ok(admin.put(`/api/plant/assets/${asset}`, { data: await assetBody(admin, asset, { model: 'SP-150', role: 'press' }) }));
 
-      const dana = await loginAs('dana');
-      await dana.goto('/plant/changes?box=review');
-      await dana.getByRole('link', { name: `Changes by vera` }).first().click();
-      await expect(dana).toHaveURL((url) => url.pathname.endsWith(`/plant/changes/${id}`));
-      const conflicts = dana.getByTestId('cs-conflicts');
-      await expect(conflicts).toContainText('When drafted');
-      await expect(conflicts).toContainText('Now in Steward');
-      await expect(conflicts).toContainText('This change');
-      await expect(conflicts).toContainText('SP-150');
-      await expect(dana.getByTestId('cs-apply')).toBeDisabled();
-      // the conflict is a radio group with its field as legend; keyboard: the choice by arrow keys
-      await dana.getByRole('radio', { name: 'This change' }).check();
-      await expect(dana.getByTestId('cs-announce')).toContainText('0 conflicts');
-      await settle(dana);
-      await expectAccessible(dana, 'change set with a resolved conflict');
-      await dana.getByTestId('cs-apply').click();
-      await expect(dana.getByTestId('change-set-state')).toHaveText('Applied');
-      const now = await (await admin.get(`/api/plant/assets/${asset}`)).json();
-      expect([now.model, now.manufacturer, now.role]).toEqual(['SP-200', 'Example Presses Ltd', 'press']);
+        const dana = await loginAs('dana');
+        await dana.goto('/plant/changes?box=review');
+        await dana.getByRole('link', { name: `Changes by vera` }).first().click();
+        await expect(dana).toHaveURL((url) => url.pathname.endsWith(`/plant/changes/${id}`));
+        const conflicts = dana.getByTestId('cs-conflicts');
+        await expect(conflicts).toContainText('When drafted');
+        await expect(conflicts).toContainText('Now in Steward');
+        await expect(conflicts).toContainText('This change');
+        await expect(conflicts).toContainText('SP-150');
+        await expect(dana.getByTestId('cs-apply')).toBeDisabled();
+        // the conflict is a radio group with its field as legend; keyboard: the choice by arrow keys
+        await dana.getByRole('radio', { name: 'This change' }).check();
+        await expect(dana.getByTestId('cs-announce')).toContainText('0 conflicts');
+        await settle(dana);
+        await expectAccessible(dana, 'change set with a resolved conflict');
+        await dana.getByTestId('cs-apply').click();
+        await expect(dana.getByTestId('change-set-state')).toHaveText('Applied');
+        const now = await (await admin.get(`/api/plant/assets/${asset}`)).json();
+        expect([now.model, now.manufacturer, now.role]).toEqual(['SP-200', 'Example Presses Ltd', 'press']);
 
-      // the asset's history: by Vera, applied by Dana; Revert writes a new draft
-      await dana.goto(`/plant/assets/${asset}/history`);
-      const row = dana.getByTestId('history-row').first();
-      await expect(row).toContainText('By vera, applied by dana');
-      await row.getByRole('button', { name: /show/i }).click();
-      await expect(row.getByTestId('field-diffs')).toContainText('SP-200');
-      await row.getByTestId('history-revert').click();
-      await expect(dana.getByTestId('change-set-state')).toHaveText('Draft');
-      await expect(dana.getByTestId('cs-group-change')).toContainText('Example Presses');
-      // Dana manages the site and it needs no second person: she applies her own draft
-      await dana.getByTestId('cs-apply').click();
-      await expect(dana.getByTestId('change-set-state')).toHaveText('Applied');
-      const back = await (await admin.get(`/api/plant/assets/${asset}`)).json();
-      expect([back.model, back.manufacturer, back.role]).toEqual(['SP-150', 'Example Presses', 'press']);
-    } finally {
-      await admin.delete(`/api/plant/assets/${asset}`);
-      await admin.delete(`/api/plant/sites/${site}`);
-    }
+        // the asset's history: by Vera, applied by Dana; Revert writes a new draft
+        await dana.goto(`/plant/assets/${asset}/history`);
+        const row = dana.getByTestId('history-row').first();
+        await expect(row).toContainText('By vera, applied by dana');
+        await row.getByRole('button', { name: /show/i }).click();
+        await expect(row.getByTestId('field-diffs')).toContainText('SP-200');
+        await row.getByTestId('history-revert').click();
+        await expect(dana.getByTestId('change-set-state')).toHaveText('Draft');
+        await expect(dana.getByTestId('cs-group-change')).toContainText('Example Presses');
+        // Dana manages the site and it needs no second person: she applies her own draft
+        await dana.getByTestId('cs-apply').click();
+        await expect(dana.getByTestId('change-set-state')).toHaveText('Applied');
+        const back = await (await admin.get(`/api/plant/assets/${asset}`)).json();
+        expect([back.model, back.manufacturer, back.role]).toEqual(['SP-150', 'Example Presses', 'press']);
+      } finally {
+        await admin.delete(`/api/plant/assets/${asset}`);
+        await admin.delete(`/api/plant/sites/${site}`);
+      }
+    });
   });
 });
 
