@@ -176,7 +176,8 @@ export function PageHeader({ title, description, actions, back }: { title: React
   );
 }
 
-function BackLinks({ crumbs }: { crumbs: Crumb[] }) {
+/** The links back above a page title (a breadcrumb), as `PageHeader` and `DetailHeader` draw them. */
+export function BackLinks({ crumbs }: { crumbs: Crumb[] }) {
   const { t } = useTranslation(['common', 'nav']);
   const links = crumbs.map((c) => (typeof c === 'string' ? { to: NAV_PATHS[c], label: t(`nav:items.${c}`) } : c));
   return (

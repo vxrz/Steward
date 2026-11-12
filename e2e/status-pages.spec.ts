@@ -28,6 +28,11 @@ test('a status viewer sees only the status pages; the link works without signing
   expect(link).toMatch(/^https?:\/\/[^/]+(\/[^?#]*)?\/status#t=[^&?]+$/);
   expect(link).not.toContain('/api/');
   expect(link).not.toContain('_sk=');
+  // the page itself has the breadcrumb back to the list, as every detail page does
+  await designer.goto(`/status-pages/${page.id}`);
+  await expect(designer.getByRole('heading', { name: title })).toBeVisible();
+  await designer.getByTestId('breadcrumb').getByRole('link', { name: 'Status pages' }).click();
+  await expect(designer).toHaveURL((u) => u.pathname.endsWith('/status-pages'));
   const anonymous = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {
     const p = await anonymous.newPage();
