@@ -170,3 +170,21 @@ describe('security headers', () => {
       expect((await s.app.inject({ method: 'GET', url })).headers['cross-origin-resource-policy'], url).toBe('same-origin');
   });
 });
+
+describe('downloads', () => {
+  it('send a platform document whose name has characters outside Latin-1 (RFC 5987), not 500', async () => {
+    const { ADMIN, authHeaders, loginCookie } = await import('./helpers.js');
+    const cookie = await loginCookie(s.base, ADMIN.username, ADMIN.password);
+    const [p] = (await s.api('GET', '/platforms')) as { id: string }[];
+    const form = new FormData();
+    form.append('file', new Blob(['Invented notes\n'], { type: 'text/plain' }), 'Prüfbericht – Halle 3 ✓.txt');
+    const up = await fetch(`${s.base}/api/platforms/${p!.id}/docs`, { method: 'POST', headers: { 'x-sm-client': '1', ...authHeaders(cookie) }, body: form });
+    expect(up.status).toBe(200);
+    const doc = (await up.json()) as { id: string };
+    const res = await fetch(`${s.base}/api/docs/${doc.id}/file`, { headers: authHeaders(cookie) });
+    expect(res.status).toBe(200);
+    const cd = res.headers.get('content-disposition')!;
+    expect(cd).toContain(`filename*=UTF-8''${encodeURIComponent('Prüfbericht – Halle 3 ✓.txt')}`);
+    expect(cd).toMatch(/^(inline|attachment); filename="Pr_fbericht _ Halle 3 _.txt"/);
+  });
+});
