@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMediaQuery } from '@mantine/hooks';
 import { ActionIcon, Box, Code, CopyButton, SegmentedControl, Stack, Text, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconCheck, IconCopy } from '@tabler/icons-react';
@@ -33,16 +34,23 @@ export function CopyCode({ text, label }: { text: string; label: string }) {
   );
 }
 
-type Kind = 'stdio' | 'http';
+type Kind = 'stdio' | 'http' | 'vibe';
+
+/** The environment variable Mistral Vibe reads the token from (`api_key_env`). */
+const VIBE_TOKEN_ENV = 'STEWARD_MCP_TOKEN';
 
 /**
  * Ready-to-copy client configuration: the stdio bridge for desktop clients (Claude Desktop style
- * `mcpServers`) and the Streamable HTTP endpoint with an Authorization header (VS Code `servers`).
- * With `token` the real token is filled in (shown once after creating it), otherwise a placeholder.
+ * `mcpServers`), the Streamable HTTP endpoint with an Authorization header (VS Code `servers`, the Claude Code
+ * command) and Mistral Vibe CLI's `[[mcp_servers]]` (TOML; the token from an environment variable, sent as
+ * `Authorization: Bearer …` by default). With `token` the real token is filled in where the format holds one (shown
+ * once after creating it), otherwise a placeholder.
  */
 export function McpClientConfig({ status, token }: { status: McpServerStatus; token?: string }) {
   const { t } = useTranslation('mcp');
   const [kind, setKind] = useState<Kind>('stdio');
+  // three segments do not fit side by side on a phone
+  const narrow = useMediaQuery('(max-width: 36em)');
   const base = origin();
   const endpoint = `${base}${status.path}`;
   const tokenFile = t('config.tokenFile');
@@ -57,15 +65,27 @@ export function McpClientConfig({ status, token }: { status: McpServerStatus; to
     null,
     2,
   );
+  // TOML basic strings take JSON's escaping for these values
+  const vibe = [
+    '[[mcp_servers]]',
+    `name = ${JSON.stringify('steward')}`,
+    `transport = ${JSON.stringify('streamable-http')}`,
+    `url = ${JSON.stringify(endpoint)}`,
+    `api_key_env = ${JSON.stringify(VIBE_TOKEN_ENV)}`,
+  ].join('\n');
+  // a placeholder even with the real token: a command line ends up in the shell's history
+  const claudeCode = `claude mcp add --transport http steward ${endpoint} --header "Authorization: Bearer <token>"`;
   return (
     <Stack gap="xs">
       <SegmentedControl
         fullWidth
+        orientation={narrow ? 'vertical' : 'horizontal'}
         value={kind}
         onChange={(v) => setKind(v as Kind)}
         data={[
           { value: 'stdio', label: t('config.stdio') },
           { value: 'http', label: t('config.http') },
+          { value: 'vibe', label: t('config.vibe') },
         ]}
         aria-label={t('config.kind')}
       />
@@ -79,12 +99,23 @@ export function McpClientConfig({ status, token }: { status: McpServerStatus; to
             <Trans t={t} i18nKey="config.stdioSource" components={{ c: <Code /> }} values={{ cmd: 'npm run --silent mcp -- --url …' }} />
           </Text>
         </>
-      ) : (
+      ) : kind === 'http' ? (
         <>
           <Text size="sm">
             <Trans t={t} i18nKey="config.httpHint" components={{ c: <Code /> }} values={{ file: '.vscode/mcp.json', url: endpoint }} />
           </Text>
           <CopyCode text={http} label={t('config.http')} />
+          <Text size="sm">
+            <Trans t={t} i18nKey="config.claudeCodeHint" components={{ c: <Code /> }} />
+          </Text>
+          <CopyCode text={claudeCode} label={t('config.claudeCode')} />
+        </>
+      ) : (
+        <>
+          <Text size="sm">
+            <Trans t={t} i18nKey="config.vibeHint" components={{ c: <Code /> }} values={{ file: '~/.vibe/config.toml', env: VIBE_TOKEN_ENV }} />
+          </Text>
+          <CopyCode text={vibe} label={t('config.vibe')} />
         </>
       )}
     </Stack>

@@ -28,7 +28,11 @@
     "tokenPrompt": "Steward MCP token",
     "stdioHint": "For Claude Desktop and other desktop clients, e.g. in <c>{{file}}</c>. Save the token in a file only you can read (<c>{{token}}</c>); the Steward desktop app runs the bridge with <c>steward mcp</c>.",
     "stdioSource": "From the source tree use <c>{{cmd}}</c> as the command (keep --silent: npm must not write to stdout).",
-    "httpHint": "For clients that speak Streamable HTTP, e.g. in <c>{{file}}</c>: endpoint <c>{{url}}</c> with the header <c>Authorization: Bearer …</c>."
+    "httpHint": "For clients that speak Streamable HTTP, e.g. in <c>{{file}}</c>: endpoint <c>{{url}}</c> with the header <c>Authorization: Bearer …</c>.",
+    "vibe": "Mistral Vibe",
+    "vibeHint": "For Mistral Vibe CLI (3.x), in <c>{{file}}</c> (or <c>.vibe/config.toml</c> in a project). Vibe reads the token from the environment variable <c>{{env}}</c> and sends it as <c>Authorization: Bearer …</c>: set it before you start vibe, e.g. in your shell profile or a password manager, not in the file.",
+    "claudeCode": "Claude Code",
+    "claudeCodeHint": "Claude Code (command line; replace <c>&lt;token&gt;</c> – a command with the token itself would stay in the shell history):"
   },
   "gateway": {
     "intro": "The MCP gateway lets AI assistants call this platform’s API through Steward, with the credentials stored here, which the assistant never sees. Reads (GET and HEAD) run at once; changing calls only where you allow them below, and only after a person approves each one in Steward. Every call is written to the audit log.",

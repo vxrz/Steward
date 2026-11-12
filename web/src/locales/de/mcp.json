@@ -28,7 +28,11 @@
     "tokenPrompt": "Steward-MCP-Token",
     "stdioHint": "Für Claude Desktop und andere Desktop-Clients, z. B. in <c>{{file}}</c>. Speichern Sie das Token in einer Datei, die nur Sie lesen können (<c>{{token}}</c>); die Steward-Desktop-App startet die Brücke mit <c>steward mcp</c>.",
     "stdioSource": "Aus dem Quellcode verwenden Sie <c>{{cmd}}</c> als Befehl (--silent beibehalten: npm darf nichts auf stdout schreiben).",
-    "httpHint": "Für Clients mit Streamable HTTP, z. B. in <c>{{file}}</c>: Endpunkt <c>{{url}}</c> mit dem Header <c>Authorization: Bearer …</c>."
+    "httpHint": "Für Clients mit Streamable HTTP, z. B. in <c>{{file}}</c>: Endpunkt <c>{{url}}</c> mit dem Header <c>Authorization: Bearer …</c>.",
+    "vibe": "Mistral Vibe",
+    "vibeHint": "Für Mistral Vibe CLI (3.x), in <c>{{file}}</c> (oder <c>.vibe/config.toml</c> in einem Projekt). Vibe liest das Token aus der Umgebungsvariable <c>{{env}}</c> und sendet es als <c>Authorization: Bearer …</c>: Setzen Sie sie, bevor Sie vibe starten, z. B. im Profil Ihrer Shell oder aus einem Passwortmanager, nicht in der Datei.",
+    "claudeCode": "Claude Code",
+    "claudeCodeHint": "Claude Code (Kommandozeile; ersetzen Sie <c>&lt;token&gt;</c> – ein Befehl mit dem Token selbst bliebe im Verlauf der Shell):"
   },
   "gateway": {
     "intro": "Über das MCP-Gateway können KI-Assistenten die API dieser Plattform über Steward aufrufen, mit den hier gespeicherten Zugangsdaten, die der Assistent nie sieht. Lesende Aufrufe (GET und HEAD) laufen sofort; ändernde Aufrufe nur, wo Sie es unten erlauben, und erst nachdem eine Person jeden in Steward freigegeben hat. Jeder Aufruf wird im Audit-Log festgehalten.",
