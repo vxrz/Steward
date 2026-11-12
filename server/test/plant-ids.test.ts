@@ -314,6 +314,8 @@ describe('the registry of reference columns', () => {
    */
   const OTHER_KINDS: Record<string, string> = {
     ca_findings: 'the source of a corrective action finding',
+    cost_volume_notices: 'which contract volume warning was sent (runs out, shortfall, ceiling; ADR 0032)',
+    supplier_contract_items: 'an application or system a contract names for a covered service (ADR 0032)',
     ca_suggestions: 'the source of a suggested finding',
     supplier_certificates: 'a certificate kind (ISO 27001, SOC 2 …)',
     supplier_contact_scopes: 'what a supplier contact is about: a contract, application or system (ADR 0031)',
