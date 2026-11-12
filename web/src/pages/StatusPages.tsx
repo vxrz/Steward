@@ -38,7 +38,7 @@ import {
 import { apiUrl, del, get, getOptional, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
 import { BackLinks, EmptyState, PageHeader, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtDate, fmtDateRange, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
 import { appUrl } from '../basePath';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
@@ -98,6 +98,7 @@ export function StatusView({ view }: { view: StatusPageView }) {
                 title: m.title,
                 from: fmtDate(m.startsAt),
                 to: fmtDate(m.endsAt),
+                when: fmtDateRange(m.startsAt, m.endsAt),
               })}
             </Text>
           ))}

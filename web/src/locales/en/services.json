@@ -111,7 +111,7 @@
       "unknown": "No data"
     },
     "maintenanceNow": "Maintenance now: {{title}} (until {{to}})",
-    "maintenancePlanned": "Planned maintenance: {{title}}, {{from}} – {{to}}",
+    "maintenancePlanned": "Planned maintenance: {{title}}, {{when}}",
     "vendorIssue": "Known issue with {{vendor}} (reported {{since}})",
     "objective": "{{name}}: {{value}} % (target {{target}} %)",
     "objectiveNoData": "{{name}}: no data yet (target {{target}} %)",
