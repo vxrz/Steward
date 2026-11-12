@@ -116,6 +116,8 @@
     "description": "Aus Git-Quellen abgerufene Änderungen. Prüfen Sie jede und übernehmen Sie sie (eine neue Version) oder lehnen Sie sie ab.",
     "empty": "Keine offenen Änderungen",
     "emptyHint": "Neue oder geänderte Dateien einer Git-Quelle erscheinen hier nach einem Abruf.",
+    "emptyInvalid": "Keine ungültigen Dateien",
+    "emptyDecided": "Keine entschiedenen Änderungen",
     "filter": "Anzeigen",
     "filters": {
       "open": "Offen",
@@ -162,6 +164,7 @@
     "comment": "Kommentar (optional)",
     "accept": "Übernehmen",
     "acceptAnyway": "Trotzdem übernehmen",
+    "acceptAnywayConfirm": "Das Element in Steward durch die Version aus Git ersetzen? Was in Steward geändert wurde, wird überschrieben – bei einem Prozess bleibt es im Versionsverlauf.",
     "reject": "Ablehnen",
     "accepted": "Übernommen",
     "acceptedVersion": "Als Version {{version}} übernommen",

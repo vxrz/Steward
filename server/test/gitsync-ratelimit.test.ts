@@ -119,6 +119,24 @@ describe('rate limits of the Git hosts', () => {
     expect(await s.api('GET', `/sync-sources/${src.id}`)).toMatchObject({ lastStatus: 'ok', lastError: null, lastErrorCode: null, lastErrorParams: null });
   });
 
+  it('a scheduled fetch waits until the time the rate limit named', async () => {
+    const { dueSources } = await import('../src/sync/engine.js');
+    const { db } = await import('../src/db.js');
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/processes/scheduled.yaml': proc(`Scheduled ${repo}`) });
+    const src = await github(repo, { intervalMinutes: 5 });
+    const reset = Math.ceil(Date.now() / 1000) + 3600;
+    await limit(repo, 0, { headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(reset) } });
+    expect(await errorBody(fetchNow(src.id))).toMatchObject({ code: 'GIT_RATE_LIMITED' });
+    const later = Date.now() + 10 * 60000;
+    expect(dueSources(later)).not.toContain(src.id);
+    expect(dueSources(reset * 1000 + 1000)).toContain(src.id);
+    // other errors keep the schedule
+    db().run('UPDATE sync_sources SET last_error_detail = ? WHERE id = ?', JSON.stringify({ code: 'GIT_UNREACHABLE' }), src.id);
+    expect(dueSources(later)).toContain(src.id);
+    await limit(repo, null);
+  });
+
   it('GitHub: a secondary limit names when to try again; with a token there is no advice to add one', async () => {
     const repo = uniqueRepo();
     await commit(repo, { 'steward/processes/second.yaml': proc(`Secondary ${repo}`) });

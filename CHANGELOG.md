@@ -6,9 +6,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **MCP client configuration for Mistral Vibe CLI and Claude Code** ([docs/MCP.md](docs/MCP.md#http-clients-vs-code-claude-code-mistral-vibe-and-others)): _Settings → Security → MCP server_ shows a `[[mcp_servers]]` entry for Mistral Vibe (3.x; Streamable HTTP, the token from `STEWARD_MCP_TOKEN`) and the `claude mcp add` command next to the VS Code and Claude Desktop snippets; the snippet choice stacks on phones.
+
 ### Changed
 
 - **Git sync reads fewer files from the Git host** ([docs/GIT-SYNC.md](docs/GIT-SYNC.md#files-steward-already-knows)): a file whose content Steward already knows under its Git object id – an example file shipped with this installation, or one downloaded recently – is not downloaded again; it is used only when its hash is the id the commit names. The _Steward example library_ now needs a handful of GitHub API calls per fetch instead of about 100, and a fetch after a rate limit goes on where the last one stopped.
+- **Git sync: _Accept anyway_ asks before it overwrites what was changed in Steward**, and a scheduled fetch that ran into the Git host's rate limit waits until the time the host named. The update inbox says _No invalid files_ / _No decided updates_ for those filters.
 - **Git sync sources on GitHub without a token say that GitHub allows 60 calls an hour** and recommend a fine-grained token with repository access _Public repositories (read-only)_ and no permissions; the example library's hint names `api.github.com`, the host Steward really calls, instead of `github.com`.
 
 ### Fixed

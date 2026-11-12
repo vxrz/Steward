@@ -116,6 +116,8 @@
     "description": "Changes fetched from Git sync sources. Review each one and accept it (a new version) or reject it.",
     "empty": "No open updates",
     "emptyHint": "New or changed files in a Git sync source appear here after a fetch.",
+    "emptyInvalid": "No invalid files",
+    "emptyDecided": "No decided updates",
     "filter": "Show",
     "filters": {
       "open": "Open",
@@ -162,6 +164,7 @@
     "comment": "Comment (optional)",
     "accept": "Accept",
     "acceptAnyway": "Accept anyway",
+    "acceptAnywayConfirm": "Replace the item in Steward with the version from Git? What was changed in Steward is overwritten – for a process it stays in the version history.",
     "reject": "Reject",
     "accepted": "Accepted",
     "acceptedVersion": "Accepted as version {{version}}",

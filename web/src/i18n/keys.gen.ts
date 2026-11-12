@@ -6435,6 +6435,8 @@ export interface Resources {
     'updates.description': string;
     'updates.empty': string;
     'updates.emptyHint': string;
+    'updates.emptyInvalid': string;
+    'updates.emptyDecided': string;
     'updates.filter': string;
     'updates.filters.open': string;
     'updates.filters.invalid': string;
@@ -6475,6 +6477,7 @@ export interface Resources {
     'detail.comment': string;
     'detail.accept': string;
     'detail.acceptAnyway': string;
+    'detail.acceptAnywayConfirm': string;
     'detail.reject': string;
     'detail.accepted': string;
     'detail.acceptedVersion': string;
@@ -6800,6 +6803,10 @@ export interface Resources {
     'config.stdioHint': string;
     'config.stdioSource': string;
     'config.httpHint': string;
+    'config.vibe': string;
+    'config.vibeHint': string;
+    'config.claudeCode': string;
+    'config.claudeCodeHint': string;
     'gateway.intro': string;
     'gateway.serverOff': string;
     'gateway.enable': string;
