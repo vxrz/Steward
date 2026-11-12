@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { ActionIcon, Group, Kbd, Text, Tooltip, UnstyledButton, useMantineColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { Spotlight, spotlight, type SpotlightActionData, type SpotlightActionGroupData, type SpotlightFilterFunction } from '@mantine/spotlight';
@@ -148,6 +148,9 @@ const SETTING_MODULES: Record<string, ModuleId> = {
   'scorecard:rules.title': 'scorecard',
 };
 
+/** Namespaces of the setting titles: loaded when the palette first opens (they are not part of the first download). */
+const SETTING_NAMESPACES = [...new Set(SETTING_ENTRIES.map(([, key]) => key.split(':')[0]!))];
+
 const RunDialog = lazy(() => import('./RunDialog').then((m) => ({ default: m.RunDialog })));
 
 export interface PalettePage {
@@ -194,7 +197,7 @@ const makeFilter =
  * holds only what the user may see; actions only show to those who may take them.
  */
 export function CommandPalette({ pages }: { pages: PalettePage[] }) {
-  const { t } = useTranslation(['nav', 'common', 'settings']);
+  const { t, i18n } = useTranslation(['nav', 'common', 'settings']);
   const navigate = useNavigate();
   const { caps, isAdmin, hasRole } = useMe();
   const canEditServices = isAdmin || hasRole('designer');
@@ -205,6 +208,16 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const isMobile = useMediaQuery('(max-width: 48em)');
   const [active, setActive] = useState(false);
+  // the setting titles come from several namespaces: offered once they are loaded, never as raw keys
+  const [settingsReady, setSettingsReady] = useState(false);
+  useEffect(() => {
+    if (!active || !caps.manageSettings || settingsReady) return;
+    let live = true;
+    void i18n.loadNamespaces(SETTING_NAMESPACES).then(() => live && setSettingsReady(true));
+    return () => {
+      live = false;
+    };
+  }, [active, caps.manageSettings, settingsReady, i18n]);
   const [runProcessId, setRunProcessId] = useState<string | null>(null);
 
   // Loaded the first time the palette opens, then kept fresh while it is open.
@@ -256,16 +269,17 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     // individual settings (#136): administrators find them by name and land in their area
     // keys from several namespaces, listed below
     const tx = t as unknown as (key: string) => string;
-    const settingActions: SpotlightActionData[] = caps.manageSettings
-      ? SETTING_ENTRIES.filter(([, key]) => !SETTING_MODULES[key] || moduleOn(caps, SETTING_MODULES[key])).map(([area, key]) => ({
-          id: `setting:${area}:${key}`,
-          label: tx(key),
-          description: `${tx('settings:title')} · ${tx(`settings:areas.${area}.title`)}`,
-          leftSection: icon(IconSettings),
-          keywords: ['settings', tx('settings:title'), tx(`settings:areas.${area}.title`)],
-          onClick: go(`/settings/${area}`),
-        }))
-      : [];
+    const settingActions: SpotlightActionData[] =
+      caps.manageSettings && settingsReady
+        ? SETTING_ENTRIES.filter(([, key]) => !SETTING_MODULES[key] || moduleOn(caps, SETTING_MODULES[key])).map(([area, key]) => ({
+            id: `setting:${area}:${key}`,
+            label: tx(key),
+            description: `${tx('settings:title')} · ${tx(`settings:areas.${area}.title`)}`,
+            leftSection: icon(IconSettings),
+            keywords: ['settings', tx('settings:title'), tx(`settings:areas.${area}.title`)],
+            onClick: go(`/settings/${area}`),
+          }))
+        : [];
     const pageActions: SpotlightActionData[] = [...pages, ...extraPages].map((p) => ({
       id: `page:${p.to}`,
       label: p.label,
@@ -527,6 +541,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     t,
     pages,
     caps,
+    settingsReady,
     canEditServices,
     colorScheme,
     setColorScheme,

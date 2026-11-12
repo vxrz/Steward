@@ -79,6 +79,19 @@ test.describe('palette actions (v0.4.0)', () => {
     await expect(page).toHaveURL(/\/compliance\/person-reviews$/);
   });
 
+  test('finds settings whose titles live in namespaces the page has not loaded', async ({ page }) => {
+    // the home page loads neither the MCP nor the ticket texts: the palette loads them itself, so the entries carry
+    // their titles (they were raw keys such as "settings.title" before and could not be found by name)
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible();
+    await open(page, 'MCP server');
+    await page.getByRole('button', { name: /^MCP server \(AI assistants\)/ }).click();
+    await expect(page).toHaveURL(/\/settings\/security$/);
+    await open(page, 'settings.title');
+    await expect(page.locator('.mantine-Spotlight-action')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  });
+
   test('finds catalogue items and lists the entries opened last', async ({ page, apiAs }) => {
     const api = await apiAs('admin');
     const app = await json<{ id: string; name: string }>(await api.post('/api/applications', { data: { name: uniq('E2E palette app'), owners: [] } }));
