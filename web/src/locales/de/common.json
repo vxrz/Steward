@@ -97,7 +97,8 @@
     "approve": "Freigeben",
     "manage": "Verwalten",
     "use": "Nutzen",
-    "acknowledge": "bestätigen"
+    "acknowledge": "bestätigen",
+    "test": "Testen"
   },
   "breadcrumb": "Navigationspfad",
   "loadFailed": "Die Seite konnte nicht geladen werden",
