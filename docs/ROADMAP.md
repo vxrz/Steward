@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.18.0 (November 2026)._
+_Last reviewed for 0.19.0 (November 2026)._
 
 ## What Steward is for
 
@@ -77,6 +77,7 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.16.0:** lightweight cost planning per service and fiscal year; scheduled readable exports to S3 and a choice of what backups contain; moving devices and data collections between assets; clearer monitor states; a review of architecture, security, performance, UI and wording with its fixes.
 - **0.17.0:** ISO/IEC 27001 support for service management – suppliers instead of free-text vendors, a statement of applicability with a responsibility matrix per service, one register of corrective actions with an effectiveness check, an ISMS summary for the management review; device profiles from manuals – plant proposals from assistants in parts, with a source per data point.
 - **0.18.0:** multi-year supplier contracts with payment schedules that propose the plan lines of each fiscal year, commitments to contract end and earliest exit, costs booked by hand or imported from CSV; suppliers shared by services with contracts, owners and contacts of their own; InfluxDB 1.x and 2.x as a source of the freshness check; dependency updates and the follow-ups of the 0.17 review.
+- **0.19.0:** platform cost plans and contract volumes (prepaid or by use, with a minimum or a ceiling), costs and contracts of applications and systems; plant imports that keep what people changed in Steward, Revert of removed entries and proposals from CI; named owners from outside the owning teams confirmed and audited; the fixes of a review of security, performance, UI and accessibility.
 
 ## Next
 
@@ -86,7 +87,6 @@ The next release is not planned yet; the candidates are under _Later_.
 
 - **Insights Hub mapping on a real tenant** ([#8](https://github.com/vxrz/Steward/issues/8)): verify the API assumptions of the Insights Hub sink check and the freshness checks against a real tenant.
 - **Accepted decision records, not built yet** – a PAM checkout for privileged identities ([ADR 0022](adr/0022-privileged-access-checkout.md)), a Steward edge runner inside an OT segment ([ADR 0023](adr/0023-edge-runner.md)) and signed releases with provenance and an update notice ([ADR 0024](adr/0024-signed-releases.md)): their open questions were decided in November 2026 (each recommended answer); built next.
-- **Plant change sets, phase 2 ([ADR 0020](adr/0020-plant-change-sets.md#6-scope-risks-migration-tests-delivery))**: phase 1 is in 0.13.0 (revisions and the 409 choice on every edit form, drafts, proposals, review by a second person, history with Revert, import baselines recorded). Phase 2: the import's preview flags fields _changed in Steward since the last import_ (from the recorded baselines) with _Keep Steward's_ by default; restoring removed entries with Revert; the collection import as operations; change sets in `/api/v1` (read, and proposals from CI). Done in 0.15.0: the retention of the history of removed entries (and of closed change sets and the import's baselines per entry) as a setting in the UI; smaller history and baselines (values compressed, baselines as revisions); the history and baseline writes of large imports batched per kind.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
 
 ## Ideas parked

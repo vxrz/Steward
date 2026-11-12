@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-12
+
+Steward 0.19.0 gives platforms a cost plan of their own and contracts volumes that may or may not be used up: a platform team plans its own contracts – a capacity contract, a cloud commitment, a subscription – against the costs Steward reads from the platform, and a volume billed prepaid or by use, committed in full, with a minimum or only as a ceiling shows what is used, what is left and what it will likely come to, with warnings before it runs out or ends short; commitments count only what is owed. Contracts name the applications and systems they are for, and those pages show their costs and contracts. Plant imports no longer overwrite what people changed in Steward, Revert restores removed entries, and CI can send plant proposals through the public API. Naming someone from outside an item's owning teams as owner or responsible is confirmed and audited as an access change (#195). The fixes of a review of 0.18 are included: changing where a platform's credentials go needs a step-up, the busy pages run a fixed number of queries, dialogs keep focus and ask before discarding input, and the layout holds on phones. A security review of these changes found nothing critical or high; its findings are fixed. Migrations are additive (`costs-005-platform-plans-volumes`, `suppliers-005-contract-platforms-items`).
+
 ### Added
 
 - **Imports flag fields changed in Steward since the last import** ([docs/PLANT.md](docs/PLANT.md#modes), [ADR 0020](docs/adr/0020-plant-change-sets.md#built-in-0190)): the import's preview lists, per field, what the last import wrote, Steward's value and the file's for every field the files would change that someone changed in Steward since, and keeps Steward's value unless you take the file's – per field (a radio group each, keyboard and phone friendly) or with _Take all from the file_ / _Keep all of Steward's_. The counts, differences and fingerprint follow the choices; a kept field stays flagged at the next import; `plant.imported` names the kept fields. Scripts send `changedInSteward` with the import (`{ take: "file" }` for the file's values). Finding the changed entries takes a fixed number of statements per kind however large the import.
@@ -1396,7 +1400,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/vxrz/steward/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/vxrz/steward/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/vxrz/steward/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/vxrz/steward/compare/v0.15.0...v0.16.0
