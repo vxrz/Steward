@@ -38,7 +38,7 @@ import {
 import { apiUrl, del, get, getOptional, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
 import { appUrl } from '../basePath';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
@@ -110,7 +110,11 @@ export function StatusView({ view }: { view: StatusPageView }) {
             <Text key={o.name} size="xs" c="dimmed" mt={4}>
               {o.value === null
                 ? t('statusPages.objectiveNoData', { name: o.name, target: o.target })
-                : t('statusPages.objective', { name: o.name, value: o.value.toFixed(2), target: o.target })}
+                : t('statusPages.objective', {
+                    name: o.name,
+                    value: fmtNumber(o.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                    target: o.target,
+                  })}
             </Text>
           ))}
         </Paper>

@@ -51,7 +51,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { get } from '../../api';
 import { severityLabel } from '../common';
-import { fmtRelative } from '../../format';
+import { fmtNumber, fmtRelative } from '../../format';
 import { Markdown } from '../common';
 import { StatusBar, StatusTable, Sparkline, TrendChart, TrendTable } from './charts';
 import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, useScope, scopeMeta, perSource } from './data';
@@ -287,7 +287,7 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   );
 }
 
-const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 }).format(n)} %`;
+const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${fmtNumber(n, { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 })} %`;
 
 /** What the trend is based on, in plain words (#145). */
 function TrendBasis({ trend, days }: { trend: Trend; days: number }) {

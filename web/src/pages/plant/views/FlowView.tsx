@@ -4,6 +4,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { IconAlertTriangle, IconCircleCheck, IconCircleDashed, IconCircleX, IconPlugConnectedX, IconPower, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { fmtDay } from '../../../format';
 import type { PlantFlowGraph, PlantFlowNode, PlantFlowPath } from '@sm/shared';
 import { ProtocolBadge, useCheckText } from '../../../components/plant/data';
 import { LegendItem, LineMark, LiveBadge, ViewLegend, ViewToolbar } from './common';
@@ -88,7 +89,7 @@ export function FlowView({
   const exportSvg = () => ({
     ...flowSvg(graph, {
       title,
-      subtitle: t('export.subtitle', { date: new Date().toLocaleDateString() }),
+      subtitle: t('export.subtitle', { date: fmtDay(new Date()) }),
       kind: (n) => text.kind(n),
       status: (n) => statusSentence(t, n),
       pill,

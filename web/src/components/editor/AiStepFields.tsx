@@ -33,6 +33,7 @@ import { get } from '../../api';
 import { datasetKeys, platformKeys } from '../../queryKeys';
 import { useExprContext } from './ExprContext';
 import type { LocalizedField } from '../../i18n/meta';
+import { fmtNumber } from '../../format';
 
 /**
  * Fields of "Ask an AI model" (0.6.0, docs/AI.md): the model (from the gateways the person may use), the prompt
@@ -89,8 +90,8 @@ export function AiModelField({ field, value, onChange }: { field: LocalizedField
                 {t('ai.modelOn', {
                   gateway: m.gateway,
                   kind: t(`platforms:ai.formats.${m.format}`),
-                  window: m.contextTokens.toLocaleString(),
-                  output: m.maxOutputTokens.toLocaleString(),
+                  window: fmtNumber(m.contextTokens),
+                  output: fmtNumber(m.maxOutputTokens),
                 })}
               </Text>
             ))
@@ -261,7 +262,7 @@ export function AiContextEditor({ field, value, onChange }: { field: LocalizedFi
                 />
                 <NumberInput
                   label={t('ai.maxChars')}
-                  description={t('ai.maxCharsHint', { value: AI_LIMITS.contextChars.default.toLocaleString() })}
+                  description={t('ai.maxCharsHint', { value: fmtNumber(AI_LIMITS.contextChars.default) })}
                   min={100}
                   max={AI_LIMITS.contextChars.max}
                   step={1000}
