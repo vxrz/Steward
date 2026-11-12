@@ -105,6 +105,7 @@ export function CorrectiveActionsPage({ tab }: { tab: Tab }) {
 
 function FindingsTab() {
   const { t } = useTranslation(['corrective', 'common']);
+  const subjectName = useSubjectLabel();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [q, setQ] = useState('');
@@ -179,7 +180,7 @@ function FindingsTab() {
       ),
     },
     { key: 'service', header: t('table.service'), sortValue: (x) => x.serviceName ?? '', cell: (x) => x.serviceName ?? (x.serviceId ? t('notVisible') : '–') },
-    { key: 'owner', header: t('table.owner'), sortValue: (x) => x.owner ?? '', cell: (x) => x.owner ?? '–' },
+    { key: 'owner', header: t('table.owner'), sortValue: (x) => x.owner ?? '', cell: (x) => (x.owner ? subjectName(`user:${x.owner}`) : '–') },
     { key: 'due', header: t('table.due'), sortValue: (x) => x.dueDate ?? '9999', nowrap: true, cell: (x) => calDay(x.dueDate) },
     {
       key: 'actions',
@@ -827,7 +828,7 @@ export function CorrectiveActionDetailPage() {
                 )}
               </Field>
               <Field label={t('fields.owner')}>
-                <Text size="sm">{f.owner ?? '–'}</Text>
+                <Text size="sm">{f.owner ? subjectName(`user:${f.owner}`) : '–'}</Text>
               </Field>
               <Field label={t('fields.dueDate')}>
                 <Text size="sm" c={f.overdue ? 'orange' : undefined}>
