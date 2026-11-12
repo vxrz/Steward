@@ -55,13 +55,15 @@ interface Candidate {
 }
 
 const isObj = (v: unknown): v is Values => !!v && typeof v === 'object' && !Array.isArray(v);
+/** Keys that could reach an object's prototype: never part of a path (a file's JSON may hold them as own keys). */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const marks = (k: number) => Array.from({ length: k }, () => '?').join(', ');
 
 /** The paths where two values differ: objects key by key, lists and other values as one field each (as the merge). */
 export function differingPaths(a: unknown, b: unknown, keys: string[] = [], out: string[][] = []): string[][] {
   if (sameValue(a, b)) return out;
   if (isObj(a) && isObj(b)) {
-    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) differingPaths(a[k], b[k], [...keys, k], out);
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (!UNSAFE_KEYS.has(k)) differingPaths(a[k], b[k], [...keys, k], out);
     return out;
   }
   out.push(keys);
@@ -70,18 +72,16 @@ export function differingPaths(a: unknown, b: unknown, keys: string[] = [], out:
 
 /** The value at a path (undefined: not there). */
 export function valueAt(o: unknown, keys: string[]): unknown {
-  let cur = o;
-  for (const k of keys) {
-    if (!isObj(cur) || !Object.prototype.hasOwnProperty.call(cur, k)) return undefined;
-    cur = cur[k];
-  }
-  return cur;
+  const [k, ...rest] = keys;
+  if (k === undefined) return o;
+  if (UNSAFE_KEYS.has(k) || !isObj(o) || !Object.prototype.hasOwnProperty.call(o, k)) return undefined;
+  return valueAt(o[k], rest);
 }
 
 /** Sets a value at a path of an object in place, copying the objects on the way (they may be shared with `before`). */
 function setInPlace(o: Values, keys: string[], value: unknown): void {
   const [k, ...rest] = keys;
-  if (k === undefined) return;
+  if (k === undefined || UNSAFE_KEYS.has(k)) return;
   if (!rest.length) {
     if (value === undefined) delete o[k];
     else o[k] = value;
