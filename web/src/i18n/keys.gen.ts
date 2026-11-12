@@ -8250,6 +8250,8 @@ export interface Resources {
     'center.unreadPrefix': string;
     'center.filter': string;
     'center.all': string;
+    'center.latest': string;
+    'center.cappedHint': string;
     'center.category.decision_one': string;
     'center.category.decision_other': string;
     'center.category.alert_one': string;
