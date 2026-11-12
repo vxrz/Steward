@@ -123,3 +123,10 @@ describe('outbound calls', () => {
     }
   });
 });
+
+describe('security headers', () => {
+  it('keep other sites from embedding answers (Cross-Origin-Resource-Policy)', async () => {
+    for (const url of ['/api/health', '/api/theme', '/api/v1/openapi.json', '/'])
+      expect((await s.app.inject({ method: 'GET', url })).headers['cross-origin-resource-policy'], url).toBe('same-origin');
+  });
+});
