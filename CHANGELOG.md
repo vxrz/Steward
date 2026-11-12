@@ -6,8 +6,27 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **The plan line dialog says that a line needs no contract** ([docs/COSTS.md](docs/COSTS.md#planning-per-service)): a licence to buy later or a renewal still to be negotiated is a plan line without supplier and contract; the contract is chosen once it exists.
+
+### Changed
+
+- **Owners by display name** across the catalogue: the responsible people of services, applications and systems, the owners on a service's contracts, statement-of-applicability rows, findings and documents read _Dana Designer_, as the lists already did, instead of the user name or _team:service desk_.
+- **Maintenance windows within one day name the day once** (_16 Nov 2026, 21:00–23:00_), on the maintenance page and on status pages.
+- **A full notification inbox says so**: with 50 messages loaded the filter reads _Latest 50_ and a line under the list says that older messages are not shown – instead of _All 50_ next to _68 unread_.
+- **Wording**: billing in sentence case in the commitments and the payments dialog (_Monthly · EUR_, _Volume, billed by use_); the commitments' warning count reads _2 payment schedules need attention_ (it counted volume warnings too, but said _notice dates before unplanned years_); _first failed 3 days ago_ on the start page's check findings and _reported 10 days ago_ for a vendor issue on status pages, instead of _since 3 days ago_; environment colours by name (_Blue_) as on the CIA scale.
+
 ### Fixed
 
+- **Search finds the settings by their titles**: the palette listed several settings (MCP server, ticket systems, Git sources, credential reminders, theme, report branding, CIA scale, scorecard rules, environments) under raw keys such as _settings.title_ until their page had been opened once, so searching for them by name found nothing.
+- **A contract's plan lines open the service's cost plan**, once per service, year and title (lines of two contract years in one fiscal year were listed twice); they opened the service's overview.
+- **Commitments show no total for a currency that owes nothing any more** (a paid-up schedule, a used-up prepaid volume), as its rows already sit behind _Show paid schedules_.
+- **Percentages of volumes and budgets in the reader's language** (_19,2 %_ in German, not _19.2 %_) on contracts, commitments, cost plans and the scorecard.
+- **The control list keeps the space between number and title** (_5.1 – Information security policies_, not _5.1– …_).
+- **Long words in the sidebar wrap instead of being cut off** (German _Korrekturmaßnahmen_).
+- **A status page has the breadcrumb back to the list** like every other page, instead of a plain link in the browser's colours.
+- **_Add payments_ on a contract follows the list of payments**, as _Add service_ and _Add platform_ do, instead of standing alone above it.
 - **The Industrial Edge examples read the online state from the device statistics and the firmware from the device details** ([examples/README.md](examples/README.md#verify-against-your-environment)): the IEM device list has only the onboarding state (`deviceStatus` ACTIVE, PENDING, DELETED), so the device status check, inventory snapshot, firmware compliance, stale device cleanup and weekly service report read the last report from the newest key of `GET /portal/api/v1/devices/{id}/statistics` (online within `onlineWithinMinutes`, default 15; "unknown" without statistics) and the IED OS version from `deviceVersion` of `GET /portal/api/v1/devices/{id}`, compared as a version number and shown in full. Pending devices are "not onboarded yet" instead of offline, deleted ones are left out, the device list is read page by page, and the app version compliance takes the latest version from `appVersions` of `GET /portal/api/v1/applications/{id}`. The inputs for a state field name and an "online" value are gone. The datasets keep their names and columns and gain _Onboarding_, _Offline (h)_, _Version_ and _Device type_ and the metrics `unknown` and `pending` (`iem.devices` loses `inactive`); the _Edge fleet_ dashboard shows them. The simulated IEM answers in the shapes of the IEM Pro Portal API, and the IEM preset tests the connection with `?size=1&page=1`. **Check before updating:** Git sync's _Steward example library_ brings the corrected examples with the next release tag, or now when you set the source's ref to `main`; review them under _Updates from Git_. Schedules that set the removed inputs keep working (undeclared inputs are left out).
 
 ## [0.19.0] - 2026-11-12
