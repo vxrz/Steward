@@ -749,7 +749,8 @@
     "templateParamsHint": "The same parameter name for several fields fills them all with one value. In the template the fields read {{example}}.",
     "templateBadParam": "Parameter “{{name}}”: letters, digits and _ only, starting with a letter (not “name” or “key”).",
     "templateSaved": "Template “{{name}}” saved",
-    "templateNotSaved": "Template not saved"
+    "templateNotSaved": "Template not saved",
+    "discardMessage": "The changes to this monitor are not saved."
   },
   "graph": {
     "nonCritical": "non-critical",

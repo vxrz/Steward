@@ -749,7 +749,8 @@
     "templateParamsHint": "Derselbe Parametername für mehrere Felder füllt alle mit einem Wert. In der Vorlage lauten die Felder {{example}}.",
     "templateBadParam": "Parameter „{{name}}“: nur Buchstaben, Ziffern und _, beginnend mit einem Buchstaben (nicht „name“ oder „key“).",
     "templateSaved": "Vorlage „{{name}}“ gespeichert",
-    "templateNotSaved": "Vorlage nicht gespeichert"
+    "templateNotSaved": "Vorlage nicht gespeichert",
+    "discardMessage": "Die Änderungen an diesem Monitor sind nicht gespeichert."
   },
   "graph": {
     "nonCritical": "nicht kritisch",

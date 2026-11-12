@@ -78,6 +78,17 @@ export function DashboardViewPage() {
   const def = draft ?? d?.definition;
   const refreshMs = Date.now() < fastUntil ? 3000 : (def?.refreshSeconds ?? 60) * 1000;
   const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter, sources }), [refreshMs, statusFilter, sources]);
+  // edit mode with changes (0.20 review): Cancel asks, and closing or reloading the tab warns
+  const changed = !!draft && !!d && JSON.stringify(draft) !== JSON.stringify(d.definition);
+  useEffect(() => {
+    if (!changed) return;
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [changed]);
 
   if (!d || !def) return <DetailState query={dash} back="dashboards" />;
 
@@ -144,7 +155,17 @@ export function DashboardViewPage() {
         actions={
           draft ? (
             <>
-              <Button size="xs" variant="default" leftSection={<IconX size={14} />} onClick={() => setDraft(null)}>
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<IconX size={14} />}
+                onClick={async () => {
+                  if (changed && !(await confirmDanger({ action: 'discard', title: t('common:formModal.discardTitle'), message: t('view.discardMessage') })))
+                    return;
+                  setDraft(null);
+                }}
+                data-testid="dashboard-cancel"
+              >
                 {t('common:cancel')}
               </Button>
               <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} loading={busy} onClick={save} disabled={!draft.name.trim()}>

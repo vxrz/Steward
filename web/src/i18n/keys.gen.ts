@@ -3654,6 +3654,7 @@ export interface Resources {
     'view.sources': string;
     'view.allSources': string;
     'view.addWidgetAbove': string;
+    'view.discardMessage': string;
     'widgets.kpi.label': string;
     'widgets.kpi.info': string;
     'widgets.trend.label': string;
@@ -7758,6 +7759,7 @@ export interface Resources {
     'editor.templateBadParam': string;
     'editor.templateSaved': string;
     'editor.templateNotSaved': string;
+    'editor.discardMessage': string;
     'graph.nonCritical': string;
     'graph.hard': string;
     'graph.softLinkAria': string;

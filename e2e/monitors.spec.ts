@@ -152,6 +152,43 @@ test('a status wall that cannot load shows the error, not "all healthy"', async 
   await expect(page.getByText(/monitors are healthy/)).toHaveCount(0);
 });
 
+test('the monitor editor asks before Cancel discards changes, and names a monitor that cannot be loaded (0.20 review)', async ({
+  page,
+  apiAs,
+  allowConsole,
+}) => {
+  allowConsole(/status of 404/);
+  const api = await apiAs('dana');
+  const created = await json(
+    await api.post('/api/monitors', {
+      data: {
+        definition: { name: uniq('E2E editor guard'), checks: [{ id: 'hb', name: 'Heartbeat', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
+      },
+    }),
+  );
+  const id = created.monitor.id;
+  await page.goto(`/monitors/${id}/edit`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const name = page.getByRole('textbox', { name: 'Name', exact: true });
+  await name.fill('Changed in the editor');
+  await page.getByTestId('editor-cancel').click();
+  const discard = page.getByRole('dialog', { name: 'Discard your changes?' });
+  await expect(discard).toContainText('The changes to this monitor are not saved.');
+  await discard.getByRole('button', { name: 'Cancel' }).click();
+  await expect(name).toHaveValue('Changed in the editor');
+  await page.getByTestId('editor-cancel').click();
+  await discard.getByRole('button', { name: 'Discard' }).click();
+  await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
+  // nothing changed: Cancel leaves at once
+  await page.goto(`/monitors/${id}/edit`);
+  await page.getByTestId('editor-cancel').click();
+  await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
+  await api.delete(`/api/monitors/${id}`);
+  // a monitor that does not exist: not an empty page
+  await page.goto(`/monitors/${id}/edit`);
+  await expect(page.getByTestId('detail-not-found')).toBeVisible();
+});
+
 test('viewers see monitors but cannot create or edit them', async ({ loginAs }) => {
   const page = await loginAs('vera');
   await page.goto('/monitors');

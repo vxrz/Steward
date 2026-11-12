@@ -74,7 +74,8 @@
     "noData": "noch keine Daten",
     "sources": "Quellen",
     "allSources": "Alle Quellen",
-    "addWidgetAbove": "Fügen Sie das erste mit „Widget hinzufügen“ oben hinzu."
+    "addWidgetAbove": "Fügen Sie das erste mit „Widget hinzufügen“ oben hinzu.",
+    "discardMessage": "Die Änderungen an diesem Dashboard sind nicht gespeichert."
   },
   "widgets": {
     "kpi": {

@@ -35,3 +35,23 @@ test('the gateway, webhook trigger and new dashboard dialogs ask before discardi
   await page.getByRole('button', { name: 'New dashboard' }).click();
   await asksBeforeDiscarding(page, 'New dashboard', 'Name', 'Invented dashboard');
 });
+
+test('a dashboard in edit mode asks before Cancel discards its changes', async ({ page, apiAs }) => {
+  const admin = await apiAs('admin');
+  const created = await (await admin.post('/api/dashboards', { data: { definition: { name: 'Invented edit guard', widgets: [] } } })).json();
+  try {
+    await page.goto(`/dashboards/${created.id}?edit=1`);
+    await page.getByRole('tab', { name: 'Settings' }).click();
+    await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Invented edit guard (changed)');
+    await page.getByTestId('dashboard-cancel').click();
+    const discard = page.getByRole('dialog', { name: 'Discard your changes?' });
+    await expect(discard).toContainText('The changes to this dashboard are not saved.');
+    await discard.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Invented edit guard (changed)');
+    await page.getByTestId('dashboard-cancel').click();
+    await discard.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.getByRole('heading', { name: 'Invented edit guard', level: 1 })).toBeVisible();
+  } finally {
+    await admin.delete(`/api/dashboards/${created.id}`);
+  }
+});
