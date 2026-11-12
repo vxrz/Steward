@@ -32,14 +32,15 @@
     "weekdays": "Weekdays 07:00",
     "mondays": "Mondays 06:00",
     "monthly": "1st of month 06:00",
-    "quarterly": "Quarterly"
+    "quarterly": "Quarterly",
+    "firstMonday": "1st Monday 06:00"
   },
   "form": {
     "process": "Process",
     "name": "Name",
     "when": "When",
     "cron": "Cron expression",
-    "cronHint": "minute hour day-of-month month day-of-week",
+    "cronHint": "minute hour day-of-month month day-of-week – e.g. */30 6-21 * * 1-5 (every 30 min, 06:00–21:59 on weekdays), 0 6 * * 2#1 (the first Tuesday), 0 6 L * * (the last day)",
     "timezone": "Time zone",
     "next": "Next: {{dates}}",
     "connectionsInputs": "Connections & inputs",
@@ -88,7 +89,9 @@
       },
       "urgent": "Urgent – interrupts quiet hours",
       "urgentHint": "Failed runs and checks failing with severity error reach people and channels at once, also during their quiet hours (unless they turned that off)."
-    }
+    },
+    "timezoneHint": "Times are in this zone, also across daylight saving; a time that does not exist on the change to summer time runs an hour later.",
+    "timezoneServer": "Steward’s time zone"
   },
   "emptyState": {
     "title": "No schedules yet",

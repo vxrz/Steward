@@ -13856,6 +13856,7 @@ export interface Resources {
     'presets.mondays': string;
     'presets.monthly': string;
     'presets.quarterly': string;
+    'presets.firstMonday': string;
     'form.process': string;
     'form.name': string;
     'form.when': string;
@@ -13898,6 +13899,8 @@ export interface Resources {
     'form.notify.channel.webhook': string;
     'form.notify.urgent': string;
     'form.notify.urgentHint': string;
+    'form.timezoneHint': string;
+    'form.timezoneServer': string;
     'emptyState.title': string;
     'emptyState.text': string;
     'emptyState.action': string;

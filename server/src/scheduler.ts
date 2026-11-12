@@ -124,14 +124,29 @@ export function getSchedule(id: string): Schedule {
   return toSchedule(r);
 }
 
+/** An IANA time zone the runtime knows (Europe/Berlin, UTC). */
+export function knownTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The next five runs of a cron expression in its time zone. A wrong time zone is named as such (it is not the
+ * expression's fault), and both errors carry a code for the translated text.
+ */
 export function validateCron(cron: string, timezone?: string): string[] {
+  if (timezone && !knownTimeZone(timezone)) throw new HttpError(400, `Unknown time zone "${timezone}"`, 'TIME_ZONE_UNKNOWN', { tz: timezone });
   try {
     const c = new Cron(cron, { paused: true, timezone: timezone || undefined });
     const next = c.nextRuns(5).map((d) => d.toISOString());
     c.stop();
     return next;
   } catch (e) {
-    throw new HttpError(400, `Invalid cron expression: ${(e as Error).message}`);
+    throw new HttpError(400, `Invalid cron expression: ${(e as Error).message}`, 'CRON_INVALID', { detail: (e as Error).message });
   }
 }
 
