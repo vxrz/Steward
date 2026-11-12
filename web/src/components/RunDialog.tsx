@@ -11,6 +11,7 @@ import { RunModeField, runModeFlags, type RunMode } from './RunModeField';
 import { platformKeys, processKeys } from '../queryKeys';
 import { IdentitySelect } from './platform/IdentitySelect';
 import { FormModal, FormModalCancel } from './FormModal';
+import { QueryState } from './common';
 
 export function bindingsKey(processId: string) {
   return `sm.bindings.${processId}`;
@@ -182,6 +183,8 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
   if (!opened) return null;
   return (
     <FormModal onClose={onClose} title={proc.data ? t('dialog.title', { name: proc.data.name }) : t('dialog.titleFallback')} size="lg">
+      {/* while the process loads, or when it cannot be read: say so instead of an empty dialog */}
+      {!proc.data && <QueryState query={proc} rows={3} />}
       {proc.data && (
         <Stack>
           {proc.data.description && (
