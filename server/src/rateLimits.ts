@@ -38,11 +38,26 @@ export function setRateLimitUser(req: FastifyRequest, userId: string | undefined
   if (userId) subjects.set(req, userId);
 }
 
+/**
+ * The client address as every limit counts it: an IPv6 address by its /64 network (one subscriber gets a whole /64 and can
+ * pick any address in it), an IPv4-mapped IPv6 address as the IPv4 address. Used by the general limits, the public API's
+ * and the MCP endpoint's limiters and the sign-in counters, so none of them can be sidestepped by changing addresses
+ * within one network (review 0.20.0).
+ */
+export function clientAddress(ip: string | undefined): string {
+  if (!ip) return '';
+  try {
+    return normalizeIP(ip);
+  } catch {
+    return ip;
+  }
+}
+
 /** `user:<id>` for signed-in users, else `web:<address>` for the web UI's files, else `ip:<address>`. */
 export function rateLimitKey(req: FastifyRequest, webUi: (req: FastifyRequest) => boolean = () => false): string {
   const user = subjects.get(req);
   if (user) return `user:${user}`;
-  return `${webUi(req) ? 'web' : 'ip'}:${normalizeIP(req.ip)}`;
+  return `${webUi(req) ? 'web' : 'ip'}:${clientAddress(req.ip)}`;
 }
 
 /** Requests answered 429 by these limits (the access log does not warn about each of them). */

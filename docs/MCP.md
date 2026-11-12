@@ -356,7 +356,7 @@ What a proposal looks like and what to check: [Plant registry → Proposals from
 - **Input limits.** Request bodies up to 64 kB, one JSON-RPC message per request (no batches), strict argument schemas (unknown arguments are errors), cursor and string length limits.
 - **Output limits.** Pages of at most 100–200 items, long texts shortened, results above about 200 kB refused with a hint to page.
 - **Time limits.** 30 s per tool call, 20 s per gateway call; a client that closes the connection cancels its request.
-- **Rate limits** per token (and per IP address without a valid token), and per user and platform for gateway calls; a concurrency cap per platform for gateway calls.
+- **Rate limits** per token (and per client address without a valid token – IPv6 by its /64 network), and per user and platform for gateway calls; a concurrency cap per platform for gateway calls.
 - **Proposals never write.** Control and plant proposals wait for a person in Steward, who applies them with their own rights; an MCP token cannot decide a request.
 - **No sessions, no server-initiated messages.** The server keeps no state between requests and never sends requests to the client.
 

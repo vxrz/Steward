@@ -34,6 +34,7 @@ import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 import { rewriteTeamReferences } from './subjects.js';
 import { revokeOAuthGrants } from '../mcp/oauth-grants.js';
+import { clientAddress } from '../rateLimits.js';
 
 interface UserRow {
   id: string;
@@ -622,14 +623,15 @@ export interface CreatedSession extends SessionKeys {
 }
 
 export async function login(username: string, password: string, meta: { ip?: string; userAgent?: string }): Promise<CreatedSession & { user: UserInfo }> {
-  const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
+  const key = `${username.toLowerCase()}|${clientAddress(meta.ip)}`;
   const f = failures.get(key);
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
   const byAccount = recent(accountFailures, account);
   if (byAccount.length >= ACCOUNT_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
-  const address = meta.ip ?? '';
+  // an IPv6 address by its /64 network: changing addresses within it does not reset the counters (review 0.20.0)
+  const address = clientAddress(meta.ip);
   const byAddress = recent(addressFailures, address);
   if (byAddress.length >= ADDRESS_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
@@ -674,14 +676,15 @@ export async function login(username: string, password: string, meta: { ip?: str
 export async function verifyStepUpPassword(userId: string, password: string, meta: { ip?: string }): Promise<{ username: string }> {
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', userId);
   const username = r?.username ?? '';
-  const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
+  const key = `${username.toLowerCase()}|${clientAddress(meta.ip)}`;
   const f = failures.get(key);
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
   const byAccount = recent(accountFailures, account);
   if (byAccount.length >= ACCOUNT_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
-  const address = meta.ip ?? '';
+  // an IPv6 address by its /64 network: changing addresses within it does not reset the counters (review 0.20.0)
+  const address = clientAddress(meta.ip);
   const byAddress = recent(addressFailures, address);
   if (byAddress.length >= ADDRESS_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
