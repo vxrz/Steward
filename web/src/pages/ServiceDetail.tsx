@@ -24,7 +24,7 @@ import { CopyId } from '../components/CopyId';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ServiceDetail } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
-import { DetailState, subjectLabel } from '../components/common';
+import { DetailState } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel } from '../components/records/common';
 import { fmtDate } from '../format';
@@ -51,6 +51,7 @@ import { LinkTabs } from '../components/page/LinkTabs';
 import { EnvironmentBadge } from '../components/catalogue/environments';
 import { useModuleOn } from '../modules';
 import { ServiceSuppliers } from '../components/suppliers/ServiceSuppliers';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** The tabs of the service hub (v0.4.0): most catalogue work starts from a service. '' is the overview. */
 export const SERVICE_TABS = [
@@ -252,6 +253,7 @@ export function ServiceDetailPage() {
 /** Contacts, responsible people, CMDB entry and tags beside the overview. */
 function ServiceFacts({ service: s }: { service: ServiceDetail }) {
   const { t } = useTranslation(['services', 'common']);
+  const subjectName = useSubjectLabel();
   return (
     <Paper withBorder p="sm">
       <Stack gap="sm">
@@ -272,7 +274,9 @@ function ServiceFacts({ service: s }: { service: ServiceDetail }) {
           )}
         </Field>
         <Field label={t('owners')}>
-          <Text size="sm">{s.owners.map(subjectLabel).join(', ') || '–'}</Text>
+          <Text size="sm" data-testid="service-owners">
+            {s.owners.map(subjectName).join(', ') || '–'}
+          </Text>
         </Field>
         <Field label={t('cmdb')}>
           {s.cmdb ? (

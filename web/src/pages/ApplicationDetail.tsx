@@ -8,7 +8,7 @@ import { CopyId } from '../components/CopyId';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ApplicationDocument, Platform } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
-import { DetailState, subjectLabel, useFieldErrors } from '../components/common';
+import { DetailState, useFieldErrors } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge } from '../components/records/common';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
@@ -37,9 +37,11 @@ import { CollapsibleSection, SectionGroup } from '../components/page/Collapsible
 import { SupplierText } from '../components/suppliers/SupplierPicker';
 import { ItemContacts } from '../components/suppliers/ScopedContacts';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
+  const subjectName = useSubjectLabel();
   const { id } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['application', id], queryFn: () => get<ApplicationDetail>(`/applications/${id}`) });
@@ -208,7 +210,7 @@ export function ApplicationDetailPage() {
                   </Field>
                 )}
                 <Field label={t('owners')}>
-                  <Text size="sm">{a.owners.map(subjectLabel).join(', ') || '–'}</Text>
+                  <Text size="sm">{a.owners.map(subjectName).join(', ') || '–'}</Text>
                 </Field>
                 <Field label={t('cmdb')}>
                   {a.cmdb ? (

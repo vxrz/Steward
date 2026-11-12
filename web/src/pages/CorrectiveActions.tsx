@@ -37,7 +37,7 @@ import {
   type ServiceSummary,
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { DetailState, QueryState, subjectLabel, useCreateParam } from '../components/common';
+import { DetailState, QueryState, useCreateParam } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { ListPage } from '../components/page/ListPage';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -59,6 +59,7 @@ import {
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { correctiveKeys } from '../queryKeys';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /**
  * Corrective actions (ISO/IEC 27001 clause 10.2, ADR 0029 part 3; Compliance module, preview): the register of findings,
@@ -540,6 +541,7 @@ function SettingsTab() {
 
 export function CorrectiveActionDetailPage() {
   const { t } = useTranslation(['corrective', 'common']);
+  const subjectName = useSubjectLabel();
   const { id } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: correctiveKeys.detail(id), queryFn: () => get<CaFinding>(`/compliance/corrective-actions/${id}`), retry: false });
@@ -725,7 +727,7 @@ export function CorrectiveActionDetailPage() {
                             )}
                           </Table.Td>
                           <Table.Td>
-                            <Text size="xs">{a.owners.map(subjectLabel).join(', ')}</Text>
+                            <Text size="xs">{a.owners.map(subjectName).join(', ')}</Text>
                           </Table.Td>
                           <Table.Td style={{ whiteSpace: 'nowrap' }}>
                             <Text size="sm" c={a.overdue ? 'orange' : undefined}>

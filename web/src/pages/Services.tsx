@@ -4,11 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { SubjectsInput } from '../components/SubjectsInput';
+import { SubjectsInput, useSubjectLabel } from '../components/SubjectsInput';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, tagsMatch, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { NeedBadges } from '../components/catalogue/cia';
@@ -68,6 +68,7 @@ export const CRITICALITY_RANK: Record<string, number> = { low: 1, medium: 2, hig
 
 export function ServicesPage() {
   const { t } = useTranslation(['services', 'common', 'applications']);
+  const subjectName = useSubjectLabel();
   const navigate = useNavigate();
   // the filters live in the address (?q=, ?criticality=, ?owner=, ?archived=1, ?tag=), so a filtered list can be shared
   const { params, set } = useListParams();
@@ -197,8 +198,8 @@ export function ServicesPage() {
             size="xs"
             label={t('owners')}
             data={[...new Set([...all.flatMap((s) => s.owners), ...(owner ? [owner] : [])])]
-              .sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b)))
-              .map((o) => ({ value: o, label: subjectLabel(o) }))}
+              .sort((a, b) => subjectName(a).localeCompare(subjectName(b)))
+              .map((o) => ({ value: o, label: subjectName(o) }))}
             value={owner}
             onChange={(v) => set('owner', v)}
             clearable
