@@ -197,6 +197,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
       <EmptyState
         icon={IconMapPinOff}
         title={t('nav:pageNotFound')}
+        titleOrder={1}
         action={
           <Button component={Link} to="/">
             {t('nav:backToDashboard')}
