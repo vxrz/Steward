@@ -42,6 +42,8 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
   await dialog.getByRole('textbox', { name: 'Name' }).fill(sourceName);
   await dialog.getByRole('textbox', { name: 'Repository URL' }).fill(`${baseURL()}/mock/git/${repo}`);
   await dialog.getByRole('textbox', { name: 'Folder' }).fill('steward');
+  // the token goes to the Git host: the browser must not fill in the password saved for Steward
+  await expect(dialog.locator('input[type="password"]')).toHaveAttribute('autocomplete', 'new-password');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Source saved')).toBeVisible();
   const card = page.getByTestId('sync-source').filter({ hasText: sourceName });

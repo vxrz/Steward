@@ -417,7 +417,8 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
           description={d.hasToken && !d.removeToken ? t('form.tokenKeep') : d.provider === 'github' ? t('form.tokenHintGithub') : t('form.tokenHint')}
           value={d.token ?? ''}
           disabled={d.removeToken}
-          autoComplete="off"
+          // the browser must not fill in the password saved for Steward: a token goes to the Git host
+          autoComplete="new-password"
           onChange={(e) => set('token', e.currentTarget.value)}
         />
         {d.hasToken && <Checkbox label={t('form.tokenRemove')} checked={!!d.removeToken} onChange={(e) => set('removeToken', e.currentTarget.checked)} />}
