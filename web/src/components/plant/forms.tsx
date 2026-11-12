@@ -168,11 +168,7 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
   };
   const setContact = (i: number, patch: Partial<SiteContact>) => setContacts(contacts.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   return (
-    <FormModal
-      onClose={onClose}
-      size="lg"
-      title={site ? t('site.editTitle', { name: site.name }) : t('site.newTitle', { type: label('site', false, true) })}
-    >
+    <FormModal onClose={onClose} size="lg" title={site ? t('site.editTitle', { name: site.name }) : t('site.newTitle', { type: label('site', false, true) })}>
       <form
         noValidate
         onSubmit={(e) => {
