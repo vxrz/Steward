@@ -117,6 +117,13 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
     await page.getByRole('link', { name: 'Analytics subscription' }).click();
     await expect(page.getByTestId('contract-plan-lines')).toContainText('Analytics licence');
     await expectAccessible(page, 'supplier: a paid contract');
+    // the line opens the service's cost plan (it led to the service's overview before)
+    await page
+      .getByTestId('contract-plan-lines')
+      .getByRole('link', { name: /Analytics licence/ })
+      .click();
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${service.id}/costs`));
+    await expect(page.getByTestId('service-cost-plan')).toBeVisible();
   } finally {
     await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
   }
