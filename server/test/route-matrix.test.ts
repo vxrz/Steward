@@ -1197,6 +1197,10 @@ const EXPECT: Record<string, Access> = {
   // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
   'GET /api/settings/modules': ADMIN,
   'PUT /api/settings/modules/:id': ADMIN,
+  // module access (0.21.0, ADR 0034): who uses a module – administrators, in a signed-in session
+  'GET /api/settings/modules/:id/access': ADMIN,
+  'PUT /api/settings/modules/:id/access': ADMIN,
+  'POST /api/settings/modules/:id/access/preview': ADMIN,
   // what the signed-in person may see (the sidebar, honest empty states): two booleans per area, their own
   'GET /api/me/visibility': ALL,
   // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
@@ -1386,6 +1390,10 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // module access (ADR 0034): tokens act with their owner's module access, they never change it
+  'GET /api/settings/modules/:id/access',
+  'PUT /api/settings/modules/:id/access',
+  'POST /api/settings/modules/:id/access/preview',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -1762,6 +1770,12 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
   // switching a module (0.11.0, ADR 0016); repeating its state is harmless – the plant registry's own switch, too
   'PUT /api/settings/modules/:id': { sensitive: { enabled: false }, harmless: { enabled: true } },
+  // widening who uses a module (ADR 0034): opening the fixtures' restricted Teams bot module; keeping it as it is: no step-up
+  'PUT /api/settings/modules/:id/access': {
+    sensitive: { mode: 'everyone', grants: [] },
+    harmless: { mode: 'selected', grants: [] },
+    path: () => '/api/settings/modules/teamsBot/access',
+  },
   'PUT /api/settings/plant': {
     sensitive: { enabled: false, enterprise: '', labels: {}, fields: {} },
     harmless: { enabled: true, enterprise: '', labels: {}, fields: {} },
@@ -2282,6 +2296,8 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/suppliers/:id/certificates/:certificateId': { kind: 'iso27001', validUntil: '2030-01-01' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
   'PUT /api/settings/modules/:id': { enabled: true },
+  'PUT /api/settings/modules/:id/access': { mode: 'everyone', grants: [] },
+  'POST /api/settings/modules/:id/access/preview': { mode: 'selected', grants: [] },
   'PUT /api/settings/plant/map': { source: 'osm' },
   'POST /api/settings/plant/map/check': { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
   'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
@@ -2898,6 +2914,12 @@ beforeAll(async () => {
       new Date().toISOString(),
     );
   }
+  // module access (ADR 0034): the Teams bot module restricted to administrators and auditors (its one route is for
+  // administrators anyway) – the step-up of widening it is checked below
+  {
+    const { db } = await import('../src/db.js');
+    db().run("INSERT INTO module_access (module_id, mode, updated_by, updated_at) VALUES ('teamsBot', 'selected', 'admin', ?)", new Date().toISOString());
+  }
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {
     const res = await fetch(`${s.base}/api/me/tokens`, {
@@ -3098,6 +3120,61 @@ describe('route permission matrix', () => {
     }
     expect(problems).toEqual([]);
   });
+
+  it('answers 404 MODULE_NO_ACCESS on every route of a restricted module to the roles that do not use it (ADR 0034)', async () => {
+    const { db } = await import('../src/db.js');
+    const { moduleOfRoute } = await import('@sm/shared');
+    const { routeAccess } = await import('../src/app.js');
+    const declared = routeAccess(s.app);
+    // the costs module, used by its list (the designer) – administrators and auditors use every module
+    const now = new Date().toISOString();
+    db().run("INSERT INTO module_access (module_id, mode, updated_by, updated_at) VALUES ('costs', 'selected', 'admin', ?)", now);
+    db().run(
+      "INSERT INTO module_grants (id, module_id, subject, role, created_by, created_at) VALUES ('mg_matrix', 'costs', 'user:dana', NULL, 'admin', ?)",
+      now,
+    );
+    const problems: string[] = [];
+    const b = bodies();
+    let checked = 0;
+    const send = async (who: Who, method: string, url: string, body: unknown) => {
+      const headers: Record<string, string> = { 'x-sm-client': '1' };
+      if (typeof who === 'object') headers.authorization = `Bearer ${who.bearer}`;
+      else Object.assign(headers, authHeaders(cookies[who as Role]));
+      const withBody = method !== 'GET' && method !== 'DELETE';
+      if (withBody) headers['content-type'] = 'application/json';
+      const res = await fetch(s.base + url, { method, headers, redirect: 'manual', body: withBody ? JSON.stringify(body ?? {}) : undefined });
+      const text = await res.text();
+      return { status: res.status, code: (text.startsWith('{') ? (JSON.parse(text) as { code?: string }).code : undefined) ?? '' };
+    };
+    try {
+      for (const r of routes) {
+        const k = key(r);
+        const access = EXPECT[k];
+        if (!Array.isArray(access) || moduleOfRoute(r.url) !== 'costs') continue;
+        const v1 = r.url.startsWith('/api/v1/');
+        // the roles that do not use the module: refused before the route's code, whatever they send
+        for (const role of ['operator', 'approver', 'viewer'] as Role[]) {
+          const got = await send(v1 ? { bearer: readTokens[role] } : role, r.method, target(r), b[k] ?? {});
+          checked++;
+          // a route that declares its roles refuses the others before anything else (#16): never served either
+          if (declared[k]?.roles && !declared[k]!.roles!.includes(role) && got.status === 403 && got.code === 'FORBIDDEN') continue;
+          if (got.status !== 404 || got.code !== 'MODULE_NO_ACCESS') problems.push(`${k} as ${role}: ${got.status} ${got.code}`);
+        }
+        if (r.method !== 'GET') continue;
+        // the designer on the list, administrators and auditors: served as before
+        for (const role of ['admin', 'auditor', 'designer'] as Role[]) {
+          if (!access.includes(role) || NO_POSITIVE.has(k)) continue;
+          const got = await send(v1 ? { bearer: readTokens[role] } : role, r.method, target(r), {});
+          if (!(got.status >= 200 && got.status < 400)) problems.push(`${k} as ${role}: ${got.status} ${got.code} (must be served)`);
+        }
+      }
+    } finally {
+      db().run("DELETE FROM module_grants WHERE module_id = 'costs'");
+      db().run("DELETE FROM module_access WHERE module_id = 'costs'");
+    }
+    expect(checked, 'routes of the costs module were tried').toBeGreaterThan(30);
+    expect(problems).toEqual([]);
+  }, 120_000);
 
   it('refuses callers by the declared access before reading the body (#16)', async () => {
     const { routeAccess } = await import('../src/app.js');
