@@ -2550,8 +2550,9 @@ export function serviceContractItems(serviceId: string): { kind: 'application' |
     serviceId,
   );
   const systems = db().all<{ id: string; name: string; owners: string }>(
-    `SELECT DISTINCT y.id, y.name, y.owners FROM systems y JOIN application_systems ay ON ay.system_id = y.id
-       JOIN service_applications sa ON sa.application_id = ay.application_id WHERE sa.service_id = ? ORDER BY lower(y.name), y.id`,
+    // PostgreSQL orders a DISTINCT only by what it selects
+    `SELECT DISTINCT y.id, y.name, y.owners, lower(y.name) AS sort_name FROM systems y JOIN application_systems ay ON ay.system_id = y.id
+       JOIN service_applications sa ON sa.application_id = ay.application_id WHERE sa.service_id = ? ORDER BY sort_name, y.id`,
     serviceId,
   );
   return [

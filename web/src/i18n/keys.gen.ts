@@ -4940,6 +4940,7 @@ export interface Resources {
     'codes.PLATFORM_CONFIG_UNVERIFIED': string;
     'codes.PLATFORM_DESTINATION_CREDENTIALS': string;
     'codes.PLATFORM_CREDENTIALS_KEEP_ADMIN': string;
+    'codes.PLATFORM_DESTINATION_SECRET': string;
     'codes.SSO_CONFIG_UNVERIFIED': string;
     'codes.ANCHOR_INVALID': string;
     'codes.ANCHOR_SIGNATURE_INVALID': string;
@@ -6096,6 +6097,7 @@ export interface Resources {
     'codes.PLANT_CHANGESET_CLOSED': string;
     'codes.PLANT_CHANGESET_CONFLICT': string;
     'codes.PLANT_CHANGESET_DECIDE': string;
+    'codes.PLANT_CHANGESET_COPY_PARTIAL': string;
     'codes.PLANT_CHANGESET_DRAFT': string;
     'codes.PLANT_CHANGESET_EMPTY': string;
     'codes.PLANT_CHANGESET_ENTRY_GONE': string;
@@ -6263,6 +6265,7 @@ export interface Resources {
     'codes.COST_SCHEDULE_PLATFORM_NOT_COVERED': string;
     'codes.COST_VOLUME_READ_PLATFORM': string;
     'codes.COST_VOLUME_ONE_PER_CURRENCY': string;
+    'codes.COST_VOLUME_ONE_PER_CURRENCY_hidden': string;
     'codes.COST_BOOK_READ': string;
     'codes.COST_BOOK_AMOUNT_REQUIRED': string;
     'codes.SUPPLIER_CONTRACT_ITEM': string;
