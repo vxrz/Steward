@@ -380,6 +380,7 @@
     },
     "form": {
       "title": "Title",
+      "titleHint": "What the money is for, e.g. Historian licences. A line needs no contract: plan what you will buy later and name the supplier and contract once there is one.",
       "category": "Category",
       "for": "For",
       "forHint": "An application or system of the service (a platform for cloud lines)",

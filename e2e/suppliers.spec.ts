@@ -99,6 +99,8 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
     const view = page.getByTestId('service-cost-plan');
     await view.getByTestId('plan-add-line').click();
     dialog = page.getByRole('dialog', { name: /^New plan line, FY / });
+    // the dialog says that a line needs no contract (a licence to buy later)
+    await expect(dialog.getByText(/A line needs no contract/)).toBeVisible();
     await dialog.getByRole('textbox', { name: 'Title' }).fill('Analytics licence');
     await chooseOption(page, 'Supplier', name);
     await chooseOption(page, 'Contract', 'Analytics subscription (EA-2027-01)');

@@ -2840,6 +2840,7 @@ export interface Resources {
     'plan.line.notSaved': string;
     'plan.line.removed': string;
     'plan.form.title': string;
+    'plan.form.titleHint': string;
     'plan.form.category': string;
     'plan.form.for': string;
     'plan.form.forHint': string;

@@ -380,6 +380,7 @@
     },
     "form": {
       "title": "Titel",
+      "titleHint": "Wofür das Geld ist, z. B. Historian-Lizenzen. Eine Planposition braucht keinen Vertrag: Planen Sie, was Sie später kaufen, und tragen Sie Lieferant und Vertrag ein, sobald es ihn gibt.",
       "category": "Kategorie",
       "for": "Für",
       "forHint": "Eine Anwendung oder ein System des Service (für Cloud-Positionen eine Plattform)",
