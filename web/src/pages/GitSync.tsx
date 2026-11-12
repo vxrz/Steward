@@ -44,6 +44,8 @@ import { fmtDate, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { WEB_BUILD } from '../buildInfo';
 import { appUrl } from '../basePath';
+import { FormModal, FormModalCancel } from '../components/FormModal';
+import { codeText } from '../i18n/errors';
 
 type Draft = SyncSourceSettings & { id?: string; token?: string; hasToken?: boolean; removeToken?: boolean };
 
@@ -188,6 +190,11 @@ export function GitSyncPage() {
                     {t('sources.builtInHint')}
                   </Text>
                 )}
+                {s.provider === 'github' && !s.hasToken && (
+                  <Text size="xs" c="dimmed" data-testid="github-limit-hint">
+                    {t('sources.githubLimitHint')}
+                  </Text>
+                )}
                 {s.mode === 'library' && (
                   <Text size="xs" c="dimmed">
                     {s.newestSeen ? t('sources.newestSeen', { release: s.newestSeen }) : t('sources.noReleaseSeen')} ·{' '}
@@ -219,29 +226,43 @@ export function GitSyncPage() {
                   )}
                 </Group>
                 {s.lastStatus === 'error' && s.lastError && (
-                  <Alert color="red" variant="light" p="xs">
-                    {s.lastError}
+                  <Alert color="red" variant="light" p="xs" data-testid="sync-source-error">
+                    <Text size="sm">{codeText(s.lastErrorCode ?? undefined, s.lastErrorParams ?? undefined, s.lastError) ?? s.lastError}</Text>
+                    <Text size="xs" c="dimmed" mt={4}>
+                      {t('sources.failedNothingStaged')}
+                    </Text>
                   </Alert>
                 )}
               </Stack>
               <Group gap={4} wrap="nowrap">
-                <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} loading={busy === s.id} onClick={() => fetchNow(s)}>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconDownload size={14} />}
+                  loading={busy === s.id}
+                  onClick={() => fetchNow(s)}
+                  aria-label={`${t('sources.fetchNow')}: ${s.name}`}
+                >
                   {t('sources.fetchNow')}
                 </Button>
                 <Tooltip label={t('sources.edit')}>
-                  <ActionIcon variant="subtle" aria-label={t('sources.edit')} onClick={() => setDraft({ ...s, token: '', hasToken: s.hasToken })}>
+                  <ActionIcon
+                    variant="subtle"
+                    aria-label={`${t('sources.edit')}: ${s.name}`}
+                    onClick={() => setDraft({ ...s, token: '', hasToken: s.hasToken })}
+                  >
                     <IconEdit size={16} />
                   </ActionIcon>
                 </Tooltip>
                 {s.webhookEnabled && (
                   <Tooltip label={t('sources.rotate')}>
-                    <ActionIcon variant="subtle" aria-label={t('sources.rotate')} onClick={() => rotate(s)}>
+                    <ActionIcon variant="subtle" aria-label={`${t('sources.rotate')}: ${s.name}`} onClick={() => rotate(s)}>
                       <IconKey size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 <Tooltip label={t('sources.delete')}>
-                  <ActionIcon variant="subtle" color="red" aria-label={t('sources.delete')} onClick={() => remove(s)}>
+                  <ActionIcon variant="subtle" color="red" aria-label={`${t('sources.delete')}: ${s.name}`} onClick={() => remove(s)}>
                     <IconTrash size={16} />
                   </ActionIcon>
                 </Tooltip>
@@ -313,7 +334,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
     }
   };
   return (
-    <Modal opened onClose={onClose} title={d.id ? t('form.titleEdit') : t('form.titleNew')} size="lg">
+    <FormModal onClose={onClose} title={d.id ? t('form.titleEdit') : t('form.titleNew')} size="lg">
       <Stack gap="sm">
         <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set('name', e.currentTarget.value)} data-autofocus error={v.error('name')} />
         <Select
@@ -393,7 +414,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
         )}
         <PasswordInput
           label={t('form.token')}
-          description={d.hasToken && !d.removeToken ? t('form.tokenKeep') : t('form.tokenHint')}
+          description={d.hasToken && !d.removeToken ? t('form.tokenKeep') : d.provider === 'github' ? t('form.tokenHintGithub') : t('form.tokenHint')}
           value={d.token ?? ''}
           disabled={d.removeToken}
           autoComplete="off"
@@ -442,15 +463,13 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
         )}
         <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => set('enabled', e.currentTarget.checked)} />
         <Group justify="flex-end" mt="sm">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -477,7 +496,8 @@ function SecretDialog({ path, secret, onClose }: { path: string; secret: string;
     </Stack>
   );
   return (
-    <Modal opened onClose={onClose} title={t('secret.title')} size="lg">
+    // shown once: a click outside must not throw the secret away
+    <Modal opened onClose={onClose} title={t('secret.title')} size="lg" closeOnClickOutside={false}>
       <Stack gap="sm">
         <Text size="sm">{t('secret.text')}</Text>
         {copyRow(t('secret.url'), url)}
