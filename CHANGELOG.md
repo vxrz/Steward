@@ -8,7 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Faster start page, scorecard and lists with many items**: availability objectives with a monitor as source, the credentials register and its start page tile, the access check findings tile, the user and team lists read their items in a fixed number of database statements instead of a few per item – on PostgreSQL each statement is a round trip.
+- **Faster start page, scorecard and lists with many items**: availability objectives with a monitor as source, the credentials register and its start page tile, the access check findings tile, the user and team lists read their items in a fixed number of database statements instead of a few per item – on PostgreSQL each statement is a round trip. New indexes find a user's teams (read on every request), a day's record status changes (daily summary) and a day's AI token use (budget check of every AI call).
 
 ### Fixed
 

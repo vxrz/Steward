@@ -95,6 +95,46 @@ describe('per-key limiters', () => {
   });
 });
 
+describe('indexes of frequent reads', () => {
+  /** The plan of a statement on SQLite: no full scan of `table` (PostgreSQL has the same indexes, migration.test.ts). */
+  async function scans(sql: string, params: unknown[], table: string): Promise<boolean> {
+    const { db } = await import('../src/db.js');
+    if (db().dialect !== 'sqlite') return false;
+    const plan = db().all<{ detail: string }>(`EXPLAIN QUERY PLAN ${sql}`, ...params);
+    return plan.some((p) => {
+      const [op, name, ...rest] = p.detail.split(' ');
+      return op === 'SCAN' && !p.detail.includes(' USING ') && (name === table || rest.join(' ') === `AS ${table}`);
+    });
+  }
+
+  it("find a user's teams, the day's record changes and the day's AI usage by index", async () => {
+    expect(await scans('SELECT t.id, t.name, m.roles FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?', ['u'], 'm')).toBe(false);
+    expect(
+      await scans(
+        'SELECT r.id FROM record_events e JOIN records r ON r.id = e.record_id WHERE e.to_status IS NOT NULL AND e.created_at >= ? AND e.created_at < ? AND lower(r.owner) = lower(?)',
+        ['2026-01-01', '2026-01-02', 'x'],
+        'e',
+      ),
+    ).toBe(false);
+    // the budget check of an AI call: the statements it sends, as sent
+    const { Db } = await import('../src/db.js');
+    const seen: [string, unknown[]][] = [];
+    const proto = Db.prototype as unknown as { get: (...a: unknown[]) => unknown };
+    const orig = proto.get;
+    proto.get = function (this: unknown, ...a: unknown[]) {
+      if (typeof a[0] === 'string' && a[0].includes('FROM ai_usage')) seen.push([a[0], a.slice(1)]);
+      return orig.apply(this, a);
+    };
+    try {
+      (await import('../src/ai/usage.js')).budgetUse('installation', '');
+    } finally {
+      proto.get = orig;
+    }
+    expect(seen.length).toBeGreaterThan(0);
+    for (const [sql, params] of seen) expect(await scans(sql, params, 'ai_usage'), sql).toBe(false);
+  });
+});
+
 describe('outbound calls', () => {
   it('connect the Kafka OAuth token request to the address that was checked (DNS rebinding)', async () => {
     await s.api('PUT', '/settings', { outboundPolicy: 'open' });
