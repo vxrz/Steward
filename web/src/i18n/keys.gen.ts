@@ -169,6 +169,7 @@ export interface Resources {
     'shares.as.owner': string;
     'shares.as.responsible': string;
     'shares.outside': string;
+    'shares.outsideRestricted': string;
     'shares.impliedHint': string;
     'shares.notYours': string;
     'shares.empty': string;

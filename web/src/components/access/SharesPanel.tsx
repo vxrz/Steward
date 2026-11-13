@@ -196,7 +196,8 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                 </Badge>
                 {x.outside && (
                   <Badge variant="outline" color="orange">
-                    {t('shares.outside')}
+                    {/* without owning teams there is nothing to be outside of: naming them opened a Restricted item */}
+                    {v.owningTeams.length ? t('shares.outside') : t('shares.outsideRestricted')}
                   </Badge>
                 )}
               </Group>

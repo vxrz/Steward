@@ -34,6 +34,9 @@ test('a process: its access list is shares with a Custom one, the owner above th
     const panel = page.getByTestId('shares-panel');
     await expect(panel.getByTestId('shares-scope')).toContainText('Restricted');
     await expect(panel.getByTestId('share-row')).toHaveCount(2);
+    // the owner of a Restricted item without owning teams: not "outside the owning teams" – there are none
+    await expect(panel.getByTestId('shares-implied')).toContainText('gives access to a Restricted item');
+    await expect(panel.getByTestId('shares-implied')).not.toContainText('outside the owning teams');
     await expect(panel.getByTestId('share-custom')).toHaveText(/^Custom: manage, view/);
     await expectAccessible(page, 'process access tab with shares');
 

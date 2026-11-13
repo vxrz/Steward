@@ -196,6 +196,7 @@
       "responsible": "Responsible"
     },
     "outside": "outside the owning teams",
+    "outsideRestricted": "gives access to a Restricted item",
     "impliedHint": "Owners and responsibles have an implied share with the level shown: it is computed from the owner field and goes when the owner is removed.",
     "notYours": "Only who manages this item, administrators and auditors see whom it is shared with. Why do I have access? shows your own reasons.",
     "empty": "Not shared with anyone.",
