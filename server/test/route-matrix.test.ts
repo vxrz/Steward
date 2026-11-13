@@ -1238,6 +1238,9 @@ const EXPECT: Record<string, Access> = {
   // ---- the plant registry (#218, on in these fixtures): its switch is the administrators'; rights per site ----
   'GET /api/settings/plant': ADMIN,
   'PUT /api/settings/plant': ADMIN,
+  // 0.23.0 (ADR 0034 decision 11): the content settings for administrators and granted plant managers (none here)
+  'GET /api/plant/settings': ADMIN,
+  'PUT /api/plant/settings': ADMIN,
   // 0.15.0: the retention of the change-set history (ADR 0020)
   'GET /api/settings/plant/history': ADMIN,
   'PUT /api/settings/plant/history': ADMIN,
@@ -1508,6 +1511,7 @@ const SESSION_ONLY = [
   'POST /api/costs/estimates/:estimateId/update-lines',
   'PUT /api/costs/fx-rates',
   'DELETE /api/costs/fx-rates',
+  'PUT /api/plant/settings',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -2394,6 +2398,7 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/suppliers/:id/certificates': { kind: 'iso27001' },
   'PUT /api/suppliers/:id/certificates/:certificateId': { kind: 'iso27001', validUntil: '2030-01-01' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
+  'PUT /api/plant/settings': { enterprise: '', labels: {}, fields: {} },
   'PUT /api/settings/modules/:id': { enabled: true },
   'PUT /api/settings/modules/:id/access': { mode: 'everyone', grants: [] },
   'POST /api/settings/modules/:id/access/preview': { mode: 'selected', grants: [] },

@@ -202,7 +202,7 @@ export function syncSsoModuleRoles(username: string, wanted: { module: ModuleId;
  */
 export function convertDeprecatedRoles(): number {
   const rows = db().all<{ id: string; username: string; roles: string; auth_source: string | null }>(
-    "SELECT id, username, roles, auth_source FROM users WHERE roles LIKE '%plant%'",
+    "SELECT id, username, roles, auth_source FROM users WHERE lower(roles) LIKE '%plant%'",
   );
   const affected = rows.filter((r) => parseJson<string[]>(r.roles, []).includes('plant'));
   if (!affected.length) return 0;
