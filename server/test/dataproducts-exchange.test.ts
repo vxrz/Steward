@@ -352,7 +352,10 @@ describe('MCP proposals', () => {
     expect(detail.proposal).toMatchObject({ type: 'dataProducts', changedSince: false, hidden: 0 });
     expect(detail.proposal.proposed.changes.map((c: any) => c.key)).toEqual(expect.arrayContaining(['proposed-product']));
     expect(detail.proposal.now.ok).toBe(true);
-    // a viewer may read the module but not create products: the preview as them refuses it, nothing is applied
+    // a viewer may read the module but create nothing: the proposal is not theirs to see or decide (and their sidebar
+    // keeps no AI requests for it)
+    expect(((await vera('GET', '/mcp-requests?scope=all')) as any[]).some((x) => x.id === req.id)).toBe(false);
+    expect((await fail(vera('GET', `/mcp-requests/${req.id}`))).status).toBe(404);
     const asViewer = await fail(vera('POST', `/mcp-requests/${req.id}/decision`, { approve: true }));
     expect(asViewer.status).toBeGreaterThanOrEqual(400);
     const { db } = await import('../src/db.js');

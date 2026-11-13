@@ -16,7 +16,7 @@ import { moduleEnabled } from '../modules/registry.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { ToolError, defineTool, type ToolDef } from '../mcp/tooling.js';
 import { registerReviewKind, saveProposal, type Row } from '../mcp/requests.js';
-import { canManageModule, domainAccess, objectAccess, productAccess, usesModule } from './access.js';
+import { canCreate, canManageModule, domainAccess, objectAccess, productAccess, usesModule } from './access.js';
 import { DATA_PRODUCT_FORMAT_VERSION, SCHEMA_ID, dataProductsFileSchema, dataProductsJsonSchema, issueMessages } from './format.js';
 import { applyImport, credentialPlaces, previewImport } from './import.js';
 import type { DomainRow, ObjectRow, ProductRow } from './store.js';
@@ -186,8 +186,9 @@ function apply(r: Row, selection: McpProposalSelection | undefined, u: AuthUser)
 }
 
 registerReviewKind('dataProducts', {
-  // a person who uses the module applies it (the import checks their rights entry by entry); never while incomplete
-  mayAccept: (u, r) => !payloadOf(r).incomplete && mayUse(u),
+  // who may create in the module (contributors and managers) or asked for it applies it – the import checks their
+  // rights entry by entry; never while incomplete. A viewer, who could change nothing, neither sees nor decides it.
+  mayAccept: (u, r) => !payloadOf(r).incomplete && mayUse(u) && (canCreate(u) || r.requested_by.toLowerCase() === u.username.toLowerCase()),
   deciders: (r) => {
     const all = listUsers().filter((x) => {
       if (!x.active) return false;
