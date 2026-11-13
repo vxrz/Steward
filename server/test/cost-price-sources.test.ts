@@ -172,6 +172,28 @@ describe('sources', () => {
     expect(((await s.api('GET', `/costs/price-books/${snowBook}`)) as CostPriceBookDetail).version).toBe(v);
   });
 
+  it('links a contract the rate sheet names only when its author sees exactly one with that number', async () => {
+    const sup = (await s.api('POST', '/suppliers', { name: 'Invented data cloud', type: 'saas' })).id;
+    // the read itself: the mock's SDC-2026-014 named twice – the book stays without a contract
+    await s.api('POST', `/suppliers/${sup}/contracts`, { title: 'Invented capacity twin', reference: 'SDC-2026-014' });
+    const { db } = await import('../src/db.js');
+    db().run('UPDATE cost_price_books SET supplier_contract_id = NULL, supplier_id = NULL WHERE id = ?', snowBook);
+    const r = (await s.api('POST', `/costs/price-books/${snowBook}/read`, {})) as CostPriceBookDetail;
+    expect(r.supplierContract).toBeNull();
+    const { contractNamed } = await import('../src/costs/price-sources.js');
+    const made = async (title: string, reference: string, owners: string[]) =>
+      (await s.api('POST', `/suppliers/${sup}/contracts`, { title, reference, owners })).contracts.find((c: { title: string }) => c.title === title)
+        .id as string;
+    const finance = await made('Invented finance capacity', 'INV-RS-1', ['team:finance']);
+    // a team's contract: its member links it, a viewer outside the team does not learn of it
+    expect(contractNamed('INV-RS-1', 'fin')).toMatchObject({ id: finance, supplierId: sup });
+    expect(contractNamed('INV-RS-1', 'pia')).toBeNull();
+    // two contracts with the number: none
+    await made('Invented second capacity', 'INV-RS-1', []);
+    expect(contractNamed('INV-RS-1', 'admin')).toBeNull();
+    expect(contractNamed('INV-RS-1', 'pia')).not.toBeNull();
+  });
+
   it('Confluent’s observed rates of the last complete month, through the platform’s client', async () => {
     const book = (await s.api('POST', '/costs/price-books', {
       name: 'Confluent observed',

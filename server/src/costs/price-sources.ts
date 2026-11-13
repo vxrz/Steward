@@ -24,6 +24,8 @@ import { platformFor } from '../monitors/platforms.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import { bookRow, getBook, requireBook, writeVersion, type BookRow, entriesOfBook } from './price-books.js';
 import { snowflakeAccountNames, type ConfluentCost } from './readers.js';
+import { findUserByName, toAuthUser } from '../auth/users.js';
+import { visibleContracts } from '../suppliers/links.js';
 
 /**
  * Price books read from a source (0.23.0, ADR 0035 part 2, docs/PRICE-BOOKS.md#sources): a contracted book of a
@@ -32,7 +34,8 @@ import { snowflakeAccountNames, type ConfluentCost } from './readers.js';
  * - **Snowflake rate sheet**: `SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY` of the platform's account through the SQL
  *   API (a read-only statement) – the latest effective rate per service type, usage type and currency (compute per
  *   credit, storage per TB-month, data transfer per TB). Its `CONTRACT_NUMBER` names a Steward contract with that
- *   reference: the book is linked to it. Once a day. Not for reseller contracts (no organisation usage views).
+ *   reference: the book is linked to it – only to one the person who set the source sees, and to none when the
+ *   number names more than one (contractNamed). Once a day. Not for reseller contracts (no organisation usage views).
  * - **Confluent, observed**: the Costs API's lines of the **last complete month** (from the 4th of the next month): per
  *   product, line type, unit and network access type the effective price Σ amount ÷ Σ quantity, with the list price and
  *   the discount (Σ discount ÷ Σ original) as attributes. Labelled observed: only what was used has a price. Monthly.
@@ -288,6 +291,22 @@ async function readObserved(b: BookRow, actor: string, now: number): Promise<{ e
 
 // ---------- reading ----------
 
+/**
+ * The contract a rate sheet's `CONTRACT_NUMBER` names (its reference): only one that `actor` – who set the source, or
+ * who pressed "Read now" – may see, and none when it names more than one they see (a book is linked to its contract
+ * only as its author could have linked it themselves).
+ */
+export function contractNamed(reference: string, actor: string): { id: string; supplierId: string } | null {
+  const info = findUserByName(actor);
+  if (!info) return null;
+  const ids = db()
+    .all<{ id: string }>('SELECT id FROM supplier_contracts WHERE reference = ? ORDER BY id LIMIT 50', reference)
+    .map((r) => r.id);
+  if (!ids.length) return null;
+  const seen = [...visibleContracts(ids, toAuthUser(info)).values()];
+  return seen.length === 1 ? { id: seen[0]!.id, supplierId: seen[0]!.supplierId } : null;
+}
+
 function saveState(id: string, s: SourceSettings): void {
   db().run('UPDATE cost_price_books SET source_settings = ? WHERE id = ?', JSON.stringify(s), id);
 }
@@ -317,12 +336,9 @@ export async function readBookSource(
       written = w.created;
       // the rate sheet's contract number names a Steward contract with that reference: the book is that contract's
       if ('contractNumber' in read && read.contractNumber && !b.supplier_contract_id) {
-        const c = db().get<{ id: string; supplier_id: string }>(
-          'SELECT id, supplier_id FROM supplier_contracts WHERE reference = ? ORDER BY id LIMIT 1',
-          read.contractNumber,
-        );
+        const c = contractNamed(read.contractNumber, actor);
         if (c) {
-          db().run('UPDATE cost_price_books SET supplier_contract_id = ?, supplier_id = ? WHERE id = ?', c.id, c.supplier_id, bookId);
+          db().run('UPDATE cost_price_books SET supplier_contract_id = ?, supplier_id = ? WHERE id = ?', c.id, c.supplierId, bookId);
           audit({
             action: 'cost.price_book_changed',
             entityType: 'cost_price_book',
