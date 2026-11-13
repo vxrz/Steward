@@ -136,12 +136,50 @@ describe('owning teams on a platform', () => {
     }
   });
 
-  it('are removed with their team', async () => {
+  // review 0.20.0: deleting the only owning team of a resource used to open it to the whole instance (the rows cascaded)
+  it('keep a resource restricted when its only owning team is deleted: refused, or moved to the team named', async () => {
     const t = (await s.api('POST', '/teams', { name: 'Short-lived', members: ['tara'] })).id;
     await s.api('PUT', `/owning-teams/process/${proc}`, { teamIds: [t] });
-    await s.api('DELETE', `/teams/${t}`);
-    expect((await s.api('GET', `/owning-teams/process/${proc}`)).teams).toEqual([]);
-    expect((await dave('GET', `/processes/${proc}`)).permissions).toEqual(expect.arrayContaining(['edit']));
+    expect(await status(dave('GET', `/processes/${proc}`))).toBe(404);
+    expect(await s.api('GET', `/teams/${t}/deletion`)).toEqual({ soleOwned: { process: 1 }, soleOwnedTotal: 1, shared: 0 });
+    // without a team to move to: refused, nothing changed
+    await expect(s.api('DELETE', `/teams/${t}`)).rejects.toMatchObject({
+      status: 409,
+      body: { code: 'TEAM_OWNS_RESOURCES', params: { total: 1, kinds: ['process'] } },
+    });
+    expect((await s.api('GET', '/teams')).some((x: any) => x.id === t)).toBe(true);
+    expect(await status(dave('GET', `/processes/${proc}`))).toBe(404);
+    // a team without members keeps it with administrators (no step-up: nobody gains sight)
+    const keep = (await s.api('POST', '/teams', { name: 'Kept by administrators', members: [] })).id;
+    const plain = await s.client({ autoStepUp: false });
+    await plain('POST', '/auth/login', { username: 'admin', password: 'Admin-password-1' });
+    await plain('DELETE', '/auth/step-up');
+    expect(await plain('DELETE', `/teams/${t}?moveTo=${keep}`)).toEqual({ ok: true, moved: 1 });
+    expect((await s.api('GET', `/owning-teams/process/${proc}`)).teams.map((x: any) => x.name)).toEqual(['Kept by administrators']);
+    expect(await status(dave('GET', `/processes/${proc}`))).toBe(404);
+    // moving to a team with members grants them sight: a step-up first
+    const t2 = (await s.api('POST', '/teams', { name: 'Short-lived 2', members: [] })).id;
+    await s.api('PUT', `/owning-teams/process/${proc}`, { teamIds: [t2] });
+    await expect(plain('DELETE', `/teams/${t2}?moveTo=${orders}`)).rejects.toMatchObject({ status: 403, body: { code: 'STEP_UP_REQUIRED' } });
+    expect(await s.api('DELETE', `/teams/${t2}?moveTo=${orders}`)).toEqual({ ok: true, moved: 1 });
+    expect((await s.api('GET', `/owning-teams/process/${proc}`)).teams.map((x: any) => x.id)).toEqual([orders]);
+    const entry = (await db()).get<{ summary: string }>(
+      "SELECT summary FROM audit_log WHERE action = 'access.owning_teams_changed' AND entity_id = ? ORDER BY seq DESC LIMIT 1",
+      proc,
+    );
+    expect(entry?.summary).toContain('team "Short-lived 2" deleted');
+    await s.api('PUT', `/owning-teams/process/${proc}`, { teamIds: [] });
+    await s.api('DELETE', `/teams/${keep}`);
+  });
+
+  it('are left by a deleted team that shares them with other teams (that only narrows)', async () => {
+    const t = (await s.api('POST', '/teams', { name: 'Short-lived 3', members: ['dave'] })).id;
+    await s.api('PUT', `/owning-teams/process/${proc}`, { teamIds: [t, orders] });
+    expect(await s.api('GET', `/teams/${t}/deletion`)).toEqual({ soleOwned: {}, soleOwnedTotal: 0, shared: 1 });
+    expect(await s.api('DELETE', `/teams/${t}`)).toEqual({ ok: true, moved: 0 });
+    expect((await s.api('GET', `/owning-teams/process/${proc}`)).teams.map((x: any) => x.id)).toEqual([orders]);
+    expect(await status(dave('GET', `/processes/${proc}`))).toBe(404);
+    await s.api('PUT', `/owning-teams/process/${proc}`, { teamIds: [] });
   });
 });
 

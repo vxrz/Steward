@@ -283,4 +283,11 @@ export const RECORD_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // review 0.20.0: the daily summary reads the status changes of a day across records
+    name: 'records-006-events-created',
+    sql: `
+      CREATE INDEX IF NOT EXISTS record_events_created ON record_events(created_at);
+    `,
+  },
 ];

@@ -33,6 +33,7 @@ import {
   recordDestinationChange,
 } from '../platforms/destinationChange.js';
 import { db } from '../db.js';
+import { contentDisposition } from '../records/attachments.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -397,8 +398,8 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     // Uploaded files are untrusted: only PDFs, raster images and plain text open in the browser (type taken
     // from the content, not from the upload); everything else is a download that cannot run as page or script.
     const inline = inlineDocType(data, d.mime);
-    const name = d.filename.replace(/["\\\r\n]/g, '');
-    reply.header('content-disposition', `${inline ? 'inline' : 'attachment'}; filename="${name}"`);
+    // any characters of the uploaded name (review 0.20.0: one outside Latin-1 made the download fail with 500)
+    reply.header('content-disposition', contentDisposition(d.filename, inline ? 'inline' : 'attachment'));
     reply.header('content-security-policy', "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf");
     return reply.type(inline ?? 'application/octet-stream').send(data);
   });

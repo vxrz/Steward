@@ -45,11 +45,19 @@ export const TEAM_MIGRATIONS: NamedMigration[] = [
     `,
   },
   {
+    // review 0.20.0: a user's teams are read on every request (owning teams, auth/policy.ts); the primary key
+    // (team_id, user_id) cannot find them by user
+    name: 'teams-004-member-index',
+    sql: `
+      CREATE INDEX IF NOT EXISTS team_members_user ON team_members(user_id);
+    `,
+  },
+  {
     // shares (0.21.0, ADR 0033): one subject (user:, team: or role: – the subject strings used everywhere else, lower
     // case) given a level (view, edit, manage) and the kind's action rights (JSON array) on one resource, with an
     // optional end date (at most a year ahead) and when its Manage holders were reminded of it. resource_restrictions:
     // the resources whose scope is Restricted – instance roles give nothing there, only shares (and owning teams)
-    name: 'teams-004-shares',
+    name: 'teams-005-shares',
     sql: `
       CREATE TABLE resource_shares (
         kind TEXT NOT NULL,

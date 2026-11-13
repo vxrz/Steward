@@ -24,6 +24,7 @@ import { BRAND } from '@sm/shared';
 import { API_BASE, apiEnabled, docsMode, rateLimitPerMinute } from './config.js';
 import { sendProblem } from './problem.js';
 import { TokenBucketLimiter } from './rateLimit.js';
+import { clientAddress } from '../../rateLimits.js';
 
 export interface ApiPrincipal {
   user: UserInfo;
@@ -131,7 +132,7 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
 
   const mode: AuthMode = req.routeOptions.config?.smAuth ?? 'token';
   const bearer = bearerToken(req.headers.authorization);
-  const ipKey = `ip:${req.ip}`;
+  const ipKey = `ip:${clientAddress(req.ip)}`;
 
   if (mode === 'none' || (mode === 'spec' && !bearer)) {
     if (!rateLimit(req, reply, ipKey)) return;

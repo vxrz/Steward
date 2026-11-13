@@ -308,6 +308,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header('content-security-policy', url.startsWith('/api/auth/oidc/callback') ? CSP_SSO_CALLBACK : CSP);
     reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('cross-origin-opener-policy', 'same-origin');
+    // no other site may embed Steward's answers (images, downloads with their link key, JSON) – cross-site leaks (review 0.20.0)
+    reply.header('cross-origin-resource-policy', 'same-origin');
     if (config.secureCookies) reply.header('strict-transport-security', 'max-age=31536000');
     if (!url.startsWith('/api/') || isPublicApiPath(url) || isMcpEndpoint(url)) return;
     // API responses are never cached (they carry personal data and secrets' metadata); routes may set their own.

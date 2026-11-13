@@ -251,7 +251,7 @@ Lists return
 
 ## Rate limits
 
-Each token may make **600 requests per minute** by default (token bucket: short bursts up to the limit, refilled continuously). Requests without a valid token are limited per client IP. Every response carries the headers of the IETF draft _RateLimit header fields for HTTP_:
+Each token may make **600 requests per minute** by default (token bucket: short bursts up to the limit, refilled continuously). Requests without a valid token are limited per client address (an IPv6 address by its /64 network, as everywhere in Steward). Every response carries the headers of the IETF draft _RateLimit header fields for HTTP_:
 
 ```http
 RateLimit-Limit: 600

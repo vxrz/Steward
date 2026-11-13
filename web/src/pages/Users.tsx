@@ -38,6 +38,7 @@ import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
 import i18n from '../i18n';
 import { ProfileValues } from '../components/users/ProfileValues';
 import { TeamSettingsModal } from '../components/users/TeamSettingsModal';
+import { TeamDeleteModal, type TeamDeletionPreview } from '../components/users/TeamDeleteModal';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { ListPage } from '../components/page/ListPage';
 
@@ -112,6 +113,8 @@ export function UsersPage() {
   const [editing, setEditing] = useState<UserInfo | 'new' | null>(null);
   const [teamEdit, setTeamEdit] = useState<Team | 'new' | null>(null);
   const [teamSettings, setTeamSettings] = useState<Team | null>(null);
+  // deleting a team that alone owns items: choose where they go (review 0.20.0)
+  const [teamDelete, setTeamDelete] = useState<{ team: Team; preview: TeamDeletionPreview } | null>(null);
   const [temp, setTemp] = useState<{ username: string; password: string } | null>(null);
   const [pseudonymising, setPseudonymising] = useState<UserInfo | null>(null);
   const sso = useSsoProviders();
@@ -218,6 +221,9 @@ export function UsersPage() {
                     color="red"
                     aria-label={t('teams.delete', { name: team.name })}
                     onClick={async () => {
+                      // without a preview the plain confirmation follows; the server still refuses a team that alone owns items
+                      const preview = await get<TeamDeletionPreview>(`/teams/${team.id}/deletion`).catch(() => null);
+                      if (preview?.soleOwnedTotal) return setTeamDelete({ team, preview });
                       const refs = await get<SubjectReference[]>(`/teams/${team.id}/references`).catch(() => []);
                       const message = refs.length ? (
                         <ReferenceList text={t('references.teamDelete', { name: team.name })} refs={refs} />
@@ -284,6 +290,18 @@ export function UsersPage() {
         />
       )}
       {teamSettings && <TeamSettingsModal team={teamSettings} onClose={() => setTeamSettings(null)} />}
+      {teamDelete && (
+        <TeamDeleteModal
+          team={teamDelete.team}
+          teams={teams.data ?? []}
+          preview={teamDelete.preview}
+          onClose={() => setTeamDelete(null)}
+          onDeleted={() => {
+            setTeamDelete(null);
+            refresh();
+          }}
+        />
+      )}
       {teamEdit && (
         <TeamModal
           team={teamEdit === 'new' ? null : teamEdit}

@@ -89,6 +89,7 @@
     "NOT_PDF": "Das ist keine PDF-Datei.",
     "USER_NOT_FOUND": "Benutzer „{{name}}“ nicht gefunden.",
     "TEAM_NOT_FOUND": "Team „{{name}}“ nicht gefunden.",
+    "TEAM_OWNS_RESOURCES": "Das Team „{{name}}“ ist das einzige zuständige Team von {{total}} Einträgen. Wählen Sie das Team, zu dem sie wechseln, oder geben Sie ihnen zuerst andere zuständige Teams – das Löschen darf sie nicht für alle öffnen.",
     "PLATFORM_NOT_FOUND": "Plattform {{id}} nicht gefunden.",
     "IDENTITY_NOT_FOUND": "Identität {{id}} nicht gefunden.",
     "PLATFORM_NOT_FOUND_kind": "Plattform „{{id}}“ nicht gefunden (erwartet wird eine Plattform vom Typ {{kind}}).",

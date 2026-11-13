@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-13
+
+Steward 0.20.0 is a review release: the whole application was reviewed for bugs, best practices, security, performance, architecture and UI/UX, and what was found is fixed. The Industrial Edge examples read the real fields of the IEM Portal API (online state from device statistics, firmware from the device details). Data paths of the plant registry follow the direction of the data: transfers can _receive_ (a PLC that pushes to a gateway), applications and platforms can be peers and destinations, two paths that only deliver into the same system are no longer chained, and zones list the systems and platforms in them – a cloud platform in the External zone of every site. A monitor whose machine is off longer than allowed can be _Down_ instead of _Degraded_ (#288). Git sync recognises rate limits, stages all or nothing and fetches the example library with a few calls; MCP has configurations for Mistral Vibe and Claude Code. Deleting a team no longer opens the items it alone owns to everyone, IPv6 clients are rate-limited per /64, the hot pages run a fixed number of queries, searchable pickers no longer flicker, dialogs keep what was typed, and focus, contrast, wording and phone layouts were improved across the app. Decision records 0033–0036 plan the next releases: one access model with shares, module access, price books and calculators, and a data products module. Migrations are additive (`plant-031-zone-items`, `gitsync-004-last-error-detail`, `teams-004-member-index`, `records-006-events-created`).
+
 ### Added
 
 - **The plan line dialog says that a line needs no contract** ([docs/COSTS.md](docs/COSTS.md#planning-per-service)): a licence to buy later or a renewal still to be negotiated is a plan line without supplier and contract; the contract is chosen once it exists.
@@ -24,6 +28,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **Outbound access**: the policy choice is labelled for screen readers and stacks on phones, and the warning of _Any host (labs)_ is shown once.
 - **Git sync sources on GitHub without a token say that GitHub allows 60 calls an hour** and recommend a fine-grained token with repository access _Public repositories (read-only)_ and no permissions; the example library's hint names `api.github.com`, the host Steward really calls, instead of `github.com`.
 - **The public API's run, task and dataset lists and the MCP tools read the reader's process rights in one statement** ([docs/API.md](docs/API.md)): before, they read each process on its own, so these lists slowed down with every process – on PostgreSQL each statement is a round trip. The web app, the public API and MCP now share one check of which processes and runs a reader may see.
+- **Faster start page, scorecard and lists with many items**: availability objectives with a monitor as source, the credentials register and its start page tile, the access check findings tile, the user and team lists read their items in a fixed number of database statements instead of a few per item – on PostgreSQL each statement is a round trip. New indexes find a user's teams (read on every request), a day's record status changes (daily summary) and a day's AI token use (budget check of every AI call).
 
 ### Fixed
 
@@ -51,6 +56,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Security
 
 - **Browsers no longer fill the saved Steward password into secret fields that go to other hosts**: a platform's credential fields (new platform, setup wizard) and a Git sync source's access token now ask the browser for a new password instead of offering the one saved for Steward, which could have been stored as the platform's secret or sent to the Git host.
+- **Rate limits and sign-in counters count an IPv6 client by its /64 network everywhere** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits)): the public API's and the MCP endpoint's limits for requests without a valid token and the failed sign-in and step-up counters per address took each IPv6 address on its own, so a client could sidestep them by changing addresses within its network. The per-token limiters keep a bounded number of counters.
+- **The Kafka OAuth token request connects to the address that was checked** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#which-rule-checks-which-call)): a token URL whose name was rebound between the outbound check and the connection could have received the client secret.
+- **Cross-Origin-Resource-Policy: same-origin on every answer** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#network-tls-and-reverse-proxy)): other sites cannot embed Steward's answers.
+- **Deleting a team no longer opens the items it alone owns to everyone** ([docs/TEAMS.md](docs/TEAMS.md)): the owning-team rows were removed with the team, so a process, platform, service or other item whose only owning team was deleted became the whole instance's – without a preview or a step-up. Now such a deletion is refused (`TEAM_OWNS_RESOURCES`) until the administrator names the team the items move to – _Delete team_ on the users page shows what the team alone owns, per kind, and asks for that team – (a step-up when that team has members, each item audited as an access change); a team that shares ownership with other teams is just removed from them.
 
 ## [0.19.0] - 2026-11-12
 
@@ -1446,7 +1455,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/vxrz/steward/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/vxrz/steward/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/vxrz/steward/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/vxrz/steward/compare/v0.16.0...v0.17.0

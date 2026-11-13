@@ -103,3 +103,35 @@ test('a record has owning teams on its access tab; a whole service is moved with
     await api.delete(`/api/teams/${team.id}`);
   }
 });
+
+/** Review 0.20.0: deleting a team that alone owns items moves them to a chosen team instead of opening them to all. */
+test('deleting a team that alone owns a process asks where the process goes', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const oldName = uniq('Leaving team');
+  const keepName = uniq('Keeping team');
+  const old = await json<{ id: string }>(await api.post('/api/teams', { data: { name: oldName, members: [] } }));
+  const keep = await json<{ id: string }>(await api.post('/api/teams', { data: { name: keepName, members: [] } }));
+  const proc = await json<{ id: string }>(
+    await api.post('/api/processes', { data: { definition: { name: uniq('Owned process'), nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } } }),
+  );
+  try {
+    await json(await api.put(`/api/owning-teams/process/${proc.id}`, { data: { teamIds: [old.id] } }));
+    await page.goto('/users');
+    await page.getByRole('button', { name: `Delete team ${oldName}` }).click();
+    const dialog = page.getByRole('dialog', { name: `Delete team ${oldName}` });
+    await expect(dialog.getByTestId('team-delete-kinds')).toContainText('1');
+    await expect(dialog.getByTestId('team-delete-submit')).toBeDisabled();
+    await expectAccessible(page, 'team deletion dialog');
+    await dialog.getByRole('textbox', { name: 'Move them to' }).click();
+    await page.getByRole('option', { name: keepName, exact: true }).click();
+    await dialog.getByTestId('team-delete-submit').click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('button', { name: `Delete team ${oldName}` })).toHaveCount(0);
+    const owning = await json<{ teams: { id: string }[] }>(await api.get(`/api/owning-teams/process/${proc.id}`));
+    expect(owning.teams.map((x) => x.id)).toEqual([keep.id]);
+  } finally {
+    await api.delete(`/api/processes/${proc.id}`);
+    await api.delete(`/api/teams/${old.id}`);
+    await api.delete(`/api/teams/${keep.id}`);
+  }
+});
