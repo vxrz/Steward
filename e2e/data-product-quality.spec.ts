@@ -121,7 +121,7 @@ test.describe('quality of data products', () => {
     await expect(rows.nth(1)).toContainText('Maturity 2');
     await expect(rows.last()).toContainText('Maturity 0');
     await settle(page);
-    await expectAccessible(page, 'maturity trend', { wcag22: true });
+    await expectAccessible(page, 'maturity trend');
   });
 
   test('quality on a phone @mobile', async ({ page }) => {

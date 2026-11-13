@@ -144,13 +144,13 @@
     "team": {
       "members": {
         "label": "Teammitglieder oder Rollen in einem Team hinzufügen",
-        "description": "Teams stehen in Zugriffslisten: Ein neues Mitglied erhält deren Rechte."
+        "description": "Einträge werden mit Teams geteilt, und Teams haben Modulrollen: Ein neues Mitglied erhält deren Rechte."
       }
     },
     "access": {
       "grant": {
-        "label": "Rechte in einer Zugriffsliste vergeben",
-        "description": "Zugriffslisten von Plattformen, Prozessen und Monitoren, zuständige Teams, Kopien mit ihren Zugriffseinstellungen, Eigentümer und Verantwortliche außerhalb der zuständigen Teams."
+        "label": "Jemandem Zugriff geben: geteilt oder mit einer Modulrolle",
+        "description": "Teilen, das Zugriff erweitert, und das Aufheben von „Eingeschränkt“, Modulrollen, zuständige Teams, Kopien mit ihren Zugriffseinstellungen, Eigentümer und Verantwortliche außerhalb der zuständigen Teams."
       }
     },
     "sso": {

@@ -200,6 +200,9 @@ describe('managing identities', () => {
     expect(((await olivia('GET', `/platforms/${p.id}`)) as any).identities.find((x: any) => x.default).mayUse).toBe(true);
     await s.api('PUT', `/platforms/${p.id}/identities/${i.id}/access`, { acl: [{ subject: 'user:olivia', permissions: ['use'] }] });
     expect((await seenBy(olivia)).mayUse).toBe(true);
+    // how many shares it has is for who manages the platform – not for who only uses it
+    expect((await seenBy(olivia)).shared).toBeUndefined();
+    expect(((await s.api('GET', `/platforms/${p.id}`)) as any).identities.find((x: any) => x.id === i.id).shared).toBe(1);
     // dana (designer) is not on the list
     expect((await seenBy(dana)).mayUse).toBe(false);
     // an owning team: its members with a role that uses platforms (designer, operator) use it

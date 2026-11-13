@@ -158,7 +158,7 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
                           <Table.Td>
                             <Select
                               size="xs"
-                              aria-label={t('access.roleColumn')}
+                              aria-label={t('access.roleFor', { name: label(e.subject) })}
                               data={roleOptions(mode)}
                               value={e.role ?? ''}
                               onChange={(v) => setRole(e.subject, (v || null) as ModuleRole | null)}

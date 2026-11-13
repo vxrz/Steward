@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { ActionIcon, Anchor, Autocomplete, Badge, Button, Group, Input, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -11,15 +12,20 @@ import {
   COST_DERIVATION_KINDS,
   COST_LIST_CONDITION_KINDS,
   ISO_4217_CODES,
+  costConditionInput,
   type CostCondition,
   type CostConditionInput,
   type CostConditionKind,
   type CostConditionScope,
   type CostConditionView,
   type CostContractConditions,
+  type CostPriceBook,
+  type CostPriceBookDetail,
 } from '@sm/shared';
 import { get, isUnavailable, notifyError, notifyOk, put } from '../../api';
+import { ApiError } from '../../apiError';
 import { FormModal, FormModalCancel } from '../FormModal';
+import { fmtDayOnly, fmtDecimal, fmtNumber } from '../../format';
 
 /**
  * The "Prices" of a supplier contract (0.23.0, ADR 0035 parts 3 and 4, docs/PRICE-BOOKS.md#contract-conditions): its
@@ -42,25 +48,67 @@ export function conditionText(t: T, c: CostCondition): string {
       : t(`conditions.scopeText.${c.on}`, { provider: c.provider, target: c.target });
   const value =
     c.kind === 'percentOff' || c.kind === 'baseDiscount' || c.kind === 'markup'
-      ? t(`conditions.value.${c.kind}`, { percent: c.percent ?? '0' })
+      ? t(`conditions.value.${c.kind}`, { percent: fmtDecimal(c.percent ?? '0') })
       : c.kind === 'negotiatedPrice' || c.kind === 'feePerUnit'
         ? t(`conditions.value.${c.kind}`, {
-            price: c.price ?? '0',
+            price: fmtDecimal(c.price ?? '0'),
             currency: c.currency ?? '',
-            block: c.block.toLocaleString(),
+            block: fmtNumber(c.block),
             unit: (c.unit ?? '').replace(/[{}]/g, ''),
           })
         : c.kind === 'fixedFee'
-          ? t('conditions.value.fixedFee', { price: c.price ?? '0', currency: c.currency ?? '' })
-          : t('conditions.value.commitment', { bands: (c.bands ?? []).map((b) => `${b.from}: ${b.percent} %`).join(', ') });
+          ? t('conditions.value.fixedFee', { price: fmtDecimal(c.price ?? '0'), currency: c.currency ?? '' })
+          : t('conditions.value.commitment', { bands: (c.bands ?? []).map((b) => `${fmtDecimal(b.from)}: ${fmtDecimal(b.percent)} %`).join(', ') });
   return `${value} – ${scope}`;
 }
 
 const validText = (t: T, c: Pick<CostCondition, 'validFrom' | 'validTo'>) =>
-  c.validFrom || c.validTo ? t('conditions.validRange', { from: c.validFrom ?? '…', to: c.validTo ?? '…' }) : t('conditions.validTerm');
+  c.validFrom || c.validTo
+    ? t('conditions.validRange', { from: c.validFrom ? fmtDayOnly(c.validFrom) : '…', to: c.validTo ? fmtDayOnly(c.validTo) : '…' })
+    : t('conditions.validTerm');
 
 function ConditionsTable({ list, testId }: { list: CostConditionView[]; testId: string }) {
   const { t } = useTranslation('costs');
+  const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  const kindBadge = (c: CostConditionView) => (
+    <Badge size="xs" variant="light" color={COST_DERIVATION_KINDS.includes(c.kind) ? 'grape' : 'blue'}>
+      {t(`conditions.kinds.${c.kind}`)}
+    </Badge>
+  );
+  const details = (c: CostConditionView) => (
+    <>
+      {c.flag && (
+        <Text size="xs" c="orange">
+          {t('conditions.flag.contractedBook')}
+        </Text>
+      )}
+      {c.note && (
+        <Text size="xs" c="dimmed">
+          {c.note}
+        </Text>
+      )}
+    </>
+  );
+  // a phone: a card per condition – kind and validity on top, the condition in words below
+  if (phone)
+    return (
+      <Stack gap="xs" data-testid={testId}>
+        {list.map((c) => (
+          <Paper key={c.id} withBorder p="xs" data-testid="condition-card">
+            <Group justify="space-between" gap="xs" wrap="wrap">
+              {kindBadge(c)}
+              <Text size="xs" c="dimmed">
+                {validText(t, c)}
+              </Text>
+            </Group>
+            <Text size="sm" mt={4}>
+              {conditionText(t, c)}
+            </Text>
+            {details(c)}
+          </Paper>
+        ))}
+      </Stack>
+    );
   return (
     <Table.ScrollContainer minWidth={420}>
       <Table striped data-testid={testId}>
@@ -187,12 +235,29 @@ interface Row {
   block: 1 | 1000 | 1000000;
   currency: string;
   unit: string;
-  bands: string;
+  bands: Band[];
   scheduleId: string | null;
   validFrom: string;
   validTo: string;
   note: string;
 }
+
+/** A band of a commitment as typed: the committed amount per year from which the percentage applies. */
+interface Band {
+  from: string;
+  percent: string;
+}
+
+/** The bands in the short form of 0.23.0's first dialog – "0:0;100000:15;500000:25" – still read when pasted. */
+export const parseBands = (text: string): Band[] =>
+  text
+    .split(';')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => {
+      const at = x.indexOf(':');
+      return { from: at < 0 ? x : x.slice(0, at).trim(), percent: at < 0 ? '' : x.slice(at + 1).trim() };
+    });
 
 const rowOf = (c: CostCondition): Row => ({
   id: c.id,
@@ -206,30 +271,63 @@ const rowOf = (c: CostCondition): Row => ({
   block: c.block,
   currency: c.currency ?? 'USD',
   unit: c.unit ?? '',
-  bands: (c.bands ?? []).map((b) => `${b.from}:${b.percent}`).join(';'),
+  bands: (c.bands ?? []).map((b) => ({ from: b.from, percent: b.percent })),
   scheduleId: c.scheduleId,
   validFrom: c.validFrom ?? '',
   validTo: c.validTo ?? '',
   note: c.note,
 });
 
+/** A number as typed – "12,5" in German as "12.5" (as the payment and plan forms take amounts). */
+const decimalText = (v: string) => v.trim().replace(',', '.');
+
 const inputOf = (r: Row): CostConditionInput => {
   const base = { ...(r.id ? { id: r.id } : {}), kind: r.kind, provider: r.provider.trim(), on: r.on, target: r.on === 'provider' ? '' : r.target.trim() };
   const valid = { validFrom: r.validFrom.trim() || null, validTo: r.validTo.trim() || null, note: r.note.trim() };
-  if (r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') return { ...base, ...valid, percent: r.percent.trim() };
-  if (r.kind === 'negotiatedPrice') return { ...base, ...valid, priceId: r.priceId.trim(), price: r.price.trim(), block: r.block, currency: r.currency };
-  if (r.kind === 'feePerUnit') return { ...base, ...valid, price: r.price.trim(), block: r.block, currency: r.currency, unit: r.unit.trim() };
-  if (r.kind === 'fixedFee') return { ...base, ...valid, price: r.price.trim(), currency: r.currency };
-  const bands = r.bands
-    .split(';')
-    .map((x) => x.trim())
-    .filter(Boolean)
-    .map((x) => {
-      const at = x.indexOf(':');
-      return { from: at < 0 ? x : x.slice(0, at).trim(), percent: at < 0 ? '' : x.slice(at + 1).trim() };
-    });
+  if (r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') return { ...base, ...valid, percent: decimalText(r.percent) };
+  if (r.kind === 'negotiatedPrice') return { ...base, ...valid, priceId: r.priceId.trim(), price: decimalText(r.price), block: r.block, currency: r.currency };
+  if (r.kind === 'feePerUnit') return { ...base, ...valid, price: decimalText(r.price), block: r.block, currency: r.currency, unit: r.unit.trim() };
+  if (r.kind === 'fixedFee') return { ...base, ...valid, price: decimalText(r.price), currency: r.currency };
+  const bands = r.bands.filter((b) => b.from.trim() || b.percent.trim()).map((b) => ({ from: decimalText(b.from), percent: decimalText(b.percent) }));
   return { ...base, ...valid, bands, scheduleId: r.scheduleId };
 };
+
+/** Messages per condition and field ("percent", "provider" …), in the UI's language. */
+type FieldErrors = Record<number, Partial<Record<string, string>>>;
+
+/** The message of a field: by the field (the server's own text is English and names its path). */
+function fieldMessage(t: T, field: string, kind: CostConditionKind): string {
+  if (field === 'percent') return t(kind === 'markup' ? 'conditions.errors.percentMarkup' : 'conditions.errors.percent');
+  const known = ['provider', 'on', 'target', 'price', 'currency', 'unit', 'scheduleId', 'bands', 'validFrom', 'validTo'];
+  return t(`conditions.errors.${known.includes(field) ? field : 'other'}`);
+}
+
+/** The fields of each condition that are not right, checked as the server checks them (before anything is sent). */
+function checkRows(t: T, rows: Row[]): FieldErrors {
+  const out: FieldErrors = {};
+  rows.forEach((r, i) => {
+    const res = costConditionInput.safeParse(inputOf(r));
+    if (res.success) return;
+    for (const issue of res.error.issues) {
+      const field = String(issue.path[0] ?? 'kind');
+      (out[i] ??= {})[field] ??= fieldMessage(t, field, r.kind);
+    }
+  });
+  return out;
+}
+
+/** The server's refusal as field messages: its issues name `conditions.<n>.<field>`. Empty when none does. */
+function serverErrors(t: T, rows: Row[], err: unknown): FieldErrors {
+  const out: FieldErrors = {};
+  if (!(err instanceof ApiError)) return out;
+  for (const issue of err.issues ?? []) {
+    const m = /^conditions\.(\d+)\.(\w+)/.exec(issue.path);
+    const i = m ? Number(m[1]) : -1;
+    if (!m || !rows[i]) continue;
+    (out[i] ??= {})[m[2]!] ??= fieldMessage(t, m[2]!, rows[i].kind);
+  }
+  return out;
+}
 
 /** The conditions of a contract, or the terms of a rate card (kinds: the derivation kinds only). */
 export function ConditionsDialog({
@@ -251,11 +349,27 @@ export function ConditionsDialog({
 }) {
   const { t } = useTranslation('costs');
   const [rows, setRows] = useState<Row[]>(() => initial.map(rowOf));
+  // the books the person sees: their providers to pick from, a book as the target, the targets of its items
+  const booksQ = useQuery({ queryKey: ['costs', 'price-books'], queryFn: () => get<CostPriceBook[]>('/costs/price-books') });
+  const books = useMemo(() => booksQ.data ?? [], [booksQ.data]);
+  const providers = useMemo(() => [...new Set(books.map((b) => b.provider))].sort((a, b) => a.localeCompare(b)), [books]);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  /** The message of a field of condition `i` (shown after a save was tried) */
+  const err = (i: number, field: string): string | undefined => errors[i]?.[field];
   const set = (i: number, patch: Partial<Row>) => {
     setDirty(true);
     setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    // a changed field is checked again on the next save
+    const fields = Object.keys(patch);
+    if (errors[i] && fields.some((f) => errors[i]![f]))
+      setErrors({ ...errors, [i]: Object.fromEntries(Object.entries(errors[i]!).filter(([f]) => !fields.includes(f))) });
+  };
+  const showErrors = (e: FieldErrors) => {
+    setErrors(e);
+    // the first marked field gets the focus (WCAG 3.3.1)
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="conditions-form"] [aria-invalid="true"]')?.focus());
   };
   const add = () => {
     setDirty(true);
@@ -273,7 +387,7 @@ export function ConditionsDialog({
         block: 1,
         currency: 'USD',
         unit: '',
-        bands: '',
+        bands: [{ from: '0', percent: '' }],
         scheduleId: schedules[0]?.id ?? null,
         validFrom: '',
         validTo: '',
@@ -282,12 +396,19 @@ export function ConditionsDialog({
     ]);
   };
   const submit = async () => {
+    const found = checkRows(t, rows);
+    if (Object.keys(found).length) return showErrors(found);
     setBusy(true);
     try {
       await onSave(rows.map(inputOf));
       onClose();
-    } catch (err) {
-      notifyError(err);
+    } catch (e) {
+      const marked = serverErrors(t, rows, e);
+      if (Object.keys(marked).length) {
+        showErrors(marked);
+        // the fields say what is wrong – not the server's paths ("conditions.0.percent: …")
+        notifyError(new Error(t('conditions.errors.checkFields')));
+      } else notifyError(e);
     } finally {
       setBusy(false);
     }
@@ -301,6 +422,8 @@ export function ConditionsDialog({
   return (
     <FormModal title={title} onClose={onClose} size="xl" dirty={dirty}>
       <form
+        data-testid="conditions-form"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
@@ -325,13 +448,17 @@ export function ConditionsDialog({
                         set(i, { kind: k, on: COST_CONDITION_SCOPES_OF[k].includes(r.on) ? r.on : COST_CONDITION_SCOPES_OF[k][0]! });
                       }}
                       data-testid={`condition-${i}-kind`}
+                      error={err(i, 'kind')}
                     />
-                    <TextInput
+                    <Autocomplete
                       label={t('conditions.provider')}
+                      data={providers}
                       value={r.provider}
                       required
-                      onChange={(e) => set(i, { provider: e.currentTarget.value })}
+                      onChange={(v) => set(i, { provider: v })}
+                      comboboxProps={{ withinPortal: true }}
                       data-testid={`condition-${i}-provider`}
+                      error={err(i, 'provider')}
                     />
                     <Select
                       label={t('conditions.on')}
@@ -340,6 +467,7 @@ export function ConditionsDialog({
                       allowDeselect={false}
                       onChange={(v) => set(i, { on: (v ?? r.on) as CostConditionScope })}
                       data-testid={`condition-${i}-on`}
+                      error={err(i, 'on')}
                     />
                   </SimpleGrid>
                   <ActionIcon
@@ -349,6 +477,7 @@ export function ConditionsDialog({
                     onClick={() => {
                       setDirty(true);
                       setRows(rows.filter((_, j) => j !== i));
+                      setErrors({});
                     }}
                   >
                     <IconTrash size={14} />
@@ -356,13 +485,7 @@ export function ConditionsDialog({
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 3 }}>
                   {r.on !== 'provider' && (
-                    <TextInput
-                      label={t(`conditions.targets.${r.on}`)}
-                      value={r.target}
-                      required
-                      onChange={(e) => set(i, { target: e.currentTarget.value })}
-                      data-testid={`condition-${i}-target`}
-                    />
+                    <TargetField row={r} books={books} onChange={(target) => set(i, { target })} testId={`condition-${i}-target`} error={err(i, 'target')} />
                   )}
                   {(r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') && (
                     <TextInput
@@ -372,6 +495,7 @@ export function ConditionsDialog({
                       inputMode="decimal"
                       onChange={(e) => set(i, { percent: e.currentTarget.value })}
                       data-testid={`condition-${i}-percent`}
+                      error={err(i, 'percent')}
                     />
                   )}
                   {(r.kind === 'negotiatedPrice' || r.kind === 'feePerUnit' || r.kind === 'fixedFee') && (
@@ -383,14 +507,22 @@ export function ConditionsDialog({
                         inputMode="decimal"
                         onChange={(e) => set(i, { price: e.currentTarget.value })}
                         data-testid={`condition-${i}-price`}
+                        error={err(i, 'price')}
                       />
-                      <Select label={t('conditions.currency')} searchable data={CURRENCIES} value={r.currency} onChange={(v) => v && set(i, { currency: v })} />
+                      <Select
+                        label={t('conditions.currency')}
+                        searchable
+                        data={CURRENCIES}
+                        value={r.currency}
+                        onChange={(v) => v && set(i, { currency: v })}
+                        error={err(i, 'currency')}
+                      />
                     </>
                   )}
                   {(r.kind === 'negotiatedPrice' || r.kind === 'feePerUnit') && (
                     <Select
                       label={t('conditions.block')}
-                      data={['1', '1000', '1000000'].map((b) => ({ value: b, label: Number(b).toLocaleString() }))}
+                      data={['1', '1000', '1000000'].map((b) => ({ value: b, label: fmtNumber(Number(b)) }))}
                       value={String(r.block)}
                       allowDeselect={false}
                       onChange={(v) => set(i, { block: Number(v ?? 1) as Row['block'] })}
@@ -403,6 +535,7 @@ export function ConditionsDialog({
                       value={r.unit}
                       required
                       onChange={(e) => set(i, { unit: e.currentTarget.value })}
+                      error={err(i, 'unit')}
                     />
                   )}
                   {r.kind === 'commitment' && (
@@ -413,29 +546,26 @@ export function ConditionsDialog({
                         value={r.scheduleId}
                         onChange={(v) => set(i, { scheduleId: v })}
                         description={schedules.length ? undefined : t('conditions.noSchedules')}
+                        error={err(i, 'scheduleId')}
                       />
-                      <TextInput
-                        label={t('conditions.bands')}
-                        description={t('conditions.bandsHint')}
-                        value={r.bands}
-                        required
-                        onChange={(e) => set(i, { bands: e.currentTarget.value })}
-                      />
+                      <BandsEditor bands={r.bands} n={i} onChange={(bands) => set(i, { bands })} error={err(i, 'bands')} />
                     </>
                   )}
                   <TextInput
+                    type="date"
                     label={t('conditions.validFrom')}
-                    placeholder={t('conditions.datePlaceholder')}
                     value={r.validFrom}
                     onChange={(e) => set(i, { validFrom: e.currentTarget.value })}
+                    error={err(i, 'validFrom')}
                   />
                   <TextInput
+                    type="date"
                     label={t('conditions.validTo')}
-                    placeholder={t('conditions.datePlaceholder')}
                     value={r.validTo}
                     onChange={(e) => set(i, { validTo: e.currentTarget.value })}
+                    error={err(i, 'validTo')}
                   />
-                  <TextInput label={t('conditions.note')} value={r.note} onChange={(e) => set(i, { note: e.currentTarget.value })} />
+                  <TextInput label={t('conditions.note')} value={r.note} onChange={(e) => set(i, { note: e.currentTarget.value })} error={err(i, 'note')} />
                 </SimpleGrid>
               </Stack>
             </Paper>
@@ -461,5 +591,131 @@ export function ConditionsDialog({
         </Stack>
       </form>
     </FormModal>
+  );
+}
+
+const norm = (x: string) => x.trim().toLowerCase();
+
+/**
+ * What a condition is for: a book of the provider to pick, or a service, category, driver or item – typed, with the
+ * ones the provider's books name as suggestions (the first page of up to five books).
+ */
+function TargetField({
+  row,
+  books,
+  onChange,
+  testId,
+  error,
+}: {
+  row: Row;
+  books: CostPriceBook[];
+  onChange: (target: string) => void;
+  testId: string;
+  error?: string;
+}) {
+  const { t } = useTranslation('costs');
+  const mine = books.filter((b) => norm(b.provider) === norm(row.provider));
+  const suggest = row.on !== 'book' && row.on !== 'provider';
+  const details = useQueries({
+    queries: mine.slice(0, 5).map((b) => ({
+      queryKey: ['costs', 'price-books', b.id, 'targets'],
+      queryFn: () => get<CostPriceBookDetail>(`/costs/price-books/${encodeURIComponent(b.id)}`),
+      staleTime: 60_000,
+      enabled: suggest,
+    })),
+  });
+  const items = details.flatMap((d) => d.data?.items ?? []);
+  const field = (e: (typeof items)[number]) => (row.on === 'item' ? e.sku : row.on === 'service' ? e.service : row.on === 'category' ? e.category : e.driver);
+  const options = suggest ? [...new Set(items.map(field).filter(Boolean))].sort((a, b) => a.localeCompare(b)).slice(0, 200) : [];
+  const label = t(`conditions.targets.${row.on as 'book'}`);
+  if (row.on === 'book') {
+    const data = mine.map((b) => ({ value: b.id, label: `${b.name} (${t(`prices.kinds.${b.kind}`)})` }));
+    if (row.target && !data.some((d) => d.value === row.target)) data.unshift({ value: row.target, label: row.target });
+    return (
+      <Select
+        label={label}
+        data={data}
+        value={row.target || null}
+        onChange={(v) => onChange(v ?? '')}
+        searchable
+        required
+        nothingFoundMessage={t('conditions.noBooks')}
+        comboboxProps={{ withinPortal: true }}
+        data-testid={testId}
+        error={error}
+      />
+    );
+  }
+  return (
+    <Autocomplete
+      label={label}
+      data={options}
+      value={row.target}
+      required
+      onChange={onChange}
+      comboboxProps={{ withinPortal: true }}
+      data-testid={testId}
+      error={error}
+    />
+  );
+}
+
+/** The bands of a commitment, a row each: from a committed amount per year, a percentage off (the short form pasted is read). */
+function BandsEditor({ bands, n, onChange, error }: { bands: Band[]; n: number; onChange: (b: Band[]) => void; error?: string }) {
+  const { t } = useTranslation('costs');
+  const setBand = (i: number, patch: Partial<Band>) => {
+    // "0:0;100000:15" pasted into a field: the bands of the short form
+    const text = patch.from ?? patch.percent ?? '';
+    if (/[:;]/.test(text)) return onChange(parseBands(text));
+    onChange(bands.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  };
+  return (
+    <Input.Wrapper label={t('conditions.bands')} description={t('conditions.bandsHint')} error={error} required data-testid={`condition-${n}-bands`}>
+      <Stack gap={4} mt={4}>
+        {bands.map((b, i) => (
+          <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
+            <TextInput
+              aria-label={t('conditions.bandFrom', { n: i + 1 })}
+              placeholder={t('conditions.bandFromPlaceholder')}
+              inputMode="decimal"
+              value={b.from}
+              onChange={(e) => setBand(i, { from: e.currentTarget.value })}
+              error={!!error}
+              style={{ flex: 2, minWidth: 0 }}
+            />
+            <TextInput
+              aria-label={t('conditions.bandPercent', { n: i + 1 })}
+              placeholder="%"
+              inputMode="decimal"
+              value={b.percent}
+              onChange={(e) => setBand(i, { percent: e.currentTarget.value })}
+              error={!!error}
+              rightSection="%"
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="lg"
+              aria-label={t('conditions.bandRemove', { n: i + 1 })}
+              onClick={() => onChange(bands.filter((_, j) => j !== i))}
+            >
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Group>
+        ))}
+        <Group>
+          <Button
+            size="xs"
+            variant="subtle"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => onChange([...bands, { from: '', percent: '' }])}
+            disabled={bands.length >= COST_CONDITION_LIMITS.bands}
+          >
+            {t('conditions.bandAdd')}
+          </Button>
+        </Group>
+      </Stack>
+    </Input.Wrapper>
   );
 }

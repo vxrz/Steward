@@ -512,6 +512,12 @@ export interface Capabilities {
    * web app shows the Plant area and the profile only. Missing means false.
    */
   plantOnly?: boolean;
+  /**
+   * A module-only user (0.23.0, ADR 0034): the modules they use only through module roles, and no other working role
+   * (empty for everyone else). The web app shows those modules and the profile only; the server refuses the rest
+   * (MODULE_ONLY_USER, PLANT_VIEWER_ONLY). Only in GET /auth/status.
+   */
+  moduleOnly?: ModuleId[];
   /** The person's module role per module that declares roles and that they use (0.23.0, ADR 0034). Only in GET /auth/status. */
   moduleRoles?: Partial<Record<ModuleId, ModuleRole>>;
   /** The modules whose manager settings the person may change (a granted manager role, or an administrator). Only in GET /auth/status. */
@@ -862,7 +868,7 @@ export interface PlatformIdentity {
    * Deprecated since 0.23.0: computed from the identity's shares, for who manages the platform (empty for others)
    */
   acl?: AclEntry<'use'>[];
-  /** How many shares say who may use it (0.23.0; not set on the default identity) */
+  /** How many shares say who may use it (0.23.0; only for who manages the platform, not set on the default identity) */
   shared?: number;
   /**
    * Kept but not usable (0.13.0): it was added or changed outside Steward when an administrator confirmed the platform's

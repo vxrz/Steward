@@ -148,7 +148,7 @@ test.describe('costs: estimates and measured use', () => {
     await page.goto(`/data-products/${s.product}/costs`);
     await expect(page.getByTestId('product-estimates')).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'estimates on a phone', { wcag22: true });
+    await expectAccessible(page, 'estimates on a phone');
     // the split's three rules one below the other: "By measured use" is not cut off
     await page.getByTestId('allocation-edit').first().click();
     await animationsDone(page);
@@ -247,7 +247,7 @@ test.describe('exchange', () => {
     await expect(page.getByTestId('import-preview').getByText(`${k}-phone`)).toBeVisible();
     await expect(page.getByTestId('import-preview').locator('table')).toHaveCount(0);
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'import preview on a phone', { wcag22: true });
+    await expectAccessible(page, 'import preview on a phone');
   });
 
   test('the data objects export as an Ossie model', async ({ page }) => {

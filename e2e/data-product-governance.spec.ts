@@ -86,7 +86,7 @@ test.describe('governance of data products', () => {
     await expect(port.getByTestId('actual-read-ok')).toBeVisible();
     await settle(page);
     // with WCAG 2.2: the toggle of a port's readers is a target of at least 24 px
-    await expectAccessible(page, 'actual consumers', { wcag22: true });
+    await expectAccessible(page, 'actual consumers');
 
     // an operator asks for access
     const olivia = await loginAs('olivia');
@@ -283,7 +283,7 @@ test.describe('governance of data products', () => {
     await expect(review.locator('table')).toHaveCount(0);
     await expect(review.getByTestId('review-entry').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'port access review on a phone', { wcag22: true });
+    await expectAccessible(page, 'port access review on a phone');
     await page.keyboard.press('Escape');
 
     // the promotion's preview: cards

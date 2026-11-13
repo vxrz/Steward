@@ -75,7 +75,9 @@
     "sources": "Quellen",
     "allSources": "Alle Quellen",
     "addWidgetAbove": "Fügen Sie das erste mit „Widget hinzufügen“ oben hinzu.",
-    "discardMessage": "Die Änderungen an diesem Dashboard sind nicht gespeichert."
+    "discardMessage": "Die Änderungen an diesem Dashboard sind nicht gespeichert.",
+    "access": "Zugriff",
+    "accessHint": "Wer dieses Dashboard sehen darf und warum: seine zuständigen Teams und mit wem es geteilt ist"
   },
   "widgets": {
     "kpi": {

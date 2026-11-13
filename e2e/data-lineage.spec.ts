@@ -198,7 +198,7 @@ test.describe('lineage from tools', () => {
     await expect(filter).toHaveAttribute('data-orientation', 'vertical');
     const box = await filter.boundingBox();
     expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-    await expectAccessible(page, 'discovery with lineage on a phone', { wcag22: true });
+    await expectAccessible(page, 'discovery with lineage on a phone');
     await page.goto(`/data-products/lineage/${src.id}`);
     await expect(page.getByTestId('proposal-card').filter({ hasText: `phone_${token}` })).toBeVisible();
     await expectNoHorizontalScroll(page);

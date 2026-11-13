@@ -64,6 +64,24 @@ export function fmtDay(s?: string | number | Date | null): string {
   return dateTimeFormat({ dateStyle: 'medium' }).format(new Date(s));
 }
 
+/**
+ * A calendar day stored as `YYYY-MM-DD` (validity, end dates) in the UI language: "1 Feb 2027" / "01.02.2027". Read
+ * as local midnight – `new Date('2027-02-01')` is UTC midnight, the day before west of Greenwich. Anything else as is.
+ */
+export function fmtDayOnly(s?: string | null): string {
+  if (!s) return '–';
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? fmtDay(`${s}T00:00:00`) : s;
+}
+
+/** A decimal text (a percentage, a unit price) in the UI language with every digit it has: "12.5" → "12,5" in German. */
+export function fmtDecimal(s?: string | null): string {
+  if (s === null || s === undefined || s.trim() === '') return '–';
+  const n = Number(s);
+  if (!Number.isFinite(n)) return s;
+  const digits = /\.(\d+)$/.exec(s.trim())?.[1]?.length ?? 0;
+  return numberFormat({ maximumFractionDigits: Math.min(digits, 20) }).format(n);
+}
+
 /** Time of day with seconds (logs). */
 export function fmtTime(s: string | number | Date): string {
   return dateTimeFormat({ timeStyle: 'medium' }).format(new Date(s));

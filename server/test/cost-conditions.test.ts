@@ -170,6 +170,42 @@ describe('conditions on a contract', () => {
   });
 });
 
+describe('books of a contract whose amounts are hidden', () => {
+  it('are read by who sees the contract with its amounts – not by every reader of the contract', async () => {
+    const open = (await s.api('POST', `/suppliers/${supplier}/contracts`, { title: 'Invented open rate contract', owners: [] })).contracts.find(
+      (c: { title: string }) => c.title === 'Invented open rate contract',
+    ).id as string;
+    await s.api('PUT', `/costs/contracts/${open}/conditions`, { conditions: [{ kind: 'baseDiscount', provider: PROVIDER, on: 'provider', percent: '20' }] });
+    const book = (body: Record<string, unknown>) =>
+      s.api('POST', '/costs/price-books', {
+        provider: PROVIDER,
+        currency: 'USD',
+        supplierId: supplier,
+        supplierContractId: open,
+        ...body,
+      }) as Promise<CostPriceBookDetail>;
+    const derived = await book({ name: 'Invented open derived', kind: 'derived', baseBookId: list });
+    const contracted = await book({ name: 'Invented open contracted', kind: 'contracted' });
+    await s.api('PUT', `/costs/price-books/${contracted.id}/entries`, { entries: [{ ...LIST[0], price: '0.0612' }] });
+    try {
+      // without "Hide amounts from viewers" a reader of the contract reads its books
+      expect((await vic('GET', `/costs/price-books/${derived.id}`)).id).toBe(derived.id);
+      expect((await vic('GET', `/costs/price-books/${contracted.id}`)).id).toBe(contracted.id);
+      await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: true, defaultCurrency: 'USD' });
+      // with it: the contract still, its prices never – neither its conditions nor the books made of them
+      expect((await vic('GET', `/suppliers/${supplier}`)).contracts.map((c: { id: string }) => c.id)).toContain(open);
+      await expect(vic('GET', `/costs/contracts/${open}/conditions`)).rejects.toMatchObject({ status: 403 });
+      for (const id of [derived.id, contracted.id]) await expect(vic('GET', `/costs/price-books/${id}`)).rejects.toMatchObject({ status: 404 });
+      const listed = JSON.stringify(await vic('GET', '/costs/price-books'));
+      for (const x of [derived.id, contracted.id, '0.0612']) expect(listed, x).not.toContain(x);
+    } finally {
+      await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD' });
+      for (const id of [derived.id, contracted.id]) await s.api('DELETE', `/costs/price-books/${id}`);
+      await s.api('PUT', `/costs/contracts/${open}/conditions`, { conditions: [] });
+    }
+  });
+});
+
 describe('which price applies', () => {
   let est: CostEstimate;
   it('negotiated price, then the most specific percentage off the list price, each line saying how', async () => {
@@ -373,7 +409,12 @@ describe('derived books', () => {
     await s.api('PUT', `/costs/price-books/${list}/entries`, { entries: [{ ...LIST[0], price: '0.12' }] });
     const after = (await s.api('GET', `/costs/price-books/${derived}`)) as CostPriceBookDetail;
     expect(after.version).toBe(2);
-    expect(after.versions[0]!.derivation).toMatchObject({ cause: 'Invented Cloud list v2' });
+    expect(after.versions[0]!.derivation).toMatchObject({
+      cause: 'Invented Cloud list v2',
+      causeCode: 'base',
+      causeBook: 'Invented Cloud list',
+      causeVersion: 2,
+    });
     expect(after.items.find((i) => i.sku === 'vm-small')!.price).toBe('0.11664');
     // a changed term does too
     await fin('PUT', `/costs/contracts/${customers}/conditions`, {
@@ -386,7 +427,7 @@ describe('derived books', () => {
     });
     const v3 = (await s.api('GET', `/costs/price-books/${derived}`)) as CostPriceBookDetail;
     expect(v3.version).toBe(3);
-    expect(v3.versions[0]!.derivation?.cause).toBe('terms of the contract changed');
+    expect(v3.versions[0]!.derivation).toMatchObject({ cause: 'terms of the contract changed', causeCode: 'contractTerms', causeBook: null });
     const audit = (await s.api('GET', `/audit?action=cost.price_book_derived&entityId=${derived}`)) as unknown[];
     expect(audit.length).toBe(3);
   });

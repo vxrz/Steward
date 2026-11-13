@@ -120,9 +120,12 @@ export function PlantSettingsCard({ manager = false }: { manager?: boolean }) {
             {t('preview')}
           </Badge>
         </Group>
-        <Text size="sm" c="dimmed" mb="sm">
-          <Trans t={t} i18nKey="settings.description" components={{ b: <b /> }} />
-        </Text>
+        {/* the module's switch is administrators' (Settings → Modules): its description is not for a manager */}
+        {!manager && (
+          <Text size="sm" c="dimmed" mb="sm">
+            <Trans t={t} i18nKey="settings.description" components={{ b: <b /> }} />
+          </Text>
+        )}
         <Stack gap="sm">
           {manager ? (
             <Text size="xs" c="dimmed" data-testid="plant-manager-settings-hint">

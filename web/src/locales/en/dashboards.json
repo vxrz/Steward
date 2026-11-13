@@ -75,7 +75,9 @@
     "sources": "Sources",
     "allSources": "All sources",
     "addWidgetAbove": "Add the first one with “Add widget” above.",
-    "discardMessage": "The changes to this dashboard are not saved."
+    "discardMessage": "The changes to this dashboard are not saved.",
+    "access": "Access",
+    "accessHint": "Who may see this dashboard and why: its owning teams and whom it is shared with"
   },
   "widgets": {
     "kpi": {

@@ -238,6 +238,7 @@
     "rolesTitle": "Module roles",
     "rolesIntro": "{{name}} has module roles: viewer, contributor and manager. Core roles give one by default (a designer is a manager, an operator a contributor, a viewer a viewer); a role given here adds – the highest counts. A team’s role applies to its members across the whole module.",
     "roleColumn": "Module role",
+    "roleFor": "Module role of {{name}}",
     "roleDefault": "From core roles",
     "roleDefaultHint": "Uses it, with the role their core roles give",
     "everyoneRolesHint": "Open to everyone, only entries with a module role are kept.",

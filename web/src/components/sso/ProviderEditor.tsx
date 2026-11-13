@@ -312,10 +312,10 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             set('issuer', e.currentTarget.value);
             if (kind === 'entra') setTenant(tenantFromIssuer(e.currentTarget.value));
           }}
-          rightSectionWidth={150}
+          rightSectionWidth={170}
           rightSection={
             <Button
-              size="compact-xs"
+              size="compact-sm"
               variant="light"
               leftSection={<IconPlugConnected size={12} />}
               loading={testing}

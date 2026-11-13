@@ -53,7 +53,7 @@ import { ACCESS, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleRole, moduleSettingsOf, moduleUseStates } from '../modules/access.js';
 import { plantManagesSome } from '../plant/access.js';
-import { plantOnly, statusOnly } from '../auth/policy.js';
+import { moduleOnlyModules, plantOnly, statusOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
 import { params } from './params.js';
 
@@ -132,6 +132,8 @@ function meInfo(): Me | null {
     plant: usesPlant,
     plantManage: usesPlant && plantManagesSome(u),
     plantOnly: plantOnly(u),
+    // a module-only user (0.23.0): the modules they use through module roles only – the sidebar shows those alone
+    moduleOnly: moduleOnlyModules(u),
     // the modules (0.11.0, ADR 0016): the sidebar, the pages and the search leave out what is switched off – and
     // (0.21.0, ADR 0034) what the person does not use, the same way; moduleAccess says which of the two it is
     modules: Object.fromEntries(Object.entries(use).map(([id, st]) => [id, st === 'on'])) as Record<ModuleId, boolean>,

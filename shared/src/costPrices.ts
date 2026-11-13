@@ -799,9 +799,21 @@ export interface CostPriceVersion {
   createdBy: string;
   /** Used by an estimate (kept beyond the fifty versions per book) */
   inUse: boolean;
-  /** A derived book's version: the base version and why it was written (only for who sees the terms) */
-  derivation: { baseVersion: number; cause: string } | null;
+  /**
+   * A derived book's version: the base version and why it was written (only for who sees the terms) – `cause` in
+   * English (as the audit log and the version's note say it), `causeCode` with `causeBook` for the UI's language;
+   * versions written before 0.23.0's codes have none.
+   */
+  derivation: { baseVersion: number; cause: string; causeCode: CostDerivationCause | null; causeBook: string | null; causeVersion: number | null } | null;
 }
+
+/**
+ * Why a derived book's version was written (0.23.0): it was made, its base book has a new version (`base`, with the
+ * base's name and version), its own terms or its contract's conditions changed, terms start or end today, or it names
+ * another base book or contract.
+ */
+export const COST_DERIVATION_CAUSES = ['made', 'base', 'terms', 'contractTerms', 'termsToday', 'baseChanged', 'contractChanged'] as const;
+export type CostDerivationCause = (typeof COST_DERIVATION_CAUSES)[number];
 
 export interface CostPriceBook {
   id: string;

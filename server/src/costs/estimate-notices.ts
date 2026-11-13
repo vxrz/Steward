@@ -4,13 +4,14 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { nowIso, parseJson, sha256 } from '../util.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
-import { runAs } from '../auth/context.js';
+import type { UserInfo } from '@sm/shared';
+import { runAs, type AuthUser } from '../auth/context.js';
 import { notify, titleName } from '../notifications/service.js';
 import { t } from '../i18n/index.js';
 import { costSettings, scopeInfo } from './access.js';
 import { priceSight } from './price-books.js';
 import { dueEstimates, monthlyFor, recalculateInBackground, type EstimateRow, type RecalcCause } from './estimates.js';
-import { SEE_ALL } from './estimate-model.js';
+import { SEE_ALL, type PriceSight } from './estimate-model.js';
 import type { StoredResult } from './pricing.js';
 
 /**
@@ -46,12 +47,13 @@ export async function recalculateDue(now = Date.now()): Promise<{ recalculated: 
   let recalculated = 0;
   let notified = 0;
   const threshold = costSettings().estimateChangePct;
+  const run = new NoticeRun();
   for (const row of rows) {
     try {
       const cause = parseJson<RecalcCause>(row.recalc_cause ?? null, {});
       const r = await recalculateInBackground(row);
       recalculated++;
-      if (r.before && r.after && sendNotice(row, cause, r.before, r.after, threshold, now)) notified++;
+      if (r.before && r.after && sendNotice(row, cause, r.before, r.after, threshold, now, run)) notified++;
     } catch (err) {
       db().run('UPDATE cost_estimates SET recalc_cause = NULL WHERE id = ?', row.id);
       logger.warn({ err, estimateId: row.id }, 'recalculating an estimate failed');
@@ -62,24 +64,66 @@ export async function recalculateDue(now = Date.now()): Promise<{ recalculated: 
   return { recalculated, notified };
 }
 
-function sendNotice(row: EstimateRow, cause: RecalcCause, before: StoredResult, after: StoredResult, threshold: number, now: number): boolean {
+/**
+ * What a run of the job asks once, whatever the number of estimates: the active users, the owners of each owner scope
+ * (a service's or platform's) who see its amounts, and what each recipient may see of the prices. Without it every
+ * estimate asked every user again (users × estimates).
+ */
+class NoticeRun {
+  private people: { info: UserInfo; au: AuthUser }[] | null = null;
+  private owners = new Map<string, { info: UserInfo; au: AuthUser }[]>();
+  private sights = new Map<string, PriceSight>();
+
+  private all(): { info: UserInfo; au: AuthUser }[] {
+    return (this.people ??= listUsers()
+      .filter((u) => u.active)
+      .map((info) => ({ info, au: toAuthUser(info) })));
+  }
+
+  /** Who is told about an estimate of this owner: its owners who see its amounts, else the administrators. */
+  candidates(kind: EstimateRow['owner_kind'], id: string): { info: UserInfo; au: AuthUser }[] {
+    const key = `${kind}:${id}`;
+    let out = this.owners.get(key);
+    if (!out) {
+      const owners = this.all().filter((p) => {
+        if (p.info.roles.includes('admin')) return false;
+        const i = runAs(p.au, () => scopeInfo(kind, id, p.au));
+        return !!i?.owner && i.amounts;
+      });
+      out = owners.length ? owners : this.all().filter((p) => p.info.roles.includes('admin'));
+      this.owners.set(key, out);
+    }
+    return out;
+  }
+
+  /** What `au` may see of the prices behind estimates (read once per run). */
+  sight(au: AuthUser): PriceSight {
+    let v = this.sights.get(au.id);
+    if (!v) this.sights.set(au.id, (v = runAs(au, () => priceSight(au))));
+    return v;
+  }
+}
+
+function sendNotice(
+  row: EstimateRow,
+  cause: RecalcCause,
+  before: StoredResult,
+  after: StoredResult,
+  threshold: number,
+  now: number,
+  run = new NoticeRun(),
+): boolean {
   const whole = pctOf(monthlyFor(before, SEE_ALL), monthlyFor(after, SEE_ALL));
   if (whole !== null && Math.abs(whole) < threshold) return false;
   // once per estimate and price version: the versions and contracts the new result used, and what caused it
   const key = sha256(JSON.stringify({ v: [...after.versionIds].sort(), c: (after.contracts ?? []).map((c) => c.id).sort(), cause }));
-  const users = listUsers().filter((u) => u.active);
-  const owners = users.filter((u) => {
-    if (u.roles.includes('admin')) return false;
-    const i = scopeInfo(row.owner_kind, row.owner_id, toAuthUser(u));
-    return !!i?.owner && i.amounts;
-  });
-  const candidates = owners.length ? owners : users.filter((u) => u.roles.includes('admin'));
+  const people = run.candidates(row.owner_kind, row.owner_id);
+  const candidates = people.map((p) => p.info);
   // each recipient's own view: the figures they may see, the cause only when they may see the book or contract
   const views = new Map<string, { before: number; after: number; pct: number | null; cause: 'book' | 'contract' | null }>();
-  for (const u of candidates) {
-    const au = toAuthUser(u);
+  for (const { info: u, au } of people) {
+    const sight = run.sight(au);
     runAs(au, () => {
-      const sight = priceSight(au);
       const b = monthlyFor(before, sight);
       const a = monthlyFor(after, sight);
       const pct = pctOf(b, a);

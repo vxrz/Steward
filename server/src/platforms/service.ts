@@ -126,7 +126,8 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[], registerOf?: Map<stri
       registerEntries: register.get(i.id) ?? 0,
       // (deprecated since 0.23.0: the identity's shares as its former access list, for who manages the platform)
       acl: manages ? aclOf<'use'>('platform_identity', i.id) : [],
-      shared: aclOf('platform_identity', i.id).length,
+      // how many shares it has: for who changes them (who manages the platform), not for its users or auditors
+      ...(manages ? { shared: aclOf('platform_identity', i.id).length } : {}),
     }),
   );
   const own = platformIntegrity(r);

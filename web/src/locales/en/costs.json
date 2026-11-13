@@ -933,7 +933,6 @@
       "validFrom": "Valid from",
       "validTo": "Valid to",
       "valid": "Valid",
-      "datePlaceholder": "YYYY-MM-DD",
       "sourceNote": "Source"
     },
     "versions": {
@@ -1014,6 +1013,15 @@
     "basedOn": "Based on {{name}} (v{{version}})",
     "derivedNoEdit": "The prices of a derived book follow its base book and terms – they are not written by hand.",
     "versions_cause": "{{cause}} (base v{{version}})",
+    "causes": {
+      "made": "The book was made",
+      "base": "New version of the base: {{book}} v{{version}}",
+      "terms": "Its terms changed",
+      "contractTerms": "The contract's conditions changed",
+      "termsToday": "Terms that apply from today",
+      "baseChanged": "Another base book",
+      "contractChanged": "Another contract"
+    },
     "source": {
       "title": "Source",
       "help": "A contracted book of a platform can be read from what the platform reports, the discount included: Snowflake's rate sheet daily, Confluent's observed rates of the last complete month. A read replaces what it brought before and keeps items written by hand.",
@@ -1289,10 +1297,15 @@
     "schedule": "Volume schedule",
     "noSchedules": "This contract has no volume schedule yet – add one under Payments.",
     "bands": "Bands",
-    "bandsHint": "Committed amount per year and percentage: 0:0;100000:15;500000:25",
+    "bandsHint": "From a committed amount per year, a percentage off – the highest band reached counts (the short form 0:0;100000:15 can be pasted)",
+    "bandFrom": "Committed amount per year, band {{n}}",
+    "bandFromPlaceholder": "From (per year)",
+    "bandPercent": "Percentage, band {{n}}",
+    "bandRemove": "Remove band {{n}}",
+    "bandAdd": "Add band",
+    "noBooks": "No book of this provider",
     "validFrom": "Valid from",
     "validTo": "Valid to",
-    "datePlaceholder": "YYYY-MM-DD",
     "note": "Note",
     "validRange": "{{from}} – {{to}}",
     "validTerm": "The contract's term",
@@ -1326,7 +1339,7 @@
       "item": "One item"
     },
     "targets": {
-      "book": "Book id",
+      "book": "Book",
       "category": "Category",
       "service": "Service",
       "driver": "Driver",
@@ -1348,6 +1361,22 @@
       "feePerUnit": "{{price}} {{currency}} per {{block}} {{unit}}",
       "fixedFee": "{{price}} {{currency}} a month",
       "commitment": "by the committed volume: {{bands}}"
+    },
+    "errors": {
+      "provider": "Name the provider as its price books do",
+      "on": "This kind of condition is not for this scope",
+      "target": "Say what it is for",
+      "percent": "A percentage from 0 to 100",
+      "percentMarkup": "A percentage from 0 to 500",
+      "price": "A price of at least 0 with at most 12 decimals",
+      "currency": "Choose the currency of the price",
+      "unit": "The unit the fee is per, such as GBy, h or {credit}",
+      "scheduleId": "Choose a volume schedule of this contract",
+      "bands": "Amounts that rise, each with a percentage from 0 to 100",
+      "validFrom": "Choose a day",
+      "validTo": "On or after the first day",
+      "other": "Check this field",
+      "checkFields": "Check the marked fields"
     }
   }
 }

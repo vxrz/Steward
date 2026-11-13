@@ -309,7 +309,7 @@
         "fourEyes": "eine zweite Person gibt frei"
       }
     },
-    "infoSeveral": "Eine Identität ist ein Satz Zugangsdaten dieser Plattform mit eigener Zugriffsliste, eigenem MCP-Modus, Nur-lesen-Kennzeichen und Operationsfilter. Anfragen, die keine Identität nennen, verwenden die Standard-Identität, die alle mit „Nutzen“ auf der Plattform verwenden dürfen. Jede andere Identität ist geschlossen, bis Sie festlegen, wer sie verwenden darf. Die Prüfungen von Steward ergänzen die Rechte der Zugangsdaten im Zielsystem – sie ersetzen sie nicht.",
+    "infoSeveral": "Eine Identität ist ein Satz Zugangsdaten dieser Plattform mit eigenen Einträgen unter „Geteilt mit“, eigenem MCP-Modus, Nur-lesen-Kennzeichen und Operationsfilter. Anfragen, die keine Identität nennen, verwenden die Standard-Identität, die alle mit „Nutzen“ auf der Plattform verwenden dürfen. Jede andere Identität ist geschlossen, bis Sie festlegen, wer sie verwenden darf. Die Prüfungen von Steward ergänzen die Rechte der Zugangsdaten im Zielsystem – sie ersetzen sie nicht.",
     "add": "Identität hinzufügen",
     "listLabel": "Identitäten dieser Plattform",
     "addHint": "Fügen Sie eine Identität für Zugangsdaten mit anderen Rechten hinzu – zum Beispiel eine nur lesende als Standard und eine für Änderungen, die nur einige Personen verwenden dürfen. Die Zugangsdaten der Standard-Identität finden Sie auch im",
@@ -319,8 +319,8 @@
     "filterChosen_other": "{{count}} ausgewählte",
     "stale_one": "{{count}} veraltet",
     "stale_other": "{{count}} veraltet",
-    "listed_one": "Zugriffsliste: {{count}} Eintrag",
-    "listed_other": "Zugriffsliste: {{count}} Einträge",
+    "listed_one": "Geteilt mit {{count}} Eintrag",
+    "listed_other": "Geteilt mit {{count}} Einträgen",
     "closed": "Nur Administratoren und zuständige Teams",
     "editTitle": "Identität „{{name}}“",
     "addTitle": "Identität hinzufügen",
@@ -375,9 +375,9 @@
     "tokenRenewed": "Neues Token geholt",
     "tokenNotRenewed": "Kein neues Token",
     "disabled": "Deaktiviert",
-    "disabledText": "Diese Identität wurde außerhalb von Steward hinzugefügt oder geändert. Beim Bestätigen der Plattformeinstellungen wurde sie behalten, aber deaktiviert: Nichts kann sie verwenden, und mit ihr werden keine Zugangsdaten gesendet. Prüfen Sie ihre Einstellungen und ihre Zugriffsliste, bevor ein Administrator sie aktiviert.",
+    "disabledText": "Diese Identität wurde außerhalb von Steward hinzugefügt oder geändert. Beim Bestätigen der Plattformeinstellungen wurde sie behalten, aber deaktiviert: Nichts kann sie verwenden, und mit ihr werden keine Zugangsdaten gesendet. Prüfen Sie ihre Einstellungen und mit wem sie geteilt ist, bevor ein Administrator sie aktiviert.",
     "enable": "Aktivieren",
-    "enableText": "Die Identität „{{name}}“ aktivieren? Ihre Zugangsdaten können dann wieder verwendet werden – von Administratoren, ihren zuständigen Teams und: {{who}}. Prüfen Sie vorher ihre Einstellungen, Zugangsdaten und Zugriffsliste.",
+    "enableText": "Die Identität „{{name}}“ aktivieren? Ihre Zugangsdaten können dann wieder verwendet werden – von Administratoren, ihren zuständigen Teams und: {{who}}. Prüfen Sie vorher ihre Einstellungen, Zugangsdaten und mit wem sie geteilt ist.",
     "enabled": "Identität „{{name}}“ aktiviert",
     "privilegedLabel": "Privilegiert",
     "privilegedHelp": "Jede Verwendung muss bestätigt werden (Step-up): eine Ausführung starten, einen Zeitplan oder Auslöser speichern, eine Anfrage im Request-Explorer, eine MCP-Anfrage freigeben. Ausführungen können auf eine zweite Person warten. MCP-Clients lesen nie mit ihr, Monitore verwenden sie nie. Das Ausschalten muss bestätigt werden.",
@@ -617,7 +617,7 @@
       "keep": "Wird wie angezeigt übernommen und versiegelt:",
       "access": "Wer sie neben Administratoren und den zuständigen Teams verwenden darf: {{subjects}}",
       "accessClosed": "niemand sonst (geschlossen)",
-      "disable": "Außerhalb von Steward hinzugefügt oder geändert: Sie wird beim Bestätigen behalten, aber deaktiviert – mit ihr werden keine Zugangsdaten gesendet, bis ein Administrator sie nach Prüfung ihrer Zugriffsliste aktiviert.",
+      "disable": "Außerhalb von Steward hinzugefügt oder geändert: Sie wird beim Bestätigen behalten, aber deaktiviert – mit ihr werden keine Zugangsdaten gesendet, bis ein Administrator sie aktiviert, nachdem er geprüft hat, mit wem sie geteilt ist.",
       "keepDisabled": "Wird wie angezeigt übernommen und bleibt deaktiviert:"
     }
   },

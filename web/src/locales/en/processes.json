@@ -19,7 +19,7 @@
     "archive": "Archive",
     "archiveConfirm": "Archive \"{{name}}\"? Its schedules are disabled; runs and versions are kept.",
     "restricted": "restricted",
-    "restrictedHint": "Access restricted by an access list",
+    "restrictedHint": "Restricted: only its shares, owner, administrators and auditors reach it",
     "readOnly": "read-only",
     "lastRun": "last run {{when}}",
     "runNamed": "Run {{name}}",
