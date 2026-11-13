@@ -21,6 +21,20 @@ export interface TopicInfo {
   configs: Record<string, string>;
 }
 
+/** A topic as discovery lists it (data products, ADR 0036 part 5): metadata and a settings summary, never messages. */
+export interface TopicMeta {
+  name: string;
+  /** The topic id (Kafka 2.8+); null when the broker has none */
+  id: string | null;
+  partitions: number;
+  replicationFactor: number | null;
+  /** cleanup.policy and retention.ms, when the cluster tells */
+  configs: Record<string, string>;
+}
+
+/** The settings discovery keeps of a topic. */
+export const DISCOVERY_TOPIC_CONFIGS = ['cleanup.policy', 'retention.ms'] as const;
+
 export interface PartitionEnd {
   partition: number;
   /** end offset (next offset to be written) */
@@ -53,6 +67,11 @@ export interface KafkaReader {
   groups(topic: string, only?: string[]): Promise<GroupInfo[]>;
   /** The last `count` messages over all partitions */
   peek(topic: string, count: number): Promise<RawMessage[]>;
+  /**
+   * Several topics at once – ids, partitions, replication and DISCOVERY_TOPIC_CONFIGS – one metadata and one
+   * DescribeConfigs request per `names` (data products discovery; topics the cluster does not have are left out)
+   */
+  describeTopics(names: readonly string[]): Promise<TopicMeta[]>;
   close(): Promise<void>;
 }
 
@@ -204,6 +223,32 @@ async function openNative(platform: Platform, secrets: Record<string, string>): 
     },
     async ends(topic) {
       return (await latest(topic, -1n)).map((p) => ({ partition: p.partitionIndex, end: num(p.offset) }));
+    },
+    async describeTopics(names) {
+      await ready();
+      if (!names.length) return [];
+      const md = await admin.metadata({ topics: [...names] });
+      const cfg = await admin
+        .describeConfigs({
+          resources: names.map((n) => ({ resourceType: k.ConfigResourceTypes.TOPIC, resourceName: n, configurationKeys: [...DISCOVERY_TOPIC_CONFIGS] })),
+        })
+        // a key without DescribeConfigs on some topics: their settings stay unknown, the topics are still listed
+        .catch(() => []);
+      const configsOf = new Map<string, Record<string, string>>();
+      for (const c of cfg) {
+        const out: Record<string, string> = {};
+        for (const x of c.configs ?? []) if (x.value !== null && !x.isSensitive) out[x.name] = String(x.value);
+        configsOf.set(c.resourceName, out);
+      }
+      const out: TopicMeta[] = [];
+      for (const name of names) {
+        const t = md.topics.get(name);
+        if (!t) continue;
+        const first = t.partitions[0] as { replicas?: number[] } | undefined;
+        const id = t.id && !/^0+$/.test(t.id.replace(/-/g, '')) ? t.id : null;
+        out.push({ name, id, partitions: t.partitionsCount, replicationFactor: first?.replicas?.length ?? null, configs: configsOf.get(name) ?? {} });
+      }
+      return out;
     },
     async newest(topic) {
       try {

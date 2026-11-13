@@ -6,6 +6,8 @@ import {
   DATA_CHECK_PURPOSES,
   DATA_CLASSIFICATIONS,
   DATA_CONSUMER_KINDS,
+  DATA_DISCOVERY_LIMITS as DL,
+  DATA_DISCOVERY_MODES,
   DATA_ELEMENT_KINDS,
   DATA_ENVIRONMENT_STATES,
   DATA_MEMBER_ROLES,
@@ -380,3 +382,35 @@ export const dataCheckLinkInput = z
   })
   .strict();
 export type DataCheckLinkInput = z.input<typeof dataCheckLinkInput>;
+
+// ---------- discovery sources (part 5; WP2) ----------
+
+/**
+ * A discovery source: which platform, what to read (the scope, include and exclude prefixes – plain comparisons, no
+ * patterns), the environment rules, the Snowflake mode, the identity, the owning teams of what it finds and how often.
+ * The scope's entries are checked against the platform's kind by the server (Snowflake `DB` or `DB.SCHEMA`, Kafka topic
+ * prefixes, SQL schema names).
+ */
+export const dataDiscoverySourceInput = z
+  .object({
+    name: name(),
+    platformId: id(),
+    scope: z.array(z.string().trim().min(1).max(L.short)).max(DL.scope).default([]),
+    includePrefixes: z.array(z.string().trim().min(1).max(L.short)).max(DL.prefixes).default([]),
+    excludePrefixes: z.array(z.string().trim().min(1).max(L.short)).max(DL.prefixes).default([]),
+    environmentRules: z
+      .array(
+        z
+          .object({ match: z.enum(['prefix', 'suffix']), value: z.string().trim().min(1).max(100), environment: environment().pipe(z.string().min(1)) })
+          .strict(),
+      )
+      .max(DL.environmentRules)
+      .default([]),
+    mode: z.enum(DATA_DISCOVERY_MODES).nullable().default(null),
+    identityId: id().nullable().default(null),
+    elementTeamIds: z.array(id()).max(DL.elementTeams).default([]),
+    intervalMinutes: z.number().int().min(DL.intervalMinutes.min).max(DL.intervalMinutes.max).default(DL.intervalMinutes.default),
+    enabled: z.boolean().default(true),
+  })
+  .strict();
+export type DataDiscoverySourceInput = z.input<typeof dataDiscoverySourceInput>;

@@ -24,7 +24,8 @@ export type LimitKind =
   | 'elementsPerBinding'
   | 'consumersPerPort'
   | 'stepsPerPipeline'
-  | 'stepEnds';
+  | 'stepEnds'
+  | 'discoverySources';
 
 /** 409 DATA_PRODUCT_LIMIT: an instance or item limit of ADR 0036 part 19 is reached. */
 export const limitReached = (kind: LimitKind, max: number) =>

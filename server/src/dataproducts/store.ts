@@ -561,7 +561,9 @@ export function forgetNotices(kind: string, itemId: string): void {
 
 /** The technical fields of a discovered element, hashed: an unchanged read writes only the readout. */
 const techHash = (e: DiscoveredElement, parentId: string | null): string =>
-  sha256(JSON.stringify([e.kind, e.qualifiedName.trim(), e.displayName ?? '', parentId, e.externalId ?? null, e.flags ?? {}]));
+  sha256(
+    JSON.stringify([e.kind, e.qualifiedName.trim(), e.displayName ?? '', parentId, e.externalId ?? null, e.flags ?? {}, e.olNamespace ?? null, e.olName ?? null]),
+  );
 
 const readoutJson = (r: DiscoveredElement['readout']): string | null => {
   if (!r) return null;
@@ -569,14 +571,27 @@ const readoutJson = (r: DiscoveredElement['readout']): string | null => {
   return s.length <= DATA_PRODUCT_LIMITS.readoutBytes ? s : null;
 };
 
+/** Rows written per multi-row statement (well below the bind parameter limits of SQLite and PostgreSQL). */
+const ROWS_PER_INSERT = 100;
+
+/** INSERT of many rows in statements of ROWS_PER_INSERT (`head` names the table and columns; `tail` an ON CONFLICT). */
+function insertRows(head: string, rows: readonly unknown[][], tail = ''): void {
+  if (!rows.length) return;
+  const one = `(${marks(rows[0]!.length)})`;
+  for (const part of chunks(rows, ROWS_PER_INSERT))
+    db().run(`${head} VALUES ${part.map(() => one).join(', ')}${tail ? ` ${tail}` : ''}`, ...part.flat());
+}
+
 /**
  * Writes one batch of a discovery read (part 5) in one transaction: new elements are added (source `discovered`, the
  * source's owning teams for elements, else the platform's); existing ones get their technical fields – qualified
- * name, kind flags, external id, parent – and their readout; people's fields (description, layer, owner application,
- * data objects, links) are never overwritten. A known external id under a new name is a rename (`renamed` lists them for
- * the audit entry of the run). An element found again loses its missing mark. Batches of at most 500, parents before
- * children (a parent in the same batch is found). The instance's element limit is kept: beyond it nothing is added
- * (`skipped`).
+ * name, kind flags, external id, parent, OpenLineage dataset – and their readout; people's fields (description, layer,
+ * owner application, data objects, links) are never overwritten. A known external id under a new name is a rename
+ * (`renamed` lists them for the audit entry of the run). An element found again loses its missing mark. Batches of at
+ * most 500, parents before children (a parent in the same batch is found). The instance's element limit is kept:
+ * beyond it nothing is added (`skipped`). New elements, their owning teams and the readouts are written with multi-row
+ * statements, so a batch costs a few dozen statements, not three per element (WP2: 50,000 elements within the event
+ * loop's budget on PostgreSQL too).
  */
 export function upsertDiscovered(
   sourceId: string,
@@ -621,6 +636,7 @@ export function upsertDiscovered(
     let teams = parseJson<string[]>(src.element_team_ids, []);
     if (!teams.length)
       teams = d.all<{ team_id: string }>("SELECT team_id FROM resource_teams WHERE kind = 'platform' AND resource_id = ?", platformId).map((r) => r.team_id);
+    teams = [...new Set(teams)];
     const parentOf = (e: DiscoveredElement): string | null => {
       if (!e.parentQualifiedName) return null;
       const norm = elementNameNorm(e.parentQualifiedName);
@@ -630,48 +646,60 @@ export function upsertDiscovered(
       }
       return null;
     };
+    const inserts: unknown[][] = [];
+    const teamRows: unknown[][] = [];
+    const readouts = new Map<string, string>();
     for (const e of batch) {
       const norm = elementNameNorm(e.qualifiedName);
+      const qualified = e.qualifiedName.trim();
       const parentId = parentOf(e);
       const hash = techHash(e, parentId);
+      const olNamespace = e.olNamespace ?? null;
+      const olName = e.olName ?? null;
       let row = known.get(keyOf(e.kind, e.environment, norm));
       if (!row && e.externalId) {
         const prev = byExternal.get(`${e.kind}\u0000${e.environment}\u0000${e.externalId}`);
         // a known id under a new name: renamed, not replaced (people's fields and memberships stay)
         if (prev && prev.name_norm !== norm && !known.has(keyOf(e.kind, e.environment, norm))) {
           d.run(
-            `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, parent_id = ?, flags = ?, tech_hash = ?, missing_since = NULL,
+            `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, parent_id = ?, flags = ?, ol_namespace = ?, ol_name = ?, tech_hash = ?, missing_since = NULL,
                revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
-            e.qualifiedName.trim(),
+            qualified,
             norm,
             parentId,
             JSON.stringify(e.flags ?? {}),
+            olNamespace,
+            olName,
             hash,
             now,
             actor,
             prev.id,
           );
-          result.renames.push({ id: prev.id, from: prev.qualified_name, to: e.qualifiedName.trim() });
+          result.renames.push({ id: prev.id, from: prev.qualified_name, to: qualified });
           result.renamed++;
           known.delete(keyOf(prev.kind, prev.environment, prev.name_norm));
-          row = { ...prev, name_norm: norm, qualified_name: e.qualifiedName.trim(), tech_hash: hash, missing_since: null, parent_id: parentId };
+          row = { ...prev, name_norm: norm, qualified_name: qualified, tech_hash: hash, missing_since: null, parent_id: parentId };
           known.set(keyOf(e.kind, e.environment, norm), row);
         }
       } else if (row) {
         if (row.tech_hash !== hash || row.missing_since) {
           d.run(
-            `UPDATE dp_elements SET qualified_name = ?, parent_id = ?, external_id = ?, flags = ?, tech_hash = ?, missing_since = NULL,
+            `UPDATE dp_elements SET qualified_name = ?, parent_id = ?, external_id = ?, flags = ?, ol_namespace = ?, ol_name = ?, tech_hash = ?, missing_since = NULL,
                discovery_source_id = COALESCE(discovery_source_id, ?), revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
-            e.qualifiedName.trim(),
+            qualified,
             parentId,
             e.externalId ?? null,
             JSON.stringify(e.flags ?? {}),
+            olNamespace,
+            olName,
             hash,
             sourceId,
             now,
             actor,
             row.id,
           );
+          row = { ...row, tech_hash: hash, missing_since: null, parent_id: parentId };
+          known.set(keyOf(e.kind, e.environment, norm), row);
           result.changed++;
         } else result.unchanged++;
       }
@@ -682,35 +710,34 @@ export function upsertDiscovered(
         }
         room--;
         const id = newId(DATA_PRODUCT_ID_PREFIX.element);
-        d.run(
-          `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, source, discovery_source_id,
-             external_id, flags, tech_hash, created_at, created_by, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'discovered', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        inserts.push([
           id,
           platformId,
           e.kind,
-          e.qualifiedName.trim(),
+          qualified,
           norm,
           (e.displayName ?? elementShortName(e.qualifiedName)).slice(0, DATA_PRODUCT_LIMITS.name),
           e.environment,
           parentId,
+          'discovered',
           sourceId,
           e.externalId ?? null,
+          olNamespace,
+          olName,
           JSON.stringify(e.flags ?? {}),
           hash,
           now,
           actor,
           now,
           actor,
-        );
-        for (const t of new Set(teams))
-          d.run('INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', 'data_element', id, t, now);
+        ]);
+        for (const t of teams) teamRows.push(['data_element', id, t, now]);
         row = {
           id,
           kind: e.kind,
           environment: e.environment,
           name_norm: norm,
-          qualified_name: e.qualifiedName,
+          qualified_name: qualified,
           external_id: e.externalId ?? null,
           tech_hash: hash,
           missing_since: null,
@@ -721,16 +748,21 @@ export function upsertDiscovered(
       }
       result.seen.push(row.id);
       const readout = readoutJson(e.readout);
-      if (readout) {
-        d.run(
-          'INSERT INTO dp_element_readouts (element_id, data, read_at) VALUES (?, ?, ?) ON CONFLICT (element_id) DO UPDATE SET data = excluded.data, read_at = excluded.read_at',
-          row.id,
-          readout,
-          now,
-        );
-        result.readouts++;
-      }
+      if (readout) readouts.set(row.id, readout);
     }
+    // parents come before their children in `inserts` (the batch's order), so a child never points ahead
+    insertRows(
+      `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, source, discovery_source_id,
+         external_id, ol_namespace, ol_name, flags, tech_hash, created_at, created_by, updated_at, updated_by)`,
+      inserts,
+    );
+    insertRows('INSERT INTO resource_teams (kind, resource_id, team_id, created_at)', teamRows, 'ON CONFLICT DO NOTHING');
+    insertRows(
+      'INSERT INTO dp_element_readouts (element_id, data, read_at)',
+      [...readouts].map(([id, data]) => [id, data, now]),
+      'ON CONFLICT (element_id) DO UPDATE SET data = excluded.data, read_at = excluded.read_at',
+    );
+    result.readouts = readouts.size;
   });
   return result;
 }
