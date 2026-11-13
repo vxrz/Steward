@@ -431,6 +431,18 @@ describe('Kafka and the Schema Registry', () => {
 });
 
 describe('SQL schema snapshots', () => {
+  it('name their OpenLineage datasets by the naming conventions of each dialect', async () => {
+    const { sqlOpenLineage } = await import('../src/dataproducts/discovery/dbschema.js');
+    const { openLineageDataset } = await import('@sm/shared');
+    const of = (dialect: string, port?: number) => {
+      const ol = sqlOpenLineage({ config: { database: { dialect, host: 'DB.example', port, database: 'shop' } } } as never)!;
+      return openLineageDataset('sql.table', ol.address, `${ol.prefix}sales.orders`);
+    };
+    expect(of('postgresql')).toEqual({ namespace: 'postgres://db.example:5432', name: 'shop.sales.orders' });
+    expect(of('mysql', 3307)).toEqual({ namespace: 'mysql://db.example:3307', name: 'sales.orders' });
+    expect(of('sqlserver')).toEqual({ namespace: 'mssql://db.example:1433', name: 'shop.sales.orders' });
+  });
+
   it('reads the latest snapshot of a database platform – no connection of its own', async () => {
     const src = await dana('POST', '/data-products/discovery-sources', { name: 'Shop database', platformId: database, enabled: false });
     const none = await job.runSource(src.id, { trigger: 'schedule' });
