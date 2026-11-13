@@ -200,11 +200,22 @@ test.describe('exchange', () => {
     await page.getByTestId('import-mode').getByText('Replace an earlier import').click();
     await page.locator('input[type="file"]').setInputFiles({ name: 'next.yaml', mimeType: 'application/yaml', buffer: Buffer.from(doc(['one'])) });
     await expect(page.getByText('Replacing needs the origin of the earlier import.')).toBeVisible();
-    await page.getByTestId('import-origin').fill(`e2e-${k}`);
+    // the earlier import's origin is suggested with its entries
+    await page.getByTestId('import-origin').fill(`e2e-${k}`.slice(0, 8));
+    await page.getByRole('option', { name: `e2e-${k} · 2 entries` }).click();
+    await expect(page.getByTestId('import-origin')).toHaveValue(`e2e-${k}`);
     await page.getByTestId('import-preview-run').click();
     await expect(page.getByTestId('import-count-remove')).toHaveText('1 to remove');
     await expect(page.getByTestId('import-preview').getByText(`${k}-two`)).toBeVisible();
     await expectAccessible(page, 'import replace preview');
+    // Import says what it removes before it runs; cancelled, nothing happens
+    await page.getByTestId('import-run').click();
+    await expect(page.getByTestId('import-remove-list')).toContainText(`${k}-two`);
+    await page.getByRole('button', { name: 'Cancel' }).last().click();
+    await expect(page.getByTestId('import-remove-list')).toHaveCount(0);
+    await page.getByTestId('import-run').click();
+    await page.getByTestId('confirm-dialog-confirm').click();
+    await expect(page.getByText(/1 removed/).first()).toBeVisible();
   });
 
   test('the import preview on a phone @mobile', async ({ page }) => {

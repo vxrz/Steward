@@ -127,6 +127,23 @@ describe('import mode replace', () => {
     expect(p.origin).toBe('inventory-files');
   });
 
+  it('suggests the origins of earlier imports – counting, never naming, what the caller may not see', async () => {
+    const { db } = await import('../src/db.js');
+    const hidden = db().get<{ id: string }>("SELECT id FROM dp_products WHERE key = 'inv-secret'")!.id;
+    db().run(
+      "INSERT INTO dp_import_origins (origin, kind, item_id, recorded_at) VALUES ('secret-only', 'dataProduct', ?, ?)",
+      hidden,
+      new Date().toISOString(),
+    );
+    const mine = await dana('GET', '/data-products/import-origins');
+    // the hidden product of inventory-files is not counted; an origin with nothing dana sees is not listed
+    expect(mine.items.find((o: any) => o.origin === 'inventory-files')).toMatchObject({ entries: 8 });
+    expect(JSON.stringify(mine)).not.toContain('secret-only');
+    const admin = await s.api('GET', '/data-products/import-origins');
+    expect(admin.items.map((o: any) => o.origin)).toEqual(expect.arrayContaining(['inventory-files', 'secret-only']));
+    expect(admin.items.find((o: any) => o.origin === 'inventory-files').entries).toBe(9);
+  });
+
   it('asks for the step-up above one removal, then removes in one transaction – the hidden product stays', async () => {
     const next = FULL();
     next.data_objects = next.data_objects.filter((o) => o.key !== 'warehouse');

@@ -6097,6 +6097,16 @@ export interface Resources {
     'transfer.odpsRead_one': string;
     'transfer.odpsRead_other': string;
     'transfer.stepUp': string;
+    'transfer.removeTitle': string;
+    'transfer.removeConfirm': string;
+    'transfer.removeItems_one': string;
+    'transfer.removeItems_other': string;
+    'transfer.removeMore_one': string;
+    'transfer.removeMore_other': string;
+    'transfer.removeButton': string;
+    'transfer.originsLabel': string;
+    'transfer.originEntries_one': string;
+    'transfer.originEntries_other': string;
     'measured.help': string;
     'measured.measure': string;
     'measured.measures.snowflakeWarehouse': string;

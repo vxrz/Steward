@@ -1301,7 +1301,17 @@
     "doneReplace": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{unchanged}} unverändert, {{remove}} entfernt, {{items}} Listeneinträge entfernt",
     "odpsRead_one": "{{count}} ODPS-Dokument als Datenprodukt gelesen.",
     "odpsRead_other": "{{count}} ODPS-Dokumente als Datenprodukte gelesen.",
-    "stepUp": "Der Import entfernt mehr als einen Eintrag oder Listeneintrag: Beim Import bestätigen Sie, dass Sie es sind."
+    "stepUp": "Der Import entfernt mehr als einen Eintrag oder Listeneintrag: Beim Import bestätigen Sie, dass Sie es sind.",
+    "removeTitle": "Entfernen, was die Dateien nicht mehr enthalten?",
+    "removeConfirm": "Das Ersetzen des Imports {{origin}} entfernt:",
+    "removeItems_one": "und {{count}} Listeneintrag bleibender Einträge (Mitglieder, Ports, Schritte, Nutzer)",
+    "removeItems_other": "und {{count}} Listeneinträge bleibender Einträge (Mitglieder, Ports, Schritte, Nutzer)",
+    "removeMore_one": "… und {{count}} weiterer",
+    "removeMore_other": "… und {{count}} weitere",
+    "removeButton": "Importieren und entfernen",
+    "originsLabel": "Frühere Importe",
+    "originEntries_one": "{{count}} Eintrag",
+    "originEntries_other": "{{count}} Einträge"
   },
   "measured": {
     "help": "Jedes Produkt übernimmt seine gemessene Nutzung der Zeile: Credits seiner Warehouses oder Query-Tags oder die in seine Topics geschriebenen Bytes – bewertet mit dem vertraglichen Preisbuch der Plattform, wo es einen Preis hat, sonst als Anteil am gesamten Gemessenen. Einmal täglich gelesen; zusammen nie mehr als die Zeile.",

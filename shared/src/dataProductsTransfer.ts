@@ -20,6 +20,20 @@ export type DataProductImportAction = 'add' | 'change' | 'unchanged' | 'skip' | 
 
 /** The name an import keeps its entries under (an import's own name, `git:<source>` for Git sync): letters, digits, ". _ - : /" */
 export const DATA_PRODUCT_IMPORT_ORIGIN_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
+/**
+ * GET /api/data-products/import-origins (0.24.0): an earlier import's origin with the entries under it the caller may
+ * see – what _Replace an earlier import_ can name. Origins without such an entry are neither listed nor counted.
+ */
+export interface DataProductImportOrigin {
+  origin: string;
+  /** Entries the caller may see (domains, data objects, elements, products) */
+  entries: number;
+  /** When the newest of them was recorded */
+  lastAt: string;
+}
+/** At most this many origins are listed, the newest first */
+export const DATA_PRODUCT_IMPORT_ORIGINS_LISTED = 50;
+
 /** More removals than this ask for the step-up dataproduct.bulkChange */
 export const DATA_PRODUCT_IMPORT_REMOVALS_WITHOUT_STEP_UP = 1;
 

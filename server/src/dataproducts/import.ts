@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   CIA_DIMENSIONS,
   DATA_PRODUCT_IMPORT_MODES,
+  DATA_PRODUCT_IMPORT_ORIGINS_LISTED,
   DATA_PRODUCT_IMPORT_ORIGIN_RE,
   DATA_PRODUCT_IMPORT_REMOVALS_WITHOUT_STEP_UP,
   elementNameNorm,
@@ -12,12 +13,14 @@ import {
   type DataProductImportField,
   type DataProductImportKind,
   type DataProductImportMode,
+  type DataProductImportOrigin,
   type DataProductImportPreview,
   type DataProductImportProblem,
   type DataProductImportResult,
   type PlatformPermission,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { me } from '../auth/access.js';
 import { audit, withoutAudit } from '../audit.js';
 import { holdingNotices } from './notices.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
@@ -1638,4 +1641,39 @@ export function applyImport(body: unknown, o: ImportOptions = {}): DataProductIm
     }),
   );
   return { mode: plan.mode, counts: plan.counts, warnings: [...new Set(plan.warnings)].slice(0, 100) };
+}
+
+/**
+ * GET /api/data-products/import-origins – the origins of earlier imports, each with the entries under it the caller
+ * may see, the newest first (DATA_PRODUCT_IMPORT_ORIGINS_LISTED): the suggestions of _Replace an earlier import_. An
+ * origin whose entries the caller may not see is neither listed nor counted.
+ */
+export function importOrigins(): { items: DataProductImportOrigin[] } {
+  const u = me();
+  const seen = new Map<string, { entries: number; lastAt: string }>();
+  const count = (origin: string, at: string) => {
+    const o = seen.get(origin) ?? { entries: 0, lastAt: at };
+    o.entries += 1;
+    if (at > o.lastAt) o.lastAt = at;
+    seen.set(origin, o);
+  };
+  type Joined<T> = T & { origin: string; recorded_at: string };
+  const joined = <T>(table: string, kind: string) =>
+    db().all<Joined<T>>(
+      `SELECT t.*, o.origin AS origin, o.recorded_at AS recorded_at FROM dp_import_origins o JOIN ${table} t ON t.id = o.item_id WHERE o.kind = ?`,
+      kind,
+    );
+  for (const r of joined<ProductRow>('dp_products', 'dataProduct')) if (productAccess(u, r).permissions.length) count(r.origin, r.recorded_at);
+  for (const r of joined<ObjectRow>('dp_objects', 'dataObject')) if (objectAccess(u, r).permissions.length) count(r.origin, r.recorded_at);
+  for (const r of joined<DomainRow>('dp_domains', 'domain')) if (domainAccess(u, r).permissions.length) count(r.origin, r.recorded_at);
+  const elements = db().all<{ origin: string; recorded_at: string; item_id: string }>(
+    "SELECT o.origin, o.recorded_at, o.item_id FROM dp_import_origins o JOIN dp_elements e ON e.id = o.item_id WHERE o.kind = 'element'",
+  );
+  const teams = elementTeamIds([...new Set(elements.map((e) => e.item_id))]);
+  for (const r of elements) if (elementAccess(u, teams.get(r.item_id) ?? []).permissions.length) count(r.origin, r.recorded_at);
+  const items = [...seen]
+    .map(([origin, o]) => ({ origin, entries: o.entries, lastAt: o.lastAt }))
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt) || a.origin.localeCompare(b.origin))
+    .slice(0, DATA_PRODUCT_IMPORT_ORIGINS_LISTED);
+  return { items };
 }

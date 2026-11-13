@@ -1301,7 +1301,17 @@
     "doneReplace": "Imported: {{add}} added, {{change}} changed, {{unchanged}} unchanged, {{remove}} removed, {{items}} list items removed",
     "odpsRead_one": "{{count}} ODPS document read as a data product.",
     "odpsRead_other": "{{count}} ODPS documents read as data products.",
-    "stepUp": "The import removes more than one entry or list item: importing asks you to confirm it is you."
+    "stepUp": "The import removes more than one entry or list item: importing asks you to confirm it is you.",
+    "removeTitle": "Remove what the files no longer hold?",
+    "removeConfirm": "Replacing the import of {{origin}} removes:",
+    "removeItems_one": "and {{count}} list item of entries that stay (members, ports, steps, consumers)",
+    "removeItems_other": "and {{count}} list items of entries that stay (members, ports, steps, consumers)",
+    "removeMore_one": "… and {{count}} more",
+    "removeMore_other": "… and {{count}} more",
+    "removeButton": "Import and remove",
+    "originsLabel": "Earlier imports",
+    "originEntries_one": "{{count}} entry",
+    "originEntries_other": "{{count}} entries"
   },
   "measured": {
     "help": "Each product takes its measured use of the line: credits of its warehouses or query tags, or the bytes written to its topics – priced with the platform’s contracted price book where it has a price, else as its share of everything measured. Read once a day; never more than the line together.",

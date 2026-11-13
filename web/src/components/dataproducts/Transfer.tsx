@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Autocomplete, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Text } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
 import { IconDownload, IconFileExport, IconFileImport, IconFileUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,10 +8,13 @@ import {
   DATA_PRODUCT_IMPORT_ORIGIN_RE,
   type DataProductImportChange,
   type DataProductImportMode,
+  type DataProductImportOrigin,
   type DataProductImportPreview,
   type DataProductImportResult,
 } from '@sm/shared';
-import { apiUrl, notifyOk, post } from '../../api';
+import { apiUrl, get, notifyOk, post } from '../../api';
+import { confirmDanger } from '../confirm';
+import { fmtRelative } from '../../format';
 import { FormModal, FormModalCancel } from '../FormModal';
 import { Breakable, CardTable } from '../../pages/dataproducts/parts';
 import { useBusy } from './form';
@@ -194,7 +198,45 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
     run(async () => {
       setPreview(await post<DataProductImportPreview>('/data-products/import/preview', await body()));
     }, t('transfer.previewFailed'));
-  const apply = () =>
+  // the origins of earlier imports with entries the reader may see: what a replace can name
+  const origins = useQuery({
+    queryKey: ['dataProducts', 'importOrigins'],
+    queryFn: () => get<{ items: DataProductImportOrigin[] }>('/data-products/import-origins'),
+    staleTime: 60_000,
+  });
+  const REMOVALS_NAMED = 10;
+  /** A replace that removes something says what before it runs: the entries by name, the list items counted. */
+  const confirmRemovals = async (): Promise<boolean> => {
+    const gone = preview?.changes.filter((c) => c.action === 'remove') ?? [];
+    const items = preview?.counts.removedItems ?? 0;
+    if (!gone.length && !items) return true;
+    return confirmDanger({
+      action: 'remove',
+      title: t('transfer.removeTitle'),
+      confirmLabel: t('transfer.removeButton'),
+      message: (
+        <Stack gap={4}>
+          <Text size="sm">{t('transfer.removeConfirm', { origin: origin.trim() })}</Text>
+          {gone.length > 0 && (
+            <List size="sm" spacing={2} data-testid="import-remove-list">
+              {gone.slice(0, REMOVALS_NAMED).map((c, i) => (
+                <List.Item key={i} style={{ overflowWrap: 'anywhere' }}>
+                  {t(`transfer.kinds.${c.kind}`)}: <span className="mono">{c.key}</span>
+                </List.Item>
+              ))}
+            </List>
+          )}
+          {gone.length > REMOVALS_NAMED && <Text size="sm">{t('transfer.removeMore', { count: gone.length - REMOVALS_NAMED })}</Text>}
+          {items > 0 && <Text size="sm">{t('transfer.removeItems', { count: items })}</Text>}
+        </Stack>
+      ),
+    });
+  };
+  const apply = async () => {
+    if (!(await confirmRemovals())) return;
+    await applyNow();
+  };
+  const applyNow = () =>
     run(async () => {
       const r = await post<DataProductImportResult>('/data-products/import', { ...(await body()), fingerprint: preview?.fingerprint });
       notifyOk(
@@ -252,14 +294,20 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
             {t(`transfer.modeHints.${mode}`)}
           </Text>
         </div>
-        <TextInput
+        <Autocomplete
           label={t('transfer.origin')}
           description={t('transfer.originHint')}
           value={origin}
-          onChange={(e) => {
-            const v = e.currentTarget.value;
-            changed(() => setOrigin(v));
-          }}
+          onChange={(v) => changed(() => setOrigin(v))}
+          data={[
+            {
+              group: t('transfer.originsLabel'),
+              items: (origins.data?.items ?? []).map((o) => ({
+                value: o.origin,
+                label: `${o.origin} · ${t('transfer.originEntries', { count: o.entries })} · ${fmtRelative(o.lastAt)}`,
+              })),
+            },
+          ]}
           maxLength={100}
           withAsterisk={mode === 'replace'}
           error={files.length || origin ? originError : undefined}

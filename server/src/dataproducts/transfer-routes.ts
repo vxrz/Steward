@@ -7,7 +7,7 @@ import { LINK_PARAM } from '../auth/cookies.js';
 import { dataProductsJsonSchema } from './format.js';
 import { exportFile } from './export.js';
 import { odpsFile } from './odps.js';
-import { applyImport, importRemovals, previewImport } from './import.js';
+import { applyImport, importOrigins, importRemovals, previewImport } from './import.js';
 import YAML from 'yaml';
 import { me } from '../auth/access.js';
 import { dataObjectsSemanticModel } from './ossie.js';
@@ -23,6 +23,7 @@ import { dataObjectsSemanticModel } from './ossie.js';
  *   GET  /api/data-products/:id/export               one product (?environment, format)
  *   GET  /api/data-products/:id/odps                 ODPS v1.0.0 (?environment: whose contracts; default production)
  *   GET  /api/data-objects/semantic-model            the data objects as an Apache Ossie model (?version, format; phase 2)
+ *   GET  /api/data-products/import-origins           earlier imports' origins with entries the caller may see (phase 2)
  *   POST /api/data-products/import/preview           what an import would add, change and skip
  *   POST /api/data-products/import                   the import (add only, add and update, or replace an earlier import –
  *                                                    removing more than one entry or item asks for the step-up
@@ -77,6 +78,8 @@ export async function dataProductTransferRoutes(app: FastifyInstance): Promise<v
     const body = q.format === 'json' ? JSON.stringify(doc, null, 2) : YAML.stringify(doc, { lineWidth: 0 });
     return send(reply, { fileName: `data-objects.ossie.${q.format}`, body }, typeOf(q.format));
   });
+  // phase 2: what Replace an earlier import can name – session-only, as the imports
+  app.get('/data-products/import-origins', { config: { access: ACCESS.session } }, async () => importOrigins());
   app.post('/data-products/import/preview', imports, async (req) => previewImport(req.body));
   // the removals of a replace, counted once per request (`when` asks before the handler)
   const removals = new WeakMap<FastifyRequest, number>();
