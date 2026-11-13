@@ -1,4 +1,4 @@
-import { isValidElement, type ReactNode } from 'react';
+import { isValidElement, useRef, type ReactNode } from 'react';
 import { ActionIcon, Group, Menu, Tooltip } from '@mantine/core';
 import { Link, useLocation } from 'react-router-dom';
 import { IconCopy, IconDots, type Icon } from '@tabler/icons-react';
@@ -21,7 +21,7 @@ export interface DetailMenuItem {
 
 const isItem = (x: unknown): x is DetailMenuItem => !!x && typeof x === 'object' && !isValidElement(x) && 'label' in x;
 
-function MenuEntry({ item, fallbackIcon }: { item: DetailMenuItem; fallbackIcon?: Icon }) {
+function MenuEntry({ item, fallbackIcon, beforeClick }: { item: DetailMenuItem; fallbackIcon?: Icon; beforeClick?: () => void }) {
   const I = item.icon ?? fallbackIcon;
   const common = { leftSection: I ? <I size={14} /> : undefined, color: item.color, disabled: item.disabled, 'data-testid': item.testId };
   return item.to ? (
@@ -29,7 +29,13 @@ function MenuEntry({ item, fallbackIcon }: { item: DetailMenuItem; fallbackIcon?
       {item.label}
     </Menu.Item>
   ) : (
-    <Menu.Item onClick={item.onClick} {...common}>
+    <Menu.Item
+      onClick={() => {
+        beforeClick?.();
+        item.onClick?.();
+      }}
+      {...common}
+    >
       {item.label}
     </Menu.Item>
   );
@@ -55,21 +61,26 @@ export function DetailActions({
 }) {
   const { t } = useTranslation();
   const shown = items.filter(Boolean);
+  // a dialog an entry opens remembers what had the focus: the menu's button, not the entry that is gone once the menu
+  // closes – so the focus comes back to the button when the dialog closes
+  const target = useRef<HTMLButtonElement>(null);
+  const focusTarget = () => target.current?.focus({ preventScroll: true });
   if (!duplicate && !shown.length && !extra) return null;
   const name = label ?? t('detailPage.moreActions');
   return (
     <Menu position="bottom-end" withinPortal shadow="md">
       <Menu.Target>
         <Tooltip label={name} withArrow>
-          <ActionIcon variant="default" size="input-xs" aria-label={name} data-testid="detail-actions">
+          <ActionIcon ref={target} variant="default" size="input-xs" aria-label={name} data-testid="detail-actions">
             <IconDots size={16} />
           </ActionIcon>
         </Tooltip>
       </Menu.Target>
       <Menu.Dropdown>
-        {duplicate && (isItem(duplicate) ? <MenuEntry item={{ testId: 'detail-duplicate', ...duplicate }} fallbackIcon={IconCopy} /> : duplicate)}
+        {duplicate &&
+          (isItem(duplicate) ? <MenuEntry item={{ testId: 'detail-duplicate', ...duplicate }} fallbackIcon={IconCopy} beforeClick={focusTarget} /> : duplicate)}
         {shown.map((item, i) => (
-          <MenuEntry key={i} item={item} />
+          <MenuEntry key={i} item={item} beforeClick={focusTarget} />
         ))}
         {extra}
       </Menu.Dropdown>

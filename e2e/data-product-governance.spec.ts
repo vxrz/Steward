@@ -149,6 +149,8 @@ test.describe('governance of data products', () => {
     // promoted: the dialog closes without asking to discard what was entered
     await page.getByTestId('promotion-close').click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    // opened from the menu: the focus is back on the menu's button
+    await expect(page.getByTestId('detail-actions')).toBeFocused();
 
     // the product owner does not endorse; the domain's owner does
     await page.goto(`/data-products/${s.product}`);
