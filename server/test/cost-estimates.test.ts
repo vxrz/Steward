@@ -115,6 +115,25 @@ describe('calculators', () => {
   });
 });
 
+describe('Git sync', () => {
+  it('brings calculators in as kind costCalculator, published when accepted', async () => {
+    const { parseFile, applyItem, findLocal, localHash } = await import('../src/sync/items.js');
+    const text = CALC.replace('id: test-throughput', 'id: git-calc').replace('name: Test throughput', 'name: Git calculator');
+    const r = await parseFile('costs/git-calc.yaml', text, ['costCalculator']);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.item).toMatchObject({ kind: 'costCalculator', identity: 'git-calc', name: 'Git calculator' });
+    expect((await parseFile('x.yaml', text, ['process'])).ok).toBe(false);
+    const broken = await parseFile('x.yaml', text.replace('let.perMonth, unit', 'let.perMonth +, unit'), ['costCalculator']);
+    expect(broken.ok).toBe(false);
+    const applied = await applyItem('costCalculator', r.item.content, null, { identity: r.item.identity, comment: 'from Git' });
+    expect(applied.version).toBe(1);
+    expect(findLocal('costCalculator', 'git-calc')?.id).toBe(applied.entityId);
+    expect(localHash('costCalculator', applied.entityId)).toBe(r.item.hash);
+    expect(await dana('GET', `/costs/calculators/${applied.entityId}`)).toMatchObject({ source: 'git', version: 1 });
+  });
+});
+
 describe('the dry run', () => {
   it('prices quantities exactly with tiers, blocks and credit chains, in ranges low–expected–high, compared across variants', async () => {
     const r = (await dana('POST', '/costs/calculate', {
