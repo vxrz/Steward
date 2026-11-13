@@ -29,14 +29,25 @@ function readingsOf(elementId: string, measure: string, now: number, windowMs: n
     measure,
     new Date(now - windowMs).toISOString(),
   );
-  const recent = !!db().get('SELECT 1 FROM dp_volume_readings WHERE element_id = ? AND measure = ? AND read_at > ?', elementId, measure, new Date(now - STORE_EVERY_MS).toISOString());
+  const recent = !!db().get(
+    'SELECT 1 FROM dp_volume_readings WHERE element_id = ? AND measure = ? AND read_at > ?',
+    elementId,
+    measure,
+    new Date(now - STORE_EVERY_MS).toISOString(),
+  );
   return { before: before ? { value: Number(before.value), at: before.read_at } : null, recent };
 }
 
 function store(elementId: string, measure: string, value: number, now: number, recent: boolean): void {
   if (recent) return;
   db().tx(() => {
-    db().run('INSERT INTO dp_volume_readings (element_id, measure, read_at, value) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', elementId, measure, new Date(now).toISOString(), value);
+    db().run(
+      'INSERT INTO dp_volume_readings (element_id, measure, read_at, value) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+      elementId,
+      measure,
+      new Date(now).toISOString(),
+      value,
+    );
     db().run('DELETE FROM dp_volume_readings WHERE element_id = ? AND measure = ? AND read_at < ?', elementId, measure, new Date(now - KEEP_MS).toISOString());
   });
 }
@@ -102,7 +113,10 @@ export async function snowflakeVolume(c: Check, el: ElementRow, sf: SnowflakeCli
   const measure = c.measure ?? 'rows';
   const raw = measure === 'bytes' ? row?.BYTES : row?.ROW_COUNT;
   if (!row || raw === null || raw === undefined || !Number.isFinite(Number(raw)))
-    return { status: 'unknown', message: `Snowflake: no ${measure === 'bytes' ? 'size' : 'row count'} of ${parts.join('.')} (no such table, a view, or no access to its metadata)` };
+    return {
+      status: 'unknown',
+      message: `Snowflake: no ${measure === 'bytes' ? 'size' : 'row count'} of ${parts.join('.')} (no such table, a view, or no access to its metadata)`,
+    };
   return finish(c, el, measure, measure === 'bytes' ? 'bytes' : 'rows', `Snowflake: ${parts.join('.')}`, Number(raw), now);
 }
 
@@ -118,5 +132,13 @@ export async function kafkaVolume(c: Check, el: ElementRow, platform: Platform, 
     return { status: 'unknown', message: `Kafka could not be read: ${kafkaError(e)}`.slice(0, 500) };
   }
   if (!ends.length) return { status: 'unknown', message: `Kafka: no topic "${el.qualified_name}"` };
-  return finish(c, el, 'offsets', 'messages', `Kafka: ${el.qualified_name}`, ends.reduce((n, e) => n + e.end, 0), now);
+  return finish(
+    c,
+    el,
+    'offsets',
+    'messages',
+    `Kafka: ${el.qualified_name}`,
+    ends.reduce((n, e) => n + e.end, 0),
+    now,
+  );
 }

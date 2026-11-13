@@ -54,7 +54,8 @@ export function judgeDmf(
   }
   const value = { metrics: rows.length, judged: judged.length, failed: judged.filter((j) => !j.ok).length };
   if (!rows.length) return { status: 'unknown', message: `${what}: no Data Metric Function results in the window`, value, judged };
-  if (!judged.length) return { status: 'unknown', message: `${what}: ${rows.length} metric results, none with a limit – set the metrics to judge`, value, judged };
+  if (!judged.length)
+    return { status: 'unknown', message: `${what}: ${rows.length} metric results, none with a limit – set the metrics to judge`, value, judged };
   const bad = judged.filter((j) => !j.ok);
   if (bad.length)
     return {

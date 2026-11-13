@@ -520,11 +520,15 @@
     "dataElementMode": "What is checked",
     "dataElementModes": {
       "freshness": "Freshness",
-      "schema": "Schema against the contract"
+      "schema": "Schema against the contract",
+      "volume": "Volume",
+      "quality": "Quality"
     },
     "dataElementModeHints": {
       "freshness": "How old the data is by metadata: the last change of a table, the last successful refresh or task run, the newest message of a topic",
-      "schema": "The columns or fields against the data contract the element’s output port is bound to in its environment"
+      "schema": "The columns or fields against the data contract the element’s output port is bound to in its environment",
+      "volume": "Rows or size of a table by metadata, or the messages of a topic by its end offsets, against the reading before",
+      "quality": "Data Metric Function results of a Snowflake table, or the quality results Steward recorded (dbt tests, contract tests)"
     },
     "dataElementMaxAge": "Maximum age (minutes)",
     "dataElementMaxAgeHint": "1440 is a day",
@@ -537,15 +541,48 @@
     "dataElementMaxLag": "Maximum lag (messages)",
     "dataElementSchemaVersion": "Schema version (optional)",
     "dataElementSchemaVersionHint": "Empty: the latest version of <topic>-value",
-    "dataElementFailAs": "Status when too old",
-    "dataElementSchemaFailAs": "Status of a missing field or another type",
     "dataElementWarningAs": "Status of a warning",
     "dataElementWarningHints": {
       "freshness": "The last refresh or run failed while the data is still fresh enough",
-      "schema": "Required and nullable differ, or there are columns the contract does not name"
+      "schema": "Required and nullable differ, or there are columns the contract does not name",
+      "volume": "Not used by the volume mode",
+      "quality": "A recorded quality test warns"
     },
-    "dataElementFreshnessNote": "Freshness is metadata, never a data value: LAST_ALTERED also moves on DDL and background maintenance, so the check says “changed”, not “loaded”. For the newest value of a timestamp column, write a database check of your own and link it to the element.",
-    "dataElementSchemaNote": "Snowflake columns come from INFORMATION_SCHEMA.COLUMNS, Kafka fields from the Schema Registry (Protobuf is not compared), database tables from the latest schema snapshot."
+    "dataElementFailAsModes": {
+      "freshness": "Status when too old",
+      "schema": "Status of a missing field or another type",
+      "volume": "Status outside the limits",
+      "quality": "Status of a failed test or a metric outside its limits"
+    },
+    "dataElementNotes": {
+      "freshness": "Freshness is metadata, never a data value: LAST_ALTERED also moves on DDL and background maintenance, so the check says “changed”, not “loaded”. For the newest value of a timestamp column, write a database check of your own and link it to the element.",
+      "schema": "Snowflake columns come from INFORMATION_SCHEMA.COLUMNS, Kafka fields from the Schema Registry (Protobuf is not compared), database tables from the latest schema snapshot.",
+      "volume": "Volume is metadata: Snowflake ROW_COUNT and BYTES of INFORMATION_SCHEMA.TABLES, Kafka end offsets (no message is read). A reading is kept at most every 5 minutes for 8 days; the change is measured against the newest reading at least a window old.",
+      "quality": "Data Metric Function results come from SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS (the role needs SNOWFLAKE.DATA_QUALITY_MONITORING_VIEWER). Without limits of your own, null, blank and duplicate counts and percentages must be 0. Recorded results are read from Steward, without a platform."
+    },
+    "dataElementMeasure": "What is measured",
+    "dataElementMeasures": {
+      "rows": "Rows",
+      "bytes": "Size (bytes)",
+      "messages": "Messages"
+    },
+    "dataElementWindow": "Window (minutes)",
+    "dataElementWindowHint": "Compared with the newest reading at least this old",
+    "dataElementMinRows": "At least (rows)",
+    "dataElementMinMessages": "At least (messages)",
+    "dataElementMinGrowth": "Growth at least",
+    "dataElementMinGrowthHint": "Since the reading before – 1 finds a stalled load",
+    "dataElementMaxChange": "Change at most",
+    "dataElementQualitySource": "Quality results from",
+    "dataElementQualitySources": {
+      "results": "Recorded results",
+      "dmf": "Data Metric Functions"
+    },
+    "dataElementQualitySourceHints": {
+      "results": "dbt tests, contract tests and DMF results Steward recorded for the element",
+      "dmf": "The newest result of each Data Metric Function on the table"
+    },
+    "dataElementWithinHours": "Results of the last (hours)"
   },
   "detail": {
     "template": "template",

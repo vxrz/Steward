@@ -79,7 +79,14 @@ const fits = (logical: string, sqlType: string): boolean => {
   return true;
 };
 
-const PREFIX: Record<string, string> = { postgres: 'postgres', postgresql: 'postgres', mysql: 'mysql', sqlserver: 'sqlserver', snowflake: 'snowflake', kafka: 'kafka' };
+const PREFIX: Record<string, string> = {
+  postgres: 'postgres',
+  postgresql: 'postgres',
+  mysql: 'mysql',
+  sqlserver: 'sqlserver',
+  snowflake: 'snowflake',
+  kafka: 'kafka',
+};
 
 /** A private key as the CLI takes it in a header: base64 DER (PKCS#8). */
 function isDerKey(v: string | undefined): boolean {

@@ -44,6 +44,7 @@ import { diffContracts } from './diff.js';
 import { factsOf, parseContract, readContract, type OdcsDoc } from './odcs.js';
 import { assertSqlRules, contractDialects, sqlRules } from './sqlrules.js';
 import { moduleEnabled } from '../modules/registry.js';
+import { logger } from '../log.js';
 
 /**
  * Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): ODCS v3 contracts, every saved version, the changes between
@@ -287,7 +288,11 @@ function checkLink(input: DataContractLinkInput, facts: DataContractFacts, u: Au
         if (!p.permissions.includes('use'))
           throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
         if (p.kind !== platformKind)
-          throw new HttpError(400, `Server "${server}" (type ${type}) cannot be answered by "${p.name}"`, 'DATA_CONTRACT_SERVER_TYPE', { server, type, name: p.name });
+          throw new HttpError(400, `Server "${server}" (type ${type}) cannot be answered by "${p.name}"`, 'DATA_CONTRACT_SERVER_TYPE', {
+            server,
+            type,
+            name: p.name,
+          });
         return base;
       }
       if (p.kind !== DATABASE_KIND) throw new HttpError(400, `"${p.name}" is not a database platform`, 'DATA_CONTRACT_LINK_NOT_DATABASE', { name: p.name });
@@ -794,7 +799,9 @@ export function saveVersion(id: string, body: unknown): { contract: DataContract
   // 0.24.0 (ADR 0036 phase 2): breaking changes tell the consumers of the data product ports bound to the contract
   if (diff.breaking > 0 && moduleEnabled('dataProducts')) {
     const e = { contractId: id, contractName: facts.name, contractKey: facts.key, version: next, breaking: diff.breaking, changes: diff.changes };
-    void import('../dataproducts/contract-hooks.js').then((m) => m.onContractVersionSaved(e)).catch(() => undefined);
+    void import('../dataproducts/contract-hooks.js')
+      .then((m) => m.onContractVersionSaved(e))
+      .catch((err: unknown) => logger.warn({ err, contract: id }, 'breaking-change notice could not be sent'));
   }
   return { contract: getContract(id), created: true, diff };
 }

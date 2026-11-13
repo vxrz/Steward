@@ -143,7 +143,10 @@ describe('the volume mode', () => {
     });
     mock.resetDataElementMock();
     // bytes
-    expect(await preview(dana, { element: customers, mode: 'volume', measure: 'bytes' })).toMatchObject({ status: 'up', message: expect.stringContaining('640,000 bytes') });
+    expect(await preview(dana, { element: customers, mode: 'volume', measure: 'bytes' })).toMatchObject({
+      status: 'up',
+      message: expect.stringContaining('640,000 bytes'),
+    });
     // the verdicts are completeness results of the element
     const q = await dana('GET', `/data-elements/${orders}/quality`);
     expect(q.results.some((r: { source: string; name: string }) => r.source === 'check' && r.name === 'volume:rows')).toBe(true);
@@ -157,9 +160,15 @@ describe('the volume mode', () => {
     expect(first).toMatchObject({ status: 'up', message: expect.stringContaining('messages') });
     const total = Number(/: ([\d,]+) messages/.exec(first.message)![1]!.replaceAll(',', ''));
     db().run("INSERT INTO dp_volume_readings (element_id, measure, read_at, value) VALUES (?, 'offsets', ?, ?)", topic, hoursAgo(2), total);
-    expect(await preview(dana, { element: topic, mode: 'volume', minGrowth: 1 })).toMatchObject({ status: 'down', message: expect.stringContaining('grew by 0 messages') });
+    expect(await preview(dana, { element: topic, mode: 'volume', minGrowth: 1 })).toMatchObject({
+      status: 'down',
+      message: expect.stringContaining('grew by 0 messages'),
+    });
     produceKafka('orders', 5);
-    expect(await preview(dana, { element: topic, mode: 'volume', minGrowth: 1 })).toMatchObject({ status: 'up', message: expect.stringContaining('+5 messages') });
+    expect(await preview(dana, { element: topic, mode: 'volume', minGrowth: 1 })).toMatchObject({
+      status: 'up',
+      message: expect.stringContaining('+5 messages'),
+    });
     expect(await preview(dana, { element: topic, mode: 'volume', measure: 'bytes' })).toMatchObject({ status: 'unknown' });
     for (const c of kafkaCalls()) expect(c).toMatch(/^(metadata|ends) /);
   });
@@ -202,7 +211,10 @@ describe('the quality mode', () => {
   it('judges the recorded results without reading a platform', async () => {
     const { recordQualityResults } = await import('../src/dataproducts/quality.js');
     recordQualityResults([{ elementId: topic, source: 'dbt', name: 'not_null_orders_id', status: 'passed' }]);
-    expect(await preview(dana, { element: topic, mode: 'quality' })).toMatchObject({ status: 'up', message: expect.stringContaining('all 1 quality tests passed') });
+    expect(await preview(dana, { element: topic, mode: 'quality' })).toMatchObject({
+      status: 'up',
+      message: expect.stringContaining('all 1 quality tests passed'),
+    });
     recordQualityResults([{ elementId: topic, source: 'contract', name: 'field_required:orders.id', status: 'failed' }]);
     expect(await preview(dana, { element: topic, mode: 'quality', failAs: 'degraded' })).toMatchObject({ status: 'degraded' });
   });
@@ -249,7 +261,7 @@ describe('scorecard history', () => {
     const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
     for (const d of [1, 2, 3])
       db().run(
-        "INSERT INTO dp_scorecard_snapshots (product_id, environment, day, maturity, states, taken_at) VALUES (?, 'prod', ?, ?, '{\"documented\":\"met\"}', ?)",
+        'INSERT INTO dp_scorecard_snapshots (product_id, environment, day, maturity, states, taken_at) VALUES (?, \'prod\', ?, ?, \'{"documented":"met"}\', ?)',
         product,
         day(d),
         d === 3 ? 0 : 1,

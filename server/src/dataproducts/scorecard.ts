@@ -452,7 +452,9 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
       !c || c.needsRerating ? 'notMet' : cBelow || undocumented ? 'partial' : 'met',
       [
         !c || c.needsRerating ? ev('confidentiality.notRated') : ev(cBelow ? 'confidentiality.belowFloor' : 'confidentiality.rated', { level: c.level }),
-        ...(personalFields ? [ev(undocumented ? 'confidentiality.personalFieldsUndocumented' : 'confidentiality.personalFields', { count: personalFields })] : []),
+        ...(personalFields
+          ? [ev(undocumented ? 'confidentiality.personalFieldsUndocumented' : 'confidentiality.personalFields', { count: personalFields })]
+          : []),
       ],
     ]);
     for (const d of ISO_25012_DIMENSIONS) {

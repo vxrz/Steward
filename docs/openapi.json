@@ -42760,6 +42760,12 @@
                         "string"
                       ]
                     },
+                    "completenessPct": {
+                      "type": [
+                        "null",
+                        "number"
+                      ]
+                    },
                     "updateSchedule": {
                       "type": [
                         "null",
@@ -42774,7 +42780,7 @@
                     }
                   },
                   "additionalProperties": false,
-                  "description": "Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention"
+                  "description": "Objectives (SLO): freshness in minutes, availability and completeness in percent over 30 days, an update schedule and retention"
                 },
                 "source": {
                   "anyOf": [
@@ -43044,6 +43050,12 @@
                             "type": [
                               "null",
                               "string"
+                            ]
+                          },
+                          "completenessPct": {
+                            "type": [
+                              "null",
+                              "number"
                             ]
                           },
                           "updateSchedule": {

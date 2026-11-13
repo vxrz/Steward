@@ -144,7 +144,14 @@ function sendBreaking(
       : [];
     const lines = [
       seesContract
-        ? t(l, 'dataProducts.breaking.body', { contract: e.contractName, key: e.contractKey, version: e.version, count: e.breaking, port: label, product: product.name })
+        ? t(l, 'dataProducts.breaking.body', {
+            contract: e.contractName,
+            key: e.contractKey,
+            version: e.version,
+            count: e.breaking,
+            port: label,
+            product: product.name,
+          })
         : t(l, 'dataProducts.breaking.bodyHidden', { version: e.version, count: e.breaking, port: label, product: product.name }),
       ...(envs ? [t(l, 'dataProducts.breaking.environments', { environments: envs })] : []),
       ...(seesContract ? breaking.slice(0, MAX_CHANGES).map((c) => `- ${changeText(c)}`) : []),

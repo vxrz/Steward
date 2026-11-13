@@ -74,7 +74,8 @@ export function people(): Person[] {
 }
 
 /** The people `subjects` (`user:`, `team:`) name. */
-export const named = (all: Person[], subjects: readonly string[]): Person[] => (subjects.length ? all.filter((p) => subjects.some((s) => matches(p.auth, s))) : []);
+export const named = (all: Person[], subjects: readonly string[]): Person[] =>
+  subjects.length ? all.filter((p) => subjects.some((s) => matches(p.auth, s))) : [];
 
 export const sees = (p: Person, product: ProductRow): boolean => productAccess(p.auth, product).permissions.length > 0;
 

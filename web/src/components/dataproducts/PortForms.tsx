@@ -37,7 +37,7 @@ import { FormButtons, isHttpUrl, useBusy } from './form';
 const enc = encodeURIComponent;
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-/** Objectives of a port (or what a binding sets differently): freshness, availability, update schedule, retention. */
+/** Objectives of a port (or what a binding sets differently): freshness, availability, completeness, update schedule, retention. */
 function ObjectivesInput({ value, onChange, inherited }: { value: DataObjectives; onChange: (v: DataObjectives) => void; inherited?: DataObjectives }) {
   const { t } = useTranslation('dataProducts');
   const num = (v: number | string) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -71,6 +71,17 @@ function ObjectivesInput({ value, onChange, inherited }: { value: DataObjectives
           suffix=" %"
           value={value.availabilityPct ?? ''}
           onChange={(v) => onChange({ ...value, availabilityPct: num(v) })}
+        />
+        <NumberInput
+          label={t('objectives.completeness')}
+          description={hint('completenessPct') ?? t('objectives.completenessHint')}
+          min={0}
+          max={100}
+          decimalScale={2}
+          suffix=" %"
+          value={value.completenessPct ?? ''}
+          onChange={(v) => onChange({ ...value, completenessPct: num(v) })}
+          data-testid="objective-completeness"
         />
         <TextInput
           label={t('objectives.schedule')}

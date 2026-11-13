@@ -7,7 +7,18 @@ import { isObj, parseContract, str } from '../datacontracts/odcs.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { elementNotFound, objectNotFound } from './common.js';
 import { visibleProduct } from './service.js';
-import { bindingsOf, chunks, elementRow, elementTeamIds, marks, objectsByIds, portsOf, productsByIds, type BindingWithElements, type PortRow } from './store.js';
+import {
+  bindingsOf,
+  chunks,
+  elementRow,
+  elementTeamIds,
+  marks,
+  objectsByIds,
+  portsOf,
+  productsByIds,
+  type BindingWithElements,
+  type PortRow,
+} from './store.js';
 
 /**
  * Field-level personal data from contracts (0.24.0, ADR 0036 part 2 phase 2, docs/DATA-PRODUCTS.md#personal-data-in-fields):
@@ -93,10 +104,11 @@ export function fieldsOfVersions(pairs: readonly { contractId: string; version: 
       `SELECT contract_id, version, yaml FROM data_contract_versions WHERE ${where}`,
       ...args,
     )) {
-      let fields: DataPersonalField[] = [];
+      let fields: DataPersonalField[];
       try {
         fields = personalFieldsOfDoc(parseContract(r.yaml).doc);
       } catch {
+        // a stored version always parses (it was checked on save); one that does not names no field
         fields = [];
       }
       if (CACHE.size >= CACHE_MAX) CACHE.delete(CACHE.keys().next().value!);
@@ -139,7 +151,13 @@ function groupsOf(
           more: Math.max(0, all.length - MAX_FIELDS),
         };
       })();
-    if (portShown(b)) g.ports.push({ productId: b.port.product_id, portId: b.port.id, portName: `${b.port.name}${b.port.version ? ` ${b.port.version}` : ''}`, environment: b.environment });
+    if (portShown(b))
+      g.ports.push({
+        productId: b.port.product_id,
+        portId: b.port.id,
+        portName: `${b.port.name}${b.port.version ? ` ${b.port.version}` : ''}`,
+        environment: b.environment,
+      });
     groups.set(key, g);
   }
   const shown = [...groups.values()].filter((g) => g.fields.length);
@@ -185,7 +203,10 @@ export function elementPersonalFields(elementId: string): DataPersonalFields {
   const el = elementRow(elementId);
   if (!el || !elementAccess(u, elementTeamIds([el.id]).get(el.id) ?? []).permissions.includes('view')) throw elementNotFound(elementId);
   const portIds = db()
-    .all<{ port_id: string }>('SELECT DISTINCT b.port_id FROM dp_port_elements pe JOIN dp_port_bindings b ON b.id = pe.binding_id WHERE pe.element_id = ?', el.id)
+    .all<{ port_id: string }>(
+      'SELECT DISTINCT b.port_id FROM dp_port_elements pe JOIN dp_port_bindings b ON b.id = pe.binding_id WHERE pe.element_id = ?',
+      el.id,
+    )
     .map((r) => r.port_id);
   const ports = portsByIds(portIds);
   const products = productsByIds(ports.map((p) => p.product_id));

@@ -191,7 +191,10 @@ const SASL: Record<string, string> = { plain: 'PLAIN', 'scram-sha-256': 'SCRAM-S
  * checked by the outbound policy like a connection of Steward's own; SASL PLAIN or SCRAM with the platform's key; at most
  * 1,000 messages read, under a consumer group prefix of Steward's.
  */
-export async function platformServerHeaders(x: Extract<Target, { kind: 'snowflake' | 'kafka' }>, secrets: Record<string, string>): Promise<Record<string, string>> {
+export async function platformServerHeaders(
+  x: Extract<Target, { kind: 'snowflake' | 'kafka' }>,
+  secrets: Record<string, string>,
+): Promise<Record<string, string>> {
   const v = x.database.config.variables ?? {};
   if (x.kind === 'snowflake') {
     // the account's address goes through the outbound policy as Steward's own statements do
@@ -203,7 +206,10 @@ export async function platformServerHeaders(x: Extract<Target, { kind: 'snowflak
         context: 'noKey',
         name: x.database.name,
       });
-    const h: Record<string, string> = { 'datacontract-snowflake-account': String(v.account ?? '').toUpperCase(), 'datacontract-snowflake-username': String(v.user ?? '') };
+    const h: Record<string, string> = {
+      'datacontract-snowflake-account': String(v.account ?? '').toUpperCase(),
+      'datacontract-snowflake-username': String(v.user ?? ''),
+    };
     if (v.role) h['datacontract-snowflake-role'] = String(v.role);
     if (v.warehouse) h['datacontract-snowflake-warehouse'] = String(v.warehouse);
     // a header carries no line breaks: the key as base64 DER (PKCS#8, unencrypted – the CLI takes PEM or base64 DER),

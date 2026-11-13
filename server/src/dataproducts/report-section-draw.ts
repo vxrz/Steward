@@ -114,16 +114,21 @@ export const dataProductsSectionDraw: ReportSectionDraw<DataProductsSectionData>
         { header: x.health, width: 1.2 },
         { header: x.quality, width: 1.6 },
       ],
-      d.rows.slice(0, MAX_ROWS).map((r): CellInput[] => [
-        { text: `${r.name} (${r.key})`, bold: true },
-        r.environment ?? '–',
-        r.maturityBefore === null
-          ? { text: `${x.noSnapshot} → ${r.maturity}`, tone: 'muted' }
-          : { text: `${r.maturityBefore} → ${r.maturity}`, tone: r.maturity > r.maturityBefore ? 'success' : r.maturity < r.maturityBefore ? 'warning' : 'default' },
-        `${r.met} / ${r.parts}`,
-        { text: x.health_[r.health] ?? r.health, tone: healthTone(r.health) },
-        r.failed ? { text: `${r.passed} · ${r.failed}`, tone: 'danger' } : `${r.passed} · 0`,
-      ]),
+      d.rows
+        .slice(0, MAX_ROWS)
+        .map((r): CellInput[] => [
+          { text: `${r.name} (${r.key})`, bold: true },
+          r.environment ?? '–',
+          r.maturityBefore === null
+            ? { text: `${x.noSnapshot} → ${r.maturity}`, tone: 'muted' }
+            : {
+                text: `${r.maturityBefore} → ${r.maturity}`,
+                tone: r.maturity > r.maturityBefore ? 'success' : r.maturity < r.maturityBefore ? 'warning' : 'default',
+              },
+          `${r.met} / ${r.parts}`,
+          { text: x.health_[r.health] ?? r.health, tone: healthTone(r.health) },
+          r.failed ? { text: `${r.passed} · ${r.failed}`, tone: 'danger' } : `${r.passed} · 0`,
+        ]),
       { empty: x.none, size: 7.4 },
     );
     if (d.more > 0 || d.rows.length > MAX_ROWS) w.paragraph(x.more(d.more + Math.max(0, d.rows.length - MAX_ROWS)), { tone: 'muted', size: 7.4 });

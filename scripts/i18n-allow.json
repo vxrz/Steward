@@ -222,7 +222,12 @@
       "Element",
       "Snowpipe",
       "OpenAPI",
-      "AsyncAPI"
+      "AsyncAPI",
+      "Version {{version}}",
+      "Test",
+      "dbt",
+      "Data Metric Function",
+      "Data Metric Functions"
     ]
   }
 }

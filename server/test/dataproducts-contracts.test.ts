@@ -65,8 +65,9 @@ const fail = async (p: Promise<unknown>): Promise<{ status: number; code: string
   }
   throw new Error('expected a refusal');
 };
-const calls = async (): Promise<{ path: string; server: string | null; headerNames: string[]; settings?: Record<string, string>; credentialsMatched: boolean }[]> =>
-  (await fetch(`${s.base}/mock/datacontract/_mock/calls`, { headers: { 'x-api-key': KEY } })).json();
+const calls = async (): Promise<
+  { path: string; server: string | null; headerNames: string[]; settings?: Record<string, string>; credentialsMatched: boolean }[]
+> => (await fetch(`${s.base}/mock/datacontract/_mock/calls`, { headers: { 'x-api-key': KEY } })).json();
 const resetMock = () => fetch(`${s.base}/mock/datacontract/_mock/reset`, { method: 'POST', headers: { 'x-api-key': KEY } });
 
 /** A Snowflake contract of SHOP.SALES.ORDERS: an email field marked personal, a quality rule. */
@@ -136,7 +137,12 @@ beforeAll(async () => {
   // creator's teams)
   const contractTeam = (await s.api('POST', '/teams', { name: 'Invented contract team', members: ['dana', 'audrey'] })).id;
   db().run("DELETE FROM resource_teams WHERE kind = 'contract' AND resource_id = ?", contract);
-  db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('contract', ?, ?, ?)", contract, contractTeam, new Date().toISOString());
+  db().run(
+    "INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('contract', ?, ?, ?)",
+    contract,
+    contractTeam,
+    new Date().toISOString(),
+  );
 }, 180_000);
 
 describe('contract tests on Snowflake and Kafka servers', () => {
@@ -183,7 +189,11 @@ describe('contract tests on Snowflake and Kafka servers', () => {
       servers: [{ server: 'events', type: 'kafka', host: 'kafka.demo.invalid:9092', topic: 'orders', format: 'json' }],
       schema: [{ name: 'orders', physicalName: 'orders', properties: [{ name: 'order_id', logicalType: 'integer', required: true }] }],
     });
-    const k = await dana('POST', '/data-contracts', { yaml, links: [{ kind: 'server', targetId: kafka, detail: 'events' }], settings: { servicePlatformId: service } });
+    const k = await dana('POST', '/data-contracts', {
+      yaml,
+      links: [{ kind: 'server', targetId: kafka, detail: 'events' }],
+      settings: { servicePlatformId: service },
+    });
     await resetMock();
     expect(await dana('POST', `/data-contracts/${k.id}/test`, {})).toMatchObject({ result: 'passed', server: 'events' });
     const [call] = await calls();

@@ -643,7 +643,12 @@ export const checkSchema = z.discriminatedUnion('type', [
      */
     qualitySource: z.enum(['dmf', 'results']).optional(),
     /** quality: only results of the last N hours count (default 48); none: unknown */
-    withinHours: z.number().int().min(1).max(24 * 90).optional(),
+    withinHours: z
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 90)
+      .optional(),
     /**
      * quality, dmf: limits per metric (and column); without: the null, blank and duplicate counts and percentages must
      * be 0

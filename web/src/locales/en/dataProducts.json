@@ -320,10 +320,13 @@
     "freshnessHint": "The data is at most this old.",
     "availability": "Availability",
     "availabilityHint": "Share of time up or degraded over 30 days.",
+    "completeness": "Completeness",
+    "completenessHint": "Share of the completeness tests (not null, row counts, volume) that passed over 30 days.",
     "schedule": "Update schedule",
     "retention": "Retention",
     "freshnessText": "at most {{value}} old",
     "availabilityText": "{{value}} % available",
+    "completenessText": "{{value}} % complete",
     "scheduleText": "updated {{value}}",
     "retentionText": "kept {{value}}",
     "minutes_one": "{{count}} minute",
@@ -503,7 +506,9 @@
     "modes": {
       "freshness": "Freshness",
       "schema": "Schema",
-      "findings": "Contract findings"
+      "findings": "Contract findings",
+      "volume": "Volume",
+      "quality": "Quality"
     },
     "watches": "Watches",
     "weight": "Weight",
@@ -703,7 +708,9 @@
         "availabilityNoMonitor": "Availability objective {{target}} %: no monitor yet",
         "freshness": "{{port}}: fresh {{uptime}} % of the time (objective {{target}})",
         "freshnessShort": "{{port}}: freshness objective {{target}}, no 30 days of checks yet",
-        "none": "No objectives set on the output ports"
+        "none": "No objectives set on the output ports",
+        "completeness": "{{port}}: {{share}} % of the completeness tests passed (objective {{target}} %)",
+        "completenessNoResults": "{{port}}: completeness objective {{target}} %, no completeness results in 30 days"
       },
       "dependencies": {
         "ok": "{{inputs}} input ports, none on a deprecated port",
@@ -738,7 +745,15 @@
       "confidentiality": {
         "notRated": "Confidentiality not rated",
         "rated": "Confidentiality rated {{level}}",
-        "belowFloor": "Confidentiality {{level}}: below its data objects"
+        "belowFloor": "Confidentiality {{level}}: below its data objects",
+        "personalFields_one": "{{count}} personal field in the bound contracts",
+        "personalFields_other": "{{count}} personal fields in the bound contracts",
+        "personalFieldsUndocumented_one": "{{count}} personal field in the bound contracts, but no exposed data object holds personal data",
+        "personalFieldsUndocumented_other": "{{count}} personal fields in the bound contracts, but no exposed data object holds personal data"
+      },
+      "quality": {
+        "results": "{{tests}} tests: {{passed}} passed, {{warning}} warn, {{failed}} failed (latest of each, 30 days)",
+        "none": "No quality results in 30 days"
       }
     }
   },
@@ -1255,6 +1270,60 @@
       "change": "Change",
       "unchanged": "Unchanged",
       "skip": "Skip"
+    }
+  },
+  "quality": {
+    "trend": {
+      "title": "Maturity over time",
+      "picture": "Picture",
+      "table": "Table",
+      "view": "Show the trend as",
+      "none": "No daily snapshot yet – the first is taken within the next hour.",
+      "hint_one": "{{count}} daily snapshot in {{environment}}",
+      "hint_other": "{{count}} daily snapshots in {{environment}}",
+      "caption": "The maturity and the scorecard parts per day",
+      "day": "Day",
+      "maturity": "Maturity",
+      "parts": "Parts",
+      "counts": "{{met}} met, {{partial}} partial, {{notMet}} not met",
+      "summary": "Maturity from {{from}} to {{to}}: {{start}} at the start, {{now}} now"
+    },
+    "personal": {
+      "title": "Personal data in fields",
+      "hint": "Fields of the bound data contracts marked personal (customProperties personalData) or classified. The contract says it – Steward marks nothing itself.",
+      "version": "Version {{version}}",
+      "field": "Field",
+      "classification": "Classification",
+      "personal": "Personal",
+      "yes": "Personal",
+      "no": "No",
+      "more_one": "… and {{count}} more field",
+      "more_other": "… and {{count}} more fields",
+      "hidden_one": "{{count}} bound contract you may not see",
+      "hidden_other": "{{count}} bound contracts you may not see"
+    },
+    "element": {
+      "title": "Quality",
+      "none": "No quality results in the last 30 days. dbt tests, contract tests, Data Metric Functions and volume checks record them.",
+      "dimension": "{{dimension}}: {{passed}} of {{tests}} passed",
+      "test": "Test",
+      "source": "Source",
+      "status": "Result",
+      "when": "When",
+      "showAll": "Show all {{count}}"
+    },
+    "sources": {
+      "dbt": "dbt",
+      "dmf": "Data Metric Function",
+      "contract": "Contract test",
+      "check": "Check",
+      "other": "Other"
+    },
+    "statuses": {
+      "passed": "passed",
+      "warning": "warning",
+      "failed": "failed",
+      "error": "error"
     }
   }
 }

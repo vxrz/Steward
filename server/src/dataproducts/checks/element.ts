@@ -90,7 +90,10 @@ export async function dataElementCheck(c: Check, ctx: { owner: string; now: () =
         return await (await import('./quality.js')).snowflakeDmf(c, el, sf);
       }
       if (c.mode === 'volume') return await (await import('./volume.js')).kafkaVolume(c, el, platform, secrets, now);
-      return { status: 'unknown', message: `Data Metric Function results are read for Snowflake tables only – use the recorded quality results for ${el.qualified_name}` };
+      return {
+        status: 'unknown',
+        message: `Data Metric Function results are read for Snowflake tables only – use the recorded quality results for ${el.qualified_name}`,
+      };
     }
     const actual = await runAs(owner, () => readActualSchema(el, platform, secrets, { schemaVersion: c.schemaVersion }));
     const bindings = bindingsOf(outputPortIdsOf(el.id));

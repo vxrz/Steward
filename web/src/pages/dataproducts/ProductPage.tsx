@@ -41,6 +41,7 @@ import { ProductElementsTab } from './ProductElements';
 import { ProductHealthTab } from './ProductHealth';
 import { ProductCostsTab, ScorecardPanel, ValueAndCosts } from './ProductCosts';
 import { ProductAccessTab, ProductHistoryTab, LinksTab } from './ProductMisc';
+import { PersonalFieldsPanel, ScorecardTrend } from './ProductQuality';
 
 const TABS = ['', 'ports', 'pipeline', 'elements', 'health', 'costs', 'access', 'links', 'history'] as const;
 type Tab = (typeof TABS)[number];
@@ -253,6 +254,8 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
             )}
           </Section>
           <ScorecardPanel query={scorecard} />
+          <ScorecardTrend productId={p.id} environment={scorecard.data?.environment} />
+          <PersonalFieldsPanel url={`/data-products/${encodeURIComponent(p.id)}/personal-fields`} queryKey={dpKeys.product(p.id)} />
           <Section title={t('product.consumers')}>
             {outputs.length ? (
               <Stack gap={4}>

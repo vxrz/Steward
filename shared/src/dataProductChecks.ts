@@ -46,14 +46,7 @@ const VOLUME_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.
  * Element kinds whose quality the `data-element` check judges (phase 2): Snowflake Data Metric Function results, and
  * the quality results Steward has recorded for the element (dbt tests, contract tests, DMF results).
  */
-const QUALITY_KINDS: readonly DataElementKind[] = [
-  'snowflake.table',
-  'snowflake.view',
-  'snowflake.dynamicTable',
-  'kafka.topic',
-  'sql.table',
-  'sql.view',
-];
+const QUALITY_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.view', 'snowflake.dynamicTable', 'kafka.topic', 'sql.table', 'sql.view'];
 
 const KINDS_OF: Record<DataElementCheckMode, readonly DataElementKind[]> = {
   freshness: FRESHNESS_KINDS,

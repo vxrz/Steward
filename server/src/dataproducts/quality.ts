@@ -91,7 +91,11 @@ export function recordQualityResults(input: readonly DataQualityResultInput[]): 
   if (!rows.length) return { recorded: 0, skipped: 0 };
   const ids = [...new Set(rows.map((r) => r.elementId))];
   const known = new Set(
-    chunks(ids).flatMap((part) => db().all<{ id: string }>(`SELECT id FROM dp_elements WHERE id IN (${marks(part.length)})`, ...part).map((r) => r.id)),
+    chunks(ids).flatMap((part) =>
+      db()
+        .all<{ id: string }>(`SELECT id FROM dp_elements WHERE id IN (${marks(part.length)})`, ...part)
+        .map((r) => r.id),
+    ),
   );
   const now = nowIso();
   const by = actorName();
