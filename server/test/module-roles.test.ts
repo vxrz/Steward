@@ -211,6 +211,41 @@ describe('the role "plant" becomes the contributor grant of the plant registry (
     ).toEqual(['pam', 'pete', 'pia', 'polly']);
   });
 
+  it('keeps the role of an account the restricted plant registry leaves out: converting it must not let them in', async () => {
+    const { convertDeprecatedRoles } = await import('../src/modules/user-roles.js');
+    const before = await s.api('GET', '/settings/modules/plant/access');
+    const kept = before.grants
+      .filter((g: { subject: string; source: string }) => g.source !== 'sso' && g.subject !== 'user:pia' && g.subject !== 'user:pete')
+      .map((g: { subject: string; role?: string | null }) => ({ subject: g.subject, role: g.role ?? null }));
+    await s.api('PUT', '/settings/modules/plant/access', { mode: 'selected', grants: [...kept, { subject: 'user:pete' }] });
+    try {
+      for (const name of ['pia', 'pete']) {
+        db().run('UPDATE users SET roles = ? WHERE username = ?', JSON.stringify(['plant']), name);
+        db().run("DELETE FROM module_grants WHERE subject = ? AND module_id = 'plant' AND role IS NOT NULL", `user:${name}`);
+      }
+      const pia = await s.as('pia', PW);
+      const refused = await status(pia('GET', '/plant/sites'));
+      expect(refused.status).toBeGreaterThanOrEqual(400);
+      // pete is on the list: his role becomes the grant; pia is not: she keeps the role (and with it what she had – nothing here)
+      expect(convertDeprecatedRoles()).toBe(1);
+      expect(JSON.parse(db().get<{ roles: string }>("SELECT roles FROM users WHERE username = 'pia'")!.roles)).toEqual(['plant']);
+      expect(db().get("SELECT 1 AS x FROM module_grants WHERE subject = 'user:pia' AND module_id = 'plant'")).toBeUndefined();
+      expect(await status(pia('GET', '/plant/sites'))).toEqual(refused);
+      expect((await status(pia('GET', '/services'))).code).toBe('PLANT_VIEWER_ONLY');
+    } finally {
+      await s.api('PUT', '/settings/modules/plant/access', { mode: before.mode, grants: kept });
+      db().run("UPDATE users SET roles = '[]' WHERE username IN ('pia', 'pete')");
+      db().run("DELETE FROM module_grants WHERE subject IN ('user:pia', 'user:pete') AND module_id = 'plant'");
+      for (const name of ['pia', 'pete'])
+        db().run(
+          "INSERT INTO module_grants (id, module_id, subject, role, created_by, created_at) VALUES (?, 'plant', ?, 'contributor', 'test', 'now')",
+          `mg_t_${name}`,
+          `user:${name}`,
+        );
+      db().run("UPDATE users SET roles = ? WHERE username = 'pete'", JSON.stringify(['viewer']));
+    }
+  });
+
   it('the API still takes the role as an alias for one release, says so, and stores the grant', async () => {
     // a raw session: the answer's headers matter here
     const login = await fetch(`${s.base}/api/auth/login`, {
