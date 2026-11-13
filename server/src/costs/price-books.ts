@@ -27,7 +27,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
-import { assignCreatorTeams, forgetOwningTeams, memberships, owningTeams, teamRoles } from '../auth/policy.js';
+import { assignCreatorTeams, catalogueAccess, forgetOwningTeams, memberships, owningTeams, teamRoles } from '../auth/policy.js';
 import { visibleContracts } from '../suppliers/links.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { scopeInfo } from './access.js';
@@ -222,12 +222,30 @@ function names(rows: BookRow[]): { platforms: Map<string, string>; suppliers: Ma
     }
     return out;
   };
+  // a supplier the reader may not see (team scope, ADR 0033) is not named (security review 0.21.0)
+  const suppliers = new Map<string, string>();
+  const want = ids('supplier_id');
+  for (let i = 0; i < want.length; i += 500) {
+    const part = want.slice(i, i + 500);
+    for (const r of db().all<{ id: string; name: string; owners: string }>(
+      `SELECT id, name, owners FROM suppliers WHERE id IN (${part.map(() => '?').join(', ')})`,
+      ...part,
+    ))
+      if (supplierVisible(r)) suppliers.set(r.id, r.name);
+  }
   return {
     platforms: read('platforms', 'name', ids('platform_id')),
-    suppliers: read('suppliers', 'name', ids('supplier_id')),
+    suppliers,
     contracts: read('supplier_contracts', 'title', ids('supplier_contract_id')),
   };
 }
+
+/** Whether the reader may see a supplier (its owning teams, shares, owners – catalogueAccess). Jobs see every one. */
+function supplierVisible(r: { id: string; owners: string } | undefined, u: AuthUser | null = currentUser()): boolean {
+  if (!r) return false;
+  return !u || catalogueAccess(u, { kind: 'supplier', id: r.id, owners: parseJson<string[]>(r.owners, []) }).view;
+}
+const supplierRow = (id: string) => db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', id);
 
 function toBook(r: BookRow, rights: BookRights, n: ReturnType<typeof names>, entries: number): CostPriceBook {
   const u = currentUser();
@@ -605,19 +623,35 @@ export function writeVersion(
   return { version: number, created: true, diff };
 }
 
-function checkBookInput(x: ReturnType<typeof costPriceBookInput.parse>): void {
+/**
+ * The platform, supplier and contract a book names: only ones the author may see – a hidden one answers like a missing
+ * one (security review 0.21.0: no probing for ids, no naming of hidden suppliers). What the book names already stays
+ * accepted (`row`), so an editor who may not see it can still save the book.
+ */
+function checkBookInput(x: ReturnType<typeof costPriceBookInput.parse>, row?: BookRow): void {
   if (x.platformId) {
     const info = scopeInfo('platform', x.platformId);
     if (!info) throw new HttpError(404, `Platform ${x.platformId} not found`, 'COST_SCOPE_NOT_FOUND', { scope: 'platform', id: x.platformId });
     if (x.kind !== 'contracted') throw new HttpError(400, "A platform's book holds the prices of its contract: kind contracted", 'COST_PRICE_BOOK_KIND');
   }
-  if (x.supplierContractId) {
+  if (x.supplierContractId && x.supplierContractId !== row?.supplier_contract_id) {
     const c = visibleContracts([x.supplierContractId]).get(x.supplierContractId);
     if (!c) throw new HttpError(404, 'Contract not found', 'SUPPLIER_CONTRACT_NOT_FOUND', { id: x.supplierContractId });
     if (x.supplierId && c.supplierId !== x.supplierId) throw new HttpError(400, 'The contract is one of another supplier', 'COST_PRICE_BOOK_KIND');
   }
-  if (x.supplierId && !db().get('SELECT 1 FROM suppliers WHERE id = ?', x.supplierId))
+  if (x.supplierId && x.supplierId !== row?.supplier_id && !supplierVisible(supplierRow(x.supplierId)))
     throw new HttpError(404, 'Supplier not found', 'SUPPLIER_NOT_FOUND', { id: x.supplierId });
+}
+
+/**
+ * What the editor sends for a supplier or contract the book names but they may not see (the form shows none): the
+ * stored one stays, as hidden shares do – saving the book never drops what its editor cannot see.
+ */
+function keepHidden(x: ReturnType<typeof costPriceBookInput.parse>, row: BookRow): ReturnType<typeof costPriceBookInput.parse> {
+  const supplierId = x.supplierId === null && row.supplier_id && !supplierVisible(supplierRow(row.supplier_id)) ? row.supplier_id : x.supplierId;
+  const contractHidden = !!row.supplier_contract_id && !visibleContracts([row.supplier_contract_id]).has(row.supplier_contract_id);
+  const supplierContractId = x.supplierContractId === null && contractHidden ? row.supplier_contract_id : x.supplierContractId;
+  return { ...x, supplierId, supplierContractId };
 }
 
 const snapshot = (
@@ -680,10 +714,10 @@ export function createBook(body: unknown): CostPriceBookDetail {
 
 export function updateBook(id: string, body: unknown): CostPriceBookDetail {
   const { row } = requireBook(id, 'edit');
-  const x = costPriceBookInput.parse(body);
+  const x = keepHidden(costPriceBookInput.parse(body), row);
   if ((x.platformId ?? null) !== (row.platform_id ?? null))
     throw new HttpError(400, 'The platform of a book cannot change – add a book for the other platform', 'COST_PRICE_BOOK_KIND');
-  checkBookInput(x);
+  checkBookInput(x, row);
   const now = nowIso();
   db().tx(() => {
     db().run(

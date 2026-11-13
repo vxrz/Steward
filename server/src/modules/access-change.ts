@@ -12,7 +12,7 @@ import {
 } from '@sm/shared';
 import { z } from 'zod';
 import { db } from '../db.js';
-import { auditAccessChange } from '../auth/access-change.js';
+import { auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
 import { isStatusViewer, me } from '../auth/access.js';
 import { assertKnownSubjects, subjectExists } from '../auth/subjects.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
@@ -159,6 +159,8 @@ export function setModuleAccess(id: ModuleId, input: ModuleAccessInput): ModuleA
   const granted = after.filter((s) => !beforeSubjects.includes(s));
   const removed = beforeMode === 'selected' ? beforeSubjects.filter((s) => !after.includes(s)) : [];
   if (beforeMode === input.mode && !granted.length && !removed.length) return moduleAccessView(id);
+  // a widening is confirmed here as well as by the route's rule, before anything is written (ADR 0033 part 5)
+  if (moduleAccessWidens(id, input)) requireAccessGrant(u);
   const now = nowIso();
   db().tx(() => {
     db().run(

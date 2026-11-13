@@ -3,6 +3,7 @@ import {
   ROLES,
   SHARE_ACTIONS,
   SHARE_LEVELS,
+  SHARE_LIMIT,
   latestShareEnd,
   levelIncludes,
   shareInputSchema,
@@ -249,6 +250,9 @@ export function setShares(c: ShareChange): ResourceShare[] {
   const label = c.label ?? labelOf(c.kind, c.id);
   expireShares(now, { kind: c.kind, id: c.id });
   const before = sharesOf(c.kind, c.id);
+  // the shares a reader may not see are kept beside the ones they send (share-routes.ts): the limit holds for the sum
+  if (next.length > SHARE_LIMIT && next.length > before.length)
+    throw new HttpError(400, `An item has at most ${SHARE_LIMIT} shares`, 'LIMIT_REACHED', { max: SHARE_LIMIT });
   const had = new Map(before.map((s) => [s.subject, s]));
   assertKnownSubjects(
     next.map((s) => s.subject),

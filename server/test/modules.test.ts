@@ -67,6 +67,8 @@ describe('the registry', () => {
       expect(m.access, `${m.id}: declares its access`).toBeDefined();
     }
     expect(moduleOfEvent('cost.budget')).toBe('costs');
+    // every event of the cost model is the Costs module's: it leaves with module access (security review 0.21.0)
+    for (const e of NOTIFICATION_EVENTS.filter((x) => x.startsWith('cost.'))) expect(moduleOfEvent(e), e).toBe('costs');
     expect(moduleOfEvent('run.failed')).toBeUndefined();
   });
 

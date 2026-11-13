@@ -43,7 +43,7 @@ _Settings → Modules_ shows each module that can be restricted with its access 
 2. Before you save, the dialog shows **who gains** and **who loses** the module, and the **teams that own items of the module but would not use it** (their members keep their rights on those items but cannot open them).
 3. **Save.** Widening – opening a restricted module, or adding a team or user – asks you to confirm that it is you (step-up, control point `access.grant`). Narrowing asks no step-up, but the dialog asks you to confirm it once more, with the list of who loses the module. The sidebar, Home and the search follow at once.
 
-Changing who uses a module needs an administrator in a signed-in session (no API token). Every change is an access change in the audit log (`access.module_access_changed`, with the mode before and after, who was granted and who removed; a widening carries the step-up's proof). A deleted team stays on the list as an entry that matches nobody, so deleting a team never widens a restricted module.
+Changing who uses a module needs an administrator in a signed-in session (no API token). Every change is an access change in the audit log (`access.module_access_changed`, with the mode before and after, who was granted and who removed; a widening carries the step-up's proof). A deleted team stays on the list as an entry that matches nobody, so deleting a team never widens a restricted module – and a new team that takes its name does not inherit it ([TEAMS.md](TEAMS.md)).
 
 ### Reviewing who uses a module
 

@@ -109,7 +109,7 @@ export function listChangeSets(q: z.infer<typeof listQuery>, u: AuthUser = me())
     .filter((r) => {
       if (q.box === 'drafts' || q.box === 'mine') return isAuthor(r, u);
       if (!canSee(r, u, rights, ops, scope)) return false;
-      if (q.box === 'review') return !isAuthor(r, u) && !rightsProblem(r, u);
+      if (q.box === 'review') return !isAuthor(r, u) && !rightsProblem(r, u, ops, scope);
       return true;
     })
     .filter((r) => !q.site || parseJson<string[]>(r.sites, []).includes(q.site))
@@ -119,9 +119,11 @@ export function listChangeSets(q: z.infer<typeof listQuery>, u: AuthUser = me())
 
 /** How many proposed change sets `u` may decide (the count on Plant → Changes). */
 export function toReview(u: AuthUser = me()): number {
+  const ops = catalogueOps();
+  const scope = catalogueScope(u);
   return db()
     .all<CsRow>("SELECT * FROM plant_change_sets WHERE state = 'proposed' ORDER BY updated_at DESC LIMIT 2000")
-    .filter((r) => !isAuthor(r, u) && !rightsProblem(r, u)).length;
+    .filter((r) => !isAuthor(r, u) && !rightsProblem(r, u, ops, scope)).length;
 }
 
 /** What the plant pages need to know about change sets (GET /api/plant/config). */
