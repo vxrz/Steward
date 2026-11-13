@@ -329,6 +329,12 @@ describe('the OpenLineage export', () => {
       integration: 'DBT',
       jobType: 'STAGE',
     });
+    // a Node-RED flow of the demo: a tool runner with its technology (kept through the import)
+    expect(jobs.find((j) => j.job.name === 'Forward returns')!.job.facets.jobType).toMatchObject({
+      processingType: 'STREAMING',
+      integration: 'NODE_RED',
+      jobType: 'BRIDGE',
+    });
     // the curated orders carry the schema of the contract their port is held to
     const curated = events.find((e) => (e.dataset as { name?: string } | undefined)?.name === 'SHOP.CURATED.ORDERS') as {
       dataset: { facets?: { schema?: { fields: { name: string }[] } } };

@@ -530,7 +530,13 @@ function normaliseProduct(p: ProductFile): void {
   for (const st of p.steps ?? []) {
     refs(st.inputs);
     refs(st.outputs);
-    if (st.runner?.kind === 'tool') st.runner = { kind: 'tool', tool: st.runner.tool ?? '', text: st.runner.text ?? '' };
+    if (st.runner?.kind === 'tool')
+      st.runner = {
+        kind: 'tool',
+        tool: st.runner.tool ?? '',
+        text: st.runner.text ?? '',
+        ...(st.runner.technology ? { technology: st.runner.technology } : {}),
+      };
     for (const n of st.notes ?? []) n.text ??= '';
   }
   for (const x of p.ports ?? []) for (const c of x.consumers ?? []) if (c.agreement) c.agreement.label ??= '';
