@@ -1530,6 +1530,16 @@
     },
     "noElements": "Kein Element des Katalogs",
     "unmatched": "Nicht im Katalog: {{names}}",
+    "reasons": {
+      "tablePattern_one": "{{n}} Eintrag der Tabellenliste übersprungen: ein Muster, kein Tabellenname – Steward rät nicht, welche Tabellen es trifft",
+      "tablePattern_other": "{{n}} Einträge der Tabellenliste übersprungen: Muster, keine Tabellennamen – Steward rät nicht, welche Tabellen sie treffen",
+      "routePattern_one": "{{n}} Topic übersprungen: Das Muster einer Routing-Transformation ließ sich nicht rechtzeitig anwenden – Steward rät nicht, wohin es geht",
+      "routePattern_other": "{{n}} Topics übersprungen: Das Muster einer Routing-Transformation ließ sich nicht rechtzeitig anwenden – Steward rät nicht, wohin sie gehen",
+      "noDatabaseHost_one": "{{n}} Tabelle nicht zugeordnet: Die Konfiguration des Connectors nennt keinen Datenbank-Host (die verwalteten Connectors von Confluent speichern keinen) – sie wird genannt, nicht dem Katalog zugeordnet",
+      "noDatabaseHost_other": "{{n}} Tabellen nicht zugeordnet: Die Konfiguration des Connectors nennt keinen Datenbank-Host (die verwalteten Connectors von Confluent speichern keinen) – sie werden genannt, nicht dem Katalog zugeordnet",
+      "sqlServerDatabases_one": "{{n}} Topic übersprungen: eine SQL-Server-Quelle mehrerer Datenbanken – Steward rät ihre Namen nicht",
+      "sqlServerDatabases_other": "{{n}} Topics übersprungen: eine SQL-Server-Quelle mehrerer Datenbanken – Steward rät ihre Namen nicht"
+    },
     "noOutputs": "Dieser Connector schreibt kein Element des Katalogs – ein Schritt braucht eine Ausgabe. Lassen Sie es zuerst erkennen oder erfassen Sie es.",
     "create": "Schritt anlegen"
   },

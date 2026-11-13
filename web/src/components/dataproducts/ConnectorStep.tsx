@@ -6,6 +6,7 @@ import { post } from '../../api';
 import { QueryState, useFieldErrors } from '../common';
 import { FormModal } from '../FormModal';
 import { HealthBadge } from '../../pages/dataproducts/views';
+import { fmtNumber } from '../../format';
 import { useConnectorDraft, useConnectors } from '../../pages/dataproducts/generic';
 import { FormButtons, useBusy } from './form';
 import { TechnologyBadge } from './GenericParts';
@@ -138,6 +139,16 @@ export function ConnectorStepModal({ productId, onClose, onSaved }: { productId:
                   {ends(d.outputs, d.hiddenOutputs, d.unmatchedOutputs, 'connector-draft-outputs')}
                 </div>
               </SimpleGrid>
+              {d.reasons.length > 0 && (
+                // what the configuration does not name plainly enough: left out or unmatched – never guessed – and why
+                <Stack gap={2} data-testid="connector-draft-reasons">
+                  {d.reasons.map((r) => (
+                    <Text key={r.reason} size="sm" c="dimmed">
+                      {t(`connectorStep.reasons.${r.reason}`, { count: r.count, n: fmtNumber(r.count) })}
+                    </Text>
+                  ))}
+                </Stack>
+              )}
               {!d.outputs.length && (
                 <Alert color="orange" variant="light" data-testid="connector-no-outputs">
                   {t('connectorStep.noOutputs')}

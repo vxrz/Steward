@@ -6511,6 +6511,14 @@ export interface Resources {
     'connectorStep.families.other': string;
     'connectorStep.noElements': string;
     'connectorStep.unmatched': string;
+    'connectorStep.reasons.tablePattern_one': string;
+    'connectorStep.reasons.tablePattern_other': string;
+    'connectorStep.reasons.routePattern_one': string;
+    'connectorStep.reasons.routePattern_other': string;
+    'connectorStep.reasons.noDatabaseHost_one': string;
+    'connectorStep.reasons.noDatabaseHost_other': string;
+    'connectorStep.reasons.sqlServerDatabases_one': string;
+    'connectorStep.reasons.sqlServerDatabases_other': string;
     'connectorStep.noOutputs': string;
     'connectorStep.create': string;
     'technologies.title': string;

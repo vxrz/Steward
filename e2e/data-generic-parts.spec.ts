@@ -96,12 +96,33 @@ test.describe('generic parts and bridges', () => {
     await expectAccessible(page, 'pipeline with bridges');
 
     // Create step from connector: the Snowflake sink of Kafka Connect (demo)
+    // the demo's connectors name every end plainly: the draft's answer gets the reasons a SQL Server source of several
+    // databases and a pattern in a table list give (the server's own reasons: server/test/connector-lineage.test.ts)
+    await page.route(/\/steps\/from-connector\?/, async (r) => {
+      const res = await r.fetch();
+      const body = (await res.json()) as Record<string, unknown>;
+      await r.fulfill({
+        response: res,
+        json: {
+          ...body,
+          skipped: 4,
+          reasons: [
+            { reason: 'sqlServerDatabases', ends: 'skipped', count: 3 },
+            { reason: 'tablePattern', ends: 'skipped', count: 1 },
+          ],
+        },
+      });
+    });
     await page.getByTestId('step-from-connector').click();
     await choose(page, /^Platform/, 'Kafka Connect (demo)');
     await choose(page, /^Connector/, /^orders-snowflake-sink/);
     const draft = page.getByTestId('connector-draft');
     await expect(draft.getByTestId('connector-draft-outputs')).toContainText('SHOP.RAW.ORDERS_RAW');
     await expect(draft.getByTestId('connector-draft-inputs')).toContainText('shop.public.orders');
+    const reasons = draft.getByTestId('connector-draft-reasons');
+    await expect(reasons).toContainText('3 topics skipped: a SQL Server source of several databases – Steward does not guess their names');
+    await expect(reasons).toContainText('1 entry of the table list skipped: a pattern, not a table name');
+    await page.unroute(/\/steps\/from-connector\?/);
     await expectAccessible(page, 'create step from connector');
     await page.getByTestId('connector-step-name').fill(`Sink ${token}`);
     await page.getByTestId('connector-step-save').click();

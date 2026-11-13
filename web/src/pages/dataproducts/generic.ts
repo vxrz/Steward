@@ -33,6 +33,15 @@ export interface ConnectorChoice {
 
 export type ConnectorFamily = 'debezium' | 'snowflakeSink' | 's3Sink' | 'other';
 
+/** Why a draft leaves ends out or names them without an element – never guessed (server: connector-lineage.ts). */
+export type ConnectorSkipReason = 'tablePattern' | 'routePattern' | 'noDatabaseHost' | 'sqlServerDatabases';
+export interface ConnectorSkip {
+  reason: ConnectorSkipReason;
+  /** unmatched: named without an element (no database host); skipped: left out */
+  ends: 'unmatched' | 'skipped';
+  count: number;
+}
+
 export interface ConnectorStepDraft {
   platformId: string;
   connector: string;
@@ -47,6 +56,9 @@ export interface ConnectorStepDraft {
   hiddenOutputs: number;
   unmatchedInputs: string[];
   unmatchedOutputs: string[];
+  /** Ends the configuration does not name plainly enough – left out, never guessed – and why */
+  skipped: number;
+  reasons: ConnectorSkip[];
   health: DataStep['health'];
 }
 

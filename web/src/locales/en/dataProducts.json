@@ -1530,6 +1530,16 @@
     },
     "noElements": "No element of the catalogue",
     "unmatched": "Not in the catalogue: {{names}}",
+    "reasons": {
+      "tablePattern_one": "{{n}} entry of the table list skipped: a pattern, not a table name – Steward does not guess which tables it matches",
+      "tablePattern_other": "{{n}} entries of the table list skipped: patterns, not table names – Steward does not guess which tables they match",
+      "routePattern_one": "{{n}} topic skipped: a routing transform's pattern could not be applied in time – Steward does not guess where it goes",
+      "routePattern_other": "{{n}} topics skipped: a routing transform's pattern could not be applied in time – Steward does not guess where they go",
+      "noDatabaseHost_one": "{{n}} table not matched: the connector's configuration names no database host (Confluent's managed connectors keep none) – it is named, not matched to the catalogue",
+      "noDatabaseHost_other": "{{n}} tables not matched: the connector's configuration names no database host (Confluent's managed connectors keep none) – they are named, not matched to the catalogue",
+      "sqlServerDatabases_one": "{{n}} topic skipped: a SQL Server source of several databases – Steward does not guess their names",
+      "sqlServerDatabases_other": "{{n}} topics skipped: a SQL Server source of several databases – Steward does not guess their names"
+    },
     "noOutputs": "No element of the catalogue is written by this connector – a step needs an output. Discover or enter it first.",
     "create": "Create step"
   },
