@@ -75,8 +75,11 @@ describe('the scorecard', () => {
     expect(state(c, 'healthy')).toBe('noEvidence');
     expect(state(c, 'dependencies')).toBe('met');
     // dimensions without evidence say so
+    const credibility = c.parts.find((p) => p.id === 'credibility')!;
+    expect(credibility).toEqual({ id: 'credibility', group: 'iso25012', state: 'noEvidence', evidence: [{ key: 'evidence.noEvidenceYet' }] });
+    // 0.24.0: accuracy, completeness and consistency come from quality results – none yet
     const accuracy = c.parts.find((p) => p.id === 'accuracy')!;
-    expect(accuracy).toEqual({ id: 'accuracy', group: 'iso25012', state: 'noEvidence', evidence: [{ key: 'evidence.noEvidenceYet' }] });
+    expect(accuracy).toEqual({ id: 'accuracy', group: 'iso25012', state: 'noEvidence', evidence: [{ key: 'evidence.quality.none' }] });
   });
 
   it('reaches level 1 when documented and rated at least to the floor', async () => {
