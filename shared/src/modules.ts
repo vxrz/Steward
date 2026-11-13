@@ -343,7 +343,7 @@ export const MODULES: readonly ModuleDef[] = [
     maturity: 'preview',
     defaultOn: false,
     switchable: true,
-    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery'],
+    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery', 'dataAccessRequests', 'dataRecordsOfProcessing'],
     pages: ['/data-products', '/data-elements', '/data-objects', '/data-domains'],
     routes: [
       '/api/data-products',

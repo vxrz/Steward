@@ -15,6 +15,7 @@ import {
   IconPlugConnected,
   IconRoute,
   IconShieldHalf,
+  IconStairsUp,
   IconTable,
   IconTrash,
 } from '@tabler/icons-react';
@@ -41,6 +42,8 @@ import { ProductElementsTab } from './ProductElements';
 import { ProductHealthTab } from './ProductHealth';
 import { ProductCostsTab, ScorecardPanel, ValueAndCosts } from './ProductCosts';
 import { ProductAccessTab, ProductHistoryTab, LinksTab } from './ProductMisc';
+import { EndorsementBadge, EndorsementSection } from './governance/Endorsement';
+import { PromotionForm } from './governance/Promotion';
 
 const TABS = ['', 'ports', 'pipeline', 'elements', 'health', 'costs', 'access', 'links', 'history'] as const;
 type Tab = (typeof TABS)[number];
@@ -62,6 +65,7 @@ const TAB_ICONS = {
  */
 export function DataProductPage() {
   const { t } = useTranslation(['dataProducts', 'common']);
+  const { t: tg } = useTranslation('dataProductGovernance');
   const { id = '', tab: tabParam = '' } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -70,7 +74,7 @@ export function DataProductPage() {
   const health = useProductHealth(id);
   const scorecard = useScorecard(id, '');
   const domains = useDomains();
-  const [editing, setEditing] = useState<'product' | 'lifecycle' | 'rating' | null>(null);
+  const [editing, setEditing] = useState<'product' | 'lifecycle' | 'rating' | 'promote' | null>(null);
   const subject = useSubjectLabel();
   // the successor of a deprecated product: the other products the reader may see (first page)
   const others = useProductList('limit=100', editing === 'lifecycle');
@@ -112,6 +116,7 @@ export function DataProductPage() {
         <>
           <LifecycleBadge lifecycle={p.lifecycle} sunsetDate={p.sunsetDate} />
           <TypeBadge type={p.type} />
+          <EndorsementBadge productId={id} />
           {scorecard.data && (
             <Badge variant="outline" color="gray" tt="none" data-testid="product-maturity-badge">
               {t('scorecard.maturityShort', { level: scorecard.data.maturity })}
@@ -158,13 +163,21 @@ export function DataProductPage() {
         items: [
           { label: t('product.rate'), icon: IconShieldHalf, onClick: () => setEditing('rating'), disabled: !canEdit, testId: 'product-rate' },
           { label: t('product.pipelinePage'), icon: IconBinaryTree, to: `${base}/views/pipeline` },
+          // 0.24.0 (ADR 0036 part 4): promote bindings and members to the next environment, with a preview
+          { label: tg('promotion.menu'), icon: IconStairsUp, onClick: () => setEditing('promote'), disabled: p.environments.length < 2, testId: 'product-promote' },
           ...(canManage ? [{ label: t('common:delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'product-delete' }] : []),
         ],
         extra: <ProductTransferItems id={p.id} />,
       }}
       tabs={<LinkTabs label={t('product.tabs.label')} active={tab ? `${base}/${tab}` : base} tabs={tabs} />}
     >
-      {tab === '' && <Overview p={p} onRate={canEdit ? () => setEditing('rating') : undefined} />}
+      {tab === '' && (
+        <Stack gap="md">
+          <Overview p={p} onRate={canEdit ? () => setEditing('rating') : undefined} />
+          {/* 0.24.0: the endorsement by the domain's owners (maturity 5) */}
+          <EndorsementSection p={p} />
+        </Stack>
+      )}
       {tab === 'ports' && <ProductPortsTab p={p} />}
       {tab === 'pipeline' && <ProductPipelineTab p={p} />}
       {tab === 'elements' && <ProductElementsTab p={p} />}
@@ -177,6 +190,7 @@ export function DataProductPage() {
       {editing === 'lifecycle' && (
         <LifecycleForm product={p} products={pagesOf(others.data).map((x) => ({ id: x.id, name: x.name }))} onClose={() => setEditing(null)} onSaved={saved} />
       )}
+      {editing === 'promote' && <PromotionForm p={p} onClose={() => setEditing(null)} />}
       {editing === 'rating' && (
         <RatingForm
           title={t('rating.productTitle', { name: p.name })}

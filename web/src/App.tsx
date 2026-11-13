@@ -107,6 +107,8 @@ const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 
 // the data products module (ADR 0036): its pages (WP5) and pictures (WP6)
 const DataProductsPage = page(() => import('./pages/dataproducts'), 'DataProductsPage');
 const DataProductPage = page(() => import('./pages/dataproducts'), 'DataProductPage');
+const DataAccessRequestsPage = page(() => import('./pages/dataproducts'), 'DataAccessRequestsPage');
+const DataRecordsOfProcessingPage = page(() => import('./pages/dataproducts'), 'DataRecordsOfProcessingPage');
 const DataElementsPage = page(() => import('./pages/dataproducts'), 'DataElementsPage');
 const DataElementPage = page(() => import('./pages/dataproducts'), 'DataElementPage');
 const DataObjectsPage = page(() => import('./pages/dataproducts'), 'DataObjectsPage');
@@ -510,6 +512,22 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="dataProducts">
                           <DataProductsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/access-requests"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataAccessRequestsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/records-of-processing"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataRecordsOfProcessingPage />
                         </ModuleGate>
                       }
                     />

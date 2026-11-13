@@ -61,6 +61,7 @@ import {
   IconFolders,
   IconTopologyStar3,
   IconRadar,
+  IconListDetails,
 } from '@tabler/icons-react';
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
@@ -87,6 +88,8 @@ export type NavKey =
   | 'dataDomains'
   | 'dataMap'
   | 'dataDiscovery'
+  | 'dataAccessRequests'
+  | 'dataRecordsOfProcessing'
   | 'records'
   | 'services'
   | 'applications'
@@ -218,6 +221,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/data-domains', key: 'dataDomains', icon: IconFolders },
       { to: '/data-products/map', key: 'dataMap', icon: IconTopologyStar3 },
       { to: '/data-products/discovery', key: 'dataDiscovery', icon: IconRadar },
+      { to: '/data-products/access-requests', key: 'dataAccessRequests', icon: IconKey },
+      { to: '/data-products/records-of-processing', key: 'dataRecordsOfProcessing', icon: IconListDetails },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: dataProducts },
     ],
   },

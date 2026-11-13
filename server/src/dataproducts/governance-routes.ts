@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { dataActualReadInput, type ReportLang } from '@sm/shared';
 import { ACCESS, me } from '../auth/access.js';
+import { LINK_PARAM } from '../auth/cookies.js';
 import * as actual from './consumers-actual.js';
 import * as requests from './access-requests.js';
 import * as reviews from './port-reviews.js';
@@ -39,13 +40,16 @@ import * as ropa from './ropa.js';
  */
 
 const param = (req: FastifyRequest, name: string): string => z.string().min(1).max(200).parse((req.params as Record<string, unknown>)[name]);
+/** The query without the download link's session key (`?_sk=`, apiUrl in the web app). */
+const queryOf = (req: FastifyRequest) =>
+  Object.fromEntries(Object.entries((req.query ?? {}) as Record<string, unknown>).filter(([k]) => k !== LINK_PARAM));
 const envQuery = z.object({ environment: z.string().trim().min(1).max(60) }).strict();
 
 export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise<void> {
   // ---------- the GDPR Art. 30 view (before /data-products/:id) ----------
-  app.get('/data-products/records-of-processing', async (req) => ropa.recordsOfProcessing(ropa.ropaRequest.omit({ lang: true }).parse(req.query ?? {})));
+  app.get('/data-products/records-of-processing', async (req) => ropa.recordsOfProcessing(ropa.ropaRequest.omit({ lang: true }).parse(queryOf(req))));
   app.get('/data-products/records-of-processing.csv', async (req, reply) => {
-    const q = ropa.ropaRequest.parse(req.query ?? {});
+    const q = ropa.ropaRequest.parse(queryOf(req));
     const { lang, ...filter } = q;
     const r = ropa.recordsOfProcessing(filter);
     ropa.auditRopaExport('csv', r.items.length);
@@ -53,7 +57,7 @@ export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise
     return reply.type('text/csv; charset=utf-8').send(ropa.ropaCsv(r, lang ?? (await localeOf())));
   });
   app.get('/data-products/records-of-processing.pdf', async (req, reply) => {
-    const q = ropa.ropaRequest.parse(req.query ?? {});
+    const q = ropa.ropaRequest.parse(queryOf(req));
     const { lang, ...filter } = q;
     const l: ReportLang = lang ?? (await localeOf());
     const r = ropa.recordsOfProcessing(filter);
