@@ -1602,6 +1602,33 @@
         "text": {
           "type": "string",
           "maxLength": 2000
+        },
+        "runs_on": {
+          "description": "0.25.0, application and connector: the Steward system (and environment) it runs on",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "system": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "The system’s name"
+                },
+                "environment": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "system"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

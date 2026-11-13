@@ -181,20 +181,20 @@ export class Snapshot {
   }
 
   private names = new Map<string, string | null>();
-  /** Names of applications and services as the reader may see them (null: hidden or gone); `ids` read in bulk. */
-  catalogue(kind: 'application' | 'service', ids: Iterable<string>): void {
+  /** Names of applications, services and (0.25.0) systems as the reader may see them (null: hidden or gone); `ids` read in bulk. */
+  catalogue(kind: 'application' | 'service' | 'system', ids: Iterable<string>): void {
     const missing = [...new Set(ids)].filter((id) => !this.names.has(`${kind}:${id}`));
     for (const id of missing) this.names.set(`${kind}:${id}`, null);
     for (let i = 0; i < missing.length; i += 500) {
       const part = missing.slice(i, i + 500);
       for (const r of db().all<{ id: string; name: string; owners: string }>(
-        `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'} WHERE id IN (${marks(part.length)})`,
+        `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : kind === 'system' ? 'systems' : 'services'} WHERE id IN (${marks(part.length)})`,
         ...part,
       ))
         this.names.set(`${kind}:${r.id}`, canViewCatalogue(this.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }) ? r.name : null);
     }
   }
-  catalogueName(kind: 'application' | 'service', id: string): string | null {
+  catalogueName(kind: 'application' | 'service' | 'system', id: string): string | null {
     this.catalogue(kind, [id]);
     return this.names.get(`${kind}:${id}`) ?? null;
   }
@@ -330,16 +330,19 @@ export { elementKey };
 function runnerFile(s: Snapshot, raw: DataStepRunner | null): RunnerFile | null | undefined {
   if (!raw) return null;
   if (raw.kind === 'tool') return { kind: 'tool', tool: raw.tool, text: raw.text };
+  // 0.25.0: the system it runs on, as far as the exporter may see it (an import keeps one left out)
+  const on = raw.runsOn ? s.catalogueName('system', raw.runsOn.systemId) : null;
+  const runsOn = on ? { runs_on: { system: on, ...(raw.runsOn!.environment ? { environment: raw.runsOn!.environment } : {}) } } : {};
   if (raw.kind === 'connector') {
     const platform = s.platformNameOf(raw.platformId);
-    return platform ? { kind: 'connector', platform, name: raw.name } : undefined;
+    return platform ? { kind: 'connector', platform, name: raw.name, ...runsOn } : undefined;
   }
   if (raw.kind === 'element') {
     const element = s.ref(raw.id);
     return element ? { kind: 'element', element } : undefined;
   }
   const name = raw.kind === 'platform' ? s.platformNameOf(raw.id) : raw.kind === 'process' ? s.processName(raw.id) : s.catalogueName('application', raw.id);
-  return name ? { kind: raw.kind, name } : undefined;
+  return name ? { kind: raw.kind, name, ...(raw.kind === 'application' ? runsOn : {}) } : undefined;
 }
 
 function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number], identities: readonly string[] = []): ConsumerFile | null {

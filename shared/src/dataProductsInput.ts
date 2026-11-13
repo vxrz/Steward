@@ -353,9 +353,14 @@ export const dataMemberListQuery = z.object({
 
 // ---------- steps ----------
 
+/** 0.25.0 (ADR 0037 part 3): the system (and environment) an application or connector runner runs on. */
+export const dataRunsOnInput = z.object({ systemId: id(), environment: text(L.short).default('') }).strict();
+
 export const dataStepRunnerInput = z.discriminatedUnion('kind', [
-  z.object({ kind: z.enum(['application', 'platform', 'process', 'element']), id: id() }).strict(),
-  z.object({ kind: z.literal('connector'), platformId: id(), name: z.string().trim().min(1).max(L.short) }).strict(),
+  z.object({ kind: z.enum(['application', 'platform', 'process', 'element']), id: id(), runsOn: dataRunsOnInput.nullable().optional() }).strict(),
+  z
+    .object({ kind: z.literal('connector'), platformId: id(), name: z.string().trim().min(1).max(L.short), runsOn: dataRunsOnInput.nullable().optional() })
+    .strict(),
   z.object({ kind: z.literal('tool'), tool: text(L.short).default(''), text: text().default('') }).strict(),
 ]);
 
