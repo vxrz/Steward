@@ -764,6 +764,10 @@
       "teams": {
         "who": "With owning teams",
         "what": "Only members of those teams (with their roles), auditors and administrators"
+      },
+      "shares": {
+        "who": "Shares",
+        "what": "View, Edit or Manage for a person, a team or a role – only for those who use the module; Restricted: only the shares, owners, auditors and administrators"
       }
     },
     "scopeHint": "What you may not see is neither listed nor counted nor named elsewhere – lineage and the map draw it without a name."

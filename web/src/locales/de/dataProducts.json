@@ -779,6 +779,10 @@
       "teams": {
         "who": "Mit zuständigen Teams",
         "what": "Nur Mitglieder dieser Teams (mit ihren Rollen), Prüfer und Administratoren"
+      },
+      "shares": {
+        "who": "Freigaben",
+        "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Verantwortliche, Prüfer und Administratoren"
       }
     },
     "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Lineage und Karte zeigen es ohne Namen."

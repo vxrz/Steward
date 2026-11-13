@@ -584,6 +584,32 @@ describe('statements per request', () => {
   });
 });
 
+describe('shares (ADR 0033)', () => {
+  it('a team’s product shared with a viewer; a Restricted product reaches only its shares, owners, auditors and administrators', async () => {
+    const team = ((await s.api('GET', '/teams')) as { id: string; name: string }[]).find((t) => t.name === 'Data team')!.id;
+    const p = await s.api('POST', '/data-products', { key: 'shared-product', name: 'Shared product' });
+    await s.api('PUT', `/owning-teams/data_product/${p.id}`, { teamIds: [team] });
+    expect((await fail(vera('GET', `/data-products/${p.id}`))).code).toBe('DATA_PRODUCT_NOT_FOUND');
+    await s.api('PUT', `/access/data_product/${p.id}/shares`, { shares: [{ subject: 'user:vera', level: 'view' }] });
+    expect((await vera('GET', `/data-products/${p.id}`)).permissions).toEqual(['view']);
+    expect(((await vera('GET', '/data-products?limit=100')) as { items: { id: string }[] }).items.some((x) => x.id === p.id)).toBe(true);
+    // Edit lets her change it, never its shares (Manage)
+    await s.api('PUT', `/access/data_product/${p.id}/shares`, { shares: [{ subject: 'user:vera', level: 'edit' }] });
+    expect((await vera('GET', `/data-products/${p.id}`)).permissions).toEqual(['view', 'edit']);
+    expect((await fail(vera('PUT', `/access/data_product/${p.id}/shares`, { shares: [] }))).status).toBe(403);
+    // Restricted, without owning teams: the instance roles give nothing, the share and the auditor stay
+    const r = await s.api('POST', '/data-products', { key: 'restricted-product', name: 'Restricted product' });
+    await s.api('PUT', `/access/data_product/${r.id}/scope`, { restricted: true });
+    expect((await fail(olivia('GET', `/data-products/${r.id}`))).code).toBe('DATA_PRODUCT_NOT_FOUND');
+    expect((await audrey('GET', `/data-products/${r.id}`)).permissions).toEqual(['view']);
+    await s.api('PUT', `/access/data_product/${r.id}/shares`, { shares: [{ subject: 'user:olivia', level: 'view' }] });
+    expect((await olivia('GET', `/data-products/${r.id}`)).name).toBe('Restricted product');
+    const view = await s.api('GET', `/access/data_product/${r.id}/shares`);
+    expect(view).toMatchObject({ restricted: true });
+    expect(JSON.stringify(await s.api('GET', `/audit?entityId=${r.id}`))).toContain('access.share_added');
+  });
+});
+
 describe('module access (ADR 0034)', () => {
   it('restricted to a team: who is not on the list neither reaches the routes nor the items through other surfaces', async () => {
     // made by the administrator: no owning teams, so every working role sees it while the module is open

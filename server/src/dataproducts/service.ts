@@ -745,7 +745,7 @@ export function getProduct(id: string): DataProduct {
   const data = summaryData(u, [{ row: p, perms }]);
   const summary = data.items[0];
   const { list, envRows } = data;
-  const ports = portViews(u, p.id);
+  const ports = portViews(u, p.id, data.objects);
   const counts: Record<DataMemberRole, number> = { input: 0, internal: 0, output: 0 };
   for (const r of db().all<{ role: DataMemberRole; n: number }>('SELECT role, COUNT(*) AS n FROM dp_members WHERE product_id = ? GROUP BY role', p.id))
     counts[r.role] = Number(r.n);

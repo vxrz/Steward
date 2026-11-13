@@ -8,7 +8,8 @@ import {
 } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { isAdmin, matches } from '../auth/permissions.js';
-import { memberships, teamScoped } from '../auth/policy.js';
+import { memberships, owningTeams, shareReasons, teamScoped, type ShareModel } from '../auth/policy.js';
+import { isRestricted } from '../auth/share-store.js';
 import { parseJson } from '../util.js';
 import { usesModule as usesModuleAccess } from '../modules/access.js';
 
@@ -97,7 +98,22 @@ function normalise(d: ItemDecision): ItemDecision {
   return { permissions: ALL.filter((p) => has.has(p)), reasons: d.reasons };
 }
 
-function decideItem(u: AuthUser | null, kind: DataProductOwnedKind, id: string, personal: readonly DataProductPermission[], subject?: string): ItemDecision {
+/**
+ * How a share gives rights on a data product (ADR 0033 part 1; the levels only – the kind has no action rights yet):
+ * View sees it, Edit changes it, Manage also changes its owning teams, shares and lifecycle _retired_ and deletes it.
+ */
+export const DATA_PRODUCT_SHARES: ShareModel<DataProductPermission> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+};
+
+function decideItem(
+  u: AuthUser | null,
+  kind: DataProductOwnedKind,
+  id: string,
+  personal: readonly DataProductPermission[],
+  subject?: string,
+  shares?: ShareModel<DataProductPermission>,
+): ItemDecision {
   // module access first: who does not use the module has no right on its items (named owners included)
   if (u && !usesModuleAccess(u, 'dataProducts')) return { permissions: [], reasons: [] };
   const d = teamScoped<DataProductPermission>(
@@ -115,7 +131,17 @@ function decideItem(u: AuthUser | null, kind: DataProductOwnedKind, id: string, 
       },
     },
   );
-  return normalise(d);
+  if (!shares || !u || isAdmin(u)) return normalise(d);
+  // shares (ADR 0033, kinds switched to shares): they add a level; a Restricted item without owning teams gives the
+  // instance roles nothing – only its shares, its named owners, auditors (view) and administrators reach it
+  let reasons = d.reasons;
+  if (!owningTeams(kind, id).length && isRestricted(kind, id)) {
+    reasons = reasons.filter((r) => r.source !== 'instanceRole');
+    if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
+  }
+  reasons = [...reasons, ...shareReasons(u, { kind, id }, shares)];
+  const granted = new Set(reasons.flatMap((r) => r.permissions));
+  return normalise({ permissions: ALL.filter((p) => granted.has(p)), reasons });
 }
 
 const firstMatch = (u: AuthUser | null, subjects: readonly string[]): string | undefined => (u ? subjects.find((s) => matches(u, s)) : undefined);
@@ -124,7 +150,7 @@ const firstMatch = (u: AuthUser | null, subjects: readonly string[]): string | u
 export function productAccess(u: AuthUser | null, p: { id: string; owners: string | readonly string[] }): ItemDecision {
   const owners = typeof p.owners === 'string' ? parseJson<string[]>(p.owners, []) : p.owners;
   const owner = firstMatch(u, owners);
-  return decideItem(u, 'data_product', p.id, owner ? ALL : [], owner);
+  return decideItem(u, 'data_product', p.id, owner ? ALL : [], owner, DATA_PRODUCT_SHARES);
 }
 
 /** A domain: its owners and the module's managers. */

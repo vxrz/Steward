@@ -5069,6 +5069,8 @@ export interface Resources {
     'access.rows.owners.what': string;
     'access.rows.teams.who': string;
     'access.rows.teams.what': string;
+    'access.rows.shares.who': string;
+    'access.rows.shares.what': string;
     'access.scopeHint': string;
     'links.title': string;
     'links.helpProduct': string;
