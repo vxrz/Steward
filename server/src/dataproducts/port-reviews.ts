@@ -346,7 +346,11 @@ export function decideItems(id: string, body: unknown): DataPortReview {
   return getReview(id);
 }
 
-/** The seal: SHA-256 over the canonical review and its decisions. */
+/**
+ * The seal: SHA-256 over the canonical review and its decisions – everything the evidence says: four eyes or not, the
+ * approver's comment, and per entry what was frozen (its detail too: purposes, identities, who was seen) and who
+ * decided it when.
+ */
 function sealOf(r: ReviewRow, items: ItemRow[]): string {
   return sha256(
     canonicalJson({
@@ -354,12 +358,14 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
       productId: r.product_id,
       portId: r.port_id,
       environment: r.environment,
+      fourEyes: !!Number(r.four_eyes),
       createdBy: r.created_by,
       createdAt: r.created_at,
       submittedBy: r.submitted_by,
       submittedAt: r.submitted_at,
       approvedBy: r.approved_by,
       approvedAt: r.approved_at,
+      approvalComment: r.approval_comment,
       check: parseJson(r.check_info, null),
       items: items.map((i) => ({
         seq: Number(i.seq),
@@ -367,9 +373,11 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
         consumerId: i.consumer_id,
         label: i.label,
         finding: i.finding,
+        detail: i.detail,
         decision: i.decision,
         comment: i.comment,
         decidedBy: i.decided_by,
+        decidedAt: i.decided_at,
       })),
     }),
   );

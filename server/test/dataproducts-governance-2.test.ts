@@ -128,6 +128,24 @@ describe('port access reviews', () => {
     const { db } = await import('../src/db.js');
     db().run("UPDATE dp_port_review_items SET decision = 'keep' WHERE review_id = ? AND label = 'Old export'", review);
     expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: false });
+    db().run("UPDATE dp_port_review_items SET decision = 'remove' WHERE review_id = ? AND label = 'Old export'", review);
+    expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: true });
+    // the seal covers the frozen evidence, four eyes, the approver's comment and when each entry was decided
+    const item = db().get<{ id: string; detail: string; decided_at: string }>(
+      "SELECT id, detail, decided_at FROM dp_port_review_items WHERE review_id = ? AND label = 'Finance reports'",
+      review,
+    )!;
+    const tampered = async (table: string, column: string, id: string, value: unknown, was: unknown) => {
+      db().run(`UPDATE ${table} SET ${column} = ? WHERE id = ?`, value, id);
+      const r = await dana('GET', `/data-products/port-reviews/${review}/verify`);
+      db().run(`UPDATE ${table} SET ${column} = ? WHERE id = ?`, was, id);
+      return r.ok;
+    };
+    expect(await tampered('dp_port_review_items', 'detail', item.id, 'Close · SVC_OTHER', item.detail)).toBe(false);
+    expect(await tampered('dp_port_review_items', 'decided_at', item.id, '2020-01-01T00:00:00.000Z', item.decided_at)).toBe(false);
+    expect(await tampered('dp_port_reviews', 'four_eyes', review, 0, 1)).toBe(false);
+    expect(await tampered('dp_port_reviews', 'approval_comment', review, 'Waved through', 'Agreed')).toBe(false);
+    expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: true });
     // the next one is due in 6 months; the confidentiality evidence names the review
     const after = await dana('GET', `/data-products/${product}/port-reviews`);
     expect(after.due[0].overdue).toBe(false);
