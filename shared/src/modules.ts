@@ -212,7 +212,14 @@ export const MODULES: readonly ModuleDef[] = [
     jobs: [],
     platformKinds: ['datacontract'],
     // its data contracts have owning teams (owning-team kind `contract`): the access preview names those without it
-    access: { restrictable: true, events: ['contract.failed'], reportSections: ['contracts'], itemKinds: ['contract'] },
+    access: {
+      restrictable: true,
+      events: ['contract.failed'],
+      // the read tools (0.22.0, with the data products module's)
+      mcpTools: ['list_data_contracts', 'get_data_contract'],
+      reportSections: ['contracts'],
+      itemKinds: ['contract'],
+    },
   },
   {
     id: 'ai',
@@ -329,8 +336,8 @@ export const MODULES: readonly ModuleDef[] = [
     access: { restrictable: false, follows: 'plant' },
   },
   {
-    // ADR 0036: off by default (it brings discovery jobs and a large catalogue); restrictable once module access
-    // (ADR 0034) is built. The job data-products discovers elements (dataproducts/discovery/job.ts)
+    // ADR 0036: off by default (it brings discovery jobs and a large catalogue); restrictable (ADR 0034). The job
+    // data-products discovers elements (dataproducts/discovery/job.ts)
     id: 'dataProducts',
     name: 'Data products',
     maturity: 'preview',
@@ -348,6 +355,26 @@ export const MODULES: readonly ModuleDef[] = [
       '/api/v1/data-objects',
     ],
     jobs: ['data-products'],
+    // module access (ADR 0034 phase 1): restrictable to selected teams and users; within it the core roles give the
+    // module roles (designer → manager, other working roles → viewer – dataproducts/access.ts). Contributors as a
+    // module role of their own and a report section follow in phase 2; the instance export has no part of it yet.
+    access: {
+      restrictable: true,
+      events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed'],
+      mcpTools: [
+        'list_data_products',
+        'get_data_product',
+        'search_data_elements',
+        'get_data_element',
+        'get_data_lineage',
+        'get_data_product_health',
+        'get_data_product_costs',
+        'list_data_objects',
+        'get_data_object',
+      ],
+      // owning-team kinds and link kinds: a link from a core item to one is counted, not named, for who does not use it
+      itemKinds: ['data_product', 'data_object', 'data_element', 'data_domain', 'data-product', 'data-object'],
+    },
   },
 ];
 
