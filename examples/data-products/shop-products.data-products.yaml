@@ -40,6 +40,10 @@ data_products:
       - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.RAW.ORDERS_RAW, environment: dev }, role: internal }
       - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.STAGED.ORDERS, environment: dev }, role: internal }
       - { element: { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP_DEV.CURATED.ORDERS, environment: dev }, role: output }
+      # 0.25.0 (ADR 0037): the shop database captured by Debezium, its change topic, and the returns desk's webhook (a generic part)
+      - { element: { platform: Shop database (demo), kind: sql.table, qualified_name: public.orders, environment: prod }, role: input }
+      - { element: { platform: Kafka (demo), kind: kafka.topic, qualified_name: shop.public.orders, environment: prod }, role: internal }
+      - { element: { kind: generic.endpoint, qualified_name: returns-desk/returns, environment: prod }, role: input }
     ports:
       - direction: output
         name: orders
@@ -81,6 +85,28 @@ data_products:
         schedule: continuous
         description: The Snowflake sink connector writes every event of orders.v1 into the raw table.
         inputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: orders.v1, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
+      # 0.25.0 (ADR 0037): bridges – change data capture into Kafka, the Snowflake sink, and a Node-RED flow
+      - name: Capture shop orders
+        kind: bridge
+        runner: { kind: connector, platform: Kafka Connect (demo), name: shop-cdc, technology: debezium }
+        schedule: continuous
+        description: Debezium writes every change of the shop database's orders to a topic.
+        inputs: [{ platform: Shop database (demo), kind: sql.table, qualified_name: public.orders, environment: prod }]
+        outputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: shop.public.orders, environment: prod }]
+      - name: Load captured orders
+        kind: bridge
+        runner: { kind: connector, platform: Kafka Connect (demo), name: orders-snowflake-sink, technology: kafka-connect }
+        schedule: continuous
+        description: The Snowflake sink connector writes the change events into the raw table, beside the order events.
+        inputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: shop.public.orders, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
+      - name: Forward returns
+        kind: bridge
+        runner: { kind: tool, tool: Node-RED, text: flow returns-forwarder (invented), technology: node-red }
+        schedule: on every webhook call
+        description: A Node-RED flow takes the returns desk's webhook calls and writes them as cancelled orders to the raw table.
+        inputs: [{ kind: generic.endpoint, qualified_name: returns-desk/returns, environment: prod }]
         outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
       - name: Stage orders
         kind: stage

@@ -178,7 +178,20 @@ export async function refreshConnect(platformId: string, actor: string, now = Da
         details: { added: added.slice(0, 50), removed: removed.slice(0, 50) },
       });
   }
+  if (!readout.error) await proposeConnectorLineage(platformId);
   return readout;
+}
+
+/**
+ * 0.25.0 (ADR 0037 part 1): the lineage of the connectors as proposals of the data products module (only while it is
+ * on) – a failure there never fails the readout.
+ */
+export async function proposeConnectorLineage(platformId: string): Promise<void> {
+  try {
+    (await import('../dataproducts/connector-lineage.js')).proposeFromConnectors(platformId);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message, platform: platformId }, 'connector lineage not proposed');
+  }
 }
 
 /** The job: every Kafka Connect platform is read again after KAFKA_CONNECT_LIMITS.refreshMinutes; readouts of deleted platforms go with them. */

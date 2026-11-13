@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
 import { ActionIcon, Anchor, Button, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconDownload, IconPencil, IconPlugConnected, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { DataProduct, DataStep } from '@sm/shared';
-import { del, notifyError } from '../../api';
+import { apiUrl, del, notifyError } from '../../api';
 import { confirmDanger } from '../../components/confirm';
 import { StepForm } from '../../components/dataproducts/StepForm';
+import { ConnectorStepModal } from '../../components/dataproducts/ConnectorStep';
+import { TechnologyBadge } from '../../components/dataproducts/GenericParts';
 import type { PickedElement } from '../../components/dataproducts/ElementPicker';
-import { PipelineView } from './views';
+import { HealthBadge, PipelineView } from './views';
 import { usePipelineView } from './views/queries';
 import { pagesOf, qs, useInvalidateDataProducts, useMembers, useSteps } from './api';
 import { Breakable, CardTable, Section } from './parts';
@@ -30,6 +32,7 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
   const canCreate = useCanCreate();
   const canAdd = p.permissions.includes('edit') && canCreate;
   const [editing, setEditing] = useState<{ step?: DataStep } | null>(null);
+  const [fromConnector, setFromConnector] = useState(false);
   // names of the elements the steps name: the members and the picture's elements (neighbours of other products too)
   const names = useMemo(() => {
     const m = new Map<string, PickedElement>();
@@ -78,6 +81,7 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
     return t(`steps.runnerKinds.${r.kind}`);
   };
   const rows = steps.data ?? [];
+  const environment = params.get('environment');
   return (
     <Stack gap="md">
       <PipelineView productId={p.id} />
@@ -85,11 +89,35 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
         title={t('steps.title')}
         testId="product-steps"
         actions={
-          canAdd && (
-            <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing({})} data-testid="step-add">
-              {t('steps.add')}
+          <Group gap="xs">
+            {/* 0.25.0 (ADR 0037 part 5): the static lineage as OpenLineage events, in the environment shown */}
+            <Button
+              size="xs"
+              variant="default"
+              component="a"
+              href={apiUrl(`/data-products/${enc(p.id)}/openlineage${environment ? `?environment=${enc(environment)}` : ''}`)}
+              leftSection={<IconDownload size={14} />}
+              data-testid="steps-openlineage"
+            >
+              {t('openLineage.export')}
             </Button>
-          )
+            {canAdd && (
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<IconPlugConnected size={14} />}
+                onClick={() => setFromConnector(true)}
+                data-testid="step-from-connector"
+              >
+                {t('connectorStep.open')}
+              </Button>
+            )}
+            {canAdd && (
+              <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing({})} data-testid="step-add">
+                {t('steps.add')}
+              </Button>
+            )}
+          </Group>
         }
       >
         <Text size="sm" c="dimmed" mb="sm">
@@ -118,27 +146,64 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
               },
               { key: 'inputs', header: t('steps.inputs'), cell: (s) => ends(s.inputs, s.hiddenInputs) },
               { key: 'outputs', header: t('steps.outputs'), cell: (s) => ends(s.outputs, s.hiddenOutputs) },
-              { key: 'runner', header: t('steps.runner'), cell: (s) => runner(s) },
+              {
+                key: 'runner',
+                header: t('steps.runner'),
+                cell: (s) => (
+                  <Stack gap={4} align="flex-start">
+                    <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                      {runner(s)}
+                    </Text>
+                    {/* 0.25.0: a bridge's technology, and a connector's state through the Kafka Connect checks */}
+                    {!s.runnerHidden && s.runner?.technology && <TechnologyBadge value={s.runner.technology} size="xs" />}
+                    {s.health && (
+                      <Group gap={4} data-testid="step-health">
+                        <HealthBadge status={s.health.status} size="xs" />
+                        {s.health.checks.hidden > 0 && (
+                          <Text size="xs" c="dimmed">
+                            {t('hidden.checks', { count: s.health.checks.hidden })}
+                          </Text>
+                        )}
+                      </Group>
+                    )}
+                  </Stack>
+                ),
+              },
               { key: 'schedule', header: t('steps.schedule'), cell: (s) => s.schedule || '–' },
               {
                 key: 'actions',
                 header: t('table.actions'),
                 actions: true,
-                cell: (s) =>
-                  s.canEdit && (
-                    <Group gap={2} wrap="nowrap">
+                cell: (s) => (
+                  <Group gap={2} wrap="nowrap">
+                    <Tooltip label={t('openLineage.exportStep')}>
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        component="a"
+                        href={apiUrl(`/data-products/${enc(p.id)}/steps/${enc(s.id)}/openlineage`)}
+                        aria-label={t('openLineage.exportStepNamed', { name: s.name })}
+                        data-testid="step-openlineage"
+                      >
+                        <IconDownload size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                    {s.canEdit && (
                       <Tooltip label={t('steps.edit')}>
                         <ActionIcon variant="subtle" color="gray" aria-label={t('steps.editNamed', { name: s.name })} onClick={() => setEditing({ step: s })}>
                           <IconPencil size={14} />
                         </ActionIcon>
                       </Tooltip>
+                    )}
+                    {s.canEdit && (
                       <Tooltip label={t('steps.delete')}>
                         <ActionIcon variant="subtle" color="red" aria-label={t('steps.deleteNamed', { name: s.name })} onClick={() => void remove(s)}>
                           <IconTrash size={14} />
                         </ActionIcon>
                       </Tooltip>
-                    </Group>
-                  ),
+                    )}
+                  </Group>
+                ),
               },
             ]}
           />
@@ -150,6 +215,16 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
           )
         )}
       </Section>
+      {fromConnector && (
+        <ConnectorStepModal
+          productId={p.id}
+          onClose={() => setFromConnector(false)}
+          onSaved={() => {
+            invalidate();
+            setFromConnector(false);
+          }}
+        />
+      )}
       {editing && (
         <StepForm
           productId={p.id}

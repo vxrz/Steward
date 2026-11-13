@@ -137,6 +137,8 @@ export interface ConfluentConnector {
   tasks: ConnectTask[];
   /** The topics of its configuration (topics, kafka.topic) */
   topics: string[];
+  /** 0.25.0 (ADR 0037 part 1): the allow-listed configuration keys (allowedConnectorConfig); nothing else is kept */
+  config?: Record<string, string>;
 }
 
 /** What Steward last read from Confluent Cloud – no connector configuration, no secret – kept per platform. */

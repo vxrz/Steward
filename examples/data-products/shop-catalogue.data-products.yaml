@@ -1,5 +1,6 @@
 # The invented shop of the demo (docs/DATA-PRODUCTS.md): its domains, the data objects it holds and the elements a
-# discovery source cannot read – a Kafka topic bundle and an API. The tables and topics themselves are discovered from
+# discovery source cannot read – a Kafka topic bundle, an API, the shop database's captured tables and their change
+# topics, and a generic part (0.25.0). The other tables and topics are discovered from
 # "Snowflake (demo)" (databases SHOP and SHOP_DEV: SHOP_DEV is dev by its name) and "Kafka (demo)".
 # Imported together with shop-products.data-products.yaml (Data products → Import and export → Import files…).
 version: 1
@@ -103,3 +104,40 @@ elements:
     api_ref:
       url: "https://shop.example/api/sales/openapi.json"
       operations: ["GET /daily-sales", "GET /daily-sales/{region}"]
+  # 0.25.0 (ADR 0037): the shop database's tables that Debezium captures (shop-cdc of Kafka Connect (demo)) and the topics
+  # it writes – entered here, as no discovery source of the demo reads them
+  - platform: Shop database (demo)
+    kind: sql.table
+    qualified_name: public.orders
+    environment: prod
+    layer: source
+    description: The orders table of the shop's database; Debezium captures its changes.
+  - platform: Shop database (demo)
+    kind: sql.table
+    qualified_name: public.customers
+    environment: prod
+    layer: source
+  - platform: Kafka (demo)
+    kind: kafka.topic
+    qualified_name: shop.public.orders
+    environment: prod
+    layer: raw
+    description: Change events of public.orders (Debezium); the Snowflake sink writes them to the raw table.
+  - platform: Kafka (demo)
+    kind: kafka.topic
+    qualified_name: shop.public.customers
+    environment: prod
+    layer: raw
+  # a generic part (0.25.0): the invented returns desk's webhook – a technology Steward does not discover, described by
+  # its technology, OpenLineage namespace and properties; a Node-RED flow (a bridge) forwards what it receives
+  - kind: generic.endpoint
+    qualified_name: returns-desk/returns
+    environment: prod
+    display_name: Returns desk webhook
+    layer: source
+    description: Returned orders as the invented returns desk posts them.
+    technology: rest-api
+    namespace: https://returns.invented.example
+    properties:
+      - { key: method, value: POST }
+      - { key: owner, value: Returns desk (invented) }

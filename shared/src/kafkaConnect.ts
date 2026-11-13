@@ -72,6 +72,11 @@ export interface ConnectConnector {
   groupId: string | null;
   /** Debezium source connectors: the database it reads */
   debezium: DebeziumSource | null;
+  /**
+   * 0.25.0 (ADR 0037 part 1): the non-secret configuration keys of CONNECT_CONFIG_KEYS (allowedConnectorConfig) – what
+   * the lineage proposals read; nothing else of a configuration is ever kept. Absent in readouts before 0.25.0.
+   */
+  config?: Record<string, string>;
 }
 
 export interface ConnectPlugin {
@@ -457,4 +462,81 @@ export function debeziumMatches(src: DebeziumSource, db: { dialect: string; host
   if (debeziumDialect(src.dbms) !== db.dialect || !sameHost(src.host, db.host)) return false;
   if (src.port !== null && src.port !== db.port) return false;
   return !src.databases.length || src.databases.some((d) => d.toLowerCase() === db.database.toLowerCase());
+}
+
+// ---------- the configuration keys kept (0.25.0, ADR 0037 part 1) ----------
+
+/**
+ * The only configuration keys a Kafka Connect or Confluent readout keeps per connector – named, non-secret keys that
+ * say what a connector reads and writes: the class, its topics, the Debezium topic prefix (and the older server name)
+ * and table or collection lists, the Snowflake sink's database, schema and topic-to-table map, the S3 sink's bucket,
+ * directory, format and flush size. Topic routing transforms add `transforms` (their names) and, per name,
+ * `transforms.<name>.regex` / `.replacement` (Kafka's RegexRouter) and `.topic.regex` / `.topic.replacement`
+ * (Debezium's ByLogicalTableRouter). Everything else – passwords, keys, URLs with credentials, user names – is never
+ * stored (server/test/connector-lineage.test.ts asserts the list).
+ */
+export const CONNECT_CONFIG_KEYS = [
+  'connector.class',
+  'topics',
+  'topics.regex',
+  'topic.prefix',
+  'database.server.name',
+  'table.include.list',
+  'collection.include.list',
+  'transforms',
+  'snowflake.database.name',
+  'snowflake.schema.name',
+  'snowflake.topic2table.map',
+  's3.bucket.name',
+  'topics.dir',
+  'format.class',
+  'flush.size',
+] as const;
+
+/** The keys kept per routing transform (after `transforms.<name>.`). */
+export const CONNECT_TRANSFORM_KEYS = ['regex', 'replacement', 'topic.regex', 'topic.replacement'] as const;
+
+/** A transform name as kept: letters, digits, `_`, `-` and `.`, starting with a letter or digit, at most 60. */
+const TRANSFORM_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,59}$/;
+const RESERVED_NAMES = new Set(['constructor', 'prototype', 'hasOwnProperty', 'toString', 'valueOf']);
+/** Characters of a kept value (a table list or a topic map can be long; a regex never is). */
+const CONFIG_VALUE_MAX = 4_000;
+/** Routing transforms kept per connector. */
+const TRANSFORMS_MAX = 10;
+
+/**
+ * The allow-listed part of a connector configuration (CONNECT_CONFIG_KEYS and the routing keys of the transforms it
+ * names): string values only, cut to 4,000 characters, each through redactConnectValue once more – a value that looks
+ * secret all the same (a credential in a URL, a token) is left out, not kept masked. Built from the allow-list, never
+ * from the configuration's own keys.
+ */
+export function allowedConnectorConfig(config: Record<string, unknown> | null | undefined): Record<string, string> {
+  const out = new Map<string, string>();
+  if (!config || typeof config !== 'object') return {};
+  const get = (key: string): string | null => {
+    if (!Object.prototype.hasOwnProperty.call(config, key)) return null;
+    const v = config[key];
+    if (typeof v !== 'string') return null;
+    const value = v.trim().slice(0, CONFIG_VALUE_MAX);
+    if (!value) return null;
+    const kept = redactConnectValue(key, value);
+    return typeof kept === 'string' && kept === value && !value.includes(SCRUBBED) ? value : null;
+  };
+  for (const key of CONNECT_CONFIG_KEYS) {
+    const v = get(key);
+    if (v !== null) out.set(key, v);
+  }
+  const names = (out.get('transforms') ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => TRANSFORM_NAME_RE.test(x) && !RESERVED_NAMES.has(x))
+    .slice(0, TRANSFORMS_MAX);
+  if (out.has('transforms')) out.set('transforms', names.join(','));
+  for (const n of names)
+    for (const k of CONNECT_TRANSFORM_KEYS) {
+      const key = `transforms.${n}.${k}`;
+      const v = get(key);
+      if (v !== null) out.set(key, v);
+    }
+  return Object.fromEntries(out);
 }

@@ -27,6 +27,9 @@ import {
   PERSONAL_DATA_LEVELS,
   SPECIAL_DATA_CATEGORIES,
   boundedRecord,
+  dataElementPropertiesInput,
+  dataNamespaceValue,
+  dataTechnologyValue,
 } from '@sm/shared';
 
 /**
@@ -219,6 +222,16 @@ export const elementFileSchema = elementRefSchema
     flags: boundedRecord(z.union([z.string().max(L.short), z.number(), z.boolean()]), L.flags)
       .optional()
       .describe('Flags of a new element (secure, materialized …); an import does not change those of an existing one'),
+    // 0.25.0 (ADR 0037 part 0): generic parts
+    technology: dataTechnologyValue()
+      .optional()
+      .describe('Generic parts: the technology – a key or name of the technology list (node-red, Apache Camel) or a value of your own'),
+    namespace: dataNamespaceValue()
+      .optional()
+      .describe('Generic parts: the OpenLineage namespace (mqtt://broker.example:1883); with the qualified name its dataset'),
+    properties: dataElementPropertiesInput()
+      .optional()
+      .describe('Generic parts: key: value properties (a flow id, a route id, a retention) as a list of { key, value }'),
   })
   .strict()
   .meta({ id: 'DataElement' });
@@ -310,6 +323,7 @@ const runnerSchema = z
     element: elementRefSchema.optional().describe('element: a Snowflake task, pipe or dynamic table'),
     tool: text(L.short).optional().describe('tool: Airflow, dbt, Fivetran, Kafka Connect …'),
     text: text().optional(),
+    technology: dataTechnologyValue().optional().describe('The technology of the runner – a bridge’s Debezium, Node-RED, Apache Camel (0.25.0)'),
   })
   .strict()
   .meta({ id: 'StepRunner' });

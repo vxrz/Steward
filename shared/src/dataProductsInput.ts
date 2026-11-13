@@ -30,6 +30,7 @@ import {
   PERSONAL_DATA_LEVELS,
   SPECIAL_DATA_CATEGORIES,
 } from './dataProducts.js';
+import { dataElementPropertiesInput, dataNamespaceValue, dataTechnologyValue } from './dataTechnologies.js';
 
 /**
  * Input schemas of the data products module's internal API (ADR 0036 part 19): every array has its `.max()`, every
@@ -294,15 +295,35 @@ export const dataElementInput = z
       .array(z.object({ name: z.string().trim().min(1).max(60), value: flagValue }).strict())
       .max(L.flags)
       .default([]),
+    /** 0.25.0, generic kinds (ADR 0037 part 0): the technology, the OpenLineage namespace and key: value properties */
+    technology: dataTechnologyValue().nullable().default(null),
+    namespace: dataNamespaceValue().nullable().default(null),
+    properties: dataElementPropertiesInput().default([]),
   })
   .strict();
 export type DataElementInput = z.input<typeof dataElementInput>;
 
 /** An element's people's fields: what a discovery never overwrites (the re-import rule of ADR 0019). */
 export const dataElementUpdate = dataElementInput
-  .pick({ displayName: true, layer: true, description: true, typeLabel: true, applicationId: true, componentId: true, plantSink: true, apiRef: true })
+  .pick({
+    displayName: true,
+    layer: true,
+    description: true,
+    typeLabel: true,
+    applicationId: true,
+    componentId: true,
+    plantSink: true,
+    apiRef: true,
+  })
   .partial()
-  .extend({ environment: environment().optional(), qualifiedName: z.string().trim().min(1).max(L.qualifiedName).optional() })
+  .extend({
+    environment: environment().optional(),
+    qualifiedName: z.string().trim().min(1).max(L.qualifiedName).optional(),
+    // 0.25.0, generic parts: left out keeps them (no defaults – a change names what it changes)
+    technology: dataTechnologyValue().optional(),
+    namespace: dataNamespaceValue().optional(),
+    properties: dataElementPropertiesInput().optional(),
+  })
   .strict();
 
 export const dataElementListQuery = z.object({
@@ -310,6 +331,8 @@ export const dataElementListQuery = z.object({
   kind: z.enum(DATA_ELEMENT_KINDS).optional(),
   environment: environment().optional(),
   layer: text(60).optional(),
+  /** 0.25.0: generic parts of this technology (a key of the list or a free value, compared without case) */
+  technology: dataTechnologyValue().optional(),
   /** Qualified names starting with this (by index) */
   prefix: z.string().trim().max(L.qualifiedName).optional(),
   /** A text in the qualified or display name (a bounded scan) */
@@ -353,10 +376,12 @@ export const dataMemberListQuery = z.object({
 
 // ---------- steps ----------
 
+/** 0.25.0: every runner may name its technology (a bridge's: Debezium, Node-RED …; a key of the list or a free value). */
+const runnerTechnology = () => dataTechnologyValue().optional();
 export const dataStepRunnerInput = z.discriminatedUnion('kind', [
-  z.object({ kind: z.enum(['application', 'platform', 'process', 'element']), id: id() }).strict(),
-  z.object({ kind: z.literal('connector'), platformId: id(), name: z.string().trim().min(1).max(L.short) }).strict(),
-  z.object({ kind: z.literal('tool'), tool: text(L.short).default(''), text: text().default('') }).strict(),
+  z.object({ kind: z.enum(['application', 'platform', 'process', 'element']), id: id(), technology: runnerTechnology() }).strict(),
+  z.object({ kind: z.literal('connector'), platformId: id(), name: z.string().trim().min(1).max(L.short), technology: runnerTechnology() }).strict(),
+  z.object({ kind: z.literal('tool'), tool: text(L.short).default(''), text: text().default(''), technology: runnerTechnology() }).strict(),
 ]);
 
 export const dataStepInput = z

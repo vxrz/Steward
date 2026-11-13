@@ -634,6 +634,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/data-products/{productId}', `/data-products/${x.id}`);
     await get('/data-products/{productId}/odps', `/data-products/${x.id}/odps`);
     await get('/data-products/{productId}/lineage', `/data-products/${x.id}/lineage`);
+    // 0.25.0: the OpenLineage export (JSON Lines)
+    await get('/data-products/{productId}/openlineage', `/data-products/${x.id}/openlineage`);
   }
   for (const x of (await listAll('/data-elements', '/data-elements')).slice(0, 5)) await get('/data-elements/{elementId}', `/data-elements/${x.id}`);
   for (const x of await listAll('/data-objects', '/data-objects')) await get('/data-objects/{objectId}', `/data-objects/${x.id}`);

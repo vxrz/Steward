@@ -2,10 +2,21 @@ import { useState } from 'react';
 import { ActionIcon, Alert, Anchor, Badge, Button, Grid, Group, List, Modal, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { IconBinaryTree, IconContract, IconHeartbeat, IconInfoCircle, IconLink, IconLinkOff, IconPencil, IconTrash } from '@tabler/icons-react';
+import {
+  IconArrowsExchange,
+  IconBinaryTree,
+  IconContract,
+  IconHeartbeat,
+  IconInfoCircle,
+  IconLink,
+  IconLinkOff,
+  IconPencil,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   DATA_CHECK_PURPOSES,
+  isGenericElementKind,
   type DataCheckPurpose,
   type DataContractDetail,
   type DataContractDraft,
@@ -25,6 +36,7 @@ import { confirmDanger } from '../../components/confirm';
 import { OwningTeams } from '../../components/OwningTeams';
 import { ContractYamlEditor } from '../../components/contracts/parts';
 import { ElementForm } from '../../components/dataproducts/CatalogueForms';
+import { ConvertElementModal, GenericPartFacts, TechnologyBadge } from '../../components/dataproducts/GenericParts';
 import { FormModal } from '../../components/FormModal';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
 import { useModuleOn } from '../../modules';
@@ -59,6 +71,7 @@ export function DataElementPage() {
   const q = useElement(id);
   const [editing, setEditing] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [converting, setConverting] = useState(false);
   const tab = TABS.find((x) => x === tabParam);
   if (tab === undefined) return <Navigate to={`/data-elements/${enc(id)}`} replace />;
   const e = q.data;
@@ -89,6 +102,7 @@ export function DataElementPage() {
           <Badge variant="light" color="gray" tt="none">
             {e.kind === 'other' && e.typeLabel ? e.typeLabel : kindLabel(e.kind)}
           </Badge>
+          {e.technology && <TechnologyBadge value={e.technology} />}
           <MissingBadge since={e.missingSince} />
         </>
       }
@@ -117,6 +131,10 @@ export function DataElementPage() {
       menu={{
         items: [
           { label: t('elements.lineagePage'), icon: IconBinaryTree, to: `${base}/views/lineage` },
+          // 0.25.0: a generic part becomes a specific kind of its role (ADR 0037)
+          ...(canEdit && isGenericElementKind(e.kind)
+            ? [{ label: t('generic.convert'), icon: IconArrowsExchange, onClick: () => setConverting(true), testId: 'element-convert' }]
+            : []),
           ...(canManage ? [{ label: t('common:delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'element-delete' }] : []),
         ],
       }}
@@ -148,6 +166,18 @@ export function DataElementPage() {
         />
       )}
       {drafting && <DraftContract e={e} onClose={() => setDrafting(false)} />}
+      {converting && (
+        <ConvertElementModal
+          e={e}
+          onClose={() => setConverting(false)}
+          onConverted={(x) => {
+            qc.setQueryData(dpKeys.element(e.id), x);
+            invalidate();
+            setConverting(false);
+            notifyOk(t('generic.converted', { kind: kindLabel(x.kind) }));
+          }}
+        />
+      )}
     </DetailPage>
   );
 }
@@ -185,6 +215,11 @@ function ElementOverview({ e }: { e: DataElement }) {
             )}
           </Section>
           <ObjectsOfElement e={e} />
+          {isGenericElementKind(e.kind) && (
+            <Section title={t('generic.section')} testId="element-generic-section">
+              <GenericPartFacts e={e} />
+            </Section>
+          )}
           <Section title={t('elements.readout')} testId="element-readout">
             {r ? (
               <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="sm">

@@ -142,9 +142,10 @@ describe('the readout', () => {
       { name: 'payments-value', versions: 1, latest: 1, compatibility: 'FULL', ownCompatibility: true },
     ]);
     noSecrets(v);
-    // nothing of a configuration is kept
+    // nothing of a configuration is kept but the allow-listed keys (0.25.0, ADR 0037 part 1: the bucket, not the keys)
     const stored = JSON.stringify(await (await import('../src/confluent/service.js')).storedConfluent(ccId));
-    expect(stored).not.toContain('s3.bucket.name');
+    expect(stored).toContain('"s3.bucket.name":"demo-orders-archive"');
+    expect(stored).not.toMatch(/aws\.(access|secret)|kafka\.api|http\.api/);
     expect(stored).not.toContain('****');
     noSecrets(stored);
   });

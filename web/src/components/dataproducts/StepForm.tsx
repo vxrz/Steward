@@ -24,6 +24,7 @@ import { FormModal } from '../FormModal';
 import { useFieldErrors } from '../common';
 import { ElementPicker, type PickedElement } from './ElementPicker';
 import { FormButtons, useBusy } from './form';
+import { TechnologyInput } from './GenericParts';
 
 const enc = encodeURIComponent;
 
@@ -58,6 +59,8 @@ export function StepForm({
   const [connectorName, setConnectorName] = useState(r?.kind === 'connector' ? r.name : '');
   const [tool, setTool] = useState(r?.kind === 'tool' ? r.tool : '');
   const [toolText, setToolText] = useState(r?.kind === 'tool' ? r.text : '');
+  // 0.25.0 (ADR 0037): the runner's technology – what a bridge is (Debezium, Node-RED, Apache Camel …)
+  const [technology, setTechnology] = useState(r?.technology ?? '');
   const [schedule, setSchedule] = useState(s?.schedule ?? '');
   const [description, setDescription] = useState(s?.description ?? '');
   const [notes, setNotes] = useState<DataTransformNote[]>(s?.notes ?? []);
@@ -91,17 +94,18 @@ export function StepForm({
         : false,
   });
   const runner = (): DataStepInput['runner'] => {
+    const tech = technology.trim() ? { technology: technology.trim() } : {};
     switch (runnerKind) {
       case 'application':
       case 'platform':
       case 'process':
-        return { kind: runnerKind, id: runnerId! };
+        return { kind: runnerKind, id: runnerId!, ...tech };
       case 'element':
-        return { kind: 'element', id: runnerElement[0]!.id };
+        return { kind: 'element', id: runnerElement[0]!.id, ...tech };
       case 'connector':
-        return { kind: 'connector', platformId: connectorPlatform!, name: connectorName.trim() };
+        return { kind: 'connector', platformId: connectorPlatform!, name: connectorName.trim(), ...tech };
       case 'tool':
-        return { kind: 'tool', tool: tool.trim(), text: toolText.trim() };
+        return { kind: 'tool', tool: tool.trim(), text: toolText.trim(), ...tech };
       default:
         return null;
     }
@@ -254,6 +258,16 @@ export function StepForm({
               )}
               {runnerKind === 'tool' && (
                 <TextInput label={t('steps.toolText')} maxLength={L.text} value={toolText} onChange={(e) => setToolText(e.currentTarget.value)} />
+              )}
+              {runnerKind && (
+                <TechnologyInput
+                  label={t('generic.runnerTechnology')}
+                  description={kind === 'bridge' ? t('generic.runnerTechnologyBridgeHint') : t('generic.runnerTechnologyHint')}
+                  value={technology}
+                  onChange={setTechnology}
+                  role="bridge"
+                  testId="step-technology"
+                />
               )}
             </Stack>
           </Paper>

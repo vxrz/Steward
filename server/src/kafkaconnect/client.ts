@@ -2,6 +2,7 @@ import {
   KAFKA_CONNECT_KIND,
   KAFKA_CONNECT_LIMITS,
   SCRUBBED,
+  allowedConnectorConfig,
   debeziumSource,
   type ConnectConnector,
   type ConnectPlugin,
@@ -122,6 +123,8 @@ export function toConnector(
     tasks,
     groupId: type === 'sink' ? (override && override !== SCRUBBED ? override : `connect-${name}`).slice(0, 255) : null,
     debezium: type === 'sink' ? null : debeziumSource(cls, config),
+    // 0.25.0 (ADR 0037 part 1): the allow-listed keys only – the lineage proposals read them (connector-lineage.ts)
+    config: allowedConnectorConfig(config),
   };
 }
 

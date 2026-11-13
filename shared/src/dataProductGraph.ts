@@ -100,6 +100,11 @@ export interface DataGraphNode {
   column?: number;
   /** The parent element's name (a schema, a bundle): collapsing groups by it */
   parentName?: string;
+  /**
+   * 0.25.0 (ADR 0037 part 0): a generic part's technology – its name and icon from the technology list, or the value as
+   * typed with `listed: false` (_not in the list_)
+   */
+  technology?: GraphTechnology;
   // ----- products (map) -----
   productType?: DataProductType | null;
   lifecycle?: DataProductLifecycle;
@@ -193,6 +198,13 @@ export interface DataLineageView extends DataGraph {
 
 // ---------- what the builders take ----------
 
+/** A technology as the pictures draw it: its name, its icon (DATA_TECHNOLOGY_ICONS) and whether it is in the list. */
+export interface GraphTechnology {
+  name: string;
+  icon: string;
+  listed: boolean;
+}
+
 /** An element as the server hands it to a builder. */
 export interface GraphElementInput {
   id: string;
@@ -210,6 +222,8 @@ export interface GraphElementInput {
   products: { id: string; name: string }[];
   hiddenProductIds: string[];
   parentName?: string | null;
+  /** 0.25.0: a generic part's technology */
+  technology?: GraphTechnology | null;
 }
 
 export interface GraphStepInput {
@@ -342,6 +356,7 @@ function elementNode(e: GraphElementInput, h: GraphHealth | undefined, anon: Ano
   if (e.hiddenProductIds.length) n.hiddenProducts = e.hiddenProductIds.length;
   if (e.missing) n.missing = true;
   if (e.parentName) n.parentName = e.parentName;
+  if (e.technology) n.technology = e.technology;
   return n;
 }
 

@@ -28,6 +28,7 @@ import {
   DATA_PRODUCT_LIMITS as L,
   DEFAULT_DATA_LAYERS,
   elementKindFits,
+  isGenericElementKind,
   type DataDiscoveryMode,
   type DataDiscoverySource,
   type DataDiscoverySourceInput,
@@ -44,6 +45,7 @@ import { useFieldErrors } from '../common';
 import { ApplicationSelect } from '../catalogue/ApplicationSelect';
 import { EnvironmentInput, useEnvironmentList } from '../catalogue/environments';
 import { FormButtons, isHttpUrl, useBusy } from './form';
+import { GenericPartFields, cleanProperties } from './GenericParts';
 
 const enc = encodeURIComponent;
 
@@ -71,15 +73,23 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   const [applicationId, setApplicationId] = useState<string | null>(e?.applicationId ?? null);
   const [apiUrl, setApiUrl] = useState(e?.apiRef?.url ?? '');
   const [operations, setOperations] = useState<string[]>(e?.apiRef?.operations ?? []);
+  // 0.25.0 (ADR 0037): a generic part's technology, namespace and properties
+  const [technology, setTechnology] = useState(e?.technology ?? '');
+  const [namespace, setNamespace] = useState(e?.olNamespace ?? '');
+  const [properties, setProperties] = useState(e?.properties ?? []);
   const [busy, run] = useBusy();
   const def = DATA_ELEMENT_KIND_DEFS[kind];
   const fitting = (platforms.data ?? []).filter((p) => elementKindFits(kind, p.kind));
   const isApi = kind.startsWith('api.');
+  const generic = isGenericElementKind(kind);
   const v = useFieldErrors({
     name: !qualifiedName.trim() && t('common:validation.required'),
     platform: def.platformRequired && !platformId && t('elements.platformRequired'),
     apiUrl: !!apiUrl.trim() && !isHttpUrl(apiUrl) && t('common:validation.url'),
+    technology: generic && !technology.trim() && t('generic.technologyRequired'),
+    namespace: generic && (!namespace.trim() ? t('generic.namespaceRequired') : /\s/.test(namespace.trim()) && t('generic.namespaceNoSpaces')),
   });
+  const genericBody = generic ? { technology: technology.trim(), namespace: namespace.trim(), properties: cleanProperties(properties) } : {};
   const save = () =>
     run(async () => {
       const apiRef =
@@ -94,6 +104,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           typeLabel,
           applicationId,
           apiRef,
+          ...genericBody,
           ...(discovered ? {} : { qualifiedName: qualifiedName.trim(), environment: environment.trim() }),
         };
         onSaved(await put<DataElement>(`/data-elements/${enc(e.id)}`, body));
@@ -109,6 +120,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           typeLabel,
           applicationId,
           apiRef,
+          ...genericBody,
         };
         onSaved(await post<DataElement>('/data-elements', body));
       }
@@ -191,6 +203,17 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
               data-testid="element-layer"
             />
           </SimpleGrid>
+          {generic && (
+            <GenericPartFields
+              technology={technology}
+              onTechnology={setTechnology}
+              namespace={namespace}
+              onNamespace={setNamespace}
+              properties={properties}
+              onProperties={setProperties}
+              errors={{ technology: v.error('technology'), namespace: v.error('namespace') }}
+            />
+          )}
           {kind === 'other' && (
             <TextInput
               label={t('elements.typeLabel')}

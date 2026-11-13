@@ -486,6 +486,17 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/data-products/lineage-sources/:id/tokens/:tokenId': DESIGN,
   'POST /api/data-products/lineage-sources/:id/dbt/manifest': DESIGN,
   'POST /api/data-products/lineage-sources/:id/dbt/run-results': DESIGN,
+  // 0.25.0 (ADR 0037): the technology list (administrators change it), Convert to …, steps from connectors, the
+  // OpenLineage export (also on /api/v1)
+  'GET /api/data-products/technologies': ALL,
+  'PUT /api/data-products/technologies/:key': ADMIN,
+  'DELETE /api/data-products/technologies/:key': ADMIN,
+  'POST /api/data-elements/:id/convert': DESIGN,
+  'GET /api/data-products/connectors': ALL,
+  'GET /api/data-products/:id/steps/from-connector': DESIGN,
+  'POST /api/data-products/:id/steps/from-connector': DESIGN,
+  'GET /api/data-products/:id/openlineage': ALL,
+  'GET /api/data-products/:id/steps/:stepId/openlineage': ALL,
   'GET /api/data-products/lineage-proposals': ALL,
   'GET /api/data-products/lineage-proposals/:id': ALL,
   'POST /api/data-products/lineage-proposals/:id/accept': DESIGN,
@@ -1184,6 +1195,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/data-products/:productId': ALL,
   'GET /api/v1/data-products/:productId/odps': ALL,
   'GET /api/v1/data-products/:productId/lineage': ALL,
+  'GET /api/v1/data-products/:productId/openlineage': ALL,
   'GET /api/v1/data-elements': ALL,
   'GET /api/v1/data-elements/:elementId': ALL,
   'GET /api/v1/data-objects': ALL,
@@ -3198,6 +3210,10 @@ beforeAll(async () => {
     })
   ).id;
   fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
+  // 0.25.0: a connector of the demo's Kafka Connect for Create step from connector; a technology of the administrators
+  const connect = (await a('GET', '/platforms')).find((p: { name: string }) => p.name === 'Kafka Connect (demo)')?.id;
+  QUERY['GET /api/data-products/:id/steps/from-connector'] = `?platformId=${connect}&connector=shop-cdc`;
+  await a('PUT', '/data-products/technologies/matrix-tech', { name: 'Matrix technology', role: 'part' });
   // phase 2: an import of two products under an origin – replacing it with an empty file removes both (step-up)
   await a('POST', '/data-products/import', {
     files: [

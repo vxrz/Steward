@@ -169,6 +169,9 @@ export interface ElementRow {
   flags: string;
   tech_hash: string | null;
   missing_since: string | null;
+  /** 0.25.0 (ADR 0037): generic kinds – the technology (a key of the list or a free value) and the properties (JSON array) */
+  technology: string | null;
+  properties: string;
   revision: number;
   created_at: string;
   created_by: string;

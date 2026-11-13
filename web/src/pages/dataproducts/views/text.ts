@@ -21,8 +21,12 @@ export interface GraphText {
 export function graphText(t: T): GraphText {
   const kind = (n: DataGraphNode): string => {
     switch (n.kind) {
-      case 'element':
-        return n.elementKind ? t(`elementKinds.${n.elementKind}`) : t('kinds.element');
+      case 'element': {
+        const k = n.elementKind ? t(`elementKinds.${n.elementKind}`) : t('kinds.element');
+        // 0.25.0: a generic part names its technology (a value not in the list is said so)
+        if (!n.technology) return k;
+        return `${k} · ${n.technology.listed ? n.technology.name : t('technology.notListed', { name: n.technology.name })}`;
+      }
       case 'step':
         return n.stepKind ? t('kinds.stepOf', { kind: t(`stepKinds.${n.stepKind}`) }) : t('kinds.step');
       case 'collapsed':
@@ -79,6 +83,8 @@ export function graphText(t: T): GraphText {
     const text = more > 0 ? (names ? t('edge.more', { names, count: more }) : t('edge.count', { count: e.count })) : names;
     // 0.24.0: a way a lineage source proposes, not documented yet
     if (e.proposed) return [t('edge.proposed'), text].filter(Boolean).join(' · ');
+    // 0.25.0 (ADR 0037): a bridge moves data between technologies – said in words, drawn with long dashes
+    if (e.stepKind === 'bridge' && !e.deprecated) return [t('edge.bridge'), text].filter(Boolean).join(' · ');
     return e.deprecated && !e.deprecatedLabels?.length ? [t('edge.deprecated'), text].filter(Boolean).join(' · ') : text;
   };
   const edgeAria = (e: DataGraphEdge, name: (id: string) => string): string =>

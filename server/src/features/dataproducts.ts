@@ -14,6 +14,7 @@ import { DATA_PRODUCT_SHARE_KIND } from '../dataproducts/shares.js';
 import { dataProductQualityRoutes } from '../dataproducts/quality-routes.js';
 import { dataProductsSection } from '../dataproducts/report-section.js';
 import { dataProductGovernanceRoutes } from '../dataproducts/governance-routes.js';
+import { dataProductGenericRoutes } from '../dataproducts/generic-routes.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /**
@@ -40,6 +41,8 @@ export default defineFeature({
     // consumers, access and governance (0.24.0, ADR 0036 phase 2): actual consumers, access requests and reviews,
     // promotion, endorsement, the GDPR Art. 30 view
     dataProductGovernanceRoutes,
+    // 0.25.0 (ADR 0037, package A): the technology list, Convert to …, steps from connectors, the OpenLineage export
+    dataProductGenericRoutes,
   ],
   // 0.24.0 (ADR 0036 phase 2; the module's report section for ADR 0034): maturity, health and quality per product
   reportSections: [dataProductsSection],

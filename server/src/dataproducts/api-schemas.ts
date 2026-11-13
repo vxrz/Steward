@@ -162,6 +162,7 @@ export const DataElementEntry = z.object({
   source: z.enum(DATA_ELEMENT_SOURCES),
   parentId: z.string().nullable(),
   missingSince: z.string().nullable(),
+  technology: z.string().nullable().describe('Generic parts (0.25.0): the technology – a key of the technology list, or a value not in the list'),
   products: z.object({ visible: z.number().int(), hidden: z.number().int() }).describe('Products it is part of (those the token owner may not see counted)'),
   updatedAt: ts(),
 });
@@ -174,6 +175,7 @@ export const DataElementDetail = DataElementEntry.extend({
   olName: z.string().nullable(),
   apiRef: z.object({ url: z.string().optional(), operations: z.array(z.string()).optional() }).nullable(),
   flags: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  properties: z.array(z.object({ key: z.string(), value: z.string() })).describe('Generic parts (0.25.0): key: value properties entered by people'),
   owningTeams: z.array(z.object({ id: z.string(), name: z.string() })),
   productRefs: z.array(z.object({ product: Ref, role: z.enum(DATA_MEMBER_ROLES) })),
   objects: z.array(Ref),
@@ -237,6 +239,10 @@ const GraphNode = z.object({
   missing: z.boolean().optional(),
   distance: z.number().int().optional().describe('Lineage: steps from the element (negative: upstream)'),
   count: z.number().int().optional(),
+  technology: z
+    .object({ name: z.string(), icon: z.string(), listed: z.boolean().describe('false: a value not in the technology list') })
+    .optional()
+    .describe('Generic parts (0.25.0): the technology'),
 });
 
 export const DataLineage = z.object({
@@ -315,6 +321,11 @@ export const DataObjectV1ListQuery = z.object({
 
 export const DataProductOdpsQuery = z.object({
   environment: z.string().max(60).optional().describe('Whose bindings give the ports’ contracts (default: production)'),
+});
+
+export const DataProductOpenLineageQuery = z.object({
+  environment: z.string().max(60).optional().describe('Only the steps with an end and the members in this environment (default: every environment)'),
+  step: id.optional().describe('One step of the product: its job and datasets only'),
 });
 
 export const DataProductLineageQuery = z.object({
