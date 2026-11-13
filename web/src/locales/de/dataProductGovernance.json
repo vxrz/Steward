@@ -103,7 +103,15 @@
       "decide": "Nichts wartet auf Ihre Entscheidung.",
       "mine": "Sie haben noch keinen Zugriff beantragt – öffnen Sie dazu den Port eines Datenprodukts.",
       "all": "Keine Zugriffsanträge zu Datenprodukten, die Sie sehen dürfen."
-    }
+    },
+    "sent": "Antrag gesendet – Sie verfolgen ihn unter Daten → Zugriffsanträge",
+    "approved": "Antrag genehmigt",
+    "refused": "Antrag abgelehnt",
+    "withdrawnDone": "Antrag zurückgezogen",
+    "approveNamed": "Antrag von {{who}} genehmigen",
+    "refuseNamed": "Antrag von {{who}} ablehnen",
+    "withdrawNamed": "Antrag von {{who}} zurückziehen",
+    "approvedFirst": "Erste Genehmigung erfasst – eine zweite Person entscheidet"
   },
   "reviews": {
     "title": "Zugriffsprüfungen der Ports",

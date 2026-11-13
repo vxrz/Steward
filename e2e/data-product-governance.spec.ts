@@ -96,6 +96,8 @@ test.describe('governance of data products', () => {
     await olivia.getByTestId('request-until').fill('2027-12-31');
     await expectAccessible(olivia, 'request access form');
     await olivia.getByTestId('request-save').click();
+    // the dialog closes with a word on where to follow the request
+    await expect(olivia.getByText('Request sent – you can follow it under Data → Access requests')).toBeVisible();
     await olivia.goto('/data-products/access-requests');
     await olivia.getByTestId('requests-scope').getByText('Mine').click();
     await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
@@ -105,10 +107,13 @@ test.describe('governance of data products', () => {
     // the owner decides on the Access tab
     await page.goto(`/data-products/${s.product}/access`);
     const requests = page.getByTestId('product-access-requests');
+    // the decision buttons name whose request they decide
+    await expect(requests.getByTestId('request-approve')).toHaveAccessibleName(/^Approve the request of /);
     await requests.getByTestId('request-approve').click();
     await page.getByTestId('decide-comment').fill('For the close');
     await page.getByTestId('decide-save').click();
     await expect(requests.getByTestId('request-status-approved')).toBeVisible();
+    await expect(page.getByText('Request approved')).toBeVisible();
     await settle(page);
     await expectAccessible(page, 'access tab');
 

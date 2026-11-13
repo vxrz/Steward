@@ -14,7 +14,7 @@ import {
   type DataProduct,
   type Subject,
 } from '@sm/shared';
-import { getOptional, post } from '../../../api';
+import { getOptional, notifyOk, post } from '../../../api';
 import { useMe } from '../../../auth';
 import { QueryState, useFieldErrors } from '../../../components/common';
 import { DataTable } from '../../../components/DataTable';
@@ -158,8 +158,8 @@ export function RequestAccessForm({
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput
+              type="date"
               label={t('requests.until')}
-              placeholder="2027-12-31"
               value={until}
               onChange={(e) => setUntil(e.currentTarget.value)}
               error={v.error('until')}
@@ -197,6 +197,7 @@ function DecideForm({ r, approve, onClose, onSaved }: { r: DataAccessRequest; ap
   const [ticket, setTicket] = useState('');
   const [busy, run] = useBusy();
   const v = useFieldErrors({ comment: !approve && !comment.trim() && t('requests.reasonRequired') });
+  const last = !r.fourEyes || r.approvals.length > 0;
   const save = () =>
     run(async () => {
       await post(`/data-products/access-requests/${enc(r.id)}/decision`, {
@@ -204,9 +205,9 @@ function DecideForm({ r, approve, onClose, onSaved }: { r: DataAccessRequest; ap
         comment: comment.trim(),
         ticket: approve && ticket.trim() ? { externalNumber: ticket.trim() } : null,
       });
+      notifyOk(!approve ? t('requests.refused') : last ? t('requests.approved') : t('requests.approvedFirst'));
       onSaved();
     });
-  const last = !r.fourEyes || r.approvals.length > 0;
   return (
     <FormModal onClose={onClose} title={approve ? t('requests.approveTitle') : t('requests.refuseTitle')}>
       <form
@@ -268,6 +269,7 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
             color="green"
             leftSection={<IconCheck size={12} />}
             onClick={() => setDeciding({ r, approve: true })}
+            aria-label={t('requests.approveNamed', { who: who(r) })}
             data-testid="request-approve"
           >
             {t('requests.approve')}
@@ -278,6 +280,7 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
             color="red"
             leftSection={<IconX size={12} />}
             onClick={() => setDeciding({ r, approve: false })}
+            aria-label={t('requests.refuseNamed', { who: who(r) })}
             data-testid="request-refuse"
           >
             {t('requests.refuse')}
@@ -292,9 +295,11 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
           onClick={() =>
             void run(async () => {
               await post(`/data-products/access-requests/${enc(r.id)}/withdraw`);
+              notifyOk(t('requests.withdrawnDone'));
               invalidate();
             })
           }
+          aria-label={t('requests.withdrawNamed', { who: who(r) })}
           data-testid="request-withdraw"
         >
           {t('requests.withdraw')}
@@ -419,6 +424,17 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
   );
 }
 
+/** The newest page of requests is shown: say so when there are more (the list is not cut off silently). */
+function ShownOf({ shown, total }: { shown: number; total: number }) {
+  const { t } = useTranslation('common');
+  if (total <= shown) return null;
+  return (
+    <Text size="xs" c="dimmed" mt="xs" data-testid="requests-shown-of">
+      {t('table.showingOf', { shown, total })}
+    </Text>
+  );
+}
+
 /** The product's requests (its Access tab). */
 export function ProductRequests({ p }: { p: DataProduct }) {
   const { t } = useTranslation('dataProductGovernance');
@@ -433,6 +449,7 @@ export function ProductRequests({ p }: { p: DataProduct }) {
         </Text>
       )}
       {rows.length > 0 && <RequestList rows={rows} showProduct={false} testId="product-requests" />}
+      <ShownOf shown={rows.length} total={q.data?.total ?? 0} />
     </Stack>
   );
 }
@@ -465,6 +482,7 @@ export function AccessRequestsPage() {
         </Text>
       )}
       {rows.length > 0 && <RequestList rows={rows} showProduct testId="requests-table" />}
+      <ShownOf shown={rows.length} total={q.data?.total ?? 0} />
     </ListPage>
   );
 }
@@ -489,6 +507,7 @@ export function RequestAccessButton({ p, port, onRequested }: { p: DataProduct; 
           onClose={() => setOpen(false)}
           onSaved={() => {
             setOpen(false);
+            notifyOk(t('requests.sent'));
             invalidate();
             onRequested?.();
           }}

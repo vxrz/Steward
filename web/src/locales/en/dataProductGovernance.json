@@ -103,7 +103,15 @@
       "decide": "Nothing waits for your decision.",
       "mine": "You have not asked for access yet – open a data product’s port to ask.",
       "all": "No access requests of data products you may see."
-    }
+    },
+    "sent": "Request sent – you can follow it under Data → Access requests",
+    "approved": "Request approved",
+    "refused": "Request refused",
+    "withdrawnDone": "Request withdrawn",
+    "approveNamed": "Approve the request of {{who}}",
+    "refuseNamed": "Refuse the request of {{who}}",
+    "withdrawNamed": "Withdraw the request of {{who}}",
+    "approvedFirst": "First approval recorded – a second person decides"
   },
   "reviews": {
     "title": "Port access reviews",

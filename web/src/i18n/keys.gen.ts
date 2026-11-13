@@ -4657,6 +4657,14 @@ export interface Resources {
     'requests.empty.decide': string;
     'requests.empty.mine': string;
     'requests.empty.all': string;
+    'requests.sent': string;
+    'requests.approved': string;
+    'requests.refused': string;
+    'requests.withdrawnDone': string;
+    'requests.approveNamed': string;
+    'requests.refuseNamed': string;
+    'requests.withdrawNamed': string;
+    'requests.approvedFirst': string;
     'reviews.title': string;
     'reviews.help': string;
     'reviews.start': string;
