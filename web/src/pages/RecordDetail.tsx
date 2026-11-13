@@ -81,12 +81,14 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { TableFieldView, tableText } from '../components/records/TableField';
 import { FirewallContextPanel } from '../components/records/FirewallContext';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs', 'access'] as const;
 type Tab = (typeof TABS)[number];
 
 export function RecordDetailPage() {
   const { t } = useTranslation(['records', 'common']);
+  const subjectName = useSubjectLabel();
   const { id } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -131,7 +133,7 @@ export function RecordDetailPage() {
         }
         description={
           <>
-            <span className="mono">{rec.number}</span> · {typeName(rec.type, rec.typeName)} · {t('detail.owner', { owner: rec.owner })} ·{' '}
+            <span className="mono">{rec.number}</span> · {typeName(rec.type, rec.typeName)} · {t('detail.owner', { owner: subjectName(`user:${rec.owner}`) })} ·{' '}
             {t('detail.revisionVersion', { revision: rec.revision, version: rec.version })}
             {services.length > 0 && (
               <>

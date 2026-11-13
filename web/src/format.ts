@@ -47,6 +47,17 @@ export function fmtDate(s?: string | null): string {
   return dateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(new Date(s));
 }
 
+/**
+ * A span of date and time, the day once when it is the same: "16 Nov 2026, 21:00 – 23:00" (not "16 Nov 2026, 21:00 –
+ * 16 Nov 2026, 23:00"); across days both in full.
+ */
+export function fmtDateRange(from: string, to: string): string {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (!(b.getTime() >= a.getTime())) return `${fmtDate(from)} – ${fmtDate(to)}`;
+  return dateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).formatRange(a, b);
+}
+
 /** Calendar date without time. */
 export function fmtDay(s?: string | number | Date | null): string {
   if (s === null || s === undefined || s === '') return '–';

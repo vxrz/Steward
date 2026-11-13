@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { SbomPreview, SystemDetail } from '@sm/shared';
 import { del, get, notifyError } from '../api';
 import { CopyId } from '../components/CopyId';
-import { DetailState, subjectLabel } from '../components/common';
+import { DetailState } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate } from '../format';
@@ -27,10 +27,12 @@ import { ItemContacts } from '../components/suppliers/ScopedContacts';
 import { CostAttributionPanel } from '../components/costs/Attribution';
 import { IfModule } from '../components/modules/ModuleOff';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
+  const subjectName = useSubjectLabel();
   const { id } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -177,7 +179,7 @@ export function SystemDetailPage() {
               </Field>
               <ItemContacts kind="system" id={s.id} />
               {s.kind === 'network' && <NetworkAttributesView attributes={s.attributes} />}
-              <Field label={t('owners')}>{s.owners.length ? s.owners.map(subjectLabel).join(', ') : '–'}</Field>
+              <Field label={t('owners')}>{s.owners.length ? s.owners.map(subjectName).join(', ') : '–'}</Field>
               <Field label={t('systems.platform')}>
                 {s.platform ? (
                   <Anchor component={Link} to={`/platforms/${s.platform.id}`} size="sm">

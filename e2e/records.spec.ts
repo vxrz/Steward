@@ -207,8 +207,12 @@ test('records list is accessible and filters by status', async ({ page, apiAs })
   await chooseOption(page, 'Status', 'Submitted');
   await expect(page.getByRole('table', { name: 'Documents' }).getByRole('row')).toHaveCount(2);
   await expect(page.getByRole('table', { name: 'Documents' })).toContainText(rec.number);
+  // the owner by display name, in the list and on the document ("Dana Designer", not "dana")
+  await expect(page.getByRole('table', { name: 'Documents' }).getByRole('row').nth(1)).toContainText('Dana Designer');
   await settle(page);
   await expectAccessible(page, 'records list');
+  await page.goto(`/records/${rec.id}`);
+  await expect(page.getByRole('main')).toContainText('Owner Dana Designer');
 });
 
 test.describe('phone @mobile', () => {

@@ -380,6 +380,7 @@
     },
     "form": {
       "title": "Titel",
+      "titleHint": "Wofür das Geld ist, z. B. Historian-Lizenzen. Eine Planposition braucht keinen Vertrag: Planen Sie, was Sie später kaufen, und tragen Sie Lieferant und Vertrag ein, sobald es ihn gibt.",
       "category": "Kategorie",
       "for": "Für",
       "forHint": "Eine Anwendung oder ein System des Service (für Cloud-Positionen eine Plattform)",
@@ -590,8 +591,8 @@
       "service": "Service oder Plattform",
       "team": "Team"
     },
-    "warnings_one": "{{count}} Kündigungsfrist vor einem ungeplanten Jahr",
-    "warnings_other": "{{count}} Kündigungsfristen vor ungeplanten Jahren",
+    "warnings_one": "{{count}} Zahlungsplan erfordert Aufmerksamkeit",
+    "warnings_other": "{{count}} Zahlungspläne erfordern Aufmerksamkeit",
     "empty": "Hier gibt es keine Zahlungspläne. Fügen Sie einem Lieferantenvertrag Zahlungen hinzu, um zu sehen, was er noch schuldet.",
     "hiddenSupplier": "Lieferanten, die Sie nicht sehen dürfen",
     "noTeam": "Ohne Team",
@@ -608,6 +609,16 @@
       "toContractEnd": "Bis Vertragsende",
       "toEarliestExit": "Bis zum frühesten Ausstieg",
       "noticeBy": "Kündigen bis"
+    },
+    "billingCell": {
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "yearly": "Jährlich",
+      "once": "Einmalig",
+      "dates": "Datierte Zahlungen",
+      "volume": "Volumen",
+      "prepaid": "Volumen, vorausbezahlt",
+      "byUse": "Volumen, nach Nutzung"
     },
     "total": "Geschuldet in {{currency}} bis Vertragsende",
     "totalExit": "Bis zum frühesten Ausstieg {{amount}} · dieses Geschäftsjahr {{thisYear}}",
@@ -747,7 +758,7 @@
     "amountsHidden": "Beträge sind ausgeblendet.",
     "upTo": "Bis zu {{amount}} können noch berechnet werden",
     "upToLabel": "Bis zu (nicht geschuldet)",
-    "upToTotal": "Volumen können bis zu {{amount}} mehr berechnen – nicht geschuldet",
+    "upToTotal": "Über Volumen können bis zu {{amount}} mehr berechnet werden – nicht geschuldet",
     "summary": {
       "year": "{{amount}} je Vertragsjahr",
       "term": "{{amount}} für die Laufzeit"

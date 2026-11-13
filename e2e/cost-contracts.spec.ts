@@ -55,6 +55,8 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await payments.getByTestId('contract-payments-add').click();
   const dialog = page.getByRole('dialog', { name: /^Add payments/ });
   await dialog.getByTestId('schedule-title').fill('Base fee');
+  // options in sentence case ("Monthly", not "monthly")
+  await expect(dialog.getByTestId('schedule-billing')).toHaveValue('Monthly');
   await chooseOption(page, /^Paying service/, f.service.name);
   await dialog.getByTestId('schedule-amount').fill('1000');
   await dialog.getByTestId('schedule-currency').fill('EUR');
@@ -106,6 +108,8 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await page.goto('/costs/commitments');
   await expect(page.getByTestId('commitments-page')).toContainText(f.supplier.name);
   await expect(page.getByTestId('commitments-page')).toContainText('Base fee');
+  // the billing cell starts with a capital, as every cell does ("Monthly · EUR")
+  if (!mobile) await expect(page.getByRole('row').filter({ hasText: 'Base fee' }).first()).toContainText('Monthly · EUR');
   await page.getByTestId('commitments-group').getByText('Service or platform', { exact: true }).click();
   await expect(page.getByTestId('commitment-group').filter({ hasText: f.service.name })).toBeVisible();
   await expectAccessible(page, 'commitments');
@@ -138,4 +142,32 @@ test('contract payments on a phone @mobile', async ({ page, apiAs }) => {
       await cleanup(api, f);
     }
   });
+});
+
+test('commitments: a currency that owes nothing any more gets no total card', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const service = await json<{ id: string; name: string }>(await api.post('/api/services', { data: { name: uniq('Paid-up service') } }));
+  const supplier = await json<{ id: string; name: string }>(await api.post('/api/suppliers', { data: { name: uniq('Invented Paid Ltd'), type: 'saas' } }));
+  const d = await json<{ contracts: { id: string }[] }>(
+    await api.post(`/api/suppliers/${supplier.id}/contracts`, {
+      data: { title: 'Paid up front', startsOn: '2024-01-01', endsOn: '2099-12-31', noticeDays: 30, renewal: 'fixedEnd' },
+    }),
+  );
+  const contractId = d.contracts[0]!.id;
+  try {
+    // paid once, two years ago: nothing is owed in CHF any more
+    await json(
+      await api.post('/api/costs/schedules', {
+        data: { contractId, serviceId: service.id, title: 'One-off fee', amount: '500', currency: 'CHF', billing: 'once', startsOn: '2024-01-15' },
+      }),
+    );
+    await page.goto(`/costs/commitments`);
+    await chooseOption(page, 'Service', service.name);
+    await expect(page.getByTestId('commitments-show-paid')).toHaveText('Show 1 paid schedule');
+    await expect(page.getByTestId('commitment-total')).toHaveCount(0);
+  } finally {
+    await api.delete(`/api/suppliers/${supplier.id}/contracts/${contractId}`);
+    await api.post(`/api/suppliers/${supplier.id}/archive`, { data: { archived: true } });
+    await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
+  }
 });

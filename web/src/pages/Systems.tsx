@@ -4,10 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconPlus, IconServer2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { SubjectsInput } from '../components/SubjectsInput';
+import { SubjectsInput, useSubjectLabel } from '../components/SubjectsInput';
 import { SYSTEM_KINDS, SYSTEM_LIMITS, type Platform, type SystemDetail, type SystemKind, type SystemSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, QueryState, subjectLabel, useCreateParam, useFieldErrors } from '../components/common';
+import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { EnvironmentBadge, useEnvironmentList } from '../components/catalogue/environments';
@@ -23,6 +23,7 @@ import { SupplierPicker, useSupplierChoice } from '../components/suppliers/Suppl
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
   const { t } = useTranslation(['applications', 'common']);
+  const subjectName = useSubjectLabel();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -163,8 +164,8 @@ export function SystemsPage() {
             size="xs"
             label={t('owners')}
             data={[...new Set([...all.flatMap((s) => s.owners), ...(owner ? [owner] : [])])]
-              .sort((a, b) => subjectLabel(a).localeCompare(subjectLabel(b)))
-              .map((o) => ({ value: o, label: subjectLabel(o) }))}
+              .sort((a, b) => subjectName(a).localeCompare(subjectName(b)))
+              .map((o) => ({ value: o, label: subjectName(o) }))}
             value={owner}
             onChange={(v) => set('owner', v)}
             clearable

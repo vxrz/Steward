@@ -7,7 +7,7 @@ import { IconCheck, IconDownload, IconClipboardText, IconPlus, IconSearch, IconS
 import { useTranslation } from 'react-i18next';
 import { SOA_PARTIES, SOA_STATUSES, type Soa, type SoaEntry, type SoaList, type SoaSummary } from '@sm/shared';
 import { apiUrl, confirmedDownload, get, notifyError, notifyOk, post } from '../api';
-import { DetailState, FilterPanel, QueryState, subjectLabel, useCreateParam } from '../components/common';
+import { DetailState, FilterPanel, QueryState, useCreateParam } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { ListPage } from '../components/page/ListPage';
 import { DetailHeader } from '../components/page/DetailPage';
@@ -27,6 +27,7 @@ import {
 import { capFirst, fmtDate, fmtDay } from '../format';
 import { soaKeys } from '../queryKeys';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /**
  * The statement of applicability (ISO/IEC 27001 clause 6.1.3 d, ADR 0029 part 2; Compliance module, preview): the
@@ -187,6 +188,7 @@ type Applies = 'all' | 'yes' | 'no' | 'undecided';
 
 export function SoaDetailPage() {
   const { t } = useTranslation(['soa', 'common']);
+  const subjectName = useSubjectLabel();
   const { key = '' } = useParams();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -291,7 +293,7 @@ export function SoaDetailPage() {
         </>
       ),
     },
-    { key: 'owner', header: t('table.owner'), sortValue: (x) => x.owner ?? '~', cell: (x) => (x.owner ? subjectLabel(x.owner) : '–') },
+    { key: 'owner', header: t('table.owner'), sortValue: (x) => x.owner ?? '~', cell: (x) => (x.owner ? subjectName(x.owner) : '–') },
     {
       key: 'evidence',
       header: t('table.evidence'),
@@ -450,7 +452,7 @@ export function SoaDetailPage() {
             size="xs"
             label={t('filters.owner')}
             placeholder={t('filters.all')}
-            data={owners.map((o) => ({ value: o, label: subjectLabel(o) }))}
+            data={owners.map((o) => ({ value: o, label: subjectName(o) }))}
             value={owner}
             onChange={setOwner}
             clearable
@@ -488,7 +490,7 @@ export function SoaDetailPage() {
                     {x.ref} {capFirst(x.title)}
                   </Anchor>
                   <Text size="xs" c="dimmed">
-                    {[partyLabel(x), x.owner && subjectLabel(x.owner)].filter((v) => v && v !== '–').join(' · ') || t('entry.notDecided')}
+                    {[partyLabel(x), x.owner && subjectName(x.owner)].filter((v) => v && v !== '–').join(' · ') || t('entry.notDecided')}
                   </Text>
                 </div>
                 <Stack gap={4} align="flex-end">

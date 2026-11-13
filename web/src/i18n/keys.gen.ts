@@ -2840,6 +2840,7 @@ export interface Resources {
     'plan.line.notSaved': string;
     'plan.line.removed': string;
     'plan.form.title': string;
+    'plan.form.titleHint': string;
     'plan.form.category': string;
     'plan.form.for': string;
     'plan.form.forHint': string;
@@ -3040,6 +3041,14 @@ export interface Resources {
     'commitments.columns.toContractEnd': string;
     'commitments.columns.toEarliestExit': string;
     'commitments.columns.noticeBy': string;
+    'commitments.billingCell.monthly': string;
+    'commitments.billingCell.quarterly': string;
+    'commitments.billingCell.yearly': string;
+    'commitments.billingCell.once': string;
+    'commitments.billingCell.dates': string;
+    'commitments.billingCell.volume': string;
+    'commitments.billingCell.prepaid': string;
+    'commitments.billingCell.byUse': string;
     'commitments.total': string;
     'commitments.totalExit': string;
     'commitments.serviceTitle': string;
@@ -8242,6 +8251,8 @@ export interface Resources {
     'center.unreadPrefix': string;
     'center.filter': string;
     'center.all': string;
+    'center.latest': string;
+    'center.cappedHint': string;
     'center.category.decision_one': string;
     'center.category.decision_other': string;
     'center.category.alert_one': string;

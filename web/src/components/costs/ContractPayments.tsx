@@ -76,14 +76,7 @@ export function ContractPayments({ contractId, contractTitle }: { contractId: st
   };
   return (
     <Stack gap={4} mt="xs" data-testid="contract-payments">
-      {/* the contract page heads the section "Payments" itself */}
-      <Group justify="flex-end" wrap="nowrap">
-        {list.canAdd && (
-          <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setDialog('new')} data-testid="contract-payments-add">
-            {t('schedules.add')}
-          </Button>
-        )}
-      </Group>
+      {/* the contract page heads the section "Payments" itself; "Add payments" follows the list, as "Add service" does */}
       {list.schedules.length === 0 ? (
         <Text size="xs" c="dimmed">
           {t('schedules.none')}
@@ -111,6 +104,13 @@ export function ContractPayments({ contractId, contractTitle }: { contractId: st
             )}
           </Group>
         ))
+      )}
+      {list.canAdd && (
+        <Group>
+          <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => setDialog('new')} data-testid="contract-payments-add">
+            {t('schedules.add')}
+          </Button>
+        </Group>
       )}
       {dialog && (
         <ScheduleDialog
@@ -370,7 +370,7 @@ export function ScheduleDialog({
             <Select
               label={t('schedules.form.billing')}
               allowDeselect={false}
-              data={COST_SCHEDULE_BILLINGS.map((b) => ({ value: b, label: t(`schedules.billings.${b}`) }))}
+              data={COST_SCHEDULE_BILLINGS.map((b) => ({ value: b, label: t(`commitments.billingCell.${b}`) }))}
               value={billing}
               onChange={(v) => v && setBilling(v as CostScheduleBilling)}
               data-testid="schedule-billing"

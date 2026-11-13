@@ -314,6 +314,15 @@ p .mantine-Anchor-root,
   }
 }
 
+/*
+ * A long single word in the sidebar ("Korrekturmaßnahmen") is hyphenated or broken instead of cut off: the label of a
+ * NavLink hides what overflows (WCAG 1.4.10 – nothing may be lost at narrow widths). Hyphenation follows <html lang>.
+ */
+.nav-entry .mantine-NavLink-label {
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
 /* Tabs that are links (components/page/LinkTabs.tsx) */
 /*
  * The line under the tabs is an inset shadow, not a border: the active tab's underline covers it without reaching

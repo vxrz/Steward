@@ -1161,6 +1161,8 @@ function LineDialog({ d, line, onClose, onSaved }: { d: CostPlanYear; line: Cost
         <Stack>
           <TextInput
             label={t('plan.form.title')}
+            // a licence to buy later is a plan line without a contract: say so where a line starts
+            description={t('plan.form.titleHint')}
             required
             data-autofocus
             maxLength={COST_PLAN_LIMITS.titleChars}

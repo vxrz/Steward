@@ -17,6 +17,7 @@ import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentP
 import { ListPage } from '../components/page/ListPage';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -209,6 +210,8 @@ export function RecordsPage() {
 
 function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onTag: (tag: string) => void; footer?: React.ReactNode }) {
   const { t } = useTranslation('records');
+  const subjectName = useSubjectLabel();
+  const ownerName = (r: RecordSummary) => subjectName(`user:${r.owner}`);
   const tags = (r: RecordSummary) =>
     r.tags.length > 0 && (
       <Group gap={4} mt={2}>
@@ -270,7 +273,7 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
         </>
       ),
     },
-    { key: 'owner', header: t('list.owner'), sortValue: (r) => r.owner, cell: (r) => r.owner },
+    { key: 'owner', header: t('list.owner'), sortValue: ownerName, cell: ownerName },
     {
       key: 'updated',
       header: t('list.updated'),
@@ -307,7 +310,7 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
             </Group>
           </Group>
           <Text size="xs" c="dimmed">
-            {t('list.ownerLine', { owner: r.owner, when: fmtRelative(r.updatedAt) })}
+            {t('list.ownerLine', { owner: ownerName(r), when: fmtRelative(r.updatedAt) })}
           </Text>
           {tags(r)}
         </Paper>

@@ -84,6 +84,20 @@ test('the service hub has a tab for each part, with addresses that can be shared
   }
 });
 
+test('the overview names the responsible people by their display names, as the lists do', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const svc = await json<{ id: string; name: string }>(
+    await api.post('/api/services', { data: { name: uniq('E2E hub owners'), owners: ['user:olivia', 'user:dana'] } }),
+  );
+  try {
+    await page.goto(`/services/${svc.id}`);
+    // "Olivia Operator, Dana Designer" – not the user names "olivia, dana"
+    await expect(page.getByTestId('service-owners')).toHaveText('Olivia Operator, Dana Designer');
+  } finally {
+    await api.post(`/api/services/${svc.id}/archive`, { data: { archived: true } });
+  }
+});
+
 test('on a desktop every tab of a service is in view: the tab bar wraps instead of hiding the last ones', async ({ page, apiAs }) => {
   const api = await apiAs('dana');
   const svc = await json<{ id: string; name: string }>(await api.post('/api/services', { data: { name: uniq('E2E hub tabs') } }));

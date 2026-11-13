@@ -39,6 +39,15 @@ async function collectSuggestions(admin: APIRequestContext) {
 test.describe('as an administrator', () => {
   test.use({ storageState: authFile('admin') });
 
+  test('the register names the owner of a finding by display name', async ({ page }) => {
+    // the demo finding is Dana's: "Dana Designer", as on the other catalogue pages – not the user name "dana"
+    await page.goto('/compliance/corrective-actions');
+    const row = page.getByRole('row').filter({ hasText: 'Leaver accounts stay active' });
+    await expect(row).toContainText('Dana Designer');
+    await row.getByRole('link').first().click();
+    await expect(page.getByRole('main')).toContainText('Dana Designer');
+  });
+
   test('confirms a suggestion, keeps its action and has the fix checked by a second person', async ({ page, apiAs, browser }) => {
     const admin = await apiAs('admin');
     const review = await acceptedReview(await apiAs('dana'), await apiAs('adam'));

@@ -258,20 +258,21 @@ export function CommitmentsTable({ c, withService = true, testId = 'commitment-r
   );
 }
 
-/** "Monthly · EUR", or for a volume "Volume, prepaid · USD". */
+/** "Monthly · EUR", or for a volume "Volume, prepaid · USD" (sentence case: the cell starts with it). */
 function billingText(t: (k: string) => string, r: CostCommitment): string {
-  return r.volume
-    ? `${t('schedules.billings.volume')}, ${t(`volumes.billing.${r.volume.billing}`)} · ${r.currency}`
-    : `${t(`schedules.billings.${r.billing}`)} · ${r.currency}`;
+  return `${t(`commitments.billingCell.${r.volume ? r.volume.billing : r.billing}`)} · ${r.currency}`;
 }
 
 /** Totals per currency (only the amounts the reader sees). */
 export function CommitmentTotals({ c }: { c: CostCommitments }) {
   const { t } = useTranslation('costs');
-  if (!c.totals.length) return null;
+  // a currency whose schedules owe nothing any more (paid, a used-up prepaid volume): no card, as its rows sit behind
+  // "Show paid schedules"
+  const totals = c.totals.filter((x) => [x.toContractEnd, x.toEarliestExit, x.upTo, x.later, ...x.years].some((v) => Number(v) !== 0));
+  if (!totals.length) return null;
   return (
     <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }}>
-      {c.totals.map((x) => (
+      {totals.map((x) => (
         <Paper key={x.currency} withBorder p="sm" data-testid="commitment-total">
           <Text size="xs" c="dimmed">
             {t('commitments.total', { currency: x.currency })}
