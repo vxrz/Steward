@@ -435,8 +435,8 @@
     "owners": "Eigentümer des gemeinsamen Lieferanten",
     "moves": "Außerdem werden übernommen: Verknüpfungen, {{spellings}} Schreibweisen, {{schedules}} Zahlungspläne.",
     "noticeTitle": "Verträge jetzt nur noch für ihre Eigentümer und Services sichtbar",
-    "noticeText_one": "Seit dem Update haben Verträge eigene Eigentümer. {{count}} Vertrag, dessen Lieferant ein Team unter seinen Eigentümern hatte, ist jetzt nur noch für seine Eigentümer, wer einen abgedeckten Service sehen darf, Administratoren und Auditoren sichtbar. Wenn Sie das Team als Eigentümer entfernen, ist er wieder offen.",
-    "noticeText_other": "Seit dem Update haben Verträge eigene Eigentümer. {{count}} Verträge, deren Lieferant ein Team unter seinen Eigentümern hatte, sind jetzt nur noch für ihre Eigentümer, wer einen abgedeckten Service sehen darf, Administratoren und Auditoren sichtbar. Wenn Sie das Team als Eigentümer entfernen, ist ein Vertrag wieder offen.",
+    "noticeText_one": "Seit dem Update haben Verträge eigene Eigentümer. {{count}} Vertrag, dessen Lieferant ein Team unter seinen Eigentümern hatte, ist jetzt nur noch für seine Eigentümer, wer einen abgedeckten Service sehen darf, Administratoren und Prüfern sichtbar. Wenn Sie das Team als Eigentümer entfernen, ist er wieder offen.",
+    "noticeText_other": "Seit dem Update haben Verträge eigene Eigentümer. {{count}} Verträge, deren Lieferant ein Team unter seinen Eigentümern hatte, sind jetzt nur noch für ihre Eigentümer, wer einen abgedeckten Service sehen darf, Administratoren und Prüfern sichtbar. Wenn Sie das Team als Eigentümer entfernen, ist ein Vertrag wieder offen.",
     "noticeClose": "Hinweis schließen",
     "proposedTitle": "Verträge mit Services zu bestätigen",
     "proposedIntro": "Das Update auf 0.18 hat diese Services aus den Planpositionen, Kostenbuchungen und Matrixzeilen vorgeschlagen, die die Verträge nennen. Bestätigen Sie jeden oder wählen Sie „Nicht dieser Service“."

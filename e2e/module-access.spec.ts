@@ -115,7 +115,7 @@ test.describe('who may use a module (own server)', () => {
     await expect(row.getByTestId('module-plant-access-mode')).toContainText('Alle angemeldeten Personen');
     await row.getByRole('button', { name: 'Wer darf es nutzen: Werksregister' }).click();
     const dialog = page.getByRole('dialog', { name: 'Wer darf Werksregister nutzen' });
-    await expect(dialog).toContainText('Administratoren und Auditoren nutzen immer jedes Modul.');
+    await expect(dialog).toContainText('Administratoren und Prüfer nutzen immer jedes Modul.');
     await dialog.getByRole('radio', { name: 'Ausgewählte Teams und Benutzer' }).check();
     await expect(dialog.getByTestId('module-access-loses')).toContainText(/Personen verlieren das Modul/);
     await expectNoHorizontalScroll(page);
