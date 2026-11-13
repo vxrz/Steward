@@ -748,13 +748,6 @@ export function deleteEvidence(id: string, taskId: string, round: number): boole
   );
 }
 
-/** Paths (relative to <data>/artifacts) of a run's evidence files. */
-export function evidencePaths(runId: string): string[] {
-  return db()
-    .all<{ path: string }>('SELECT path FROM run_task_evidence WHERE run_id = ?', runId)
-    .map((r) => r.path);
-}
-
 /** Process of a task's run (for permission checks). */
 export function taskProcessId(taskId: string): string {
   const r = db().get<{ process_id: string }>('SELECT r.process_id FROM run_tasks t JOIN runs r ON r.id = t.run_id WHERE t.id = ?', taskId);

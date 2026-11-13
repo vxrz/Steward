@@ -5,7 +5,7 @@ import { BRAND, MQTT_LIMITS, mqttMatches, mqttUrl, type Platform } from '@sm/sha
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
-import { HttpError, nowIso } from '../util.js';
+import { HttpError } from '../util.js';
 import { assertAddressSafe, assertNetAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { getSettings } from '../settings.js';
@@ -258,5 +258,3 @@ export function forgetMqttTopics(platformId: string, filter: string): number {
   }
   return rows.length;
 }
-
-export const mqttNow = nowIso;

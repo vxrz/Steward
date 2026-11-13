@@ -236,12 +236,6 @@ export function moduleOfRoute(url: string): ModuleId | undefined {
   return best;
 }
 
-/** The module an address of the web app belongs to, if any. */
-export function moduleOfPage(pathname: string): ModuleId | undefined {
-  for (const m of MODULES) if (m.pages.some((p) => underPrefix(pathname, p))) return m.id;
-  return undefined;
-}
-
 /** The module a sidebar entry belongs to, if any. */
 export function moduleOfNav(key: string): ModuleId | undefined {
   for (const m of MODULES) if (m.nav.includes(key)) return m.id;

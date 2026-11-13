@@ -16,7 +16,6 @@
  *   cannot starve runs and monitors of the platform's connection slots;
  * - every call (and every refusal) is written to the audit log, with control characters escaped.
  */
-import { allIdentityRows, parseMcp } from '../platforms/identities.js';
 import { allowedOperations } from '../platforms/operationFilter.js';
 import { z } from 'zod';
 import {
@@ -160,15 +159,6 @@ function gatewayPlatform(id: string, identityRef?: string): GatewayPlatform {
  */
 const GATEWAY_HINT =
   "list_platforms shows the platforms with mcpGateway: true. A platform's managers turn it on under Platform → MCP (Allow access for MCP clients), and the token owner needs the use right on the platform.";
-
-/** Whether the current token owner may use the gateway of at least one platform (through one of its identities). */
-export function anyGatewayPlatform(): boolean {
-  try {
-    return platforms.listPlatforms().some((p) => mcpIdentities(p).length > 0);
-  } catch {
-    return false;
-  }
-}
 
 /** Stable reference of an operation: its operationId, else "METHOD /path/template" (the effective path, with the spec's path prefix). */
 const opRef = (o: ApiOperation) => o.operationId || `${o.method} ${o.path}`;
@@ -842,11 +832,6 @@ export async function executeGatewayCall(p: Platform, who: GatewayCaller, userId
       : {}),
     body: cap(redactor.apply(res.body), { maxString: 20_000, maxArray: 200, maxDepth: 10 }),
   };
-}
-
-/** Gateway enabled-platform count for the status page: platforms with at least one identity open to MCP (ADR 0009). */
-export function gatewayPlatformCount(): number {
-  return [...allIdentityRows().values()].filter((list) => list.some((i) => parseMcp(i.mcp).mode !== 'off')).length;
 }
 
 /**

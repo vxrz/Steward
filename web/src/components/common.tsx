@@ -19,7 +19,6 @@ import {
   Text,
   TextInput,
   Title,
-  Tooltip,
 } from '@mantine/core';
 import {
   IconAlertTriangle,
@@ -518,13 +517,5 @@ export function Hint({ children }: { children: ReactNode }) {
     <Text size="xs" c="dimmed">
       {children}
     </Text>
-  );
-}
-
-export function IconTip({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Tooltip label={label} withArrow>
-      <span>{children}</span>
-    </Tooltip>
   );
 }

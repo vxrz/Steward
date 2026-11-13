@@ -7,6 +7,8 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * statements does not grow with the number of services, processes, schedules, platforms or monitors. On PostgreSQL every
  * statement is a round trip that blocks the event loop, so a statement per item made these pages slow for everyone.
  * The pattern of the cost plan test (cost-plans.test.ts): the same count before and after adding many items.
+ * The lists of the public API that filter by the processes a reader may view (runs, tasks, datasets; MCP shares the
+ * same code, processes/service.ts visibleProcessIds) are counted the same way: they read a process's rights once each.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -19,6 +21,9 @@ let dana: Client;
 const counted = new Map<string, number>();
 
 const PAGES = ['/dashboard', '/scorecard', '/costs?scope=service', '/costs?scope=application', '/monitors', '/platforms', '/processes', '/schedules'];
+/** Lists of the public API (/api/v1), read with an API token of each user. */
+const V1_PAGES = ['/runs', '/tasks', '/datasets'];
+const tokens: Record<string, string> = {};
 
 beforeAll(async () => {
   s = await startTestServer({
@@ -33,6 +38,8 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup', { services: true });
   dana = await s.as('dana', PW);
+  tokens.admin = (await s.api('POST', '/me/tokens', { name: 'Invented admin token', scope: 'read' })).token;
+  tokens.dana = (await dana('POST', '/me/tokens', { name: 'Invented dana token', scope: 'read' })).token;
 }, 180_000);
 
 /** Statements of one GET as the signed-in user of `c` (the second call: caches of the first are warm). */
@@ -43,13 +50,28 @@ async function statements(c: Client, url: string): Promise<number> {
   return counted.get(`/api${url}`) ?? -1;
 }
 
+/** Statements of one GET of the public API with `token` (the second call, as above). */
+async function v1Statements(token: string, url: string): Promise<number> {
+  const get = async () => {
+    const res = await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status, url).toBe(200);
+    await res.arrayBuffer();
+  };
+  await get();
+  counted.delete(`/api/v1${url}`);
+  await get();
+  return counted.get(`/api/v1${url}`) ?? -1;
+}
+
 async function countAll(): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const [who, c] of [
     ['admin', s.api],
     ['dana', dana],
-  ] as const)
+  ] as const) {
     for (const url of PAGES) out[`${who} ${url}`] = await statements(c, url);
+    for (const url of V1_PAGES) out[`${who} v1${url}`] = await v1Statements(tokens[who]!, url);
+  }
   return out;
 }
 
@@ -88,7 +110,8 @@ describe('statements per request of the hot pages', () => {
     const after = await countAll();
     if (process.env.H2_OUT) (await import('node:fs')).writeFileSync(process.env.H2_OUT, JSON.stringify({ before, after }, null, 1));
     expect(after).toEqual(before);
-    // and few: no page reads per item
-    for (const [k, n] of Object.entries(after)) expect(n, k).toBeLessThan(k.includes('/dashboard') ? 160 : 80);
+    // and few: no page reads per item (the public API's dataset list reads each dataset's latest values on its own:
+    // about 90 statements with the demo's datasets, independent of the processes)
+    for (const [k, n] of Object.entries(after)) expect(n, k).toBeLessThan(k.includes('/dashboard') || k.endsWith('v1/datasets') ? 160 : 80);
   }, 300_000);
 });

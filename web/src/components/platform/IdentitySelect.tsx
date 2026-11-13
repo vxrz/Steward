@@ -5,11 +5,6 @@ import type { Platform, PlatformIdentity } from '@sm/shared';
 /** The value standing for the default identity (nothing is stored then: the platform's default at the time of use). */
 const DEFAULT = '__default__';
 
-/** "Snowflake · Read only" where a platform has more than one identity, else the platform's name (ADR 0009). */
-export function platformIdentityLabel(platformName: string, identityName: string | null | undefined, several: boolean): string {
-  return several && identityName ? `${platformName} · ${identityName}` : platformName;
-}
-
 /** A platform by id or name (monitor definitions may name one). */
 export function platformByRef(platforms: Platform[] | undefined, ref: string): Platform | undefined {
   return platforms?.find((p) => p.id === ref) ?? platforms?.find((p) => p.name.toLowerCase() === ref.toLowerCase());

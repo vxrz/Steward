@@ -32,10 +32,6 @@ const bucket = (name: string) => {
 
 /** For tests: the objects of a bucket, and changing one in place. */
 export const mockS3Objects = (name = DEMO_S3.bucket): Map<string, Obj> => bucket(name);
-export function resetMockS3(): void {
-  buckets.clear();
-  uploads.clear();
-}
 
 const xmlEscape = escapeXml;
 const etagOf = (b: Buffer) => `"${crypto.createHash('md5').update(b).digest('hex')}"`;

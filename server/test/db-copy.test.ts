@@ -1,10 +1,11 @@
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
+import { spawnTestServer } from './server-process.js';
 
 // SQLite → PostgreSQL with the db:copy CLI, then the app runs on the copy (and back to SQLite).
 describe.skipIf(!PG_TEST_URL)('db:copy', () => {
@@ -37,7 +38,7 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
 
   const start = (db: Record<string, string>) =>
     new Promise<ChildProcess>((resolve, reject) => {
-      const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { cwd: SERVER, env: env(db), stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawnTestServer({ cwd: SERVER, env: env(db), stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '';
       child.stdout!.on('data', (d: Buffer) => {
         out += d.toString();

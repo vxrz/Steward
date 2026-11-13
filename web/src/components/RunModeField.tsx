@@ -13,7 +13,6 @@ import { platformKeys } from '../queryKeys';
  */
 export type RunMode = 'dry' | 'test' | 'real';
 
-export const runModeOf = (o: { dryRun: boolean; recorded?: boolean }): RunMode => (o.recorded ? 'test' : o.dryRun ? 'dry' : 'real');
 export const runModeFlags = (m: RunMode) => ({ dryRun: m !== 'real', recorded: m === 'test' });
 
 /** How many recorded responses the bound platforms have, for the test run's description. */

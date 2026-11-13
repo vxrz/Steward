@@ -37,10 +37,6 @@ export function publishMock(topic: string, payload: string | Buffer, retain = fa
       send(s, { cmd: 'publish', topic, payload: buf, qos: 0, dup: false, retain: false } as mqttPacket.IPublishPacket);
 }
 
-export function resetMqtt(): void {
-  retained.clear();
-}
-
 function onConnection(ws: WebSocket): void {
   const s: Session = { ws, filters: new Set() };
   const parser = mqttPacket.parser({ protocolVersion: 4 });

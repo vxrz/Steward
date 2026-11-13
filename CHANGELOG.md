@@ -23,6 +23,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **More dialogs ask before discarding what was entered**: the Git sync source, export job, recorded response and AI model dialogs (Esc, ✕, _Cancel_; a click outside then leaves them open), and the one-time webhook secret of a Git sync source no longer closes on a click outside. _Fetch now_, _Edit_ and _Delete_ of a Git sync source name the source for screen readers; _Settings → Integrations_ names the Git sync sources that are turned on instead of every source.
 - **Outbound access**: the policy choice is labelled for screen readers and stacks on phones, and the warning of _Any host (labs)_ is shown once.
 - **Git sync sources on GitHub without a token say that GitHub allows 60 calls an hour** and recommend a fine-grained token with repository access _Public repositories (read-only)_ and no permissions; the example library's hint names `api.github.com`, the host Steward really calls, instead of `github.com`.
+- **The public API's run, task and dataset lists and the MCP tools read the reader's process rights in one statement** ([docs/API.md](docs/API.md)): before, they read each process on its own, so these lists slowed down with every process – on PostgreSQL each statement is a round trip. The web app, the public API and MCP now share one check of which processes and runs a reader may see.
 
 ### Fixed
 

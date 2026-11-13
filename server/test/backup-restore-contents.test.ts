@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
+import { spawnTestServer } from './server-process.js';
 
 /**
  * A backup that leaves out run artifacts, archived reports and evidence packs (0.16.0, docs/BACKUPS.md#contents),
@@ -161,7 +162,7 @@ describe.skipIf(pg)('restoring a backup that left parts out', () => {
     for (const k of ['SM_DATABASE_URL', 'SM_DATABASE_SCHEMA', 'SM_MASTER_PASSPHRASE_FILE', 'SM_TEST_DATABASE_URL']) delete env[k];
     let out = '';
     proc = await new Promise<ChildProcess>((resolve, reject) => {
-      const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawnTestServer({ cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
       const timer = setTimeout(() => reject(new Error('server start timeout: ' + out)), 60000);
       child.stdout!.on('data', (d: Buffer) => {
         out += d.toString();

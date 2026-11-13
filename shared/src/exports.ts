@@ -20,7 +20,6 @@ export const EXPORT_PART_IDS = [
   'soa',
 ] as const;
 export type ExportPartId = (typeof EXPORT_PART_IDS)[number];
-export const isExportPartId = (x: unknown): x is ExportPartId => typeof x === 'string' && (EXPORT_PART_IDS as readonly string[]).includes(x);
 
 export const EXPORT_FORMATS = ['csv', 'yaml', 'json', 'jsonl'] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];

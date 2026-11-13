@@ -6,13 +6,13 @@
  */
 import { z } from 'zod';
 import { DATASET_STATUSES, MONITOR_STATUSES, TICKET_LINK_KINDS, TICKET_STATUSES, type DatasetRow } from '@sm/shared';
-import { db } from '../db.js';
 import { queryAudit } from '../audit.js';
 import { config } from '../config.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
+import { readableRun } from '../engine/run-access.js';
 import * as scheduler from '../scheduler.js';
 import * as platforms from '../platforms/service.js';
 import * as datasets from '../dashboards/datasets.js';
@@ -143,22 +143,13 @@ const short = (s: string | null | undefined, n = 300) => (s ? (s.length > n ? `$
 const iso = (s: string | undefined) => (s ? new Date(s).toISOString() : undefined);
 const notFound = (what: string) => new ToolError(`${what} not found (or you may not see it)`);
 
-function visibleProcessIds(): string[] {
-  return db()
-    .all<{ id: string }>('SELECT id FROM processes')
-    .map((r) => r.id)
-    .filter((id) => processes.permissionsFor(id).includes('view'));
-}
+/** The processes the caller may view (one statement, processes/service.ts), as a list. */
+const visibleProcessIds = (): string[] => [...processes.visibleProcessIds()];
 
+/** A run the caller may read here (engine/run-access.ts: debug runs stay in the app). */
 function viewableRun(id: string): store.RunRow {
-  let r: store.RunRow;
-  try {
-    r = store.runRow(id);
-  } catch {
-    throw notFound(`Run ${id}`);
-  }
-  // debug runs (ADR 0010) stay in the app: never served here
-  if (r.debug || !processes.permissionsFor(r.process_id).includes('view')) throw notFound(`Run ${id}`);
+  const r = readableRun(id);
+  if (!r) throw notFound(`Run ${id}`);
   return r;
 }
 

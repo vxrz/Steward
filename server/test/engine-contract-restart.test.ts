@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { freshDbEnv } from './pg-env.js';
+import { spawnTestServer } from './server-process.js';
 
 /**
  * The engine contract after a crash (ADR 0011, invariant 3): waiting runs resume, running runs become interrupted
@@ -20,7 +21,7 @@ let proc: ChildProcess | undefined;
 const dbEnv = freshDbEnv();
 
 function startServer(): Promise<ChildProcess> {
-  const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+  const child = spawnTestServer({
     cwd: path.join(ROOT, 'server'),
     env: {
       ...process.env,
