@@ -44,6 +44,7 @@ export const NOTIFICATION_EVENTS = [
   'cost.booking_due',
   'cost.volume',
   'cost.price_review_due',
+  'cost.estimate_changed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -125,6 +126,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'cost.volume':
     'A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum',
   'cost.price_review_due': 'A price book you maintain by hand is due for its review (Mark as checked when its prices are still right)',
+  'cost.estimate_changed':
+    'An estimate of a service or platform you own was recalculated with new prices and its monthly total moved by the threshold (Accept new prices to make them current)',
 };
 
 /**

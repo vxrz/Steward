@@ -76,6 +76,8 @@ export interface BookRow {
   base_book_id?: string | null;
   /** A rate card's own terms (a derived book without a contract): { conditions: CostCondition[] } */
   derivation?: string | null;
+  /** A book read from a source (0.23.0): its kind, who set it and the state of the last read (price-sources.ts) */
+  source_settings?: string | null;
   review_days: number;
   checked_at: string | null;
   checked_by: string | null;
@@ -342,7 +344,13 @@ function toBook(r: BookRow, rights: BookRights, n: ReturnType<typeof names>, ent
     platform: r.platform_id ? { id: r.platform_id, name: n.platforms.get(r.platform_id) ?? r.platform_id } : null,
     supplier: r.supplier_id && n.suppliers.has(r.supplier_id) ? { id: r.supplier_id, name: n.suppliers.get(r.supplier_id)! } : null,
     supplierContract: contract ? { id: r.supplier_contract_id!, title: n.contracts.get(r.supplier_contract_id!) ?? '' } : null,
-    source: r.kind === 'derived' ? 'derived' : r.source === 'csv' ? 'csv' : 'manual',
+    source:
+      r.kind === 'derived'
+        ? 'derived'
+        : r.source === 'csv' || r.source === 'snowflakeRateSheet' || r.source === 'confluentObserved'
+          ? (r.source as CostPriceBook['source'])
+          : 'manual',
+    sourceState: sourceStateOf(r),
     base: base ?? null,
     termsOn: r.kind !== 'derived' ? null : r.supplier_contract_id ? 'contract' : 'book',
     termsVisible: terms,
@@ -478,6 +486,16 @@ export function entriesPage(row: BookRow, q: { cursor?: string; limit: number; q
   const page = pageRows(rows, q.limit, (r) => [Number(r.id)], filters);
   return { items: page.items.map(entryOfRow), nextCursor: page.nextCursor };
 }
+
+/** The state of a source read (only for a book read from one). */
+function sourceStateOf(r: BookRow): CostPriceBook['sourceState'] {
+  if (r.source !== 'snowflakeRateSheet' && r.source !== 'confluentObserved') return null;
+  const s = parseJson<{ lastReadAt?: string | null; lastNote?: string | null; lastError?: string | null }>(r.source_settings ?? '{}', {});
+  return { lastReadAt: s.lastReadAt ?? null, note: s.lastNote ?? null, error: s.lastError ?? null };
+}
+
+/** The entries of a book's current version. */
+export const entriesOfBook = (r: BookRow): CostPriceEntry[] => entriesOf(versionIdOf(r.id, Number(r.current_version)));
 
 /** Every entry of a version (writing a new version, the CSV preview). */
 function entriesOf(versionId: string | null): CostPriceEntry[] {
@@ -767,6 +785,8 @@ export function derive(r: BookRow, cause: string, depth = 0): VersionWritten | n
   if (r.kind !== 'derived' || !r.base_book_id) return null;
   const base = bookRow(r.base_book_id);
   if (!base) return null;
+  // terms on a contract that is gone: the last prices stay (never the base's without the provider's terms)
+  if (r.supplier_contract_id && !db().get('SELECT 1 FROM supplier_contracts WHERE id = ?', r.supplier_contract_id)) return null;
   const baseVid = versionIdOf(base.id, Number(base.current_version));
   const terms = termsOfBook(r);
   const feeName = r.supplier_id ? (db().get<{ name: string }>('SELECT name FROM suppliers WHERE id = ?', r.supplier_id)?.name ?? r.name) : r.name;

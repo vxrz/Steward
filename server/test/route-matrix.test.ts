@@ -372,6 +372,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/costs/price-books/:bookId/check': DESIGN,
   // contract conditions and derived books (0.23.0, ADR 0035 phase 2): the Prices of a contract for who sees it with its amounts
   'PUT /api/costs/price-books/:bookId/terms': DESIGN,
+  'PUT /api/costs/price-books/:bookId/source': DESIGN,
+  'POST /api/costs/price-books/:bookId/read': DESIGN,
   'GET /api/costs/contracts': ALL,
   'GET /api/costs/contracts/:contractId/conditions': ALL,
   'PUT /api/costs/contracts/:contractId/conditions': DESIGN,
@@ -1501,6 +1503,8 @@ const SESSION_ONLY = [
   'POST /api/costs/price-books/:bookId/import',
   'POST /api/costs/price-books/:bookId/check',
   'PUT /api/costs/price-books/:bookId/terms',
+  'PUT /api/costs/price-books/:bookId/source',
+  'POST /api/costs/price-books/:bookId/read',
   'PUT /api/costs/contracts/:contractId/conditions',
   'POST /api/costs/calculators',
   'PUT /api/costs/calculators/:calculatorId',

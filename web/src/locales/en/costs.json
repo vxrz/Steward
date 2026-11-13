@@ -51,6 +51,8 @@
     "notSaved": "Cost settings not saved",
     "fiscalYear": "Fiscal year starts in",
     "fiscalYearHint": "One start month for the whole instance; the service cost plans use it. Changing it later moves every plan into the new fiscal-year boundaries – choose it once.",
+    "estimateChange": "Notify an estimate change from",
+    "estimateChangeHint": "“Estimate changed” goes to an estimate’s owners when new prices move its monthly total by at least this much (each sees it in their own view).",
     "fiscalYearChange": {
       "title": "Change the fiscal year start?",
       "message": "Every plan is then read in the new fiscal-year boundaries: plan lines keep their fiscal year, cost entries count in the year their date falls in.",
@@ -881,7 +883,9 @@
       "csv": "CSV file",
       "migration": "Upgrade",
       "source": "Source read",
-      "derived": "Derived"
+      "derived": "Derived",
+      "snowflakeRateSheet": "Snowflake rate sheet",
+      "confluentObserved": "Confluent, observed"
     },
     "drivers": {
       "gbWritten": "GB written",
@@ -1009,7 +1013,22 @@
     "contractHint": "The contract these prices are – for a derived book: the customers' contract with the provider, whose conditions are its terms. None: a rate card with its own terms",
     "basedOn": "Based on {{name}} (v{{version}})",
     "derivedNoEdit": "The prices of a derived book follow its base book and terms – they are not written by hand.",
-    "versions_cause": "{{cause}} (base v{{version}})"
+    "versions_cause": "{{cause}} (base v{{version}})",
+    "source": {
+      "title": "Source",
+      "help": "A contracted book of a platform can be read from what the platform reports, the discount included: Snowflake's rate sheet daily, Confluent's observed rates of the last complete month. A read replaces what it brought before and keeps items written by hand.",
+      "none": "None – by hand",
+      "read": "Read now",
+      "readOk": "Read: {{note}}",
+      "unchanged": "Read – no prices changed",
+      "lastRead": "Last read {{date}}: {{note}}",
+      "failed": "The last read failed – the prices stay as they were: {{error}}",
+      "never": "Not read yet",
+      "kinds": {
+        "snowflakeRateSheet": "Snowflake rate sheet",
+        "confluentObserved": "Confluent, observed"
+      }
+    }
   },
   "calculators": {
     "title": "Calculators",

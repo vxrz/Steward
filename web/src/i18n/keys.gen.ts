@@ -2644,6 +2644,8 @@ export interface Resources {
     'settings.notSaved': string;
     'settings.fiscalYear': string;
     'settings.fiscalYearHint': string;
+    'settings.estimateChange': string;
+    'settings.estimateChangeHint': string;
     'settings.fiscalYearChange.title': string;
     'settings.fiscalYearChange.message': string;
     'settings.fiscalYearChange.otherYear_one': string;
@@ -3316,6 +3318,8 @@ export interface Resources {
     'prices.sources.migration': string;
     'prices.sources.source': string;
     'prices.sources.derived': string;
+    'prices.sources.snowflakeRateSheet': string;
+    'prices.sources.confluentObserved': string;
     'prices.drivers.gbWritten': string;
     'prices.drivers.gbRead': string;
     'prices.drivers.storage': string;
@@ -3431,6 +3435,17 @@ export interface Resources {
     'prices.basedOn': string;
     'prices.derivedNoEdit': string;
     'prices.versions_cause': string;
+    'prices.source.title': string;
+    'prices.source.help': string;
+    'prices.source.none': string;
+    'prices.source.read': string;
+    'prices.source.readOk': string;
+    'prices.source.unchanged': string;
+    'prices.source.lastRead': string;
+    'prices.source.failed': string;
+    'prices.source.never': string;
+    'prices.source.kinds.snowflakeRateSheet': string;
+    'prices.source.kinds.confluentObserved': string;
     'calculators.title': string;
     'calculators.description': string;
     'calculators.search': string;
@@ -8947,6 +8962,8 @@ export interface Resources {
     'events.cost.volume.info': string;
     'events.cost.price_review_due.label': string;
     'events.cost.price_review_due.info': string;
+    'events.cost.estimate_changed.label': string;
+    'events.cost.estimate_changed.info': string;
     'events.contract.failed.label': string;
     'events.contract.failed.info': string;
     'events.plant.change_proposed.label': string;

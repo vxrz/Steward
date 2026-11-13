@@ -21,7 +21,8 @@ import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { requireScope, scopeInfo, type ScopeInfo } from './access.js';
 import { catalogueOf, checkOwnerTarget, startMonth, targetOf, thisMonth, type OwnerRef } from './plans.js';
-import { priceSight } from './price-books.js';
+import { bookRow, onVersionWritten, priceSight } from './price-books.js';
+import { onConditionsChanged } from './contract-conditions.js';
 import { calculateOne, viewResult, type StoredResult } from './pricing.js';
 import { listOnly, microsText, proposalsOf, SEE_ALL, type EstimateBasis, type PriceSight } from './estimate-model.js';
 
@@ -40,7 +41,7 @@ import { listOnly, microsText, proposalsOf, SEE_ALL, type EstimateBasis, type Pr
  *   one; "Accept new prices" makes it current. The last 20 results stay as the history.
  */
 
-interface EstimateRow {
+export interface EstimateRow {
   id: string;
   owner_kind: 'service' | 'platform';
   owner_id: string;
@@ -59,6 +60,8 @@ interface EstimateRow {
   applies_from: string;
   result: string | null;
   pending: string | null;
+  /** Why the job recalculates it next (0.23.0): RecalcCause as JSON */
+  recalc_cause?: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -774,4 +777,110 @@ function planMonthsOf(l: { amount: number; cadence: string; once_index: number |
   const to = l.to_index === null ? 11 : Number(l.to_index);
   for (let i = from; i <= to; i++) out[i] = amount;
   return out;
+}
+
+// ---------- recalculation in the background (0.23.0, ADR 0035 part 6) ----------
+
+/** What made an estimate due for recalculation: a new version of a book it used, or a changed contract condition. */
+export interface RecalcCause {
+  book?: { id: string; name: string; version: number };
+  contract?: { id: string; title: string; at: string };
+}
+
+/** Marks the estimates that used a book or a contract's conditions: the job "costs" recalculates them. */
+function markRecalc(sql: string, cause: RecalcCause, ...params: unknown[]): void {
+  db().run(`UPDATE cost_estimates SET recalc_cause = ? WHERE id IN (${sql})`, JSON.stringify(cause), ...params);
+}
+onVersionWritten((bookId, version) => {
+  const b = bookRow(bookId);
+  markRecalc(
+    'SELECT b.estimate_id FROM cost_estimate_books b JOIN cost_price_book_versions v ON v.id = b.version_id WHERE v.book_id = ?',
+    { book: { id: bookId, name: b?.name ?? bookId, version } },
+    bookId,
+  );
+});
+onConditionsChanged((contractId) => {
+  const c = db().get<{ title: string }>('SELECT title FROM supplier_contracts WHERE id = ?', contractId);
+  // an order form inheriting them is recorded under its own id: its estimates follow too
+  markRecalc(
+    'SELECT estimate_id FROM cost_estimate_contracts WHERE contract_id = ? OR contract_id IN (SELECT id FROM supplier_contracts WHERE parent_id = ?)',
+    { contract: { id: contractId, title: c?.title ?? contractId, at: nowIso() } },
+    contractId,
+    contractId,
+  );
+});
+
+/**
+ * The choices a background recalculation pins: per provider the book and the contract the current result used (or
+ * the ones the estimate chose) – the job sees every book and contract, so it must not choose others than its editor did.
+ * Null when a book it used is gone.
+ */
+function pinnedChoices(
+  row: EstimateRow,
+  cur: StoredResult | null,
+): { books: { provider: string; bookId: string }[]; contracts: { provider: string; contractId: string | null }[] } | null {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const books = new Map(parseJson<{ provider: string; bookId: string }[]>(row.books, []).map((b) => [norm(b.provider), b]));
+  const contracts = new Map(parseJson<{ provider: string; contractId: string | null }[]>(row.contracts ?? '[]', []).map((c) => [norm(c.provider), c]));
+  // the book each provider was priced from: its contracted or derived book before a list book it fell back to
+  for (const b of [...(cur?.books ?? [])].sort((x, y) => (x.kind === 'list' ? 1 : 0) - (y.kind === 'list' ? 1 : 0)))
+    if (!books.has(norm(b.provider))) books.set(norm(b.provider), { provider: b.provider, bookId: b.id });
+  // the contract whose conditions it used – or none: the job must not apply a contract its editor did not
+  for (const c of cur?.contracts ?? []) if (!contracts.has(norm(c.provider))) contracts.set(norm(c.provider), { provider: c.provider, contractId: c.id });
+  for (const l of cur?.lines ?? []) if (!contracts.has(norm(l.provider))) contracts.set(norm(l.provider), { provider: l.provider, contractId: null });
+  for (const b of books.values()) if (!bookRow(b.bookId)) return null;
+  return { books: [...books.values()], contracts: [...contracts.values()] };
+}
+
+/**
+ * Recalculates an estimate in the job (no reader): the same books and contracts, their current versions and
+ * conditions; the result goes beside the current one (pending) when it differs. Returns the results for the notice.
+ */
+export async function recalculateInBackground(row: EstimateRow): Promise<{ before: StoredResult | null; after: StoredResult | null }> {
+  const cur = stored(row.result);
+  const pin = pinnedChoices(row, cur);
+  if (!pin) {
+    db().run('UPDATE cost_estimates SET recalc_cause = NULL WHERE id = ?', row.id);
+    return { before: cur, after: null };
+  }
+  const adj = parseJson<StoredAdjustment[]>(row.adjustments, []);
+  const calc = await calculateOne(
+    {
+      calculatorId: row.calculator_id,
+      calculatorVersion: row.calculator_version,
+      inputs: parseJson(row.inputs, []),
+      lines: parseJson(row.lines, []),
+      adjustments: adj.map(({ by: _b, at: _a, found: _f, ...a }) => a),
+      books: pin.books,
+      contracts: pin.contracts,
+      currency: row.currency,
+      appliesFrom: row.applies_from,
+    },
+    { ...ownerOptions(ownerOf(row), row.for_kind && row.for_id ? { kind: row.for_kind, id: row.for_id } : null), fixedFound: fixedFound(adj) },
+  );
+  const same =
+    !!cur && JSON.stringify({ ...cur, calculatedAt: '', calculatedBy: '' }) === JSON.stringify({ ...calc.result, calculatedAt: '', calculatedBy: '' });
+  db().tx(() => {
+    if (same) db().run('UPDATE cost_estimates SET pending = NULL, recalc_cause = NULL WHERE id = ?', row.id);
+    else {
+      db().run('UPDATE cost_estimates SET pending = ?, recalc_cause = NULL WHERE id = ?', JSON.stringify(calc.result), row.id);
+      const keep = db()
+        .all<{ version_id: string }>('SELECT version_id FROM cost_estimate_books WHERE estimate_id = ?', row.id)
+        .map((v) => v.version_id);
+      const keepContracts = db()
+        .all<{ contract_id: string }>('SELECT contract_id FROM cost_estimate_contracts WHERE estimate_id = ?', row.id)
+        .map((v) => v.contract_id);
+      recordBooks(row.id, calc.versionIds, keep, calc.contractIds, keepContracts);
+    }
+  });
+  return { before: cur, after: same ? null : calc.result };
+}
+
+/** The estimates due for recalculation (at most `limit`). */
+export const dueEstimates = (limit: number): EstimateRow[] =>
+  db().all<EstimateRow>('SELECT * FROM cost_estimates WHERE recalc_cause IS NOT NULL ORDER BY updated_at, id LIMIT ?', limit);
+
+/** The amounts a reader sees of a stored result (per month, expected), or null without amounts. */
+export function monthlyFor(r: StoredResult, sight: PriceSight): number {
+  return Number(viewResult(r, sight).totals.monthly.expected);
 }

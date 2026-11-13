@@ -51,6 +51,8 @@
     "notSaved": "Einstellungen der Kosten nicht gespeichert",
     "fiscalYear": "Geschäftsjahr beginnt im",
     "fiscalYearHint": "Ein Startmonat für die ganze Instanz; die Kostenpläne der Services verwenden ihn. Eine spätere Änderung ordnet alle Pläne den neuen Geschäftsjahren zu – legen Sie ihn einmal fest.",
+    "estimateChange": "Schätzungsänderung melden ab",
+    "estimateChangeHint": "„Schätzung geändert“ geht an die Eigentümer einer Schätzung, wenn neue Preise ihre monatliche Summe um mindestens so viel bewegen (jeder sieht es in seiner eigenen Sicht).",
     "fiscalYearChange": {
       "title": "Beginn des Geschäftsjahres ändern?",
       "message": "Alle Pläne werden dann in den neuen Grenzen der Geschäftsjahre gelesen: Planpositionen behalten ihr Geschäftsjahr, Kostenbuchungen zählen in dem Jahr, in das ihr Datum fällt.",
@@ -881,7 +883,9 @@
       "csv": "CSV-Datei",
       "migration": "Aktualisierung",
       "source": "Aus der Quelle",
-      "derived": "Abgeleitet"
+      "derived": "Abgeleitet",
+      "snowflakeRateSheet": "Snowflake-Preisliste",
+      "confluentObserved": "Confluent, beobachtet"
     },
     "drivers": {
       "gbWritten": "Geschriebene GB",
@@ -1009,7 +1013,22 @@
     "contractHint": "Der Vertrag, dessen Preise es sind – bei einem abgeleiteten Buch: der Vertrag der Kunden mit dem Anbieter, dessen Konditionen seine Bedingungen sind. Keiner: eine Preisliste mit eigenen Bedingungen",
     "basedOn": "Beruht auf {{name}} (v{{version}})",
     "derivedNoEdit": "Die Preise eines abgeleiteten Buchs folgen seinem Basisbuch und seinen Bedingungen – sie werden nicht von Hand geschrieben.",
-    "versions_cause": "{{cause}} (Basis v{{version}})"
+    "versions_cause": "{{cause}} (Basis v{{version}})",
+    "source": {
+      "title": "Quelle",
+      "help": "Ein vertragliches Buch einer Plattform kann aus dem gelesen werden, was die Plattform meldet, der Nachlass inbegriffen: die Preisliste von Snowflake täglich, die beobachteten Preise von Confluent aus dem letzten vollständigen Monat. Ein Lesen ersetzt, was es zuvor gebracht hat, und behält von Hand geschriebene Artikel.",
+      "none": "Keine – von Hand",
+      "read": "Jetzt lesen",
+      "readOk": "Gelesen: {{note}}",
+      "unchanged": "Gelesen – keine Preise geändert",
+      "lastRead": "Zuletzt gelesen {{date}}: {{note}}",
+      "failed": "Das letzte Lesen ist fehlgeschlagen – die Preise bleiben, wie sie waren: {{error}}",
+      "never": "Noch nicht gelesen",
+      "kinds": {
+        "snowflakeRateSheet": "Snowflake-Preisliste",
+        "confluentObserved": "Confluent, beobachtet"
+      }
+    }
   },
   "calculators": {
     "title": "Rechner",

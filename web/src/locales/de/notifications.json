@@ -224,6 +224,10 @@
       "price_review_due": {
         "label": "Preise prüfen",
         "info": "Ein Preisbuch, das Sie von Hand pflegen, ist zur Prüfung fällig (Als geprüft markieren, wenn die Preise noch stimmen)"
+      },
+      "estimate_changed": {
+        "label": "Schätzung geändert",
+        "info": "Eine Schätzung eines Service oder einer Plattform, die Ihnen gehört, wurde mit neuen Preisen neu berechnet, und ihre monatliche Summe hat sich um den Schwellwert bewegt (Neue Preise übernehmen, um sie gültig zu machen)"
       }
     },
     "contract": {

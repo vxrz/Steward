@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Anchor, Button, Group, Modal, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, TextInput } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -307,6 +307,18 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
             value={String(v.fiscalYearStartMonth)}
             onChange={(x) => x && setDraft({ ...v, fiscalYearStartMonth: Number(x) })}
             data-testid="fiscal-year-start"
+          />
+          <NumberInput
+            label={t('settings.estimateChange')}
+            description={t('settings.estimateChangeHint')}
+            w={260}
+            min={0.1}
+            max={100}
+            decimalScale={1}
+            suffix=" %"
+            value={v.estimateChangePct ?? 5}
+            onChange={(x) => setDraft({ ...v, estimateChangePct: Number(x) || 5 })}
+            data-testid="estimate-change-pct"
           />
           <Text size="xs" c="dimmed">
             {t('settings.noConversion')}

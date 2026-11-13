@@ -498,6 +498,7 @@ export function PriceBookPage() {
     >
       <Stack gap="lg" data-testid="price-book-page">
         {b.kind === 'derived' ? <DerivedInfo book={b} onSaved={refresh} /> : <CheckedText book={b} />}
+        {b.platform && b.kind === 'contracted' && <BookSource book={b} onSaved={refresh} />}
         <Group gap="xs" align="flex-end">
           <TextInput
             label={t('prices.searchItems')}
@@ -562,6 +563,77 @@ export function PriceBookPage() {
       {entry && <EntryDialog book={b} entry={entry === 'new' ? null : entry} onClose={() => setEntry(null)} onSaved={refresh} />}
       {importing && <ImportDialog book={b} onClose={() => setImporting(false)} onSaved={refresh} />}
     </DetailPage>
+  );
+}
+
+/** A platform's contracted book read from a source (ADR 0035 part 2): the source, Read now, and how the last read went. */
+function BookSource({ book, onSaved }: { book: CostPriceBookDetail; onSaved: () => void }) {
+  const { t } = useTranslation('costs');
+  const [busy, setBusy] = useState(false);
+  const current = book.source === 'snowflakeRateSheet' || book.source === 'confluentObserved' ? book.source : null;
+  if (!book.canEdit && !current) return null;
+  const setSource = async (v: string | null) => {
+    try {
+      await put(`/costs/price-books/${encodeURIComponent(book.id)}/source`, { source: v === 'none' ? null : v });
+      onSaved();
+    } catch (err) {
+      notifyError(err);
+    }
+  };
+  const read = async () => {
+    setBusy(true);
+    try {
+      const r = await post<CostPriceBookDetail & { read: { written: boolean; error: string | null; note: string | null } }>(
+        `/costs/price-books/${encodeURIComponent(book.id)}/read`,
+      );
+      if (r.read.error) notifyError(new Error(r.read.error));
+      else notifyOk(r.read.written ? t('prices.source.readOk', { note: r.read.note ?? '' }) : t('prices.source.unchanged'));
+      onSaved();
+    } catch (err) {
+      notifyError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const st = book.sourceState;
+  return (
+    <Paper withBorder p="sm" data-testid="book-source">
+      <Stack gap="xs">
+        <Group gap="sm" align="flex-end" wrap="wrap">
+          <Select
+            label={t('prices.source.title')}
+            w={260}
+            allowDeselect={false}
+            disabled={!book.canEdit}
+            data={[
+              { value: 'none', label: t('prices.source.none') },
+              { value: 'snowflakeRateSheet', label: t('prices.source.kinds.snowflakeRateSheet') },
+              { value: 'confluentObserved', label: t('prices.source.kinds.confluentObserved') },
+            ]}
+            value={current ?? 'none'}
+            onChange={(v) => void setSource(v)}
+            data-testid="book-source-kind"
+          />
+          {current && book.canEdit && (
+            <Button size="xs" variant="default" loading={busy} onClick={() => void read()} data-testid="book-source-read">
+              {t('prices.source.read')}
+            </Button>
+          )}
+        </Group>
+        <Text size="xs" c="dimmed">
+          {t('prices.source.help')}
+        </Text>
+        {st && (
+          <Text size="xs" c={st.error ? 'red' : 'dimmed'} role={st.error ? 'alert' : undefined}>
+            {st.error
+              ? t('prices.source.failed', { error: st.error })
+              : st.lastReadAt
+                ? t('prices.source.lastRead', { date: fmtDay(st.lastReadAt), note: st.note ?? '' })
+                : t('prices.source.never')}
+          </Text>
+        )}
+      </Stack>
+    </Paper>
   );
 }
 

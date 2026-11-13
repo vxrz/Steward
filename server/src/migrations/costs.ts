@@ -89,6 +89,10 @@ import type { NamedMigration } from '../db.js';
  *   cost_estimates: `contracts` – per provider the contract whose conditions apply (chosen; default: see pricing.ts).
  *   cost_estimate_contracts: the contracts whose conditions an estimate's current or pending result used (a changed
  *     condition recalculates them).
+ * costs-009-estimate-recalculation:
+ *   cost_estimates: `recalc_cause` – why the job "costs" recalculates it next (a new version of a book it used, a
+ *     changed condition of a contract it used; JSON), null when nothing is due.
+ *   cost_estimate_notices: "Estimate changed" sent, once per estimate, kind and price version (the key).
  */
 export const COSTS_MIGRATIONS: NamedMigration[] = [
   {
@@ -575,6 +579,20 @@ export const COSTS_MIGRATIONS: NamedMigration[] = [
         PRIMARY KEY (estimate_id, contract_id)
       );
       CREATE INDEX cost_estimate_contracts_contract ON cost_estimate_contracts(contract_id);
+    `,
+  },
+  {
+    name: 'costs-009-estimate-recalculation',
+    sql: `
+      ALTER TABLE cost_estimates ADD COLUMN recalc_cause TEXT;
+      CREATE INDEX cost_estimates_recalc ON cost_estimates(recalc_cause);
+      CREATE TABLE cost_estimate_notices (
+        estimate_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        notice_key TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (estimate_id, kind, notice_key)
+      );
     `,
   },
 ];

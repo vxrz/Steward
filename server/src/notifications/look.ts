@@ -315,6 +315,7 @@ const WARN_EVENTS = new Set([
   'cost.booking_due',
   'cost.volume',
   'cost.price_review_due',
+  'cost.estimate_changed',
 ]);
 
 /** How a message reads at a glance: red for failures, orange for something to do, green when a monitor is up again. */

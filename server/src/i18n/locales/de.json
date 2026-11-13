@@ -669,5 +669,12 @@
   "priceReview": {
     "title": "Preise prüfen: {{book}}",
     "body": "Das Preisbuch „{{book}}“ wird von Hand gepflegt und wurde zuletzt am {{checked}} geprüft (Prüfung alle {{days}} Tage). Vergleichen Sie die Preise mit denen des Anbieters und speichern Sie eine neue Version oder wählen Sie „Als geprüft markieren“."
+  },
+  "estimateChanged": {
+    "title": "Schätzung geändert: {{title}}",
+    "body": "Die Schätzung „{{title}}“ von {{owner}} wurde mit neuen Preisen neu berechnet{{cause}}: {{after}} im Monat statt {{before}} ({{pct}} %). Sie behält ihr Ergebnis, bis Sie Neue Preise übernehmen wählen.",
+    "cause": " ({{what}})",
+    "book": "{{name}} v{{version}}",
+    "contract": "die Konditionen von {{title}}"
   }
 }

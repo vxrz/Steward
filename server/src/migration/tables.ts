@@ -90,6 +90,7 @@ export const NOT_MOVED: Record<string, string> = {
   cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
   cost_volume_notices: 'send bookkeeping of the source (a warning of a contract volume may be sent again on the target)',
   cost_price_review_notices: 'send bookkeeping of the source (a price book due for its review may be reminded of again on the target)',
+  cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */

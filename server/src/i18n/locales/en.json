@@ -669,5 +669,12 @@
   "priceReview": {
     "title": "Prices to review: {{book}}",
     "body": "The price book “{{book}}” is kept by hand and was last checked on {{checked}} (review every {{days}} days). Check its prices against the provider’s, then save a new version or choose Mark as checked."
+  },
+  "estimateChanged": {
+    "title": "Estimate changed: {{title}}",
+    "body": "The estimate “{{title}}” of {{owner}} was recalculated with new prices{{cause}}: {{after}} a month instead of {{before}} ({{pct}} %). It keeps its result until you choose Accept new prices.",
+    "cause": " ({{what}})",
+    "book": "{{name}} v{{version}}",
+    "contract": "the conditions of {{title}}"
   }
 }

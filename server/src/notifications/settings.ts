@@ -68,6 +68,8 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'cost.booking_due',
     // contract volumes (ADR 0032): to the payer's owners, like the cost budget
     'cost.volume',
+    // estimates recalculated with new prices (ADR 0035 part 6): in the app and by e-mail
+    'cost.estimate_changed',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

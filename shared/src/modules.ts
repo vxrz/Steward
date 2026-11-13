@@ -179,7 +179,7 @@ export const MODULES: readonly ModuleDef[] = [
     datasets: ['costs:'],
     access: {
       restrictable: true,
-      events: ['cost.budget', 'cost.booking_due', 'cost.volume'],
+      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.estimate_changed'],
       mcpTools: ['get_service_cost_plan', 'get_platform_cost_plan', 'list_cost_commitments'],
       reportSections: ['costs'],
       exportParts: ['costPlans'],

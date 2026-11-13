@@ -20,7 +20,7 @@ import { HttpError, parseJson } from '../util.js';
  */
 
 const KEY = 'costs.settings';
-const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 };
+const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1, estimateChangePct: 5 };
 
 /**
  * The settings are read for every scope of a list (security review 0.19.0 H2): kept for a while, read again after a
@@ -44,7 +44,11 @@ export function setCostSettings(body: unknown): CostSettings {
   const x = costSettingsInput.parse(body);
   const before = costSettings();
   // the fiscal year start stays as it is when left out (clients from before 0.16)
-  const next: CostSettings = { ...x, fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth };
+  const next: CostSettings = {
+    ...x,
+    fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth,
+    estimateChangePct: x.estimateChangePct ?? before.estimateChangePct,
+  };
   const moved = next.fiscalYearStartMonth !== before.fiscalYearStartMonth ? fiscalYearChange(next.fiscalYearStartMonth) : null;
   writeSetting(KEY, next);
   cached = null;

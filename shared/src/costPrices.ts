@@ -365,6 +365,16 @@ export const COST_UNIT_SUGGESTIONS = [
 
 // ---------- price book entries ----------
 
+/**
+ * Sources a contracted book of a platform can be read from (0.23.0, ADR 0035 part 2): Snowflake's rate sheet
+ * (ORGANIZATION_USAGE.RATE_SHEET_DAILY – the discount included) and Confluent's observed rates (the Costs API's lines of
+ * the last complete month).
+ */
+export const COST_PRICE_SOURCE_KINDS = ['snowflakeRateSheet', 'confluentObserved'] as const;
+export type CostPriceSourceKind = (typeof COST_PRICE_SOURCE_KINDS)[number];
+/** What one source read may bring at most: 25 MB and the entries of a version (COST_PRICE_SOURCE_TOO_LARGE). */
+export const COST_PRICE_SOURCE_LIMITS = { bytes: 25 * 1024 * 1024, entries: 20_000 } as const;
+
 /** list: published prices; contracted: the prices of one contract; derived (0.23.0): a base book × a provider's terms and fee */
 export const COST_PRICE_BOOK_KINDS = ['list', 'contracted', 'derived'] as const;
 export type CostPriceBookKind = (typeof COST_PRICE_BOOK_KINDS)[number];
@@ -803,7 +813,9 @@ export interface CostPriceBook {
   platform: { id: string; name: string } | null;
   supplier: { id: string; name: string } | null;
   supplierContract: { id: string; title: string } | null;
-  source: 'manual' | 'csv' | 'derived';
+  source: 'manual' | 'csv' | 'derived' | CostPriceSourceKind;
+  /** A book read from a source (0.23.0): when it was last read, what it read and why a read failed (the last version stays) */
+  sourceState: { lastReadAt: string | null; note: string | null; error: string | null } | null;
   /** A derived book's base (null when the reader may not see it – the customer prices only) */
   base: { id: string; name: string; version: number } | null;
   /** A derived book: its terms are a contract's conditions (`contract`) or the book's own (a rate card, `book`) */

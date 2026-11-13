@@ -224,6 +224,10 @@
       "price_review_due": {
         "label": "Prices to review",
         "info": "A price book you maintain by hand is due for its review (Mark as checked when its prices are still right)"
+      },
+      "estimate_changed": {
+        "label": "Estimate changed",
+        "info": "An estimate of a service or platform you own was recalculated with new prices and its monthly total moved by the threshold (Accept new prices to make them current)"
       }
     },
     "contract": {
