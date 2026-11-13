@@ -26,6 +26,7 @@ Steward 0.22.0 brings the **data products** module ([ADR 0036](docs/adr/0036-dat
 ### Fixed
 
 - **Industrial Edge examples (#50, #51, #81):** devices that report their statistics once an hour showed as offline for most of the hour, because a device counted as online only within 15 minutes of its last report. A device is now online until its report interval (`SystemInfo.Period` of its newest report, usually 60 minutes; 60 when it is missing) plus `onlineWithinMinutes` (now the grace, default 15) has passed. Git sync's _Steward example library_ brings the corrected examples with the 0.22.0 tag.
+- **Focus after a dialog opened from a menu:** closing a dialog that was opened from a menu entry (for example _Import files…_ under _Import and export_) left the keyboard focus on the page itself, so keyboard and screen reader users started again at the top. The focus now returns to the menu's button ([WCAG 2.4.3](https://www.w3.org/TR/WCAG22/#focus-order)).
 
 ## [0.21.0] - 2026-11-13
 
