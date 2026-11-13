@@ -795,8 +795,8 @@ function EstimatesSection({ p, environment, months }: { p: DataProduct; environm
                 {x.title}
               </Anchor>
               <Text size="xs" c="dimmed">
-                {t('estimates.of', { owner: x.owner.name, from: x.appliesFrom })}
-                {x.monthly && ` · ${t('estimates.perMonth', { amount: `${x.monthly.expected} ${x.currency}` })}`}
+                {t('estimates.of', { owner: x.owner.name, from: fmtMonth(x.appliesFrom) })}
+                {x.monthly && ` · ${t('estimates.perMonth', { amount: fmtMoney(x.monthly.expected, x.currency) })}`}
                 {x.atListPrice && ` · ${t('estimates.atListPrice')}`}
               </Text>
             </Group>
@@ -804,59 +804,64 @@ function EstimatesSection({ p, environment, months }: { p: DataProduct; environm
         </Stack>
       )}
       {rows.length > 0 && (
-        <TableScroll>
-          <Table fz="sm" aria-label={t('estimates.table')} data-testid="estimates-against-attributed">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th scope="col">{t('costs.month')}</Table.Th>
-                <Table.Th scope="col" ta="right">
-                  {t('estimates.estimated')}
-                </Table.Th>
-                <Table.Th scope="col" ta="right">
-                  {t('estimates.attributed')}
-                </Table.Th>
-                <Table.Th scope="col" ta="right">
-                  {t('estimates.difference')}
-                </Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((x) => {
+        <CardTable
+          ariaLabel={t('estimates.table')}
+          testId="estimates-against-attributed"
+          rows={rows}
+          rowKey={(x) => `${x.month}:${x.currency}`}
+          columns={[
+            { key: 'month', header: t('costs.month'), cell: (x) => fmtMonth(x.month) },
+            {
+              key: 'estimated',
+              header: t('estimates.estimated'),
+              nowrap: true,
+              cell: (x) => (
+                <>
+                  {rangeMoney(x.estimated!, x.currency)}
+                  {x.atListPrice && (
+                    <Text span size="xs" c="dimmed">
+                      {' '}
+                      ({t('estimates.atListPriceShort')})
+                    </Text>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'attributed',
+              header: t('estimates.attributed'),
+              nowrap: true,
+              cell: (x) => (
+                <>
+                  {money(x.attributedMicros, x.currency)}
+                  {x.incomplete && (
+                    <Text span size="xs" c="orange">
+                      {' '}
+                      ({t('costs.incompleteShort')})
+                    </Text>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'difference',
+              header: t('estimates.difference'),
+              nowrap: true,
+              cell: (x) => {
                 const diff = x.attributedMicros - x.estimated!.expected;
                 const within = x.attributedMicros >= x.estimated!.low && x.attributedMicros <= x.estimated!.high;
                 return (
-                  <Table.Tr key={`${x.month}:${x.currency}`}>
-                    <Table.Td>{x.month}</Table.Td>
-                    <Table.Td ta="right" className="nowrap">
-                      {rangeMoney(x.estimated!, x.currency)}
-                      {x.atListPrice && (
-                        <Text span size="xs" c="dimmed">
-                          {' '}
-                          ({t('estimates.atListPriceShort')})
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td ta="right" className="nowrap">
-                      {money(x.attributedMicros, x.currency)}
-                      {x.incomplete && (
-                        <Text span size="xs" c="orange">
-                          {' '}
-                          ({t('costs.incompleteShort')})
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td ta="right" className="nowrap">
-                      {`${diff > 0 ? '+' : ''}${money(diff, x.currency)}`}
-                      <Text size="xs" c="dimmed">
-                        {within ? t('estimates.withinRange') : diff > 0 ? t('estimates.above') : t('estimates.below')}
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
+                  <>
+                    {`${diff > 0 ? '+' : ''}${money(diff, x.currency)}`}
+                    <Text size="xs" c="dimmed">
+                      {within ? t('estimates.withinRange') : diff > 0 ? t('estimates.above') : t('estimates.below')}
+                    </Text>
+                  </>
                 );
-              })}
-            </Table.Tbody>
-          </Table>
-        </TableScroll>
+              },
+            },
+          ]}
+        />
       )}
     </Section>
   );

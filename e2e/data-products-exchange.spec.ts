@@ -101,6 +101,9 @@ test.describe('costs: estimates and measured use', () => {
     await expect(section).toBeVisible();
     await expect(section.getByRole('link', { name: /^Pipeline / })).toBeVisible();
     await expect(page.getByTestId('estimates-against-attributed')).toBeVisible();
+    // months and amounts in the UI language, not as stored ("2026-11", "1.5 USD")
+    await expect(page.getByTestId('estimates-against-attributed')).not.toContainText(/\b\d{4}-\d{2}\b/);
+    await expect(section.getByTestId('product-estimate').first()).not.toContainText(/\b\d{4}-\d{2}\b| USD\b/);
     await expect(
       page
         .getByTestId('estimates-against-attributed')
