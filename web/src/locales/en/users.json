@@ -28,7 +28,17 @@
     "edit": "Edit team {{name}}",
     "delete": "Delete team {{name}}",
     "deleteConfirm": "Delete team \"{{name}}\"? Access entries that name it stop matching anyone.",
-    "noMembers": "no members"
+    "noMembers": "no members",
+    "deleteMove": {
+      "title": "Delete team {{name}}",
+      "intro": "Team \"{{name}}\" is the only owning team of {{count}} items. Choose the team they move to, so that deleting it does not open them to everyone.",
+      "shared": "It also owns {{count}} items together with other teams; it is just removed from them.",
+      "kinds": "Items it alone owns",
+      "target": "Move them to",
+      "targetHint": "A team without members keeps them for administrators only. Moving them to a team with members gives its members access and asks you to confirm it is you.",
+      "submit": "Move and delete",
+      "noOther": "There is no other team. Create one first – it may stay without members to keep the items for administrators only."
+    }
   },
   "roles": {
     "title": "Roles",

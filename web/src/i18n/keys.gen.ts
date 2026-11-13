@@ -16203,6 +16203,14 @@ export interface Resources {
     'teams.delete': string;
     'teams.deleteConfirm': string;
     'teams.noMembers': string;
+    'teams.deleteMove.title': string;
+    'teams.deleteMove.intro': string;
+    'teams.deleteMove.shared': string;
+    'teams.deleteMove.kinds': string;
+    'teams.deleteMove.target': string;
+    'teams.deleteMove.targetHint': string;
+    'teams.deleteMove.submit': string;
+    'teams.deleteMove.noOther': string;
     'roles.title': string;
     'roles.hint': string;
     'userModal.updated': string;

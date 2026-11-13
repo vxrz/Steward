@@ -28,7 +28,17 @@
     "edit": "Team {{name}} bearbeiten",
     "delete": "Team {{name}} löschen",
     "deleteConfirm": "Team „{{name}}“ löschen? Zugriffseinträge, die es nennen, gelten dann für niemanden mehr.",
-    "noMembers": "keine Mitglieder"
+    "noMembers": "keine Mitglieder",
+    "deleteMove": {
+      "title": "Team {{name}} löschen",
+      "intro": "Das Team „{{name}}“ ist das einzige zuständige Team von {{count}} Einträgen. Wählen Sie das Team, zu dem sie wechseln, damit das Löschen sie nicht für alle öffnet.",
+      "shared": "Außerdem ist es gemeinsam mit anderen Teams für {{count}} Einträge zuständig; dort wird es nur entfernt.",
+      "kinds": "Einträge, für die nur dieses Team zuständig ist",
+      "target": "Wechseln zu",
+      "targetHint": "Ein Team ohne Mitglieder behält sie nur für Administratoren. Wechseln sie zu einem Team mit Mitgliedern, erhalten dessen Mitglieder Zugriff, und Sie bestätigen, dass Sie es sind.",
+      "submit": "Verschieben und löschen",
+      "noOther": "Es gibt kein anderes Team. Legen Sie zuerst eines an – es darf ohne Mitglieder bleiben, um die Einträge nur für Administratoren zu behalten."
+    }
   },
   "roles": {
     "title": "Rollen",
