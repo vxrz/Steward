@@ -8,12 +8,15 @@ import {
   RECORD_STATUSES,
   RECORD_WORKFLOW_KEYS,
   REVIEW_STATUSES,
+  accessModule,
+  moduleOfItemKind,
+  type ModuleId,
   type RecordsMeta,
   type ReviewStatus,
 } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { ACCESS } from '../auth/access.js';
-import { plantOnly } from '../auth/policy.js';
+import { moduleOnlyModules } from '../auth/policy.js';
 import * as reviews from './reviews.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
@@ -77,6 +80,13 @@ const updateBody = z
   .strict();
 
 /** One uploaded file (multipart), with a size limit. */
+/** Which link kinds a module-only user finds in the link picker: their modules' kinds (a plant viewer sites and assets). */
+function onlyFinds(only: readonly ModuleId[], kind: string): boolean {
+  if (only.includes('plant') && (kind === 'site' || kind === 'asset')) return true;
+  const m = moduleOfItemKind(kind);
+  return !!m && m !== 'plant' && only.includes(accessModule(m));
+}
+
 export async function uploadedFile(req: FastifyRequest, maxBytes: number): Promise<{ filename: string; data: Buffer; fields: Record<string, string> }> {
   if (!req.isMultipart()) throw new HttpError(400, 'Send the file as multipart/form-data', 'MULTIPART_REQUIRED');
   const file = await req.file({ limits: { fileSize: maxBytes, files: 1 } });
@@ -333,7 +343,9 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     const q = z
       .object({ kind: z.enum(LINK_KINDS), q: z.string().max(100).default(''), limit: z.coerce.number().int().min(1).max(50).default(20) })
       .parse(req.query);
-    if (q.kind !== 'site' && q.kind !== 'asset' && plantOnly(u)) return [];
+    // a module-only user (ADR 0034): the kinds of their modules – a plant viewer sites and assets (#218) – nothing else
+    const only = moduleOnlyModules(u);
+    if (only.length && !onlyFinds(only, q.kind)) return [];
     return searchTargets(q.kind, q.q, q.limit);
   });
   // types of external links: everyone reads them (plant viewers too: sites and assets have links), administrators add, rename and archive their own

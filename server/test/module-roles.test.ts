@@ -402,6 +402,9 @@ describe('module-only users', () => {
     try {
       expect(await status(nora('GET', '/services'))).toEqual({ status: 403, code: 'MODULE_ONLY_USER' });
       expect((await status(nora('GET', '/costs/fx-rates'))).status).toBe(200);
+      // the link picker (a route plant viewers reach) finds nothing outside their modules: no dashboard names
+      expect(await s.api('GET', '/link-targets?kind=dashboard')).not.toEqual([]);
+      for (const kind of ['dashboard', 'site', 'process']) expect(await nora('GET', `/link-targets?kind=${kind}`), kind).toEqual([]);
       expect((await status(nora('GET', '/auth/status'))).status).toBe(200);
       await s.api('PUT', `/users/${id}`, {
         moduleRoles: [
