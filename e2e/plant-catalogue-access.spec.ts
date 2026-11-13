@@ -1,14 +1,20 @@
 import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { authFile, baseURL } from './support/env';
 import { expectAccessible } from './support/axe';
 import { expectNoHorizontalScroll, uniq } from './support/helpers';
+import { ownApi, ownUser } from './support/ownUser';
 
 /**
  * Device profiles of a team (0.21.0, #293; ADR 0033 decision 10): a reader outside the team sees the asset's interfaces
  * and data points as "Model of this asset" without the profile's name, and a derived profile marks its base "Base
- * hidden"; the profile page has its Owning teams panel. On a desktop and on a phone, with axe. Invented names only.
+ * hidden"; the profile's and the KPI definition's Access tab – owning teams and _Shared with_: a designer of the team
+ * shares the profile with a reader (preview, step-up), who then sees it. On a desktop and on a phone, with axe.
+ * Invented names only.
  */
+
+/** The password of users made with ownUser() after their first sign-in. */
+const OWN_PASSWORD = 'Own-e2e-password-2';
 
 const SETTINGS = { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} };
 
@@ -18,7 +24,7 @@ const ok = async <T = unknown>(p: Promise<{ ok(): boolean; text(): Promise<strin
   return (await r.json()) as T;
 };
 
-async function fixture(api: APIRequestContext, tag: string) {
+async function fixture(api: APIRequestContext, tag: string, designers: string[] = []) {
   const base = `e2e-team-base-${tag}`.toLowerCase();
   const child = `e2e-team-child-${tag}`.toLowerCase();
   const asset = `e2e-team-asset-${tag}`.toLowerCase();
@@ -47,8 +53,16 @@ async function fixture(api: APIRequestContext, tag: string) {
   await ok(api.post('/api/plant/sites', { data: { id: site, name: `E2E team works ${tag}` } }));
   await ok(api.post('/api/plant/assets', { data: { id: asset, siteId: site, name: `E2E team mill ${tag}` } }));
   await ok(api.put(`/api/plant/assets/${asset}/assignment`, { data: { profileId: base, interfaces: [{ interface: 'opc', active: true }] } }));
-  // a team without members keeps the base to administrators (and auditors)
-  const team = await ok<{ id: string }>(api.post('/api/teams', { data: { name: uniq('Invented controls team').replace(/[^\w .@-]/g, '') } }));
+  // a team without members keeps the base to administrators (and auditors); its designers manage it (decision 13)
+  const team = await ok<{ id: string }>(
+    api.post('/api/teams', {
+      data: {
+        name: uniq('Invented controls team').replace(/[^\w .@-]/g, ''),
+        members: designers,
+        memberRoles: Object.fromEntries(designers.map((d) => [d, ['designer']])),
+      },
+    }),
+  );
   await ok(api.put(`/api/owning-teams/device_profile/${base}`, { data: { teamIds: [team.id] } }));
   return { base, baseName, child, asset, site, team: team.id };
 }
@@ -99,19 +113,103 @@ for (const tag of ['', ' @mobile'])
     });
   });
 
-test.describe('the owning teams of a profile', () => {
+test.describe('the Access tab of a profile and a KPI definition', () => {
   test.use({ storageState: authFile('admin') });
 
-  test('the profile page has its Owning teams panel', async ({ page, apiAs }, info) => {
+  test('the profile and the KPI definition have their Access tab with owning teams and shares', async ({ page, apiAs }, info) => {
     const admin = await apiAs('admin');
     const f = await fixture(admin, `${info.project.name}-o-${Date.now()}`);
+    const kpi = `e2e-team-kpi-${info.project.name}-${Date.now()}`.toLowerCase();
+    await ok(admin.post('/api/plant/kpis', { data: { id: kpi, name: `E2E team KPI ${kpi}`, inputs: [{ profile: f.base, dataPoints: ['program_status'] }] } }));
+    await ok(admin.put(`/api/owning-teams/kpi_definition/${kpi}`, { data: { teamIds: [f.team] } }));
     try {
       await page.goto(`/plant/profiles/${f.base}`);
+      await page.getByTestId('profile-tab-access').click();
+      await expect(page).toHaveURL(/\/access$/);
       await expect(page.getByText('Owning teams', { exact: true })).toBeVisible();
       await expect(page.getByText(/Only members of these teams see this device profile/)).toBeVisible();
-      await expectAccessible(page, 'profile with owning teams');
+      await expect(page.getByTestId('shares-panel').getByTestId('shares-empty')).toBeVisible();
+      await expectAccessible(page, 'access tab of a profile');
+
+      await page.goto(`/plant/kpis/${kpi}/access`);
+      await expect(page.getByTestId('shares-panel').getByRole('heading', { name: 'Shared with' })).toBeVisible();
+      await expect(page.getByText('Owning teams', { exact: true })).toBeVisible();
+      await expectAccessible(page, 'access tab of a KPI definition');
     } finally {
+      await admin.delete(`/api/plant/kpis/${kpi}`);
       await cleanup(admin, f);
     }
   });
 });
+
+for (const tag of ['', ' @mobile'])
+  test.describe(`sharing a profile of a team${tag}`, () => {
+    test('a designer of the team shares the profile with a reader, who then sees it', async ({ browser, apiAs }, info) => {
+      const admin = await apiAs('admin');
+      // an operator who designs in the team (decision 13: designers among the members manage it) and a reader
+      const designer = await ownUser('e2e-plantsharer-', ['operator'], 'Pat Plant Sharer (own)');
+      const reader = await ownUser('e2e-plantreader-', ['viewer'], 'Rita Plant Reader (own)');
+      const f = await fixture(admin, `${info.project.name}-s-${Date.now()}`, [designer.username]);
+      // the designer's session is not confirmed: giving access asks for the step-up
+      const dApi = await ownApi(designer);
+      expect((await dApi.delete('/api/auth/step-up')).ok()).toBe(true);
+      const ctx = await browser.newContext({
+        baseURL: baseURL(),
+        serviceWorkers: 'block',
+        storageState: designer.file,
+        viewport: info.project.use.viewport ?? undefined,
+      });
+      const rCtx = await browser.newContext({
+        baseURL: baseURL(),
+        serviceWorkers: 'block',
+        storageState: reader.file,
+        viewport: info.project.use.viewport ?? undefined,
+      });
+      const page = await ctx.newPage();
+      const rPage = await rCtx.newPage();
+      try {
+        // the reader does not see the profile yet
+        await rPage.goto(`/plant/profiles/${f.base}`);
+        await expect(rPage.getByText(f.baseName)).toHaveCount(0);
+
+        await page.goto(`/plant/profiles/${f.base}/access`);
+        const panel = page.getByTestId('shares-panel');
+        await expect(panel.getByTestId('shares-empty')).toHaveText('Not shared with anyone.');
+        await panel.getByRole('combobox', { name: 'Share with' }).click();
+        await page.keyboard.type(reader.username);
+        await page.getByRole('option', { name: `(${reader.username})` }).click();
+        await panel.getByRole('button', { name: 'Add', exact: true }).click();
+        const row = panel.getByTestId('share-row');
+        await expect(row).toHaveCount(1);
+        // the kind's action right beside the level
+        await row.getByRole('checkbox', { name: 'Propose' }).check();
+        await panel.getByRole('button', { name: 'Save shares' }).click();
+        const preview = page.getByRole('dialog', { name: 'Before you save' });
+        await expect(preview).toContainText('Rita Plant Reader (own) gains: View, Propose');
+        await expectAccessible(page, 'preview of a profile share');
+        await preview.getByRole('button', { name: 'Save', exact: true }).click();
+        const stepUp = page.getByRole('dialog', { name: 'Confirm it is you' });
+        await stepUp.getByLabel('Your password').fill(OWN_PASSWORD);
+        await stepUp.getByRole('button', { name: 'Confirm' }).click();
+        await expect(page.getByText('Shares saved')).toBeVisible();
+        await expect(row).toContainText('Rita Plant Reader (own)');
+        await expectAccessible(page, 'access tab of a shared profile');
+        await expectNoHorizontalScroll(page);
+
+        // the reader sees it now, and why
+        await rPage.goto(`/plant/profiles/${f.base}`);
+        await expect(rPage.getByRole('heading', { name: f.baseName })).toBeVisible();
+        await rPage.goto(`/plant/profiles/${f.base}/access`);
+        await expect(rPage.getByText('Owning teams', { exact: true })).toBeVisible();
+        await rPage.getByRole('button', { name: 'Why do I have access?' }).click();
+        await expect(rPage.getByRole('dialog', { name: 'Who may do what, and why' })).toContainText('Shared with');
+        await expectAccessible(rPage, 'why a shared profile is seen');
+        await expectNoHorizontalScroll(rPage);
+      } finally {
+        await ctx.close();
+        await rCtx.close();
+        await dApi.dispose();
+        await cleanup(admin, f);
+      }
+    });
+  });
