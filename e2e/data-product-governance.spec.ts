@@ -218,6 +218,7 @@ test.describe('governance of data products', () => {
     await expect(table).toContainText('10 years');
     await expect(table).not.toContainText('P10Y');
     const csv = page.getByTestId('ropa-csv');
+    await expect(csv).toHaveAccessibleName('Download the records of processing as CSV');
     await expect(csv).toHaveAttribute('href', /records-of-processing\.csv\?q=/);
     const res = await page.request.get((await csv.getAttribute('href'))!);
     expect(res.status()).toBe(200);

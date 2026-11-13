@@ -295,6 +295,8 @@
       "inPlace": "AVV vorhanden",
       "missing": "AVV fehlt",
       "unknown": "AVV nicht erfasst"
-    }
+    },
+    "csvNamed": "Verarbeitungstätigkeiten als CSV herunterladen",
+    "pdfNamed": "Verarbeitungstätigkeiten als PDF herunterladen"
   }
 }

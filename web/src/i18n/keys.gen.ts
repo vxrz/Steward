@@ -4823,6 +4823,8 @@ export interface Resources {
     'ropa.dpa.inPlace': string;
     'ropa.dpa.missing': string;
     'ropa.dpa.unknown': string;
+    'ropa.csvNamed': string;
+    'ropa.pdfNamed': string;
   };
   dataProductViews: {
     'nav.products': string;

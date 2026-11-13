@@ -295,6 +295,8 @@
       "inPlace": "DPA in place",
       "missing": "DPA missing",
       "unknown": "DPA not recorded"
-    }
+    },
+    "csvNamed": "Download the records of processing as CSV",
+    "pdfNamed": "Download the records of processing as PDF"
   }
 }

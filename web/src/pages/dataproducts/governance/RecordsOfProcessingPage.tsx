@@ -106,6 +106,8 @@ export function RecordsOfProcessingPage() {
             size="xs"
             variant="default"
             leftSection={<IconFileTypeCsv size={14} />}
+            // what the file is, not only its format (the visible "CSV" is part of the name)
+            aria-label={t('ropa.csvNamed')}
             data-testid="ropa-csv"
           >
             {t('ropa.csv')}
@@ -116,6 +118,8 @@ export function RecordsOfProcessingPage() {
             size="xs"
             variant="default"
             leftSection={<IconFileTypePdf size={14} />}
+            // what the file is, not only its format (the visible "PDF" is part of the name)
+            aria-label={t('ropa.pdfNamed')}
             data-testid="ropa-pdf"
           >
             {t('ropa.pdf')}
