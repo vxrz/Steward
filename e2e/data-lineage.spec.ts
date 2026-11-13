@@ -99,6 +99,10 @@ test.describe('lineage from tools', () => {
     const pushToken = ((await secret.locator('pre, code').first().textContent()) ?? '').trim();
     expect(pushToken).toMatch(/^sdl_/);
     await expect(secret).toContainText('OPENLINEAGE_API_KEY');
+    // a click beside the dialog does not lose the token; each copy button names its block
+    await page.mouse.click(5, 5);
+    await expect(secret).toBeVisible();
+    await expect(secret.getByRole('button', { name: 'Copy Token', exact: true })).toBeVisible();
     await page.getByTestId('lineage-token-done').click();
     await expect(page.getByTestId('lineage-token')).toHaveCount(1);
     await expectAccessible(page, 'lineage source');

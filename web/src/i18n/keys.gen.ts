@@ -1525,6 +1525,8 @@ export interface Resources {
     remove: string;
     copy: string;
     copied: string;
+    copyNamed: string;
+    copiedNamed: string;
     'copyId.label': string;
     'copyId.copy': string;
     name: string;
