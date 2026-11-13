@@ -58,9 +58,10 @@ export type ConnectorFamily = 'debezium' | 'snowflakeSink' | 's3Sink' | 'other';
 /**
  * Why a draft names an end without an element, or leaves ends out – never guessed: a table pattern of an include list, a
  * routing pattern that failed or took too long, a CDC source whose configuration names no database host (Confluent's
- * managed connectors keep none of it).
+ * managed connectors keep none of it), a SQL Server source of several databases (the topics name the database, the
+ * table list does not).
  */
-export type ConnectorSkipReason = 'tablePattern' | 'routePattern' | 'noDatabaseHost';
+export type ConnectorSkipReason = 'tablePattern' | 'routePattern' | 'noDatabaseHost' | 'sqlServerDatabases';
 export interface ConnectorSkip {
   reason: ConnectorSkipReason;
   /** inputs: tables left unmatched (noDatabaseHost); skipped: ends left out */
@@ -227,23 +228,32 @@ export function connectorDraft(c: ConnectorOf, databasePlatformIds: readonly str
     const tables = listed.map(plainTableName);
     because('tablePattern', 'skipped', tables.filter((t) => t === null).length);
     skipped.n += tables.filter((t) => t === null).length;
-    // SQL Server names the database in its topics: <prefix>.<database>.<schema>.<table>
-    const db = c.debezium?.dbms === 'sqlserver' && c.debezium.databases.length === 1 ? c.debezium.databases[0]! : null;
+    // SQL Server names the database in its topics: <prefix>.<database>.<schema>.<table> – with several databases the
+    // table list does not say which: those topics are skipped, never guessed
+    const sqlServer = c.debezium?.dbms === 'sqlserver';
+    const several = sqlServer && c.debezium!.databases.length > 1;
+    const db = sqlServer && c.debezium!.databases.length === 1 ? c.debezium!.databases[0]! : null;
     // no database host in the configuration (Confluent's managed CDC sources): the tables are named, never matched
     const noHost = !c.debezium;
     const pairs: { table: string; topic: string }[] = [];
-    const before = skipped.n;
-    if (prefix)
-      for (const t of tables.filter((x): x is string => !!x)) pairs.push({ table: t, topic: routeTopic(`${prefix}.${db ? `${db}.` : ''}${t}`, rs, skipped) });
-    because('routePattern', 'skipped', skipped.n - before);
-    // no table list (or only patterns): the active topics under the prefix name the tables – not with routing, which
-    // cannot be read backwards
-    if (!pairs.length && prefix && !rs.length)
-      for (const topic of topics) {
-        const rest = topic.startsWith(`${prefix}.`) ? topic.slice(prefix.length + 1) : null;
-        const table = rest && db && rest.toLowerCase().startsWith(`${db.toLowerCase()}.`) ? rest.slice(db.length + 1) : rest;
-        if (table && table.includes('.')) pairs.push({ table, topic });
-      }
+    if (prefix && several) {
+      const n = tables.filter((x) => !!x).length || topics.filter((t) => t.startsWith(`${prefix}.`)).length;
+      because('sqlServerDatabases', 'skipped', n);
+      skipped.n += n;
+    } else {
+      const before = skipped.n;
+      if (prefix)
+        for (const t of tables.filter((x): x is string => !!x)) pairs.push({ table: t, topic: routeTopic(`${prefix}.${db ? `${db}.` : ''}${t}`, rs, skipped) });
+      because('routePattern', 'skipped', skipped.n - before);
+      // no table list (or only patterns): the active topics under the prefix name the tables – not with routing, which
+      // cannot be read backwards
+      if (!pairs.length && prefix && !rs.length)
+        for (const topic of topics) {
+          const rest = topic.startsWith(`${prefix}.`) ? topic.slice(prefix.length + 1) : null;
+          const table = rest && db && rest.toLowerCase().startsWith(`${db.toLowerCase()}.`) ? rest.slice(db.length + 1) : rest;
+          if (table && table.includes('.')) pairs.push({ table, topic });
+        }
+    }
     const tableNames = [...new Set(pairs.map((p) => p.table))];
     if (noHost) because('noDatabaseHost', 'unmatched', tableNames.length);
     return {
