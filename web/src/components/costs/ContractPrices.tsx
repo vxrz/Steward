@@ -429,18 +429,8 @@ export function ConditionsDialog({
                       />
                     </>
                   )}
-                  <TextInput
-                    type="date"
-                    label={t('conditions.validFrom')}
-                    value={r.validFrom}
-                    onChange={(e) => set(i, { validFrom: e.currentTarget.value })}
-                  />
-                  <TextInput
-                    type="date"
-                    label={t('conditions.validTo')}
-                    value={r.validTo}
-                    onChange={(e) => set(i, { validTo: e.currentTarget.value })}
-                  />
+                  <TextInput type="date" label={t('conditions.validFrom')} value={r.validFrom} onChange={(e) => set(i, { validFrom: e.currentTarget.value })} />
+                  <TextInput type="date" label={t('conditions.validTo')} value={r.validTo} onChange={(e) => set(i, { validTo: e.currentTarget.value })} />
                   <TextInput label={t('conditions.note')} value={r.note} onChange={(e) => set(i, { note: e.currentTarget.value })} />
                 </SimpleGrid>
               </Stack>
