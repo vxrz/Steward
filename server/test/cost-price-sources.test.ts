@@ -151,18 +151,16 @@ describe('sources', () => {
     expect(r.sourceState!.error).toContain('RATE_SHEET_DAILY');
     mock.setSnowflakeOrgUsage(true);
     const { SnowflakeClient } = await import('../src/snowflake/client.js');
-    const spy = vi
-      .spyOn(SnowflakeClient.prototype, 'query')
-      .mockResolvedValue(
-        Array.from({ length: 20_001 }, (_, i) => ({
-          SERVICE_TYPE: `S${i}`,
-          USAGE_TYPE: 'compute',
-          CURRENCY: 'USD',
-          EFFECTIVE_RATE: '1',
-          DATE: '2026-11-01',
-          CONTRACT_NUMBER: null,
-        })),
-      );
+    const spy = vi.spyOn(SnowflakeClient.prototype, 'query').mockResolvedValue(
+      Array.from({ length: 20_001 }, (_, i) => ({
+        SERVICE_TYPE: `S${i}`,
+        USAGE_TYPE: 'compute',
+        CURRENCY: 'USD',
+        EFFECTIVE_RATE: '1',
+        DATE: '2026-11-01',
+        CONTRACT_NUMBER: null,
+      })),
+    );
     try {
       await expect(s.api('POST', `/costs/price-books/${snowBook}/read`, {})).rejects.toMatchObject({
         status: 400,

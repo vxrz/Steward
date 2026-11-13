@@ -6827,6 +6827,7 @@ export interface Resources {
     'codes.COST_CONDITION_OVERLAP': string;
     'codes.COST_CONDITION_SCHEDULE': string;
     'codes.COST_PRICE_DERIVATION': string;
+    'codes.COST_PRICE_SOURCE_TOO_LARGE': string;
     'codes.FORBIDDEN_priceBook': string;
     'codes.FORBIDDEN_calculator': string;
     'codes.FORBIDDEN_costEstimate': string;

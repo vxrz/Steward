@@ -14,9 +14,7 @@ import { db } from '../db.js';
  * The job "costs" (#226): the sources that are due, the links of every line once a day, the 80 % and 100 % notices of
  * the budgets, the warnings of contract volumes, and the datasets "Costs", "Cost plans" and "Commitments" (at most hourly).
  */
-export async function runCostsJob(
-  now = Date.now(),
-): Promise<{
+export async function runCostsJob(now = Date.now()): Promise<{
   read: number;
   failed: number;
   remapped: number;
