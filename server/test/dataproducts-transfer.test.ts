@@ -227,7 +227,7 @@ describe('import', () => {
     const p0 = doc.data_products[0]!;
     p0.description = 'Every order of the shop, since 2020.';
     p0.ports[0]!.bindings![0]!.objectives = { availability_pct: 99.9 };
-    p0.ports[0]!.consumers!.push({ kind: 'text', text: 'Sales planning', purpose: 'Forecasts' });
+    p0.ports[0]!.consumers!.push({ kind: 'text', text: 'Sales planning', purpose: 'Forecasts', since: '2026-02-01' });
     const p = await preview(dana, [file({ version: 1, data_products: [p0] })]);
     expect(p.counts).toMatchObject({ change: 1, add: 0 });
     const fields = p.changes[0].fields.map((f: { field: string }) => f.field);

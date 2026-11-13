@@ -249,9 +249,7 @@ function diffOf(cur: unknown, next: unknown, path = '', label = '', out: DataPro
       const before = Array.isArray(a) ? a : [];
       for (const item of b) {
         const old = before.find((x) => id(x) === id(item));
-        const name = `${l}[${id(item)
-          .replace(/\u0000+/g, ' ')
-          .trim()}]`;
+        const name = `${l}[${id(item).split('\u0000').filter(Boolean).join(' ')}]`;
         if (!old) out.push({ field: name, before: null, after: 'added' });
         else if (!same(old, item)) diffOf(old, item, p, name, out);
       }
@@ -421,18 +419,18 @@ class Resolver {
   /** An application, service or process by name, among those the person may see. */
   named(kind: 'application' | 'service' | 'process' | 'platform', name: string): string {
     const n = name.trim().toLowerCase();
-    let ids: string[] = [];
-    if (kind === 'platform') ids = (this.platformsByName.get(n) ?? []).map((p) => p.id);
-    else if (kind === 'process')
-      ids = db()
-        .all<{ id: string; name: string }>('SELECT id, name FROM processes')
-        .filter((r) => r.name.trim().toLowerCase() === n && permissionsFor(r.id).includes('view'))
-        .map((r) => r.id);
-    else
-      ids = db()
-        .all<{ id: string; name: string; owners: string }>(`SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'}`)
-        .filter((r) => r.name.trim().toLowerCase() === n && canViewCatalogue(this.s.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }))
-        .map((r) => r.id);
+    const ids =
+      kind === 'platform'
+        ? (this.platformsByName.get(n) ?? []).map((p) => p.id)
+        : kind === 'process'
+          ? db()
+              .all<{ id: string; name: string }>('SELECT id, name FROM processes')
+              .filter((r) => r.name.trim().toLowerCase() === n && permissionsFor(r.id).includes('view'))
+              .map((r) => r.id)
+          : db()
+              .all<{ id: string; name: string; owners: string }>(`SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'}`)
+              .filter((r) => r.name.trim().toLowerCase() === n && canViewCatalogue(this.s.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }))
+              .map((r) => r.id);
     if (ids.length > 1) throw new HttpError(409, `${ids.length} ${kind}s are named "${name}"`, 'DATA_PRODUCT_IMPORT_INVALID', { context: 'ambiguous', name });
     if (!ids[0]) throw new HttpError(404, `The ${kind} "${name}" is not known`, 'DATA_PRODUCT_IMPORT_INVALID', { context: 'unknown', name });
     return ids[0];
