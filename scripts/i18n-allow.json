@@ -210,7 +210,13 @@
       "Insights Hub: {{target}}",
       "Insights Hub",
       "Bucket",
-      "Measurement"
+      "Measurement",
+      "Pipeline",
+      "Ports",
+      "Element",
+      "Snowpipe",
+      "OpenAPI",
+      "AsyncAPI"
     ]
   }
 }
