@@ -357,6 +357,39 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/costs/platform-plans/:platformId/imports/:importId': DESIGN,
   // an application's or system's "Costs and contracts" (0.19.0): who may see it
   'GET /api/costs/attribution/:kind/:id': ALL,
+  // price books, calculators and estimates (0.21.0, ADR 0035): list books, calculators and the dry run for everyone in
+  // Costs; books and calculators without owning teams kept by the costs managers (designers); estimates as the cost plan
+  'GET /api/costs/price-books': ALL,
+  'POST /api/costs/price-books': DESIGN,
+  'GET /api/costs/price-books/:bookId': ALL,
+  'PUT /api/costs/price-books/:bookId': DESIGN,
+  'DELETE /api/costs/price-books/:bookId': DESIGN,
+  'PUT /api/costs/price-books/:bookId/entries': DESIGN,
+  'GET /api/costs/price-books/:bookId/versions/:n': ALL,
+  'POST /api/costs/price-books/:bookId/import/preview': DESIGN,
+  'POST /api/costs/price-books/:bookId/import': DESIGN,
+  'POST /api/costs/price-books/:bookId/check': DESIGN,
+  'GET /api/costs/calculators': ALL,
+  'POST /api/costs/calculators': DESIGN,
+  'GET /api/costs/calculators/:calculatorId': ALL,
+  'PUT /api/costs/calculators/:calculatorId': DESIGN,
+  'DELETE /api/costs/calculators/:calculatorId': DESIGN,
+  'GET /api/costs/calculators/:calculatorId/export': ALL,
+  'GET /api/costs/calculators/:calculatorId/versions/:n': ALL,
+  'POST /api/costs/calculate': ALL,
+  'GET /api/costs/estimates': ALL,
+  'POST /api/costs/estimates': DESIGN,
+  'GET /api/costs/estimates/:estimateId': ALL,
+  'PUT /api/costs/estimates/:estimateId': DESIGN,
+  'DELETE /api/costs/estimates/:estimateId': DESIGN,
+  'POST /api/costs/estimates/:estimateId/recalculate': DESIGN,
+  'POST /api/costs/estimates/:estimateId/accept': DESIGN,
+  'GET /api/costs/estimates/:estimateId/proposals': ALL,
+  'POST /api/costs/estimates/:estimateId/proposals': DESIGN,
+  'POST /api/costs/estimates/:estimateId/update-lines': DESIGN,
+  'GET /api/costs/fx-rates': ALL,
+  'PUT /api/costs/fx-rates': DESIGN,
+  'DELETE /api/costs/fx-rates': DESIGN,
   // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
   // them, operators test them, designers create and change them
   'GET /api/data-contracts': ALL,
@@ -1040,6 +1073,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/scorecard': ALL,
   'GET /api/v1/services/:serviceId/cost-plan': ALL,
   'GET /api/v1/cost-commitments': ALL,
+  // price books and estimates (0.21.0, ADR 0035): what the token owner may see
+  'GET /api/v1/price-books': ALL,
+  'GET /api/v1/price-books/:bookId': ALL,
+  'GET /api/v1/price-books/:bookId/items': ALL,
+  'GET /api/v1/cost-estimates': ALL,
+  'GET /api/v1/cost-estimates/:estimateId': ALL,
   'GET /api/v1/objectives': ALL,
   'GET /api/v1/objectives/:objectiveId/samples': ALL,
   'GET /api/v1/access-changes': ALL,
@@ -1427,6 +1466,26 @@ const SESSION_ONLY = [
   'POST /api/costs/platform-plans/:platformId/entries/import/preview',
   'POST /api/costs/platform-plans/:platformId/entries/import',
   'DELETE /api/costs/platform-plans/:platformId/imports/:importId',
+  // price books, calculators and estimates (0.21.0, ADR 0035 part 8): every write is a person's in the app
+  'POST /api/costs/price-books',
+  'PUT /api/costs/price-books/:bookId',
+  'DELETE /api/costs/price-books/:bookId',
+  'PUT /api/costs/price-books/:bookId/entries',
+  'POST /api/costs/price-books/:bookId/import/preview',
+  'POST /api/costs/price-books/:bookId/import',
+  'POST /api/costs/price-books/:bookId/check',
+  'POST /api/costs/calculators',
+  'PUT /api/costs/calculators/:calculatorId',
+  'DELETE /api/costs/calculators/:calculatorId',
+  'POST /api/costs/estimates',
+  'PUT /api/costs/estimates/:estimateId',
+  'DELETE /api/costs/estimates/:estimateId',
+  'POST /api/costs/estimates/:estimateId/recalculate',
+  'POST /api/costs/estimates/:estimateId/accept',
+  'POST /api/costs/estimates/:estimateId/proposals',
+  'POST /api/costs/estimates/:estimateId/update-lines',
+  'PUT /api/costs/fx-rates',
+  'DELETE /api/costs/fx-rates',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -2066,6 +2125,10 @@ function fill(url: string): string {
       .replace(/:monitorId/g, fx.monitor!)
       .replace(/:recordId/g, fx.record!)
       .replace(/:serviceId/g, fx.service!)
+      // price books, calculators and estimates (0.21.0): the matrix's own
+      .replace(/:bookId/g, fx.priceBook!)
+      .replace(/:calculatorId/g, fx.calculator!)
+      .replace(/:estimateId/g, fx.estimate!)
       .replace(/:lineId/g, fx.planLine!)
       .replace(/:entryId/g, fx.planEntry!)
       .replace(/:teamId/g, fx.team!)
@@ -2809,6 +2872,19 @@ beforeAll(async () => {
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
   QUERY['GET /api/costs/schedules'] = `?serviceId=${fx.service}`;
+  // a price book, a calculator and an estimate of the matrix service (0.21.0, ADR 0035)
+  fx.priceBook = (await a('POST', '/costs/price-books', { name: 'Matrix prices', kind: 'list', provider: 'Matrix AG', currency: 'EUR' })).id;
+  await a('PUT', `/costs/price-books/${fx.priceBook}/entries`, { entries: [{ sku: 'x', name: 'X', unit: 'h', price: '1', currency: 'EUR' }] });
+  fx.calculator = (
+    await a('POST', '/costs/calculators', {
+      definition: 'kind: costCalculator\nid: matrix\nname: Matrix\nlines:\n  - { item: { provider: Matrix AG, sku: x }, quantity: 2, unit: h }\n',
+      publish: true,
+    })
+  ).id;
+  fx.estimate = (
+    await a('POST', '/costs/estimates', { title: 'Matrix estimate', ownerKind: 'service', ownerId: fx.service, currency: 'EUR', calculatorId: fx.calculator })
+  ).id;
+  QUERY['GET /api/costs/estimates'] = `?ownerKind=service&ownerId=${fx.service}`;
   const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
   QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack

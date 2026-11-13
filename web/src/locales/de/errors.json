@@ -1371,7 +1371,6 @@
     "COST_PRICE_ENTRIES": "Die Preise lassen sich nicht speichern: {{message}}",
     "COST_PRICE_IMPORT": "Die Datei lässt sich nicht importieren – Zeile {{line}}: {{message}}",
     "COST_PRICE_UNIT_MISMATCH": "Zeile {{line}}: Eine Menge in {{from}} lässt sich nicht in {{to}} umrechnen, die Einheit des Artikels {{sku}}.",
-    "COST_PRICE_MISSING": "Kein Preis: Kein Buch, das Sie sehen dürfen, enthält diesen Artikel.",
     "COST_CALCULATOR_NOT_FOUND": "Rechner nicht gefunden.",
     "COST_CALCULATOR_DEFINITION": "Kein gültiger Rechner: {{message}}",
     "COST_CALCULATOR_FORMULA": "Die Formel von {{line}} funktioniert nicht: {{message}}",

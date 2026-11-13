@@ -195,10 +195,11 @@ export async function setupPriceDemo(now = Date.now()): Promise<number> {
       }),
     );
   // ---- the demo Snowflake platform's contracted book, with a price change ahead ----
-  const snowflake = db().get<{ id: string; name: string }>(
-    "SELECT id, name FROM platforms WHERE kind = ? AND name LIKE '%(demo)' ORDER BY name LIMIT 1",
-    SNOWFLAKE_KIND,
-  );
+  const demoPlatform = (kind: string) =>
+    db()
+      .all<{ id: string; name: string }>('SELECT id, name FROM platforms WHERE kind = ? ORDER BY name', kind)
+      .find((p) => p.name.endsWith('(demo)'));
+  const snowflake = demoPlatform(SNOWFLAKE_KIND);
   if (snowflake) {
     const contracted =
       db().get<{ id: string }>("SELECT id FROM cost_price_books WHERE platform_id = ? AND kind = 'contracted'", snowflake.id) ??
@@ -288,7 +289,7 @@ export async function setupPriceDemo(now = Date.now()): Promise<number> {
       if (keys.length) await step('plan lines from the estimate', () => confirmEstimateProposals(e.id, { fiscalYear: fy, keys, confirmHidden: true }));
     }
   }
-  const kafka = db().get<{ id: string }>("SELECT id FROM platforms WHERE kind = ? AND name LIKE '%(demo)' ORDER BY name LIMIT 1", CONFLUENT_KIND);
+  const kafka = demoPlatform(CONFLUENT_KIND);
   const topic = calcIds.get('confluent-topic-cluster');
   if (kafka && topic)
     await step('platform estimate', () =>

@@ -321,7 +321,7 @@ export function getBook(id: string, o: { offset?: number; q?: string } = {}): Co
     ? db().all<ItemRow>(
         `SELECT ${ITEM_COLUMNS} FROM cost_price_items WHERE version_id = ?${
           like
-            ? " AND (LOWER(sku_id) LIKE ? ESCAPE '\\' OR LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(service) LIKE ? ESCAPE '\\' OR LOWER(driver) LIKE ? ESCAPE '\\')"
+            ? " AND (lower(sku_id) LIKE lower(?) ESCAPE '\\' OR lower(name) LIKE lower(?) ESCAPE '\\' OR lower(service) LIKE lower(?) ESCAPE '\\' OR lower(driver) LIKE lower(?) ESCAPE '\\')"
             : ''
         } ORDER BY sku_id, sku_price_id, valid_from LIMIT ? OFFSET ?`,
         cur.id,
@@ -365,7 +365,7 @@ export function entriesPage(row: BookRow, q: { cursor?: string; limit: number; q
   const rows = db().all<ItemRow & { id: number }>(
     `SELECT id, ${ITEM_COLUMNS} FROM cost_price_items WHERE version_id = ? AND id > ?${
       like
-        ? " AND (LOWER(sku_id) LIKE ? ESCAPE '\\' OR LOWER(name) LIKE ? ESCAPE '\\' OR LOWER(service) LIKE ? ESCAPE '\\' OR LOWER(driver) LIKE ? ESCAPE '\\')"
+        ? " AND (lower(sku_id) LIKE lower(?) ESCAPE '\\' OR lower(name) LIKE lower(?) ESCAPE '\\' OR lower(service) LIKE lower(?) ESCAPE '\\' OR lower(driver) LIKE lower(?) ESCAPE '\\')"
         : ''
     } ORDER BY id LIMIT ?`,
     vid,

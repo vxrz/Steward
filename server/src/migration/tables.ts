@@ -402,6 +402,9 @@ export const HISTORY_COLUMNS: string[] = [
 
 /** Columns whose names look like people but are not (classification test). */
 export const NOT_PEOPLE_COLUMNS: string[] = [
+  // the service or platform an estimate belongs to (0.21.0, ADR 0035), not a person
+  'cost_estimates.owner_kind',
+  'cost_estimates.owner_id',
   'access_findings.subject_id',
   'access_findings.subject_name',
   'access_snapshots.subject_count',

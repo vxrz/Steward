@@ -1371,7 +1371,6 @@
     "COST_PRICE_ENTRIES": "The prices cannot be saved: {{message}}",
     "COST_PRICE_IMPORT": "The file cannot be imported – line {{line}}: {{message}}",
     "COST_PRICE_UNIT_MISMATCH": "Line {{line}}: a quantity in {{from}} cannot become {{to}}, the unit of the item {{sku}}.",
-    "COST_PRICE_MISSING": "No price: no book you may see has this item.",
     "COST_CALCULATOR_NOT_FOUND": "Calculator not found.",
     "COST_CALCULATOR_DEFINITION": "Not a valid calculator: {{message}}",
     "COST_CALCULATOR_FORMULA": "The formula of {{line}} does not work: {{message}}",
