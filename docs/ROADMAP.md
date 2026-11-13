@@ -96,6 +96,10 @@ Themes of this release (details in the CHANGELOG once released):
 - **Insights Hub mapping on a real tenant** ([#8](https://github.com/vxrz/Steward/issues/8)): verify the API assumptions of the Insights Hub sink check and the freshness checks against a real tenant.
 - **Accepted decision records, not built yet** – a PAM checkout for privileged identities ([ADR 0022](adr/0022-privileged-access-checkout.md)), a Steward edge runner inside an OT segment ([ADR 0023](adr/0023-edge-runner.md)) and signed releases with provenance and an update notice ([ADR 0024](adr/0024-signed-releases.md)): their open questions were decided in November 2026 (each recommended answer); built next.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
+- **Art. 30 transfers and measures in the file format and ODPS** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md)): the transfers to third countries and the measures' reference of data objects and products travel with export, import and ODPS – today an import keeps them as they are.
+- **Snowflake semantic views as drafts and comparisons** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 4): a product's semantic model drafted from, and compared with, the semantic views Snowflake holds.
+- **A data-quality hint when several devices name one system** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 3): plant devices linked to the same Steward system are flagged as a hint, not refused.
+- **Industrial Edge status and suggestions on `/api/v1`** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 3): read-only – a system's IEM device status and the open suggestions; confirming stays in the app, no MCP confirm.
 
 ## Ideas parked
 
