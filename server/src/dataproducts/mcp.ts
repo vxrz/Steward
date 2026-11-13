@@ -24,7 +24,7 @@ import { healthOf, productHealthByEnvironment } from './health.js';
 import { lineageView } from './views.js';
 import { productSteps } from './steps.js';
 import { elementDetail, productDetail, productLineage } from './api-v1.js';
-import { productCosts } from './seams.js';
+import { productCosts } from './costs.js';
 import type { ObjectRow, ProductRow } from './store.js';
 
 /**
@@ -258,16 +258,14 @@ export const dataProductTools: ToolDef[] = [
           checks: checks.checks.slice(0, 50),
           upstream: side(-1),
           downstream: side(1),
-          steps: around.steps
-            .slice(0, 50)
-            .map((s) => ({
-              name: s.hidden ? '' : s.name,
-              kind: s.kind,
-              runner: s.runner,
-              hidden: s.hidden,
-              inputs: s.inputs.filter((x) => !!name(x)),
-              outputs: s.outputs.filter((x) => !!name(x)),
-            })),
+          steps: around.steps.slice(0, 50).map((s) => ({
+            name: s.hidden ? '' : s.name,
+            kind: s.kind,
+            runner: s.runner,
+            hidden: s.hidden,
+            inputs: s.inputs.filter((x) => !!name(x)),
+            outputs: s.outputs.filter((x) => !!name(x)),
+          })),
         };
       }),
   }),
@@ -339,7 +337,32 @@ export const dataProductTools: ToolDef[] = [
     handler: (a) =>
       read(() => {
         const { row } = svc.visibleProduct(productIdOf(a.productId));
-        return { product: { id: row.id, key: row.key, name: row.name }, ...productCosts(me(), row.id, a.environment ?? null, a.months) };
+        const c = productCosts(row.id, { environment: a.environment, months: a.months });
+        const amount = (micros: number) => (micros / 1e6).toFixed(2);
+        return {
+          product: { id: row.id, key: row.key, name: row.name },
+          environment: c.environment,
+          environments: c.environments,
+          // a part you may not see makes a month incomplete – its amount is left out, never computable from the rest
+          incomplete: c.incomplete,
+          amountsHidden: c.amountsHidden,
+          months: c.months.map((m) => ({
+            month: m.month,
+            totals: m.totals.map((t) => ({ currency: t.currency, amount: amount(t.amountMicros) })),
+            incomplete: m.incomplete,
+            lines: m.lines.slice(0, 50).map((l) => ({
+              platform: l.platformName,
+              kind: l.kind,
+              rule: l.rule,
+              share: l.share,
+              amount: amount(l.amountMicros),
+              currency: l.currency,
+              match: l.match,
+              sharedWith: l.products - 1,
+            })),
+          })),
+          value: c.value,
+        };
       }),
   }),
   defineTool({

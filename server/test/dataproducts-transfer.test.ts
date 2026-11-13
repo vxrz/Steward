@@ -74,7 +74,9 @@ const DOC = () => ({
       attributes: [{ name: 'order_id', description: 'Key', personal: false }],
       owner: 'dana',
       rating: { confidentiality: { level: 'high', justification: 'Order values' } },
-      elements: [{ element: { platform: snowflakeName, kind: 'snowflake.table', qualified_name: 'SHOP.CURATED.ORDERS', environment: 'prod' }, note: 'all orders' }],
+      elements: [
+        { element: { platform: snowflakeName, kind: 'snowflake.table', qualified_name: 'SHOP.CURATED.ORDERS', environment: 'prod' }, note: 'all orders' },
+      ],
     },
   ],
   elements: [
@@ -198,7 +200,11 @@ describe('import', () => {
     expect(imported).toMatchObject({ source: 'imported', parentId: expect.any(String) });
     const audit = await s.api('GET', '/audit?action=dataproduct.imported');
     const entry = (audit.items ?? audit)[0];
-    expect(entry.details).toMatchObject({ mode: 'update', counts: { add: 10 }, files: [{ name: 'products.yaml', sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }] });
+    expect(entry.details).toMatchObject({
+      mode: 'update',
+      counts: { add: 10 },
+      files: [{ name: 'products.yaml', sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }],
+    });
   });
 
   it('exports and imports again without a change (the round trip)', async () => {
@@ -226,11 +232,7 @@ describe('import', () => {
     expect(p.counts).toMatchObject({ change: 1, add: 0 });
     const fields = p.changes[0].fields.map((f: { field: string }) => f.field);
     expect(fields).toEqual(
-      expect.arrayContaining([
-        'description',
-        'ports[output orders v2].bindings[prod].objectives',
-        'ports[output orders v2].consumers[text:sales planning]',
-      ]),
+      expect.arrayContaining(['description', 'ports[output orders v2].bindings[prod].objectives', 'ports[output orders v2].consumers[text:sales planning]']),
     );
     const skipped = await preview(dana, [file({ version: 1, data_products: [p0] })], 'add');
     expect(skipped.counts).toMatchObject({ skip: 1, change: 0 });
@@ -280,7 +282,16 @@ describe('import', () => {
 describe('the reader', () => {
   it('keeps to the limits: size, files, depth, aliases, duplicate keys and the format', async () => {
     expect(await fail(preview(dana, [file('x'.repeat(8 * 1024 * 1024 + 10))]))).toMatchObject({ status: 413, code: 'DATA_PRODUCT_IMPORT_TOO_LARGE' });
-    expect((await fail(preview(dana, Array.from({ length: 501 }, (_, i) => file('version: 1\n', `f${i}.yaml`))))).status).toBe(400);
+    expect(
+      (
+        await fail(
+          preview(
+            dana,
+            Array.from({ length: 501 }, (_, i) => file('version: 1\n', `f${i}.yaml`)),
+          ),
+        )
+      ).status,
+    ).toBe(400);
     let deep: unknown = 'x';
     for (let i = 0; i < 14; i++) deep = { a: deep };
     const d = await preview(dana, [file({ version: 1, domains: [{ key: 'deep', name: 'Deep', description: deep }] })]);
@@ -291,7 +302,10 @@ describe('the reader', () => {
     expect(dup.problems[0].message).toMatch(/unique/i);
     const unknown = await preview(dana, [file({ version: 1, data_product: { key: 'a', name: 'A', colour: 'red' } })]);
     expect(unknown.problems[0]).toMatchObject({ path: 'data_product', message: expect.stringMatching(/Unknown key "colour"/) });
-    const twice = await preview(dana, [file({ version: 1, data_product: { key: 'a', name: 'A' } }, 'a.yaml'), file({ version: 1, data_product: { key: 'a', name: 'A' } }, 'b.yaml')]);
+    const twice = await preview(dana, [
+      file({ version: 1, data_product: { key: 'a', name: 'A' } }, 'a.yaml'),
+      file({ version: 1, data_product: { key: 'a', name: 'A' } }, 'b.yaml'),
+    ]);
     expect(twice.problems[0].message).toMatch(/twice/);
     const elements = Array.from({ length: 20_001 }, (_, i) => ({ kind: 'other', qualified_name: `x${i}` }));
     const many = await preview(dana, [file(JSON.stringify({ version: 1, elements }), 'many.json')]);

@@ -134,7 +134,15 @@ describe('with the module on', () => {
           type: 'sourceAligned',
           owners: ['user:dana'],
           members: [{ element: ref('CRM.PUBLIC.CUSTOMERS'), role: 'input' }, { element: ref('SHOP.RAW.ORDERS') }],
-          ports: [{ direction: 'output', name: 'orders', version: 'v1', data_objects: ['customer'], bindings: [{ environment: 'prod', elements: [ref('SHOP.CURATED.ORDERS')] }] }],
+          ports: [
+            {
+              direction: 'output',
+              name: 'orders',
+              version: 'v1',
+              data_objects: ['customer'],
+              bindings: [{ environment: 'prod', elements: [ref('SHOP.CURATED.ORDERS')] }],
+            },
+          ],
           steps: [
             { name: 'Load', kind: 'ingest', inputs: [ref('CRM.PUBLIC.CUSTOMERS')], outputs: [ref('SHOP.RAW.ORDERS')] },
             { name: 'Curate', kind: 'curate', inputs: [ref('SHOP.RAW.ORDERS')], outputs: [ref('SHOP.CURATED.ORDERS')] },
@@ -189,7 +197,12 @@ describe('with the module on', () => {
 
   it('gives a product with ports, members, steps, health and the scorecard; pages members', async () => {
     const p = (await call(mcp.vera, 'get_data_product', { productId: 'orders', memberLimit: 1 })).data;
-    expect(p).toMatchObject({ key: 'orders', memberCounts: { input: 1, internal: 1, output: 1 }, scorecard: { available: false } });
+    expect(p).toMatchObject({
+      key: 'orders',
+      memberCounts: { input: 1, internal: 1, output: 1 },
+      scorecard: { environment: 'prod', maturity: expect.any(Number) },
+    });
+    expect(p.scorecard.parts.map((x: { id: string }) => x.id)).toContain('documented');
     expect(p.ports[0]).toMatchObject({ name: 'orders', version: 'v1', objects: { declared: [{ key: 'customer' }] } });
     expect(p.members.items).toHaveLength(1);
     expect(p.members.nextCursor).toBeTruthy();
@@ -199,7 +212,8 @@ describe('with the module on', () => {
     const health = (await call(mcp.vera, 'get_data_product_health', { productId: 'orders' })).data;
     expect(health.environments[0]).toMatchObject({ environment: 'prod', status: 'noData' });
     const costs = (await call(mcp.vera, 'get_data_product_costs', { productId: 'orders' })).data;
-    expect(costs).toMatchObject({ available: false, months: [] });
+    expect(costs).toMatchObject({ product: { key: 'orders' }, environment: 'prod', incomplete: false });
+    expect(costs.months).toHaveLength(3);
   });
 
   it('follows the lineage of an element and of a product, hidden products counted', async () => {
@@ -250,7 +264,11 @@ describe('with the module on', () => {
     expect((await v1(rest.vera, '/data-products?type=aggregate')).body.items).toEqual([]);
     expect((await v1(rest.vera, '/data-products?lifecycle=proposed')).body.items).toHaveLength(1);
     const detail = (await v1(rest.vera, `/data-products/${orders}`)).body;
-    expect(detail).toMatchObject({ key: 'orders', health: { environment: 'prod', status: 'noData' }, scorecard: { available: false } });
+    expect(detail).toMatchObject({
+      key: 'orders',
+      health: { environment: 'prod', status: 'noData' },
+      scorecard: { environment: 'prod', maturity: expect.any(Number) },
+    });
     expect(detail.ports[0].bindings[0]).toMatchObject({ environment: 'prod', contractId: null, contractKey: null });
     const lineage = (await v1(rest.vera, `/data-products/${orders}/lineage`)).body;
     expect(lineage).toMatchObject({ view: 'pipeline', product: { key: 'orders' }, environment: 'prod' });
@@ -280,11 +298,18 @@ describe('with the module on', () => {
       const doc = {
         version: 1,
         data_objects: Array.from({ length: n }, (_, i) => ({ key: `obj-${tag}-${i}`, name: `Object ${tag} ${i}` })),
-        elements: Array.from({ length: n }, (_, i) => ({ platform: snowflakeName, kind: 'snowflake.table', qualified_name: `GROW.${tag}.T${i}`, environment: 'prod' })),
+        elements: Array.from({ length: n }, (_, i) => ({
+          platform: snowflakeName,
+          kind: 'snowflake.table',
+          qualified_name: `GROW.${tag}.T${i}`,
+          environment: 'prod',
+        })),
         data_products: Array.from({ length: n }, (_, i) => ({
           key: `grown-${tag}-${i}`,
           name: `Grown ${tag} ${i}`,
-          members: [{ element: { platform: snowflakeName, kind: 'snowflake.table', qualified_name: `GROW.${tag}.T${i}`, environment: 'prod' }, role: 'output' }],
+          members: [
+            { element: { platform: snowflakeName, kind: 'snowflake.table', qualified_name: `GROW.${tag}.T${i}`, environment: 'prod' }, role: 'output' },
+          ],
           ports: [{ direction: 'output', name: 'out', data_objects: [`obj-${tag}-${i}`] }],
         })),
       };

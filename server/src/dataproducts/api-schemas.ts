@@ -12,6 +12,7 @@ import {
   DATA_PRODUCT_CRITICALITIES,
   DATA_PRODUCT_LIFECYCLES,
   DATA_PRODUCT_TYPES,
+  DATA_SCORECARD_STATES,
   DATA_VALUE_TIERS,
   LEGAL_BASES,
   PERSONAL_DATA_LEVELS,
@@ -139,8 +140,12 @@ export const DataProductDetail = DataProductEntry.extend({
   objects: z.array(Ref).describe('Data objects its output ports expose (declared or through their elements)'),
   healthByEnvironment: z.array(Health),
   scorecard: z
-    .object({ available: z.boolean(), maturity: z.number().int().nullable(), parts: z.array(z.object({ id: z.string(), state: z.string() })) })
-    .describe('The scorecard summary (available: false until the scorecard is computed)'),
+    .object({
+      environment: z.string().nullable(),
+      maturity: z.number().int().nullable().describe('Computed from the scorecard, never typed: 0 not yet documented … 4 reliable'),
+      parts: z.array(z.object({ id: z.string(), group: z.enum(['part', 'iso25012']), state: z.enum(DATA_SCORECARD_STATES) })),
+    })
+    .describe('The scorecard in the default environment, summed up: each part and ISO/IEC 25012 dimension with its state'),
 });
 
 export const DataElementEntry = z.object({

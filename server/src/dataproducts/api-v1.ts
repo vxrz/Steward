@@ -12,7 +12,7 @@ import { elementHealthOf, healthOf, productHealthByEnvironment } from './health.
 import { lineageView, pipelineView } from './views.js';
 import { odpsDocument } from './odps.js';
 import { membersOf } from './store.js';
-import { scorecardSummary } from './seams.js';
+import { scorecardsOf } from './scorecard.js';
 import { DataElementV1ListQuery, DataObjectV1ListQuery, DataProductLineageQuery, DataProductOdpsQuery, DataProductV1ListQuery } from './api-schemas.js';
 
 /**
@@ -112,6 +112,13 @@ const portOf = (x: DataPort) => ({
   consumesDeprecated: x.consumesDeprecated,
 });
 
+/** The scorecard of a product in an environment, summed up: maturity and the state of each part (WP4: scorecard.ts). */
+function scorecardSummary(productId: string, environment: string | undefined) {
+  const c = scorecardsOf(me(), [productId], environment).get(productId);
+  if (!c) return { environment: null, maturity: null, parts: [] };
+  return { environment: c.environment, maturity: c.maturity, parts: c.parts.map((x) => ({ id: x.id, group: x.group, state: x.state })) };
+}
+
 /** One product as the public API gives it (shared with the MCP tools). */
 export function productDetail(p: DataProduct) {
   const byEnv = productHealthByEnvironment(me(), p.id);
@@ -132,7 +139,7 @@ export function productDetail(p: DataProduct) {
     memberCounts: p.memberCounts,
     objects: p.objects.map(ref),
     healthByEnvironment: byEnv.map((h) => health(h)!),
-    scorecard: scorecardSummary(p.id, def?.environment ?? null),
+    scorecard: scorecardSummary(p.id, def?.environment ?? undefined),
   };
 }
 
