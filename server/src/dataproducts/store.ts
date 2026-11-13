@@ -419,6 +419,14 @@ export function addCheckLink(l: Omit<CheckLinkRow, 'id' | 'created_at'> & { crea
   return id;
 }
 
+/**
+ * Removes check links whose monitor was deleted (the monitors area does not know this module; health and the checks
+ * view already ignore them). Run by the job `data-products`; returns how many went.
+ */
+export function pruneCheckLinks(): number {
+  return db().run('DELETE FROM dp_check_links WHERE NOT EXISTS (SELECT 1 FROM monitors m WHERE m.id = dp_check_links.monitor_id)').changes;
+}
+
 export function removeCheckLink(id: string): boolean {
   return db().run('DELETE FROM dp_check_links WHERE id = ?', id).changes > 0;
 }

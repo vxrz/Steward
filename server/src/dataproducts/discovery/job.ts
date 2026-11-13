@@ -16,7 +16,7 @@ import { vault } from '../../vault.js';
 import { runAs } from '../../auth/context.js';
 import { HttpError, newId, nowIso } from '../../util.js';
 import { CheckSetupError, ownerProblem, platformFor } from '../../monitors/platforms.js';
-import { discoverySourceRow, markMissing, removeLongMissing, upsertDiscovered } from '../store.js';
+import { discoverySourceRow, markMissing, pruneCheckLinks, removeLongMissing, upsertDiscovered } from '../store.js';
 import { DiscoveryError, parseSource, type DiscoveryContext, type DiscoveryProblem, type DiscoveryReader } from './common.js';
 import { readSnowflake } from './snowflake.js';
 import { readKafka } from './kafka.js';
@@ -364,6 +364,8 @@ function noticeDiscoveryFailed(sourceId: string, problem: DiscoveryProblem): voi
 
 /** The job `data-products`: the due sources, one at a time, for at most 20 minutes; null when the vault is locked. */
 export async function runDataProductsJob(now = Date.now()): Promise<{ read: number; failed: number } | null> {
+  // links to monitors deleted since the last run (no secrets needed)
+  pruneCheckLinks();
   if (!vault().unlocked) return null;
   closeInterrupted();
   const due = db().all<{ id: string }>(

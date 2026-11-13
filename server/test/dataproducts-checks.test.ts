@@ -443,6 +443,22 @@ describe('checks linked to an element', () => {
     expect(after.checks.find((c: { monitor: { id: string } | null }) => c.monitor?.id === mine)).toMatchObject({ linkId: null, origin: 'found' });
     expect(after.health.checks).toEqual({ visible: 0, hidden: 1 });
   });
+
+  it('drops links to a deleted monitor when the job runs', async () => {
+    const { checkLinksOfMonitors } = await import('../src/dataproducts/store.js');
+    const gone = (
+      await dana('POST', '/monitors', {
+        definition: { name: 'Short-lived', checks: [{ id: 'f', name: 'Contacts', type: 'data-element', element: el.contacts, maxAgeMinutes: 60 }] },
+      })
+    ).monitor.id;
+    await dana('POST', `/data-elements/${el.contacts}/checks`, { monitor: gone, checkId: 'f', purpose: 'freshness' });
+    expect(checkLinksOfMonitors([gone])).toHaveLength(1);
+    await dana('DELETE', `/monitors/${gone}`);
+    const { runDataProductsJob } = await import('../src/dataproducts/discovery/job.js');
+    await runDataProductsJob();
+    expect(checkLinksOfMonitors([gone])).toHaveLength(0);
+    expect(checkLinksOfMonitors([theirs])).toHaveLength(1);
+  });
 });
 
 describe('health of products', () => {
