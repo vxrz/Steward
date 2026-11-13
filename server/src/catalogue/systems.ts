@@ -590,8 +590,11 @@ export function deleteSystem(id: string): void {
   const members = memberCount(id);
   if (members) throw new HttpError(409, `Systems are in the segment "${cur.name}" (${members})`, 'SEGMENT_IN_USE', { name: cur.name, count: members });
   const stack = db().all<StackRow>('SELECT * FROM system_stack WHERE system_id = ?', id);
+  // 0.25.0 (ADR 0037 part 3): plant devices that were this system are no longer linked (named in the audit entry)
+  const devices = db().all<{ asset_id: string; id: string }>('SELECT asset_id, id FROM plant_devices WHERE system_id = ? ORDER BY asset_id, id', id);
   db().tx(() => {
     db().run('DELETE FROM system_stack WHERE system_id = ?', id);
+    if (devices.length) db().run('UPDATE plant_devices SET system_id = NULL WHERE system_id = ?', id);
     const segments = forgetSegments(id);
     db().run('DELETE FROM systems WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
@@ -608,6 +611,9 @@ export function deleteSystem(id: string): void {
         kind: cur.kind,
         stack: stack.map((s) => ({ product: s.product, version: s.version, source: s.source })),
         ...(segments.length ? { segments: segments.map((s) => ({ segmentId: s.segment_id, address: s.address })) } : {}),
+        ...(devices.length
+          ? { plantDevices: devices.slice(0, 50).map((d) => ({ assetId: d.asset_id, deviceId: d.id })), plantDevicesCleared: devices.length }
+          : {}),
       },
     });
   });
