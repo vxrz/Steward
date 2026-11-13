@@ -162,7 +162,14 @@ export function PlantSitesPage() {
           {!!sites.data?.length && exportLink}
           {/* a granted manager changes the registry's content settings (0.23.0); administrators do it in Settings → Modules */}
           {caps.moduleSettings?.includes('plant') && !caps.manageSettings && (
-            <Button size="xs" variant="default" component={Link} to="/plant/settings" leftSection={<IconSettings size={14} />} data-testid="plant-manager-settings">
+            <Button
+              size="xs"
+              variant="default"
+              component={Link}
+              to="/plant/settings"
+              leftSection={<IconSettings size={14} />}
+              data-testid="plant-manager-settings"
+            >
               {t('settings.managerTitle')}
             </Button>
           )}

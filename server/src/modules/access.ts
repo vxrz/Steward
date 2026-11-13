@@ -122,7 +122,8 @@ export function restrictedModuleUses(user: ModuleUser): ModuleUse[] {
 export function moduleUsesForReview(user: ModuleUser): ModuleUse[] {
   const policy = modulePolicy();
   return MODULES.filter(
-    (m) => accessModule(m.id) === m.id && (policy.restricted.has(m.id) || (moduleRolesOf(m.id).length > 0 && moduleRoleOf(user, m.id, policy).granted !== null)),
+    (m) =>
+      accessModule(m.id) === m.id && (policy.restricted.has(m.id) || (moduleRolesOf(m.id).length > 0 && moduleRoleOf(user, m.id, policy).granted !== null)),
   ).map((m) => moduleUseOf(user, m.id));
 }
 
@@ -134,7 +135,11 @@ export function previewModuleUses(user: ModuleUser, moduleRoles: readonly { modu
   const now = modulePolicy();
   const subject = `user:${user.username.toLowerCase()}`;
   const grants = new Map(now.grants);
-  for (const [id, rows] of now.grants) grants.set(id, rows.filter((g) => !(g.source === 'sso' && g.subject.trim().toLowerCase() === subject)));
+  for (const [id, rows] of now.grants)
+    grants.set(
+      id,
+      rows.filter((g) => !(g.source === 'sso' && g.subject.trim().toLowerCase() === subject)),
+    );
   for (const m of moduleRoles) grants.set(m.module, [...(grants.get(m.module) ?? []), { module: m.module, subject, role: m.role, source: 'sso' }]);
   const store = currentStore();
   const policy: ModulePolicy = { restricted: now.restricted, grants };

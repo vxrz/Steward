@@ -209,7 +209,8 @@ export function setModuleAccess(id: ModuleId, input: ModuleAccessInput): ModuleA
   const after = grantsOfInput(input);
   // only users and teams that exist; a grant the module has already stays accepted (a deleted team)
   assertKnownSubjects([...after.keys()], [...before.keys()]);
-  const listed = (mode: ModuleAccessMode, g: Map<string, ModuleRole | null>) => (mode === 'selected' ? [...g.keys()] : [...g].filter(([, r]) => r).map(([s]) => s));
+  const listed = (mode: ModuleAccessMode, g: Map<string, ModuleRole | null>) =>
+    mode === 'selected' ? [...g.keys()] : [...g].filter(([, r]) => r).map(([s]) => s);
   const beforeSubjects = listed(beforeMode, before);
   const afterSubjects = listed(input.mode, after);
   const granted = afterSubjects.filter((s) => !beforeSubjects.includes(s));

@@ -39,9 +39,7 @@ export { splitDeprecatedRoles } from '@sm/shared';
 export const PLANT_ROLE_ALIAS: { module: ModuleId; role: ModuleRole } = { module: 'plant', role: 'contributor' };
 
 /** Body part of the user form and the user API: per module that declares roles, the role or none (null). */
-export const userModuleRolesBody = z
-  .array(z.object({ module: z.enum(MODULE_IDS), role: z.enum(MODULE_ROLES).nullable() }).strict())
-  .max(20);
+export const userModuleRolesBody = z.array(z.object({ module: z.enum(MODULE_IDS), role: z.enum(MODULE_ROLES).nullable() }).strict()).max(20);
 
 export type UserModuleRolesInput = z.infer<typeof userModuleRolesBody>;
 

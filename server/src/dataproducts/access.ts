@@ -154,8 +154,7 @@ function decideItem(
   // Restricted, and on an owning team's items for its members
   const teamsOf = owningTeams(kind, id);
   const mine = memberships(u);
-  const moduleWide =
-    (!teamsOf.length && !(shares && isRestricted(kind, id))) || teamsOf.some((t) => mine.has(t.id)) ? grantedReasons(u) : [];
+  const moduleWide = (!teamsOf.length && !(shares && isRestricted(kind, id))) || teamsOf.some((t) => mine.has(t.id)) ? grantedReasons(u) : [];
   if (moduleWide.length) {
     const reasons = [...d.reasons, ...moduleWide];
     const granted = new Set([...d.permissions, ...moduleWide.flatMap((r) => r.permissions)]);

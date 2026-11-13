@@ -235,7 +235,9 @@ function Preview({ preview: p }: { preview: SsoSignInPreview }) {
           [
             t('provider.test.moduleRoles'),
             p.moduleRoles
-              .map((r) => t('modules:moduleRole', { module: t(`modules:items.${r.module}.name`, { brand: BRAND.name }), role: t(`modules:roleNames.${r.role}`) }))
+              .map((r) =>
+                t('modules:moduleRole', { module: t(`modules:items.${r.module}.name`, { brand: BRAND.name }), role: t(`modules:roleNames.${r.role}`) }),
+              )
               .join(', '),
           ] as [string, ReactNode],
         ]

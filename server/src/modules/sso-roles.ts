@@ -6,9 +6,7 @@ import { recordModuleAccessChange } from './access-audit.js';
 
 /** Who uses a module now, read without the registry (auth/sso.ts imports this module: no route layer here). */
 const modeOf = (id: ModuleId): 'everyone' | 'selected' =>
-  moduleRestrictable(id) && db().get<{ mode: string }>('SELECT mode FROM module_access WHERE module_id = ?', id)?.mode === 'selected'
-    ? 'selected'
-    : 'everyone';
+  moduleRestrictable(id) && db().get<{ mode: string }>('SELECT mode FROM module_access WHERE module_id = ?', id)?.mode === 'selected' ? 'selected' : 'everyone';
 
 /**
  * Synchronises a person's module roles from single sign-on (ADR 0034 part 6): the grants with source `sso` become
@@ -57,4 +55,3 @@ export function syncSsoModuleRoles(username: string, wanted: { module: ModuleId;
   if (changes.length) forgetModulePolicy();
   return changes;
 }
-

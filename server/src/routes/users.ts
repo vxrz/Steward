@@ -35,34 +35,38 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage users');
     return withModuleRoles(users.listUsers());
   });
-  app.post('/users', { config: { access: ACCESS.adminSession, stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } }, async (req, reply) => {
-    requireCapability(me(), 'manageUsers', 'manage users');
-    const b = z
-      .object({
-        username: z.string().max(64),
-        displayName: z.string().max(100).optional(),
-        firstName: z.string().max(100).optional(),
-        lastName: z.string().max(100).optional(),
-        email: z.string().max(254).optional(),
-        roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
-        password: z.string().max(1024).optional(),
-        /** A single sign-on account: no password, claimed at the first sign-in through this provider only */
-        provider: z.string().max(100).optional(),
-        /** Module roles (0.23.0, ADR 0034): a widening asks for the step-up access.grant */
-        moduleRoles: userModuleRolesBody.optional(),
-      })
-      .parse(req.body);
-    const { provider, ...input } = b;
-    deprecatedRole(reply, b.roles);
-    // single sign-on only: new accounts get no password and are linked by their user name at the first sign-in
-    if (provider || passwordLoginMode() === 'none') {
-      if (b.password) users.requirePasswordLogin('setting a password');
-      const made = users.createUser({ ...input, password: undefined, noPassword: true, provider: claimingProvider(provider).id });
+  app.post(
+    '/users',
+    { config: { access: ACCESS.adminSession, stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } },
+    async (req, reply) => {
+      requireCapability(me(), 'manageUsers', 'manage users');
+      const b = z
+        .object({
+          username: z.string().max(64),
+          displayName: z.string().max(100).optional(),
+          firstName: z.string().max(100).optional(),
+          lastName: z.string().max(100).optional(),
+          email: z.string().max(254).optional(),
+          roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
+          password: z.string().max(1024).optional(),
+          /** A single sign-on account: no password, claimed at the first sign-in through this provider only */
+          provider: z.string().max(100).optional(),
+          /** Module roles (0.23.0, ADR 0034): a widening asks for the step-up access.grant */
+          moduleRoles: userModuleRolesBody.optional(),
+        })
+        .parse(req.body);
+      const { provider, ...input } = b;
+      deprecatedRole(reply, b.roles);
+      // single sign-on only: new accounts get no password and are linked by their user name at the first sign-in
+      if (provider || passwordLoginMode() === 'none') {
+        if (b.password) users.requirePasswordLogin('setting a password');
+        const made = users.createUser({ ...input, password: undefined, noPassword: true, provider: claimingProvider(provider).id });
+        return { ...made, user: withModuleRoles([made.user])[0]! };
+      }
+      const made = users.createUser({ ...input, mustChangePassword: true });
       return { ...made, user: withModuleRoles([made.user])[0]! };
-    }
-    const made = users.createUser({ ...input, mustChangePassword: true });
-    return { ...made, user: withModuleRoles([made.user])[0]! };
-  });
+    },
+  );
   /** The deprecated role "plant" (ADR 0034 part 5): accepted for one release and turned into a module role – said in a header. */
   function deprecatedRole(reply: FastifyReply, roles: readonly string[] | undefined): void {
     if (roles?.includes('plant'))

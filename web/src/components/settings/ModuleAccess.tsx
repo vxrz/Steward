@@ -19,10 +19,7 @@ export const moduleAccessKey = (id: ModuleId) => ['settings', 'modules', id, 'ac
 
 /** One entry of the dialog: a team or user and its module role (null: uses it with the role its core roles give). */
 type Entry = { subject: string; role: ModuleRole | null };
-const key = (xs: readonly Entry[]) =>
-  JSON.stringify(
-    xs.map((x) => `${x.subject.toLowerCase()}|${x.role ?? ''}`).sort(),
-  );
+const key = (xs: readonly Entry[]) => JSON.stringify(xs.map((x) => `${x.subject.toLowerCase()}|${x.role ?? ''}`).sort());
 
 /** How many names a preview list shows before "and n more". */
 const SHOWN = 12;
@@ -55,7 +52,14 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
 
   // open to everyone, only entries with a role mean something (they give the role)
   const kept = (m: ModuleAccessMode, xs: readonly Entry[]) => (m === 'selected' ? xs : xs.filter((x) => x.role));
-  const saved = useMemo(() => kept(q.data?.mode ?? 'everyone', adminGrants.map((g) => ({ subject: g.subject.toLowerCase(), role: g.role }))), [q.data, adminGrants]);
+  const saved = useMemo(
+    () =>
+      kept(
+        q.data?.mode ?? 'everyone',
+        adminGrants.map((g) => ({ subject: g.subject.toLowerCase(), role: g.role })),
+      ),
+    [q.data, adminGrants],
+  );
   const body: ModuleAccessInput = { mode, grants: kept(mode, entries).map((e) => ({ subject: e.subject, ...(roles.length ? { role: e.role } : {}) })) };
   const dirty = !!q.data && (mode !== q.data.mode || key(kept(mode, entries)) !== key(saved));
   const setSubjects = (next: string[]) =>

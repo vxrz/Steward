@@ -691,13 +691,7 @@ function UserModal({
           </Text>
         )}
         {user && <ProfileValues values={user.profile} />}
-        <MultiSelect
-          label={t('table.roles')}
-          data={roleOptions(user?.roles)}
-          value={roles}
-          onChange={setRoles}
-          comboboxProps={{ withinPortal: true }}
-        />
+        <MultiSelect label={t('table.roles')} data={roleOptions(user?.roles)} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
         <Stack gap={4} data-testid="user-module-roles">
           <Text size="sm" fw={500}>
             {t('moduleRoles.title')}

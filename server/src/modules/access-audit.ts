@@ -35,7 +35,11 @@ export function recordModuleAccessChange(c: ModuleAccessChange): void {
     action: 'access.module_access_changed',
     entityType: 'settings',
     entityId: `module:${c.module}`,
-    summary: `Who uses the module "${name}": ${what}${c.before.mode !== c.after.mode ? ` (was: ${c.before.mode === 'everyone' ? 'everyone signed in' : 'selected teams and users'})` : ''}${roles.length ? `; module roles ${roles.join(', ')}` : ''}`.slice(0, 500),
+    summary:
+      `Who uses the module "${name}": ${what}${c.before.mode !== c.after.mode ? ` (was: ${c.before.mode === 'everyone' ? 'everyone signed in' : 'selected teams and users'})` : ''}${roles.length ? `; module roles ${roles.join(', ')}` : ''}`.slice(
+        0,
+        500,
+      ),
     details: {
       module: c.module,
       mode: { before: c.before.mode, after: c.after.mode },
@@ -46,4 +50,3 @@ export function recordModuleAccessChange(c: ModuleAccessChange): void {
     },
   });
 }
-

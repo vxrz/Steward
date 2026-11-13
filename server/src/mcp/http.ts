@@ -217,8 +217,7 @@ function admit(req: FastifyRequest, reply: FastifyReply, principal: McpPrincipal
   // a plant viewer (#218) sees the plant registry only: MCP clients are not for them (the plant tools of 0.12.0 are for
   // the other roles, with their site rights)
   const only = moduleOnlyModules(toAuthUser(r.user as UserInfo));
-  if (only.length)
-    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, `${moduleOnlyRefusal(only).error} – MCP clients are not for them`, 'forbidden');
+  if (only.length) return void refuse(reply, 403, STEWARD_ERRORS.forbidden, `${moduleOnlyRefusal(only).error} – MCP clients are not for them`, 'forbidden');
   if (!vault().unlocked) {
     reply.header('retry-after', '60');
     return void refuse(reply, 503, STEWARD_ERRORS.unavailable, 'The vault is locked – an administrator has to unlock it', 'locked');

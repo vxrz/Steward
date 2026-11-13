@@ -10,8 +10,7 @@ import { BRAND } from '../../../../shared/src/brand';
  */
 export function useModuleUseText(): (u: ModuleUse) => string {
   const { t } = useTranslation(['modules', 'common']);
-  const reason = (r: ModuleRoleReason) =>
-    t(`access.roleThrough.${r.source}`, { team: r.team ?? '', role: r.coreRole ? t(`common:roles.${r.coreRole}`) : '' });
+  const reason = (r: ModuleRoleReason) => t(`access.roleThrough.${r.source}`, { team: r.team ?? '', role: r.coreRole ? t(`common:roles.${r.coreRole}`) : '' });
   return (u) => {
     const name = t(`items.${u.module}.name`, { brand: BRAND.name });
     if (!u.uses) return t('access.notUses', { name });

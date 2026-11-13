@@ -1,6 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { STEP_UP_ACTIONS, type AuthStatus, type Me, type ModuleId, type ModuleRole, BRAND, modulesWithRoles, isSsoErrorCode, SSO_REFERENCE, type SsoErrorCode } from '@sm/shared';
+import {
+  STEP_UP_ACTIONS,
+  type AuthStatus,
+  type Me,
+  type ModuleId,
+  type ModuleRole,
+  BRAND,
+  modulesWithRoles,
+  isSsoErrorCode,
+  SSO_REFERENCE,
+  type SsoErrorCode,
+} from '@sm/shared';
 import { config } from '../config.js';
 import { vault, publicKeyPem } from '../vault.js';
 import { audit, flushPendingAudit } from '../audit.js';
