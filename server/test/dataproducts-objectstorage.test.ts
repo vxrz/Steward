@@ -293,6 +293,9 @@ describe('checks, links and file ports', () => {
     const draft = await s.api('POST', '/data-contracts/draft', { source: 'element', elementId: el.id });
     const odcs = YAML.parse(draft.yaml);
     expect(odcs.servers[0]).toMatchObject({ type: 's3', format: 'csv', location: 's3://invented-shop-lake.example/exports/daily-sales/**/*.csv' });
+    // valid against the ODCS 3 schema: its s3 server knows no CSV delimiter (delimiter is JSON's: new_line or array)
+    expect(odcs.servers[0].delimiter).toBeUndefined();
+    expect((draft.warnings as string[]).filter((w) => w.startsWith('/servers'))).toEqual([]);
   });
 });
 
