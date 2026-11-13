@@ -275,6 +275,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   // renaming or removing more than one entry at once, or editing many, asks by default
   { ...sp('plant.renameId', 'catalogue', ['renamePlantId']), defaults: { stepUp: false } },
   sp('plant.bulkChange', 'catalogue', ['changePlantInBulk']),
+  // 0.24.0 (ADR 0036 part 15, phase 2): a data products import in mode replace that removes more than one entry or list item
+  sp('dataproduct.bulkChange', 'catalogue', ['changeDataProductsInBulk']),
   {
     // 0.13.0 (ADR 0020): a second person applies changes to the plant registry – off (nothing changes on upgrade),
     // optional (each site's switch "Changes need a second person", the catalogue's in the plant settings) or required.

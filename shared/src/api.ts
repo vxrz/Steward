@@ -4,6 +4,7 @@ import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
 import type { ErrorParams } from './errors.js';
 import type { ControlTagKind } from './compliance.js';
+import type { DataProductImportChange, DataProductImportProblem } from './dataProductsTransfer.js';
 import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, FlowNode, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
@@ -572,6 +573,8 @@ export const STEP_UP_ACTIONS = [
   // 0.11.0: changing the id of a plant registry entry; renaming, removing or editing many entries at once
   'renamePlantId',
   'changePlantInBulk',
+  // 0.24.0 (ADR 0036 phase 2): a data products import that replaces an earlier one and removes more than one entry or item
+  'changeDataProductsInBulk',
   // 0.14.0 (ADR 0009 step 4): starting a run, saving a schedule or trigger, a request explorer call or approving an MCP
   // request with a privileged platform identity
   'usePrivilegedIdentity',
@@ -2027,7 +2030,7 @@ export interface McpOAuthConsent {
  * gateway: a changing platform call; run: a run; catalogue, mappings: a control catalogue or control mappings for review
  * (#74); plant: changes to the plant registry for review (0.12.0)
  */
-export const MCP_REQUEST_KINDS = ['gateway', 'run', 'catalogue', 'mappings', 'plant'] as const;
+export const MCP_REQUEST_KINDS = ['gateway', 'run', 'catalogue', 'mappings', 'plant', 'dataProducts'] as const;
 export type McpRequestKind = (typeof MCP_REQUEST_KINDS)[number];
 /** pending → approved → done | failed; or rejected / expired / withdrawn */
 export const MCP_REQUEST_STATUSES = ['pending', 'rejected', 'withdrawn', 'expired', 'done', 'failed'] as const;
@@ -2059,7 +2062,39 @@ export const MCP_REQUEST_LIMITS = {
 export type McpProposalSummary =
   | { type: 'catalogue'; key: string; name: string; controls: number }
   | { type: 'mappings'; catalogueKey: string; mappings: number }
-  | { type: 'plant'; title: string; added: number; changed: number };
+  | { type: 'plant'; title: string; added: number; changed: number }
+  | { type: 'dataProducts'; title: string; added: number; changed: number };
+
+/**
+ * Data products, elements, ports and steps proposed by an AI assistant (0.24.0, ADR 0036 part 14, docs/DATA-PRODUCTS.md
+ * "Proposals from assistants"): a document of the module's file format, previewed with the import's preview – nothing
+ * written. Only additions and changes; a person who may import applies it in Steward (as themselves), never the
+ * assistant. Entries the reader may not see are left out of the previews and counted.
+ */
+export interface McpDataProductsProposal {
+  type: 'dataProducts';
+  title: string;
+  incomplete: boolean;
+  document: { bytes: number; sha256: string };
+  parts: number;
+  /** The preview when it was proposed (the token owner's rights): entries added and changed, field by field */
+  proposed: { counts: { add: number; change: number }; changes: DataProductImportChange[]; warnings: string[] };
+  /** The preview now, as the reader; null when decided, still incomplete or the reader may not apply it */
+  now: {
+    counts: { add: number; change: number };
+    changes: DataProductImportChange[];
+    warnings: string[];
+    problems: DataProductImportProblem[];
+    ok: boolean;
+    fingerprint: string;
+  } | null;
+  /** The preview now differs from the one proposed: applying needs the reviewer's confirmation (its fingerprint) */
+  changedSince: boolean;
+  /** Entries left out above: they name what the reader may not see */
+  hidden: number;
+  /** What applying it did (counts), once applied */
+  result: { add: number; change: number } | null;
+}
 
 /** A control catalogue proposed by an AI assistant (#74), as the reviewer sees it: compared with the catalogue of that key. */
 export interface McpCatalogueProposal {
@@ -2180,6 +2215,8 @@ export interface McpProposalSelection {
    * since the proposal was made; applying is refused when the preview is no longer the one the reviewer saw.
    */
   plant?: { fingerprint: string };
+  /** Data products (0.24.0): the fingerprint of the preview the reviewer saw – needed when it changed since the proposal */
+  dataProducts?: { fingerprint: string };
 }
 
 export interface McpRequest {
@@ -2229,7 +2266,7 @@ export interface McpRequest {
   runId: string | null;
   error: string | null;
   /** Control catalogue or mapping proposals (#74), plant registry changes (0.12.0): the full comparison in the detail only */
-  proposal: McpCatalogueProposal | McpMappingsProposal | McpPlantProposal | null;
+  proposal: McpCatalogueProposal | McpMappingsProposal | McpPlantProposal | McpDataProductsProposal | null;
   /** What a proposal is about, also in lists */
   proposalSummary: McpProposalSummary | null;
   /** For the reader */

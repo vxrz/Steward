@@ -494,6 +494,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/:id/scorecard': ALL,
   // phase 2 (package D): estimated against attributed – read like the product (estimates as their owner's plan allows)
   'GET /api/data-products/:id/estimates': ALL,
+  // the Ossie export of the data objects the caller may see (phase 2)
+  'GET /api/data-objects/semantic-model': ALL,
   // the list's maturity and last month's costs of a page (WP8)
   'GET /api/data-products/facts': ALL,
   // import and export, ODPS (WP7): exports read like the products they hold; the preview shows anyone what an import

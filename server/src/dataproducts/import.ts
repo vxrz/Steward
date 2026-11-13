@@ -2,6 +2,8 @@ import { z } from 'zod';
 import {
   CIA_DIMENSIONS,
   DATA_PRODUCT_IMPORT_MODES,
+  DATA_PRODUCT_IMPORT_ORIGIN_RE,
+  DATA_PRODUCT_IMPORT_REMOVALS_WITHOUT_STEP_UP,
   elementNameNorm,
   type AclEntry,
   type DataObjectives,
@@ -23,14 +25,28 @@ import { permissionsFor } from '../processes/service.js';
 import { canViewCatalogue } from '../records/access.js';
 import { parseYaml } from '../yaml-safe.js';
 import { isSecretKey, redactUserinfo } from '../plant/collections-redact.js';
-import { HttpError, parseJson, sha256 } from '../util.js';
+import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
+import { isOdpsDocument, odpsToFile } from './odps-import.js';
 import { domainAccess, elementAccess, objectAccess, productAccess } from './access.js';
 import * as svc from './service.js';
 import * as el from './elements.js';
 import * as ports from './ports.js';
 import * as steps from './steps.js';
 import { ratingsByItem } from './ratings.js';
-import { consumersOf, elementTeamIds, membersOf, portsOf, type DomainRow, type ElementRow, type ObjectRow, type PortRow, type ProductRow } from './store.js';
+import {
+  chunks,
+  consumersOf,
+  elementTeamIds,
+  elementsByIds,
+  marks,
+  membersOf,
+  portsOf,
+  type DomainRow,
+  type ElementRow,
+  type ObjectRow,
+  type PortRow,
+  type ProductRow,
+} from './store.js';
 import {
   DATA_PRODUCT_FORMAT_VERSION,
   DATA_PRODUCT_IMPORT_LIMITS as IL,
@@ -75,9 +91,20 @@ export const importInput = z
     mode: z.enum(DATA_PRODUCT_IMPORT_MODES),
     /** The preview's fingerprint: a different result is refused (DATA_PRODUCT_IMPORT_CHANGED) */
     fingerprint: z.string().trim().max(80).optional(),
+    /**
+     * Phase 2: the name the import keeps its entries under (any mode); mode replace replaces the earlier import of this
+     * origin – its entries the files no longer hold are removed
+     */
+    origin: z.string().trim().regex(DATA_PRODUCT_IMPORT_ORIGIN_RE, 'letters, digits and . _ - : / (at most 100)').optional(),
   })
-  .strict();
+  .strict()
+  .refine((x) => x.mode !== 'replace' || !!x.origin, { message: 'Replacing needs the origin of the earlier import', path: ['origin'] });
 export type ImportInput = z.infer<typeof importInput>;
+
+/** What the module's own callers add (Git sync): the files are the whole of their products' lists (members, ports, steps, consumers). */
+export interface ImportOptions {
+  replaceLists?: boolean;
+}
 
 // ---------- reading ----------
 
@@ -127,7 +154,7 @@ interface Parsed {
   file: DataProductsFile | null;
 }
 
-function readFiles(files: ImportInput['files'], problems: DataProductImportProblem[]): Parsed[] {
+function readFiles(files: ImportInput['files'], problems: DataProductImportProblem[], warnings: string[] = [], odps = { n: 0 }): Parsed[] {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0);
   if (total > IL.bytes)
     throw new HttpError(413, `The files are too large together (at most ${IL.bytes / 1024 / 1024} MB)`, 'DATA_PRODUCT_IMPORT_TOO_LARGE', {
@@ -165,6 +192,15 @@ function readFiles(files: ImportInput['files'], problems: DataProductImportProbl
           code: 'DATA_PRODUCT_IMPORT_SECRET',
         });
       return out;
+    }
+    // phase 2: an ODPS document is read as a data product of the format (ODPS import)
+    if (isOdpsDocument(raw)) {
+      const c = odpsToFile(raw);
+      odps.n++;
+      warnings.push(...c.warnings);
+      for (const p of c.problems) problems.push({ file: f.name, path: p.path, message: p.message });
+      if (!c.file) return out;
+      raw = c.file;
     }
     if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw as { version?: unknown }).version === undefined)
       problems.push({ file: f.name, path: 'version', message: `Required: version: ${DATA_PRODUCT_FORMAT_VERSION} (the format of the file)` });
@@ -287,6 +323,14 @@ interface Plan {
   products: Entry<ProductFile, ProductRow>[];
   /** The plan's look-ups (the ids of what the import adds join them while it runs) */
   r: Resolver | null;
+  /** Phase 2: the origin the entries are kept under; replace: the lists of products are the files' */
+  origin: string | null;
+  replaceLists: boolean;
+  /** Everything the files name, by kind and key (unchanged entries too: they stay the origin's) */
+  named: { domains: Set<string>; objects: Set<string>; products: Set<string>; elements: Set<string> };
+  /** Mode replace: the origin's entries the files no longer hold, to be removed (visible to the importer) */
+  removals: { products: ProductRow[]; objects: ObjectRow[]; domains: DomainRow[]; elements: ElementRow[]; gone: { kind: string; id: string }[] };
+  odps: number;
 }
 
 interface PlatformRef {
@@ -501,21 +545,29 @@ function normaliseObject(o: ObjectFile): void {
 const entriesOf = <T>(many: T[] | undefined, one: T | undefined): T[] => [...(many ?? []), ...(one ? [one] : [])];
 const label = (kind: string, key: string) => `${kind}[${key}]`;
 
-function buildPlan(input: ImportInput): Plan {
+function buildPlan(input: ImportInput, o: ImportOptions = {}): Plan {
   const problems: DataProductImportProblem[] = [];
-  const parsed = readFiles(input.files, problems);
+  const warnings: string[] = [];
+  const odps = { n: 0 };
+  const parsed = readFiles(input.files, problems, warnings, odps);
+  const replace = input.mode === 'replace';
   const plan: Plan = {
     mode: input.mode,
     files: parsed.map((p) => ({ name: p.name, sha256: p.sha256, bytes: p.bytes })),
     problems,
-    warnings: [],
+    warnings,
     changes: [],
-    counts: { add: 0, change: 0, unchanged: 0, skip: 0 },
+    counts: { add: 0, change: 0, unchanged: 0, skip: 0, ...(replace || o.replaceLists ? { remove: 0, removedItems: 0, keptHidden: 0 } : {}) },
     domains: [],
     objects: [],
     elements: [],
     products: [],
     r: null,
+    origin: input.origin ?? null,
+    replaceLists: replace || !!o.replaceLists,
+    named: { domains: new Set(), objects: new Set(), products: new Set(), elements: new Set() },
+    removals: { products: [], objects: [], domains: [], elements: [], gone: [] },
+    odps: odps.n,
   };
   if (problems.length) return plan;
   const s = new Snapshot();
@@ -536,6 +588,7 @@ function buildPlan(input: ImportInput): Plan {
     list: Entry<T, R>[],
     e: { file: string; key: string; row: R | null; incoming: T; current: T | null },
     compare?: (x: T) => unknown,
+    merge: (cur: T, inc: T) => { merged: T; removed: DataProductImportField[] } = (cur, inc) => ({ merged: overlay(cur, inc), removed: [] }),
   ) => {
     if (!e.current || !e.row) {
       plan.counts.add++;
@@ -548,8 +601,9 @@ function buildPlan(input: ImportInput): Plan {
       plan.changes.push({ kind, key: e.key, action: 'skip', fields: [], reason: 'exists' });
       return;
     }
-    const merged = overlay(e.current, e.incoming);
-    const fields = diffOf(compare ? compare(e.current) : e.current, compare ? compare(merged) : merged);
+    const { merged, removed } = merge(e.current, e.incoming);
+    const fields = [...diffOf(compare ? compare(e.current) : e.current, compare ? compare(merged) : merged), ...removed];
+    if (removed.length) plan.counts.removedItems = (plan.counts.removedItems ?? 0) + removed.length;
     if (!fields.length) {
       plan.counts.unchanged++;
       return;
@@ -593,6 +647,7 @@ function buildPlan(input: ImportInput): Plan {
     const row = r.stored(ref, p?.id ?? '');
     const key = elementKey(row ? { ...ref, qualified_name: row.qualified_name } : ref);
     if (!once(file, 'elements', key)) continue;
+    plan.named.elements.add(key);
     if (row) {
       r.elementIds.set(key, row.id);
       s.elements([row.id]);
@@ -614,6 +669,7 @@ function buildPlan(input: ImportInput): Plan {
   for (const f of files) {
     for (const d of entriesOf(f.file.domains, f.file.domain)) {
       if (!once(f.name, 'domains', d.key)) continue;
+      plan.named.domains.add(d.key);
       const row = r.domain(d.key) ?? null;
       record('domain', plan.domains, { file: f.name, key: d.key, row, incoming: d, current: row ? domainEntry(s, row) : null });
     }
@@ -621,6 +677,7 @@ function buildPlan(input: ImportInput): Plan {
   for (const f of files) {
     for (const [i, o] of entriesOf(f.file.data_objects, f.file.data_object).entries()) {
       if (!once(f.name, 'data_objects', o.key)) continue;
+      plan.named.objects.add(o.key);
       const incoming = structuredClone(o);
       normaliseObject(incoming);
       canonicalRefs(r, incoming, `data_objects[${i}]`, (path, message) => problems.push({ file: f.name, path, message }));
@@ -637,6 +694,7 @@ function buildPlan(input: ImportInput): Plan {
   for (const f of files) {
     for (const [i, p] of entriesOf(f.file.data_products, f.file.data_product).entries()) {
       if (!once(f.name, 'data_products', p.key)) continue;
+      plan.named.products.add(p.key);
       const row = r.product(p.key) ?? null;
       const incoming = structuredClone(p);
       canonicalRefs(
@@ -647,12 +705,177 @@ function buildPlan(input: ImportInput): Plan {
         row ? new Set(membersOf([row.id]).map((m) => m.element_id)) : undefined,
       );
       normaliseProduct(incoming);
-      record('dataProduct', plan.products, { file: f.name, key: p.key, row, incoming, current: row ? productEntry(s, row) : null });
+      const current = row ? productEntry(s, row) : null;
+      // replace: what the product holds that the reader may not see is kept (counted) – members on hidden platforms,
+      // consumers they may not see
+      if (row && plan.replaceLists) plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + hiddenItems(row, current!);
+      record(
+        'dataProduct',
+        plan.products,
+        { file: f.name, key: p.key, row, incoming, current },
+        undefined,
+        plan.replaceLists ? replacedLists : undefined,
+      );
     }
   }
+  if (input.mode === 'replace' && input.origin) planRemovals(plan, input.origin, s);
   if (plan.changes.length > IL.changes) plan.changes = plan.changes.slice(0, IL.changes);
   return plan;
 }
+
+// ---------- replace (phase 2) ----------
+
+/** Members, ports, steps and consumers of the product that the export of it leaves out (the reader may not see them). */
+function hiddenItems(row: ProductRow, current: ProductFile): number {
+  const ports = portsOf([row.id]);
+  const consumers = consumersOf(ports.map((p) => p.id)).filter((c) => ports.find((p) => p.id === c.port_id)?.direction === 'output');
+  const shownConsumers = (current.ports ?? []).reduce((n, p) => n + (p.consumers?.length ?? 0), 0);
+  return Math.max(0, membersOf([row.id]).length - (current.members?.length ?? 0)) + Math.max(0, consumers.length - shownConsumers);
+}
+
+const listName = (x: string) => x.split('\u0000').filter(Boolean).join(' ');
+
+/**
+ * The product as the files say it, its lists included: members, ports, steps and the consumers of each port are those
+ * of the file (an item the file leaves out is removed); other fields as add and update (a key left out keeps its value).
+ */
+function replacedLists(cur: ProductFile, inc: ProductFile): { merged: ProductFile; removed: DataProductImportField[] } {
+  const merged = overlay(cur, inc);
+  const removed: DataProductImportField[] = [];
+  const keep = <T>(field: string, list: T[] | undefined, wanted: T[] | undefined, id: (x: T) => string): T[] => {
+    const ids = new Set((wanted ?? []).map(id));
+    const out: T[] = [];
+    for (const x of list ?? []) {
+      if (ids.has(id(x))) out.push(x);
+      else removed.push({ field: `${field}[${listName(id(x))}]`, before: 'present', after: 'removed' });
+    }
+    return out;
+  };
+  merged.members = keep('members', merged.members, inc.members, (x) => elementKey(x.element));
+  merged.ports = keep('ports', merged.ports, inc.ports, (x) => portIdentity(x)).map((port) => {
+    const want = (inc.ports ?? []).find((x) => portIdentity(x) === portIdentity(port));
+    if (port.direction !== 'output') return port;
+    return { ...port, consumers: keep(`ports[${portIdentity(port)}].consumers`, port.consumers, want?.consumers, (c) => consumerIdentity(c)) };
+  });
+  merged.steps = keep('steps', merged.steps, inc.steps, (x) => x.name.toLowerCase());
+  return { merged, removed };
+}
+
+/**
+ * The entries an earlier import of `origin` brought in that the files no longer hold: removed when the importer may see
+ * them (their delete right is checked by the services when it runs), kept and counted when not. Discovered elements are
+ * discovery's and never removed; an element still part of a product that stays, and a domain still used, are kept with
+ * a warning.
+ */
+function planRemovals(plan: Plan, origin: string, s: Snapshot): void {
+  const rows = db().all<{ kind: string; item_id: string }>('SELECT kind, item_id FROM dp_import_origins WHERE origin = ? ORDER BY kind, item_id', origin);
+  const ids = (kind: string) => rows.filter((r) => r.kind === kind).map((r) => r.item_id);
+  const fetch = <T extends { id: string }>(table: string, list: string[]): T[] =>
+    chunks(list).flatMap((part) => db().all<T>(`SELECT * FROM ${table} WHERE id IN (${marks(part.length)})`, ...part));
+  const hidden = () => (plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + 1);
+  const remove = (kind: DataProductImportKind, key: string) => {
+    plan.counts.remove = (plan.counts.remove ?? 0) + 1;
+    plan.changes.push({ kind, key, action: 'remove', fields: [] });
+  };
+  const gone = (kind: string, list: string[], found: { id: string }[]) => {
+    const have = new Set(found.map((x) => x.id));
+    for (const id of list) if (!have.has(id)) plan.removals.gone.push({ kind, id });
+  };
+
+  const productIds = ids('dataProduct');
+  const products = fetch<ProductRow>('dp_products', productIds);
+  gone('dataProduct', productIds, products);
+  for (const p of products) {
+    if (plan.named.products.has(p.key)) continue;
+    if (!productAccess(s.u, p).permissions.length) {
+      hidden();
+      continue;
+    }
+    plan.removals.products.push(p);
+    remove('dataProduct', p.key);
+  }
+  const removedProducts = new Set(plan.removals.products.map((p) => p.id));
+
+  const objectIds = ids('dataObject');
+  const objects = fetch<ObjectRow>('dp_objects', objectIds);
+  gone('dataObject', objectIds, objects);
+  for (const o of objects) {
+    if (plan.named.objects.has(o.key)) continue;
+    if (!objectAccess(s.u, o).permissions.length) {
+      hidden();
+      continue;
+    }
+    plan.removals.objects.push(o);
+    remove('dataObject', o.key);
+  }
+
+  const elementIds = ids('element');
+  const elements = elementsByIds(elementIds);
+  gone('element', elementIds, [...elements.values()]);
+  const teams = elementTeamIds([...elements.keys()]);
+  // what products keep each element: memberships in products that stay, after the files' member lists
+  const stayingMembers = new Map<string, number>();
+  const replaced = new Map(plan.products.filter((e) => e.row).map((e) => [e.row!.id, new Set((e.merged.members ?? []).map((m) => elementKey(m.element)))]));
+  const memberships = chunks([...elements.keys()]).flatMap((part) =>
+    db().all<{ product_id: string; element_id: string }>(`SELECT product_id, element_id FROM dp_members WHERE element_id IN (${marks(part.length)})`, ...part),
+  );
+  for (const m of memberships) {
+    if (!elements.has(m.element_id) || removedProducts.has(m.product_id)) continue;
+    const ref = s.ref(m.element_id);
+    const after = replaced.get(m.product_id);
+    if (after && ref && !after.has(elementKey(ref))) continue;
+    stayingMembers.set(m.element_id, (stayingMembers.get(m.element_id) ?? 0) + 1);
+  }
+  for (const e of elements.values()) {
+    const ref = s.ref(e.id);
+    if (ref && plan.named.elements.has(elementKey(ref))) continue;
+    if (e.source === 'discovered') continue;
+    if (!ref || !elementAccess(s.u, teams.get(e.id) ?? []).permissions.length) {
+      hidden();
+      continue;
+    }
+    const display = `${ref.platform ? `${ref.platform}: ` : ''}${ref.qualified_name} (${ref.kind}${ref.environment ? `, ${ref.environment}` : ''})`;
+    const staying = stayingMembers.get(e.id) ?? 0;
+    if (staying) {
+      plan.warnings.push(`${display}: kept – still part of ${staying} data product(s)`);
+      continue;
+    }
+    plan.removals.elements.push(e);
+    remove('element', display);
+  }
+
+  const domainIds = ids('domain');
+  const domains = fetch<DomainRow>('dp_domains', domainIds);
+  gone('domain', domainIds, domains);
+  const removedObjects = new Set(plan.removals.objects.map((o) => o.id));
+  for (const d of domains) {
+    if (plan.named.domains.has(d.key)) continue;
+    if (!domainAccess(s.u, d).permissions.length) {
+      hidden();
+      continue;
+    }
+    // used by a product, data object or sub-domain that stays: kept
+    const users =
+      db()
+        .all<{ id: string }>('SELECT id FROM dp_products WHERE domain_id = ?', d.id)
+        .filter((x) => !removedProducts.has(x.id)).length +
+      db()
+        .all<{ id: string }>('SELECT id FROM dp_objects WHERE domain_id = ?', d.id)
+        .filter((x) => !removedObjects.has(x.id)).length +
+      db()
+        .all<{ id: string; key: string }>('SELECT id, key FROM dp_domains WHERE parent_id = ?', d.id)
+        .filter((x) => !domains.some((y) => y.id === x.id && !plan.named.domains.has(y.key))).length;
+    if (users) {
+      plan.warnings.push(`domains[${d.key}]: kept – still used by ${users} entr${users === 1 ? 'y' : 'ies'}`);
+      continue;
+    }
+    plan.removals.domains.push(d);
+    remove('domain', d.key);
+  }
+}
+
+/** Removals of a plan: entries and list items together (more than one asks for the step-up dataproduct.bulkChange). */
+const removalsOf = (plan: Plan): number => (plan.counts.remove ?? 0) + (plan.counts.removedItems ?? 0);
 
 // ---------- writing ----------
 
@@ -1203,16 +1426,108 @@ function execute(plan: Plan, dry: boolean): void {
   writeElements(run);
   writeObjectElements(run);
   writeProducts(run);
+  if (plan.replaceLists) removeListItems(run);
+  if (plan.mode === 'replace') writeRemovals(run);
+  if (plan.origin && !dry) recordOrigins(run, plan.origin);
+}
+
+/** Replace: the members, ports, steps and consumers of the files' products that the files leave out. */
+function removeListItems(run: Run): void {
+  const { r } = run;
+  for (const e of run.plan.products) {
+    if (!e.row || !e.current) continue;
+    const entry = label('data_products', e.key);
+    if (run.failed.has(entry)) continue;
+    const pid = e.row.id;
+    const name = e.merged.name;
+    const wantPorts = new Map((e.merged.ports ?? []).map((x) => [portIdentity(x), x]));
+    const portRows = portsOf([pid]);
+    // consumers of the ports that stay
+    for (const port of portRows) {
+      const want = wantPorts.get(portIdentity(port));
+      if (!want || port.direction !== 'output') continue;
+      const keep = new Set((want.consumers ?? []).map((c) => consumerIdentity(c)));
+      const shown = new Set((e.current.ports ?? []).find((x) => portIdentity(x) === portIdentity(port))?.consumers?.map((c) => consumerIdentity(c)) ?? []);
+      for (const c of consumersOf([port.id])) {
+        const id = consumerIdentityOfRow(r, c);
+        // only what the export showed the importer can be removed (a consumer they may not see stays)
+        if (keep.has(id) || !shown.has(id)) continue;
+        step(run, e.file, entry, `remove consumer ${id} of port ${portIdentity(port)}`, () => ports.removeConsumer(pid, name, port.id, c.id));
+      }
+    }
+    const wantSteps = new Set((e.merged.steps ?? []).map((x) => x.name.toLowerCase()));
+    const shownSteps = new Set((e.current.steps ?? []).map((x) => x.name.toLowerCase()));
+    for (const st of steps.productSteps(pid))
+      if (!wantSteps.has(st.name.toLowerCase()) && shownSteps.has(st.name.toLowerCase()))
+        step(run, e.file, entry, `remove step ${st.name}`, () => steps.deleteStep(pid, name, st.id));
+    for (const port of portRows)
+      if (!wantPorts.has(portIdentity(port))) step(run, e.file, entry, `remove port ${portIdentity(port)}`, () => ports.deletePort(pid, name, port.id));
+    const wantMembers = new Set((e.merged.members ?? []).map((m) => elementKey(m.element)));
+    for (const m of membersOf([pid])) {
+      const ref = r.s.ref(m.element_id);
+      // a member on a platform the importer may not see is never removed (it is not in the file they could write)
+      if (!ref || wantMembers.has(elementKey(ref))) continue;
+      step(run, e.file, entry, `remove member ${ref.qualified_name}`, () => el.removeMember(pid, name, m.element_id));
+    }
+  }
+}
+
+/** Replace: the origin's entries the files no longer hold – products, then elements and data objects, then domains (sub-domains first). */
+function writeRemovals(run: Run): void {
+  const x = run.plan.removals;
+  for (const p of x.products) step(run, '(replace)', label('data_products', p.key), 'remove', () => svc.deleteProduct(p.id));
+  for (const e of x.elements) step(run, '(replace)', label('elements', e.qualified_name), 'remove', () => el.deleteElement(e.id));
+  for (const o of x.objects) step(run, '(replace)', label('data_objects', o.key), 'remove', () => svc.deleteObject(o.id));
+  const domains = [...x.domains].sort((a, b) => Number(!!b.parent_id) - Number(!!a.parent_id));
+  for (const d of domains) step(run, '(replace)', label('domains', d.key), 'remove', () => svc.deleteDomain(d.id));
+}
+
+/** Keeps every entry the files name under the import's origin (and forgets those it removed or that are gone). */
+function recordOrigins(run: Run, origin: string): void {
+  const { r, plan } = run;
+  const at = nowIso();
+  const add = (kind: string, id: string | undefined) => {
+    if (id) db().run('INSERT INTO dp_import_origins (origin, kind, item_id, recorded_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', origin, kind, id, at);
+  };
+  const byKey = (table: string, key: string) => db().get<{ id: string }>(`SELECT id FROM ${table} WHERE key = ?`, key)?.id;
+  for (const k of plan.named.domains) add('domain', r.domainIds.get(k) ?? byKey('dp_domains', k));
+  for (const k of plan.named.objects) add('dataObject', r.objectIds.get(k) ?? byKey('dp_objects', k));
+  for (const k of plan.named.products) add('dataProduct', r.productIds.get(k) ?? byKey('dp_products', k));
+  for (const k of plan.named.elements) add('element', r.elementIds.get(k));
+  const forget = [
+    ...plan.removals.products.map((x) => ({ kind: 'dataProduct', id: x.id })),
+    ...plan.removals.objects.map((x) => ({ kind: 'dataObject', id: x.id })),
+    ...plan.removals.domains.map((x) => ({ kind: 'domain', id: x.id })),
+    ...plan.removals.elements.map((x) => ({ kind: 'element', id: x.id })),
+    ...plan.removals.gone,
+  ];
+  for (const f of forget) db().run('DELETE FROM dp_import_origins WHERE origin = ? AND kind = ? AND item_id = ?', origin, f.kind, f.id);
 }
 
 function fingerprintOf(plan: Plan): string {
-  return sha256(stable({ mode: plan.mode, counts: plan.counts, changes: plan.changes, files: plan.files.map((f) => f.sha256) })).slice(0, 32);
+  return sha256(
+    stable({ mode: plan.mode, counts: plan.counts, changes: plan.changes, files: plan.files.map((f) => f.sha256), origin: plan.origin }),
+  ).slice(0, 32);
+}
+
+/**
+ * How many entries and list items an import of this body removes (mode replace, or a caller's replaced lists) – the
+ * route asks for the step-up dataproduct.bulkChange above one. Reads only; a body that does not parse removes nothing.
+ */
+export function importRemovals(body: unknown): number {
+  const input = importInput.safeParse(body);
+  if (!input.success || input.data.mode !== 'replace') return 0;
+  try {
+    return removalsOf(buildPlan(input.data));
+  } catch {
+    return 0;
+  }
 }
 
 /** What an import of these files would add, change and skip – nothing is written. */
-export function previewImport(body: unknown): DataProductImportPreview {
+export function previewImport(body: unknown, o: ImportOptions = {}): DataProductImportPreview {
   const input = importInput.parse(body);
-  const plan = buildPlan(input);
+  const plan = buildPlan(input, o);
   if (!plan.problems.length) {
     try {
       withoutAudit(() =>
@@ -1235,13 +1550,16 @@ export function previewImport(body: unknown): DataProductImportPreview {
     warnings: [...new Set(plan.warnings)].slice(0, 100),
     files: plan.files,
     fingerprint: fingerprintOf(plan),
+    origin: plan.origin,
+    stepUp: removalsOf(plan) > DATA_PRODUCT_IMPORT_REMOVALS_WITHOUT_STEP_UP,
+    ...(plan.odps ? { odps: plan.odps } : {}),
   };
 }
 
 /** Imports the files in one transaction (400 DATA_PRODUCT_IMPORT_INVALID with the first problems, nothing written). */
-export function applyImport(body: unknown): DataProductImportResult {
+export function applyImport(body: unknown, o: ImportOptions = {}): DataProductImportResult {
   const input = importInput.parse(body);
-  const plan = buildPlan(input);
+  const plan = buildPlan(input, o);
   if (plan.problems.length) {
     const secret = plan.problems.filter((p) => p.code === 'DATA_PRODUCT_IMPORT_SECRET');
     if (secret.length)
@@ -1280,11 +1598,23 @@ export function applyImport(body: unknown): DataProductImportResult {
     db().tx(() => {
       execute(plan, false);
       const c = plan.counts;
+      const mode = plan.mode === 'add' ? 'add only' : plan.mode === 'replace' ? `replace ${plan.origin}` : 'add and update';
       audit({
         action: 'dataproduct.imported',
         entityType: 'data_product',
-        summary: `Data products imported (${plan.mode === 'add' ? 'add only' : 'add and update'}): ${c.add} added, ${c.change} changed, ${c.unchanged} unchanged, ${c.skip} skipped – ${plan.files.length} file(s)`,
-        details: { mode: plan.mode, counts: c, files: plan.files },
+        summary: `Data products imported (${mode}): ${c.add} added, ${c.change} changed, ${c.unchanged} unchanged, ${c.skip} skipped${
+          c.remove !== undefined ? `, ${c.remove} removed, ${c.removedItems ?? 0} list item(s) removed, ${c.keptHidden ?? 0} kept (not visible)` : ''
+        } – ${plan.files.length} file(s)${plan.odps ? ` (${plan.odps} ODPS)` : ''}`,
+        details: {
+          mode: plan.mode,
+          counts: c,
+          files: plan.files,
+          ...(plan.origin ? { origin: plan.origin } : {}),
+          ...(plan.odps ? { odps: plan.odps } : {}),
+          ...(plan.mode === 'replace'
+            ? { removed: plan.changes.filter((x) => x.action === 'remove').map((x) => ({ kind: x.kind, key: x.key })).slice(0, 500) }
+            : {}),
+        },
       });
     }),
   );
