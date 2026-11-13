@@ -378,7 +378,9 @@
     "lastLogin_one": "Last sign-in {{date}} ({{count}} day ago)",
     "lastLogin_other": "Last sign-in {{date}} ({{count}} days ago)",
     "neverSignedIn": "Never signed in",
-    "passwordWithoutMfa": "Password without MFA"
+    "passwordWithoutMfa": "Password without MFA",
+    "modules": "Modules of this instance",
+    "modulesHint": "Restricted modules, read now: who uses a module is changed in Settings → Modules, not on a platform. SSO groups reach a module through their team."
   },
   "packs": {
     "title": "Evidence packs",

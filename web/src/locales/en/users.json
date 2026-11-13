@@ -297,7 +297,8 @@
         "USERNAME_TRANSFORMED": "User name rule: {{from}} → {{to}}",
         "GROUPS_OVERAGE": "The token left the groups out (too many groups; claim {{claim}}). No roles come from them. Assign groups to the application, use app roles or a group filter.",
         "USERINFO_USED": "Claims from the userinfo endpoint are used too."
-      }
+      },
+      "modules": "Restricted modules"
     },
     "stripDomains": "Domains to strip",
     "stripDomainsHint": "Only these domains are removed (max@contoso.com → max). A user name of any other domain is refused – otherwise boss@any-domain could claim the account “boss”.",

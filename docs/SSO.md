@@ -30,7 +30,7 @@ The test sign-in is at the bottom of the provider editor (saved providers, also 
 2. Sign in there – as yourself or with a test account.
 3. Back in the editor you see:
    - the **claims of the ID token** and the **claims from the userinfo endpoint** (names and values; never the tokens themselves);
-   - a **preview of the account**: user name (and the claim it came from), display, first and last name, e-mail and whether it is confirmed, profile fields, the stable identifier, groups and the mappings they match, roles and teams;
+   - a **preview of the account**: user name (and the claim it came from), display, first and last name, e-mail and whether it is confirmed, profile fields, the stable identifier, groups and the mappings they match, roles and teams – and, when a module is restricted to selected teams and users, whether the person would use it and through which team ([TEAMS.md](TEAMS.md#modules-through-teams));
    - **what a sign-in would do**: sign in to the linked account, re-link it, link an existing account, create a new one – or refuse it, and why.
 
 The preview uses the settings in the form, also unsaved ones. Change a claim name or the linking policy and the preview follows. The connection (issuer, client, secret) is always the saved one.
@@ -82,7 +82,7 @@ Read-only fields on the account, e.g. department, job title, phone, city:
 
 ### Groups and roles
 
-- **Groups claim** (default `roles` for Entra app roles, `groups` elsewhere) and the **mappings**: a claim value → roles and teams.
+- **Groups claim** (default `roles` for Entra app roles, `groups` elsewhere) and the **mappings**: a claim value → roles and teams. A group reaches a restricted module through the team it is mapped to ([TEAMS.md](TEAMS.md#modules-through-teams)).
 - **Values are names** (matched ignoring case) or **ids** (matched exactly, e.g. Entra group object ids, Okta group ids).
 - **Group overage:** when a person has too many groups, Entra ID leaves them out of the token and sends `_claim_names` / `_claim_sources` naming the claim (or `hasgroups`). Steward checks this for the configured groups claim only (app roles in `roles` are not affected). Steward cannot see the groups then: no roles come from them, the sign-in is logged and audited (`sso.groups_overage`), a provider that requires a mapping refuses the sign-in, and the test sign-in shows it. Fix it at the provider: assign groups to the application ("groups assigned to the application"), use app roles, or a group filter.
 

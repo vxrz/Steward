@@ -6,7 +6,6 @@
  */
 import { z } from 'zod';
 import { DATASET_STATUSES, MONITOR_STATUSES, TICKET_LINK_KINDS, TICKET_STATUSES, moduleOfMcpTool, type DatasetRow } from '@sm/shared';
-import { db } from '../db.js';
 import { queryAudit } from '../audit.js';
 import { config } from '../config.js';
 import { currentUser } from '../auth/context.js';

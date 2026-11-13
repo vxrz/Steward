@@ -4,6 +4,7 @@ import {
   OWNED_KINDS,
   SUPPLIER_CONTACT_CHOICES,
   boundedRecord,
+  moduleOfItemKind,
   type AccessExplanation,
   type AccessReason,
   type AclEntry,
@@ -20,6 +21,7 @@ import { dashboardAccess } from '../dashboards/service.js';
 import { canCreateTickets, ticketAccess } from '../tickets/service.js';
 import { siteAccess } from '../plant/access.js';
 import { plantEnabled } from '../plant/settings.js';
+import { moduleUseOf } from '../modules/access.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
 import {
@@ -471,6 +473,10 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
     }
     const d = access(q.kind, r, who);
     const teams = isCatalogue(q.kind) ? catalogueTeams(q.kind, r.id) : owningTeams(q.kind, r.id);
-    return { kind: q.kind, id: r.id, user: who.username, owningTeams: teams, permissions: d.permissions, reasons: d.reasons };
+    // an item of a module (a site, a data contract): the module layer first (ADR 0034) – without it, no rights at all
+    const mod = moduleOfItemKind(q.kind);
+    const module = mod ? moduleUseOf(who, mod) : undefined;
+    const permissions = module && !module.uses ? [] : d.permissions;
+    return { kind: q.kind, id: r.id, user: who.username, owningTeams: teams, permissions, reasons: d.reasons, ...(module ? { module } : {}) };
   });
 }

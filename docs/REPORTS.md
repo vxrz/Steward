@@ -111,6 +111,8 @@ A schedule has an **owner**, the person who created it. It runs with the owner's
 
 Recipients get the report the owner was allowed to produce – choose them like you would choose the people you send a document to.
 
+**Modules restricted to selected teams and users** ([MODULES.md](MODULES.md#who-may-use-a-module)): a section of a module the owner does not use is left out of the report. A recipient who does not use such a module – and every e-mail address outside Steward – gets a copy without its sections. Under the recipients, the form names who is affected before you save: _Without the Costs sections (they do not use the module): Vera Viewer, members of team Invented support who do not use it otherwise, 1 e-mail address outside Steward_.
+
 ### Who may do what
 
 |                                       | Create | Change, delete, generate now | See the schedule and its reports |

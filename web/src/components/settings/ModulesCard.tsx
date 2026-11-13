@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Anchor, Card, Group, Loader, Stack, Switch, Text, Title } from '@mantine/core';
+import { Anchor, Button, Card, Group, Loader, Stack, Switch, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { IconPuzzle } from '@tabler/icons-react';
+import { IconPuzzle, IconUsers } from '@tabler/icons-react';
 import type { ModuleId, ModuleState, ModulesView } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../../../shared/src/brand';
@@ -10,19 +10,22 @@ import { get, notifyError, notifyOk, put } from '../../api';
 import { QueryState } from '../common';
 import { MaturityBadge } from '../modules/MaturityBadge';
 import { visibilityKey } from '../../modules';
+import { ModuleAccessBadge, ModuleAccessModal } from './ModuleAccess';
 
 export const modulesKey = ['settings', 'modules'] as const;
 
 /**
  * Settings → Modules (0.11.0, ADR 0016): every optional area with its maturity and a switch. Switching asks for a
  * step-up (the API layer opens the dialog) and applies to everyone; the data of a switched-off area stays. The plant
- * registry and its map are switched in their own cards below.
+ * registry and its map are switched in their own cards below. Who may use a module (0.21.0, ADR 0034): everyone signed
+ * in, or selected teams and users – per restrictable module, in its own dialog (ModuleAccess.tsx).
  */
 export function ModulesCard() {
   const { t } = useTranslation('modules');
   const qc = useQueryClient();
   const q = useQuery({ queryKey: modulesKey, queryFn: () => get<ModulesView>('/settings/modules') });
   const [busy, setBusy] = useState<ModuleId | null>(null);
+  const [access, setAccess] = useState<ModuleId | null>(null);
   const byId = new Map((q.data?.modules ?? []).map((m) => [m.id, m]));
   const name = (id: ModuleId) => t(`items.${id}.name`, { brand: BRAND.name });
   const toggle = async (m: ModuleState, enabled: boolean) => {
@@ -74,6 +77,24 @@ export function ModulesCard() {
                       {m.id === 'plantMap' ? t('mapSettings') : own ? t('ownSettings') : t('requires', { name: name(requires!.id) })}
                     </Text>
                   )}
+                  {m.restrictable && (
+                    <Group gap={6} mt={4} wrap="wrap" data-testid={`module-${m.id}-access-mode`} data-mode={m.accessMode}>
+                      <Text size="xs" c="dimmed">
+                        {t('access.usedBy')}
+                      </Text>
+                      <ModuleAccessBadge mode={m.accessMode} />
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        leftSection={<IconUsers size={12} aria-hidden />}
+                        onClick={() => setAccess(m.id)}
+                        aria-label={t('access.openLabel', { name: name(m.id) })}
+                        data-testid={`module-${m.id}-access`}
+                      >
+                        {t('access.open')}
+                      </Button>
+                    </Group>
+                  )}
                 </div>
                 {own ? (
                   <Text size="xs" fw={600} c={m.enabled ? 'green' : 'dimmed'} style={{ flexShrink: 0 }} data-testid={`module-${m.id}-state`}>
@@ -95,6 +116,17 @@ export function ModulesCard() {
           );
         })}
       </Stack>
+      {access && (
+        <ModuleAccessModal
+          id={access}
+          name={name(access)}
+          onClose={() => setAccess(null)}
+          onSaved={() => {
+            setAccess(null);
+            void qc.invalidateQueries({ queryKey: modulesKey });
+          }}
+        />
+      )}
       <Text size="xs" mt="sm">
         <Anchor href={`${BRAND.repoUrl}/blob/HEAD/docs/MODULES.md`} target="_blank" rel="noopener">
           {t('docs')}

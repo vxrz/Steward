@@ -1,8 +1,9 @@
-import { HIDDEN_MONITOR_REF, type CauseRef, type MonitorStatus } from '@sm/shared';
+import { CHECK_TYPE_DEFS, HIDDEN_MONITOR_REF, type CauseRef, type CheckResultInfo, type MonitorStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { monitorPermissions } from './model.js';
+import { modulesNotUsedBy } from '../modules/access.js';
 
 /**
  * Sub-monitors the viewer may not view. A monitor A that includes B shows B's status, but a viewer of A
@@ -91,4 +92,27 @@ export function redactDefinition<T>(def: T, canView: MonitorVisibility, idOf: (r
     return { ...c, monitor: HIDDEN_MONITOR_REF };
   });
   return changed ? ({ ...def, checks: out } as T) : def;
+}
+
+/**
+ * Checks of a module the viewer does not use (ADR 0034: a cost check, a data contract check, version behind, page
+ * watch): the check keeps running – it is the monitor's – but its result names no item of the module. English, like
+ * the other engine messages.
+ */
+export const MODULE_CHECK_TEXT = 'A check of a module you do not use';
+
+/** "Is this check type of a module the viewer does not use?", read once per request. */
+export function moduleCheckHidden(u: AuthUser | null = currentUser()): (type: string) => boolean {
+  const notUsed = modulesNotUsedBy(u);
+  if (!notUsed.size) return () => false;
+  return (type) => {
+    const m = (CHECK_TYPE_DEFS as Record<string, { module?: string }>)[type]?.module;
+    return !!m && notUsed.has(m as never);
+  };
+}
+
+/** A result of such a check: its status and timing stay, its message and value go. */
+export function moduleCheckResult(r: CheckResultInfo): CheckResultInfo {
+  const { value: _value, ...rest } = r;
+  return { ...rest, message: MODULE_CHECK_TEXT };
 }

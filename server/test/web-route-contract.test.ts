@@ -44,10 +44,6 @@ const BASE_HELPERS = new Set(['withBase', 'appUrl']);
  * clients. A key ending in "/*" covers everything below it.
  */
 const API_ONLY: Record<string, string> = {
-  // module access (0.21.0, ADR 0034): the server side first; Settings → Modules → Who may use it follows (#295)
-  'GET /api/settings/modules/:id/access': 'module access: the settings page follows in its own issue (#295)',
-  'PUT /api/settings/modules/:id/access': 'module access: the settings page follows in its own issue (#295)',
-  'POST /api/settings/modules/:id/access/preview': 'module access: the settings page follows in its own issue (#295)',
   // the web UI itself and its files
   'GET /': 'the web UI (hint page without a build)',
   'GET /*': 'the web UI (static files)',

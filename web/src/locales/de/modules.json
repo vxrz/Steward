@@ -179,5 +179,56 @@
   "notYours": {
     "title": "Sie nutzen dieses Modul nicht",
     "text": "Fragen Sie einen Administrator, wenn Sie es brauchen."
+  },
+  "access": {
+    "usedBy": "Genutzt von",
+    "open": "Wer darf es nutzen",
+    "openLabel": "Wer darf es nutzen: {{name}}",
+    "title": "Wer darf {{name}} nutzen",
+    "intro": "Ein Modul nutzen standardmäßig alle angemeldeten Personen. Auf ausgewählte Teams und Benutzer beschränkt, fehlt es für alle anderen – seine Seiten, Menüeinträge, Benachrichtigungen und Berichtsabschnitte. Administratoren und Auditoren nutzen immer jedes Modul.",
+    "modeLabel": "Wer es nutzt",
+    "mode": {
+      "everyone": "Alle angemeldeten Personen",
+      "selected": "Ausgewählte Teams und Benutzer"
+    },
+    "modeHint": {
+      "everyone": "Die Voreinstellung: alle, die sich bei {{brand}} anmelden dürfen.",
+      "selected": "Nur die Teams und Benutzer unten (ein Team: seine Mitglieder). Eine Single-Sign-on-Gruppe erreicht das Modul über das Team, dem sie zugeordnet ist."
+    },
+    "subjects": "Teams und Benutzer",
+    "subjectsHint": "Teams halten ihre Mitglieder und die Teamzuordnung des Single Sign-on aktuell (Benutzer → Teams).",
+    "unknownHint": "Ein gelöschtes Team bleibt auf der Liste und trifft niemanden – das Löschen eines Teams öffnet das Modul also nie.",
+    "now": {
+      "everyone": "Jetzt: Alle angemeldeten Personen nutzen dieses Modul.",
+      "selected": "Jetzt: {{subjects}} (und Administratoren und Auditoren).",
+      "nobody": "Jetzt: nur Administratoren und Auditoren."
+    },
+    "previewing": "Ermittelt, wer das Modul erhält und wer es verliert …",
+    "previewFailed": "Es konnte nicht ermittelt werden, wer das Modul erhält und wer es verliert. Versuchen Sie es erneut.",
+    "previewTitle": "Bevor Sie speichern",
+    "nobodyChanges": "Niemand erhält oder verliert das Modul.",
+    "gains_one": "{{count}} Person erhält das Modul:",
+    "gains_other": "{{count}} Personen erhalten das Modul:",
+    "loses_one": "{{count}} Person verliert das Modul:",
+    "loses_other": "{{count}} Personen verlieren das Modul:",
+    "more": "und {{count}} weitere",
+    "owningTeamsWithout": "Diese Teams besitzen Einträge des Moduls, würden es aber nicht nutzen: {{teams}}. Ihre Mitglieder behalten die Rechte an den Einträgen, können sie aber nicht öffnen.",
+    "widensHint": "Damit nutzen mehr Personen das Modul: Beim Speichern bestätigen Sie, dass Sie es sind.",
+    "confirmTitle": "{{name}} beschränken",
+    "confirmLoses_one": "{{count}} Person verliert das Modul. Ihre Benachrichtigungen und Berichtsabschnitte dazu enden sofort.",
+    "confirmLoses_other": "{{count}} Personen verlieren das Modul. Ihre Benachrichtigungen und Berichtsabschnitte dazu enden sofort.",
+    "confirmNobody": "Niemand verliert das Modul jetzt, aber die Liste wird kürzer.",
+    "confirm": "Zugriff beschränken",
+    "saved": "Gespeichert, wer {{name}} nutzen darf",
+    "notSaved": "Nicht gespeichert, wer das Modul nutzen darf",
+    "through": {
+      "everyone": "als angemeldete Person",
+      "admin": "als Administrator",
+      "auditor": "als Auditor",
+      "user": "namentlich auf seiner Liste",
+      "team": "über das Team {{team}}"
+    },
+    "uses": "Nutzt {{name}} {{through}}",
+    "notUses": "Nutzt {{name}} nicht"
   }
 }

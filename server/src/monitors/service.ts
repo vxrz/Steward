@@ -73,7 +73,17 @@ import { checkExpressions, parseDefinitionInput, validateTemplate } from './vali
 import * as engine from './engine.js';
 import { delayIdentity, parseDelayState, summarizeDelay } from './delay.js';
 import { endMonitorWindow, forgetMonitorInWindows, monitorWindows, planMonitorWindow } from '../catalogue/maintenance.js';
-import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
+import {
+  MODULE_CHECK_TEXT,
+  checkMessage,
+  moduleCheckHidden,
+  moduleCheckResult,
+  monitorVisibility,
+  redactCauses,
+  redactDefinition,
+  rootCauseMessage,
+  type MonitorVisibility,
+} from './redact.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
 import { privilegedSlots } from '../platforms/privileged.js';
@@ -259,10 +269,13 @@ function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibili
   const inMaint = !!engine.activeMaintenance(r.id);
   // monitors with states (ADR 0021): checks that agree with an expected down show off
   const off = new Set(parseJson<{ offChecks?: string[] } | null>(r.state_detail, null)?.offChecks ?? []);
+  const hiddenModule = moduleCheckHidden();
   return def.checks.map((c) => {
     const x = rows.get(c.id);
-    const last = parseJson<CheckResultInfo | null>(x?.last_result, null);
+    let last = parseJson<CheckResultInfo | null>(x?.last_result, null);
     if (last) last.message = checkMessage(last.message ?? '', last.status, c.type === 'monitor' ? c.monitor : undefined, canView);
+    // a check of a module the viewer does not use (ADR 0034): its status, not what it found
+    if (last && hiddenModule(c.type)) last = moduleCheckResult(last);
     const st: CheckState = {
       checkId: c.id,
       name: c.name,
@@ -346,6 +359,7 @@ export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: n
   const r = requireMonitor(idOrKey);
   const canView = monitorVisibility();
   const subs = subMonitorRefs(r);
+  const moduleChecks = moduleChecksOf(r);
   const limit = Math.min(Math.max(1, opts.limit ?? 100), 1000);
   const where = ['monitor_id = ?'];
   const params: unknown[] = [r.id];
@@ -377,7 +391,13 @@ export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: n
         status: h.status,
         previous: h.previous,
         // monitor level: built from the causes; checks: their own message
-        message: h.check_id ? checkMessage(h.message, h.status, subs.get(h.check_id), canView) : causedBy.length ? rootCauseMessage(causedBy, r.id) : h.message,
+        message: h.check_id
+          ? moduleChecks.has(h.check_id)
+            ? MODULE_CHECK_TEXT
+            : checkMessage(h.message, h.status, subs.get(h.check_id), canView)
+          : causedBy.length
+            ? rootCauseMessage(causedBy, r.id)
+            : h.message,
         causedBy,
         ...(h.state ? { state: h.state } : {}),
       };
@@ -388,6 +408,7 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
   const r = requireMonitor(idOrKey);
   const canView = monitorVisibility();
   const sub = subMonitorRefs(r).get(checkId);
+  const hidden = moduleChecksOf(r).has(checkId);
   return db()
     .all<{ ts: string; status: MonitorStatus; message: string; duration_ms: number | null; value: string | null }>(
       'SELECT ts, status, message, duration_ms, value FROM monitor_results WHERE monitor_id = ? AND check_id = ? ORDER BY id DESC LIMIT ?',
@@ -395,13 +416,27 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
       checkId,
       Math.min(Math.max(1, limit), 200),
     )
-    .map((x) => ({
-      ts: x.ts,
-      status: x.status,
-      message: checkMessage(x.message, x.status, sub, canView),
-      durationMs: x.duration_ms,
-      value: parseJson(x.value, x.value),
-    }));
+    .map((x) => {
+      const res: CheckResultInfo = {
+        ts: x.ts,
+        status: x.status,
+        message: checkMessage(x.message, x.status, sub, canView),
+        durationMs: x.duration_ms,
+        value: parseJson(x.value, x.value),
+      };
+      return hidden ? moduleCheckResult(res) : res;
+    });
+}
+
+/** The checks of a monitor whose type belongs to a module the viewer does not use (ADR 0034). */
+function moduleChecksOf(r: MonitorRow): Set<string> {
+  const hidden = moduleCheckHidden();
+  if (r.is_template) return new Set();
+  return new Set(
+    loadMonitor(r)
+      .def.checks.filter((c) => hidden(c.type))
+      .map((c) => c.id),
+  );
 }
 
 // ---------- validation ----------

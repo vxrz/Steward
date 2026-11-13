@@ -153,7 +153,13 @@
     "ismsAllCatalogues": "Jeder Katalog mit einer Erklärung",
     "ismsServices": "Services",
     "ismsDays": "Lieferantentermine innerhalb von (Tagen)",
-    "ismsDaysHint": "Zertifikate und Kündigungstermine so viele Tage voraus und so viele Tage zurück"
+    "ismsDaysHint": "Zertifikate und Kündigungstermine so viele Tage voraus und so viele Tage zurück",
+    "moduleWithout": "Ohne die Abschnitte zu {{name}} (sie nutzen das Modul nicht): {{who}}.",
+    "moduleTeam": "Mitglieder des Teams {{team}}, die es nicht anderweitig nutzen",
+    "moduleEmails_one": "{{count}} E-Mail-Adresse außerhalb von Steward",
+    "moduleEmails_other": "{{count}} E-Mail-Adressen außerhalb von Steward",
+    "moduleYouNot": "Sie nutzen {{name}} nicht: Seine Abschnitte fehlen im Bericht.",
+    "moduleOwnerNot": "Der Eigentümer dieses Zeitplans nutzt {{name}} nicht: Seine Abschnitte fehlen im Bericht."
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",

@@ -38,6 +38,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { DetailHeader } from '../components/page/DetailPage';
 import { fmtDate, fmtRelative, fmtDay } from '../format';
+import { useModuleUseText } from '../components/modules/moduleUse';
 import { TableScroll } from '../components/TableScroll';
 
 const STATUS_COLOR: Record<PersonReview['status'], string> = { open: TONE.active, submitted: TONE.attention, approved: TONE.ok, closed: TONE.neutral };
@@ -355,6 +356,7 @@ export function PersonReviewDetailPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [approvalComment, setApprovalComment] = useState('');
   const [seal, setSeal] = useState<boolean | null>(null);
+  const moduleUse = useModuleUseText();
   useEffect(() => {
     if (r) setDraft(draftOf(r));
   }, [r]);
@@ -500,6 +502,23 @@ export function PersonReviewDetailPage() {
               </Text>
             ))}
           </Stack>
+          {r.modules && r.modules.length > 0 && (
+            <div data-testid="person-review-modules">
+              <Text size="sm" fw={600} mt="sm" mb={4}>
+                {t('personReviews.modules')}
+              </Text>
+              <Stack gap={2}>
+                {r.modules.map((m) => (
+                  <Text size="xs" key={m.module} c={m.uses ? undefined : 'dimmed'}>
+                    {moduleUse(m)}
+                  </Text>
+                ))}
+              </Stack>
+              <Text size="xs" c="dimmed" mt={4}>
+                {t('personReviews.modulesHint')}
+              </Text>
+            </div>
+          )}
         </Paper>
       </SimpleGrid>
       {r.canApprove && (

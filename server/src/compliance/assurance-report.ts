@@ -9,6 +9,7 @@ import { stepUpWindowMs } from '../auth/step-up.js';
 import { drawPdf } from '../reports/pdf/pool.js';
 import { getBranding, logo } from '../reports/branding.js';
 import { POINT_LABELS, type AssuranceReportModel } from './assurance-pdf.js';
+import { moduleAccessEvidence } from '../modules/access-evidence.js';
 
 /**
  * The assurance report of a period (#210, docs/ASSURANCE.md#the-assurance-report): read from the authentic entries of
@@ -117,6 +118,8 @@ export function collectAssuranceReport(
   for (const v of versions)
     if (v.approvedBy) exceptions.push({ kind: 'loosening', at: v.at, actor: v.by, text: `${v.changes.join('; ')} – ${v.approvedBy}`.slice(0, 600) });
   exceptions.sort((a, b) => a.at.localeCompare(b.at));
+  // the module layer (ADR 0034): who uses each restricted module now, and how module access changed in the period
+  const moduleAccess = moduleAccessEvidence(from, to);
 
   const model: AssuranceReportModel = {
     from,
@@ -146,7 +149,8 @@ export function collectAssuranceReport(
       .map(([point, x]) => ({ point, events: x.events.size, methods: x.methods, fourEyes: x.fourEyes.size })),
     exceptions,
     audit: { entries: rows.length, rejected },
-    truncated: rows.length >= ASSURANCE_REPORT_LIMITS.entries,
+    truncated: rows.length >= ASSURANCE_REPORT_LIMITS.entries || moduleAccess.truncated,
+    moduleAccess: { current: moduleAccess.current, changes: moduleAccess.changes },
   };
   return { model, events };
 }

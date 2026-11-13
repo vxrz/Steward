@@ -1,4 +1,4 @@
-import type { ModuleId, ModuleStates, ModuleUseState } from './modules.js';
+import type { ModuleId, ModuleStates, ModuleUse, ModuleUseState } from './modules.js';
 import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
@@ -428,6 +428,11 @@ export interface AccessExplanation {
   owningTeams: { id: string; name: string }[];
   permissions: string[];
   reasons: AccessReason[];
+  /**
+   * An item of a module (a site of the plant registry, a data contract): whether the person uses the module and through
+   * what (ADR 0034). Someone who does not use it has no rights on its items, whatever the reasons say.
+   */
+  module?: ModuleUse;
 }
 
 export interface Capabilities {

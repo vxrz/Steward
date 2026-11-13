@@ -7,6 +7,8 @@ import {
   moduleRestrictable,
   type ModuleAccessMode,
   type ModuleId,
+  type ModuleUse,
+  type ModuleUseReason,
   type ModuleUseState,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -98,6 +100,34 @@ export function modulesNotUsedBy(user: ModuleUser | null | undefined): Set<Modul
     if (subjects && !usesWith(user, 'selected', subjects)) out.add(m.id);
   }
   return out;
+}
+
+/**
+ * Whether `user` uses module `id` and through what (ADR 0034 part 7): _Why do I have access?_, person access reviews and
+ * the test sign-in name the module layer – everyone signed in, administrator, auditor, named on the list, or a team on
+ * it. A module that follows another (the map) is answered for that one.
+ */
+export function moduleUseOf(user: ModuleUser, id: ModuleId): ModuleUse {
+  const gate = accessModule(id);
+  const subjects = moduleRestrictable(gate) ? restrictedNow().get(gate) : undefined;
+  const through: ModuleUseReason[] = [];
+  if (user.roles.includes('admin')) through.push({ source: 'admin' });
+  if (user.roles.includes('auditor')) through.push({ source: 'auditor' });
+  if (!subjects) through.push({ source: 'everyone' });
+  else
+    for (const s of subjects) {
+      if (!matches(user as AuthUser, s)) continue;
+      const m = /^(user|team):(.+)$/i.exec(s);
+      if (m?.[1]!.toLowerCase() === 'team') through.push({ source: 'team', team: m[2]! });
+      else if (m) through.push({ source: 'user' });
+    }
+  return { module: id, enabled: moduleEnabled(id), restricted: !!subjects, uses: through.length > 0, through };
+}
+
+/** The restricted modules (each once: the map follows the plant registry) and whether `user` uses each. */
+export function restrictedModuleUses(user: ModuleUser): ModuleUse[] {
+  const restricted = restrictedNow();
+  return MODULES.filter((m) => accessModule(m.id) === m.id && restricted.has(m.id)).map((m) => moduleUseOf(user, m.id));
 }
 
 /** A module is on and the current person (if any) uses it: what request-scoped surfaces ask instead of moduleEnabled. */

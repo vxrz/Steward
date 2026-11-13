@@ -623,6 +623,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/reports/:id/download': ALL,
   'GET /api/report-schedules': ALL,
   'POST /api/report-schedules': NOT_VIEWER,
+  'POST /api/report-schedules/recipients-preview': NOT_VIEWER,
   'GET /api/report-schedules/reports': ALL,
   'GET /api/report-schedules/:id': ADMIN_AUDITOR,
   'PUT /api/report-schedules/:id': ADMIN,
