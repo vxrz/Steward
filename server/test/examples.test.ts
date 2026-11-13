@@ -321,8 +321,8 @@ describe('example library', () => {
       const c = calls(r);
       expect(c.filter((x: string) => /\/devices\/dev-\d+ → /.test(x))).toHaveLength(8); // details of the ACTIVE devices
       expect(c.filter((x: string) => x.includes('/statistics'))).toHaveLength(8);
-      expect(c.filter((x: string) => /\/applications\/app-\d → /.test(x))).toHaveLength(4);
-      expect(c).toHaveLength(1 + 16 + 1 + 4);
+      expect(c.filter((x: string) => /\/applications\/app-\d → /.test(x))).toHaveLength(5);
+      expect(c).toHaveLength(1 + 16 + 1 + 5);
       const d = await s.api('GET', '/datasets/iem.devices');
       const by = rowsBy(d);
       expect(by['edge-line-1']).toMatchObject({
@@ -354,8 +354,9 @@ describe('example library', () => {
         'IE Databus': '2.1.0',
         'OPC UA Connector': '1.12.2', // not 1.9.0: compared as version numbers
         'Flow Creator': '1.17.0',
+        'Edge Stream Bridge': '1.0.1', // 0.25.0: the bridge of the edge demo
       });
-      expect(apps.metrics).toMatchObject({ apps: 4 });
+      expect(apps.metrics).toMatchObject({ apps: 5 });
     });
 
     it('Inventory snapshot reads every page of the device list', async () => {
@@ -415,7 +416,7 @@ describe('example library', () => {
     it('App version compliance reads installed-apps once, the versions of each installed app, and groups by device', async () => {
       const r = await run('iem-app-version-compliance');
       const http = calls(r);
-      expect(http).toHaveLength(6); // devices, installed apps, 4 app details – no call per device
+      expect(http).toHaveLength(7); // devices, installed apps, 5 app details – no call per device
       expect(http.join('\n')).toContain('GET /portal/api/v1/devices/installed-apps → 200');
       expect(http.join('\n')).not.toMatch(/devices\/dev-/);
       expect(r.steps.find((x: any) => x.key === 'incomplete').status).toBe('skipped'); // the answer holds every entry
@@ -429,7 +430,21 @@ describe('example library', () => {
       expect(by['dev-005/-']).toMatchObject({ Device: 'edge-lab', Application: '–', _status: 'unknown', _statusText: 'not onboarded yet' });
       expect(by['dev-007/-']).toMatchObject({ Device: 'edge-old-line-7', _status: 'unknown', _statusText: 'no installed apps reported' });
       expect(new Set(d.rows.map((x: any) => x.Device)).size).toBe(9); // without the deleted device
-      expect(d.metrics).toMatchObject({ installations: 13, outdated: 4, unknownDevices: 2 });
+      expect(d.metrics).toMatchObject({ installations: 14, outdated: 4, unknownDevices: 2 });
+    });
+
+    it('Installations readout (0.25.0): one row per device and app, a device without apps once; the report interval in the status datasets', async () => {
+      const r = await run('iem-installations');
+      expect(calls(r)).toHaveLength(2); // the device list and the installations – no call per device
+      const d = await s.api('GET', '/datasets/iem.installations');
+      const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+      expect(by['dev-001/app-5']).toMatchObject({ 'Device id': 'dev-001', Device: 'edge-line-1', Application: 'Edge Stream Bridge', Version: '1.0.1' });
+      expect(by['dev-005/']).toMatchObject({ Device: 'edge-lab', Onboarding: 'PENDING', Application: '–', _status: 'unknown' });
+      expect(Object.keys(by).some((k) => k.startsWith('dev-010/'))).toBe(false); // deleted
+      expect(d.metrics).toMatchObject({ devices: 9, installations: 14 });
+      // the examples' status datasets carry the report interval and the grace (Steward's device status reads them)
+      expect(rowsBy(await s.api('GET', '/datasets/iem.devices'))['edge-line-1']['Report interval (min)']).toBe(60);
+      expect((await s.api('GET', '/datasets/iem.devices')).metrics.graceMinutes).toBe(15);
     });
 
     it('Weekly service report counts the onboarded devices online from their statistics', async () => {

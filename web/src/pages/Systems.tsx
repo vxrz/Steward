@@ -19,6 +19,7 @@ import { platformKeys } from '../queryKeys';
 import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalogue/network';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { SupplierPicker, useSupplierChoice } from '../components/suppliers/SupplierPicker';
+import { EdgeSuggestionsSection } from '../components/catalogue/EdgeSuggestions';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -176,6 +177,8 @@ export function SystemsPage() {
       }
     >
       <QueryState query={systems} />
+      {/* 0.25.0 (ADR 0037): the suggestions of the Industrial Edge installations readout, confirmed by a person */}
+      <EdgeSuggestionsSection canRestore={canCreate} />
       {systems.isSuccess && all.length === 0 && hidden && <RestrictedEmpty />}
       {systems.isSuccess && all.length === 0 && !hidden && (
         <EmptyState
@@ -261,6 +264,8 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
   const [cmdbUrl, setCmdbUrl] = useState(system?.cmdbUrl ?? '');
   const [owners, setOwners] = useState<string[]>(system?.owners ?? []);
   const [note, setNote] = useState(system?.note ?? '');
+  // 0.25.0: its device id in Industrial Edge Management (an external reference)
+  const [iemDeviceId, setIemDeviceId] = useState(system?.iemDeviceId ?? '');
   // a platform the reader may not see stays as it is (null here means "keep" only when hidden)
   const [platformId, setPlatformId] = useState<string | null>(system?.platform?.id ?? null);
   const [stack, setStack] = useState<StackRow[]>(stackRowsOf(system?.stack ?? []));
@@ -290,6 +295,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
       platformId: system?.platformHidden && platformId === null ? undefined : platformId,
       stack: stackBody(stack),
       attributes: kind === 'network' ? network : {},
+      iemDeviceId: iemDeviceId.trim() || null,
     };
     try {
       onSaved(system ? await put<SystemDetail>(`/systems/${system.id}`, body) : await post<SystemDetail>('/systems', body));
@@ -364,6 +370,15 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
             onChange={setPlatformId}
             clearable
             searchable
+          />
+          <TextInput
+            label={t('systems.iemDeviceId')}
+            description={t('systems.iemDeviceIdHelp')}
+            maxLength={SYSTEM_LIMITS.iemDeviceId}
+            classNames={{ input: 'mono' }}
+            value={iemDeviceId}
+            onChange={(e) => setIemDeviceId(e.currentTarget.value)}
+            data-testid="system-iem-device-id"
           />
           <Textarea
             label={t('systems.note')}

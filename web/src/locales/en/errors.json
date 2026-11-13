@@ -863,6 +863,7 @@
     "SEGMENT_LINK_EXISTS": "The system is in “{{name}}” already.",
     "SEGMENT_LINK_NOT_FOUND": "The system is not in this segment.",
     "SEGMENT_IN_USE": "Systems are in the segment “{{name}}” ({{count}}): take them out first.",
+    "EDGE_SUGGESTION_GONE": "The Industrial Edge readout no longer suggests this – it was confirmed, dismissed or the catalogue changed. Reload the list.",
     "RECORD_TABLE_INVALID": "The field “{{field}}” must be a table (a list of rows).",
     "RECORD_TABLE_ROWS": "The field “{{field}}” has too many rows (at most {{max}}).",
     "RECORD_TABLE_COLUMN_UNKNOWN": "The field “{{field}}” has no column “{{column}}”.",

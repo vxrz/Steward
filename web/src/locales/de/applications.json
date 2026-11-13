@@ -689,6 +689,8 @@
     "vendor": "Hersteller / Anbieter",
     "vendorHint": "z. B. AWS, Azure, On-Premises, der Hoster",
     "cmdbUrl": "CMDB-Eintrag",
+    "iemDeviceId": "Industrial-Edge-Geräte-ID",
+    "iemDeviceIdHelp": "Die Geräte-ID in Industrial Edge Management. Steward zeigt aus dem Datensatz der Industrial-Edge-Beispiele, ob das Gerät online ist, und seine Firmware.",
     "openCmdb": "Öffnen",
     "ownersHelp": "Benutzer und Teams, die dieses System ändern dürfen: user:<name> oder team:<name>",
     "platform": "Steward-Plattform",
@@ -1001,5 +1003,28 @@
     "changeTitle": "Titel",
     "create": "Anlegen",
     "linkedFrom": "Verknüpft von"
+  },
+  "edgeSuggestions": {
+    "title": "Industrial-Edge-Vorschläge",
+    "help": "Was der Abruf „{{title}}“ ({{devices}} Geräte, {{when}}) über laufende Anwendungen sagt, verglichen mit dem Katalog. Nichts ändert sich, bevor Sie einen Vorschlag bestätigen.",
+    "none": "Der Katalog stimmt mit dem Abruf überein.",
+    "createSystem": "Gerät {{device}} hat kein System – anlegen?",
+    "linkSystem": "Gerät {{device}} scheint das System {{system}} zu sein – dort seine Geräte-ID eintragen?",
+    "addApplication": "{{app}} läuft auf {{system}}, ist aber nicht erfasst – erfassen?",
+    "newApplication": "{{app}} läuft auf {{system}}, ist aber nicht im Katalog – Anwendung anlegen und dort erfassen?",
+    "doCreateSystem": "System anlegen",
+    "doLinkSystem": "Geräte-ID eintragen",
+    "doAddApplication": "Erfassen",
+    "doNewApplication": "Anwendung anlegen",
+    "dismiss": "Verwerfen",
+    "confirmed": "Erledigt – die Änderung ist erfasst",
+    "dismissedOne": "Verworfen",
+    "deviceLine": "IEM-Gerät {{id}}",
+    "noRight": "Sie dürfen nicht ändern, was dieser Vorschlag ändert.",
+    "dismissedCount_one": "{{count}} verworfen",
+    "dismissedCount_other": "{{count}} verworfen",
+    "restore": "Verworfene wieder vorschlagen",
+    "hidden_one": "{{count}} Gerät oder Anwendung ist in Einträgen erfasst, die Sie nicht sehen dürfen.",
+    "hidden_other": "{{count}} Geräte oder Anwendungen sind in Einträgen erfasst, die Sie nicht sehen dürfen."
   }
 }

@@ -1,0 +1,86 @@
+name: "Industrial Edge – Installations readout (devices and their apps)"
+description: |
+  Reads which applications run on which edge device, for the catalogue: every
+  device of IEM with its onboarding state and the applications installed on it,
+  one row per device and application (a device without any installation has
+  one row of its own). Deleted devices are left out.
+
+  Steward compares the published dataset with its catalogue and offers
+  suggestions under Catalogue → Systems → Industrial Edge suggestions:
+  "Device … has no system – create it?", "… runs on … but is not recorded –
+  add it?". A person confirms each one; nothing is created on its own.
+
+  - Devices: the paged device list (GET /portal/api/v1/devices).
+  - Installations: one call for all devices
+    (GET /portal/api/v1/devices/installed-apps: deviceId, deviceName,
+    applicationId, title and versionNumber per entry).
+
+  Calls: one per 100 devices for the list and one for the installations – no
+  call per device. Read only.
+
+  Recommended schedule: daily. Publishes `iem.installations`.
+tags: [inventory, apps, devices, industrial-edge]
+connections:
+  - slot: iem
+    kind: industrial-edge-management
+steps:
+  - id: devices
+    type: http
+    name: List devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    paginate: { mode: page, firstPage: 1, pageSize: 100, itemsPath: data, totalPagesPath: totalPages }
+    saveAs: devices
+  - id: installed
+    type: http
+    name: Installed apps of all devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices/installed-apps
+    saveAs: installed
+  - id: rows
+    type: set
+    name: One row per device and application
+    values:
+      fleet: "{{ [vars.devices.body[deviceStatus != 'DELETED'].{ 'id': deviceId, 'name': deviceName, 'onboarding': deviceStatus }] }}"
+      installs: "{{ [vars.installed.body.data ? vars.installed.body.data : vars.installed.body] }}"
+      rows: >-
+        {{ (
+          $devs := vars.fleet;
+          $apps := vars.installs[deviceId in $devs.id].(
+            $app := $;
+            $dev := $devs[id = $app.deviceId][0];
+            {
+              'deviceId': $app.deviceId,
+              'device': $dev.name,
+              'onboarding': $dev.onboarding,
+              'applicationId': $app.applicationId,
+              'application': $app.title ? $app.title : $app.applicationId,
+              'version': $app.versionNumber
+            }
+          );
+          $seen := $apps.deviceId;
+          $none := $devs[$not(id in $seen)].{ 'deviceId': id, 'device': name, 'onboarding': onboarding };
+          [$apps, $none]^(device, application)
+        ) }}
+  - id: publish
+    type: publish
+    name: Publish installations
+    dataset: iem.installations
+    title: Edge device installations
+    rows: vars.rows
+    key: "deviceId & '/' & (applicationId ? applicationId : '')"
+    columns:
+      - { label: Device id, value: deviceId }
+      - { label: Device, value: device }
+      - { label: Onboarding, value: onboarding }
+      - { label: Application id, value: "applicationId ? applicationId : '–'" }
+      - { label: Application, value: "application ? application : '–'" }
+      - { label: Version, value: "version ? version : '–'" }
+    status: "onboarding = 'ACTIVE' ? 'good' : 'unknown'"
+    statusText: "onboarding = 'ACTIVE' ? '' : 'not onboarded yet (' & onboarding & ')'"
+    metrics:
+      devices: "$count(vars.fleet)"
+      installations: "$count(vars.rows[$exists(applicationId)])"
+    staleAfterMinutes: 2880

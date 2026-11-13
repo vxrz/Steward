@@ -863,6 +863,7 @@
     "SEGMENT_LINK_EXISTS": "Das System ist bereits in „{{name}}“.",
     "SEGMENT_LINK_NOT_FOUND": "Das System ist nicht in diesem Segment.",
     "SEGMENT_IN_USE": "Im Segment „{{name}}“ sind Systeme ({{count}}): Nehmen Sie sie zuerst heraus.",
+    "EDGE_SUGGESTION_GONE": "Der Industrial-Edge-Abruf schlägt dies nicht mehr vor – der Vorschlag wurde bestätigt oder verworfen, oder der Katalog hat sich geändert. Laden Sie die Liste neu.",
     "RECORD_TABLE_INVALID": "Das Feld „{{field}}“ muss eine Tabelle sein (eine Liste von Zeilen).",
     "RECORD_TABLE_ROWS": "Das Feld „{{field}}“ hat zu viele Zeilen (höchstens {{max}}).",
     "RECORD_TABLE_COLUMN_UNKNOWN": "Das Feld „{{field}}“ hat keine Spalte „{{column}}“.",

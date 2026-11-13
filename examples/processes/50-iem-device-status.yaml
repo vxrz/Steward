@@ -78,6 +78,7 @@ steps:
                 'name': vars.device.name,
                 'onboarding': vars.device.onboarding,
                 'lastSeen': $last,
+                'interval': $interval,
                 'state': $not($exists($last)) ? 'unknown' : ($online ? 'online' : 'offline'),
                 'offlineHours': $exists($last) and $not($online) ? $round($minutes / 60, 1)
               }
@@ -117,6 +118,7 @@ steps:
       - { label: State, value: state }
       - { label: Onboarding, value: onboarding }
       - { label: Last seen, value: "$exists(lastSeen) ? $fromMillis(lastSeen, '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
+      - { label: Report interval (min), value: "$exists(interval) ? interval : '–'" }
       - { label: Offline (h), value: "$exists(offlineHours) ? offlineHours : '–'" }
     status: "state = 'online' ? 'good' : (state = 'offline' ? 'critical' : 'unknown')"
     statusText: >-
@@ -124,6 +126,7 @@ steps:
         : (state = 'unknown' ? 'no statistics reported'
         : (state = 'not onboarded' ? 'not onboarded yet (' & onboarding & ')' : 'online'))
     metrics:
+      graceMinutes: "$inputs.onlineWithinMinutes"
       total: "$count(vars.rows)"
       online: "$count(vars.rows[state = 'online'])"
       offline: "$count(vars.offline)"

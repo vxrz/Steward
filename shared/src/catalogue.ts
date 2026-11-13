@@ -463,7 +463,7 @@ export const isProductionEnvironment = (list: readonly CatalogueEnvironment[], n
 export const SYSTEM_KINDS = ['server', 'vm', 'cluster', 'appliance', 'cloud-service', 'other', 'network'] as const;
 export type SystemKind = (typeof SYSTEM_KINDS)[number];
 
-export const SYSTEM_LIMITS = { name: 160, vendor: 120, note: 2000, linkNote: 500, perApplication: 200 } as const;
+export const SYSTEM_LIMITS = { name: 160, vendor: 120, note: 2000, linkNote: 500, perApplication: 200, iemDeviceId: 200 } as const;
 
 export interface SystemSummary {
   id: string;
@@ -481,6 +481,11 @@ export interface SystemSummary {
   /** The Steward platform this system is (null: none, or one the reader may not see – then platformHidden) */
   platform: { id: string; name: string; environment: string } | null;
   platformHidden: boolean;
+  /**
+   * 0.25.0 (ADR 0037 part 3): its device id in Industrial Edge Management – an external reference; the device status
+   * (online, firmware) is read from the Industrial Edge examples' dataset (GET /api/systems/:id/iem)
+   */
+  iemDeviceId: string | null;
   /** Distinct applications that run on it */
   applicationCount: number;
   /** Its environments (from the links), in list order */
@@ -641,4 +646,82 @@ export interface StatusPageView {
     /** Open issues waiting on a vendor: the vendor and since when */
     vendorIssues: { vendor: string; since: string }[];
   }[];
+}
+
+// ---------- Industrial Edge devices (0.25.0, ADR 0037 part 3) ----------
+
+/** The datasets the Industrial Edge examples publish that the catalogue reads (examples/processes/5x-iem-*.yaml). */
+export const IEM_DATASETS = {
+  /** Every device with its onboarding, state, firmware and last report (51-iem-inventory-snapshot) – read first */
+  devices: 'iem.devices',
+  /** The lighter device status (50-iem-device-status) – read when the device is not in iem.devices */
+  status: 'iem.device-status',
+  /** Every device with its installed applications (55-iem-installations): the suggestions' readout */
+  installations: 'iem.installations',
+} as const;
+
+/** The examples' defaults: a device reports once per report interval (SystemInfo.Period), online within it plus grace. */
+export const IEM_ONLINE_DEFAULTS = { intervalMinutes: 60, graceMinutes: 15 } as const;
+
+export type IemDeviceState = 'online' | 'offline' | 'unknown' | 'notOnboarded';
+
+/**
+ * Whether a device is online by the examples' rule: its last report is at most its report interval plus the grace old.
+ * No report: unknown. (A device not onboarded yet is never offline – the caller says so from the onboarding state.)
+ */
+export function iemOnline(lastSeenMs: number | null, now: number, intervalMinutes: number, graceMinutes: number): 'online' | 'offline' | 'unknown' {
+  if (lastSeenMs === null || !Number.isFinite(lastSeenMs)) return 'unknown';
+  return (now - lastSeenMs) / 60000 <= intervalMinutes + graceMinutes ? 'online' : 'offline';
+}
+
+/** The status of a system's Industrial Edge device, from the examples' dataset as the reader may see it. */
+export interface IemDeviceStatus {
+  deviceId: string;
+  /** Not in a dataset the reader may see (or no dataset yet): nothing else is said */
+  found: boolean;
+  /** The device's name in IEM */
+  name: string;
+  state: IemDeviceState;
+  /** The IED OS version (deviceVersion), when the dataset has it */
+  firmware: string | null;
+  /** The last report (ISO), when there is one */
+  lastSeen: string | null;
+  intervalMinutes: number;
+  graceMinutes: number;
+  /** The dataset it was read from, and when that was published */
+  dataset: string | null;
+  readAt: string | null;
+}
+
+export const EDGE_SUGGESTION_KINDS = ['createSystem', 'linkSystem', 'addApplication'] as const;
+export type EdgeSuggestionKind = (typeof EDGE_SUGGESTION_KINDS)[number];
+
+/**
+ * A suggestion of the Industrial Edge installations readout: never applied on its own – a person confirms it with the
+ * right to change its target (create systems, change the system, change the application or create applications).
+ */
+export interface EdgeSuggestion {
+  /** Stable while the readout says the same: what Confirm and Dismiss name */
+  key: string;
+  kind: EdgeSuggestionKind;
+  deviceId: string;
+  deviceName: string;
+  /** linkSystem and addApplication: the system (one the reader may see) */
+  system: { id: string; name: string } | null;
+  /** addApplication: the application as IEM names it, its version, and the catalogue application when there is one */
+  appTitle: string | null;
+  appVersion: string | null;
+  application: { id: string; name: string } | null;
+  /** The reader may confirm (and dismiss) it */
+  canConfirm: boolean;
+}
+
+export interface EdgeSuggestions {
+  /** The readout as the reader may see it; null: no readout they may see (run the example process) */
+  readout: { dataset: string; title: string; updatedAt: string; devices: number; installations: number } | null;
+  suggestions: EdgeSuggestion[];
+  /** Dismissed ones (not listed) */
+  dismissed: number;
+  /** Devices or applications that are recorded in items the reader may not see: counted, never named */
+  hidden: number;
 }
