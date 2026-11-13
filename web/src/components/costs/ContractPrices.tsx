@@ -216,20 +216,23 @@ const rowOf = (c: CostCondition): Row => ({
   note: c.note,
 });
 
+/** A number as typed – "12,5" in German as "12.5" (as the payment and plan forms take amounts). */
+const decimalText = (v: string) => v.trim().replace(',', '.');
+
 const inputOf = (r: Row): CostConditionInput => {
   const base = { ...(r.id ? { id: r.id } : {}), kind: r.kind, provider: r.provider.trim(), on: r.on, target: r.on === 'provider' ? '' : r.target.trim() };
   const valid = { validFrom: r.validFrom.trim() || null, validTo: r.validTo.trim() || null, note: r.note.trim() };
-  if (r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') return { ...base, ...valid, percent: r.percent.trim() };
-  if (r.kind === 'negotiatedPrice') return { ...base, ...valid, priceId: r.priceId.trim(), price: r.price.trim(), block: r.block, currency: r.currency };
-  if (r.kind === 'feePerUnit') return { ...base, ...valid, price: r.price.trim(), block: r.block, currency: r.currency, unit: r.unit.trim() };
-  if (r.kind === 'fixedFee') return { ...base, ...valid, price: r.price.trim(), currency: r.currency };
+  if (r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') return { ...base, ...valid, percent: decimalText(r.percent) };
+  if (r.kind === 'negotiatedPrice') return { ...base, ...valid, priceId: r.priceId.trim(), price: decimalText(r.price), block: r.block, currency: r.currency };
+  if (r.kind === 'feePerUnit') return { ...base, ...valid, price: decimalText(r.price), block: r.block, currency: r.currency, unit: r.unit.trim() };
+  if (r.kind === 'fixedFee') return { ...base, ...valid, price: decimalText(r.price), currency: r.currency };
   const bands = r.bands
     .split(';')
     .map((x) => x.trim())
     .filter(Boolean)
     .map((x) => {
       const at = x.indexOf(':');
-      return { from: at < 0 ? x : x.slice(0, at).trim(), percent: at < 0 ? '' : x.slice(at + 1).trim() };
+      return { from: decimalText(at < 0 ? x : x.slice(0, at)), percent: at < 0 ? '' : decimalText(x.slice(at + 1)) };
     });
   return { ...base, ...valid, bands, scheduleId: r.scheduleId };
 };

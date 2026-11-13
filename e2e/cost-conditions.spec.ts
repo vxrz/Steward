@@ -111,10 +111,11 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   if (!mobile) {
     await prices.getByTestId('contract-prices-edit').click();
     await page.getByTestId('condition-add').click();
-    await page.getByTestId('condition-4-percent').fill('5');
+    // a decimal comma as typed in German is taken
+    await page.getByTestId('condition-4-percent').fill('5,5');
     await expectAccessible(page, 'contract prices: the dialog');
     await page.getByTestId('conditions-save').click();
-    await expect(prices.getByTestId('contract-conditions')).toContainText('5 % off');
+    await expect(prices.getByTestId('contract-conditions')).toContainText('5.5 % off');
   }
 
   // ---- an estimate priced with them: how each price was found ----
