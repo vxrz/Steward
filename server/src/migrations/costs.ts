@@ -52,6 +52,30 @@ import type { NamedMigration } from '../db.js';
  *     (`volume_minimum_pct`), and where the use comes from (`volume_consumption`: entries or read costs).
  *   cost_entries: an index on (supplier_contract_id, entry_date) for the use of a volume.
  *   cost_volume_notices: the volume warnings sent, once per schedule, period and kind.
+ *
+ * 0.21.0 (ADR 0035, price books, cost drivers and calculators – phase 1):
+ * costs-006-price-books:
+ *   cost_price_books: a book of item prices – name, kind (list, contracted), provider (free text), the platform,
+ *     supplier and contract it belongs to, currency, its source and settings, the review interval and the last check,
+ *     the current version; `base_book_id` and `derivation` stay empty until derived books (phase 2).
+ *   cost_price_book_versions: immutable versions – number, SHA-256 of the normalised entries, count, the difference to
+ *     the version before (JSON), how it came to be (manual, csv, migration), who and when.
+ *   cost_price_items: the entries of a version – SKU, price id, name, service, category, driver, unit, charge, the
+ *     price as a decimal string per block, its currency or credit item, tiers (JSON), included, minimum, validity,
+ *     attributes (JSON). An index on (version_id, sku_id): a calculation reads a book with one statement.
+ *   cost_price_review_notices: "Prices to review" sent, once per book and due date.
+ *   cost_fx_rates: manual exchange rates – date, base, quote, the rate as a decimal string, source, who and when.
+ *   The Snowflake fallback's price per credit (cost_sources.credit_price) becomes the entry `compute-credit` of the
+ *   platform's contracted book, as version 1 (decision 15); cost_sources keeps its columns.
+ * costs-007-calculators-estimates:
+ *   cost_calculators / cost_calculator_versions: calculators (key, name, the draft being edited, Git or by hand) and
+ *     their published, immutable versions (the definition as YAML and its SHA-256).
+ *   cost_estimates: estimates of a service or a platform (owner kind and id), optionally for an application, system or
+ *     platform; the calculator and version, inputs, lines by hand, ad-hoc adjustments, book choices (JSON), currency,
+ *     the month it applies from, the current result and a pending recalculation (JSON).
+ *   cost_estimate_results: the results that were current before (at most 20 per estimate).
+ *   cost_estimate_books: the book versions an estimate's current or pending result used (versions in use are kept).
+ *   cost_plan_lines: `estimate_id` and `estimate_basis` (the twelve month amounts a line was made from).
  */
 export const COSTS_MIGRATIONS: NamedMigration[] = [
   {
@@ -311,6 +335,189 @@ export const COSTS_MIGRATIONS: NamedMigration[] = [
         sent_at TEXT NOT NULL,
         PRIMARY KEY (schedule_id, period_from, kind)
       );
+    `,
+  },
+  {
+    name: 'costs-006-price-books',
+    sql: `
+      CREATE TABLE cost_price_books (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        provider TEXT NOT NULL DEFAULT '',
+        supplier_id TEXT,
+        supplier_contract_id TEXT,
+        platform_id TEXT,
+        currency TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'manual',
+        source_settings TEXT NOT NULL DEFAULT '{}',
+        review_days INTEGER NOT NULL DEFAULT 90,
+        checked_at TEXT,
+        checked_by TEXT,
+        current_version INTEGER NOT NULL DEFAULT 0,
+        base_book_id TEXT,
+        derivation TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX cost_price_books_platform ON cost_price_books(platform_id);
+      CREATE INDEX cost_price_books_provider ON cost_price_books(provider);
+
+      CREATE TABLE cost_price_book_versions (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        number INTEGER NOT NULL,
+        sha256 TEXT NOT NULL DEFAULT '',
+        entry_count INTEGER NOT NULL DEFAULT 0,
+        diff TEXT,
+        source TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX cost_price_book_versions_number ON cost_price_book_versions(book_id, number);
+
+      CREATE TABLE cost_price_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        version_id TEXT NOT NULL,
+        sku_id TEXT NOT NULL,
+        sku_price_id TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL,
+        service TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT '',
+        driver TEXT NOT NULL DEFAULT '',
+        unit TEXT NOT NULL,
+        charge TEXT NOT NULL,
+        price TEXT NOT NULL,
+        block INTEGER NOT NULL DEFAULT 1,
+        currency TEXT,
+        credit_sku TEXT,
+        tiers TEXT,
+        tier_mode TEXT NOT NULL DEFAULT 'graduated',
+        included TEXT,
+        minimum TEXT,
+        valid_from TEXT,
+        valid_to TEXT,
+        attributes TEXT NOT NULL DEFAULT '[]',
+        source_note TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX cost_price_items_version ON cost_price_items(version_id, sku_id);
+
+      CREATE TABLE cost_price_review_notices (
+        book_id TEXT NOT NULL,
+        due_on TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, due_on)
+      );
+
+      CREATE TABLE cost_fx_rates (
+        rate_date TEXT NOT NULL,
+        base TEXT NOT NULL,
+        quote TEXT NOT NULL,
+        rate TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'manual',
+        set_at TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        PRIMARY KEY (rate_date, base, quote, source)
+      );
+
+      INSERT INTO cost_price_books (id, name, kind, provider, platform_id, currency, description, source, review_days, current_version, created_at, created_by, updated_at, updated_by)
+        SELECT 'cpb_' || s.platform_id, p.name || ' – contracted prices', 'contracted', 'Snowflake', s.platform_id, COALESCE(s.credit_currency, 'USD'),
+          'The price per credit of the cost source''s fallback (METERING_DAILY_HISTORY × price per credit), moved here by the upgrade to 0.21.0.',
+          'manual', 90, 1, s.updated_at, s.updated_by, s.updated_at, s.updated_by
+        FROM cost_sources s JOIN platforms p ON p.id = s.platform_id
+        WHERE s.credit_price IS NOT NULL AND s.credit_price <> '';
+      INSERT INTO cost_price_book_versions (id, book_id, number, sha256, entry_count, diff, source, note, created_at, created_by)
+        SELECT 'cpv_' || s.platform_id || '_1', 'cpb_' || s.platform_id, 1, '', 1, NULL, 'migration', 'The price per credit of the cost source', s.updated_at, s.updated_by
+        FROM cost_sources s JOIN platforms p ON p.id = s.platform_id
+        WHERE s.credit_price IS NOT NULL AND s.credit_price <> '';
+      INSERT INTO cost_price_items (version_id, sku_id, sku_price_id, name, service, category, driver, unit, charge, price, block, currency, attributes, source_note)
+        SELECT 'cpv_' || s.platform_id || '_1', 'compute-credit', '', 'Compute credit', 'Compute', 'Analytics', 'credits', '{credit}', 'usage', s.credit_price, 1,
+          COALESCE(s.credit_currency, 'USD'), '[]', 'Cost source: price per credit (fallback)'
+        FROM cost_sources s JOIN platforms p ON p.id = s.platform_id
+        WHERE s.credit_price IS NOT NULL AND s.credit_price <> '';
+    `,
+  },
+  {
+    name: 'costs-007-calculators-estimates',
+    sql: `
+      CREATE TABLE cost_calculators (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        current_version INTEGER NOT NULL DEFAULT 0,
+        draft TEXT,
+        source TEXT NOT NULL DEFAULT 'manual',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX cost_calculators_key ON cost_calculators(key);
+
+      CREATE TABLE cost_calculator_versions (
+        id TEXT PRIMARY KEY,
+        calculator_id TEXT NOT NULL,
+        number INTEGER NOT NULL,
+        definition TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        published_at TEXT NOT NULL,
+        published_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX cost_calculator_versions_number ON cost_calculator_versions(calculator_id, number);
+
+      CREATE TABLE cost_estimates (
+        id TEXT PRIMARY KEY,
+        owner_kind TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        for_kind TEXT,
+        for_id TEXT,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        calculator_id TEXT,
+        calculator_version INTEGER,
+        inputs TEXT NOT NULL DEFAULT '[]',
+        lines TEXT NOT NULL DEFAULT '[]',
+        adjustments TEXT NOT NULL DEFAULT '[]',
+        books TEXT NOT NULL DEFAULT '[]',
+        currency TEXT NOT NULL,
+        applies_from TEXT NOT NULL,
+        live_from TEXT,
+        match TEXT,
+        result TEXT,
+        pending TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX cost_estimates_owner ON cost_estimates(owner_kind, owner_id);
+      CREATE INDEX cost_estimates_for ON cost_estimates(for_kind, for_id);
+      CREATE INDEX cost_estimates_calculator ON cost_estimates(calculator_id);
+
+      CREATE TABLE cost_estimate_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        estimate_id TEXT NOT NULL,
+        result TEXT NOT NULL,
+        replaced_at TEXT NOT NULL,
+        replaced_by TEXT NOT NULL
+      );
+      CREATE INDEX cost_estimate_results_estimate ON cost_estimate_results(estimate_id, id);
+
+      CREATE TABLE cost_estimate_books (
+        estimate_id TEXT NOT NULL,
+        version_id TEXT NOT NULL,
+        PRIMARY KEY (estimate_id, version_id)
+      );
+      CREATE INDEX cost_estimate_books_version ON cost_estimate_books(version_id);
+
+      ALTER TABLE cost_plan_lines ADD COLUMN estimate_id TEXT;
+      ALTER TABLE cost_plan_lines ADD COLUMN estimate_basis TEXT;
+      CREATE INDEX cost_plan_lines_estimate ON cost_plan_lines(estimate_id);
     `,
   },
 ];

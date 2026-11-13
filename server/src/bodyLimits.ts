@@ -20,6 +20,7 @@ import {
   COMPONENT_LIMITS,
   COST_ENTRY_IMPORT_LIMITS,
   COST_LIMITS,
+  COST_PRICE_LIMITS,
   DATA_CONTRACT_LIMITS,
   DEBUG_LIMITS,
   DB_SCHEMA_LIMITS,
@@ -172,6 +173,14 @@ export const LARGE_BODIES = {
       'POST /api/costs/platform-plans/:platformId/entries/import',
     ],
     bytes: jsonText(COST_ENTRY_IMPORT_LIMITS.bytes, 16 * KIB),
+  },
+  /**
+   * Price books (0.21.0, ADR 0035): a CSV file of COST_PRICE_LIMITS.csvBytes (5 MB), or a version of up to 20,000
+   * entries written by hand (about 300 bytes each as JSON)
+   */
+  priceBookImport: {
+    routes: ['POST /api/costs/price-books/:bookId/import/preview', 'POST /api/costs/price-books/:bookId/import', 'PUT /api/costs/price-books/:bookId/entries'],
+    bytes: jsonText(COST_PRICE_LIMITS.csvBytes, 16 * KIB),
   },
   /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */
   libraryUpload: {

@@ -394,6 +394,10 @@ export const OWNED_KINDS = [
   'platform_identity',
   /** A supplier (0.17.0, ADR 0029): like systems */
   'supplier',
+  /** A price book (0.21.0, ADR 0035): its owning teams maintain it */
+  'cost_price_book',
+  /** A cost calculator (0.21.0, ADR 0035) */
+  'cost_calculator',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 

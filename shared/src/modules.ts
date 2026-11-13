@@ -165,7 +165,16 @@ export const MODULES: readonly ModuleDef[] = [
     switchable: true,
     nav: ['costs'],
     pages: ['/costs'],
-    routes: ['/api/costs', '/api/hooks/costs', '/api/v1/costs', '/api/v1/cost-commitments', '/api/v1/services/:serviceId/cost-plan'],
+    routes: [
+      '/api/costs',
+      '/api/hooks/costs',
+      '/api/v1/costs',
+      '/api/v1/cost-commitments',
+      '/api/v1/services/:serviceId/cost-plan',
+      // price books, calculators and estimates (0.21.0, ADR 0035)
+      '/api/v1/cost-estimates',
+      '/api/v1/price-books',
+    ],
     jobs: ['costs'],
     datasets: ['costs:'],
     access: {

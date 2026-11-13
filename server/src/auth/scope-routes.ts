@@ -43,6 +43,8 @@ import { protectOpening } from '../suppliers/shared.js';
 import { canManageSuppliers, contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
 import type { AuthUser } from './context.js';
+import { bookRights, bookRow } from '../costs/price-books.js';
+import { calculatorRights } from '../costs/calculators.js';
 
 /**
  * Owning teams of resources and why someone has access (#131).
@@ -92,6 +94,9 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   // platform identities (0.13.0, ADR 0009): name and access list; the platform decides who sees them
   if (kind === 'platform_identity')
     return db().get<ResourceRow & { platform_id?: string }>('SELECT id, name, acl, platform_id FROM platform_identities WHERE id = ?', id);
+  // price books and calculators (0.21.0, ADR 0035): their own rules (costs/price-books.ts, costs/calculators.ts)
+  if (kind === 'cost_price_book') return db().get<ResourceRow>('SELECT id, name FROM cost_price_books WHERE id = ?', id);
+  if (kind === 'cost_calculator') return db().get<ResourceRow>('SELECT id, name FROM cost_calculators WHERE id = ?', id);
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -123,6 +128,15 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
     const d = identityAccess(u, platform, { id: r.id, default: isDefault, acl: parseJson(r.acl, []) });
     return d.permissions.length ? d : { permissions: ['view'], reasons: seen.reasons };
   }
+  if (kind === 'cost_price_book') {
+    const row = bookRow(r.id);
+    const b = row ? bookRights(row, u) : { view: false, edit: false };
+    return { permissions: [...(b.view ? ['view'] : []), ...(b.edit ? ['edit'] : [])], reasons: [] };
+  }
+  if (kind === 'cost_calculator') {
+    const c = calculatorRights({ id: r.id }, u);
+    return { permissions: [...(c.view ? ['view'] : []), ...(c.edit ? ['edit'] : [])], reasons: [] };
+  }
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
@@ -149,6 +163,8 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   contract: ['Data contract not found', 'DATA_CONTRACT_NOT_FOUND'],
   platform_identity: ['Identity not found', 'IDENTITY_NOT_FOUND'],
   supplier: ['Supplier not found', 'SUPPLIER_NOT_FOUND'],
+  cost_price_book: ['Price book not found', 'COST_PRICE_BOOK_NOT_FOUND'],
+  cost_calculator: ['Calculator not found', 'COST_CALCULATOR_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 

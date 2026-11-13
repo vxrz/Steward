@@ -1,0 +1,9 @@
+sku,name,service,driver,unit,charge,price,block,currency,source_note
+ecku-hour,Elastic capacity,Kafka,eCKU-hours,{eCKU}.h,usage,0,1,USD,Set your price per eCKU-hour – Steward ships no money prices
+cku-hour,Dedicated capacity,Kafka,CKU-hours,{CKU}.h,usage,0,1,USD,Set your price per CKU-hour
+network-ingress,Data in,Kafka,GB written,GBy,usage,0,1,USD,Set your price per GB
+network-egress,Data out,Kafka,GB read,GBy,usage,0,1,USD,Set your price per GB
+storage,Storage,Kafka,storage,GBy.mo,usage,0,1,USD,Set your price per GB-month
+partition-hour,Partitions,Kafka,partition-hours,{partition}.h,usage,0,1,USD,Set your price per partition-hour and the included partitions
+connector-task-hour,Connector tasks,Connect,task-hours,{task}.h,usage,0,1,USD,Set your price per task-hour
+connector-throughput,Connector throughput,Connect,GB processed,GBy,usage,0,1,USD,Set your price per GB

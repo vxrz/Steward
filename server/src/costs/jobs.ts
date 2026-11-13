@@ -4,6 +4,7 @@ import { runCostJob } from './sources.js';
 import { publishCommitmentsDataset } from './commitments.js';
 import { checkBookingReminders } from './booking-reminders.js';
 import { checkVolumeNotices } from './volume-notices.js';
+import { checkPriceReviews } from './price-reviews.js';
 
 /**
  * The job "costs" (#226): the sources that are due, the links of every line once a day, the 80 % and 100 % notices of
@@ -19,5 +20,7 @@ export async function runCostsJob(now = Date.now()): Promise<{ read: number; fai
   checkBookingReminders(now);
   // the warnings of contract volumes (ADR 0032), at most hourly, once per schedule, period and kind
   checkVolumeNotices(now);
+  // "Prices to review" of price books kept by hand (ADR 0035 part 2), at most hourly, once per book and due date
+  checkPriceReviews(now);
   return { ...r, notices, published };
 }

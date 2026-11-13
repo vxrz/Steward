@@ -96,6 +96,11 @@ const SystemSchemaPage = page(() => import('./pages/SystemSchema'), 'SystemSchem
 const CostsPage = page(() => import('./pages/Costs'), 'CostsPage');
 const CostDetailPage = page(() => import('./pages/CostDetail'), 'CostDetailPage');
 const CostCommitmentsPage = page(() => import('./pages/CostCommitments'), 'CostCommitmentsPage');
+const PriceBooksPage = page(() => import('./pages/costs/PriceBooks'), 'PriceBooksPage');
+const PriceBookPage = page(() => import('./pages/costs/PriceBooks'), 'PriceBookPage');
+const CalculatorsPage = page(() => import('./pages/costs/Calculators'), 'CalculatorsPage');
+const CalculatorPage = page(() => import('./pages/costs/Calculators'), 'CalculatorPage');
+const EstimatePage = page(() => import('./pages/costs/Estimate'), 'EstimatePage');
 const DataContractsPage = page(() => import('./pages/DataContracts'), 'DataContractsPage');
 const DataContractNewPage = page(() => import('./pages/DataContractNew'), 'DataContractNewPage');
 const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 'DataContractDetailPage');
@@ -527,6 +532,46 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="costs">
                           <CostCommitmentsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/price-books"
+                      element={
+                        <ModuleGate module="costs">
+                          <PriceBooksPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/price-books/:id"
+                      element={
+                        <ModuleGate module="costs">
+                          <PriceBookPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/calculators"
+                      element={
+                        <ModuleGate module="costs">
+                          <CalculatorsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/calculators/:id"
+                      element={
+                        <ModuleGate module="costs">
+                          <CalculatorPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/costs/estimates/:id"
+                      element={
+                        <ModuleGate module="costs">
+                          <EstimatePage />
                         </ModuleGate>
                       }
                     />

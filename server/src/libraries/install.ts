@@ -193,7 +193,7 @@ export function abilityTokens(a: LibraryProcessAbilities): string[] {
 
 // ---------- local state of the items ----------
 
-const isSyncKind = (k: LibraryItemKind): k is SyncKind => k !== 'connector';
+const isSyncKind = (k: LibraryItemKind): k is Exclude<LibraryItemKind, 'connector'> & SyncKind => k !== 'connector';
 
 function connectorLocal(kind: string): { id: string; name: string } | null {
   const r = db().get<{ package: string }>('SELECT package FROM platform_types WHERE kind = ?', kind);

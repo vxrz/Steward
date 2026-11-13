@@ -1,0 +1,13 @@
+sku,name,service,driver,unit,charge,price,block,currency,credit_item,source_note
+warehouse-XS,Standard warehouse XS,Warehouse,runtime,h,usage,1,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-S,Standard warehouse S,Warehouse,runtime,h,usage,2,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-M,Standard warehouse M,Warehouse,runtime,h,usage,4,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-L,Standard warehouse L,Warehouse,runtime,h,usage,8,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-XL,Standard warehouse XL,Warehouse,runtime,h,usage,16,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-2XL,Standard warehouse 2XL,Warehouse,runtime,h,usage,32,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-3XL,Standard warehouse 3XL,Warehouse,runtime,h,usage,64,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+warehouse-4XL,Standard warehouse 4XL,Warehouse,runtime,h,usage,128,1,,compute-credit,Credits per hour of a standard warehouse (checked 2026-11-12)
+serverless-credit,Serverless credit,Serverless,credits,{credit},usage,1,1,,compute-credit,One credit of a serverless feature counted as a compute credit – check your contract
+compute-credit,Compute credit,Compute,credits,{credit},usage,0,1,USD,,Set your price per credit (list or contract) – Steward ships no money prices
+storage,Storage,Storage,storage,TBy.mo,usage,0,1,USD,,Set your price per terabyte-month – Steward ships no money prices
+data-transfer,Data transfer out,Transfer,data transfer,TBy,usage,0,1,USD,,Set your price per terabyte – Steward ships no money prices
