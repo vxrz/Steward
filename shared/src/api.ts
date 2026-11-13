@@ -859,7 +859,7 @@ export interface PlatformIdentity {
    * Deprecated since 0.23.0: computed from the identity's shares, for who manages the platform (empty for others)
    */
   acl?: AclEntry<'use'>[];
-  /** How many shares say who may use it (0.23.0; not set on the default identity) */
+  /** How many shares say who may use it (0.23.0; only for who manages the platform, not set on the default identity) */
   shared?: number;
   /**
    * Kept but not usable (0.13.0): it was added or changed outside Steward when an administrator confirmed the platform's

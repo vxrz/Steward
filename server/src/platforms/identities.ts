@@ -198,7 +198,8 @@ export function toIdentity(
     ...(extra.registerEntries !== undefined ? { registerEntries: extra.registerEntries } : {}),
     ...(flag(r.disabled) ? { disabled: true } : {}),
     // the default identity is open to everyone with "use" on the platform: it has no list of its own
-    ...(flag(r.is_default) ? {} : { acl: extra.acl ?? [], shared: extra.shared ?? 0 }),
+    // (how many shares it has only for who manages the platform: the caller leaves `shared` out for anyone else)
+    ...(flag(r.is_default) ? {} : { acl: extra.acl ?? [], ...(extra.shared !== undefined ? { shared: extra.shared } : {}) }),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
