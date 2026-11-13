@@ -1721,6 +1721,7 @@ export interface Resources {
     'duplicate.copiedFrom': string;
     'duplicate.copiedAt': string;
     'duplicate.copiedFromHidden': string;
+    'duplicate.plantScope': string;
     'duplicate.systemNote': string;
     'sections.expandAll': string;
     'sections.collapseAll': string;
@@ -6240,6 +6241,7 @@ export interface Resources {
     'codes.PLANT_NODE_NOT_FOUND': string;
     'codes.PLANT_BUILDING_NOT_FOUND': string;
     'codes.PLANT_ID_TAKEN': string;
+    'codes.PLANT_COPY_NOT_VISIBLE': string;
     'codes.PLANT_ID_UNAVAILABLE': string;
     'codes.PLANT_ID_ALIAS': string;
     'codes.PLANT_ID_FORMAT': string;
@@ -11106,6 +11108,7 @@ export interface Resources {
     'extract.problems.no_points': string;
     'extract.problems.base_taken': string;
     'extract.problems.rules': string;
+    'extract.problems.hidden': string;
     'extract.interfaces': string;
     'extract.interfacesHelp': string;
     'extract.interfaceId': string;
@@ -11507,8 +11510,10 @@ export interface Resources {
     'tabs.kpiLabel': string;
     'tabs.profile.overview': string;
     'tabs.profile.history': string;
+    'tabs.profile.access': string;
     'tabs.kpi.overview': string;
     'tabs.kpi.history': string;
+    'tabs.kpi.access': string;
     'toolbar.mode': string;
     'toolbar.picture': string;
     'toolbar.table': string;

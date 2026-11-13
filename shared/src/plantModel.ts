@@ -215,8 +215,11 @@ export interface PlantExtractInput {
 export const PLANT_EXTRACT_POINT_PROBLEMS = ['missing', 'twice', 'protocol', 'group', 'interface', 'id_taken'] as const;
 export type PlantExtractPointProblem = (typeof PLANT_EXTRACT_POINT_PROBLEMS)[number];
 
-/** Why the extraction cannot go ahead as a whole. */
-export const PLANT_EXTRACT_PROBLEMS = ['profile_unknown', 'has_base', 'not_enough', 'leading', 'base_taken', 'no_points', 'rules'] as const;
+/**
+ * Why the extraction cannot go ahead as a whole. `hidden` (0.21.0): the base would belong to the leading profile's
+ * owning teams (or only its shares) and the caller would not see it.
+ */
+export const PLANT_EXTRACT_PROBLEMS = ['profile_unknown', 'has_base', 'not_enough', 'leading', 'base_taken', 'no_points', 'rules', 'hidden'] as const;
 export type PlantExtractProblem = (typeof PLANT_EXTRACT_PROBLEMS)[number];
 
 /** POST /api/plant/profiles/extract-base/candidates: the data points of the leading profile and their best matches. */

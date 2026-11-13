@@ -262,11 +262,12 @@ export function getProfile(id: string, scope: CatalogueScope = catalogueScope())
  * Profile values from the API's input (groups without data points and names are kept as given), checked: its own
  * rules, its base (exists, no cycle) and – for a base – that every profile extending it still resolves (0.11.0).
  */
-function profileValues(id: string, b: z.infer<typeof profileUpdate>, scope: CatalogueScope): PlantProfileValues {
+function profileValues(id: string, b: z.infer<typeof profileUpdate>, scope: CatalogueScope, refsOf: string = id): PlantProfileValues {
   const own = ownProfiles();
-  // 0.21.0 (#293): a base the caller may not see is kept as its placeholder; choosing one anew reads like an unknown one
-  const stored = own.get(id);
-  const refs = new HiddenRefs(scope.profile, stored ? (resolveAll(own).get(id)?.chain.slice(1) ?? []) : []);
+  // 0.21.0 (#293): a base the caller may not see is kept as its placeholder; choosing one anew reads like an unknown one.
+  // A copy (`refsOf`: its original) keeps the placeholders of the original – it names the same base, it does not choose it
+  const stored = own.get(refsOf);
+  const refs = new HiddenRefs(scope.profile, stored ? (resolveAll(own).get(refsOf)?.chain.slice(1) ?? []) : []);
   const v: PlantProfileValues = { id, ...b, extends: b.extends ? keptRef(b.extends, refs, scope.profile, profileNotFound) : null };
   return checkedProfile(v, own, (problems) => {
     // a message naming a profile the caller may not see (a base, a profile that extends this one) names its placeholder
@@ -317,7 +318,11 @@ export function checkedProfile(
   return normalized;
 }
 
-export function createProfile(input: z.infer<typeof profileInput>): PlantProfileDetail {
+/**
+ * A new device profile. `opts.copyOf`: the profile it copies (Duplicate) – a base the caller may not see is sent back by
+ * its placeholder in the original and kept; the copy's owning teams are the caller's to set (plant/duplicate.ts).
+ */
+export function createProfile(input: z.infer<typeof profileInput>, opts: { copyOf?: string } = {}): PlantProfileDetail {
   const by = requireCatalogue('add device profiles');
   const scope = catalogueScope();
   // an id taken by an entry the caller may not see is refused neutrally (part 4: "This id cannot be used")
@@ -326,7 +331,7 @@ export function createProfile(input: z.infer<typeof profileInput>): PlantProfile
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_profiles')!.n) >= PLANT_DATA_LIMITS.profiles)
     throw new HttpError(409, `At most ${PLANT_DATA_LIMITS.profiles} device profiles`, 'PLANT_LIMIT', { max: PLANT_DATA_LIMITS.profiles });
   const { id, ...rest } = input;
-  const v = profileValues(id, rest, scope);
+  const v = profileValues(id, rest, scope, opts.copyOf);
   db().tx(() => {
     // decision 9: a new profile belongs to no team, whoever adds it (like suppliers); teams restrict it deliberately
     upsertProfile(v, { at: nowIso(), by });
@@ -672,8 +677,9 @@ export function getKpi(id: string, scope: CatalogueScope = catalogueScope()): Pl
   };
 }
 
-function kpiValues(id: string, b: z.infer<typeof kpiUpdate>, scope: CatalogueScope): PlantKpiValues {
-  const stored = kpiRowOf(id);
+function kpiValues(id: string, b: z.infer<typeof kpiUpdate>, scope: CatalogueScope, refsOf: string = id): PlantKpiValues {
+  // a copy (`refsOf`: its original) keeps the placeholders of the original's inputs: it reads the same profiles
+  const stored = kpiRowOf(refsOf);
   const v: PlantKpiValues = { id, ...b, inputs: keptInputs(b.inputs, stored ? kpiValuesOf(stored) : null, scope, profileNotFound) };
   // 0.13: a mapping to a data point a profile lacks is refused – naming a profile the caller may not see by its placeholder
   const problems = kpiProblems(v, presentProfiles(allProfiles(), scope));
@@ -687,7 +693,8 @@ function kpiValues(id: string, b: z.infer<typeof kpiUpdate>, scope: CatalogueSco
   return { ...v, inputs: normalizeKpiInputs(v.inputs) };
 }
 
-export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
+/** A new KPI definition. `opts.copyOf`: the definition it copies (Duplicate) – its inputs keep the original's placeholders. */
+export function createKpi(input: z.infer<typeof kpiInput>, opts: { copyOf?: string } = {}): PlantKpiDetail {
   const by = requireCatalogue('add KPI definitions');
   const scope = catalogueScope();
   if (kpiRowOf(input.id)) throw idTaken('kpi', input.id, scope.kpi(input.id));
@@ -695,7 +702,7 @@ export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_kpis')!.n) >= PLANT_DATA_LIMITS.kpis)
     throw new HttpError(409, `At most ${PLANT_DATA_LIMITS.kpis} KPI definitions`, 'PLANT_LIMIT', { max: PLANT_DATA_LIMITS.kpis });
   const { id, ...rest } = input;
-  const v = kpiValues(id, rest, scope);
+  const v = kpiValues(id, rest, scope, opts.copyOf);
   db().tx(() => {
     // decision 9: a new KPI definition belongs to no team, whoever adds it
     upsertKpi(v, { at: nowIso(), by });
