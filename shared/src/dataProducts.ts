@@ -352,7 +352,8 @@ export const elementShortName = (qualifiedName: string): string => {
  */
 export function openLineageDataset(kind: DataElementKind, platformAddress: string | null, qualifiedName: string): { namespace: string; name: string } | null {
   if (!platformAddress) return null;
-  if (kind.startsWith('snowflake.')) return { namespace: `snowflake://${platformAddress.toLowerCase()}`, name: qualifiedName.toUpperCase() };
+  // the names as Snowflake reports them: unquoted identifiers are upper case already, quoted ones keep their case
+  if (kind.startsWith('snowflake.')) return { namespace: `snowflake://${platformAddress.toLowerCase()}`, name: qualifiedName };
   if (kind === 'kafka.topic') return { namespace: `kafka://${platformAddress}`, name: qualifiedName };
   if (kind.startsWith('sql.')) return { namespace: platformAddress, name: qualifiedName };
   return null;
