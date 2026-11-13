@@ -112,6 +112,16 @@ Microsoft Teams also reaches people one by one: with the Teams bot on, each pers
 
 An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **roles in these teams**. On each sign-in with _Synchronise roles_, the member's team roles follow the mapping: they are added, changed, or removed when the mapping no longer gives any.
 
+### Modules through teams
+
+Who may use a restricted module ([MODULES.md](MODULES.md#who-may-use-a-module), [ADR 0034](adr/0034-module-access.md)) names **teams and users**, never SSO groups. A group reaches a module through the team it is mapped to – so membership, its audit trail and the access review stay in one place:
+
+1. _Users → Single sign-on → provider → Groups and roles_: map the group (for example the claim value `plant-engineering`) to a team, `Invented plant engineering`, with _Synchronise roles_ on.
+2. _Settings → Modules → Plant registry → Who may use it_: **Selected teams and users**, add the team `Invented plant engineering`. The preview shows who gains and who loses the module before you save.
+3. Check it with the provider's **test sign-in**: its preview lists the restricted modules and whether the person would use each (_Uses Plant registry through team Invented plant engineering_).
+
+When the group leaves the token, the next sign-in removes the team membership and with it the module. A deleted team stays on a module's list as an entry that matches nobody, so deleting a team never opens a restricted module. A team that owns items of a module but is not on its list is named in the preview: its members keep their rights on those items but cannot open them.
+
 ## Upgrade and migration
 
 - The upgrade only adds columns (`team_members.roles`, `team_members.new_resources`) and tables (`resource_teams`, `team_settings`). No owning team is set and every team starts with the defaults above, so every installation keeps its visibility.

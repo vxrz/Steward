@@ -126,7 +126,8 @@ _Download the assurance report_ on the policy page (and in the evidence pack dia
 
 - the **policy in force** at the end of the period (with the baseline marked) and the version at its start, every **change** in the period with who made and who approved it, and every **request to loosen** it with its outcome;
 - **per control point** the number of events and how they were confirmed (password, single sign-on, with MFA, emergency, not required) and how many needed a second person;
-- the **exceptions**: emergency sign-ins and confirmations by emergency access, refusals and step-ups without MFA where MFA was required, and loosenings with their second administrator.
+- the **exceptions**: emergency sign-ins and confirmations by emergency access, refusals and step-ups without MFA where MFA was required, and loosenings with their second administrator;
+- **module access** ([MODULES.md](MODULES.md#who-may-use-a-module)): who uses each module restricted to selected teams and users at the end of the period, and every change of module access in it – who changed it, what was added and removed, and whether it was confirmed with the step-up (a widening) or in the dialog (a narrowing).
 
 As PDF/A (branding as the other reports) from `GET /api/assurance/report?from&to&lang` (auditors and administrators, with the step-up of `audit.export`), as JSON with every event and its audit sequence number (`&format=json`), and in evidence packs as `assurance/assurance-report.pdf` and `.json`, listed in the signed manifest (`steward evidence verify` checks them like every file). It is read from the authentic audit entries only; entries that fail their check are counted and left out.
 

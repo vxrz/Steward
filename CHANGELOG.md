@@ -8,6 +8,8 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Who may use a module** ([docs/MODULES.md](docs/MODULES.md#who-may-use-a-module), [ADR 0034](docs/adr/0034-module-access.md)): _Settings → Modules → Who may use it_ restricts a module to selected teams and users, or opens it to everyone signed in again. Before saving, the dialog shows who gains and who loses the module and which teams own items of it but would not use it; widening asks for the step-up _Give rights in an access list_, narrowing for a confirmation with the list of who loses it. A single sign-on group reaches a module through the team it is mapped to ([docs/TEAMS.md](docs/TEAMS.md#modules-through-teams)), and the test sign-in shows which restricted modules a person would use.
+- **The module layer where access is explained and evidenced**: _Why do I have access?_ on a site or a data contract, person access reviews of a Steward user, the assurance report (a section _Module access_) and evidence packs (`access/module-access.json`) name who uses each restricted module and through which team. The report schedule form names the recipients who will get the report without the sections of a module they do not use, and a monitor's check of such a module shows them only its status.
 - **The plan line dialog says that a line needs no contract** ([docs/COSTS.md](docs/COSTS.md#planning-per-service)): a licence to buy later or a renewal still to be negotiated is a plan line without supplier and contract; the contract is chosen once it exists.
 
 ### Changed
