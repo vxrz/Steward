@@ -108,6 +108,10 @@
       "undocumented": {
         "label": "Undokumentierter Zugriff",
         "info": "Der Zugriffsabgleich hat Zugriffsänderungen ohne Eintrag gefunden"
+      },
+      "share_expiring": {
+        "label": "Teilen endet bald",
+        "info": "Das Teilen eines Eintrags, den Sie verwalten, endet in 7 Tagen (danach entfällt der Zugriff, wenn niemand es verlängert)"
       }
     },
     "document": {

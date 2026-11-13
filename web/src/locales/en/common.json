@@ -97,7 +97,8 @@
     "approve": "approve",
     "manage": "manage",
     "use": "use",
-    "acknowledge": "acknowledge"
+    "acknowledge": "acknowledge",
+    "test": "test"
   },
   "breadcrumb": "Breadcrumb",
   "loadFailed": "Could not load this page",

@@ -76,6 +76,13 @@ export interface Resources {
     'owning.reason.accessList': string;
     'owning.reason.namedOwner': string;
     'owning.reason.namedResponsible': string;
+    'owning.reason.shareUser': string;
+    'owning.reason.shareTeam': string;
+    'owning.reason.shareRole': string;
+    'owning.reason.until': string;
+    'owning.level.view': string;
+    'owning.level.edit': string;
+    'owning.level.manage': string;
     'owning.save': string;
     'owning.bulk.open': string;
     'owning.bulk.title': string;
@@ -1510,6 +1517,7 @@ export interface Resources {
     'permissions.manage': string;
     'permissions.use': string;
     'permissions.acknowledge': string;
+    'permissions.test': string;
     breadcrumb: string;
     loadFailed: string;
     notFound: string;
@@ -6291,6 +6299,10 @@ export interface Resources {
     'codes.SUPPLIER_CONTRACT_PLATFORM_GRANT': string;
     'codes.SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND': string;
     'codes.SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES': string;
+    'codes.SHARE_SUBJECT_UNSUITABLE': string;
+    'codes.SHARE_EXCEEDS_OWN_RIGHTS': string;
+    'codes.SHARE_EXPIRY_INVALID': string;
+    'codes.SHARE_ACTION_UNKNOWN': string;
     'boundary.title': string;
     'boundary.text': string;
     'boundary.retry': string;
@@ -8334,6 +8346,8 @@ export interface Resources {
     'events.summary.daily.info': string;
     'events.access.undocumented.label': string;
     'events.access.undocumented.info': string;
+    'events.access.share_expiring.label': string;
+    'events.access.share_expiring.info': string;
     'events.document.review.label': string;
     'events.document.review.info': string;
     'events.security.emergency.label': string;

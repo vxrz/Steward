@@ -1366,7 +1366,11 @@
     "SUPPLIER_CONTRACT_PLATFORM_LIMIT": "A contract covers at most {{max}} platforms.",
     "SUPPLIER_CONTRACT_PLATFORM_GRANT": "Covering the platform “{{platform}}” would let people outside the owning teams of the contract “{{contract}}” see it. Add the platform on the contract’s page first – there you confirm it.",
     "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "The contract does not cover this platform (any more).",
-    "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "The platform pays {{count}} payment schedules of this contract ({{schedules}}). Move or remove them first."
+    "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "The platform pays {{count}} payment schedules of this contract ({{schedules}}). Move or remove them first.",
+    "SHARE_SUBJECT_UNSUITABLE": "{{subject}} cannot be given a share of this item: status viewers get none, plant viewers only on the plant registry.",
+    "SHARE_EXCEEDS_OWN_RIGHTS": "You cannot share more than you hold yourself ({{subject}}).",
+    "SHARE_EXPIRY_INVALID": "The end date of a share must be in the future and at most a year ahead.",
+    "SHARE_ACTION_UNKNOWN": "This kind of item has no right “{{action}}” to share."
   },
   "boundary": {
     "title": "Something went wrong on this page",

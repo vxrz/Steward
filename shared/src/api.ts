@@ -10,6 +10,7 @@ import type { Locale } from './locales.js';
 import type { DailySummaryPrefs } from './dailySummary.js';
 import type { PlantChange, PlantImportProblem } from './plant.js';
 import type { DigestPrefs, QuietHours } from './quietHours.js';
+import type { ShareAction, ShareLevel } from './access.js';
 import type {
   SsoConfigWarning,
   SsoGroupValues,
@@ -398,14 +399,21 @@ export type OwnedKind = (typeof OWNED_KINDS)[number];
 
 /** Why someone has a right on a resource (#131): shown in the UI and used in access reviews. */
 export interface AccessReason {
-  /** admin | owner | auditor | instanceRole | teamRole | accessList | named (a named owner or responsible, #195) */
-  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named';
-  /** The role, the team, or the access list subject the right comes from */
+  /**
+   * admin | owner | auditor | instanceRole | teamRole | accessList | named (a named owner or responsible, #195) |
+   * share (a share of the resource, ADR 0033)
+   */
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share';
+  /** The role, the team, or the access list or share subject the right comes from */
   role?: Role;
   team?: string;
   subject?: string;
   /** source named: named as an owner or as a responsible (ticket references) */
   as?: 'owner' | 'responsible';
+  /** source share: its level, action rights and end date (ADR 0033) */
+  level?: ShareLevel;
+  actions?: ShareAction[];
+  expiresAt?: string | null;
   permissions: string[];
 }
 

@@ -81,7 +81,16 @@
       "teamRole": "{{role}} im Team {{team}}: {{rights}}",
       "accessList": "Zugriffsliste ({{subject}}): {{rights}}",
       "namedOwner": "Als Eigentümer benannt ({{subject}}): {{rights}}",
-      "namedResponsible": "Als Verantwortliche benannt ({{subject}}): {{rights}}"
+      "namedResponsible": "Als Verantwortliche benannt ({{subject}}): {{rights}}",
+      "shareUser": "Geteilt mit {{name}} – {{level}}",
+      "shareTeam": "Geteilt mit Team {{name}} – {{level}}",
+      "shareRole": "Geteilt mit allen mit der Rolle {{name}} – {{level}}",
+      "until": "{{text}} (bis {{date}})"
+    },
+    "level": {
+      "view": "Ansehen",
+      "edit": "Bearbeiten",
+      "manage": "Verwalten"
     },
     "save": "Zuständige Teams speichern",
     "bulk": {

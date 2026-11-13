@@ -106,6 +106,8 @@ export type RefKind =
   | 'acl'
   /** JSON array of subjects */
   | 'subjects'
+  /** one subject ("user:x" | "team:y" | "role:z") as plain text – a share's subject (ADR 0033), part of its key */
+  | 'subject'
   /** JSON { users: [names], teams: [names], … } */
   | 'recipients'
   /** monitor definition: outputs[].subscribers are subjects */
@@ -120,6 +122,11 @@ export interface UserRef {
    * matches nobody, because removing it could leave no team and so open the row to more people (auth/subjects.ts).
    */
   keepDeletedTeams?: true;
+  /**
+   * Kind `subject`: the other columns of the row's key besides the subject (a share is keyed by kind, resource and
+   * subject). A rename onto a subject the same resource already has keeps one row (auth/subjects.ts, migration/import.ts).
+   */
+  key?: readonly string[];
 }
 
 /** Columns that decide who owns something or may do something now: mapped on import. */
@@ -171,6 +178,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
   // the access list of a plant registry site (#218)
   { table: 'plant_sites', column: 'acl', kind: 'acl' },
+  // shares (0.21.0, ADR 0033): who a resource is shared with; a deleted team stays a share that matches nobody
+  { table: 'resource_shares', column: 'subject', kind: 'subject', keepDeletedTeams: true, key: ['kind', 'resource_id'] },
 ];
 
 /**
@@ -178,6 +187,9 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // who shared a resource and who made it Restricted (0.21.0, ADR 0033)
+  'resource_shares.created_by',
+  'resource_restrictions.created_by',
   'ai_usage.actor',
   'ai_budgets.updated_by',
   // platform costs (#226)

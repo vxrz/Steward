@@ -864,6 +864,17 @@ function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataD
       );
       for (const r of rows) {
         const next = mapValue(ref.kind, r.v, maps);
+        if (ref.kind === 'subject' && next !== r.v) {
+          // a share (ADR 0033): one row per subject – a dropped team's share goes, and of two subjects mapped to the
+          // same user or team here the first one stays (the staging database is SQLite)
+          const where = key.map((k) => `${quoteIdent(k)} = ?`).join(' AND ');
+          const done =
+            next !== null &&
+            staging.run(`UPDATE OR IGNORE ${quoteIdent(ref.table)} SET ${quoteIdent(ref.column)} = ? WHERE ${where}`, next, ...key.map((k) => r[k])).changes >
+              0;
+          if (!done) staging.run(`DELETE FROM ${quoteIdent(ref.table)} WHERE ${where}`, ...key.map((k) => r[k]));
+          continue;
+        }
         if (next !== r.v)
           staging.run(
             `UPDATE ${quoteIdent(ref.table)} SET ${quoteIdent(ref.column)} = ? WHERE ${key.map((k) => `${quoteIdent(k)} = ?`).join(' AND ')}`,

@@ -7,6 +7,7 @@ import type { AccessExplanation, AccessReason, OwnedKind, Team, UserInfo } from 
 import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { supplierKeys } from '../queryKeys';
+import { fmtDay } from '../format';
 import { OpenSupplierModal } from './suppliers/SharedSuppliers';
 
 interface OwningTeamsResponse {
@@ -180,6 +181,14 @@ function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['
       return r.as === 'responsible'
         ? t('owning.reason.namedResponsible', { subject: r.subject, rights })
         : t('owning.reason.namedOwner', { subject: r.subject, rights });
+    case 'share': {
+      // ADR 0033: "Shared with team Payments – Edit, run (until 31 Jan 2027)"
+      const level = [t(`owning.level.${r.level ?? 'view'}`), ...(r.actions ?? []).map((a) => t(`common:permissions.${a}`, { defaultValue: a }))].join(', ');
+      const name = (r.subject ?? '').replace(/^(user|team|role):/, '');
+      const type = r.subject?.startsWith('team:') ? 'shareTeam' : r.subject?.startsWith('role:') ? 'shareRole' : 'shareUser';
+      const text = t(`owning.reason.${type}`, { name: type === 'shareRole' ? t(`common:roles.${name}`, { defaultValue: name }) : name, level });
+      return r.expiresAt ? t('owning.reason.until', { text, date: fmtDay(r.expiresAt) }) : text;
+    }
     default:
       return t('owning.reason.accessList', { subject: r.subject, rights });
   }

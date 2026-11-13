@@ -35,6 +35,8 @@ export function mapValue(kind: RefKind, raw: unknown, maps: NameMaps): unknown {
     const to = maps.users.get(lower(String(raw)));
     return to ?? raw;
   }
+  // one subject as plain text (a share's): null when its team is dropped
+  if (kind === 'subject') return mapSubject(String(raw), maps);
   const json = parseJson<unknown>(String(raw), undefined);
   if (json === undefined) return raw;
   let out: unknown = json;

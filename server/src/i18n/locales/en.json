@@ -623,6 +623,20 @@
     "noticeBody": "The last day to give notice on the contract “{{title}}” of the supplier “{{supplier}}” is {{date}}. Decide whether it should renew.",
     "hint": "You get this because you own the contract or the supplier in Steward."
   },
+  "shareExpiry": {
+    "title_one": "{{item}}: the share with {{subject}} ends in {{count}} day",
+    "title_other": "{{item}}: the share with {{subject}} ends in {{count}} days",
+    "body": "The share of “{{item}}” with {{subject}} ({{level}}) ends on {{date}}. It is removed then. Extend it on the item’s Access tab if it is still needed.",
+    "hint": "You get this because you manage “{{item}}” in Steward.",
+    "user": "{{name}}",
+    "team": "team {{name}}",
+    "role": "everyone with the role {{name}}",
+    "levels": {
+      "view": "View",
+      "edit": "Edit",
+      "manage": "Manage"
+    }
+  },
   "costBooking": {
     "title_one": "{{service}}: {{count}} contract payment of {{month}} not booked",
     "title_other": "{{service}}: {{count}} contract payments of {{month}} not booked",
