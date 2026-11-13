@@ -231,6 +231,7 @@
     "api.endpoint": "API-Endpunkt",
     "files.path": "Dateipfad",
     "insightsHub.aspect": "Insights-Hub-Aspekt",
-    "other": "Sonstiges"
+    "other": "Sonstiges",
+    "mqtt.topic": "MQTT-Topic"
   }
 }

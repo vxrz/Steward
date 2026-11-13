@@ -5039,6 +5039,7 @@ export interface Resources {
     'elementKinds.files.path': string;
     'elementKinds.insightsHub.aspect': string;
     'elementKinds.other': string;
+    'elementKinds.mqtt.topic': string;
   };
   dataProducts: {
     'lifecycle.proposed': string;
@@ -5404,6 +5405,12 @@ export interface Resources {
     'steps.connectorPlatform': string;
     'steps.connectorName': string;
     'steps.connectorText': string;
+    'steps.runsOn': string;
+    'steps.runsOnHint': string;
+    'steps.runsOnHidden': string;
+    'steps.runsOnEnvironment': string;
+    'steps.runsOnText': string;
+    'steps.runsOnHiddenText': string;
     'steps.tool': string;
     'steps.toolText': string;
     'steps.schedule': string;
@@ -5772,7 +5779,10 @@ export interface Resources {
     'elements.nameHints.files': string;
     'elements.nameHints.insightsHub': string;
     'elements.nameHints.other': string;
+    'elements.nameHints.mqtt': string;
     'elements.apiHint': string;
+    'elements.broker': string;
+    'elements.brokerHint': string;
     'elements.apiUrl': string;
     'elements.operations': string;
     'elements.operationsHint': string;
@@ -8163,6 +8173,7 @@ export interface Resources {
     'codes.SEGMENT_LINK_EXISTS': string;
     'codes.SEGMENT_LINK_NOT_FOUND': string;
     'codes.SEGMENT_IN_USE': string;
+    'codes.EDGE_SUGGESTION_GONE': string;
     'codes.RECORD_TABLE_INVALID': string;
     'codes.RECORD_TABLE_ROWS': string;
     'codes.RECORD_TABLE_COLUMN_UNKNOWN': string;
@@ -12853,6 +12864,19 @@ export interface Resources {
     'ih.gapsOf': string;
     'ih.openCollection': string;
     'ih.itemNo': string;
+    'sinkElement.button': string;
+    'sinkElement.title': string;
+    'sinkElement.help': string;
+    'sinkElement.topic': string;
+    'sinkElement.topicRequired': string;
+    'sinkElement.platform': string;
+    'sinkElement.platformHint': string;
+    'sinkElement.broker': string;
+    'sinkElement.brokerHint': string;
+    'sinkElement.environment': string;
+    'sinkElement.create': string;
+    'sinkElement.made': string;
+    'sinkElement.open': string;
   };
   plantIds: {
     'kinds.site': string;

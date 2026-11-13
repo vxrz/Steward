@@ -278,6 +278,8 @@ export const DATA_ELEMENT_KINDS = [
   'files.path',
   'insightsHub.aspect',
   'other',
+  // 0.25.0 (ADR 0037 part 3): a topic of an MQTT broker or the Industrial Edge Databus
+  'mqtt.topic',
 ] as const;
 export type DataElementKind = (typeof DATA_ELEMENT_KINDS)[number];
 export const isDataElementKind = (x: unknown): x is DataElementKind => typeof x === 'string' && (DATA_ELEMENT_KINDS as readonly string[]).includes(x);
@@ -337,6 +339,8 @@ export const DATA_ELEMENT_KIND_DEFS: Readonly<Record<DataElementKind, DataElemen
   'files.path': { platformKinds: ['aws'], platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'file' },
   'insightsHub.aspect': { platformKinds: ['insights-hub'], platformRequired: true, container: false, parentKinds: [], discovered: false, portType: 'other' },
   other: { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'other' },
+  // 0.25.0: on an MQTT broker platform, or without one (the Databus of an edge device: its broker named on the element)
+  'mqtt.topic': { platformKinds: ['mqtt'], platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'topic' },
 };
 
 /** Whether an element of `kind` may live on a platform of `platformKind` (null: no platform). */
@@ -370,9 +374,28 @@ export function openLineageDataset(kind: DataElementKind, platformAddress: strin
   // the names as Snowflake reports them: unquoted identifiers are upper case already, quoted ones keep their case
   if (kind.startsWith('snowflake.')) return { namespace: `snowflake://${platformAddress.toLowerCase()}`, name: qualifiedName };
   if (kind === 'kafka.topic') return { namespace: `kafka://${platformAddress}`, name: qualifiedName };
+  if (kind === 'mqtt.topic') return { namespace: `mqtt://${platformAddress}`, name: qualifiedName };
   if (kind.startsWith('sql.')) return { namespace: platformAddress, name: qualifiedName };
   return null;
 }
+
+/**
+ * 0.25.0 (ADR 0037 part 3): the broker of an `mqtt.topic` element as OpenLineage names it – `host:port` from an MQTT
+ * URL (`mqtt://`, `mqtts://`, `ws://`, `wss://`, a path left out) or from `host[:port]`, the port 1883 when none is
+ * given (8883 for mqtts, 443 for wss, 80 for ws). Null: not a broker address. The Industrial Edge Databus is `ie-databus:1883` on its device.
+ */
+export function mqttBroker(v: string | null | undefined): string | null {
+  const t = (v ?? '').trim();
+  if (!t) return null;
+  // a path after the address (a WebSocket broker's /mqtt) is not part of the namespace
+  const m = /^(?:(mqtts?|wss?):\/\/)?(\[[0-9a-f:]+\]|[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?)(?::(\d{1,5}))?(?:\/[^\s]*)?$/i.exec(t);
+  if (!m) return null;
+  const port = m[4] ? Number(m[4]) : m[1] === 'mqtts' ? 8883 : m[1] === 'wss' ? 443 : m[1] === 'ws' ? 80 : 1883;
+  return port >= 1 && port <= 65535 ? `${m[2]!.toLowerCase()}:${port}` : null;
+}
+
+/** The Industrial Edge Databus: the MQTT broker every edge device runs for its applications. */
+export const IE_DATABUS_BROKER = 'ie-databus:1883';
 
 // ---------- shared shapes ----------
 
@@ -984,9 +1007,18 @@ export function discoveryKeeps(qualifiedName: string, include: readonly string[]
 
 // ---------- steps and lineage (part 9) ----------
 
+/**
+ * 0.25.0 (ADR 0037 part 3): the Steward system – and environment – an application or connector runner runs on, so a
+ * step reads "Modbus import client @ ied-line-01.example" (an edge device, a server); only for those two kinds.
+ */
+export interface DataRunsOn {
+  systemId: string;
+  environment: string;
+}
+
 export type DataStepRunner =
-  | { kind: 'application' | 'platform' | 'process' | 'element'; id: string }
-  | { kind: 'connector'; platformId: string; name: string }
+  | { kind: 'application' | 'platform' | 'process' | 'element'; id: string; runsOn?: DataRunsOn | null }
+  | { kind: 'connector'; platformId: string; name: string; runsOn?: DataRunsOn | null }
   | { kind: 'tool'; tool: string; text: string };
 
 export interface DataTransformNote {
@@ -1001,6 +1033,9 @@ export interface DataStep {
   runner: DataStepRunner | null;
   /** The runner is an application, platform, process or element the reader may not see (runner is null then) */
   runnerHidden: boolean;
+  /** 0.25.0: the system the runner runs on, named (null: none, or one the reader may not see – then runsOnHidden) */
+  runsOn?: { id: string; name: string; environment: string } | null;
+  runsOnHidden?: boolean;
   /** Text or a cron expression */
   schedule: string;
   description: string;

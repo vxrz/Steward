@@ -342,5 +342,20 @@
     "gapsOf": "Lücken von {{name}}",
     "openCollection": "Erfassung öffnen",
     "itemNo": "Element {{n}}"
+  },
+  "sinkElement": {
+    "button": "Element aus diesem Ziel anlegen",
+    "title": "Element aus dem Ziel {{name}}",
+    "help": "Das Topic, das diese Datenerfassung schreibt, wird ein MQTT-Topic-Element im Katalog der Datenprodukte, verknüpft mit diesem Ziel – ein Pipeline-Schritt kann es dann lesen. Am Broker wird nichts gelesen oder geändert.",
+    "topic": "Topic",
+    "topicRequired": "Nennen Sie das Topic",
+    "platform": "MQTT-Broker-Plattform",
+    "platformHint": "Leer lassen für einen Broker, der keine Plattform in Steward ist, etwa den Databus eines Edge-Geräts.",
+    "broker": "Broker (host:port)",
+    "brokerHint": "Der Industrial-Edge-Databus ist ie-databus:1883 auf seinem Gerät. Daraus ergibt sich der OpenLineage-Namespace mqtt://host:port.",
+    "environment": "Umgebung",
+    "create": "Element anlegen",
+    "made": "Das Element {{name}} ist im Katalog",
+    "open": "Element öffnen"
   }
 }
