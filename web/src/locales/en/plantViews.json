@@ -20,11 +20,13 @@
     "kpiLabel": "Pages of {{name}}",
     "profile": {
       "overview": "Overview",
-      "history": "History"
+      "history": "History",
+      "access": "Access"
     },
     "kpi": {
       "overview": "Overview",
-      "history": "History"
+      "history": "History",
+      "access": "Access"
     }
   },
   "toolbar": {

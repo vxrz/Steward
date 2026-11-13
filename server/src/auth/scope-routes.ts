@@ -195,7 +195,7 @@ const teamIds = z.object({ teamIds: z.array(z.string().max(64)).max(50) });
 /** POST /access/named-outside (#195): an item (or a supplier's contract) and the users and teams a form names */
 const namedOutsideInput = z.object({
   kind: z.union([kindParam, z.literal('supplierContract')]),
-  id: z.string().max(64).optional(),
+  id: z.string().max(100).optional(),
   supplierId: z.string().max(64).optional(),
   subjects: z.array(z.string().max(200)).max(50),
   /** A platform to be added to the contract (`supplierContract` with `id`): who it gives the contract to from outside its teams (0.19.0) */
@@ -228,7 +228,7 @@ const bulkInput = z.object({
   /** set: exactly these teams; add / remove: these teams beside the ones there are */
   mode: z.enum(['set', 'add', 'remove']).default('set'),
   resources: z
-    .array(z.object({ kind: kindParam, id: z.string().max(64) }))
+    .array(z.object({ kind: kindParam, id: z.string().max(100) }))
     .max(500)
     .default([]),
   /** all resources of a service: the service, its applications, linked records and ticket references, credentials belonging to them */
@@ -476,9 +476,11 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
     return { teams: teams.map((t) => t.name), outside: uncoveredSubjects(teams, [], b.subjects) };
   });
 
-  app.get('/access/explain', async (req): Promise<AccessExplanation> => {
+  // plant viewers ask about the plant registry's kinds only (the Access tab of a device profile, ADR 0033)
+  app.get('/access/explain', { config: { access: ACCESS.plantViewer } }, async (req): Promise<AccessExplanation> => {
     const q = z.object({ kind: kindParam, id: z.string().max(100), user: z.string().max(64).optional() }).parse(req.query);
     const caller = me();
+    if (!PLANT_SHARE_KINDS.includes(q.kind) && plantOnly(caller)) throw notFound(q.kind, q.id);
     const r = visible(q.kind, q.id);
     let who = caller;
     if (q.user && q.user.toLowerCase() !== caller.username.toLowerCase()) {

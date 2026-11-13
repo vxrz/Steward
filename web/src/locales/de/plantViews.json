@@ -20,11 +20,13 @@
     "kpiLabel": "Seiten von {{name}}",
     "profile": {
       "overview": "Überblick",
-      "history": "Verlauf"
+      "history": "Verlauf",
+      "access": "Zugriff"
     },
     "kpi": {
       "overview": "Überblick",
-      "history": "Verlauf"
+      "history": "Verlauf",
+      "access": "Zugriff"
     }
   },
   "toolbar": {
