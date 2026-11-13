@@ -132,7 +132,6 @@
     "updated": "Changed",
     "inEnvironments": "In {{list}}",
     "noMatch": "No data product matches the filters.",
-    "healthFilterPage": "The health filter applies to the products loaded so far – load more to see the rest.",
     "emptyTitle": "No data products yet",
     "emptyText": "A data product bundles what a domain offers – its tables, topics and APIs – with owners, ports, a rating and health.",
     "whoCanAct": "Designers and administrators add them.",

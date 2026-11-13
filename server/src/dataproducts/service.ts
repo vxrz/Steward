@@ -650,7 +650,8 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
 
 const summaries = (u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): DataProductSummary[] => summaryData(u, rows).items;
 
-export function listProducts(q: DataProductListQuery): DataPage<DataProductSummary> {
+/** `keep`: a further filter over the ids the reader may see (the health of the internal list) – before paging and counting. */
+export function listProducts(q: DataProductListQuery, keep?: (ids: string[]) => Set<string>): DataPage<DataProductSummary> {
   const u = me();
   const text = q.q?.toLowerCase();
   const inEnv = q.environment
@@ -700,6 +701,12 @@ export function listProducts(q: DataProductListQuery): DataPage<DataProductSumma
         .filter((x) => x.perms.length);
       rows.push(...more);
     }
+  }
+  if (keep) {
+    const kept = keep(rows.map((x) => x.p.id));
+    let n = 0;
+    for (const x of rows) if (kept.has(x.p.id)) rows[n++] = x;
+    rows.length = n;
   }
   const page = pageOf(
     rows,

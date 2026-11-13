@@ -53,7 +53,7 @@ export function DataProductsPage() {
     else next.delete(k);
     setParams(next, { replace: true });
   };
-  const query = qs({ q, domain: f.domain, type: f.type, lifecycle: f.lifecycle, team: f.team, environment: f.environment });
+  const query = qs({ q, domain: f.domain, type: f.type, lifecycle: f.lifecycle, team: f.team, environment: f.environment, health: f.health });
   const list = useProductList(query);
   const domains = useDomains();
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => getOptional<Team[]>('/teams', []), staleTime: 60_000 });
@@ -77,7 +77,6 @@ export function DataProductsPage() {
       text
     );
   };
-  const shown = f.health ? rows.filter((r) => healthOf.get(r.id) === f.health) : rows;
   const total = list.data?.pages[0]?.total ?? 0;
   const none = list.isSuccess && !query && total === 0;
   const active = Object.values(f).filter(Boolean).length + (q ? 1 : 0);
@@ -204,25 +203,16 @@ export function DataProductsPage() {
       }}
     >
       <QueryState query={list} />
-      {!none && list.isSuccess && shown.length === 0 && (
+      {!none && list.isSuccess && rows.length === 0 && (
         <Text size="sm" c="dimmed" data-testid="products-no-match">
           {t('products.noMatch')}
         </Text>
       )}
-      {f.health && list.hasNextPage && (
-        <Text size="xs" c="dimmed" mb="xs">
-          {t('products.healthFilterPage')}
-        </Text>
-      )}
-      {/* the health filter found nothing among the products loaded so far: still offer the next page */}
-      {shown.length === 0 && list.hasNextPage && (
-        <ListFooter shown={rows.length} hasMore onLoadMore={() => void list.fetchNextPage()} loading={list.isFetchingNextPage} />
-      )}
-      {shown.length > 0 && (
+      {rows.length > 0 && (
         <DataTable
           testId="product-table"
           ariaLabel={t('products.title')}
-          rows={shown}
+          rows={rows}
           rowKey={(p) => p.id}
           rowHref={to}
           rememberSort="data-products"

@@ -273,25 +273,14 @@ test.describe('the data products pages', () => {
     await expect(page.getByTestId('product-table').getByRole('link', { name: `Imported ${s.token}` })).toBeVisible();
   });
 
-  test('the health filter still offers the next page when the loaded products have none of that health', async ({ page }) => {
-    // the server says there is a next page (the seeded products fit on one: the response is changed), and the next one is empty
-    let more = 0;
-    await page.route('**/api/data-products?*', async (route) => {
-      const url = new URL(route.request().url());
-      if (url.searchParams.has('cursor')) {
-        more++;
-        return route.fulfill({ json: { items: [], total: 0, next: null } });
-      }
-      const res = await route.fetch();
-      return route.fulfill({ response: res, json: { ...(await res.json()), next: 'next-page' } });
-    });
+  test('the health filter asks the server: the list is paged and counted after it', async ({ page }) => {
+    const asked = page.waitForRequest((r) => r.url().includes('/api/data-products?') && r.url().includes('health=noData'));
+    await page.goto(`/data-products?q=${s.token}&health=noData`);
+    await asked;
+    await expect(page.getByTestId('product-table').getByRole('link', { name: `Customer 360 ${s.token}` })).toBeVisible();
+    await expect(page.getByTestId('list-footer')).toBeVisible();
     await page.goto(`/data-products?q=${s.token}&health=down`);
     await expect(page.getByTestId('products-no-match')).toBeVisible();
-    await expect(page.getByText('The health filter applies to the products loaded so far')).toBeVisible();
-    const loadMore = page.getByRole('button', { name: 'Load more' });
-    await loadMore.click();
-    await expect.poll(() => more).toBe(1);
-    await expect(loadMore).toHaveCount(0);
   });
 
   test('a dialog opened from a menu gives the focus back to the menu’s button', async ({ page }) => {

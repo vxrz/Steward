@@ -4549,7 +4549,6 @@ export interface Resources {
     'products.updated': string;
     'products.inEnvironments': string;
     'products.noMatch': string;
-    'products.healthFilterPage': string;
     'products.emptyTitle': string;
     'products.emptyText': string;
     'products.whoCanAct': string;

@@ -132,7 +132,6 @@
     "updated": "Geändert",
     "inEnvironments": "Umgebungen: {{list}}",
     "noMatch": "Kein Datenprodukt passt zu den Filtern.",
-    "healthFilterPage": "Der Zustandsfilter gilt für die bisher geladenen Produkte – laden Sie mehr, um den Rest zu sehen.",
     "emptyTitle": "Noch keine Datenprodukte",
     "emptyText": "Ein Datenprodukt bündelt, was eine Domäne anbietet – ihre Tabellen, Topics und APIs – mit Verantwortlichen, Ports, Einstufung und Zustand.",
     "whoCanAct": "Designer und Administratoren legen sie an.",
