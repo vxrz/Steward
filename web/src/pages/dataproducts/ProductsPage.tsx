@@ -214,6 +214,10 @@ export function DataProductsPage() {
           {t('products.healthFilterPage')}
         </Text>
       )}
+      {/* the health filter found nothing among the products loaded so far: still offer the next page */}
+      {shown.length === 0 && list.hasNextPage && (
+        <ListFooter shown={rows.length} hasMore onLoadMore={() => void list.fetchNextPage()} loading={list.isFetchingNextPage} />
+      )}
       {shown.length > 0 && (
         <DataTable
           testId="product-table"
