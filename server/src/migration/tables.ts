@@ -491,6 +491,8 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'db_schema_settings.subject_id',
   // the data subjects of a data object (customers, employees …): categories of people, never persons (ADR 0036 part 2)
   'dp_objects.subjects',
+  // what an allocation by measured use measures per product (warehouses, query tags, topics) – never a person
+  'dp_cost_allocations.subjects',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */
