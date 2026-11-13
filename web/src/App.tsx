@@ -20,7 +20,7 @@ import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
 import { AppNav, useAutomateTabs, useNavGroups, useServiceTabs } from './components/AppNav';
 import { ModuleGate, ModuleOffPage } from './components/modules/ModuleOff';
-import { useVisibilityQuery } from './modules';
+import { moduleOnlyOf, moduleOnlyPage, moduleOnlyStart, useVisibilityQuery } from './modules';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { HelpMenu } from './components/HelpMenu';
 import { UpdateNotice } from './components/UpdateNotice';
@@ -273,20 +273,23 @@ function Shell({ status }: { status: AuthStatus }) {
   const navigate = useNavigate();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const caps = status.me!.capabilities;
-  // a plant viewer (#218, role "plant" only): the Plant area and the profile, nothing else (the server refuses the rest)
-  const plantOnly = caps.plantOnly === true;
+  // a module-only user (0.23.0, ADR 0034; a plant viewer #218): their modules and the profile, nothing else (the server
+  // refuses the rest) – the plant registry alone keeps its own routes
+  const moduleOnly = moduleOnlyOf(caps);
+  const limited = moduleOnly.length > 0;
+  const plantOnly = limited && moduleOnly.every((m) => m === 'plant');
   // recent items (command palette) are kept per user
   setRecentUser(status.me!.user.id);
   const tasks = useQuery({
     queryKey: ['tasks', 'mine-count'],
     queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'),
     refetchInterval: 5000,
-    enabled: !plantOnly,
+    enabled: !limited,
   });
   const openTasks = tasks.data?.length ?? 0;
 
   // what the person may see (U2): the sidebar and the palette leave out areas with nothing for them
-  const { data: seen, settled: seenSettled } = useVisibilityQuery(!plantOnly);
+  const { data: seen, settled: seenSettled } = useVisibilityQuery(!limited);
   const navGroups = useNavGroups(caps, seen);
   const automateTabs = useAutomateTabs(caps);
   const serviceTabs = useServiceTabs(caps);
@@ -315,7 +318,7 @@ function Shell({ status }: { status: AuthStatus }) {
       }
     >
       {/* a plant viewer or a module-only user: say why, in plain words (the server's MODULE_ONLY_USER) */}
-      {plantOnly && <Text size="sm">{codeText('MODULE_ONLY_USER')}</Text>}
+      {limited && <Text size="sm">{codeText('MODULE_ONLY_USER')}</Text>}
     </EmptyState>
   );
 
@@ -345,7 +348,7 @@ function Shell({ status }: { status: AuthStatus }) {
               )}
             </Group>
             <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
-              {!plantOnly && <CommandPaletteButton />}
+              {!limited && <CommandPaletteButton />}
               <HelpMenu />
               <NotificationCenter />
               <Tooltip label={colorScheme === 'dark' ? t('lightMode') : t('darkMode')}>
@@ -361,7 +364,7 @@ function Shell({ status }: { status: AuthStatus }) {
               <UserMenu />
             </Group>
           </Group>
-          {!plantOnly && <CommandPalette pages={navItems} />}
+          {!limited && <CommandPalette pages={navItems} />}
         </AppShell.Header>
         <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
           <AppNav
@@ -414,6 +417,13 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="*" element={notFound} />
                   </Routes>
+                ) : limited && !moduleOnlyPage(moduleOnly, location.pathname) ? (
+                  // another module-only user: their modules' pages and the profile; Home leads to the first module
+                  location.pathname === '/' ? (
+                    <Navigate to={moduleOnlyStart(moduleOnly)} replace />
+                  ) : (
+                    notFound
+                  )
                 ) : (
                   <Routes>
                     <Route path="/" element={<DashboardPage demo={status.demo} />} />

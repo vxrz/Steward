@@ -140,6 +140,52 @@ test.describe('module roles (own server)', () => {
     await expect(page.getByText('Costs: Manager').first()).toBeVisible();
   });
 
+  test('a Costs-only user: the sidebar holds Costs alone, Home leads there, other pages say why they are not there', async ({ browser }) => {
+    test.setTimeout(120_000);
+    const username = 'cora-costs';
+    const first = 'Temporary-password-1';
+    const own = 'Own password of Cora 2';
+    await srv.api('POST', '/users', { username, displayName: 'Cora Costs', roles: [], password: first, moduleRoles: [{ module: 'costs', role: 'manager' }] });
+    // the temporary password changed through the API: the session stays
+    const s = await session(username, first);
+    const res = await fetch(`${srv.baseURL}/api/auth/password`, {
+      method: 'POST',
+      headers: { 'x-sm-client': '1', 'content-type': 'application/json', cookie: s.cookie, 'x-sm-session': s.sessionKey },
+      body: JSON.stringify({ current: first, next: own }),
+    });
+    expect(res.status).toBe(200);
+    const status = await (
+      await fetch(`${srv.baseURL}/api/auth/status`, { headers: { 'x-sm-client': '1', cookie: s.cookie, 'x-sm-session': s.sessionKey } })
+    ).json();
+    expect(status.me.capabilities.moduleOnly).toEqual(['costs']);
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      const page = await open(browser, { viewport, user: { username, password: own } });
+      await page.goto('/');
+      await expect(page).toHaveURL(/\/costs$/);
+      await expect(page.getByRole('heading', { name: 'Costs', level: 1 })).toBeVisible();
+      if (viewport.width < 500)
+        await page
+          .getByRole('button', { name: /navigation/i })
+          .first()
+          .click();
+      const nav = page.getByRole('navigation', { name: 'Main navigation' });
+      await expect(nav.getByRole('link', { name: 'Costs', exact: true })).toBeVisible();
+      for (const name of ['Home', 'Processes', 'Services', 'Records', 'Sites']) await expect(nav.getByRole('link', { name, exact: true }), name).toHaveCount(0);
+      if (viewport.width < 500) {
+        await page.keyboard.press('Escape');
+        await expectNoHorizontalScroll(page);
+      }
+      await expectAccessible(page, `Costs for a Costs-only user (${viewport.width})`);
+      await page.goto('/processes');
+      await expect(page.getByTestId('empty-state')).toContainText('You only use some areas of this instance');
+      await page.goto('/profile');
+      await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
+    }
+  });
+
   test('the dialog with module roles on a phone, in German', async ({ browser }) => {
     const page = await open(browser, { viewport: { width: 390, height: 844 }, lang: 'de' });
     await page.goto('/settings/modules');

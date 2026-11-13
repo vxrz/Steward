@@ -64,7 +64,7 @@ import {
 } from '@tabler/icons-react';
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
-import { navModuleOn } from '../modules';
+import { moduleOnlyNav, moduleOnlyOf, navModuleOn } from '../modules';
 import { readJsonPref, writePref } from './page/prefs';
 
 export type NavKey =
@@ -306,8 +306,15 @@ export function useNavGroups(caps: Capabilities, seen?: VisibilitySummary): { ke
   // Memoised: the command palette rebuilds its actions when this changes.
   return useMemo(
     () =>
-      // a plant viewer (#218) sees the Plant area only
-      NAV_GROUPS.filter((g) => !caps.plantOnly || g.key === 'plant')
+      // a module-only user (a plant viewer #218; 0.23.0 any module with roles) sees their modules' entries only – Costs,
+      // otherwise a tab of Services, as an entry of its own
+      NAV_GROUPS.map((g) => {
+        const mods = moduleOnlyOf(caps);
+        if (!mods.length) return g;
+        const tabs = g.key === 'catalogue' ? SERVICE_TABS : g.key === 'automate' ? AUTOMATE_TABS : [];
+        const items = [...g.items, ...tabs.filter((x) => !g.items.some((i) => i.key === x.key))];
+        return { ...g, items: items.filter((i) => moduleOnlyNav(mods, i.key, g.key)) };
+      })
         .map((g) => {
           const label = g.key === 'home' ? '' : t(`groups.${g.key}`);
           const itemLabel = (key: NavKey) =>
@@ -344,7 +351,10 @@ function useTabs(tabs: NavItemDef[], caps: Capabilities, group: Exclude<NavGroup
   return useMemo(
     () =>
       tabs
-        .filter((n) => !caps.plantOnly && visible(caps)(n))
+        .filter((n) => {
+          const mods = moduleOnlyOf(caps);
+          return (!mods.length || moduleOnlyNav(mods, n.key)) && visible(caps)(n);
+        })
         .map((n) => ({
           to: n.to,
           key: n.key,
