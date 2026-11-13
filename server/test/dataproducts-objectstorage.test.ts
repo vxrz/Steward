@@ -101,14 +101,19 @@ describe('S3 discovery', () => {
       const path = r.url.replace(/^\/[^?]*/, (p) => p);
       expect(`${r.method} ${path}`).toSatisfy((x: string) => S3_DISCOVERY_CALLS.some((re) => re.test(x)));
       const prefix = decodeURIComponent(new URL(`http://x${r.url}`).searchParams.get('prefix') ?? '');
-      expect(named.some((n) => prefix.startsWith(n)), prefix).toBe(true);
+      expect(
+        named.some((n) => prefix.startsWith(n)),
+        prefix,
+      ).toBe(true);
     }
   });
 
   it('refuses a scope that is no S3 prefix; a run a limit cuts says so and marks nothing missing', async () => {
-    expect(
-      await fail(dana('POST', '/data-products/discovery-sources', { name: 'Bad', platformId: aws, scope: ['s3://Invented_Bad/x/'] })),
-    ).toMatchObject({ status: 400, code: 'DATA_DISCOVERY_SCOPE', params: { context: 's3' } });
+    expect(await fail(dana('POST', '/data-products/discovery-sources', { name: 'Bad', platformId: aws, scope: ['s3://Invented_Bad/x/'] }))).toMatchObject({
+      status: 400,
+      code: 'DATA_DISCOVERY_SCOPE',
+      params: { context: 's3' },
+    });
     expect(
       await fail(dana('POST', '/data-products/discovery-sources', { name: 'Bad', platformId: aws, scope: ['invented-shop-lake.example/raw/'] })),
     ).toMatchObject({ status: 400, code: 'DATA_DISCOVERY_SCOPE' });
@@ -124,7 +129,13 @@ describe('S3 discovery', () => {
     S3_RUN_LIMITS.keys = 4;
     try {
       const run = await runSource(src.id, { trigger: 'manual', actor: 'dana' });
-      expect(run).toMatchObject({ status: 'truncated', truncated: true, missing: 0, errorCode: 'DATA_DISCOVERY_TOO_LARGE', errorParams: { context: 's3Keys', max: 4 } });
+      expect(run).toMatchObject({
+        status: 'truncated',
+        truncated: true,
+        missing: 0,
+        errorCode: 'DATA_DISCOVERY_TOO_LARGE',
+        errorParams: { context: 's3Keys', max: 4 },
+      });
     } finally {
       Object.assign(S3_RUN_LIMITS, before);
     }
@@ -144,14 +155,23 @@ describe('S3 discovery', () => {
   });
 
   it('reads the files.path elements of products on the platform too – with an empty scope', async () => {
-    const el = await dana('POST', '/data-elements', { platformId: aws, kind: 'files.path', qualifiedName: 's3://invented-shop-lake.example/raw/', environment: 'test' });
+    const el = await dana('POST', '/data-elements', {
+      platformId: aws,
+      kind: 'files.path',
+      qualifiedName: 's3://invented-shop-lake.example/raw/',
+      environment: 'test',
+    });
     const p = await dana('POST', '/data-products', { key: 'raw-files', name: 'Raw files (invented)' });
     await dana('POST', `/data-products/${p.id}/members`, { elementIds: [el.id], role: 'input' });
     const src = await dana('POST', '/data-products/discovery-sources', { name: 'Product prefixes (invented)', platformId: aws, scope: [] });
     const { runSource } = await import('../src/dataproducts/discovery/job.js');
     expect(await runSource(src.id, { trigger: 'manual', actor: 'dana' })).toMatchObject({ status: 'succeeded', added: 0 });
     // the entered element keeps its environment; discovery looks after it from now on
-    expect(await s.api('GET', `/data-elements/${el.id}`)).toMatchObject({ environment: 'test', discoverySourceId: src.id, readout: { objects: 1, format: 'csv' } });
+    expect(await s.api('GET', `/data-elements/${el.id}`)).toMatchObject({
+      environment: 'test',
+      discoverySourceId: src.id,
+      readout: { objects: 1, format: 'csv' },
+    });
     await dana('DELETE', `/data-products/discovery-sources/${src.id}`);
   });
 });
@@ -207,14 +227,23 @@ describe('checks, links and file ports', () => {
     expect(port).toMatchObject({ type: 'file', fileFormat: 'csv', partitioning: ['dt'] });
     // in the file format and in /api/v1
     const doc = YAML.parse((await dana('GET', `/data-products/${p.id}/export`)) as string);
-    expect((doc.data_product ?? doc.data_products[0]).ports.find((x: { name: string }) => x.name === 'daily sales files')).toMatchObject({ file_format: 'csv', partitioning: ['dt'] });
+    expect((doc.data_product ?? doc.data_products[0]).ports.find((x: { name: string }) => x.name === 'daily sales files')).toMatchObject({
+      file_format: 'csv',
+      partitioning: ['dt'],
+    });
     const token = (await dana('POST', '/me/tokens', { name: 'api dana', scope: 'read' })).token as string;
     const v1 = (await (await fetch(`${s.base}/api/v1/data-products/${p.id}`, { headers: { authorization: `Bearer ${token}` } })).json()) as {
       ports: { name: string }[];
     };
     expect(v1.ports.find((x: { name: string }) => x.name === 'daily sales files')).toMatchObject({ fileFormat: 'csv', partitioning: ['dt'] });
     // a change of the port keeps them when it leaves them out, and takes new ones
-    await dana('PUT', `/data-products/${p.id}/ports/${port.id}`, { direction: 'output', name: port.name, version: 'v1', type: 'file', lifecycle: port.lifecycle });
+    await dana('PUT', `/data-products/${p.id}/ports/${port.id}`, {
+      direction: 'output',
+      name: port.name,
+      version: 'v1',
+      type: 'file',
+      lifecycle: port.lifecycle,
+    });
     expect((await dana('GET', `/data-products/${p.id}`)).ports.find((x: { id: string }) => x.id === port.id)).toMatchObject({ fileFormat: 'csv' });
     await dana('PUT', `/data-products/${p.id}/ports/${port.id}`, {
       direction: 'output',

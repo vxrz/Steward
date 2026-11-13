@@ -245,7 +245,10 @@ data_products:
     owners: [user:dana]
     members:
       - { element: { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }, role: input }
-      - { element: { platform: AWS (demo), kind: files.path, qualified_name: 's3://invented-shop-lake.example/exports/daily-sales/', environment: prod }, role: output }
+      - {
+          element: { platform: AWS (demo), kind: files.path, qualified_name: "s3://invented-shop-lake.example/exports/daily-sales/", environment: prod },
+          role: output,
+        }
     ports:
       - direction: input
         name: daily sales
@@ -261,14 +264,14 @@ data_products:
         objectives: { freshness_minutes: 1440, update_schedule: daily at 05:30 }
         bindings:
           - environment: prod
-            elements: [{ platform: AWS (demo), kind: files.path, qualified_name: 's3://invented-shop-lake.example/exports/daily-sales/', environment: prod }]
+            elements: [{ platform: AWS (demo), kind: files.path, qualified_name: "s3://invented-shop-lake.example/exports/daily-sales/", environment: prod }]
     steps:
       - name: Export daily sales
         kind: publish
         runner: { kind: tool, tool: Snowflake task, text: COPY INTO the export stage }
         schedule: daily at 05:30
         inputs: [{ platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }]
-        outputs: [{ platform: AWS (demo), kind: files.path, qualified_name: 's3://invented-shop-lake.example/exports/daily-sales/', environment: prod }]
+        outputs: [{ platform: AWS (demo), kind: files.path, qualified_name: "s3://invented-shop-lake.example/exports/daily-sales/", environment: prod }]
 
   - key: machine-measurements
     name: Machine measurements
