@@ -296,7 +296,7 @@ function platformOf(o: OwnerRef, t: { kind: CostEstimateTargetKind; id: string }
 }
 
 /** What the pricing prefers for an estimate: the owner's (or target's) platform and the owning service. */
-const ownerOptions = (o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | null) => ({
+const ownerOptions = (o: OwnerRef, t: { kind: CostEstimateTargetKind; id: string } | null) => ({
   platformId: platformOf(o, t),
   serviceId: o.kind === 'service' ? o.id : null,
 });
