@@ -666,10 +666,3 @@ export function inlineText(nodes: MdInline[], o: { linkUrls?: boolean } = {}): s
   }
   return s;
 }
-
-/** Headings of a document (level and plain text), e.g. to find the sections of a template. */
-export function markdownHeadings(md: string): { level: number; text: string }[] {
-  return parseMarkdown(md)
-    .filter((b): b is Extract<MdBlock, { t: 'heading' }> => b.t === 'heading')
-    .map((b) => ({ level: b.level, text: inlineText(b.c) }));
-}

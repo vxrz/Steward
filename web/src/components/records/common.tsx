@@ -1,7 +1,6 @@
 import './builtin';
 import { useEffect, useState } from 'react';
 import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Table, Text, TextInput, Tooltip } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconExternalLink, IconLink, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -25,6 +24,7 @@ import { get, notifyError } from '../../api';
 import { useMe } from '../../auth';
 import { confirmDanger } from '../confirm';
 import { useFieldErrors } from '../common';
+import { useRemoteSelect } from '../remoteSelect';
 import { LinkTypeIconView, linkTypeOf, useLinkTypeName, useLinkTypes } from './linkTypes';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 import { ShowAll, useShowMore } from '../page/ShowAll';
@@ -305,9 +305,8 @@ function LinkModal({
   const { t } = useTranslation(['records', 'common']);
   const editing = !!link;
   const [kind, setKind] = useState<LinkKind | 'external'>(link ? (link.kind ?? 'external') : 'service');
-  const [q, setQ] = useState('');
-  const [debounced] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
+  const pick = useRemoteSelect({ value: target });
   const [url, setUrl] = useState(link?.url ?? 'https://');
   // the stored label of an external link (the panel shows the URL when it is empty)
   const initialLabel = link && link.kind === null && link.label !== link.url ? link.label : '';
@@ -321,14 +320,19 @@ function LinkModal({
   const linkKinds = LINK_KINDS.filter((k) => caps.plant || !(PLANT_LINK_KINDS as readonly string[]).includes(k));
   const typeName = useLinkTypeName();
   const targets = useQuery({
-    queryKey: ['link-targets', kind, debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}`),
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
     enabled: kind !== 'external' && !editing,
   });
   useEffect(() => setTarget(null), [kind]);
-  const options = (targets.data ?? [])
-    .filter((x) => !(self && x.kind === self.kind && x.id === self.id))
-    .map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label }));
+  const options = pick.options(
+    (targets.data ?? [])
+      // the previous kind's answer while the new one loads is no choice
+      .filter((x) => x.kind === kind && !(self && x.kind === self.kind && x.id === self.id))
+      .map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })),
+  );
   // archived types cannot be chosen, but a link keeps the one it has
   const typeOptions = (types.data ?? [])
     .filter((x) => !x.archived || x.key === link?.linkType)
@@ -409,8 +413,8 @@ function LinkModal({
             label={t('links.target')}
             placeholder={t('links.search')}
             searchable
-            searchValue={q}
-            onSearchChange={setQ}
+            searchValue={pick.search}
+            onSearchChange={pick.setSearch}
             data={options}
             value={target}
             onChange={setTarget}

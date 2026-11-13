@@ -87,10 +87,5 @@ export function columnOptionLabel(typeKey: string, fieldKey: string, c: Pick<Rec
   return tr(`columnOptions.${c.key}.${value}`, value);
 }
 
-/** Field definitions with translated labels and help (for display; never send them back to the server). */
-export function localizedFields(typeKey: string, defs: RecordFieldDef[]): RecordFieldDef[] {
-  return defs.map((f) => ({ ...f, label: fieldLabel(typeKey, f), help: fieldHelp(typeKey, f) }));
-}
-
 // Error messages name fields by their label (e.g. "Fill in the required fields first: Reason"): translate those too.
 setBuiltinFieldLabel((type, field, label) => fieldLabel(type, { key: field, label }));

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, Stack, Text, Textarea } from '@mantine/core';
+import { Badge, Button, Group, Stack, Text, Textarea } from '@mantine/core';
 import { IconArrowBackUp, IconPencil } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { PLANT_LIMITS } from '@sm/shared';
 import { notifyError } from '../../api';
 import { FormButtons } from './forms';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * Descriptions in the plant registry (0.12.0): plain text, optional. On a derived device profile a description may be
@@ -32,7 +33,7 @@ export function DescriptionModal({
   const [text, setText] = useState(value);
   const [busy, setBusy] = useState(false);
   return (
-    <Modal opened onClose={onClose} title={title}>
+    <GuardedModal onClose={onClose} title={title}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -59,7 +60,7 @@ export function DescriptionModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 

@@ -27,7 +27,7 @@ import { apiUrl, get, getOptional, notifyError, notifyOk, post, put } from '../.
 import { useFieldErrors } from '../common';
 import { SubjectsInput } from '../SubjectsInput';
 import { confirmDialog } from '../confirm';
-import { fmtDate, fmtDay } from '../../format';
+import { fmtDate, fmtDateRange, fmtDay } from '../../format';
 import { monitorKeys, platformKeys } from '../../queryKeys';
 import { useMe } from '../../auth';
 import { CopiedFromNote, DuplicateButton } from '../duplicate/DuplicateButton';
@@ -118,7 +118,7 @@ export function WhenLine({ w }: { w: Pick<MaintenanceWindowSummary, 'current' | 
         </Badge>
       )}
       <Text size="sm" className="nowrap">
-        {fmtDate(w.current.startsAt)} – {fmtDate(w.current.endsAt)}
+        {fmtDateRange(w.current.startsAt, w.current.endsAt)}
       </Text>
     </Group>
   );
@@ -536,9 +536,7 @@ export function MaintenanceDetailModal({
                 </Text>
                 <List size="sm" spacing={2}>
                   {w.upcoming.slice(0, 6).map((o) => (
-                    <List.Item key={o.startsAt}>
-                      {fmtDate(o.startsAt)} – {fmtDate(o.endsAt)}
-                    </List.Item>
+                    <List.Item key={o.startsAt}>{fmtDateRange(o.startsAt, o.endsAt)}</List.Item>
                   ))}
                 </List>
               </Stack>

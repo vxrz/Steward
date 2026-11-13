@@ -23,7 +23,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from '@mantine/core';
-import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconChecklist, IconChevronDown, IconFileImport, IconPackageExport, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -32,6 +32,7 @@ import type { ControlCatalogue, ControlCoverage, ControlTagKind, ControlsMeta, E
 import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
+import { useRemoteSelect } from '../components/remoteSelect';
 import { CoverageBadge, PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { capFirst, fmtDate } from '../format';
 import { ControlFindings } from '../components/compliance/corrective';
@@ -375,8 +376,10 @@ function CoverageTable({
                     <Anchor size="sm" component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={500}>
                       <Text span className="mono" size="sm">
                         {c.control.ref}
-                      </Text>{' '}
-                      – {capFirst(c.control.title)}
+                      </Text>
+                      {/* a table cell's link is a flex box (styles.css): a plain space after the number would collapse */}
+                      {'\u00a0– '}
+                      {capFirst(c.control.title)}
                     </Anchor>
                   </Table.Td>
                   <Table.Td>
@@ -419,15 +422,16 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
   const { t } = useTranslation(['compliance', 'common']);
   const qc = useQueryClient();
   const [kind, setKind] = useState<ControlTagKind>('process');
-  const [q, setQ] = useState('');
-  const [dq] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
+  const pick = useRemoteSelect({ value: target });
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(cov.control.title);
   const [description, setDescription] = useState(cov.control.description);
   const targets = useQuery({
-    queryKey: ['tag-targets', kind, dq],
-    queryFn: () => get<{ id: string; label: string }[]>(`/compliance/tag-targets?kind=${kind}&q=${encodeURIComponent(dq)}`),
+    queryKey: ['tag-targets', kind, pick.term],
+    queryFn: () => get<{ id: string; label: string }[]>(`/compliance/tag-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
     enabled: !!meta?.canTag,
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['control-coverage'] });
@@ -562,9 +566,9 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
                   size="xs"
                   label={t('controls.tagTarget')}
                   searchable
-                  searchValue={q}
-                  onSearchChange={setQ}
-                  data={(targets.data ?? []).map((x) => ({ value: x.id, label: x.label }))}
+                  searchValue={pick.search}
+                  onSearchChange={pick.setSearch}
+                  data={pick.options((targets.data ?? []).map((x) => ({ value: x.id, label: x.label })))}
                   value={target}
                   onChange={setTarget}
                   nothingFoundMessage={t('controls.nothingFound')}

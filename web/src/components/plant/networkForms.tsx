@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Button,
   Group,
-  Modal,
   MultiSelect,
   NumberInput,
   Paper,
@@ -44,6 +43,7 @@ import {
   type PlantConduitValues,
   type PlantDataPathValues,
   type PlantDeviceValues,
+  type PlantItemRef,
   type PlantSiteNetwork,
   type PlantStatusCheck,
   type PlantSubnet,
@@ -56,8 +56,9 @@ import {
 import { get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { FormButtons, IdInput, useIdField } from './forms';
-import { ItemSelect } from './network';
+import { ItemMultiSelect, ItemSelect } from './network';
 import { saveOrDraft } from './changes/common';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * The forms of the OT network (#220): a VLAN with its subnets and ranges, a zone, a conduit, a device, a data path and
@@ -104,7 +105,7 @@ function FormModal({
   size?: string;
 }) {
   return (
-    <Modal opened onClose={onClose} size={size} title={title}>
+    <GuardedModal onClose={onClose} size={size} title={title}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -117,7 +118,7 @@ function FormModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 
@@ -424,7 +425,8 @@ export function ZoneModal({
   onSaved,
 }: {
   network: PlantSiteNetwork;
-  zone?: PlantZoneValues & { revision?: number };
+  /** The zone as the reader sees it: `items` names its systems and platforms, `hiddenItems` counts the others */
+  zone?: PlantZoneValues & { revision?: number; items?: PlantItemRef[]; hiddenItems?: number };
   onClose: () => void;
   onSaved: (n: PlantSiteNetwork) => void;
 }) {
@@ -435,6 +437,9 @@ export function ZoneModal({
   const [criticality, setCriticality] = useState<string | null>(zone?.criticality ?? null);
   const [level, setLevel] = useState<string | null>(zone?.level ?? null);
   const [vlans, setVlans] = useState<string[]>(zone?.vlans ?? []);
+  const [systems, setSystems] = useState<string[]>(zone?.systems ?? []);
+  const [platforms, setPlatforms] = useState<string[]>(zone?.platforms ?? []);
+  const known = (zone?.items ?? []).map((x) => ({ id: x.id, label: x.label }));
   const [owner, setOwner] = useState(zone?.owner ?? '');
   const [sl, setSl] = useState<string | null>(zone?.slTarget ? String(zone.slTarget) : null);
   const [assessment, setAssessment] = useState(zone?.riskAssessment ?? '');
@@ -454,6 +459,9 @@ export function ZoneModal({
       criticality,
       level: level as ZoneLevel | null,
       vlans,
+      // those the reader may not see are not sent: the server keeps them
+      systems,
+      platforms,
       owner: text(owner),
       slTarget: sl ? (Number(sl) as SecurityLevel) : null,
       riskAssessment: text(assessment),
@@ -514,6 +522,32 @@ export function ZoneModal({
         searchable
         clearable
       />
+      {/* 0.20: Steward systems and platforms in the zone – cloud services, enterprise systems without a VLAN of the site */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }}>
+        <ItemMultiSelect
+          kind="system"
+          label={t('zone.systems')}
+          description={t('zone.systemsHelp')}
+          value={systems}
+          onChange={setSystems}
+          known={known}
+          testId="zone-systems"
+        />
+        <ItemMultiSelect
+          kind="platform"
+          label={t('zone.platforms')}
+          description={t('zone.platformsHelp')}
+          value={platforms}
+          onChange={setPlatforms}
+          known={known}
+          testId="zone-platforms"
+        />
+      </SimpleGrid>
+      {!!zone?.hiddenItems && (
+        <Text size="xs" c="dimmed" data-testid="zone-hidden-items">
+          {t('zone.hiddenItemsKept', { count: zone.hiddenItems })}
+        </Text>
+      )}
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Select
           label={t('zone.slTarget')}
@@ -982,6 +1016,8 @@ export function DataPathModal({
   const [notes, setNotes] = useState(path?.notes ?? '');
   const save = useSave(onSaved, onClose, network.canManage);
   const view = network.dataPaths.find((x) => x.id === path?.id);
+  // what the form shows for a Steward item it loaded: its name, or "not visible" – never the name of one the reader may not see
+  const keepOf = (ref: PlantItemRef | null | undefined) => (ref ? { id: ref.id, label: ref.visible ? ref.label : t('notVisible') } : null);
   const v = useFieldErrors({
     subject: !subject.trim() && t('common:validation.required'),
     id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid'),
@@ -1063,7 +1099,7 @@ export function DataPathModal({
                 kind={COLLECTOR_LINK[collector.kind]}
                 label={t(`collectorKinds.${collector.kind}`)}
                 value={collector.ref || null}
-                keep={view?.collectorRef ? { id: view.collectorRef.id, label: view.collectorRef.label } : null}
+                keep={keepOf(view?.collectorRef)}
                 onChange={(x) => setCollector({ ...collector, ref: x ?? '' })}
                 required
                 error={v.error('collector')}
@@ -1075,7 +1111,7 @@ export function DataPathModal({
               label={t('path.host')}
               description={t('path.hostHelp')}
               value={collector.host}
-              keep={view?.collectorHost ? { id: view.collectorHost.id, label: view.collectorHost.label } : null}
+              keep={keepOf(view?.collectorHost)}
               onChange={(x) => setCollector({ ...collector, host: x })}
             />
           )}
@@ -1084,6 +1120,9 @@ export function DataPathModal({
       <Stack gap={6} data-testid="path-transfers">
         <Text size="sm" fw={500}>
           {t('path.transfers')}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {t('path.transfersHelp')}
         </Text>
         {transfers.map((x, i) => (
           <Paper key={i} withBorder p="xs">
@@ -1099,9 +1138,18 @@ export function DataPathModal({
                 />
                 <Select
                   label={t('path.mode')}
+                  description={t(`modeHelp.${x.mode}`)}
                   data={TRANSFER_MODES.map((m) => ({ value: m, label: t(`modes.${m}`) }))}
                   value={x.mode}
                   allowDeselect={false}
+                  renderOption={({ option }) => (
+                    <Stack gap={0}>
+                      <Text size="sm">{option.label}</Text>
+                      <Text size="xs" c="dimmed">
+                        {t(`modeHelp.${option.value as (typeof TRANSFER_MODES)[number]}`)}
+                      </Text>
+                    </Stack>
+                  )}
                   onChange={(m) => m && setTransfers(at(transfers, i, { mode: m as (typeof TRANSFER_MODES)[number] }))}
                 />
                 <NumberInput
@@ -1127,12 +1175,12 @@ export function DataPathModal({
                     onChange={(p) => setTransfers(at(transfers, i, { peer: p ?? '' }))}
                     required
                   />
-                ) : x.peerKind === 'system' ? (
+                ) : x.peerKind === 'system' || x.peerKind === 'application' || x.peerKind === 'platform' ? (
                   <ItemSelect
-                    kind="system"
+                    kind={x.peerKind}
                     label={t('path.peer')}
                     value={x.peer || null}
-                    keep={view?.peers[i] ? { id: view.peers[i]!.id, label: view.peers[i]!.label } : null}
+                    keep={keepOf(view?.peers[i])}
                     onChange={(p) => setTransfers(at(transfers, i, { peer: p ?? '' }))}
                     required
                   />
@@ -1147,6 +1195,12 @@ export function DataPathModal({
               </SimpleGrid>
               <RemoveButton label={t('path.removeTransfer')} onClick={() => setTransfers(del(transfers, i))} />
             </Group>
+            {/* pushing to or pulling from the collector's own host is usually a service on it that is a system of its own */}
+            {x.peerKind === 'system' && x.mode !== 'receive' && !!x.peer && x.peer === collector?.host && (
+              <Text size="xs" c="dimmed" mt={4} data-testid="peer-is-host">
+                {t('path.peerIsHost')}
+              </Text>
+            )}
           </Paper>
         ))}
         {v.error('transfers') && (
@@ -1173,12 +1227,12 @@ export function DataPathModal({
                   allowDeselect={false}
                   onChange={(k) => k && setDestinations(at(destinations, i, { kind: k as (typeof DESTINATION_KINDS)[number], ref: '' }))}
                 />
-                {x.kind === 'system' ? (
+                {x.kind === 'system' || x.kind === 'application' || x.kind === 'platform' ? (
                   <ItemSelect
-                    kind="system"
+                    kind={x.kind}
                     label={t('path.destination')}
                     value={x.ref || null}
-                    keep={view?.targets[i] ? { id: view.targets[i]!.id, label: view.targets[i]!.label } : null}
+                    keep={keepOf(view?.targets[i])}
                     onChange={(r) => setDestinations(at(destinations, i, { ref: r ?? '' }))}
                     required
                   />

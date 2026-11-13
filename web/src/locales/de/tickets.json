@@ -102,7 +102,7 @@
     "openExternal": "Ticket öffnen",
     "delete": "Löschen",
     "edit": "Bearbeiten",
-    "statusMenu": "Status von {{number}} ändern"
+    "statusMenu": "Status ändern: {{number}}"
   },
   "detail": {
     "details": "Details",

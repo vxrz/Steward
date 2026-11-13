@@ -99,6 +99,8 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
     const view = page.getByTestId('service-cost-plan');
     await view.getByTestId('plan-add-line').click();
     dialog = page.getByRole('dialog', { name: /^New plan line, FY / });
+    // the dialog says that a line needs no contract (a licence to buy later)
+    await expect(dialog.getByText(/A line needs no contract/)).toBeVisible();
     await dialog.getByRole('textbox', { name: 'Title' }).fill('Analytics licence');
     await chooseOption(page, 'Supplier', name);
     await chooseOption(page, 'Contract', 'Analytics subscription (EA-2027-01)');
@@ -117,6 +119,13 @@ test('a supplier with a contract that a cost plan line pays for', async ({ page,
     await page.getByRole('link', { name: 'Analytics subscription' }).click();
     await expect(page.getByTestId('contract-plan-lines')).toContainText('Analytics licence');
     await expectAccessible(page, 'supplier: a paid contract');
+    // the line opens the service's cost plan (it led to the service's overview before)
+    await page
+      .getByTestId('contract-plan-lines')
+      .getByRole('link', { name: /Analytics licence/ })
+      .click();
+    await expect(page).toHaveURL((u) => u.pathname.endsWith(`/services/${service.id}/costs`));
+    await expect(page.getByTestId('service-cost-plan')).toBeVisible();
   } finally {
     await api.post(`/api/services/${service.id}/archive`, { data: { archived: true } });
   }

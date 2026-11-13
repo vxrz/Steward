@@ -95,4 +95,10 @@ export const GITSYNC_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE sync_updates ADD COLUMN min_version TEXT;
     `,
   },
+  {
+    // 0.20.0: the error code and its details of the last failed fetch, so the source shows it translated
+    // (a rate limit with the time to try again); JSON { code, params }
+    name: 'gitsync-004-last-error-detail',
+    sql: `ALTER TABLE sync_sources ADD COLUMN last_error_detail TEXT;`,
+  },
 ];

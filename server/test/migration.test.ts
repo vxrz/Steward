@@ -2,11 +2,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { spawnSync, type ChildProcess } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, ssoBinding, startTestServer, startedUrl, type Client, type TestServer } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
 import { tinyPng } from './png.js';
+import { spawnTestServer } from './server-process.js';
 
 /**
  * Moving an instance (#51): export on an in-process source with the demo data, then import into fresh
@@ -421,7 +422,7 @@ function startChild(env: Record<string, string>): Promise<Child> {
     if (!env.SM_DATABASE_URL) delete e.SM_DATABASE_URL;
     delete e.SM_DATABASE_SCHEMA;
     if (env.SM_DATABASE_SCHEMA) e.SM_DATABASE_SCHEMA = env.SM_DATABASE_SCHEMA;
-    const proc = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { cwd: path.join(ROOT, 'server'), env: e, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawnTestServer({ cwd: path.join(ROOT, 'server'), env: e, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     proc.stdout!.on('data', (d: Buffer) => {
       out += d.toString();

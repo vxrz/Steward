@@ -345,9 +345,6 @@ export function activeNavEntry<T extends { to: string; also?: string[] }>(entrie
   return best;
 }
 
-/** Kept for callers that test one address. */
-export const isNavActive = matches;
-
 // ---------- remembered per user in this browser (components/page/prefs.ts) ----------
 
 const PINS_PREF = 'nav.pins';

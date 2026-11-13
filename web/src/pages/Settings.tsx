@@ -197,6 +197,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
       <EmptyState
         icon={IconMapPinOff}
         title={t('nav:pageNotFound')}
+        titleOrder={1}
         action={
           <Button component={Link} to="/">
             {t('nav:backToDashboard')}
@@ -441,6 +442,8 @@ function OutboundCard({ d }: { d: Draft }) {
   const { t } = useTranslation(['settings', 'common']);
   const { s, setS, allowText, setAllowText, allowProblems } = d;
   const policy = s.outboundPolicy ?? 'platforms';
+  // three long choices do not fit side by side on a phone
+  const narrow = useMediaQuery('(max-width: 36em)');
   return (
     <Card withBorder>
       <Title order={2} size="h5" mb="sm">
@@ -449,6 +452,8 @@ function OutboundCard({ d }: { d: Draft }) {
       <Stack gap="xs">
         <SegmentedControl
           fullWidth
+          orientation={narrow ? 'vertical' : 'horizontal'}
+          aria-label={t('outbound.policy')}
           value={policy}
           onChange={(v) => setS({ ...s, outboundPolicy: v as Settings['outboundPolicy'] })}
           data={[
@@ -457,9 +462,11 @@ function OutboundCard({ d }: { d: Draft }) {
             { value: 'open', label: t('outbound.open') },
           ]}
         />
-        <Text size="xs" c="dimmed">
-          {policy === 'open' ? t('outbound.openWarning') : policy === 'allowList' ? t('outbound.allowListHint') : t('outbound.platformsHint')}
-        </Text>
+        {policy !== 'open' && (
+          <Text size="xs" c="dimmed">
+            {policy === 'allowList' ? t('outbound.allowListHint') : t('outbound.platformsHint')}
+          </Text>
+        )}
         {policy === 'open' && (
           <Alert color="orange" variant="light" p="xs">
             {t('outbound.openWarning')}

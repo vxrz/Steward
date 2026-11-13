@@ -138,6 +138,85 @@ test('the editor\'s decision table: rows, cells, and "Try it"', async ({ page, a
   await api.delete(`/api/monitors/${id}`);
 });
 
+test('off beyond the maximum: degraded or down, per monitor and per off row, and "Try it" shows it (#288)', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const created = await json(
+    await api.post('/api/monitors', {
+      data: {
+        definition: {
+          name: uniq('E2E max off'),
+          checks: [
+            { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600, x: 0, y: 0 },
+            { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600, x: 0, y: 160 },
+          ],
+          states: {
+            cases: [
+              { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' } },
+              { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' } },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  const id = created.monitor.id;
+  await page.goto(`/monitors/${id}/edit`);
+  await settle(page);
+  await page.getByRole('tab', { name: 'States' }).click();
+  const monitorChoice = page.getByRole('combobox', { name: 'Off for longer than the maximum', exact: true });
+  await expect(monitorChoice).toHaveValue('Degraded (default)');
+  const rowChoice = page.getByRole('combobox', { name: 'Off: off for longer than the maximum', exact: true });
+  await expect(rowChoice).toHaveValue('As the monitor (Degraded)');
+  // a Running row has no maximum off time
+  await expect(page.getByTestId('after-max-off-running')).toHaveCount(0);
+  await expect(page.getByTestId('states-legend')).toContainText('Down (an outage, counted as unavailable)');
+
+  // Try it: off for longer than the maximum – degraded by default
+  const tryOff = async () => {
+    for (const c of ['pm', 'data']) {
+      await page.getByTestId(`try-${c}`).click();
+      await page.getByRole('option', { name: 'Down', exact: true }).click();
+    }
+    await page.getByTestId('states-try').click();
+  };
+  const result = page.getByTestId('states-try-result');
+  await tryOff();
+  await expect(result.locator('[data-status="off"]')).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Off for longer than the maximum' }).check();
+  await page.getByTestId('states-try').click();
+  await expect(result).toContainText('Off for longer than expected – Off for longer than expected (8 h, maximum 8 h)');
+  await expect(result.locator('[data-status="degraded"]')).toBeVisible();
+
+  // the monitor: down – an outage; the row follows it
+  await monitorChoice.click();
+  await page.getByRole('option', { name: 'Down – an outage', exact: true }).click();
+  await expect(rowChoice).toHaveValue('As the monitor (Down – an outage)');
+  await page.getByTestId('states-try').click();
+  await expect(result.locator('[data-status="down"]')).toBeVisible();
+  // the row overrides it back to degraded
+  await rowChoice.click();
+  await page.getByRole('option', { name: 'Degraded', exact: true }).click();
+  await page.getByTestId('states-try').click();
+  await expect(result.locator('[data-status="degraded"]')).toBeVisible();
+  // a data path made a precondition of Off: a warning that says why and what to do instead (0.20 review)
+  const offData = page.getByRole('combobox', { name: 'Off – PowerMeter data', exact: true });
+  await offData.click();
+  await page.getByRole('option', { name: 'Required', exact: true }).click();
+  await expect(page.getByTestId('states-issues')).toContainText(
+    'Warning: State 2 (Off): “PowerMeter data” is required in Off: a required check has no settle time',
+  );
+  await offData.click();
+  await page.getByRole('option', { name: 'Down · expected', exact: true }).click();
+  await expect(page.getByTestId('states-issues')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page).toHaveURL((url) => url.pathname.endsWith(`/monitors/${id}`));
+  const saved = await json(await api.get(`/api/monitors/${id}`));
+  expect(saved.definition.states.afterMaxOff).toBe('down');
+  expect(saved.definition.states.cases[1].afterMaxOff).toBe('degraded');
+  expect(saved.definition.states.cases[0].afterMaxOff).toBeUndefined();
+  await api.delete(`/api/monitors/${id}`);
+});
+
 test('settling: the header says until when and how many checks are not as expected yet; their cards are amber, not red', async ({ page, apiAs }) => {
   const api = await apiAs('dana');
   const created = await json(

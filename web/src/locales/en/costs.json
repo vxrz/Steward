@@ -380,6 +380,7 @@
     },
     "form": {
       "title": "Title",
+      "titleHint": "What the money is for, e.g. Historian licences. A line needs no contract: plan what you will buy later and name the supplier and contract once there is one.",
       "category": "Category",
       "for": "For",
       "forHint": "An application or system of the service (a platform for cloud lines)",
@@ -590,8 +591,8 @@
       "service": "Service or platform",
       "team": "Team"
     },
-    "warnings_one": "{{count}} notice date before an unplanned year",
-    "warnings_other": "{{count}} notice dates before unplanned years",
+    "warnings_one": "{{count}} payment schedule needs attention",
+    "warnings_other": "{{count}} payment schedules need attention",
     "empty": "No payment schedules here. Add payments to a supplier contract to see what it still owes.",
     "hiddenSupplier": "Suppliers you may not see",
     "noTeam": "Without a team",
@@ -608,6 +609,16 @@
       "toContractEnd": "To contract end",
       "toEarliestExit": "To earliest exit",
       "noticeBy": "Notice by"
+    },
+    "billingCell": {
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "yearly": "Yearly",
+      "once": "Once",
+      "dates": "Dated payments",
+      "volume": "Volume",
+      "prepaid": "Volume, prepaid",
+      "byUse": "Volume, billed by use"
     },
     "total": "Owed in {{currency}} to contract end",
     "totalExit": "To the earliest exit {{amount}} · this fiscal year {{thisYear}}",

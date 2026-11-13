@@ -194,7 +194,7 @@ test('notification centre: decisions first, groups by kind, a group marked read 
   for (const c of await groups.evaluateAll((l) => l.map((x) => x.getAttribute('data-category')))) expect(c).toBe('decision');
   await drawer
     .getByTestId('notification-filter')
-    .getByText(/^All \d+/)
+    .getByText(/^(All|Latest) \d+/)
     .click();
   await drawer.getByRole('switch', { name: 'Unread only' }).check();
   // mark one group read
@@ -205,6 +205,33 @@ test('notification centre: decisions first, groups by kind, a group marked read 
   // leave no waiting decision behind for the other tests (a task badge changes the sidebar's link names)
   await json(await (await apiAs('admin')).post(`/api/runs/${runId}/cancel`, { data: { reason: 'E2E cleanup' } }));
   await waitForRun(olivia, runId, ['cancelled']);
+});
+
+test('notification centre: a full list says it holds the latest messages only', async ({ page }) => {
+  // the bell loads the latest 50: with more unread than that, "All 50" next to "68 unread" was wrong
+  await page.route(
+    (url) => url.pathname.endsWith('/api/notifications'),
+    (route) =>
+      route.fulfill({
+        json: {
+          unread: 68,
+          items: Array.from({ length: 50 }, (_, i) => ({
+            id: `ntf_e2e_${i}`,
+            ts: new Date(Date.now() - i * 60_000).toISOString(),
+            event: 'run.failed',
+            title: `Run ${i} failed`,
+            body: '',
+            read: false,
+          })),
+        },
+      }),
+  );
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  const drawer = page.getByRole('dialog', { name: /Notifications/ });
+  await expect(drawer.getByTestId('notification-filter')).toContainText('Latest 50');
+  await expect(drawer.getByTestId('notification-filter')).not.toContainText('All 50');
+  await expect(drawer.getByTestId('notifications-capped')).toHaveText('The latest 50 messages are listed here; older ones are not shown.');
 });
 
 test('runs are sorted by the server, and the order is remembered (U15)', async ({ page }) => {

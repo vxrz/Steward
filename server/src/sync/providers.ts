@@ -178,15 +178,73 @@ async function readCapped(res: FetchResponse, max: number): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-function statusError(status: number, what: string): HttpError {
+/**
+ * A rate limit of the Git host, or null. GitHub answers an exhausted limit with 403 (or 429) and
+ * `x-ratelimit-remaining: 0` / `x-ratelimit-reset`, a secondary limit with 403/429 and `retry-after`; GitLab and
+ * Forgejo/Gitea with 429 (`ratelimit-reset`, `retry-after`). `body`: the start of the answer, for the message GitHub
+ * sends with a 403 ("API rate limit exceeded …", "… secondary rate limit …").
+ */
+export function rateLimitOf(status: number, headers: Pick<Headers, 'get'>, body = '', now = Date.now()): { retryAt: Date | null } | null {
+  if (status !== 403 && status !== 429) return null;
+  const remaining = headers.get('x-ratelimit-remaining') ?? headers.get('ratelimit-remaining');
+  const retryAfter = headers.get('retry-after');
+  const limited = status === 429 || remaining?.trim() === '0' || retryAfter !== null || /rate limit/i.test(body);
+  if (!limited) return null;
+  return { retryAt: retryAtOf(headers, now) };
+}
+
+/** When to try again: `retry-after` (seconds or an HTTP date), else the reset time in epoch seconds; null when unknown or implausible. */
+function retryAtOf(headers: Pick<Headers, 'get'>, now: number): Date | null {
+  const plausible = (ms: number) => (Number.isFinite(ms) && ms > now && ms - now <= 7 * 86400_000 ? new Date(Math.ceil(ms / 1000) * 1000) : null);
+  const after = headers.get('retry-after')?.trim();
+  if (after) {
+    if (/^\d{1,9}$/.test(after)) return plausible(now + Number(after) * 1000);
+    const at = plausible(Date.parse(after));
+    if (at) return at;
+  }
+  const reset = (headers.get('x-ratelimit-reset') ?? headers.get('ratelimit-reset'))?.trim();
+  return reset && /^\d{1,12}$/.test(reset) ? plausible(Number(reset) * 1000) : null;
+}
+
+/** "2026-11-12 14:05 UTC" – the server's message and the audit log; the UI shows the local time from `retryAt`. */
+const utcMinute = (d: Date) => `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+
+function rateLimited(what: string, status: number, retryAt: Date | null, withToken: boolean): HttpError {
+  const when = retryAt ? `try again after ${utcMinute(retryAt)}` : 'try again later';
+  const advice = withToken
+    ? ''
+    : '. Without a token the Git host allows only a few calls (GitHub: 60 an hour per address): add a read-only access token to the source (GitHub: 5,000 calls an hour)';
+  const context = `${retryAt ? 'retry' : ''}${withToken ? '' : retryAt ? 'NoToken' : 'noToken'}`;
+  return new HttpError(502, `${what}: the Git host's rate limit was reached (HTTP ${status}) – ${when}${advice}`, 'GIT_RATE_LIMITED', {
+    status,
+    ...(retryAt ? { retryAt: retryAt.toISOString() } : {}),
+    ...(context ? { context } : {}),
+  });
+}
+
+function statusError(status: number, what: string, withToken: boolean): HttpError {
   if (status === 401 || status === 403)
-    return new HttpError(502, `${what}: access denied (HTTP ${status}) – check the token and its read permission for the repository`, 'GIT_ACCESS_DENIED', {
-      status,
-    });
+    return withToken
+      ? new HttpError(502, `${what}: access denied (HTTP ${status}) – check the token and its read permission for the repository`, 'GIT_ACCESS_DENIED', {
+          status,
+        })
+      : new HttpError(502, `${what}: access denied (HTTP ${status}) – the repository may need an access token`, 'GIT_ACCESS_DENIED', {
+          status,
+          context: 'noToken',
+        });
   if (status === 404)
     return new HttpError(502, `${what}: not found (HTTP 404) – check repository, branch and folder; private repositories need a token`, 'GIT_NOT_FOUND');
-  if (status === 429) return new HttpError(502, `${what}: the Git host's rate limit was reached (HTTP 429) – try again later`, 'GIT_RATE_LIMITED');
+  if (status === 429) return rateLimited(what, status, null, withToken);
   return new HttpError(502, `${what}: HTTP ${status} from the Git host`, 'GIT_HTTP_ERROR', { status });
+}
+
+/** The start of an error answer (a rate-limit message), never more than a few KB; empty when it cannot be read. */
+async function errorBody(res: FetchResponse): Promise<string> {
+  try {
+    return (await readCapped(res, 4096)).toString('utf8');
+  } catch {
+    return '';
+  }
 }
 
 class Client {
@@ -236,8 +294,13 @@ class Client {
       return { status: 404, body: Buffer.alloc(0), headers: res.headers };
     }
     if (!res.ok) {
-      await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
-      throw statusError(res.status, what);
+      const withToken = Object.keys(this.authHeaders).some((h) => h === 'authorization' || h === 'private-token');
+      if (res.status === 403 || res.status === 429) {
+        // GitHub answers an exhausted rate limit with 403: told apart from "access denied" by its headers and message
+        const limit = rateLimitOf(res.status, res.headers, await errorBody(res));
+        if (limit) throw rateLimited(what, res.status, limit.retryAt, withToken);
+      } else await res.body?.cancel().catch(() => undefined); // the body is not read: a failed cancel changes nothing
+      throw statusError(res.status, what, withToken);
     }
     return { status: res.status, body: await readCapped(res, opts.max ?? MAX_JSON_BYTES), headers: res.headers };
   }

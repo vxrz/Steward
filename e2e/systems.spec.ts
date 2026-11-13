@@ -98,6 +98,8 @@ test.describe('as an administrator', () => {
       await page.goto('/settings/catalogue');
       const card = page.getByTestId('environments-card');
       await expect(card.getByRole('textbox', { name: 'Name' })).toHaveCount(before.environments.length);
+      // colours by name, as on the CIA scale ("Blue", not the key "blue")
+      await expect(card.getByRole('combobox', { name: 'Colour' }).first()).toHaveValue('Blue');
       await card.getByRole('button', { name: 'Add environment' }).click();
       await card.getByRole('textbox', { name: 'Name' }).last().fill('staging');
       await card.getByRole('button', { name: 'Move staging up' }).click();

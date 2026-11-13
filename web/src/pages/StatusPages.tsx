@@ -37,8 +37,8 @@ import {
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
-import { fmtDate, fmtRelative } from '../format';
+import { BackLinks, EmptyState, PageHeader, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
+import { fmtDate, fmtDateRange, fmtNumber, fmtRelative } from '../format';
 import { BRAND } from '../../../shared/src/brand';
 import { appUrl } from '../basePath';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
@@ -98,6 +98,7 @@ export function StatusView({ view }: { view: StatusPageView }) {
                 title: m.title,
                 from: fmtDate(m.startsAt),
                 to: fmtDate(m.endsAt),
+                when: fmtDateRange(m.startsAt, m.endsAt),
               })}
             </Text>
           ))}
@@ -110,7 +111,11 @@ export function StatusView({ view }: { view: StatusPageView }) {
             <Text key={o.name} size="xs" c="dimmed" mt={4}>
               {o.value === null
                 ? t('statusPages.objectiveNoData', { name: o.name, target: o.target })
-                : t('statusPages.objective', { name: o.name, value: o.value.toFixed(2), target: o.target })}
+                : t('statusPages.objective', {
+                    name: o.name,
+                    value: fmtNumber(o.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                    target: o.target,
+                  })}
             </Text>
           ))}
         </Paper>
@@ -422,9 +427,8 @@ export function StatusPageViewPage() {
   if (!q.data) return <QueryState query={q} />;
   return (
     <Stack>
-      <Text size="sm" component={Link} to="/status-pages">
-        ← {t('statusPages.title')}
-      </Text>
+      {/* the breadcrumb every detail page has (it was a plain text link in the browser's colours) */}
+      <BackLinks crumbs={[{ to: '/status-pages', label: t('statusPages.title') }]} />
       <StatusView view={q.data} />
     </Stack>
   );

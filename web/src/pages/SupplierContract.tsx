@@ -19,6 +19,7 @@ import { ContractModal } from '../components/suppliers/ContractForm';
 import { ContractPlatforms, ContractServices } from '../components/suppliers/ContractServices';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { ContractPayments } from '../components/costs/ContractPayments';
+import { planPath } from '../components/costs/common';
 import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** A value of the contract, in grey with "from the master agreement" when the order form inherits it (ADR 0031). */
@@ -176,15 +177,17 @@ export function SupplierContractPage() {
             </Stack>
             {c.costPlanLines.length > 0 && (
               <Text size="sm" data-testid="contract-plan-lines">
-                {t('contracts.costPlanLines')}:{' '}
-                {c.costPlanLines.map((l, i) => (
-                  <span key={l.id}>
-                    {i > 0 && ', '}
-                    <Anchor component={Link} to={`/services/${l.serviceId}?tab=costs`} size="sm">
-                      {l.serviceName} · {l.title} ({l.fiscalYear})
-                    </Anchor>
-                  </span>
-                ))}
+                {t('contracts.costPlanLines')}: {/* a plan line per contract-year slice of a fiscal year: the same service, title and year once */}
+                {c.costPlanLines
+                  .filter((l, i, all) => all.findIndex((x) => x.serviceId === l.serviceId && x.fiscalYear === l.fiscalYear && x.title === l.title) === i)
+                  .map((l, i) => (
+                    <span key={l.id}>
+                      {i > 0 && ', '}
+                      <Anchor component={Link} to={planPath({ kind: 'service', id: l.serviceId })} size="sm">
+                        {l.serviceName} · {l.title} ({l.fiscalYear})
+                      </Anchor>
+                    </span>
+                  ))}
               </Text>
             )}
             {costsOn && (

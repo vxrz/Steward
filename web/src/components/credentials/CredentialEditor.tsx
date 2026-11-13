@@ -44,13 +44,13 @@ import type {
   CredentialBelongsKind,
   CredentialBelongsTarget,
 } from '@sm/shared';
-import { PVAULT_KIND } from '@sm/shared';
+import { CREDENTIAL_TYPES, PVAULT_KIND } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
 import { TagInput } from '../tags';
 import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
 import { useFieldErrors } from '../common';
-import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
+import { searchTermOf } from '../remoteSelect';
 import { monitorKeys, platformKeys, processKeys } from '../../queryKeys';
 
 const CERT_MAX = 256 * 1024;
@@ -223,9 +223,12 @@ export function CredentialEditor({
     enabled: !!d.gatus?.platformId,
   });
   const [vaultSearch, setVaultSearch] = useState('');
-  const [vaultQuery] = useDebouncedValue(vaultSearch, 300);
+  // the selected secret's label in the input is no search (remoteSelect.ts)
+  const [vaultQuery] = useDebouncedValue(searchTermOf(vaultSearch, d.vault?.secretId ? (d.vault.label ?? `#${d.vault.secretId}`) : null), 300);
   const vaultSecrets = useQuery({
     queryKey: ['vault-secrets', d.vault?.platformId, vaultQuery],
+    // while the next search loads, the list keeps the last results of the same vault (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === d.vault?.platformId && vaultQuery.trim().length >= 2 ? prev : undefined),
     queryFn: () =>
       get<{ id: number; name: string; folderPath: string; templateName: string }[]>(
         `/credentials/vault-secrets?platformId=${encodeURIComponent(d.vault!.platformId)}&q=${encodeURIComponent(vaultQuery)}`,
@@ -323,7 +326,7 @@ export function CredentialEditor({
             label={t('fields.type')}
             required
             allowDeselect={false}
-            data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))}
+            data={CREDENTIAL_TYPES.map((x) => ({ value: x, label: t(`types.${x}`) }))}
             value={d.type}
             onChange={(v) => set({ type: (v as CredentialType) ?? 'other' })}
           />

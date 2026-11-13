@@ -39,7 +39,14 @@ export function RecordTypesPage() {
   const types = useRecordTypes(true);
   const typeName = useTypeName();
   const [editing, setEditing] = useState<RecordType | 'new' | null>(null);
-  if (meta.data && !meta.data.canManageTypes) return <Alert color="orange">{t('types.adminOnly')}</Alert>;
+  // the page's heading and the way back stay: the reason is no dead end
+  if (meta.data && !meta.data.canManageTypes)
+    return (
+      <>
+        <PageHeader back="records" title={t('types.title')} />
+        <Alert color="orange">{t('types.adminOnly')}</Alert>
+      </>
+    );
   const nameBadges = (x: RecordType) => (
     <>
       <GitOriginBadge kind="recordType" id={x.id} size="xs" /> <LibraryOriginBadge kind="recordType" id={x.id} size="xs" />

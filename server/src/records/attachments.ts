@@ -309,8 +309,11 @@ export function attachmentForDownload(recordId: string, attId: string): { row: A
 const SERVED_TYPES = new Set(Object.values(ALLOWED).map((a) => a.mime));
 export const downloadType = (mime: string | null | undefined): string => (mime && SERVED_TYPES.has(mime) ? mime : 'application/octet-stream');
 
-/** Content-Disposition with an ASCII fallback and the UTF-8 name (RFC 6266 / 5987). */
-export function contentDisposition(filename: string): string {
+/**
+ * Content-Disposition with an ASCII fallback and the UTF-8 name (RFC 6266 / 5987): a header value may not carry other
+ * characters than Latin-1 – a name with an en dash or an emoji written as it is made Node refuse the answer (500).
+ */
+export function contentDisposition(filename: string, type: 'attachment' | 'inline' = 'attachment'): string {
   const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }

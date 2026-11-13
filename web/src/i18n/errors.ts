@@ -1,6 +1,6 @@
 import type { ErrorParam, ErrorParams } from '@sm/shared';
-import { ApiError } from '../api';
-import { fmtNumber, listFormat } from '../format';
+import { ApiError } from '../apiError';
+import { fmtDate, fmtNumber, listFormat } from '../format';
 import i18n from './index';
 
 /**
@@ -29,12 +29,17 @@ export function codeText(code: string | undefined, params?: ErrorParams, message
   if (value) return value(params ?? {}, message ?? '');
   const key = `errors:codes.${code}`;
   const values: Record<string, string | number | undefined> = {};
-  for (const [k, v] of Object.entries(params ?? {})) values[k] = k === 'context' ? (typeof v === 'string' && v ? v : undefined) : paramText(v);
+  for (const [k, v] of Object.entries(params ?? {}))
+    values[k] = k === 'context' ? (typeof v === 'string' && v ? v : undefined) : isTimestampParam(k, v) ? fmtDate(v) : paramText(v);
   // a numeric `count` selects the plural form
   if (typeof params?.count === 'number') values.count = params.count;
   if (!i18n.exists(key, values)) return null;
   return i18n.t(key as 'errors:codes.WRONG_CREDENTIALS', { ...values, defaultValue: message }) as string;
 }
+
+/** A point in time the server names as `…At` (ISO 8601, UTC) – shown in the reader's time zone and format, e.g. `retryAt`. */
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
+const isTimestampParam = (k: string, v: ErrorParam): v is string => k.endsWith('At') && typeof v === 'string' && ISO_TIME.test(v);
 
 function paramText(v: ErrorParam): string {
   if (v === null || v === undefined) return '';

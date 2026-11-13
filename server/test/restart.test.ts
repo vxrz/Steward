@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { freshDbEnv } from './pg-env.js';
+import { spawnTestServer } from './server-process.js';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-restart-'));
@@ -16,7 +17,7 @@ let proc: ChildProcess | undefined;
 const dbEnv = freshDbEnv(); // both starts use the same database
 
 function startServer(): Promise<ChildProcess> {
-  const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+  const child = spawnTestServer({
     cwd: path.join(ROOT, 'server'),
     env: {
       ...process.env,

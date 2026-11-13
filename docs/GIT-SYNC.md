@@ -111,7 +111,9 @@ _Settings → Git sync → Manage Git sync → New source._
 Every installation has the source **Steward example library** (badge _Steward examples_): GitHub, `https://github.com/vxrz/Steward`, tag `v{version}`, folder `examples`, processes, dashboards and monitors. It brings improved example templates of your version into **Git sync**, where you review them like any other change; with `v{version}` it only shows examples made for the Steward you run.
 
 - It is **disabled**: nothing is fetched until an administrator turns it on (_Edit source → Enabled_). No token, no schedule, no webhook, no automatic acceptance.
-- To use it, allow `api.github.com` in the outbound policy (_Settings → Outbound access_).
+- To use it, allow `api.github.com` in the outbound policy (_Settings → Outbound access_). Steward reads the repository through GitHub's API, not from `github.com`.
+- **A fetch needs a handful of API calls**: the tag, its commit and the folder's file list. The example files themselves are not downloaded when they are the ones shipped with your installation – at the tag of your version they are, byte for byte – see [Files Steward already knows](#files-steward-already-knows). Files that differ (a source set to `main`, examples you replaced on disk) are downloaded, one call each.
+- **GitHub limits calls without a token** to 60 an hour per address – shared by everyone behind the same company NAT or proxy. When the limit is used up, the fetch fails with _The Git host's rate limit was reached_ and the time to try again. For regular fetches add a token (_Edit source → Access token_): a [fine-grained personal access token](#github) with repository access **Public repositories (read-only)** and no permissions. It reads public repositories only and allows 5,000 calls an hour.
 - It is added **once**: on a new installation and on the upgrade to 0.2.1, after the vault is unlocked (audit entry `sync.source_created` by `system`). Your changes to it stay, and a deleted one is not brought back.
 - Examples you imported by hand before have the same ids (the file name without its number). The first fetch shows them as conflicts (_The item exists in Steward but did not come from this source_) or links them when they are identical, so nothing you changed is overwritten without a decision.
 
@@ -131,6 +133,7 @@ Every installation has the source **Steward example library** (badge _Steward ex
 ### GitHub
 
 1. Create a **fine-grained personal access token** (or a GitHub App installation token): _Settings → Developer settings → Fine-grained tokens_. Repository access: only the library repository. Permissions: **Contents: Read-only** (Metadata: Read-only is added automatically). Nothing else.
+   - **Public repositories** (such as Steward's example library) need no token, but without one GitHub allows only 60 API calls an hour per address ([Rate limits](#rate-limits)). A token with repository access **Public repositories (read-only)** needs no permissions at all and raises the limit to 5,000 calls an hour.
 2. Repository URL: `https://github.com/<owner>/<repository>`. Steward uses `https://api.github.com` – allow `api.github.com` in the outbound policy. GitHub Enterprise Server: `https://github.example.com/<owner>/<repository>`, the API at `/api/v3`.
 3. Webhook (optional): repository _Settings → Webhooks → Add webhook_.
    - Payload URL: the URL Steward shows. Content type: `application/json`.
@@ -143,6 +146,29 @@ Every installation has the source **Steward example library** (badge _Steward ex
 1. Create a **project access token** with the role _Reporter_ and the scope **read_api** (or `read_repository` plus `read_api`).
 2. Repository URL: `https://gitlab.example.com/<group>/<project>` (subgroups are fine). The API is found at `/api/v4`.
 3. Webhook: project _Settings → Webhooks_. URL: the Payload URL; **Secret token**: the webhook secret (GitLab sends it as `X-Gitlab-Token`); trigger **Push events**.
+
+### Rate limits
+
+Git hosts limit how many API calls a client may make. GitHub allows **60 calls an hour without a token** (per IP address, so everyone behind the same NAT shares them) and 5,000 with one; GitLab and Forgejo/Gitea instances set their own limits. A fetch needs a few calls (branch or tag, commit, file list; with _Require signed commits_ the compare call, on GitLab one per new commit) plus **one per changed file** it has not seen before.
+
+- When the host refuses a call because of its limit (GitHub: 403 or 429 with `x-ratelimit-remaining: 0` or `retry-after`; GitLab, Forgejo/Gitea: 429), the fetch fails with **GIT_RATE_LIMITED** – _The Git host's rate limit was reached_ – and names when to try again (from `retry-after` or the reset time; the UI shows it in your time zone). Without a token it recommends one. A 403 without these signs is _access denied_ as before. A **scheduled** fetch waits until that time instead of asking again every interval; _Fetch now_ always tries.
+- **Nothing is staged** by a fetch that fails, also when it stops midway through the files (see [A fetch that fails](#a-fetch-that-fails)). The files it already downloaded are kept in memory, so the next fetch goes on where it stopped instead of starting over.
+- For a public GitHub repository use a fine-grained token with repository access **Public repositories (read-only)** and no permissions; for a private one, **Contents: Read-only** on that repository.
+
+### Files Steward already knows
+
+Every file in Git has an object id: the hash of its content, which the commit's file list names. Steward does not download a file whose content it already knows under that id:
+
+- **The example files shipped with Steward** (the `examples` folder of the installation, `SM_EXAMPLES_DIR`). The example library follows the tag of your version, so its files are the shipped ones and its fetch downloads none of them.
+- **Files downloaded recently** by any source (kept in memory, at most 16 MB, lost on a restart): a fetch after a rate limit or a network error, and sources with the same files, read them once.
+
+A known content is used only when its hash is the object id the commit names – the same integrity check every downloaded file passes. Contents are kept only after they passed it, never written to the database, and a file refused for looking like it contains a credential is refused in the same way.
+
+Other ways to read fewer files were weighed and not taken: GitHub's archive download (`/tarball`) redirects to another host (Steward follows no redirects, so a token cannot leak) and downloads the whole repository; `raw.githubusercontent.com` is another host to allow in the outbound policy, with limits GitHub does not document; GitHub's GraphQL API needs a token for every call.
+
+### A fetch that fails
+
+A fetch first reads everything it needs – the branch or tag, the signatures, the file list and every changed file, each checked against its object id and the size limits – and then stages all updates in one database transaction. A fetch that fails (rate limit, network, a file that does not match its object id, a refused signature) therefore **stages nothing**: the updates from earlier fetches stay as they were, the source keeps its last fetched commit, shows the error (translated, with the time to try again for a rate limit) and _Nothing from this fetch was staged_, and the audit log has one `sync.fetch_failed` entry with the reason and no `sync.fetched`. The next fetch starts again from the last fetched commit.
 
 ### Plain Git servers
 
@@ -181,7 +207,7 @@ Use Git sync in two roles: Steward's example library as a source of **suggestion
 - **Outbound policy.** Every request goes to the API of the configured host and is checked like a process request: the host must be a platform origin or on the allow-list, cloud-metadata addresses and Steward's own API are never reachable, the address is pinned against DNS rebinding.
 - **Token.** Stored encrypted in the vault (re-encrypted when the data key rotates), never shown again, never logged, sent only to the API base of the source. Redirects are refused, so the token cannot be forwarded to another host.
 - **Limits.** At most 200 definition files per fetch, 256 KB per file, 4 MB together; answers of the Git host are size-capped while they are read.
-- **Integrity.** Every file is checked against its Git object id from the commit's tree: SHA-1, or SHA-256 for repositories in the SHA-256 object format. With _Require signed commits_ every new commit since the last fetch must carry a signature the host verified, optionally by an allowed signer.
+- **Integrity.** Every file is checked against its Git object id from the commit's tree: SHA-1, or SHA-256 for repositories in the SHA-256 object format. A content Steward already knows (a shipped example file, a recent download) is used only when it has that id ([Files Steward already knows](#files-steward-already-knows)). With _Require signed commits_ every new commit since the last fetch must carry a signature the host verified, optionally by an allowed signer.
 - **Retention.** Updates replaced by a newer version of the file (_superseded_) are deleted after 30 days. Rejected updates keep their decision (so the file is not staged again until it changes), but their content is removed after 30 days. Open and accepted updates are kept; an accepted process change is also in the process's version history.
 - **Path confinement.** Only regular files below the folder are read: no `..`, no symbolic links, no submodules.
 - **No code from the repository.** Files are parsed as data only (YAML core schema, no custom tags, bounded aliases). Nothing in them is run while fetching or reviewing.
@@ -189,7 +215,7 @@ Use Git sync in two roles: Steward's example library as a source of **suggestion
 - **Rights.** Sources are managed by administrators in a signed-in session (API tokens cannot create, change or delete them). Adding a source, or changing its repository, API URL or provider (where its token goes), its branch or tag rule, _Pre-releases_ or folder (where in the repository definitions come from – a branch may be one more people can push to; security review 0.19.0, L5), no longer requiring signed commits, adding an allowed signer or turning on _Accept new items automatically_ asks for a [step-up](SECURITY-HARDENING.md#step-up-re-authentication) (control point `sync.sources`, 0.19.0); the name, interval, kinds or a tightened setting do not. Reviewing needs the designer role; accepting needs the same right as the change by hand (create processes, edit this process, manage record types, …). Updates of processes and monitors the reviewer cannot see are hidden.
 - **Webhook.** Authenticated by the source's secret (HMAC-SHA256 of the body for Forgejo/Gitea/GitHub, the secret token for GitLab), at most 12 calls per minute per source, unknown or disabled sources answer 404. The payload only says _something changed_: Steward reads the repository through the API like any other fetch.
 - **Example library.** The built-in source is created disabled, without a token or webhook secret, and reads a public repository through the same outbound policy as every source. Turning it on is a source change in the audit log.
-- **Audit.** Every source change, fetch, acceptance (with the resulting version), rejection and refused webhook call is in the audit log. A fetch writes one `sync.fetched` entry with the commit and the staged and invalid files (the first 100 listed by path, all counted); a refused fetch writes `sync.fetch_failed` with the reason.
+- **Audit.** Every source change, fetch, acceptance (with the resulting version), rejection and refused webhook call is in the audit log. A fetch writes one `sync.fetched` entry with the commit and the staged and invalid files (the first 100 listed by path, all counted); a refused or failed fetch writes `sync.fetch_failed` with the reason and stages nothing ([A fetch that fails](#a-fetch-that-fails)).
 
 ## API
 
@@ -213,4 +239,4 @@ The demo server includes a small Git host (`server/src/mock/mockGit.ts`) that sp
 - GitHub: `…/mock/github/steward/library`.
 - GitLab: `…/mock/gitlab/steward/library` with the API URL `…/mock/gitlab/api/v4`.
 
-The repository holds one process, dashboard, monitor and document type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository), create or move tags with `POST /mock/git/_tag` (`annotated: true` for a tag object) and serve wrong file content with `POST /mock/git/_tamper`.
+The repository holds one process, dashboard, monitor and document type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository), create or move tags with `POST /mock/git/_tag` (`annotated: true` for a tag object), serve wrong file content with `POST /mock/git/_tamper` and simulate a rate limit after a number of calls with `POST /mock/git/_limit` (`after`, `status`, `headers`; `after: null` lifts it).

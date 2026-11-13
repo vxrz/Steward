@@ -24,7 +24,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NOTIFICATION_CATEGORIES, notificationCategory, type AppNotification, type NotificationCategory } from '@sm/shared';
 import { fmtDate, fmtRelative } from '../../format';
-import { useBrowserNotificationBridge, useNotificationActions, useNotifications } from './useNotifications';
+import { NOTIFICATION_LIMIT, useBrowserNotificationBridge, useNotificationActions, useNotifications } from './useNotifications';
 import { ShowAll, useShowMore } from '../page/ShowAll';
 
 /** Items a group shows before "Show all" (decision groups always show everything). */
@@ -87,6 +87,7 @@ export function NotificationCenter() {
   const unread = q.data?.unread ?? 0;
   const items = q.data?.items ?? [];
   const counts = Object.fromEntries(NOTIFICATION_CATEGORIES.map((c) => [c, items.filter((n) => notificationCategory(n.event) === c).length]));
+  const capped = items.length >= NOTIFICATION_LIMIT;
   const shown = items.filter((n) => (category === 'all' || notificationCategory(n.event) === category) && (!unreadOnly || !n.read));
   const groups = groupNotifications(shown);
   const label = unread ? t('center.labelUnread', { count: unread }) : t('center.title');
@@ -172,7 +173,8 @@ export function NotificationCenter() {
                 value={category}
                 onChange={(v) => setCategory(v as typeof category)}
                 data={[
-                  { value: 'all', label: t('center.all', { count: items.length }) },
+                  // the bell loads the latest messages only: "Latest 50", not "All 50" next to "68 unread"
+                  { value: 'all', label: t(capped ? 'center.latest' : 'center.all', { count: items.length }) },
                   ...NOTIFICATION_CATEGORIES.map((c) => ({ value: c, label: t(`center.category.${c}`, { count: counts[c] }) })),
                 ]}
                 data-testid="notification-filter"
@@ -189,6 +191,11 @@ export function NotificationCenter() {
                 <NotificationGroupView key={g.event} g={g} onItem={onItem} onMarkRead={() => void markEventsRead([g.event])} />
               ))}
             </Stack>
+            {capped && (
+              <Text size="xs" c="dimmed" ta="center" mt="md" data-testid="notifications-capped">
+                {t('center.cappedHint', { count: items.length })}
+              </Text>
+            )}
           </>
         )}
       </Drawer>

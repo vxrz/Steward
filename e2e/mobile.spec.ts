@@ -99,6 +99,44 @@ test.describe('phone @mobile', () => {
     });
   }
 
+  // administrators see more actions per row than the operator above (Edit, Pause messages, Delete …): the schedule
+  // cards overflowed the phone with them (0.20 review). The settings areas and the catalogue lists as well.
+  test('no horizontal scroll for administrators', async ({ loginAs }) => {
+    const admin = await loginAs('admin');
+    for (const path of [
+      '/schedules',
+      '/triggers',
+      '/users',
+      '/platforms',
+      '/applications',
+      '/systems',
+      '/duties',
+      '/data-contracts',
+      '/compliance/person-reviews',
+      '/settings/security',
+      '/settings/integrations',
+      '/settings/notifications',
+      '/settings/catalogue',
+      '/settings/status',
+    ]) {
+      await admin.goto(path);
+      await expect(admin.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
+      await admin.waitForLoadState('networkidle');
+      await expectNoHorizontalScroll(admin);
+    }
+  });
+
+  // WCAG 1.4.10 reflow: content at 320 CSS px (a 1280 px screen at 400 %) without scrolling in two directions
+  test('reflow at 320 px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    for (const path of ['/', '/tasks', '/runs', '/processes', '/schedules', '/monitors', '/services', '/credentials', '/records', '/settings']) {
+      await page.goto(path);
+      await expect(page.getByRole('main').getByRole('heading', { level: 1 }).first()).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await expectNoHorizontalScroll(page);
+    }
+  });
+
   // pages with section actions, cost tables and badges (review of 0.19: the start page, plant pages and the
   // statement of applicability overflowed without the check noticing)
   test('no horizontal scroll on plant, cost and compliance pages', async ({ loginAs, apiAs }) => {

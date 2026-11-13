@@ -52,7 +52,8 @@ import {
 } from '@sm/shared';
 import { TagInput } from '../components/tags';
 import { ApiError, get, notifyError, post, put } from '../api';
-import { PageHeader } from '../components/common';
+import { DetailState, PageHeader } from '../components/common';
+import { confirmDanger } from '../components/confirm';
 import { MonitorGraph, NODE_H, NODE_W, autoLayout } from '../components/monitors/MonitorGraph';
 import { CheckForm } from '../components/monitors/CheckForm';
 import { OutputsEditor } from '../components/monitors/OutputsEditor';
@@ -61,7 +62,7 @@ import { CHECK_ICONS, newCheck } from '../components/monitors/checkMeta';
 import { SecretsModal } from '../components/monitors/dialogs';
 import { MonitorStatusBadge, checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
 import { SeriesPreview } from '../components/monitors/SeriesPreview';
-import { editorIssues, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
+import { editorIssues, issueText, issuesByCheck, serverIssues, type EditorIssue } from '../components/monitors/validate';
 import { isTextTarget, modKey, useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { monitorKeys, platformKeys, processKeys } from '../queryKeys';
 import { SaveAsTemplateModal } from '../components/monitors/SaveAsTemplate';
@@ -213,6 +214,25 @@ export function MonitorEditorPage() {
   });
   useUndoKeys(!!draft && tab === 'graph', history.undo, history.redo);
 
+  // unsaved changes (0.20 review): what the editor started from, to ask before leaving and to keep the tab from closing
+  const baseline = useRef<string | null>(null);
+  if (draft && baseline.current === null) baseline.current = JSON.stringify({ def: draft.def, key });
+  const dirty = !!draft && JSON.stringify({ def: draft.def, key }) !== baseline.current;
+  useEffect(() => {
+    if (!dirty) return;
+    const h = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [dirty]);
+  const leave = async () => {
+    if (dirty && !(await confirmDanger({ action: 'discard', title: t('common:formModal.discardTitle'), message: t('editor.discardMessage') }))) return;
+    navigate(isNew ? '/monitors' : `/monitors/${id}`);
+  };
+
+  if (!isNew && !existing.data) return <DetailState query={existing} back="monitors" />;
   if (!def || !draft) return null;
   // Outputs (notifications, runbooks, external systems) need the manage right; new monitors belong to the creator.
   const canManage = isNew || !!existing.data?.permissions.includes('manage');
@@ -360,7 +380,8 @@ export function MonitorEditorPage() {
   };
   const goTo = (issue: EditorIssue) => {
     if (issue.index === null) {
-      setTab(issue.path.startsWith('outputs') ? 'outputs' : 'settings');
+      // a problem of the decision table opens the States tab (templates have none: their Settings)
+      setTab(issue.path.startsWith('outputs') ? 'outputs' : issue.path.startsWith('states') && !isTemplate ? 'states' : 'settings');
       return;
     }
     setTab('graph');
@@ -416,7 +437,7 @@ export function MonitorEditorPage() {
         description={t('editor.description')}
         actions={
           <>
-            <Button size="xs" variant="default" onClick={() => navigate(isNew ? '/monitors' : `/monitors/${id}`)}>
+            <Button size="xs" variant="default" onClick={() => void leave()} data-testid="editor-cancel">
               {t('common:cancel')}
             </Button>
             {!isNew && !isTemplate && caps.createMonitors && existing.data && (
@@ -438,7 +459,7 @@ export function MonitorEditorPage() {
                 {labelOf(i)}:{' '}
                 {i.index !== null && i.field && isEmpty((def.checks[i.index] as Record<string, unknown> | undefined)?.[i.field])
                   ? t('editor.required')
-                  : i.message}
+                  : issueText(t, i)}
               </Anchor>
             ))}
           </Stack>

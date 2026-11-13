@@ -64,6 +64,9 @@ test('an access change made outside Steward shows up as undocumented, is documen
   await expect(page.getByRole('link', { name: /^6\.1 – Screening/ })).toHaveCount(0);
   await people.click();
   await expect(page.getByRole('link', { name: /^6\.1 – Screening/ })).toBeVisible();
+  // the space between the number and the dash is drawn: a table cell's link is a flex box that drops a plain space
+  // after the number, so the text after it starts with a non-breaking one
+  expect(await page.getByRole('link', { name: /^6\.1 – Screening/ }).innerText()).toMatch(/^6\.1\s*\u00a0– Screening/);
   await control.getByRole('checkbox', { name: 'Select control 5.18' }).check();
   await page.getByRole('button', { name: 'Evidence pack for 1 control' }).click();
   const create = page.getByRole('dialog', { name: 'New evidence pack' });

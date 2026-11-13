@@ -89,7 +89,7 @@ const BASE: MantineThemeOverride = {
   },
 };
 
-/** `closeLabel`: accessible name of the close buttons of modals and drawers, in the UI language. */
+/** `closeLabel`: accessible name of the close buttons of modals, drawers and notifications, in the UI language. */
 export function mantineTheme(t: PublicTheme, closeLabel = 'Close') {
   return createTheme({
     ...BASE,
@@ -97,6 +97,8 @@ export function mantineTheme(t: PublicTheme, closeLabel = 'Close') {
       ...BASE.components,
       Modal: { defaultProps: { closeButtonProps: { 'aria-label': closeLabel } } },
       Drawer: { defaultProps: { closeButtonProps: { 'aria-label': closeLabel } } },
+      // also notifications shown without notifyOk/notifyError (api.ts), which set it themselves
+      Notification: { defaultProps: { closeButtonProps: { 'aria-label': closeLabel } } },
     },
     primaryColor: THEME_COLOR_NAMES.primary,
     colors: { [THEME_COLOR_NAMES.primary]: generatePalette(t.primaryColor), [THEME_COLOR_NAMES.accent]: generatePalette(t.accentColor) },

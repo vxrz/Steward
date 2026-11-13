@@ -29,17 +29,10 @@
     "server/src/versions/service.ts -> server/src/catalogue/applications.ts",
     "server/src/versions/service.ts -> server/src/catalogue/components.ts",
     "server/src/versions/service.ts -> server/src/catalogue/lifecycle.ts",
-    "server/src/versions/service.ts -> server/src/catalogue/systems.ts",
-    "web/src/api.ts -> web/src/i18n/errors.ts",
-    "web/src/components/credentials/CredentialEditor.tsx -> web/src/pages/Credentials.tsx",
-    "web/src/i18n/errors.ts -> web/src/api.ts",
-    "web/src/pages/Credentials.tsx -> web/src/components/credentials/CredentialEditor.tsx"
+    "server/src/versions/service.ts -> server/src/catalogue/systems.ts"
   ],
   "violations": [
-    "engine-is-core: server/src/engine/commands.ts -> server/src/routes/helpers.ts",
-    "routes-are-leaves: server/src/engine/commands.ts -> server/src/routes/helpers.ts",
     "routes-are-leaves: server/src/mcp/tools.ts -> server/src/system/routes.ts",
-    "routes-are-leaves: server/src/msteams/decide.ts -> server/src/routes/helpers.ts",
     "routes-are-leaves: server/src/notifications/outbox.ts -> server/src/auth/scope-routes.ts"
   ]
 }

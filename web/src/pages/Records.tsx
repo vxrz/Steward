@@ -14,9 +14,11 @@ import { fmtDate, fmtRelative } from '../format';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
+import { TagBadges } from '../components/tags';
 import { ListPage } from '../components/page/ListPage';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -209,25 +211,13 @@ export function RecordsPage() {
 
 function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onTag: (tag: string) => void; footer?: React.ReactNode }) {
   const { t } = useTranslation('records');
+  const subjectName = useSubjectLabel();
+  const ownerName = (r: RecordSummary) => subjectName(`user:${r.owner}`);
   const tags = (r: RecordSummary) =>
     r.tags.length > 0 && (
-      <Group gap={4} mt={2}>
-        {r.tags.map((tag) => (
-          <Badge
-            key={tag}
-            size="xs"
-            variant="default"
-            component="button"
-            style={{ cursor: 'pointer' }}
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
-              onTag(tag);
-            }}
-          >
-            {tagLabel(tag)}
-          </Badge>
-        ))}
-      </Group>
+      <Box mt={2}>
+        <TagBadges tags={r.tags} onTag={onTag} />
+      </Box>
     );
   const columns: DataColumn<RecordSummary>[] = [
     { key: 'number', header: t('list.number'), sortValue: (r) => r.number, tdProps: () => ({ className: 'nowrap mono' }), cell: (r) => r.number },
@@ -270,7 +260,7 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
         </>
       ),
     },
-    { key: 'owner', header: t('list.owner'), sortValue: (r) => r.owner, cell: (r) => r.owner },
+    { key: 'owner', header: t('list.owner'), sortValue: ownerName, cell: ownerName },
     {
       key: 'updated',
       header: t('list.updated'),
@@ -307,7 +297,7 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
             </Group>
           </Group>
           <Text size="xs" c="dimmed">
-            {t('list.ownerLine', { owner: r.owner, when: fmtRelative(r.updatedAt) })}
+            {t('list.ownerLine', { owner: ownerName(r), when: fmtRelative(r.updatedAt) })}
           </Text>
           {tags(r)}
         </Paper>

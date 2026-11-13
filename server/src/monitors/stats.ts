@@ -110,20 +110,27 @@ export function upAndDown(points: StatusPoint[], start: number, end: number): { 
 /** Uptime in hundredths of a percent (9995 = 99.95 %), null without up or down time. */
 export const uptimeHundredths = ({ ok, down }: { ok: number; down: number }): number | null => (ok + down > 0 ? Math.round((ok / (ok + down)) * 10000) : null);
 
-/** Time-weighted uptime of one monitor in the windows ending now, in hundredths of a percent. */
-export function monitorUptimeHundredths<K extends string>(monitorId: string, windowsMs: Record<K, number>, now = Date.now()): Record<K, number | null> {
+/** The range of status points the windows ending now need: from the start of the longest window to the next millisecond. */
+export const windowsRange = <K extends string>(windowsMs: Record<K, number>, now: number): [number, number] => [
+  now - Math.max(0, ...(Object.values(windowsMs) as number[])),
+  now + 1,
+];
+
+/** Time-weighted uptime in the windows ending now, in hundredths of a percent, from status points of windowsRange. */
+export function uptimeFromPoints<K extends string>(points: StatusPoint[], windowsMs: Record<K, number>, now: number): Record<K, number | null> {
   const keys = Object.keys(windowsMs) as K[];
-  const longest = Math.max(0, ...keys.map((k) => windowsMs[k]));
-  const points = statusPoints(monitorId, now - longest, now + 1);
   return Object.fromEntries(keys.map((k) => [k, uptimeHundredths(upAndDown(points, now - windowsMs[k], now))])) as Record<K, number | null>;
 }
 
-/** Off time (ADR 0021) of one monitor in the windows ending now, in minutes (0 when never off). */
-export function monitorOffMinutes<K extends string>(monitorId: string, windowsMs: Record<K, number>, now = Date.now()): Record<K, number> {
+/** Off time (ADR 0021) in the windows ending now, in minutes (0 when never off), from status points of windowsRange. */
+export function offMinutesFromPoints<K extends string>(points: StatusPoint[], windowsMs: Record<K, number>, now: number): Record<K, number> {
   const keys = Object.keys(windowsMs) as K[];
-  const longest = Math.max(0, ...keys.map((k) => windowsMs[k]));
-  const points = statusPoints(monitorId, now - longest, now + 1);
   return Object.fromEntries(keys.map((k) => [k, Math.round(upAndDown(points, now - windowsMs[k], now).off / 60000)])) as Record<K, number>;
+}
+
+/** Time-weighted uptime of one monitor in the windows ending now, in hundredths of a percent. */
+export function monitorUptimeHundredths<K extends string>(monitorId: string, windowsMs: Record<K, number>, now = Date.now()): Record<K, number | null> {
+  return uptimeFromPoints(statusPoints(monitorId, ...windowsRange(windowsMs, now)), windowsMs, now);
 }
 
 /** The window of monitorUptime and monitorOffHours: the last 30 days (and the next millisecond). */

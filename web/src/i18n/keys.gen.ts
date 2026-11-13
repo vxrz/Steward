@@ -2840,6 +2840,7 @@ export interface Resources {
     'plan.line.notSaved': string;
     'plan.line.removed': string;
     'plan.form.title': string;
+    'plan.form.titleHint': string;
     'plan.form.category': string;
     'plan.form.for': string;
     'plan.form.forHint': string;
@@ -3040,6 +3041,14 @@ export interface Resources {
     'commitments.columns.toContractEnd': string;
     'commitments.columns.toEarliestExit': string;
     'commitments.columns.noticeBy': string;
+    'commitments.billingCell.monthly': string;
+    'commitments.billingCell.quarterly': string;
+    'commitments.billingCell.yearly': string;
+    'commitments.billingCell.once': string;
+    'commitments.billingCell.dates': string;
+    'commitments.billingCell.volume': string;
+    'commitments.billingCell.prepaid': string;
+    'commitments.billingCell.byUse': string;
     'commitments.total': string;
     'commitments.totalExit': string;
     'commitments.serviceTitle': string;
@@ -3654,6 +3663,7 @@ export interface Resources {
     'view.sources': string;
     'view.allSources': string;
     'view.addWidgetAbove': string;
+    'view.discardMessage': string;
     'widgets.kpi.label': string;
     'widgets.kpi.info': string;
     'widgets.trend.label': string;
@@ -5003,6 +5013,7 @@ export interface Resources {
     'codes.NOT_PDF': string;
     'codes.USER_NOT_FOUND': string;
     'codes.TEAM_NOT_FOUND': string;
+    'codes.TEAM_OWNS_RESOURCES': string;
     'codes.PLATFORM_NOT_FOUND': string;
     'codes.IDENTITY_NOT_FOUND': string;
     'codes.PLATFORM_NOT_FOUND_kind': string;
@@ -5280,8 +5291,12 @@ export interface Resources {
     'codes.GIT_REPO_PATH_INVALID': string;
     'codes.GIT_TOO_LARGE': string;
     'codes.GIT_ACCESS_DENIED': string;
+    'codes.GIT_ACCESS_DENIED_noToken': string;
     'codes.GIT_NOT_FOUND': string;
     'codes.GIT_RATE_LIMITED': string;
+    'codes.GIT_RATE_LIMITED_retry': string;
+    'codes.GIT_RATE_LIMITED_noToken': string;
+    'codes.GIT_RATE_LIMITED_retryNoToken': string;
     'codes.GIT_HTTP_ERROR': string;
     'codes.GIT_BLOCKED': string;
     'codes.OUTBOUND_REDIRECT_BLOCKED': string;
@@ -6360,8 +6375,12 @@ export interface Resources {
     'sources.disabled': string;
     'sources.manageLink': string;
     'sources.settingsCard': string;
+    'sources.enabledList': string;
+    'sources.noneEnabled': string;
     'sources.builtIn': string;
     'sources.builtInHint': string;
+    'sources.githubLimitHint': string;
+    'sources.failedNothingStaged': string;
     'sources.refTag': string;
     'sources.newestSeen': string;
     'sources.noReleaseSeen': string;
@@ -6389,6 +6408,7 @@ export interface Resources {
     'form.kind.recordType': string;
     'form.token': string;
     'form.tokenHint': string;
+    'form.tokenHintGithub': string;
     'form.tokenKeep': string;
     'form.tokenRemove': string;
     'form.interval': string;
@@ -6428,6 +6448,8 @@ export interface Resources {
     'updates.description': string;
     'updates.empty': string;
     'updates.emptyHint': string;
+    'updates.emptyInvalid': string;
+    'updates.emptyDecided': string;
     'updates.filter': string;
     'updates.filters.open': string;
     'updates.filters.invalid': string;
@@ -6468,6 +6490,7 @@ export interface Resources {
     'detail.comment': string;
     'detail.accept': string;
     'detail.acceptAnyway': string;
+    'detail.acceptAnywayConfirm': string;
     'detail.reject': string;
     'detail.accepted': string;
     'detail.acceptedVersion': string;
@@ -6793,6 +6816,10 @@ export interface Resources {
     'config.stdioHint': string;
     'config.stdioSource': string;
     'config.httpHint': string;
+    'config.vibe': string;
+    'config.vibeHint': string;
+    'config.claudeCode': string;
+    'config.claudeCodeHint': string;
     'gateway.intro': string;
     'gateway.serverOff': string;
     'gateway.enable': string;
@@ -7123,6 +7150,8 @@ export interface Resources {
     'wall.offSettling': string;
     'wall.settling_one': string;
     'wall.settling_other': string;
+    'wall.outdatedTitle': string;
+    'wall.outdated': string;
     title: string;
     description: string;
     new: string;
@@ -7756,6 +7785,7 @@ export interface Resources {
     'editor.templateBadParam': string;
     'editor.templateSaved': string;
     'editor.templateNotSaved': string;
+    'editor.discardMessage': string;
     'graph.nonCritical': string;
     'graph.hard': string;
     'graph.softLinkAria': string;
@@ -8028,6 +8058,27 @@ export interface Resources {
     'states.notAsExpectedYet_one': string;
     'states.notAsExpectedYet_other': string;
     'states.settlingCard': string;
+    'states.afterMaxOff': string;
+    'states.afterMaxOffHint': string;
+    'states.afterMaxOffDegradedDefault': string;
+    'states.afterMaxOffDown': string;
+    'states.afterMaxOffInherit': string;
+    'states.afterMaxOffOf': string;
+    'states.tryBeyondMax': string;
+    'states.legendMaxOff': string;
+    'states.offTooLong': string;
+    'states.issue.duplicateId': string;
+    'states.issue.unknownCheck': string;
+    'states.issue.checkDisabled': string;
+    'states.issue.offOnlySub': string;
+    'states.issue.conditionAlready': string;
+    'states.issue.requiredOtherCell': string;
+    'states.issue.followerNoCondition': string;
+    'states.issue.needsCondition': string;
+    'states.issue.maxOffOnlyOff': string;
+    'states.issue.followerNoMaxOff': string;
+    'states.issue.neverMatches': string;
+    'states.issue.requiredDataPath': string;
   };
   nav: {
     'items.dashboard': string;
@@ -8242,6 +8293,8 @@ export interface Resources {
     'center.unreadPrefix': string;
     'center.filter': string;
     'center.all': string;
+    'center.latest': string;
+    'center.cappedHint': string;
     'center.category.decision_one': string;
     'center.category.decision_other': string;
     'center.category.alert_one': string;
@@ -10693,10 +10746,15 @@ export interface Resources {
     'collectorKinds.job': string;
     'modes.push': string;
     'modes.pull': string;
+    'modes.receive': string;
     'peerKinds.device': string;
     'peerKinds.system': string;
+    'peerKinds.application': string;
+    'peerKinds.platform': string;
     'peerKinds.other': string;
     'destinationKinds.system': string;
+    'destinationKinds.application': string;
+    'destinationKinds.platform': string;
     'destinationKinds.dataset': string;
     'destinationKinds.other': string;
     'vlan.title': string;
@@ -10775,6 +10833,15 @@ export interface Resources {
     'zone.assessmentRequired': string;
     'zone.assessedAt': string;
     'zone.assessedBy': string;
+    'zone.systems': string;
+    'zone.systemsHelp': string;
+    'zone.platforms': string;
+    'zone.platformsHelp': string;
+    'zone.items': string;
+    'zone.hiddenItems_one': string;
+    'zone.hiddenItems_other': string;
+    'zone.hiddenItemsKept_one': string;
+    'zone.hiddenItemsKept_other': string;
     'conduit.title': string;
     'conduit.help': string;
     'conduit.add': string;
@@ -10893,6 +10960,8 @@ export interface Resources {
     'path.count_other': string;
     'path.countOf_one': string;
     'path.countOf_other': string;
+    'path.transfersHelp': string;
+    'path.peerIsHost': string;
     'asset.title': string;
     'asset.help': string;
     'asset.siteNetwork': string;
@@ -10919,6 +10988,9 @@ export interface Resources {
     'quality.kinds.no_vlan_other': string;
     'quality.kinds.switch_case_one': string;
     'quality.kinds.switch_case_other': string;
+    'modeHelp.pull': string;
+    'modeHelp.push': string;
+    'modeHelp.receive': string;
   };
   plantViews: {
     noAssets: string;
@@ -11010,6 +11082,8 @@ export interface Resources {
     'kinds.conduit': string;
     'kinds.host': string;
     'kinds.peer': string;
+    'kinds.application': string;
+    'kinds.platform': string;
     'node.hidden': string;
     'node.inactive': string;
     'node.inactiveSentence': string;
@@ -13847,6 +13921,7 @@ export interface Resources {
     'presets.mondays': string;
     'presets.monthly': string;
     'presets.quarterly': string;
+    'presets.firstMonday': string;
     'form.process': string;
     'form.name': string;
     'form.when': string;
@@ -13889,6 +13964,8 @@ export interface Resources {
     'form.notify.channel.webhook': string;
     'form.notify.urgent': string;
     'form.notify.urgentHint': string;
+    'form.timezoneHint': string;
+    'form.timezoneServer': string;
     'emptyState.title': string;
     'emptyState.text': string;
     'emptyState.action': string;
@@ -16126,6 +16203,14 @@ export interface Resources {
     'teams.delete': string;
     'teams.deleteConfirm': string;
     'teams.noMembers': string;
+    'teams.deleteMove.title': string;
+    'teams.deleteMove.intro': string;
+    'teams.deleteMove.shared': string;
+    'teams.deleteMove.kinds': string;
+    'teams.deleteMove.target': string;
+    'teams.deleteMove.targetHint': string;
+    'teams.deleteMove.submit': string;
+    'teams.deleteMove.noOther': string;
     'roles.title': string;
     'roles.hint': string;
     'userModal.updated': string;

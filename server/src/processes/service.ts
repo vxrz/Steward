@@ -96,6 +96,16 @@ export function processPermissionMap(): Map<string, ProcessPermission[]> {
   );
 }
 
+/**
+ * The processes the current user may view (also archived ones), in one statement: for run, task and dataset lists of
+ * the web app, the public API and MCP (each had its own copy before, two of them with a statement per process).
+ */
+export function visibleProcessIds(): Set<string> {
+  const ids = new Set<string>();
+  for (const [id, perms] of processPermissionMap()) if (perms.includes('view')) ids.add(id);
+  return ids;
+}
+
 export function setProcessAccess(id: string, input: { acl: unknown; owner?: string | null }): ProcessDetail {
   const before = getProcess(id);
   const acl = cleanAcl(input.acl, PROCESS_PERMISSIONS);

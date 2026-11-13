@@ -26,8 +26,7 @@ import {
   Timeline,
   Tooltip,
 } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   IconAlertTriangle,
@@ -65,6 +64,7 @@ import {
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
 import { DetailState } from '../components/common';
+import { useRemoteSelect } from '../components/remoteSelect';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge, useTypeName, type LinkInput } from '../components/records/common';
@@ -81,12 +81,14 @@ import { DetailHeader } from '../components/page/DetailPage';
 import { TableFieldView, tableText } from '../components/records/TableField';
 import { FirewallContextPanel } from '../components/records/FirewallContext';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs', 'access'] as const;
 type Tab = (typeof TABS)[number];
 
 export function RecordDetailPage() {
   const { t } = useTranslation(['records', 'common']);
+  const subjectName = useSubjectLabel();
   const { id } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -131,7 +133,7 @@ export function RecordDetailPage() {
         }
         description={
           <>
-            <span className="mono">{rec.number}</span> · {typeName(rec.type, rec.typeName)} · {t('detail.owner', { owner: rec.owner })} ·{' '}
+            <span className="mono">{rec.number}</span> · {typeName(rec.type, rec.typeName)} · {t('detail.owner', { owner: subjectName(`user:${rec.owner}`) })} ·{' '}
             {t('detail.revisionVersion', { revision: rec.revision, version: rec.version })}
             {services.length > 0 && (
               <>
@@ -884,16 +886,17 @@ function TransitionModal({
   const { t } = useTranslation(['records', 'common']);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  const [q, setQ] = useState('');
-  const [debounced] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
+  const pick = useRemoteSelect({ value: target });
   // living documents: the kind of the edition and what changed (submit)
   const [kind, setKind] = useState<EditionKind | null>(null);
   const [summary, setSummary] = useState('');
   const targets = useQuery({
-    queryKey: ['link-targets', 'record', debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(debounced)}`),
+    queryKey: ['link-targets', 'record', pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(pick.term)}`),
     enabled: action.needsRecord || action.optionalRecord,
+    // while the next search loads, the list keeps the last results (no flicker of the options)
+    placeholderData: keepPreviousData,
   });
   const label = t(`actions.${action.action as 'submit'}`, { defaultValue: action.action });
   const edition = action.needsEdition && !!rec.document;
@@ -939,9 +942,9 @@ function TransitionModal({
             clearable={action.optionalRecord}
             placeholder={t('links.search')}
             searchable
-            searchValue={q}
-            onSearchChange={setQ}
-            data={(targets.data ?? []).filter((x) => x.id !== rec.id).map((x) => ({ value: x.id, label: x.label }))}
+            searchValue={pick.search}
+            onSearchChange={pick.setSearch}
+            data={pick.options((targets.data ?? []).filter((x) => x.id !== rec.id).map((x) => ({ value: x.id, label: x.label })))}
             value={target}
             onChange={setTarget}
             filter={({ options }) => options}

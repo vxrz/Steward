@@ -170,7 +170,7 @@ export function EnvironmentsCard() {
                       size="xs"
                       aria-label={t('environments.color')}
                       placeholder={t('environments.noColor')}
-                      data={CIA_COLORS.map((c) => ({ value: c, label: c }))}
+                      data={CIA_COLORS.map((c) => ({ value: c, label: t(`scale.colors.${c}`) }))}
                       value={r.color}
                       clearable
                       clearButtonProps={{ 'aria-label': t('environments.clearColor', { name: r.name }) }}

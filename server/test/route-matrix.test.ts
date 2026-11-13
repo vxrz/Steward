@@ -140,6 +140,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/teams': ADMIN,
   'PUT /api/teams/:id': ADMIN,
   'DELETE /api/teams/:id': ADMIN,
+  'GET /api/teams/:id/deletion': ADMIN,
   'GET /api/users/:id/references': ADMIN,
   // a person's data (GDPR, docs/PRIVACY.md): administrators for anyone, every person for themselves
   'GET /api/users/:id/data-export': ADMIN,
@@ -1625,6 +1626,16 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/settings/notifications': { sensitive: { allowedEmailDomains: ['matrix.example'] }, harmless: { allowedEmailDomains: ['example.com'] } },
   'POST /api/teams': { sensitive: { name: 'Matrix step-up', members: ['vera'] }, harmless: { name: '!' } },
   'PUT /api/teams/:id': { sensitive: { name: 'Matrix team', members: ['vera'] }, harmless: { name: 'Matrix team', members: [] } },
+  // review 0.20.0: the items a deleted team alone owns move to the team named – one with members gains sight; without
+  // moveTo the deletion of "Matrix team" (the only owning team of a supplier and a platform) is refused, nothing changes
+  'DELETE /api/teams/:id': {
+    sensitive: undefined,
+    harmless: undefined,
+    get query() {
+      return { sensitive: `?moveTo=${fx.ownersTeam}`, harmless: '' };
+    },
+    path: () => `/api/teams/${fx.team}`,
+  },
   // a team's own channel sends messages about its resources elsewhere (#136)
   'PUT /api/teams/:id/settings': {
     sensitive: { channel: { enabled: true, format: 'teams', mode: 'also', url: 'https://matrix.example/hook' } },

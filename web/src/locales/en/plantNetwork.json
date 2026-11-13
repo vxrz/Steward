@@ -153,15 +153,20 @@
   },
   "modes": {
     "push": "Push",
-    "pull": "Pull"
+    "pull": "Pull",
+    "receive": "Receive"
   },
   "peerKinds": {
     "device": "Device of the asset",
     "system": "Steward system",
+    "application": "Steward application",
+    "platform": "Steward platform",
     "other": "Other"
   },
   "destinationKinds": {
     "system": "Steward system",
+    "application": "Steward application",
+    "platform": "Steward platform",
     "dataset": "Steward dataset",
     "other": "Other"
   },
@@ -245,7 +250,16 @@
     "riskAssessmentHelp": "The assessment that set SL-T: a document number or link",
     "assessmentRequired": "Name the risk assessment that set SL-T.",
     "assessedAt": "Assessed on",
-    "assessedBy": "Set by {{assessment}} ({{date}})"
+    "assessedBy": "Set by {{assessment}} ({{date}})",
+    "systems": "Steward systems",
+    "systemsHelp": "Systems in this zone without a VLAN of the site – a cloud service, an enterprise system. The diagram places them here.",
+    "platforms": "Steward platforms",
+    "platformsHelp": "Platforms in this zone, such as an IoT platform in the external zone.",
+    "items": "Systems and platforms",
+    "hiddenItems_one": "and {{count}} you may not see",
+    "hiddenItems_other": "and {{count}} you may not see",
+    "hiddenItemsKept_one": "{{count}} more system or platform in this zone is not visible to you; it stays as it is.",
+    "hiddenItemsKept_other": "{{count}} more systems or platforms in this zone are not visible to you; they stay as they are."
   },
   "conduit": {
     "title": "Conduits",
@@ -318,7 +332,7 @@
   },
   "path": {
     "title": "Data paths",
-    "help": "What data leaves the asset, who collects it, how it is transferred and where it ends up. Hosts are Steward systems, so chains can be followed.",
+    "help": "What data leaves the asset, who collects it, how it is transferred and where it ends up. Peers and destinations are Steward items, so chains can be followed: a path continues in the paths that read from what it writes to.",
     "siteHelp": "The data paths of every asset of this site, with the links of their chains. Add, change or remove them here or on the asset’s page.",
     "add": "Add data path",
     "newTitle": "New data path",
@@ -345,9 +359,9 @@
     "removeTransfer": "Remove the transfer",
     "transferIncomplete": "Each transfer needs a protocol and its peer.",
     "protocol": "Protocol",
-    "mode": "Push or pull",
+    "mode": "Pull, push or receive",
     "port": "Port",
-    "peerKind": "Peer",
+    "peerKind": "Kind of peer",
     "peer": "Peer",
     "from": "from",
     "to": "to",
@@ -364,12 +378,14 @@
     "continuesIn": "Continues in",
     "chainMore_one": "and {{count}} more",
     "chainMore_other": "and {{count}} more",
-    "search": "Search subject, collector, protocol",
+    "search": "Search subject, collector, protocol, peer, destination",
     "noMatch": "No data path matches.",
     "count_one": "{{count}} data path",
     "count_other": "{{count}} data paths",
     "countOf_one": "{{shown}} of {{count}} data path",
-    "countOf_other": "{{shown}} of {{count}} data paths"
+    "countOf_other": "{{shown}} of {{count}} data paths",
+    "transfersHelp": "Seen from the collector. The peer is the other end of the transfer: what the collector pulls from or receives from is where the data comes from; what it pushes to is a target, like a destination.",
+    "peerIsHost": "This is the system the collector runs on. A service on the same host – a database, a broker – is usually a Steward system of its own: name that one, so chains and the diagram show it."
   },
   "asset": {
     "title": "OT network",
@@ -404,5 +420,10 @@
       "switch_case_one": "One switch written in different letter case: {{variants}}",
       "switch_case_other": "One switch written in different letter case: {{variants}}"
     }
+  },
+  "modeHelp": {
+    "pull": "The collector fetches the data from the peer",
+    "push": "The collector sends the data to the peer",
+    "receive": "The peer sends the data to the collector (a PLC publishing over MQTT)"
   }
 }

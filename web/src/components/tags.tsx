@@ -142,20 +142,15 @@ export function TagBadges({
     <Group gap={4}>
       {tags.map((tag) =>
         linkTo ? (
-          <Badge
-            key={tag}
-            size={size}
-            variant="default"
-            component={Link}
-            to={linkTo(tag)}
-            style={{ cursor: 'pointer' }}
-            aria-label={t('tags.filterBy', { tag: tagLabel(tag) })}
-          >
-            {tagLabel(tag)}
-          </Badge>
+          <Link key={tag} to={linkTo(tag)} className="tag-target" aria-label={t('tags.filterBy', { tag: tagLabel(tag) })}>
+            <Badge size={size} variant="default" style={{ cursor: 'pointer' }}>
+              {tagLabel(tag)}
+            </Badge>
+          </Link>
         ) : onTag ? (
           <UnstyledButton
             key={tag}
+            className="tag-target"
             onClick={(e) => {
               e.stopPropagation();
               onTag(tag);

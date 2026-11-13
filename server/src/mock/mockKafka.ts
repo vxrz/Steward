@@ -117,9 +117,6 @@ export function commitKafka(group: string, topic: string, committed: number[]): 
   data.groups[group] ??= { state: 'Stable', committed: {} };
   data.groups[group]!.committed[topic] = committed;
 }
-export function setKafkaNewest(topic: string, at: number): void {
-  if (data.topics[topic]) data.topics[topic].newest = at;
-}
 /** For tests and the demo: a new (empty) topic – "Add topics by prefix" offers it (v0.4.0). */
 export function addKafkaTopic(name: string, partitions = 1): void {
   data.topics[name] ??= {

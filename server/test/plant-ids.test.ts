@@ -117,7 +117,22 @@ describe('the registry of reference columns', () => {
       'notes',
       'position',
     ],
-    plant_zones: ['name', 'description', 'criticality', 'level', 'owner', 'sl_target', 'risk_assessment', 'assessed_at', 'notes', 'position'],
+    plant_zones: [
+      'name',
+      'description',
+      'criticality',
+      'level',
+      'owner',
+      'sl_target',
+      'risk_assessment',
+      'assessed_at',
+      'notes',
+      'position',
+      // 0.20.0: Steward systems and platforms in the zone – catalogue ids, not plant ids (a renamed plant entry never
+      // appears here)
+      'systems',
+      'platforms',
+    ],
     plant_conduits: ['name', 'description', 'direction', 'protocols', 'controls', 'notes', 'position'],
     plant_devices: [
       'hostname',

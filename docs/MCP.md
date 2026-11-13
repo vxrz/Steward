@@ -145,7 +145,7 @@ Safety checks of the bridge:
 - **Steward in Docker on `localhost`, or another setup where the check cannot work** (the bridge cannot read the server's data folder): prefer `https://` to the server. If that is not possible, `--no-instance-check` turns the check off. This is less safe: whatever program listens on the port gets the token, for example while the container is stopped. The bridge prints a warning when you use it.
 - It never follows redirects and never prints the token.
 
-### HTTP clients (VS Code and others)
+### HTTP clients (VS Code, Claude Code, Mistral Vibe and others)
 
 Clients that speak **Streamable HTTP** connect directly. **VS Code** (`.vscode/mcp.json`):
 
@@ -164,7 +164,27 @@ Clients that speak **Streamable HTTP** connect directly. **VS Code** (`.vscode/m
 
 VS Code asks for the token when it starts the server, so the token is not in the file.
 
-Other clients: endpoint `https://<your Steward>/api/mcp`, header `Authorization: Bearer <token>`.
+**Claude Code** (command line):
+
+```bash
+claude mcp add --transport http steward https://steward.example.com/api/mcp --header "Authorization: Bearer $STEWARD_MCP_TOKEN"
+```
+
+Set the environment variable `STEWARD_MCP_TOKEN` to the token first (the same one Mistral Vibe reads, see below): the shell fills it in, so the token itself does not end up in your shell's history.
+
+**Mistral Vibe CLI** (3.x; `~/.vibe/config.toml`, or `.vibe/config.toml` in a project):
+
+```toml
+[[mcp_servers]]
+name = "steward"
+transport = "streamable-http"
+url = "https://steward.example.com/api/mcp"
+api_key_env = "STEWARD_MCP_TOKEN"
+```
+
+Vibe reads the token from the environment variable `STEWARD_MCP_TOKEN` and sends it as `Authorization: Bearer <token>` (its default header and format), so the token is not in the file.
+
+Other clients: endpoint `https://<your Steward>/api/mcp`, header `Authorization: Bearer <token>`. _Settings → Security → MCP server_ shows these snippets with your Steward's address, and a new MCP token's dialog fills it into the stdio and VS Code ones.
 
 Steward only accepts requests whose `Host` (and, behind a trusted proxy, `X-Forwarded-Host`) is allowed (`localhost`, `127.0.0.1` or `SM_ALLOWED_HOSTS`). Behind a reverse proxy set `SM_PUBLIC_URL` and `SM_ALLOWED_HOSTS` as for the web UI.
 
@@ -356,7 +376,7 @@ What a proposal looks like and what to check: [Plant registry → Proposals from
 - **Input limits.** Request bodies up to 64 kB, one JSON-RPC message per request (no batches), strict argument schemas (unknown arguments are errors), cursor and string length limits.
 - **Output limits.** Pages of at most 100–200 items, long texts shortened, results above about 200 kB refused with a hint to page.
 - **Time limits.** 30 s per tool call, 20 s per gateway call; a client that closes the connection cancels its request.
-- **Rate limits** per token (and per IP address without a valid token), and per user and platform for gateway calls; a concurrency cap per platform for gateway calls.
+- **Rate limits** per token (and per client address without a valid token – IPv6 by its /64 network), and per user and platform for gateway calls; a concurrency cap per platform for gateway calls.
 - **Proposals never write.** Control and plant proposals wait for a person in Steward, who applies them with their own rights; an MCP token cannot decide a request.
 - **No sessions, no server-initiated messages.** The server keeps no state between requests and never sends requests to the client.
 

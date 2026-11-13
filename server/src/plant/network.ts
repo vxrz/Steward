@@ -1,5 +1,8 @@
 import type { z } from 'zod';
 import {
+  dataPathEnds,
+  PATH_ITEM_KINDS,
+  type PathItemKind,
   inCidr,
   ipValue,
   PLANT_NETWORK_LIMITS as L,
@@ -232,6 +235,27 @@ const seenSites = (sites: string[], rights: Map<string, PlantPermission[]>) => s
  * The other sites a save sends, with the ones of `before` the caller may not see kept in their place (they cannot
  * name or remove them); sites that no longer exist are left out.
  */
+/**
+ * The systems or platforms a zone's save sends, with the ones of `before` the caller may not see kept in their place
+ * (they cannot name or remove them; 0.20); ones that no longer exist are left out.
+ */
+export function withHiddenItems(kind: 'system' | 'platform', input: string[], before: string[] | null): string[] {
+  const out = [...input];
+  (before ?? []).forEach((id, i) => {
+    if (out.includes(id) || resolveTarget(kind, id) || !itemExists(kind, id)) return;
+    out.splice(Math.min(i, out.length), 0, id);
+  });
+  return out;
+}
+const itemExists = (kind: 'system' | 'platform', id: string) => !!db().get(`SELECT 1 FROM ${kind === 'system' ? 'systems' : 'platforms'} WHERE id = ?`, id);
+
+/** A zone's own values with the hidden systems and platforms of `before` kept (0.20). */
+export const zoneWithHidden = (v: PlantZoneValues, before: PlantZoneValues | null): PlantZoneValues => ({
+  ...v,
+  systems: withHiddenItems('system', v.systems, before?.systems ?? null),
+  platforms: withHiddenItems('platform', v.platforms, before?.platforms ?? null),
+});
+
 export function withHiddenSites(input: string[], before: string[] | null, rights: Map<string, PlantPermission[]>): string[] {
   const out = [...input];
   (before ?? []).forEach((s, i) => {
@@ -294,11 +318,8 @@ function addressBetween(a: string, start: string, end: string): boolean {
   return !!x && !!lo && !!hi && x.v === lo.v && x.v === hi.v && x.n >= lo.n && x.n <= hi.n;
 }
 
-/** Hosts a data path reads from (transfer peers that are systems, the collector's host) and writes to (destinations). */
-const hostsOf = (p: PlantDataPathValues) => ({
-  from: [...p.transfers.filter((t) => t.peerKind === 'system').map((t) => t.peer), ...(p.collector?.host ? [p.collector.host] : [])],
-  to: p.destinations.filter((x) => x.kind === 'system').map((x) => x.ref),
-});
+/** The Steward items a data path reads from and writes to (`system:<id>`, shared/plantNetwork.ts `dataPathEnds`). */
+const hostsOf = (p: PlantDataPathValues) => dataPathEnds(p);
 
 /** A data path of the chains index: where it sits in the index, its hosts. */
 interface IndexedPath {
@@ -322,6 +343,9 @@ interface PathIndex {
 }
 
 const pathKey = (assetId: string, id: string) => `${assetId}\u0000${id}`;
+/** The id of an item key (`system:<id>`) */
+const idOfKey = (key: string) => key.slice(key.indexOf(':') + 1);
+const isPathItemKind = (k: string): k is PathItemKind => (PATH_ITEM_KINDS as readonly string[]).includes(k);
 
 function pathIndex(rights: Map<string, PlantPermission[]>): PathIndex {
   const idx: PathIndex = { byKey: new Map(), readers: new Map(), writers: new Map(), memo: new Map() };
@@ -375,16 +399,17 @@ function chainOf(idx: PathIndex, side: 'readers' | 'writers', hosts: string[]): 
  * The data paths that read from a host (a Steward system): where a sink's data goes next (0.12). Paths of sites the
  * reader may not see are counted, not named.
  */
-export function pathsReadingFrom(host: string): { paths: PlantPathLink[]; more: number; hidden: number } {
+export function pathsReadingFrom(kind: PathItemKind, host: string): { paths: PlantPathLink[]; more: number; hidden: number } {
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'));
   const idx = pathIndex(rights);
-  const c = chainOf(idx, 'readers', [host]);
+  const key = `${kind}:${host}`;
+  const c = chainOf(idx, 'readers', [key]);
   const all = db()
     .all<DataPathRow>('SELECT * FROM plant_data_paths')
-    .filter((r) => hostsOf(dataPathValuesOf(r)).from.includes(host)).length;
+    .filter((r) => hostsOf(dataPathValuesOf(r)).from.includes(key)).length;
   const shown = c.first.slice(0, L.chainLinks);
   return {
-    paths: shown.map((x) => ({ assetId: x.r.asset_id, assetName: x.r.asset_name, pathId: x.v.id, subject: x.v.subject, via: host })),
+    paths: shown.map((x) => ({ assetId: x.r.asset_id, assetName: x.r.asset_name, pathId: x.v.id, subject: x.v.subject, via: host, viaKind: kind })),
     more: Math.max(0, c.count - shown.length),
     hidden: Math.max(0, all - c.count),
   };
@@ -406,13 +431,17 @@ function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<s
     const others = c.first.filter((x) => x !== self).slice(0, L.chainLinks);
     const total = c.count - (self && unique.some((h) => (side === 'readers' ? self.from : self.to).has(h)) ? 1 : 0);
     return {
-      list: others.map((x) => ({
-        assetId: x.r.asset_id,
-        assetName: x.r.asset_name,
-        pathId: x.v.id,
-        subject: x.v.subject,
-        via: unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!,
-      })),
+      list: others.map((x) => {
+        const via = unique.find((h) => (side === 'readers' ? x.from : x.to).has(h))!;
+        return {
+          assetId: x.r.asset_id,
+          assetName: x.r.asset_name,
+          pathId: x.v.id,
+          subject: x.v.subject,
+          via: idOfKey(via),
+          viaKind: via.slice(0, via.indexOf(':')) as PathItemKind,
+        };
+      }),
       more: Math.max(0, total - others.length),
     };
   };
@@ -425,8 +454,8 @@ function pathView(r: DataPathRow, assetName: string, idx: PathIndex, refs: Map<s
     assetName,
     collectorRef: v.collector ? ref(v.collector.kind, v.collector.ref) : null,
     collectorHost: v.collector?.host ? ref('system', v.collector.host) : null,
-    peers: v.transfers.map((t) => (t.peerKind === 'system' ? ref('system', t.peer) : null)),
-    targets: v.destinations.map((x) => (x.kind === 'system' ? ref('system', x.ref) : x.kind === 'dataset' ? ref('dataset', x.ref) : null)),
+    peers: v.transfers.map((t) => (isPathItemKind(t.peerKind) ? ref(t.peerKind, t.peer) : null)),
+    targets: v.destinations.map((x) => (isPathItemKind(x.kind) || x.kind === 'dataset' ? ref(x.kind, x.ref) : null)),
     next: next.list,
     previous: previous.list,
     nextMore: next.more,
@@ -444,11 +473,32 @@ function conduitView(siteId: string, r: ConduitRow): PlantConduitView {
   };
 }
 
-function zoneView(r: ReturnType<typeof zoneRows>[number], d: SiteData): PlantZoneView {
+function zoneView(r: ReturnType<typeof zoneRows>[number], d: SiteData, refs: Map<string, PlantItemRef>): PlantZoneView {
   const v = zoneValuesOf(r);
   const vlans = new Set(v.vlans);
+  const ref = (kind: 'system' | 'platform', id: string) => {
+    const k = `${kind}:${id}`;
+    if (!refs.has(k)) refs.set(k, itemRef(kind, id));
+    return refs.get(k)!;
+  };
+  // what the reader may see is named; what they may not see (and still exists) is counted
+  const items: PlantItemRef[] = [];
+  let hiddenItems = 0;
+  for (const [kind, ids] of [
+    ['system', v.systems],
+    ['platform', v.platforms],
+  ] as const)
+    for (const id of ids) {
+      const x = ref(kind, id);
+      if (x.visible) items.push(x);
+      else if (itemExists(kind, id)) hiddenItems++;
+    }
   return {
     ...v,
+    systems: items.filter((x) => x.kind === 'system').map((x) => x.id),
+    platforms: items.filter((x) => x.kind === 'platform').map((x) => x.id),
+    items,
+    hiddenItems,
     ...source(r),
     conduits: d.conduits.filter((c) => c.zone_a === v.id || c.zone_b === v.id).map((c) => c.id),
     deviceCount: d.devices.filter((x) => x.vlan_id && vlans.has(x.vlan_id)).length,
@@ -489,12 +539,13 @@ export function siteNetwork(siteId: string): PlantSiteNetwork {
     return { id: a.id, name: a.name, status: a.status, live, devices: mine.length, paths: dataPaths.filter((p) => p.assetId === a.id).length };
   });
   const hosts = [...refs.values()].filter((x) => x.kind === 'system');
+  const zoneRefs = new Map<string, PlantItemRef>();
   return {
     site: { id: d.site.id, code: d.site.code, name: d.site.name, names: parseJson(d.site.names, {}) },
     canManage: d.perms.includes('manage'),
     canPropose: d.perms.includes('propose'),
     vlans: d.vlans.map((r) => vlanView(r, d, rights, names)),
-    zones: d.zoneRows.map((r) => zoneView(r, d)),
+    zones: d.zoneRows.map((r) => zoneView(r, d, zoneRefs)),
     conduits: d.conduits.map((r) => conduitView(siteId, r)),
     devices,
     dataPaths,
@@ -656,7 +707,7 @@ export function createZone(siteId: string, input: z.infer<typeof zoneInput>): Pl
   refuseAliasId('zone', siteId, input.id);
   if (zoneRows(siteId).length >= L.zonesPerSite) throw new HttpError(409, `At most ${L.zonesPerSite} zones per site`, 'PLANT_LIMIT', { max: L.zonesPerSite });
   const v: PlantZoneValues = input;
-  invalid(zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))));
+  invalid([...zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))), ...refProblems(v, null)]);
   db().tx(() => {
     upsertZone(siteId, v, nextPosition('plant_zones', 'site_id', siteId), { at: nowIso(), by: me().username });
     touchSite(siteId);
@@ -665,7 +716,14 @@ export function createZone(siteId: string, input: z.infer<typeof zoneInput>): Pl
       entityType: 'site',
       entityId: siteId,
       summary: `Zone "${v.name}" (${v.id}) added to site ${siteId}${v.slTarget ? ` (SL-T ${v.slTarget})` : ''}`,
-      details: { zone: v.id, criticality: v.criticality, slTarget: v.slTarget, vlans: v.vlans },
+      details: {
+        zone: v.id,
+        criticality: v.criticality,
+        slTarget: v.slTarget,
+        vlans: v.vlans,
+        ...(v.systems.length ? { systems: v.systems } : {}),
+        ...(v.platforms.length ? { platforms: v.platforms } : {}),
+      },
     });
   });
   return siteNetwork(siteId);
@@ -676,8 +734,9 @@ export function updateZone(siteId: string, zoneId: string, input: z.infer<typeof
   const cur = zoneRowOf(siteId, zoneId);
   if (!cur) throw notFound('zone', zoneId);
   const before = zoneValuesOf(cur);
-  const v: PlantZoneValues = { id: zoneId, ...input };
-  invalid(zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))));
+  // systems and platforms the caller may not see stay as they are (0.20)
+  const v: PlantZoneValues = zoneWithHidden({ id: zoneId, ...input }, before);
+  invalid([...zoneProblems(v, new Set(vlanRows(siteId).map((x) => x.id))), ...refProblems(v, before)]);
   const changes = changedKeys(before, v);
   if (!changes.length) return siteNetwork(siteId);
   db().tx(() => {

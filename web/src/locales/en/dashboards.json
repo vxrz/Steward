@@ -74,7 +74,8 @@
     "noData": "no data yet",
     "sources": "Sources",
     "allSources": "All sources",
-    "addWidgetAbove": "Add the first one with “Add widget” above."
+    "addWidgetAbove": "Add the first one with “Add widget” above.",
+    "discardMessage": "The changes to this dashboard are not saved."
   },
   "widgets": {
     "kpi": {

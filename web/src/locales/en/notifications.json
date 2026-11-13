@@ -16,6 +16,8 @@
     "unreadPrefix": "Unread:",
     "filter": "Show",
     "all": "All {{count}}",
+    "latest": "Latest {{count}}",
+    "cappedHint": "The latest {{count}} messages are listed here; older ones are not shown.",
     "category": {
       "decision_one": "Decision {{count}}",
       "decision_other": "Decisions {{count}}",

@@ -122,7 +122,9 @@
     "vlan": "VLAN",
     "conduit": "Conduit",
     "host": "Host",
-    "peer": "Other party"
+    "peer": "Other party",
+    "application": "Application",
+    "platform": "Platform"
   },
   "node": {
     "hidden": "Not visible",

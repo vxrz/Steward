@@ -10,7 +10,8 @@ import { getOptional } from '../../api';
 export function GitSyncSettingsCard() {
   const { t } = useTranslation('gitSync');
   const sources = useQuery({ queryKey: ['sync-sources'], queryFn: () => getOptional<SyncSource[]>('/sync-sources', []) });
-  const n = sources.data?.length ?? 0;
+  // the example library is always there, disabled: name the sources that fetch
+  const on = (sources.data ?? []).filter((s) => s.enabled);
   return (
     <Card withBorder>
       <Group gap="xs" mb="sm" wrap="nowrap">
@@ -24,9 +25,9 @@ export function GitSyncSettingsCard() {
         <Button component={Link} to="/settings/git-sync" variant="default" size="xs" w="fit-content" rightSection={<IconChevronRight size={14} aria-hidden />}>
           {t('sources.manageLink')}
         </Button>
-        {n > 0 && (
+        {sources.data && (
           <Text size="xs" c="dimmed">
-            {sources.data!.map((s) => s.name).join(', ')}
+            {on.length ? t('sources.enabledList', { names: on.map((s) => s.name).join(', ') }) : t('sources.noneEnabled')}
           </Text>
         )}
       </Group>

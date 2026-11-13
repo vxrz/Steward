@@ -23,6 +23,7 @@ import {
   Tooltip,
   VisuallyHidden,
 } from '@mantine/core';
+import { FormModal, FormModalCancel } from '../FormModal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDownload, IconEdit, IconInfoCircle, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -282,7 +283,7 @@ function ModelModal({
       Object.entries({ ...x, id: x.id.trim(), label: x.label?.trim() || undefined, path: x.path?.trim() || undefined }).filter(([, v]) => v !== undefined),
     ) as AiModel;
   return (
-    <Modal opened onClose={onClose} title={!isNew && model ? t('ai.editModelTitle', { model: model.id }) : t('ai.addModel')} size="lg">
+    <FormModal onClose={onClose} title={!isNew && model ? t('ai.editModelTitle', { model: model.id }) : t('ai.addModel')} size="lg">
       <Stack>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <TextInput
@@ -379,9 +380,7 @@ function ModelModal({
           />
         </SimpleGrid>
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button
             disabled={!ok}
             loading={busy}
@@ -395,7 +394,7 @@ function ModelModal({
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 

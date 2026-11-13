@@ -9,7 +9,6 @@ import {
   Code,
   Group,
   Loader,
-  Modal,
   NumberInput,
   Paper,
   Select,
@@ -42,6 +41,7 @@ import {
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 import { EmptyState, PageHeader, QueryState, TONE, useFieldErrors } from '../components/common';
 import { CronPreview } from '../components/CronPreview';
 import { confirmDanger } from '../components/confirm';
@@ -116,7 +116,7 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
   };
 
   return (
-    <Modal opened onClose={onClose} title={job ? t('exports.editTitle') : t('exports.newTitle')} size="xl" fullScreen={phone}>
+    <FormModal onClose={onClose} title={job ? t('exports.editTitle') : t('exports.newTitle')} size="xl" fullScreen={phone}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -252,16 +252,14 @@ function ExportForm({ job, status, onClose }: { job: ExportJob | null; status: E
             onChange={(e) => setDraft({ ...draft, encrypt: e.currentTarget.checked })}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} disabled={!draft.name.trim() || !draft.platformId || !draft.parts.length}>
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 

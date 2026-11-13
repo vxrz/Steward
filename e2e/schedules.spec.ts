@@ -18,7 +18,7 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
   await dialog.getByText('Hourly', { exact: true }).click();
   await expect(dialog.getByRole('textbox', { name: 'Cron expression' })).toHaveValue('0 * * * *');
-  await expect(dialog.getByRole('textbox', { name: 'Time zone' })).toHaveValue('Europe/Berlin');
+  await expect(dialog.getByRole('combobox', { name: 'Time zone' })).toHaveValue('Europe/Berlin');
   await expect(dialog.getByText(/^Next: /)).toBeVisible();
   // failed checks notify on change by default, with a 4-hour reminder (#127)
   const notify = dialog.getByTestId('notify-policy');
@@ -129,4 +129,33 @@ test('an unexpected server error shows a reference to quote, not its text', asyn
   );
   await dialog.getByRole('textbox', { name: 'Cron expression' }).fill('0 7 * * *');
   await expect(dialog.getByText('Something went wrong (reference lb-12345)', { exact: false })).toBeVisible();
+});
+
+test('the time zone is picked from a list, the next runs are shown in it, and a dialog with input asks before closing', async ({ page }) => {
+  await page.goto('/schedules');
+  await page.getByRole('button', { name: 'New schedule' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New schedule' });
+  const cron = dialog.getByRole('textbox', { name: 'Cron expression' });
+  // the first Tuesday at 06:00 in New York: five runs, each a Tuesday in the first week, 06:00 in that zone's own time
+  await cron.fill('0 6 * * 2#1');
+  const zone = dialog.getByRole('combobox', { name: 'Time zone' });
+  await zone.fill('America/New_Y');
+  await page.getByRole('option', { name: 'America/New_York', exact: true }).click();
+  const next = dialog.getByTestId('schedule-next-runs');
+  await expect(next).toContainText(/06:00|6:00/);
+  await expect(next).toContainText(/EST|EDT|GMT-[45]/);
+  await expect(next).toHaveText(/^Next: [^·]+( · [^·]+){4}$/);
+  await expect(dialog.getByTestId('cron-warning')).toHaveCount(0);
+  // the preset for the first Monday
+  await dialog.getByText('1st Monday 06:00', { exact: true }).click();
+  await expect(cron).toHaveValue('0 6 * * 1#1');
+  // something entered: Esc asks first and keeps the input
+  await page.keyboard.press('Escape');
+  const discard = page.getByRole('dialog', { name: 'Discard your changes?' });
+  await expect(discard).toBeVisible();
+  await discard.getByRole('button', { name: 'Cancel' }).click();
+  await expect(cron).toHaveValue('0 6 * * 1#1');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await discard.getByRole('button', { name: 'Discard' }).click();
+  await expect(dialog).toBeHidden();
 });

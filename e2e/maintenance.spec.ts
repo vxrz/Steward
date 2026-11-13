@@ -137,13 +137,18 @@ test.describe('as a viewer', () => {
     const api = await apiAs('dana');
     const title = uniq('Viewer window');
     const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: uniq('E2E maint service'), owners: [] } }));
-    const start = Date.now() + 2 * 86_400_000;
+    // in two days at 09:00 UTC: one hour within the same day in Berlin
+    const day = new Date(Date.now() + 2 * 86_400_000);
+    const start = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 9);
     const w = await json<{ id: string }>(
       await api.post('/api/maintenance-windows', {
         data: { title, startsAt: new Date(start).toISOString(), endsAt: new Date(start + 3_600_000).toISOString(), targets: [{ kind: 'service', id: svc.id }] },
       }),
     );
     try {
+      // a window within one day names the day once: "18 Nov 2026, 10:00–11:00"
+      await page.goto('/maintenance');
+      await expect(page.getByRole('row').filter({ hasText: title })).toContainText(/\d{4}, \d{2}:00\s?–\s?\d{2}:00/);
       await page.goto(`/maintenance?open=${w.id}`);
       const detail = page.getByRole('dialog', { name: title });
       await expect(detail.getByRole('link', { name: 'Add to calendar (.ics)' })).toBeVisible();

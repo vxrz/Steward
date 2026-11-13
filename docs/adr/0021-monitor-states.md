@@ -268,3 +268,19 @@ The open questions of the proposal, decided on 2026-11-09 – each the recommend
 - One window concept, two kinds. Downtime windows are planned like maintenance and do something different; the form has to make that plain.
 - Uptime becomes honest for machines that do not run around the clock, and objectives stop counting nights as outages.
 - Revisit when tables need arithmetic across checks (the JSONata escape hatch), when several leaders per follower are asked for, or when correlation across monitors arrives.
+
+## Update 0.20: off beyond the maximum as an outage
+
+**Since:** 0.20.0 (#288). It extends section 4 and owner decision 11; nothing else changes.
+
+**Context.** Off beyond the maximum off time is `degraded`, so a long shutdown does not count as an outage in uptime (decision 11). Some machines must never be off longer than a shift without that being an outage – for them a warning that counts as available is the wrong signal.
+
+**Decision.**
+
+- **A choice per monitor and per off row:** `states.afterMaxOff: degraded | down`, and `afterMaxOff` on a row that shows `off` (it overrides the monitor's, either way). `degraded` is the default, so every existing monitor behaves exactly as before; nothing is migrated.
+- **With `down`** off beyond the maximum makes the monitor `down` with the same reason (`maxOff`) and message ("Off for longer than expected (9 h, maximum 8 h)"), and no root cause of a check. Everything follows the status: it is notified like any outage, an acknowledgement works as for any down, uptime and objectives count it as **unavailable**, and every output sends down (webhook and Zabbix code 2, Prometheus 2, status pages _outage_, plant live states _offline_, datasets _down_; Gatus already sent a failure for off beyond the maximum).
+- **Unchanged:** the maximum counts from when the state became Off; planned downtime is not counted and suspends the check while it lasts (the monitor goes back to `off`, sent as a recovery); a state change ends it (back to `up` when the machine runs). A contradiction stays a contradiction; "changes state too often" does not turn a `down` into `degraded`.
+- **Refused** on a row that does not show `off` and on a follower (`states.from`, monitor or row): a follower has no maximum off time of its own.
+- **UI.** The States tab offers the choice next to the maximum off time – _Degraded (default)_ or _Down – an outage_ for the monitor, _As the monitor_ / _Degraded_ / _Down_ per off row – and _Try it_ has _Off for longer than the maximum_. The monitor page, list and wall name "Off for longer than expected" in the reader's language where there is no root cause to show.
+
+**Consequences.** A monitor with `down` turns red after its maximum and lowers its uptime; the owner decides per machine whether a long stop is planned (planned downtime) or an outage. The choice is part of the definition: the _edit_ right, `monitor.updated`, YAML export, import, Git sync and templates carry it.

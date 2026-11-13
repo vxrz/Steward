@@ -54,3 +54,37 @@ describe('POST /api/cron/preview', () => {
     }
   });
 });
+
+describe('time zones, codes and daylight saving (0.20 review)', () => {
+  it('a wrong time zone is named as such, not as a wrong expression; both errors carry a code', async () => {
+    await expect(s.api('POST', '/cron/preview', { cron: '0 7 * * *', timezone: 'Europe/Berln' })).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'TIME_ZONE_UNKNOWN', params: { tz: 'Europe/Berln' } },
+    });
+    await expect(s.api('POST', '/cron/preview', { cron: '0 7 * *', timezone: 'UTC' })).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'CRON_INVALID' },
+    });
+  });
+
+  it('runs in its time zone: the first Tuesday, and local times across the change to summer time', async () => {
+    const first = await s.api('POST', '/cron/preview', { cron: '0 6 * * 2#1', timezone: 'Europe/Berlin' });
+    for (const n of first.next as string[]) {
+      const local = new Date(n).toLocaleString('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      expect(local).toMatch(/^Tue \d, 06:00$/);
+    }
+    // every 30 minutes in operating hours and hourly outside them: two expressions, each in Berlin time
+    const busy = await s.api('POST', '/cron/preview', { cron: '*/30 6-21 * * 1-5', timezone: 'Europe/Berlin' });
+    for (const n of busy.next as string[]) {
+      const h = Number(new Date(n).toLocaleString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', hour12: false }));
+      expect(h).toBeGreaterThanOrEqual(6);
+      expect(h).toBeLessThanOrEqual(21);
+    }
+    const { Cron } = await import('croner');
+    // 02:30 does not exist on the last Sunday of March in Berlin: the run is not lost, it comes at 03:30
+    const spring = new Cron('30 2 * * *', { paused: true, timezone: 'Europe/Berlin' })
+      .nextRuns(3, new Date('2027-03-27T00:00:00Z'))
+      .map((d) => d.toISOString());
+    expect(spring).toEqual(['2027-03-27T01:30:00.000Z', '2027-03-28T01:30:00.000Z', '2027-03-29T00:30:00.000Z']);
+  });
+});

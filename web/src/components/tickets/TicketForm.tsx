@@ -17,7 +17,6 @@ import {
   TextInput,
   Textarea,
 } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +35,7 @@ import { get, getOptional, notifyError, post, put } from '../../api';
 import { useMe } from '../../auth';
 import { TICKET_STATUS_IDS, useSourceLabel, useTicketSettings } from './common';
 import { useFieldErrors } from '../common';
+import { useRemoteSelect } from '../remoteSelect';
 import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
 import { NamedOutsideHint } from '../NamedOutsideHint';
 
@@ -336,23 +336,24 @@ function AffectedPicker({ value, onChange, hidden }: { value: Affected[]; onChan
   const { caps } = useMe();
   const { t } = useTranslation(['tickets', 'records']);
   const [kind, setKind] = useState<TicketLinkKind>('service');
-  const [q, setQ] = useState('');
-  const [debounced] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
+  const pick = useRemoteSelect({ value: target });
   const targets = useQuery({
-    queryKey: ['link-targets', kind, debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}`),
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
   });
   useEffect(() => setTarget(null), [kind]);
   const options = (targets.data ?? [])
-    .filter((x) => !value.some((v) => v.kind === x.kind && v.id === x.id))
+    .filter((x) => x.kind === kind && !value.some((v) => v.kind === x.kind && v.id === x.id))
     .map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label }));
   const add = (id: string | null) => {
     if (!id) return;
     const found = targets.data?.find((x) => x.id === id);
     onChange([...value, { kind, id, label: found?.label ?? id }]);
     setTarget(null);
-    setQ('');
+    pick.setSearch('');
   };
   return (
     <Stack gap={6}>
@@ -405,8 +406,8 @@ function AffectedPicker({ value, onChange, hidden }: { value: Affected[]; onChan
           aria-label={t('affected.item')}
           placeholder={t('affected.search')}
           searchable
-          searchValue={q}
-          onSearchChange={setQ}
+          searchValue={pick.search}
+          onSearchChange={pick.setSearch}
           data={options}
           value={target}
           onChange={(v) => {

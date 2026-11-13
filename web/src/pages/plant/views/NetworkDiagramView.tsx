@@ -13,6 +13,7 @@ import {
   IconShieldLock,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { fmtDay } from '../../../format';
 import {
   zoneLevels,
   type PlantFlowGraph,
@@ -98,6 +99,7 @@ export function NetworkDiagramView({ siteId }: { siteId: string }) {
         subnets: t('network.subnets'),
         owner: t('plantNetwork:owner'),
         vlans: t('plantNetwork:zone.vlans'),
+        items: t('plantNetwork:zone.items'),
         protocols: t('plantNetwork:conduit.protocols'),
         controls: t('network.controls'),
         assessment: t('network.assessment'),
@@ -347,7 +349,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
 
   // ---------- search: a part or a data path ----------
   const searchData = useMemo(() => {
-    const kinds = ['asset', 'collector', 'host', 'peer', 'dataset', 'zone', 'vlan', 'conduit'] as const;
+    const kinds = ['asset', 'collector', 'host', 'application', 'platform', 'peer', 'dataset', 'zone', 'vlan', 'conduit'] as const;
     const groups = kinds
       .map((k) => ({
         group: t(`kinds.${k}`),
@@ -378,7 +380,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
   const exportSvg = () => ({
     ...networkSvg(graph, layout, {
       title,
-      subtitle: t('export.subtitle', { date: new Date().toLocaleDateString() }),
+      subtitle: t('export.subtitle', { date: fmtDay(new Date()) }),
       kind: (x) => text.kind(x),
       status: (x) => statusSentence(tv, x),
       pill: (e) =>

@@ -652,6 +652,8 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
                   description={presetSecretHelp(preset, f) ?? t('form.storedAs', { key: f.key })}
                   value={secrets[f.key] ?? ''}
                   onChange={(e) => setSecrets({ ...secrets, [f.key]: e.currentTarget.value })}
+                  // a secret for the platform: the browser must not fill in the password saved for Steward
+                  autoComplete="new-password"
                 />
               ))}
               <Hint>{t('form.credentialsHint')}</Hint>

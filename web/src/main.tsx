@@ -18,10 +18,13 @@ import { ThemedMantineProvider } from './theme';
 import { BASE_PATH } from './basePath';
 import { StepUpDialog } from './components/security/StepUpDialog';
 import { EntryConflictDialog } from './components/plant/changes/EntryConflictDialog';
+import { installFocusReturn } from './focusReturn';
 
 document.title = BRAND.name;
 initPwa();
 void initErrorReporting();
+// a dialog that is closed gives the focus back to the control that opened it
+installFocusReturn();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 2000 } },

@@ -33,6 +33,7 @@ import { FormButtons } from './forms';
 import { Tokens } from './Tokens';
 import { saveOrDraft } from './changes/common';
 import { DeviceMenuItems, DuplicateDeviceModal, MoveEntriesModal, type MoveItem } from './MoveEntries';
+import { FormModal as GuardedModal } from '../FormModal';
 
 /**
  * The site's Devices and Data paths tabs (0.12, docs/PLANT.md#editing-in-place): sortable and filtered lists with a
@@ -130,7 +131,7 @@ function PickAssetModal({
   const [assetId, setAssetId] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   return (
-    <Modal opened onClose={onClose} title={what === 'device' ? t('device.newTitle') : t('path.newTitle')} size="md">
+    <GuardedModal onClose={onClose} title={what === 'device' ? t('device.newTitle') : t('path.newTitle')} size="md">
       <form
         noValidate
         onSubmit={(e) => {
@@ -160,7 +161,7 @@ function PickAssetModal({
           <FormButtons busy={false} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }
 
@@ -607,9 +608,18 @@ export function SitePaths({ n, edit }: { n: PlantSiteNetwork; edit: SiteNetworkE
   const shown = n.dataPaths.filter(
     (p) =>
       (!s ||
-        [p.id, p.subject, p.description, p.assetName, p.collectorRef?.label ?? '', ...p.transfers.map((x) => x.protocol)].some((x) =>
-          x.toLowerCase().includes(s),
-        )) &&
+        [
+          p.id,
+          p.subject,
+          p.description,
+          p.assetName,
+          p.collectorRef?.label ?? '',
+          p.collectorHost?.label ?? '',
+          ...p.transfers.map((x) => x.protocol),
+          // the peers and destinations by the names the reader sees (text ones as written; never a hidden item's id)
+          ...p.transfers.map((x, i) => (p.peers[i] ? p.peers[i].label : x.peerKind === 'other' ? x.peer : '')),
+          ...p.destinations.map((x, i) => (p.targets[i] ? p.targets[i].label : x.kind === 'other' ? x.ref : '')),
+        ].some((x) => x.toLowerCase().includes(s))) &&
       (asset === ALL || p.assetId === asset),
   );
   const menu = (p: PlantDataPathView) =>

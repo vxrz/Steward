@@ -3355,6 +3355,26 @@
             "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
           }
         },
+        "systems": {
+          "description": "Steward systems in the zone (ids) – cloud services and enterprise systems without a VLAN of the site; the same system may be in zones of several sites",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "platforms": {
+          "description": "Steward platforms in the zone (ids), as systems",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
         "owner": {
           "anyOf": [
             {
@@ -4013,16 +4033,20 @@
               "mode": {
                 "type": "string",
                 "enum": [
+                  "pull",
                   "push",
-                  "pull"
-                ]
+                  "receive"
+                ],
+                "description": "Seen from the collector: pull (it fetches from the peer – a source), push (it sends to the peer – a target) or receive (the peer sends to it – a source)"
               },
               "peer_kind": {
-                "description": "device (of the asset), system (a Steward system) or other (default)",
+                "description": "device (of the asset), system, application or platform (a Steward item, by id) or other (default)",
                 "type": "string",
                 "enum": [
                   "device",
                   "system",
+                  "application",
+                  "platform",
                   "other"
                 ]
               },
@@ -4075,10 +4099,12 @@
             "type": "object",
             "properties": {
               "kind": {
-                "description": "system, dataset or other (default)",
+                "description": "system, application or platform (a Steward item, by id), dataset (a key) or other (default)",
                 "type": "string",
                 "enum": [
                   "system",
+                  "application",
+                  "platform",
                   "dataset",
                   "other"
                 ]

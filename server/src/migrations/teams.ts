@@ -44,4 +44,12 @@ export const TEAM_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE report_schedules ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    // review 0.20.0: a user's teams are read on every request (owning teams, auth/policy.ts); the primary key
+    // (team_id, user_id) cannot find them by user
+    name: 'teams-004-member-index',
+    sql: `
+      CREATE INDEX IF NOT EXISTS team_members_user ON team_members(user_id);
+    `,
+  },
 ];

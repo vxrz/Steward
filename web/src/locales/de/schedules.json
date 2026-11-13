@@ -32,14 +32,15 @@
     "weekdays": "Werktags 07:00",
     "mondays": "Montags 06:00",
     "monthly": "Monatsanfang 06:00",
-    "quarterly": "Vierteljährlich"
+    "quarterly": "Vierteljährlich",
+    "firstMonday": "1. Montag 06:00"
   },
   "form": {
     "process": "Prozess",
     "name": "Name",
     "when": "Wann",
     "cron": "Cron-Ausdruck",
-    "cronHint": "Minute Stunde Tag-im-Monat Monat Wochentag",
+    "cronHint": "Minute Stunde Tag-im-Monat Monat Wochentag – z. B. */30 6-21 * * 1-5 (alle 30 Min., werktags 06:00–21:59), 0 6 * * 2#1 (der erste Dienstag), 0 6 L * * (der letzte Tag)",
     "timezone": "Zeitzone",
     "next": "Nächste: {{dates}}",
     "connectionsInputs": "Verbindungen & Eingaben",
@@ -88,7 +89,9 @@
       },
       "urgent": "Dringend – unterbricht Ruhezeiten",
       "urgentHint": "Fehlgeschlagene Ausführungen und Prüfungen mit Schweregrad Fehler erreichen Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet)."
-    }
+    },
+    "timezoneHint": "Die Zeiten gelten in dieser Zone, auch über Sommer- und Winterzeit; eine Zeit, die es bei der Umstellung auf Sommerzeit nicht gibt, läuft eine Stunde später.",
+    "timezoneServer": "Zeitzone von Steward"
   },
   "emptyState": {
     "title": "Noch keine Zeitpläne",

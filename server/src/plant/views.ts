@@ -882,26 +882,50 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
  */
 export function hostPlacement(siteId: string): PlantHostPlacement {
   const n = siteNetwork(siteId);
+  // the visible Steward items the data paths name (hosts are systems; 0.20: applications and platforms too)
+  const named = { application: new Set<string>(), platform: new Set<string>() };
+  for (const p of n.dataPaths)
+    for (const r of [p.collectorRef, ...p.peers, ...p.targets]) if (r?.visible && (r.kind === 'application' || r.kind === 'platform')) named[r.kind].add(r.id);
+  const zonesListing = (kind: 'systems' | 'platforms', id: string) => n.zones.filter((z) => z[kind].includes(id)).map((z) => z.id);
+  // the systems the named applications run on, in the order they were added
+  const runsOn = new Map<string, string[]>();
+  if (named.application.size)
+    for (const r of db().all<{ application_id: string; system_id: string }>(
+      'SELECT application_id, system_id FROM application_systems ORDER BY created_at, id',
+    ))
+      if (named.application.has(r.application_id) && resolveTarget('system', r.system_id))
+        runsOn.set(r.application_id, [...(runsOn.get(r.application_id) ?? []), r.system_id]);
+  const wanted = new Set([...n.hosts.filter((h) => h.visible).map((h) => h.id), ...[...runsOn.values()].flat()]);
   const vlansOfSegment = new Map<string, string[]>();
   for (const v of n.vlans) if (v.segmentId) vlansOfSegment.set(v.segmentId, [...(vlansOfSegment.get(v.segmentId) ?? []), v.id]);
-  const hosts = n.hosts.filter((h) => h.visible);
-  if (!hosts.length || !vlansOfSegment.size) return { hosts: [] };
-  const wanted = new Set(hosts.map((h) => h.id));
   const segmentVisible = new Map<string, boolean>();
   const visibleSegment = (id: string) => {
     if (!segmentVisible.has(id)) segmentVisible.set(id, !!resolveTarget('system', id));
     return segmentVisible.get(id)!;
   };
-  const out = new Map<string, Set<string>>();
-  for (const r of db().all<{ system_id: string; segment_id: string }>('SELECT system_id, segment_id FROM system_segments')) {
-    if (!wanted.has(r.system_id) || !vlansOfSegment.has(r.segment_id) || !visibleSegment(r.segment_id)) continue;
-    const set = out.get(r.system_id) ?? new Set<string>();
-    for (const v of vlansOfSegment.get(r.segment_id)!) set.add(v);
-    out.set(r.system_id, set);
-  }
+  const onVlans = new Map<string, Set<string>>();
+  if (wanted.size && vlansOfSegment.size)
+    for (const r of db().all<{ system_id: string; segment_id: string }>('SELECT system_id, segment_id FROM system_segments')) {
+      if (!wanted.has(r.system_id) || !vlansOfSegment.has(r.segment_id) || !visibleSegment(r.segment_id)) continue;
+      const set = onVlans.get(r.system_id) ?? new Set<string>();
+      for (const v of vlansOfSegment.get(r.segment_id)!) set.add(v);
+      onVlans.set(r.system_id, set);
+    }
+  const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const hosts = [...wanted]
+    .map((id) => ({ id, vlans: n.vlans.filter((v) => onVlans.get(id)?.has(v.id)).map((v) => v.id), zones: zonesListing('systems', id) }))
+    .filter((h) => h.vlans.length || h.zones.length)
+    .sort(byId);
+  const placed = new Set(hosts.map((h) => h.id));
   return {
-    hosts: [...out]
-      .map(([id, vlans]) => ({ id, vlans: n.vlans.filter((v) => vlans.has(v.id)).map((v) => v.id) }))
-      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    hosts,
+    applications: [...runsOn]
+      .map(([id, systems]) => ({ id, system: systems.find((x) => placed.has(x)) ?? '' }))
+      .filter((a) => a.system)
+      .sort(byId),
+    platforms: [...named.platform]
+      .map((id) => ({ id, zones: zonesListing('platforms', id) }))
+      .filter((x) => x.zones.length)
+      .sort(byId),
   };
 }

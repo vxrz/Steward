@@ -15,13 +15,15 @@ export interface NotificationList {
 }
 
 const KEY = ['notifications'];
+/** How many of the latest notifications the bell loads */
+export const NOTIFICATION_LIMIT = 50;
 const EMPTY: NotificationList = { items: [], unread: 0, unavailable: true };
 
 /** Polls the notification list every 30 s while the tab is visible. */
 export function useNotifications() {
   return useQuery({
     queryKey: KEY,
-    queryFn: () => getOptional<NotificationList>('/notifications?limit=50', EMPTY),
+    queryFn: () => getOptional<NotificationList>(`/notifications?limit=${NOTIFICATION_LIMIT}`, EMPTY),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,

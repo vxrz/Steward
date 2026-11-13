@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import net from 'node:net';
+import { EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
 import { BRAND, bootstrapList, KAFKA_LIMITS, KAFKA_TOPIC_CONFIGS, type KafkaSasl, type Platform } from '@sm/shared';
 import { config } from '../config.js';
 import { assertAddressSafe, assertNetAllowed, checkedAddress, guardedLookup } from '../platforms/outbound.js';
@@ -109,16 +110,25 @@ function sasl(platform: Platform, secrets: Record<string, string>) {
   };
 }
 
+/** Address safety on every connection of the token request: the pinning lookup of the outbound checks. */
+let dispatcher: Dispatcher | undefined;
+function tokenDispatcher(): Dispatcher {
+  return (dispatcher ??= new EnvHttpProxyAgent({ connect: { lookup: guardedLookup }, requestTls: { lookup: guardedLookup } } as never));
+}
+
 /** OAUTHBEARER: a client-credentials token from the identity provider (variable tokenUrl, secrets clientId / clientSecret). */
-async function oauthToken(platform: Platform, secrets: Record<string, string>): Promise<string> {
+export async function oauthToken(platform: Platform, secrets: Record<string, string>): Promise<string> {
   const url = String(platform.config.variables?.tokenUrl ?? '');
   if (!/^https:\/\//.test(url) || !secrets.clientId || !secrets.clientSecret)
     throw new HttpError(400, 'OAUTHBEARER needs the variable tokenUrl (https) and the secrets clientId and clientSecret', 'KAFKA_OAUTH');
   const { assertOutboundAllowed } = await import('../platforms/outbound.js');
   await assertOutboundAllowed(url, outboundContext());
+  // the checked address is the one connected to (review 0.20.0): without the pinning lookup a name rebound between the
+  // check and the connection would receive the client secret
   const res = await fetch(url, {
     method: 'POST',
     redirect: 'error',
+    dispatcher: tokenDispatcher(),
     signal: AbortSignal.timeout(KAFKA_LIMITS.timeoutMs),
     headers: {
       'content-type': 'application/x-www-form-urlencoded',

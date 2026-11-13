@@ -217,6 +217,113 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
   }
 });
 
+/**
+ * The pages the lists above leave out (0.20 cross-application review): every area of the catalogue, the registers,
+ * compliance, automation and the settings areas, and one detail page of each kind (opened from its list).
+ */
+test.describe('accessibility – every area', () => {
+  test.use({ storageState: authFile('admin') });
+
+  const PAGES: [string, string][] = [
+    ['about', '/about'],
+    ['applications', '/applications'],
+    ['CIA scale', '/applications/cia-scale'],
+    ['systems', '/systems'],
+    ['documents', '/records'],
+    ['document types', '/records/types'],
+    ['link types', '/records/link-types'],
+    ['duties', '/duties'],
+    ['data contracts', '/data-contracts'],
+    ['new data contract', '/data-contracts/new'],
+    ['maintenance', '/maintenance'],
+    ['scorecard', '/scorecard'],
+    ['costs', '/costs'],
+    ['controls', '/compliance/controls'],
+    ['access changes', '/compliance/access-changes'],
+    ['access reconciliation', '/compliance/reconciliation'],
+    ['person reviews', '/compliance/person-reviews'],
+    ['evidence packs', '/compliance/evidence-packs'],
+    ['git sync', '/git-updates'],
+    ['libraries', '/libraries'],
+    ['triggers', '/triggers'],
+    ['compare runs', '/runs/compare'],
+    ['new monitor', '/monitors/new'],
+    ['system status', '/settings/status'],
+    ['backups', '/settings/backups'],
+    ['migration', '/settings/migration'],
+    ...(['general', 'security', 'assurance', 'integrations', 'notifications', 'appearance', 'catalogue', 'modules', 'data'] as const).map(
+      (area): [string, string] => [`settings: ${area}`, `/settings/${area}`],
+    ),
+  ];
+  for (const [name, path] of PAGES) {
+    test(name, async ({ page }) => {
+      await page.goto(path);
+      await settle(page);
+      await expectAccessible(page, name);
+      await expectStructure(page, name);
+    });
+  }
+
+  // a detail page of each kind: the first entry of its list
+  const DETAILS: [string, string, string][] = [
+    ['application', '/applications', '/applications/app_'],
+    ['system', '/systems', '/systems/sys_'],
+    ['document', '/records', '/records/rec_'],
+    ['duty', '/duties', '/duties/dty_'],
+    ['data contract', '/data-contracts', '/data-contracts/dct_'],
+    ['ticket reference', '/tickets', '/tickets/tkt_'],
+    ['monitor', '/monitors', '/monitors/mon_'],
+    ['platform', '/platforms', '/platforms/pf_'],
+    ['status page', '/status-pages', '/status-pages/stp_'],
+  ];
+  for (const [name, list, prefix] of DETAILS) {
+    test(`${name} detail`, async ({ page }) => {
+      await page.goto(list);
+      await settle(page);
+      await page.locator(`main a[href*="${prefix}"]`).first().click();
+      await settle(page);
+      await expectAccessible(page, `${name} detail`);
+      await expectStructure(page, `${name} detail`);
+    });
+  }
+
+  // a document that is frozen cannot be edited: its editor still has a heading and the way back (no dead end)
+  test('the editor of a frozen document', async ({ page, apiAs }) => {
+    const api = await apiAs('admin');
+    let frozen: string | undefined;
+    for (const r of await json<{ id: string }[]>(await api.get('/api/records'))) {
+      if ((await json<{ frozen?: boolean }>(await api.get(`/api/records/${r.id}`))).frozen) {
+        frozen = r.id;
+        break;
+      }
+    }
+    expect(frozen, 'a frozen demo document').toBeTruthy();
+    await page.goto(`/records/${frozen}/edit`);
+    await settle(page);
+    await expect(page.getByTestId('record-not-editable')).toBeVisible();
+    await expect(page.getByTestId('breadcrumb')).toBeVisible();
+    await expectAccessible(page, 'frozen document editor');
+    await expectStructure(page, 'frozen document editor');
+  });
+});
+
+/** What a viewer meets where they have no rights: a page with its heading and the reason, never a bare text. */
+test.describe('accessibility – pages a viewer may not use', () => {
+  test.use({ storageState: authFile('vera') });
+  for (const [name, path] of [
+    ['document types', '/records/types'],
+    ['system status', '/settings/status'],
+    ['a settings area that does not exist', '/settings/no-such-area'],
+  ] as const) {
+    test(name, async ({ page }) => {
+      await page.goto(path);
+      await settle(page);
+      await expectAccessible(page, `${name} (viewer)`);
+      await expectStructure(page, `${name} (viewer)`);
+    });
+  }
+});
+
 test.describe('accessibility – signed out', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   test('sign-in page', async ({ page }) => {
@@ -237,6 +344,12 @@ test.describe('accessibility – dark color scheme', () => {
     // filled status badges ("Up", "Degraded") on the dark page
     ['monitors', '/monitors'],
     ['statement of applicability', '/compliance/soa/ISO27001'],
+    // a title button in the table (it was drawn in the filled primary colour: 3.1:1 on the dark page)
+    ['maintenance', '/maintenance'],
+    // the placeholder of a file input ("Choose a file": 2.5:1 on the dark input)
+    ['migration', '/settings/migration'],
+    ['settings: integrations', '/settings/integrations'],
+    ['documents', '/records'],
   ] as const) {
     test(`${name} (dark)`, async ({ page }) => {
       await page.goto(path);

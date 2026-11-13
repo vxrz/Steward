@@ -64,6 +64,7 @@ import { processKeys } from '../queryKeys';
 import { NodeDebugPanel } from '../components/debug/NodeDebugPanel';
 import { DebugRunPanel, useDebugRun } from '../components/debug/DebugRunPanel';
 import type { NodeRunStatus } from '../components/flow/FlowNodeView';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
@@ -538,8 +539,10 @@ function SaveModal({
       setBusy(false);
     }
   };
+  // FormModal is mounted while open: it asks before Esc or Cancel discard what was entered
+  if (!opened) return null;
   return (
-    <Modal opened={opened} onClose={onClose} title={t('save.title')}>
+    <FormModal onClose={onClose} title={t('save.title')}>
       <Stack>
         <Textarea
           label={t('save.comment')}
@@ -563,14 +566,12 @@ function SaveModal({
           </Alert>
         )}
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={save} loading={busy} leftSection={<IconDeviceFloppy size={16} />}>
             {t('common:save')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

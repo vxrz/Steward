@@ -46,7 +46,7 @@ describe('host placement', () => {
     const content = fs.readFileSync(path.resolve(__dirname, '../../examples/plant/brightwater-ot-network.plant.yaml'), 'utf8');
     await s.api('POST', '/plant/import', { files: [{ name: 'brightwater-ot-network.plant.yaml', content }], mode: 'add' });
     // the example names no Steward system: nothing to place
-    expect(await s.api('GET', URL)).toEqual({ hosts: [] });
+    expect(await s.api('GET', URL)).toEqual({ hosts: [], applications: [], platforms: [] });
 
     // an edge server in the DMZ segment (created from VLAN 900), named by a data path of milling centre 1
     const made = (await s.api('POST', '/plant/sites/riverside/vlans/rvs-vlan-900/segment', { name: 'RVS OT DMZ' })).vlans.find(
@@ -64,14 +64,47 @@ describe('host placement', () => {
       destinations: [{ kind: 'system', ref: office.id }],
     });
     // the office archive is in no segment of the site: not placed
-    expect(await s.api('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'] }] });
+    expect(await s.api('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'], zones: [] }], applications: [], platforms: [] });
     // the Plant viewer sees the same (names, no links)
-    expect(await users.pia!('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'] }] });
+    expect(await users.pia!('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'], zones: [] }], applications: [], platforms: [] });
 
     // the site's network answer still has everything the diagram draws
     const n = await s.api('GET', '/plant/sites/riverside/network');
     expect(n.conduits.map((c: { id: string; zones: string[] }) => [c.id, c.zones])).toEqual([['rvs-cdt-cells-dmz', ['rvs-zone-cells', 'rvs-zone-dmz']]]);
     expect(n.hosts.map((h: { id: string }) => h.id).sort()).toEqual([edge.id, office.id].sort());
+  });
+
+  it('0.20: a system without a VLAN of the site stands in a zone that lists it; an application with its system; a platform in its zone', async () => {
+    const cloud = await s.api('POST', '/systems', { name: 'Invented cloud historian', kind: 'server' });
+    const edge = (await s.api('GET', '/plant/sites/riverside/network')).hosts.find((h: { label: string }) => h.label === 'RVS edge server');
+    const app = await s.api('POST', '/applications', { name: 'Invented InfluxDB' });
+    await s.api('POST', `/applications/${app.id}/systems`, { systemId: cloud.id });
+    await s.api('POST', `/applications/${app.id}/systems`, { systemId: edge.id });
+    const ih = await s.api('POST', '/platforms', { name: 'Invented IoT platform', kind: 'generic', baseUrl: 'http://127.0.0.1:9/api' });
+    await s.api('POST', '/plant/sites/riverside/zones', { id: 'rvs-zone-ext', name: 'External', level: 'external', systems: [cloud.id], platforms: [ih.id] });
+    await s.api('POST', '/plant/assets/rvs-mill-02/paths', {
+      id: 'to-cloud',
+      subject: 'Programs to the cloud',
+      collector: { kind: 'job', ref: 'cloud-sync' },
+      transfers: [
+        { protocol: 'https', mode: 'push', peerKind: 'system', peer: cloud.id },
+        { protocol: 'http', mode: 'push', peerKind: 'application', peer: app.id },
+      ],
+      destinations: [{ kind: 'platform', ref: ih.id }],
+    });
+    const placed = await s.api('GET', URL);
+    expect(placed.hosts).toEqual(
+      expect.arrayContaining([
+        { id: edge.id, vlans: ['rvs-vlan-900'], zones: [] },
+        { id: cloud.id, vlans: [], zones: ['rvs-zone-ext'] },
+      ]),
+    );
+    // the application runs on both: the first one placed in this site (the cloud historian, added first)
+    expect(placed.applications).toEqual([{ id: app.id, system: cloud.id }]);
+    expect(placed.platforms).toEqual([{ id: ih.id, zones: ['rvs-zone-ext'] }]);
+    // a platform the reader may not see places nothing
+    await s.api('PUT', `/platforms/${ih.id}/access`, { acl: [{ subject: 'role:admin', permissions: ['use', 'manage'] }] });
+    expect((await users.dana!('GET', URL)).platforms).toEqual([]);
   });
 
   it('a site the reader may not see answers 404, like one that does not exist', async () => {

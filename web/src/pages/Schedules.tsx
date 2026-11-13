@@ -1,22 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  ActionIcon,
-  Anchor,
-  Badge,
-  Button,
-  Chip,
-  Divider,
-  Group,
-  Modal,
-  Paper,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Tooltip,
-  VisuallyHidden,
-} from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Chip, Divider, Group, Paper, Select, Stack, Switch, Text, TextInput, Tooltip, VisuallyHidden } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -34,12 +17,13 @@ import { errorText } from '../i18n/errors';
 import { confirmDanger } from '../components/confirm';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
-import { CronWarnings, useCronPreview } from '../components/CronPreview';
+import { CronWarnings, fmtRun, timeZoneOptions, useCronPreview } from '../components/CronPreview';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -48,6 +32,7 @@ const PRESETS = [
   { key: 'weekdays', cron: '0 7 * * 1-5' },
   { key: 'mondays', cron: '0 6 * * 1' },
   { key: 'monthly', cron: '0 6 1 * *' },
+  { key: 'firstMonday', cron: '0 6 * * 1#1' },
   { key: 'quarterly', cron: '0 6 1 1,4,7,10 *' },
 ] as const;
 
@@ -254,7 +239,7 @@ export function SchedulesPage() {
       header: t('table.next'),
       sortValue: (s) => (s.enabled ? s.nextRunAt : null),
       nowrap: true,
-      cell: (s) => (s.enabled && s.nextRunAt ? `${fmtDate(s.nextRunAt)} (${fmtRelative(s.nextRunAt)})` : '–'),
+      cell: (s) => (s.enabled && s.nextRunAt ? `${fmtRun(s.nextRunAt, s.timezone)} (${fmtRelative(s.nextRunAt)})` : '–'),
     },
     { key: 'last', header: t('table.last'), sortValue: (s) => s.lastRunAt, cell: lastRunOf },
     { key: 'actions', header: <VisuallyHidden>{t('table.actions')}</VisuallyHidden>, label: t('table.actions'), cell: actionsOf },
@@ -342,7 +327,8 @@ export function SchedulesPage() {
               <Text size="xs" c="dimmed">
                 {t('table.next')}: {s.enabled && s.nextRunAt ? fmtRelative(s.nextRunAt) : '–'}
               </Text>
-              <Group justify="space-between" wrap="nowrap" mt={4}>
+              {/* wraps: an administrator's actions (with "Pause messages") are wider than a phone's card */}
+              <Group justify="space-between" wrap="wrap" gap="xs" mt={4}>
                 {lastRunOf(s)}
                 {actionsOf(s)}
               </Group>
@@ -382,6 +368,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
     enabled: !!d.processId,
   });
   const preview = useCronPreview(d.cron, d.timezone);
+  const [zones] = useState(() => timeZoneOptions(draft.timezone));
 
   useEffect(() => {
     if (proc.data && !draft.id && d.processId === proc.data.id && Object.keys(d.inputs).length === 0) {
@@ -400,7 +387,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
     cron: !d.cron.trim() && t('common:validation.required'),
   });
   return (
-    <Modal opened onClose={onClose} title={draft.id ? t('edit') : t('new')} size="lg">
+    <FormModal onClose={onClose} title={draft.id ? t('edit') : t('new')} size="lg">
       <Stack>
         {draft.id && <CopyId id={draft.id} />}
         <Select
@@ -435,16 +422,21 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
               onChange={(e) => setD({ ...d, cron: e.currentTarget.value })}
               error={v.error('cron') ?? (preview.error ? errorText(preview.error) : undefined)}
             />
-            <TextInput label={t('form.timezone')} value={d.timezone ?? ''} onChange={(e) => setD({ ...d, timezone: e.currentTarget.value })} />
+            <Select
+              label={t('form.timezone')}
+              description={t('form.timezoneHint')}
+              placeholder={t('form.timezoneServer')}
+              data={zones}
+              value={d.timezone || null}
+              onChange={(v) => setD({ ...d, timezone: v ?? undefined })}
+              searchable
+              clearable
+              data-testid="schedule-timezone"
+            />
           </Group>
           {preview.data && (
-            <Text size="xs" c="dimmed" mt={4}>
-              {t('form.next', {
-                dates: preview.data.next
-                  .slice(0, 3)
-                  .map((n) => fmtDate(n))
-                  .join(' · '),
-              })}
+            <Text size="xs" c="dimmed" mt={4} data-testid="schedule-next-runs">
+              {t('form.next', { dates: preview.data.next.map((n) => fmtRun(n, d.timezone)).join(' · ') })}
             </Text>
           )}
           <CronWarnings warnings={preview.data?.warnings} onUse={(c) => setD({ ...d, cron: c })} />
@@ -482,12 +474,10 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
         />
         <NotifyPolicyFields value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY} onChange={(notify) => setD({ ...d, notify })} />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => v.validate() && onSave(d)}>{t('common:save')}</Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

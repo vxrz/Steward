@@ -1,5 +1,5 @@
 import { Suspense, useMemo, useState } from 'react';
-import { ActionIcon, Box, Button, Group, Modal, NumberInput, Select, SimpleGrid, Skeleton, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { ActionIcon, Box, Button, Group, NumberInput, Select, SimpleGrid, Skeleton, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -34,6 +34,7 @@ import { MapChunkBoundary, PositionPicker } from './map/MapPanel';
 import { hasWebGl2 } from './map/mapShared';
 import { cleanRefs, FieldInputs, RefsEditor, refsValid, slugId, TranslationsInput, useNameOf, usePlantConfig, usePlantLabel } from './common';
 import { draftSave } from './changes/common';
+import { FormModal, useFormModalCloseIfAny } from '../FormModal';
 
 /** Every node of a site's tree, flat (pickers). */
 export function flatNodes(areas: PlantNode[]): PlantNode[] {
@@ -95,9 +96,11 @@ export function IdInput({ value, onChange, disabled, error }: { value: string; o
 
 export function FormButtons({ busy, onClose }: { busy: boolean; onClose: () => void }) {
   const { t } = useTranslation('common');
+  // inside a guarded dialog, Cancel asks before throwing away what was entered (as Esc and the ✕ do)
+  const guarded = useFormModalCloseIfAny();
   return (
     <Group justify="flex-end" mt="xs">
-      <Button variant="default" onClick={onClose}>
+      <Button variant="default" onClick={guarded ?? onClose}>
         {t('cancel')}
       </Button>
       <Button type="submit" loading={busy}>
@@ -165,12 +168,7 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
   };
   const setContact = (i: number, patch: Partial<SiteContact>) => setContacts(contacts.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   return (
-    <Modal
-      opened
-      onClose={onClose}
-      size="lg"
-      title={site ? t('site.editTitle', { name: site.name }) : t('site.newTitle', { type: label('site', false, true) })}
-    >
+    <FormModal onClose={onClose} size="lg" title={site ? t('site.editTitle', { name: site.name }) : t('site.newTitle', { type: label('site', false, true) })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -337,7 +335,7 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -413,8 +411,7 @@ export function NodeFormModal({
     }
   };
   return (
-    <Modal
-      opened
+    <FormModal
       onClose={onClose}
       size="lg"
       title={node ? t('node.editTitle', { type: label(type, false, true), name: node.name }) : t('node.newTitle', { type: label(type, false, true) })}
@@ -499,7 +496,7 @@ export function NodeFormModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -549,8 +546,7 @@ export function BuildingFormModal({
     }
   };
   return (
-    <Modal
-      opened
+    <FormModal
       onClose={onClose}
       size="lg"
       title={building ? t('building.editTitle', { name: building.name }) : t('building.newTitle', { type: label('building', false, true) })}
@@ -611,7 +607,7 @@ export function BuildingFormModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -727,8 +723,7 @@ export function AssetFormModal({
     }
   };
   return (
-    <Modal
-      opened
+    <FormModal
       onClose={onClose}
       size="lg"
       title={asset ? t('asset.editTitle', { name: asset.name }) : t('asset.newTitle', { type: label('asset', false, true) })}
@@ -863,6 +858,6 @@ export function AssetFormModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }

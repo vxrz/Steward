@@ -23,8 +23,10 @@ import { Badge, Group, Text, useComputedColorScheme } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
 import {
   IconAlertTriangle,
+  IconApps,
   IconArrowsExchange,
   IconBuildingFactory2,
+  IconCloud,
   IconCloudUpload,
   IconCpu,
   IconDatabase,
@@ -74,6 +76,8 @@ export const KIND_ICON: Record<PlantFlowNodeKind, Icon> = {
   conduit: IconArrowsExchange,
   host: IconServer,
   peer: IconWorld,
+  application: IconApps,
+  platform: IconCloud,
 };
 
 /** Kinds whose second line is an identifier (an endpoint, a path, a job): set in monospace. */

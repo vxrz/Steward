@@ -81,6 +81,8 @@ export interface ZoneRow extends Source {
   criticality: string | null;
   level: string | null;
   vlans: string;
+  systems: string;
+  platforms: string;
   owner: string;
   sl_target: number | null;
   risk_assessment: string;
@@ -166,6 +168,8 @@ export const zoneValuesOf = (r: ZoneRow): PlantZoneValues => ({
   criticality: (r.criticality || null) as PlantZoneValues['criticality'],
   level: (r.level || null) as PlantZoneValues['level'],
   vlans: parseJson(r.vlans, []),
+  systems: parseJson(r.systems, []),
+  platforms: parseJson(r.platforms, []),
   owner: r.owner,
   slTarget: r.sl_target === null ? null : (Number(r.sl_target) as SecurityLevel),
   riskAssessment: r.risk_assessment,
@@ -325,6 +329,8 @@ export const zoneInput = z
     criticality: z.enum(ZONE_CRITICALITIES).nullable().default(null),
     level: z.enum(ZONE_LEVELS).nullable().default(null),
     vlans: list(L.vlansPerZone, plantId),
+    systems: list(L.itemsPerZone, z.string().trim().min(1).max(100)),
+    platforms: list(L.itemsPerZone, z.string().trim().min(1).max(100)),
     owner: text(),
     slTarget: z
       .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
@@ -476,6 +482,8 @@ export function zoneProblems(v: PlantZoneValues, vlans: Set<string>): NetProblem
   const out: NetProblem[] = [];
   v.vlans.forEach((x, i) => !vlans.has(x) && out.push({ path: `vlans[${i}]`, message: `The site has no VLAN "${x}"` }));
   if (new Set(v.vlans).size !== v.vlans.length) out.push({ path: 'vlans', message: 'A VLAN is named twice' });
+  if (new Set(v.systems).size !== v.systems.length) out.push({ path: 'systems', message: 'A system is named twice' });
+  if (new Set(v.platforms).size !== v.platforms.length) out.push({ path: 'platforms', message: 'A platform is named twice' });
   if (v.slTarget !== null && !v.riskAssessment)
     out.push({ path: 'risk_assessment', message: 'A target security level (SL-T) is set by a risk assessment: name it' });
   if (v.assessedAt && !isDate(v.assessedAt)) out.push({ path: 'assessed_at', message: 'Use a date (YYYY-MM-DD)' });
@@ -545,16 +553,29 @@ export interface NamedRef {
  * stay although the caller cannot see it. Another check of a monitor, or another filter or time column of a dataset,
  * is a new reference.
  */
-export function namedRefs(v: Partial<PlantVlanValues & PlantDeviceValues & PlantDataPathValues & PlantAssetChecksValues>): NamedRef[] {
+export function namedRefs(
+  v: Partial<PlantVlanValues & PlantDeviceValues & PlantDataPathValues & PlantAssetChecksValues & Pick<PlantZoneValues, 'systems' | 'platforms'>>,
+): NamedRef[] {
   const out: NamedRef[] = [];
   if (v.segmentId) out.push({ kind: 'system', id: v.segmentId, path: 'segment' });
+  // the systems and platforms a zone lists (0.20)
+  v.systems?.forEach((id, i) => out.push({ kind: 'system', id, path: `systems[${i}]` }));
+  v.platforms?.forEach((id, i) => out.push({ kind: 'platform', id, path: `platforms[${i}]` }));
   if (v.collector) {
     if (v.collector.kind !== 'job') out.push({ kind: v.collector.kind, id: v.collector.ref, path: 'collector.ref' });
     if (v.collector.host) out.push({ kind: 'system', id: v.collector.host, path: 'collector.host' });
   }
-  v.transfers?.forEach((t, i) => t.peerKind === 'system' && out.push({ kind: 'system', id: t.peer, path: `transfers[${i}].peer` }));
-  // a dataset destination is documentation (it may be published later): only systems must be visible
-  v.destinations?.forEach((d, i) => d.kind === 'system' && out.push({ kind: 'system', id: d.ref, path: `destinations[${i}].ref` }));
+  // systems, applications and platforms a transfer or destination names (0.20: also applications and platforms)
+  v.transfers?.forEach(
+    (t, i) =>
+      (t.peerKind === 'system' || t.peerKind === 'application' || t.peerKind === 'platform') &&
+      out.push({ kind: t.peerKind, id: t.peer, path: `transfers[${i}].peer` }),
+  );
+  // a dataset destination is documentation (it may be published later): only Steward items must be visible
+  v.destinations?.forEach(
+    (d, i) =>
+      (d.kind === 'system' || d.kind === 'application' || d.kind === 'platform') && out.push({ kind: d.kind, id: d.ref, path: `destinations[${i}].ref` }),
+  );
   v.checks?.forEach((c, i) =>
     out.push(
       c.kind === 'monitor'
@@ -612,11 +633,11 @@ export function upsertVlan(siteId: string, v: PlantVlanValues, position: number,
 
 export function upsertZone(siteId: string, v: PlantZoneValues, position: number, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
-    `INSERT INTO plant_zones (site_id, id, name, description, criticality, level, vlans, owner, sl_target, risk_assessment, assessed_at, notes,
+    `INSERT INTO plant_zones (site_id, id, name, description, criticality, level, vlans, systems, platforms, owner, sl_target, risk_assessment, assessed_at, notes,
        position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (site_id, id) DO UPDATE SET name = excluded.name, description = excluded.description, criticality = excluded.criticality,
-       level = excluded.level, vlans = excluded.vlans, owner = excluded.owner, sl_target = excluded.sl_target, risk_assessment = excluded.risk_assessment,
+       level = excluded.level, vlans = excluded.vlans, systems = excluded.systems, platforms = excluded.platforms, owner = excluded.owner, sl_target = excluded.sl_target, risk_assessment = excluded.risk_assessment,
        assessed_at = excluded.assessed_at, notes = excluded.notes, position = excluded.position, ${keep(opts)} updated_at = excluded.updated_at,
        updated_by = excluded.updated_by`,
     siteId,
@@ -626,6 +647,8 @@ export function upsertZone(siteId: string, v: PlantZoneValues, position: number,
     v.criticality,
     v.level,
     j(v.vlans),
+    j(v.systems),
+    j(v.platforms),
     v.owner,
     v.slTarget,
     v.riskAssessment,

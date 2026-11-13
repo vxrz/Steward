@@ -26,7 +26,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, catalogueVisibleNow, forbid, me } from '../records/access.js';
 import { plannedMinutes } from '../catalogue/maintenance.js';
 import { permissionsOfRow } from '../monitors/model.js';
-import { monitorOffMinutes, monitorUptimeHundredths } from '../monitors/stats.js';
+import { offMinutesFromPoints, statusPoints, statusPointsOf, uptimeFromPoints, windowsRange, type StatusPoint } from '../monitors/stats.js';
 
 /**
  * Availability objectives (#86): targets for the uptime windows 1 h, 24 h, 7 d and 30 d (each optional) of one source,
@@ -182,7 +182,15 @@ interface SourceState {
   last_uptimes_at: string | null;
 }
 
-/** Reads the Gatus figures Steward has stored; one query per platform and one per endpoint, cached for a listing. */
+/** Ids per statement when a listing reads in bulk (well below the bind-parameter limits of SQLite and PostgreSQL). */
+const IN_CHUNK = 500;
+const chunks = <T>(xs: T[]): T[][] => Array.from({ length: Math.ceil(xs.length / IN_CHUNK) }, (_, i) => xs.slice(i * IN_CHUNK, (i + 1) * IN_CHUNK));
+
+/**
+ * Reads the Gatus figures Steward has stored; one query per platform and one per endpoint, cached for a listing. The
+ * source monitors of a listing are read in bulk (`prefetch`): their rows and status points in a few statements,
+ * whatever the number of objectives – the start page and the scorecard list them all (review 0.20.0).
+ */
 export function readingCache(now = Date.now()) {
   const sources = new Map<string, SourceState | null>();
   const endpoints = new Map<string, { gatus_uptime: string | null; name: string; group_name: string } | null>();
@@ -211,15 +219,37 @@ export function readingCache(now = Date.now()) {
       monitors.set(monitorId, db().get<{ enabled: number }>('SELECT enabled FROM monitors WHERE id = ? AND is_template = 0', monitorId) ?? null);
     return monitors.get(monitorId)!;
   };
+  // the status points of the objective windows, per source monitor (uptime and off time come from the same points)
+  const range = windowsRange(OBJECTIVE_WINDOW_MS, now);
+  const points = new Map<string, StatusPoint[]>();
+  const pointsOf = (monitorId: string): StatusPoint[] => {
+    if (!points.has(monitorId)) points.set(monitorId, statusPoints(monitorId, ...range));
+    return points.get(monitorId)!;
+  };
   const cache = {
     endpoint,
+    /** Reads the source monitors of these objectives at once (live ones only: an archived objective shows its last sample). */
+    prefetch(rows: readonly Pick<ObjectiveRow, 'monitor_id' | 'archived_at'>[]): void {
+      const ids = [...new Set(rows.filter((r) => r.monitor_id && !r.archived_at).map((r) => r.monitor_id!))].filter((id) => !monitors.has(id));
+      for (const part of chunks(ids)) {
+        for (const id of part) monitors.set(id, null);
+        for (const m of db().all<{ id: string; enabled: number }>(
+          `SELECT id, enabled FROM monitors WHERE id IN (${part.map(() => '?').join(', ')}) AND is_template = 0`,
+          ...part,
+        ))
+          monitors.set(m.id, { enabled: m.enabled });
+        for (const [id, p] of statusPointsOf(part, ...range)) points.set(id, p);
+      }
+    },
+    /** The off time (ADR 0021) of a source monitor in the objective windows, in minutes. */
+    offMinutes: (monitorId: string): Record<ObjectiveWindow, number> => offMinutesFromPoints(pointsOf(monitorId), OBJECTIVE_WINDOW_MS, now),
     /** The figures of an objective's source: a monitor's recorded states, or what Steward read from Gatus or Prometheus. */
     readRow(r: Pick<ObjectiveRow, 'platform_id' | 'endpoint_key' | 'monitor_id'>): ObjectiveReading {
       if (!r.monitor_id) return cache.read(r.platform_id, r.endpoint_key);
       const m = monitorOf(r.monitor_id);
       // a disabled monitor records nothing new: its last state would count on for ever
       if (!m || !Number(m.enabled)) return { values: none, reason: 'monitorOff', at: null };
-      const values = monitorUptimeHundredths(r.monitor_id, OBJECTIVE_WINDOW_MS, now);
+      const values = uptimeFromPoints(pointsOf(r.monitor_id), OBJECTIVE_WINDOW_MS, now);
       return { values, reason: OBJECTIVE_WINDOWS.some((w) => values[w] !== null) ? null : 'noValue', at: new Date(now).toISOString() };
     },
     read(platformId: string, key: string): ObjectiveReading {
@@ -340,7 +370,7 @@ export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: Samp
   const j = judge(r, reading.values);
   const planned = plannedMinutes(r, OBJECTIVE_WINDOW_MS, now);
   // a source monitor with states (ADR 0021): its off time, which its figures do not count, is shown next to them
-  const off = r.monitor_id ? monitorOffMinutes(r.monitor_id, OBJECTIVE_WINDOW_MS, now) : null;
+  const off = r.monitor_id ? cache.offMinutes(r.monitor_id) : null;
   j.windows = j.windows.map((w) => ({ ...w, plannedMinutes: planned[w.window], ...(off?.[w.window] ? { offMinutes: off[w.window] } : {}) }));
   if (j.status !== 'noData') return { ...j, reason: null, at: reading.at, noDataSince: null, noDataTooLong: false };
   const last = facts.lastData.get(r.id);
@@ -414,6 +444,18 @@ export function monitorLookup() {
   };
   return {
     get,
+    /** Reads these monitors at once (a listing's source monitors). */
+    prefetch(ids: readonly (string | null | undefined)[]): void {
+      const todo = [...new Set(ids.filter((x): x is string => !!x && !rows.has(x)))];
+      for (const part of chunks(todo)) {
+        for (const mid of part) rows.set(mid, null);
+        for (const m of db().all<{ id: string; name: string; owner: string; acl: string }>(
+          `SELECT id, name, owner, acl FROM monitors WHERE id IN (${part.map(() => '?').join(', ')}) AND is_template = 0`,
+          ...part,
+        ))
+          rows.set(m.id, m);
+      }
+    },
     visible(u: AuthUser | null, mid: string): boolean {
       const m = get(mid);
       return !!m && !!u && permissionsOfRow(m, u).includes('view');
@@ -550,12 +592,15 @@ export function listObjectiveViews(f: ObjectiveFilter = {}, now = Date.now()): O
   const args: unknown[] = [];
   if (f.serviceId) (where.push('service_id = ?'), args.push(f.serviceId));
   if (f.applicationId) (where.push('application_id = ?'), args.push(f.applicationId));
-  return db()
+  const rows = db()
     .all<ObjectiveRow>(`SELECT * FROM availability_objectives${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY name, id`, ...args)
     .filter((r) => {
       const s = c.services.get(r.service_id);
       return !!s && (f.archived || (!s.archived && !r.archived_at));
-    })
+    });
+  c.cache.prefetch(rows);
+  c.monitors.prefetch(rows.map((r) => r.monitor_id));
+  return rows
     .map((r) => build(r, c))
     .sort((a, b) => a.summary.serviceName.localeCompare(b.summary.serviceName) || a.summary.name.localeCompare(b.summary.name));
 }

@@ -7,6 +7,8 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * statements does not grow with the number of services, processes, schedules, platforms or monitors. On PostgreSQL every
  * statement is a round trip that blocks the event loop, so a statement per item made these pages slow for everyone.
  * The pattern of the cost plan test (cost-plans.test.ts): the same count before and after adding many items.
+ * The lists of the public API that filter by the processes a reader may view (runs, tasks, datasets; MCP shares the
+ * same code, processes/service.ts visibleProcessIds) are counted the same way: they read a process's rights once each.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -18,7 +20,24 @@ let s: TestServer;
 let dana: Client;
 const counted = new Map<string, number>();
 
-const PAGES = ['/dashboard', '/scorecard', '/costs?scope=service', '/costs?scope=application', '/monitors', '/platforms', '/processes', '/schedules'];
+const PAGES = [
+  '/dashboard',
+  '/scorecard',
+  '/costs?scope=service',
+  '/costs?scope=application',
+  '/monitors',
+  '/platforms',
+  '/processes',
+  '/schedules',
+  // review 0.20.0: objectives with a source monitor each, the credentials register, users and teams
+  '/objectives',
+  '/credentials',
+];
+/** Administrators' pages: users and teams (the access pickers, the user list) */
+const ADMIN_PAGES = ['/users', '/teams'];
+/** Lists of the public API (/api/v1), read with an API token of each user. */
+const V1_PAGES = ['/runs', '/tasks', '/datasets'];
+const tokens: Record<string, string> = {};
 
 beforeAll(async () => {
   s = await startTestServer({
@@ -33,6 +52,8 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup', { services: true });
   dana = await s.as('dana', PW);
+  tokens.admin = (await s.api('POST', '/me/tokens', { name: 'Invented admin token', scope: 'read' })).token;
+  tokens.dana = (await dana('POST', '/me/tokens', { name: 'Invented dana token', scope: 'read' })).token;
 }, 180_000);
 
 /** Statements of one GET as the signed-in user of `c` (the second call: caches of the first are warm). */
@@ -43,20 +64,40 @@ async function statements(c: Client, url: string): Promise<number> {
   return counted.get(`/api${url}`) ?? -1;
 }
 
+/** Statements of one GET of the public API with `token` (the second call, as above). */
+async function v1Statements(token: string, url: string): Promise<number> {
+  const get = async () => {
+    const res = await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status, url).toBe(200);
+    await res.arrayBuffer();
+  };
+  await get();
+  counted.delete(`/api/v1${url}`);
+  await get();
+  return counted.get(`/api/v1${url}`) ?? -1;
+}
+
 async function countAll(): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const [who, c] of [
     ['admin', s.api],
     ['dana', dana],
-  ] as const)
+  ] as const) {
     for (const url of PAGES) out[`${who} ${url}`] = await statements(c, url);
+    for (const url of V1_PAGES) out[`${who} v1${url}`] = await v1Statements(tokens[who]!, url);
+  }
+  for (const url of ADMIN_PAGES) out[`admin ${url}`] = await statements(s.api, url);
   return out;
 }
 
-/** Adds `n` services, processes with an enabled schedule each, and monitors. */
+/**
+ * Adds `n` services, processes with an enabled schedule each, monitors with an availability objective each (the
+ * monitor as its source), credentials, users and teams.
+ */
 async function grow(n: number, tag: string): Promise<void> {
   const [sch] = (await s.api('GET', '/schedules')) as { processId: string; inputs: unknown; bindings: unknown }[];
   const proc = await s.api('GET', `/processes/${sch!.processId}`);
+  const [plat] = (await s.api('GET', '/platforms')) as { id: string }[];
   for (let i = 0; i < n; i++) {
     await s.api('POST', '/services', { name: `Invented service ${tag} ${i}` });
     const p = await s.api('POST', '/processes', { definition: { ...proc.definition, name: `Invented process ${tag} ${i}` } });
@@ -68,9 +109,29 @@ async function grow(n: number, tag: string): Promise<void> {
       bindings: sch!.bindings,
       enabled: true,
     });
-    await s.api('POST', '/monitors', {
+    const svc = await s.api('POST', '/services', { name: `Invented objective service ${tag} ${i}` });
+    const m = await s.api('POST', '/monitors', {
       definition: { name: `Invented monitor ${tag} ${i}`, checks: [{ id: 'hb', name: 'Heartbeat', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
     });
+    await s.api('POST', '/objectives', {
+      serviceId: svc.id,
+      name: `Invented objective ${tag} ${i}`,
+      monitorId: m.monitor.id,
+      targets: { h24: 99.5, d30: 99.9 },
+    });
+    await s.api('POST', '/credentials', {
+      name: `Invented credential ${tag} ${i}`,
+      type: 'agentCertificate',
+      platformId: plat!.id,
+      platformText: '',
+      environment: 'production',
+      description: '',
+      usedBy: { text: '', links: [] },
+      owners: [],
+      location: { text: 'Invented vault', url: '' },
+    });
+    await s.api('POST', '/users', { username: `invented-${tag}-${i}`, displayName: `Invented ${i}`, password: 'Invented-password-1', roles: ['viewer'] });
+    await s.api('POST', '/teams', { name: `Invented team ${tag} ${i}`, members: [`invented-${tag}-${i}`] });
   }
 }
 
@@ -88,7 +149,8 @@ describe('statements per request of the hot pages', () => {
     const after = await countAll();
     if (process.env.H2_OUT) (await import('node:fs')).writeFileSync(process.env.H2_OUT, JSON.stringify({ before, after }, null, 1));
     expect(after).toEqual(before);
-    // and few: no page reads per item
-    for (const [k, n] of Object.entries(after)) expect(n, k).toBeLessThan(k.includes('/dashboard') ? 160 : 80);
+    // and few: no page reads per item (the public API's dataset list reads each dataset's latest values on its own:
+    // about 90 statements with the demo's datasets, independent of the processes)
+    for (const [k, n] of Object.entries(after)) expect(n, k).toBeLessThan(k.includes('/dashboard') || k.endsWith('v1/datasets') ? 160 : 80);
   }, 300_000);
 });

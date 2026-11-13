@@ -3,20 +3,9 @@ import type { ErrorParams, PlantChangeSetSummary, PlantEntryChanged, StepUpActio
 import i18n from './i18n';
 import { errorText } from './i18n/errors';
 import { BASE_PATH } from './basePath';
+import { ApiError } from './apiError';
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public issues?: { path: string; message: string }[],
-    public code?: string,
-    public params?: ErrorParams,
-    /** The server's X-Request-Id: the reference to quote for an unexpected error */
-    public requestId?: string,
-  ) {
-    super(message);
-  }
-}
+export { ApiError } from './apiError';
 
 /** Called when the session/auth state changes (signed out, password change required, vault locked). */
 let onAuthChange: (() => void) | undefined;

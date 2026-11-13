@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Anchor, Badge, Box, Button, FileButton, Group, Modal, Select, Stack, Table, Text, TextInput } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconCircleCheck, IconFileUpload, IconLink, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +21,7 @@ import { api, get, notifyError, notifyOk, post } from '../../api';
 import { fmtDay } from '../../format';
 import { QueryState, useFieldErrors } from '../common';
 import { CollapsibleSection } from '../page/CollapsibleSection';
+import { useRemoteSelect } from '../remoteSelect';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../records/common';
 import { EditionBadge } from '../records/DocumentPanel';
 import { typeTemplate } from '../records/builtin';
@@ -448,13 +448,13 @@ function LinkExistingModal({
   onLinked: () => void;
 }) {
   const { t } = useTranslation(['plantDocs', 'common']);
-  const [q, setQ] = useState('');
-  const [debounced] = useDebouncedValue(q, 250);
   const [record, setRecord] = useState<string | null>(null);
+  const pick = useRemoteSelect({ value: record });
   const [busy, setBusy] = useState(false);
   const targets = useQuery({
-    queryKey: ['link-targets', 'record', debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(debounced)}`),
+    queryKey: ['link-targets', 'record', pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(pick.term)}`),
+    placeholderData: keepPreviousData,
   });
   const v = useFieldErrors({ record: !record && t('common:validation.required') });
   const submit = async () => {
@@ -483,10 +483,10 @@ function LinkExistingModal({
             label={t('record')}
             placeholder={t('search')}
             searchable
-            searchValue={q}
-            onSearchChange={setQ}
+            searchValue={pick.search}
+            onSearchChange={pick.setSearch}
             filter={({ options }) => options}
-            data={(targets.data ?? []).map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label }))}
+            data={pick.options((targets.data ?? []).map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })))}
             value={record}
             onChange={setRecord}
             nothingFoundMessage={targets.isFetching ? t('searching') : t('nothingFound')}

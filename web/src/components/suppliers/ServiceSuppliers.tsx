@@ -15,6 +15,7 @@ import { DpaState } from './contractParts';
 import { ContractModal } from './ContractForm';
 import { useSupplierOptions } from './SupplierPicker';
 import { FormModal, FormModalCancel } from '../FormModal';
+import { useSubjectLabel } from '../SubjectsInput';
 
 /**
  * The service page's _Suppliers_ section (ADR 0031): the contracts covering the service – supplier, contract, purpose,
@@ -24,6 +25,7 @@ import { FormModal, FormModalCancel } from '../FormModal';
  */
 export function ServiceSuppliers({ serviceId }: { serviceId: string }) {
   const { t } = useTranslation(['suppliers', 'common']);
+  const ownerLabel = useSubjectLabel();
   const qc = useQueryClient();
   const key = ['suppliers', 'service', serviceId] as const;
   const q = useQuery({ queryKey: key, queryFn: () => get<ServiceContracts>(`/services/${serviceId}/contracts`) });
@@ -126,7 +128,7 @@ export function ServiceSuppliers({ serviceId }: { serviceId: string }) {
                   </Group>
                   {c.owners.length > 0 && (
                     <Text size="xs" c="dimmed">
-                      {t('serviceSuppliers.owners', { owners: c.owners.join(', ') })}
+                      {t('serviceSuppliers.owners', { owners: c.owners.map(ownerLabel).join(', ') })}
                     </Text>
                   )}
                 </div>

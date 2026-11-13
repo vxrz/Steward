@@ -35,13 +35,14 @@ import {
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE, subjectLabel, useFieldErrors } from '../components/common';
+import { EmptyState, PageHeader, QueryState, TONE, useFieldErrors } from '../components/common';
 import { confirmDanger } from '../components/confirm';
 import { useCiaScale, useLevel } from '../components/catalogue/cia';
 import { AttentionBadge, PartBadge, shownParts } from '../components/scorecard/common';
 import { fmtNumber } from '../format';
 import { ServiceTabs } from '../components/page/LinkTabs';
 import { TableScroll } from '../components/TableScroll';
+import { useSubjectLabel } from '../components/SubjectsInput';
 
 /**
  * The service scorecard: every service (not archived) with its four parts – duties, availability, documentation,
@@ -50,6 +51,7 @@ import { TableScroll } from '../components/TableScroll';
  */
 export function ScorecardPage() {
   const { t } = useTranslation(['scorecard', 'common']);
+  const subjectName = useSubjectLabel();
   const [params, setParams] = useSearchParams();
   const attentionOnly = params.get('attention') === '1';
   const owner = params.get('owner');
@@ -99,7 +101,7 @@ export function ScorecardPage() {
             <Select
               label={t('filters.owner')}
               placeholder={t('filters.allOwners')}
-              data={o.rollup.owners.map((g) => ({ value: g.key, label: g.owner ? subjectLabel(g.owner) : t('rollup.noOwner') }))}
+              data={o.rollup.owners.map((g) => ({ value: g.key, label: g.owner ? subjectName(g.owner) : t('rollup.noOwner') }))}
               value={owner}
               onChange={(v) => set('owner', v)}
               clearable
@@ -171,7 +173,7 @@ export function ScorecardPage() {
                         </Table.Td>
                       ))}
                       <Table.Td>
-                        <Text size="xs">{c.owners.map(subjectLabel).join(', ') || '–'}</Text>
+                        <Text size="xs">{c.owners.map(subjectName).join(', ') || '–'}</Text>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -253,6 +255,7 @@ function Trend({ points }: { points: ScorecardTrendPoint[] }) {
 
 function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick: (key: string) => void }) {
   const { t } = useTranslation('scorecard');
+  const subjectName = useSubjectLabel();
   const parts = shownParts(overview.services);
   if (!overview.rollup.owners.length) return null;
   return (
@@ -277,7 +280,7 @@ function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick
               <Table.Tr key={g.key}>
                 <Table.Td>
                   <Anchor component="button" type="button" size="sm" onClick={() => onPick(g.key)}>
-                    {g.owner ? subjectLabel(g.owner) : t('rollup.noOwner')}
+                    {g.owner ? subjectName(g.owner) : t('rollup.noOwner')}
                   </Anchor>
                 </Table.Td>
                 <Table.Td>{fmtNumber(g.services)}</Table.Td>

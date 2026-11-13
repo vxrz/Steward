@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { runAs } from '../auth/context.js';
 import { toAuthUser } from '../auth/users.js';
 import { fourEyesRequired, mayDecideInTeams, noteFourEyes } from '../auth/assurance.js';
-import { visibleTask } from '../routes/helpers.js';
+import { visibleTask } from '../engine/run-access.js';
 import { authorizeSignal } from '../engine/commands.js';
 import { engine } from '../engine/index.js';
 import { decide as decideMcpRequest, getRequest } from '../mcp/requests.js';
