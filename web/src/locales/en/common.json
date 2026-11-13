@@ -250,7 +250,7 @@
       "documents_other": "Link {{count}} documents"
     },
     "noPlatforms": "Platform mappings are not copied: a platform belongs to one application.",
-    "copyAccess": "Copy the access settings (access list and owning teams)",
+    "copyAccess": "Copy the access settings (shares and owning teams)",
     "copyOwners": "Copy the owners and owning teams",
     "copyAccessHint": "Everyone who has access to the original gets the same access to the copy.",
     "accessNotCopied": "The access settings are not copied: only who may manage the original can copy them. The copy gets your default teams.",

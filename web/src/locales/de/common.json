@@ -250,7 +250,7 @@
       "documents_other": "{{count}} Dokumente verknüpfen"
     },
     "noPlatforms": "Plattform-Zuordnungen werden nicht kopiert: Eine Plattform gehört zu einer Anwendung.",
-    "copyAccess": "Zugriffseinstellungen kopieren (Zugriffsliste und zuständige Teams)",
+    "copyAccess": "Zugriffseinstellungen kopieren (Einträge unter „Geteilt mit“ und zuständige Teams)",
     "copyOwners": "Verantwortliche und zuständige Teams kopieren",
     "copyAccessHint": "Wer Zugriff auf das Original hat, erhält denselben Zugriff auf die Kopie.",
     "accessNotCopied": "Die Zugriffseinstellungen werden nicht kopiert: Das darf nur, wer das Original verwalten darf. Die Kopie erhält Ihre Standard-Teams.",

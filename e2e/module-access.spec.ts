@@ -91,7 +91,7 @@ test.describe('who may use a module (own server)', () => {
     await expect(dialog).toContainText('saving asks you to confirm that it is you');
     await dialog.getByRole('button', { name: 'Save' }).click();
     const stepUp = page.getByRole('dialog', { name: 'Confirm it is you' });
-    await expect(stepUp.getByTestId('step-up-actions')).toContainText('Give someone rights in an access list');
+    await expect(stepUp.getByTestId('step-up-actions')).toContainText('Give someone access (a share or a module role)');
     await stepUp.getByLabel('Your password').fill(USERS.admin.password);
     await stepUp.getByRole('button', { name: 'Confirm' }).click();
     await expect(dialog).toBeHidden();

@@ -688,7 +688,7 @@
       "teams": "Teams-Karte (Adaptive Card)"
     },
     "teamsChannel": "Teams-Kanal",
-    "teamsChannelHint": "Eine Plattform der Art „Microsoft-Teams-Kanal (Workflows)“: Sie speichert die Workflows-URL verschlüsselt, ihre Zugriffsliste bestimmt, wer dorthin posten darf",
+    "teamsChannelHint": "Eine Plattform der Art „Microsoft-Teams-Kanal (Workflows)“: Sie speichert die Workflows-URL verschlüsselt, die Einträge unter „Geteilt mit“ bestimmen, wer dorthin posten darf",
     "urgent": "Dringend – unterbricht Ruhezeiten",
     "urgentHint": "Ein Wechsel auf ausgefallen erreicht Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet).",
     "stateChanges": "Zustandswechsel mitteilen",

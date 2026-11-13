@@ -309,7 +309,7 @@
         "fourEyes": "a second person approves"
       }
     },
-    "infoSeveral": "An identity is one set of credentials of this platform, with its own access list, MCP mode, read-only flag and operation filter. Requests that name no identity use the default identity, which everyone with “use” on the platform may use. Every other identity is closed until you list who may use it. Steward’s checks add to – never replace – the rights the credentials have in the target system.",
+    "infoSeveral": "An identity is one set of credentials of this platform, with its own shares, MCP mode, read-only flag and operation filter. Requests that name no identity use the default identity, which everyone with “use” on the platform may use. Every other identity is closed until you list who may use it. Steward’s checks add to – never replace – the rights the credentials have in the target system.",
     "add": "Add identity",
     "listLabel": "Identities of this platform",
     "addHint": "Add an identity for credentials with other rights – for example a read-only one to make the default, and one for changes that only some people may use. The default identity’s credentials are also on the",
@@ -375,9 +375,9 @@
     "tokenRenewed": "New token fetched",
     "tokenNotRenewed": "No new token",
     "disabled": "Disabled",
-    "disabledText": "This identity was added or changed outside Steward. It was kept when the platform's settings were confirmed, but it is disabled: nothing can use it and no credentials are sent with it. Read its settings and access list before an administrator enables it.",
+    "disabledText": "This identity was added or changed outside Steward. It was kept when the platform's settings were confirmed, but it is disabled: nothing can use it and no credentials are sent with it. Read its settings and shares before an administrator enables it.",
     "enable": "Enable",
-    "enableText": "Enable the identity “{{name}}”? Its credentials can be used again – by administrators, its owning teams and: {{who}}. Check its settings, credentials and access list first.",
+    "enableText": "Enable the identity “{{name}}”? Its credentials can be used again – by administrators, its owning teams and: {{who}}. Check its settings, credentials and shares first.",
     "enabled": "Identity “{{name}}” enabled",
     "privilegedLabel": "Privileged",
     "privilegedHelp": "Every use asks the person to confirm it is them (step-up): starting a run, saving a schedule or trigger, a request explorer call, approving an MCP request. Runs may wait for a second person. MCP clients never read with it, monitors never use it. Turning it off needs a confirmation.",
@@ -617,7 +617,7 @@
       "keep": "Kept and sealed as shown:",
       "access": "Who may use it besides administrators and its owning teams: {{subjects}}",
       "accessClosed": "nobody else (closed)",
-      "disable": "Added or changed outside Steward: it is kept, but disabled when you confirm – no credentials are sent with it until an administrator enables it after reading its access list.",
+      "disable": "Added or changed outside Steward: it is kept, but disabled when you confirm – no credentials are sent with it until an administrator enables it after reading its shares.",
       "keepDisabled": "Kept as shown, still disabled:"
     }
   },
