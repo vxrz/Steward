@@ -263,7 +263,11 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                           color="red"
                           size="lg"
                           aria-label={t('shares.remove', { name })}
-                          onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
+                          onClick={() => {
+                            setDraft((d) => d.filter((_, j) => j !== i));
+                            // the button goes with its row: keep the keyboard focus in the panel (WCAG 2.4.3)
+                            requestAnimationFrame(() => heading.current?.focus());
+                          }}
                         >
                           <IconTrash size={16} />
                         </ActionIcon>

@@ -50,6 +50,8 @@ test('a process: its access list is shares with a Custom one, the owner above th
 
     // removing the role's share narrows: the preview says who loses what, no step-up
     await panel.getByRole('button', { name: /^Remove the share with Everyone with role operator/ }).click();
+    // the focus stays in the panel (its heading), not on the page's body
+    await expect(panel.getByRole('heading', { name: 'Shared with' })).toBeFocused();
     await panel.getByRole('button', { name: 'Save shares' }).click();
     const preview = page.getByRole('dialog', { name: 'Before you save' });
     await expect(preview).toContainText('loses');
