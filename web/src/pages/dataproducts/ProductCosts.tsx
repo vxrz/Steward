@@ -40,7 +40,7 @@ import { fmtMoney, fmtMonth } from '../../components/costs/common';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
 import { fmtNumber } from '../../format';
 import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts } from './api';
-import { EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
+import { Breakable, CardTable, EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
 
 const enc = encodeURIComponent;
 
@@ -173,43 +173,39 @@ function LinesOfMonth({ month }: { month: DataProductCosts['months'][number] }) 
   const matchText = useMatchText();
   return (
     <Section title={t('costs.title', { month: fmtMonth(month.month, 'long') })} testId="cost-lines">
-      <TableScroll>
-        <Table fz="sm" aria-label={t('costs.lines')}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th scope="col">{t('costs.platform')}</Table.Th>
-              <Table.Th scope="col">{t('costs.match')}</Table.Th>
-              <Table.Th scope="col">{t('costs.kind')}</Table.Th>
-              <Table.Th scope="col">{t('costs.share')}</Table.Th>
-              <Table.Th scope="col" ta="right">
-                {t('costs.amount')}
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {month.lines.map((l, i) => (
-              <Table.Tr key={i}>
-                <Table.Td>{l.platformName}</Table.Td>
-                <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {matchText(l.match)}
-                </Table.Td>
-                <Table.Td>
-                  {l.kind === 'direct' ? t('costs.direct') : t('costs.shareBy', { rule: t(`costs.rules.${l.rule ?? 'equal'}`) })}
-                  {l.products > 1 && (
-                    <Text size="xs" c="dimmed">
-                      {t('costs.splitBetween', { count: l.products })}
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>{fmtNumber(l.share * 100, { maximumFractionDigits: 1 })} %</Table.Td>
-                <Table.Td ta="right" className="nowrap">
-                  {money(l.amountMicros, l.currency)}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </TableScroll>
+      <CardTable
+        ariaLabel={t('costs.lines')}
+        rows={month.lines.map((l, i) => ({ ...l, i }))}
+        rowKey={(l) => String(l.i)}
+        columns={[
+          { key: 'platform', header: t('costs.platform'), cell: (l) => l.platformName },
+          {
+            key: 'match',
+            header: t('costs.match'),
+            cell: (l) => (
+              <span className="mono">
+                <Breakable text={matchText(l.match)} />
+              </span>
+            ),
+          },
+          {
+            key: 'kind',
+            header: t('costs.kind'),
+            cell: (l) => (
+              <>
+                {l.kind === 'direct' ? t('costs.direct') : t('costs.shareBy', { rule: t(`costs.rules.${l.rule ?? 'equal'}`) })}
+                {l.products > 1 && (
+                  <Text size="xs" c="dimmed">
+                    {t('costs.splitBetween', { count: l.products })}
+                  </Text>
+                )}
+              </>
+            ),
+          },
+          { key: 'share', header: t('costs.share'), nowrap: true, cell: (l) => `${fmtNumber(l.share * 100, { maximumFractionDigits: 1 })} %` },
+          { key: 'amount', header: t('costs.amount'), nowrap: true, cell: (l) => money(l.amountMicros, l.currency) },
+        ]}
+      />
       <Text size="xs" c="dimmed" mt="xs">
         {t('costs.showback')}
       </Text>
@@ -275,48 +271,50 @@ export function MatchTable({ matches, onRemove }: { matches: DataCostMatch[]; on
       </Text>
     );
   return (
-    <TableScroll>
-      <Table fz="sm" aria-label={t('costs.matches')}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th scope="col">{t('costs.platform')}</Table.Th>
-            <Table.Th scope="col">{t('costs.match')}</Table.Th>
-            <Table.Th scope="col">{t('costs.from')}</Table.Th>
-            <Table.Th scope="col">{t('costs.shared')}</Table.Th>
-            <Table.Th scope="col">{t('table.actions')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {matches.map((m) => (
-            <Table.Tr key={m.id} data-testid="cost-match">
-              <Table.Td>{m.platformHidden ? t('hidden.platform') : m.platformName}</Table.Td>
-              <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                {matchText(m)}
-              </Table.Td>
-              <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                {m.element ? (
-                  <Text span size="sm" className="mono">
-                    {m.element.qualifiedName}
-                  </Text>
-                ) : (
-                  t('costs.fromProduct')
-                )}
-              </Table.Td>
-              <Table.Td>{m.sharedWith ? t('costs.sharedWith', { count: m.sharedWith }) : '–'}</Table.Td>
-              <Table.Td>
-                {m.canDelete && (
-                  <Tooltip label={t('costs.removeMatch')}>
-                    <ActionIcon variant="subtle" color="red" aria-label={t('costs.removeMatchNamed', { match: matchText(m) })} onClick={() => onRemove(m)}>
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </TableScroll>
+    <CardTable
+      ariaLabel={t('costs.matches')}
+      rows={matches}
+      rowKey={(m) => m.id}
+      rowTestId={() => 'cost-match'}
+      columns={[
+        { key: 'platform', header: t('costs.platform'), cell: (m) => (m.platformHidden ? t('hidden.platform') : m.platformName) },
+        {
+          key: 'match',
+          header: t('costs.match'),
+          cell: (m) => (
+            <span className="mono">
+              <Breakable text={matchText(m)} />
+            </span>
+          ),
+        },
+        {
+          key: 'from',
+          header: t('costs.from'),
+          cell: (m) =>
+            m.element ? (
+              <Text span size="sm" className="mono">
+                <Breakable text={m.element.qualifiedName} />
+              </Text>
+            ) : (
+              t('costs.fromProduct')
+            ),
+        },
+        { key: 'shared', header: t('costs.shared'), cell: (m) => (m.sharedWith ? t('costs.sharedWith', { count: m.sharedWith }) : '–') },
+        {
+          key: 'actions',
+          header: t('table.actions'),
+          actions: true,
+          cell: (m) =>
+            m.canDelete && (
+              <Tooltip label={t('costs.removeMatch')}>
+                <ActionIcon variant="subtle" color="red" aria-label={t('costs.removeMatchNamed', { match: matchText(m) })} onClick={() => onRemove(m)}>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Tooltip>
+            ),
+        },
+      ]}
+    />
   );
 }
 

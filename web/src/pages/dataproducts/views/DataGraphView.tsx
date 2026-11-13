@@ -8,6 +8,7 @@ import { TableScroll } from '../../../components/TableScroll';
 import { fmtDay } from '../../../format';
 import { LegendItem, LineMark, ViewToolbar } from '../../plant/views/common';
 import { useMotion, useViewMode } from '../../plant/views/prefs';
+import { Breakable } from '../parts';
 import { DataGraphCanvas, KIND_ICON, iconKey } from './DataGraphCanvas';
 import { graphSvg } from './graphExport';
 import type { GraphLayout } from './graphLayout';
@@ -328,11 +329,11 @@ function NodeTable({ graph, columns, narrow, text, title }: { graph: DataGraph; 
   );
   const name = (n: DataGraphNode) =>
     n.path ? (
-      <Anchor component={Link} to={n.path} size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
+      <Anchor component={Link} to={n.path} size="sm" fw={500} style={{ overflowWrap: 'break-word' }}>
         {text.label(n)}
       </Anchor>
     ) : (
-      <Text size="sm" fw={500} fs={n.hidden ? 'italic' : undefined} style={{ overflowWrap: 'anywhere' }}>
+      <Text size="sm" fw={500} fs={n.hidden ? 'italic' : undefined} style={{ overflowWrap: 'break-word' }}>
         {text.label(n)}
       </Text>
     );
@@ -429,8 +430,8 @@ function NodeTable({ graph, columns, narrow, text, title }: { graph: DataGraph; 
                     <Stack gap={0}>
                       {name(n)}
                       {n.detail && !n.hidden && (
-                        <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                          {n.detail}
+                        <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'break-word' }}>
+                          <Breakable text={n.detail} />
                         </Text>
                       )}
                     </Stack>

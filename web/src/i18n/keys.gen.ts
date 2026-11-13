@@ -4786,7 +4786,6 @@ export interface Resources {
     'steps.outputsRequired': string;
     'steps.hiddenInputs_one': string;
     'steps.hiddenInputs_other': string;
-    'steps.to': string;
     'steps.runner': string;
     'steps.runnerHint': string;
     'steps.runnerHidden': string;

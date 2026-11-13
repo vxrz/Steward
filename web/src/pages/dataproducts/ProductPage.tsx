@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Grid, Group, List, Select, SimpleGrid, Stack, Table, Text, Tooltip, VisuallyHidden } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Grid, Group, List, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -27,14 +27,13 @@ import { LinkTabs } from '../../components/page/LinkTabs';
 import { confirmDanger } from '../../components/confirm';
 import { RatingBadges } from '../../components/catalogue/cia';
 import { EnvironmentBadge, useEnvironmentList } from '../../components/catalogue/environments';
-import { TableScroll } from '../../components/TableScroll';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { LifecycleForm, ProductForm, RatingForm } from '../../components/dataproducts/ProductForm';
 import { ProductTransferItems } from '../../components/dataproducts/Transfer';
 import { fmtDay, fmtNumber } from '../../format';
 import { HealthBadge } from './views';
 import { dpKeys, pagesOf, useDomains, useInvalidateDataProducts, useProduct, useProductHealth, useProductList, useScorecard } from './api';
-import { ClassificationBadge, Fact, LifecycleBadge, RatingFloorNote, RefLink, Section, TypeBadge, useSortedEnvironments } from './parts';
+import { CardTable, ClassificationBadge, Fact, LifecycleBadge, RatingFloorNote, RefLink, Section, TypeBadge, useSortedEnvironments } from './parts';
 import { ProductPortsTab } from './ProductPorts';
 import { ProductPipelineTab } from './ProductPipeline';
 import { ProductElementsTab } from './ProductElements';
@@ -387,52 +386,49 @@ function EnvironmentsSection({ p }: { p: DataProduct }) {
   return (
     <Section title={t('environments.title')} testId="product-environments">
       {rows.length ? (
-        <TableScroll>
-          <Table fz="sm" aria-label={t('environments.title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th scope="col">{t('environment.label')}</Table.Th>
-                <Table.Th scope="col">{t('environments.state')}</Table.Th>
-                <Table.Th scope="col">{t('environments.monitor')}</Table.Th>
-                {canEdit && (
-                  <Table.Th scope="col">
-                    <VisuallyHidden>{t('table.actions')}</VisuallyHidden>
-                  </Table.Th>
-                )}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((e) => (
-                <Table.Tr key={e.environment}>
-                  <Table.Td>
-                    <EnvironmentBadge value={e.environment} size="xs" />
-                  </Table.Td>
-                  <Table.Td>
-                    {canEdit ? (
-                      <Select
-                        size="xs"
-                        aria-label={t('environments.stateOf', { environment: e.environment })}
-                        data={DATA_ENVIRONMENT_STATES.map((s) => ({ value: s, label: t(`environments.states.${s}`) }))}
-                        value={e.state}
-                        onChange={(s) => s && void setState(e.environment, s as DataEnvironmentState)}
-                        allowDeselect={false}
-                        w={140}
-                      />
-                    ) : (
-                      t(`environments.states.${e.state}`)
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {e.monitorId ? (
-                      <Anchor component={Link} to={`/monitors/${encodeURIComponent(e.monitorId)}`} size="sm">
-                        {t('environments.openMonitor')}
-                      </Anchor>
-                    ) : (
-                      '–'
-                    )}
-                  </Table.Td>
-                  {canEdit && (
-                    <Table.Td>
+        <CardTable
+          ariaLabel={t('environments.title')}
+          rows={rows}
+          rowKey={(e) => e.environment}
+          columns={[
+            { key: 'environment', header: t('environment.label'), cell: (e) => <EnvironmentBadge value={e.environment} size="xs" /> },
+            {
+              key: 'state',
+              header: t('environments.state'),
+              cell: (e) =>
+                canEdit ? (
+                  <Select
+                    size="xs"
+                    aria-label={t('environments.stateOf', { environment: e.environment })}
+                    data={DATA_ENVIRONMENT_STATES.map((s) => ({ value: s, label: t(`environments.states.${s}`) }))}
+                    value={e.state}
+                    onChange={(s) => s && void setState(e.environment, s as DataEnvironmentState)}
+                    allowDeselect={false}
+                    w={140}
+                  />
+                ) : (
+                  t(`environments.states.${e.state}`)
+                ),
+            },
+            {
+              key: 'monitor',
+              header: t('environments.monitor'),
+              cell: (e) =>
+                e.monitorId ? (
+                  <Anchor component={Link} to={`/monitors/${encodeURIComponent(e.monitorId)}`} size="sm">
+                    {t('environments.openMonitor')}
+                  </Anchor>
+                ) : (
+                  '–'
+                ),
+            },
+            ...(canEdit
+              ? [
+                  {
+                    key: 'actions',
+                    header: t('table.actions'),
+                    actions: true,
+                    cell: (e: (typeof rows)[number]) => (
                       <Tooltip label={t('environments.remove')}>
                         <ActionIcon
                           variant="subtle"
@@ -443,13 +439,12 @@ function EnvironmentsSection({ p }: { p: DataProduct }) {
                           <IconTrash size={14} />
                         </ActionIcon>
                       </Tooltip>
-                    </Table.Td>
-                  )}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </TableScroll>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       ) : (
         <Text size="sm" c="dimmed">
           {t('environments.none')}

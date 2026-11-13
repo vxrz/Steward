@@ -1,18 +1,17 @@
 import { useMemo, useState } from 'react';
-import { ActionIcon, Anchor, Button, Group, Stack, Table, Text, Tooltip, VisuallyHidden } from '@mantine/core';
+import { ActionIcon, Anchor, Button, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconArrowRight, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { DataProduct, DataStep } from '@sm/shared';
 import { del, notifyError } from '../../api';
 import { confirmDanger } from '../../components/confirm';
-import { TableScroll } from '../../components/TableScroll';
 import { StepForm } from '../../components/dataproducts/StepForm';
 import type { PickedElement } from '../../components/dataproducts/ElementPicker';
 import { PipelineView } from './views';
 import { usePipelineView } from './views/queries';
 import { pagesOf, qs, useInvalidateDataProducts, useMembers, useSteps } from './api';
-import { Section } from './parts';
+import { Breakable, CardTable, Section } from './parts';
 import { useCanCreate } from './rights';
 
 const enc = encodeURIComponent;
@@ -53,12 +52,12 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
       {ids.map((id) => {
         const n = names.get(id);
         return n?.visible ? (
-          <Anchor key={id} component={Link} to={`/data-elements/${enc(id)}`} size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-            {n.label}
+          <Anchor key={id} component={Link} to={`/data-elements/${enc(id)}`} size="sm" className="mono" style={{ overflowWrap: 'break-word' }}>
+            <Breakable text={n.label} />
           </Anchor>
         ) : (
-          <Text key={id} size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-            {n?.label ?? t('ports.anElement')}
+          <Text key={id} size="sm" className="mono" style={{ overflowWrap: 'break-word' }}>
+            {n ? <Breakable text={n.label} /> : t('ports.anElement')}
           </Text>
         );
       })}
@@ -97,67 +96,52 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
           {t('steps.help')}
         </Text>
         {rows.length ? (
-          <TableScroll>
-            <Table fz="sm" aria-label={t('steps.title')} verticalSpacing="xs">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th scope="col">{t('steps.name')}</Table.Th>
-                  <Table.Th scope="col">{t('steps.inputs')}</Table.Th>
-                  <Table.Th scope="col">
-                    <VisuallyHidden>{t('steps.to')}</VisuallyHidden>
-                  </Table.Th>
-                  <Table.Th scope="col">{t('steps.outputs')}</Table.Th>
-                  <Table.Th scope="col">{t('steps.runner')}</Table.Th>
-                  <Table.Th scope="col">{t('steps.schedule')}</Table.Th>
-                  <Table.Th scope="col">
-                    <VisuallyHidden>{t('table.actions')}</VisuallyHidden>
-                  </Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((s) => (
-                  <Table.Tr key={s.id} data-testid={`step-${s.name}`}>
-                    <Table.Td>
-                      <Text size="sm" fw={500}>
-                        {s.name}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {t(`dataProductViews:stepKinds.${s.kind}`)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>{ends(s.inputs, s.hiddenInputs)}</Table.Td>
-                    <Table.Td>
-                      <IconArrowRight size={14} aria-hidden />
-                    </Table.Td>
-                    <Table.Td>{ends(s.outputs, s.hiddenOutputs)}</Table.Td>
-                    <Table.Td style={{ overflowWrap: 'anywhere' }}>{runner(s)}</Table.Td>
-                    <Table.Td className="nowrap">{s.schedule || '–'}</Table.Td>
-                    <Table.Td>
-                      {s.canEdit && (
-                        <Group gap={2} wrap="nowrap">
-                          <Tooltip label={t('steps.edit')}>
-                            <ActionIcon
-                              variant="subtle"
-                              color="gray"
-                              aria-label={t('steps.editNamed', { name: s.name })}
-                              onClick={() => setEditing({ step: s })}
-                            >
-                              <IconPencil size={14} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label={t('steps.delete')}>
-                            <ActionIcon variant="subtle" color="red" aria-label={t('steps.deleteNamed', { name: s.name })} onClick={() => void remove(s)}>
-                              <IconTrash size={14} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Group>
-                      )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableScroll>
+          <CardTable
+            ariaLabel={t('steps.title')}
+            rows={rows}
+            rowKey={(s) => s.id}
+            rowTestId={(s) => `step-${s.name}`}
+            columns={[
+              {
+                key: 'name',
+                header: t('steps.name'),
+                cell: (s) => (
+                  <>
+                    <Text size="sm" fw={500}>
+                      {s.name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {t(`dataProductViews:stepKinds.${s.kind}`)}
+                    </Text>
+                  </>
+                ),
+              },
+              { key: 'inputs', header: t('steps.inputs'), cell: (s) => ends(s.inputs, s.hiddenInputs) },
+              { key: 'outputs', header: t('steps.outputs'), cell: (s) => ends(s.outputs, s.hiddenOutputs) },
+              { key: 'runner', header: t('steps.runner'), cell: (s) => runner(s) },
+              { key: 'schedule', header: t('steps.schedule'), cell: (s) => s.schedule || '–' },
+              {
+                key: 'actions',
+                header: t('table.actions'),
+                actions: true,
+                cell: (s) =>
+                  s.canEdit && (
+                    <Group gap={2} wrap="nowrap">
+                      <Tooltip label={t('steps.edit')}>
+                        <ActionIcon variant="subtle" color="gray" aria-label={t('steps.editNamed', { name: s.name })} onClick={() => setEditing({ step: s })}>
+                          <IconPencil size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label={t('steps.delete')}>
+                        <ActionIcon variant="subtle" color="red" aria-label={t('steps.deleteNamed', { name: s.name })} onClick={() => void remove(s)}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  ),
+              },
+            ]}
+          />
         ) : (
           steps.isSuccess && (
             <Text size="sm" c="dimmed">

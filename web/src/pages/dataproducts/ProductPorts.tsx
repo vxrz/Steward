@@ -1,18 +1,17 @@
 import { useMemo, useState } from 'react';
-import { ActionIcon, Alert, Anchor, Badge, Button, Collapse, Group, Paper, SimpleGrid, Stack, Table, Text, Tooltip, VisuallyHidden } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Collapse, Group, Paper, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { IconAlertTriangle, IconChevronDown, IconLinkOff, IconPencil, IconPlus, IconTrash, IconUsers } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { DataConsumer, DataObjectives, DataPort, DataPortDirection, DataProduct } from '@sm/shared';
 import { del, notifyError } from '../../api';
 import { confirmDanger } from '../../components/confirm';
-import { TableScroll } from '../../components/TableScroll';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { BindingForm, ConsumerForm, PortForm } from '../../components/dataproducts/PortForms';
 import type { PickedElement } from '../../components/dataproducts/ElementPicker';
 import { capFirst, fmtDay } from '../../format';
 import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from './api';
-import { EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam } from './parts';
+import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam } from './parts';
 
 const enc = encodeURIComponent;
 
@@ -406,50 +405,58 @@ function Consumers({ p, port, canEdit, onEdit }: { p: DataProduct; port: DataPor
   return (
     <Stack gap="xs" mt="xs">
       {rows.length ? (
-        <TableScroll>
-          <Table fz="sm" aria-label={t('consumers.title', { name: port.name })}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th scope="col">{t('consumers.who')}</Table.Th>
-                <Table.Th scope="col">{t('consumers.purpose')}</Table.Th>
-                <Table.Th scope="col">{t('consumers.since')}</Table.Th>
-                <Table.Th scope="col">{t('consumers.agreement')}</Table.Th>
-                {canEdit && (
-                  <Table.Th scope="col">
-                    <VisuallyHidden>{t('table.actions')}</VisuallyHidden>
-                  </Table.Th>
-                )}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((c) => (
-                <Table.Tr key={c.id}>
-                  <Table.Td>
-                    <Text size="sm">{who(c)}</Text>
-                    <Text size="xs" c="dimmed">
-                      {t(`consumers.kinds.${c.kind}`)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td style={{ overflowWrap: 'anywhere' }}>{c.purpose || '–'}</Table.Td>
-                  <Table.Td className="nowrap">
-                    {c.since ? fmtDay(c.since) : '–'}
-                    {c.endDate && ` – ${fmtDay(c.endDate)}`}
-                  </Table.Td>
-                  <Table.Td>
-                    {c.agreement ? (
-                      c.agreement.kind === 'url' ? (
-                        <Anchor href={c.agreement.ref} target="_blank" rel="noopener noreferrer" size="sm">
-                          {c.agreement.label || c.agreement.ref}
-                        </Anchor>
-                      ) : (
-                        `${t(`consumers.agreementKinds.${c.agreement.kind}`)}: ${c.agreement.label || c.agreement.ref}`
-                      )
-                    ) : (
-                      '–'
-                    )}
-                  </Table.Td>
-                  {canEdit && (
-                    <Table.Td>
+        <CardTable
+          ariaLabel={t('consumers.title', { name: port.name })}
+          rows={rows}
+          rowKey={(c) => c.id}
+          columns={[
+            {
+              key: 'who',
+              header: t('consumers.who'),
+              cell: (c) => (
+                <>
+                  <Text size="sm">{who(c)}</Text>
+                  <Text size="xs" c="dimmed">
+                    {t(`consumers.kinds.${c.kind}`)}
+                  </Text>
+                </>
+              ),
+            },
+            { key: 'purpose', header: t('consumers.purpose'), cell: (c) => c.purpose || '–' },
+            {
+              key: 'since',
+              header: t('consumers.since'),
+              nowrap: true,
+              cell: (c) => (
+                <>
+                  {c.since ? fmtDay(c.since) : '–'}
+                  {c.endDate && ` – ${fmtDay(c.endDate)}`}
+                </>
+              ),
+            },
+            {
+              key: 'agreement',
+              header: t('consumers.agreement'),
+              cell: (c) =>
+                c.agreement ? (
+                  c.agreement.kind === 'url' ? (
+                    <Anchor href={c.agreement.ref} target="_blank" rel="noopener noreferrer" size="sm">
+                      {c.agreement.label || c.agreement.ref}
+                    </Anchor>
+                  ) : (
+                    `${t(`consumers.agreementKinds.${c.agreement.kind}`)}: ${c.agreement.label || c.agreement.ref}`
+                  )
+                ) : (
+                  '–'
+                ),
+            },
+            ...(canEdit
+              ? [
+                  {
+                    key: 'actions',
+                    header: t('table.actions'),
+                    actions: true,
+                    cell: (c: DataConsumer) => (
                       <Group gap={2} wrap="nowrap">
                         <ActionIcon variant="subtle" color="gray" aria-label={t('consumers.editNamed', { name: who(c) })} onClick={() => onEdit(c)}>
                           <IconPencil size={14} />
@@ -458,13 +465,12 @@ function Consumers({ p, port, canEdit, onEdit }: { p: DataProduct; port: DataPor
                           <IconTrash size={14} />
                         </ActionIcon>
                       </Group>
-                    </Table.Td>
-                  )}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </TableScroll>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       ) : (
         q.isSuccess && (
           <Text size="sm" c="dimmed">

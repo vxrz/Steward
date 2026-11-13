@@ -399,7 +399,6 @@
     "outputsRequired": "Name at least one output",
     "hiddenInputs_one": "And {{count}} input you may not see: it stays.",
     "hiddenInputs_other": "And {{count}} inputs you may not see: they stay.",
-    "to": "to",
     "runner": "Runner",
     "runnerHint": "What runs the step.",
     "runnerHidden": "Its runner is something you may not see: choose one to replace it, or leave it empty to remove it.",

@@ -399,7 +399,6 @@
     "outputsRequired": "Nennen Sie mindestens einen Ausgang",
     "hiddenInputs_one": "Dazu {{count}} Eingang, den Sie nicht sehen dürfen: Er bleibt.",
     "hiddenInputs_other": "Dazu {{count}} Eingänge, die Sie nicht sehen dürfen: Sie bleiben.",
-    "to": "nach",
     "runner": "Ausführender",
     "runnerHint": "Was den Schritt ausführt.",
     "runnerHidden": "Der Ausführende ist etwas, das Sie nicht sehen dürfen: Wählen Sie einen, um ihn zu ersetzen, oder lassen Sie das Feld leer, um ihn zu entfernen.",

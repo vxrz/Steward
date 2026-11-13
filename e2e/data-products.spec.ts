@@ -349,5 +349,20 @@ test.describe('the data products pages', () => {
     await page.goto(`/data-elements/${s.shared}`);
     await expect(page.getByTestId('element-products')).toBeVisible();
     await expectNoHorizontalScroll(page);
+    // the small tables of the demo product are cards on a phone
+    await page.goto('/data-products?q=orders');
+    await page.getByTestId('product-card').getByRole('link', { name: 'Orders', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Orders');
+    const base = new URL(page.url()).pathname;
+    for (const [tab, row] of [
+      ['costs', 'cost-match'],
+      ['pipeline', 'step-Ingest orders'],
+    ] as const) {
+      await page.goto(`${base}/${tab}`);
+      const first = page.getByTestId(row).first();
+      await expect(first).toBeVisible();
+      expect(await first.evaluate((e) => e.tagName)).not.toBe('TR');
+      await expectNoHorizontalScroll(page);
+    }
   });
 });
