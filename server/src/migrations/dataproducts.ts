@@ -389,6 +389,96 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
     `,
   },
   {
+    // 0.24.0 (ADR 0036 phase 2, package A): lineage from tools – lineage sources (OpenLineage push, dbt) with push tokens,
+    // proposed steps from OpenLineage jobs, dbt models and Snowflake OBJECT_DEPENDENCIES with their matched elements and
+    // the last run per job, the tests of a dbt manifest, and the index that matches OpenLineage datasets to elements (dbt
+    // test results go to package B's dp_quality_results through recordQualityResults)
+    name: 'dataproducts-005a-lineage',
+    sql: `
+      CREATE TABLE dp_lineage_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        platform_id TEXT,
+        namespace_aliases TEXT NOT NULL DEFAULT '[]',
+        team_ids TEXT NOT NULL DEFAULT '[]',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        received INTEGER NOT NULL DEFAULT 0,
+        refused INTEGER NOT NULL DEFAULT 0,
+        last_event_at TEXT,
+        last_error TEXT,
+        last_error_at TEXT,
+        last_import TEXT,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE dp_lineage_tokens (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prefix TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        allowed_cidrs TEXT NOT NULL DEFAULT '[]',
+        rate_limit_per_minute INTEGER NOT NULL,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        rotated_at TEXT,
+        last_used_at TEXT,
+        last_used_ip TEXT,
+        revoked_at TEXT,
+        revoked_by TEXT
+      );
+      CREATE UNIQUE INDEX dp_lineage_tokens_hash ON dp_lineage_tokens(hash);
+      CREATE INDEX dp_lineage_tokens_source ON dp_lineage_tokens(source_id);
+      CREATE TABLE dp_lineage_proposals (
+        id TEXT PRIMARY KEY,
+        origin TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        job_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        step_kind TEXT NOT NULL DEFAULT 'transform',
+        tool TEXT NOT NULL DEFAULT '',
+        ends_hash TEXT NOT NULL DEFAULT '',
+        unmatched TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'open',
+        changed INTEGER NOT NULL DEFAULT 0,
+        step_id TEXT,
+        last_run_id TEXT,
+        last_run_state TEXT,
+        last_run_at TEXT,
+        last_complete_at TEXT,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at TEXT
+      );
+      CREATE UNIQUE INDEX dp_lineage_proposals_key ON dp_lineage_proposals(source_id, origin, job_key);
+      CREATE INDEX dp_lineage_proposals_status ON dp_lineage_proposals(status, last_seen_at);
+      CREATE INDEX dp_lineage_proposals_step ON dp_lineage_proposals(step_id);
+      CREATE TABLE dp_lineage_proposal_elements (
+        proposal_id TEXT NOT NULL,
+        element_id TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        PRIMARY KEY (proposal_id, element_id, direction)
+      );
+      CREATE INDEX dp_lineage_proposal_elements_element ON dp_lineage_proposal_elements(element_id);
+      CREATE TABLE dp_lineage_tests (
+        source_id TEXT NOT NULL,
+        test_key TEXT NOT NULL,
+        element_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        test_name TEXT NOT NULL DEFAULT '',
+        column_name TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (source_id, test_key, element_id)
+      );
+      CREATE INDEX dp_elements_ol ON dp_elements(ol_namespace, ol_name);
+    `,
+  },
+  {
     // 0.24.0 (ADR 0036 phase 2, package B): quality results of elements (dbt tests, Data Metric Function results,
     // contract tests, the data-element check's volume and quality modes) – at most one row per element, source, name
     // and hour, kept 400 days; volume readings of the data-element check (the reading before); daily scorecard

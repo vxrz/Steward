@@ -227,7 +227,12 @@
       "Test",
       "dbt",
       "Data Metric Function",
-      "Data Metric Functions"
+      "Data Metric Functions",
+      "OpenLineage",
+      "manifest.json",
+      "run_results.json",
+      "Apache Camel",
+      "Node-RED"
     ]
   }
 }

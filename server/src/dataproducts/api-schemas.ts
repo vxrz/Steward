@@ -247,7 +247,15 @@ export const DataLineage = z.object({
   depth: z.number().int().nullable(),
   nodes: z.array(GraphNode),
   edges: z.array(
-    z.object({ id: z.string(), from: z.string(), to: z.string(), labels: z.array(z.string()), count: z.number().int(), hidden: z.boolean().optional() }),
+    z.object({
+      id: z.string(),
+      from: z.string(),
+      to: z.string(),
+      labels: z.array(z.string()),
+      count: z.number().int(),
+      hidden: z.boolean().optional(),
+      proposed: z.boolean().optional().describe('A way a lineage source reports that no step documents yet (an open proposal)'),
+    }),
   ),
   steps: z.array(
     z.object({
@@ -258,6 +266,7 @@ export const DataLineage = z.object({
       inputs: z.array(z.string()),
       outputs: z.array(z.string()),
       hidden: z.boolean(),
+      proposed: z.boolean().optional().describe('An open proposal of a lineage source, not a documented step'),
     }),
   ),
   truncated: z

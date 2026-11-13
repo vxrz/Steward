@@ -217,7 +217,21 @@ export const DATA_RUNNER_TOOLS = [
   'Spark',
   'AWS Glue',
   'script',
+  // 0.24.0 (owner): integration runtimes of plants and applications
+  'Apache Camel',
+  'Node-RED',
+  'Industrial Edge connector',
 ] as const;
+
+/**
+ * Tools whose name is translated in the step form (dataProducts:steps.runnerTools.<key>); the stored value stays the
+ * English name of DATA_RUNNER_TOOLS. The others are product names and read the same in every language.
+ */
+export const DATA_RUNNER_TOOL_LABEL_KEYS: Readonly<Partial<Record<(typeof DATA_RUNNER_TOOLS)[number], string>>> = {
+  'Apache Camel': 'apacheCamel',
+  'Node-RED': 'nodeRed',
+  'Industrial Edge connector': 'industrialEdgeConnector',
+};
 
 /** Kinds of transformation notes (ADR 0019's sink transformation kinds). */
 export const DATA_TRANSFORM_KINDS = ['rename', 'scale', 'unit', 'aggregate', 'filter', 'enrich', 'compute', 'format', 'other'] as const;
@@ -996,6 +1010,11 @@ export interface DataStep {
   hiddenOutputs: number;
   /** The reader may change it (edit on a product of its output elements) */
   canEdit: boolean;
+  /**
+   * 0.24.0 (ADR 0036 phase 2): the last run a lineage source reported for it – an OpenLineage job or a dbt model it was
+   * accepted from: the state, when, and the last complete run (freshness evidence of its outputs); null: none reported
+   */
+  lastRun?: { state: string; at: string; completeAt: string | null; origin: string; sourceId: string } | null;
   revision: number;
   createdAt: string;
   createdBy: string;

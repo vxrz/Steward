@@ -19,6 +19,11 @@ export interface DiscoveryContext {
   signal: AbortSignal;
   /** Something the run could not read without failing (a Schema Registry): kept on the run */
   warn: (w: DiscoveryProblem) => void;
+  /**
+   * 0.24.0: object dependencies a reader found (Snowflake OBJECT_DEPENDENCIES in account usage mode) – the job proposes
+   * steps from them after a complete run (lineage/snowflake.ts)
+   */
+  dependencies?: (deps: { referenced: string; referencing: string; referencingDomain: string }[]) => void;
 }
 
 /** A run's problem as the run history keeps it: an English message, and a code with params for the web app. */

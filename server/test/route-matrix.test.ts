@@ -471,6 +471,27 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/data-products/discovery-sources/:id': DESIGN,
   'POST /api/data-products/discovery-sources/:id/run': DESIGN,
   'GET /api/data-products/discovery-sources/:id/runs': USE,
+  // lineage from tools (0.24.0, ADR 0036 phase 2): sources and the inbox are seen by every user of the module (the matrix
+  // source has no owning teams), set up and decided by the module's managers – and who may change the step's products
+  'GET /api/data-products/lineage-sources': ALL,
+  'POST /api/data-products/lineage-sources': DESIGN,
+  'GET /api/data-products/lineage-sources/:id': ALL,
+  'PUT /api/data-products/lineage-sources/:id': DESIGN,
+  'DELETE /api/data-products/lineage-sources/:id': DESIGN,
+  'GET /api/data-products/lineage-sources/:id/tokens': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/tokens': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/tokens/:tokenId/rotate': DESIGN,
+  'DELETE /api/data-products/lineage-sources/:id/tokens/:tokenId': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/dbt/manifest': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/dbt/run-results': DESIGN,
+  'GET /api/data-products/lineage-proposals': ALL,
+  'GET /api/data-products/lineage-proposals/:id': ALL,
+  'POST /api/data-products/lineage-proposals/:id/accept': DESIGN,
+  'POST /api/data-products/lineage-proposals/:id/reject': DESIGN,
+  'POST /api/hooks/data-lineage/:sourceId': HOOK,
+  'POST /api/hooks/data-lineage/:sourceId/api/v1/lineage': HOOK,
+  'POST /api/hooks/data-lineage/:sourceId/dbt/manifest': HOOK,
+  'POST /api/hooks/data-lineage/:sourceId/dbt/run-results': HOOK,
   'GET /api/data-elements': ALL,
   'POST /api/data-elements': DESIGN,
   'GET /api/data-elements/:id': ALL,
@@ -1564,6 +1585,17 @@ const SESSION_ONLY = [
   'PUT /api/data-products/discovery-sources/:id',
   'DELETE /api/data-products/discovery-sources/:id',
   'POST /api/data-products/discovery-sources/:id/run',
+  // lineage sources, their push tokens (secrets that outlive an API token), dbt uploads and the decisions on proposals
+  // ("confirmed by a person", 0.24.0)
+  'POST /api/data-products/lineage-sources',
+  'PUT /api/data-products/lineage-sources/:id',
+  'DELETE /api/data-products/lineage-sources/:id',
+  'POST /api/data-products/lineage-sources/:id/tokens',
+  'POST /api/data-products/lineage-sources/:id/tokens/:tokenId/rotate',
+  'POST /api/data-products/lineage-sources/:id/dbt/manifest',
+  'POST /api/data-products/lineage-sources/:id/dbt/run-results',
+  'POST /api/data-products/lineage-proposals/:id/accept',
+  'POST /api/data-products/lineage-proposals/:id/reject',
   // splitting a platform's costs between data products (ADR 0036 WP4)
   'PUT /api/data-products/cost-allocations',
   // imports of data products files: a person decides, in a session (ADR 0036 security notes)
@@ -2278,6 +2310,9 @@ function fill(url: string): string {
       .replace(/^\/api\/data-contracts\/:id\/runs\/:runId/, `/api/data-contracts/${fx.contract}/runs/${fx.contractRun}`)
       // data products (ADR 0036): the fixtures' discovery source; the product, its port, consumer, step and member element
       .replace(/^\/api\/data-products\/discovery-sources\/:id/, `/api/data-products/discovery-sources/${fx.discoverySource}`)
+      // lineage from tools (0.24.0): the fixtures' OpenLineage source and its open proposal
+      .replace(/^\/api\/data-products\/lineage-sources\/:id/, `/api/data-products/lineage-sources/${fx.lineageSource}`)
+      .replace(/^\/api\/data-products\/lineage-proposals\/:id/, `/api/data-products/lineage-proposals/${fx.lineageProposal}`)
       .replace(/^\/api\/data-products\/:id\/steps\/:stepId/, `/api/data-products/${fx.dataProduct}/steps/${fx.dataStep}`)
       .replace(/:productId/g, fx.dataProduct!)
       .replace(/:objectId/g, fx.dataObject!)
@@ -3086,6 +3121,32 @@ beforeAll(async () => {
   fx.discoverySource = (
     await a('POST', '/data-products/discovery-sources', { name: 'Matrix discovery', platformId: snowflake, scope: ['SHOP'], enabled: false })
   ).id;
+  // an OpenLineage source with a push token, and the proposal of one job: the curated table → the matrix element
+  fx.lineageSource = (await a('POST', '/data-products/lineage-sources', { name: 'Matrix lineage', kind: 'openlineage', teamIds: [] })).id;
+  {
+    const t = (await a('POST', `/data-products/lineage-sources/${fx.lineageSource}/tokens`, { name: 'Matrix CI' })).token as string;
+    const { db } = await import('../src/db.js');
+    const ns = 'matrix://lineage';
+    db().run('UPDATE dp_elements SET ol_namespace = ?, ol_name = name_norm WHERE id IN (?, ?)', ns, fx.dataElement!, curated);
+    const names = db().all<{ id: string; ol_name: string }>('SELECT id, ol_name FROM dp_elements WHERE id IN (?, ?)', fx.dataElement!, curated);
+    const nameOf = (id: string) => names.find((x) => x.id === id)!.ol_name;
+    const res = await fetch(`${s.base}/api/hooks/data-lineage/${fx.lineageSource}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${t}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        eventType: 'COMPLETE',
+        eventTime: new Date().toISOString(),
+        run: { runId: 'matrix-run' },
+        job: { namespace: 'matrix', name: 'back-fill' },
+        inputs: [{ namespace: ns, name: nameOf(curated) }],
+        outputs: [{ namespace: ns, name: nameOf(fx.dataElement!) }],
+        producer: 'https://example.com/matrix',
+        schemaURL: 'https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent',
+      }),
+    });
+    if (res.status !== 200) throw new Error(`matrix lineage push: ${res.status} ${await res.text()}`);
+    fx.lineageProposal = db().get<{ id: string }>('SELECT id FROM dp_lineage_proposals WHERE source_id = ?', fx.lineageSource)!.id;
+  }
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;

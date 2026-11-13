@@ -78,7 +78,8 @@
     "step": "A step with many inputs and outputs",
     "deprecated": "Consumes a deprecated or retired port",
     "neighbour": "Outside the filters, connected to a match",
-    "plant": "A plant registry data collection that writes to an element"
+    "plant": "A plant registry data collection that writes to an element",
+    "proposed": "Proposed by a tool, not documented yet (dotted) – Data → Discovery decides"
   },
   "table": {
     "filter": "Filter the table",
@@ -168,7 +169,8 @@
     "more_other": "{{names}} and {{count}} more",
     "count_one": "{{count}} step",
     "count_other": "{{count}} steps",
-    "deprecated": "Deprecated"
+    "deprecated": "Deprecated",
+    "proposed": "Proposed"
   },
   "health": {
     "up": "Up",

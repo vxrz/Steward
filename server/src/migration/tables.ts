@@ -98,6 +98,12 @@ export const NOT_MOVED: Record<string, string> = {
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
   dp_volume_readings: 'the readings before of the data-element volume checks (0.24.0): read again on the target',
   cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
+  // lineage from tools (0.24.0, ADR 0036 phase 2): the push addresses and tokens are this instance's
+  dp_lineage_sources: 'lineage sources (OpenLineage, dbt) are push addresses of this instance: set them up again on the target and point the tools there',
+  dp_lineage_tokens: 'push tokens of lineage sources, only their hashes: created again on the target, like API tokens',
+  dp_lineage_proposals: 'proposed steps of the lineage sources (not moved, as the sources): the next push proposes them again; accepted steps move',
+  dp_lineage_proposal_elements: 'the elements of the proposed steps (not moved, as the proposals)',
+  dp_lineage_tests: 'the tests of the last dbt manifest of a lineage source (not moved, as the sources)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */

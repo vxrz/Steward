@@ -136,6 +136,19 @@ export function recordQualityResults(input: readonly DataQualityResultInput[]): 
 /** One result (a convenience over recordQualityResults). */
 export const recordQualityResult = (r: DataQualityResultInput): boolean => recordQualityResults([r]).recorded === 1;
 
+/**
+ * Forgets the dbt results that came through a lineage source (the source is deleted; package A): the results of
+ * source `dbt` whose element and test name are among the source's remembered dbt tests (`dp_lineage_tests`) – call it
+ * before those are deleted. One statement.
+ */
+export function forgetQualityResults(lineageSourceId: string): number {
+  return db().run(
+    `DELETE FROM dp_quality_results WHERE source = 'dbt' AND EXISTS (SELECT 1 FROM dp_lineage_tests t
+       WHERE t.source_id = ? AND t.element_id = dp_quality_results.element_id AND t.name = dp_quality_results.name)`,
+    lineageSourceId,
+  ).changes;
+}
+
 // ---------- reads (bulk) ----------
 
 /**

@@ -4,6 +4,7 @@
  *   /data-products[?filters]                       DataProductsPage
  *   /data-products/:id[/:tab]                      DataProductPage (ports, pipeline, elements, health, costs, access, links, history)
  *   /data-products/discovery[/:id]                 DataDiscoveryPage, DataDiscoverySourcePage
+ *   /data-products/lineage/:id                     DataLineageSourcePage (0.24.0: lineage from tools, ./lineage)
  *   /data-elements[?filters], /data-elements/:id[/:tab]   DataElementsPage, DataElementPage (lineage, checks)
  *   /data-objects, /data-objects/:id[/links]       DataObjectsPage, DataObjectPage
  *   /data-domains                                  DataDomainsPage
@@ -17,3 +18,4 @@ export { DataElementPage } from './ElementPage';
 export { DataObjectsPage, DataObjectPage } from './ObjectsPage';
 export { DataDomainsPage } from './DomainsPage';
 export { DataDiscoveryPage, DataDiscoverySourcePage } from './DiscoveryPage';
+export { LineageSourcePage as DataLineageSourcePage } from './lineage/LineageSources';

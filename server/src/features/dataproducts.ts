@@ -3,6 +3,7 @@ import { dataProductRoutes } from '../dataproducts/routes.js';
 import { dataProductHealthRoutes } from '../dataproducts/health-routes.js';
 import { dataProductViewRoutes } from '../dataproducts/views-routes.js';
 import { discoveryRoutes } from '../dataproducts/discovery/routes.js';
+import { dataLineageRoutes } from '../dataproducts/lineage/routes.js';
 import { dataProductCostRoutes } from '../dataproducts/costs-routes.js';
 import { DATA_PRODUCT_LINK_KIND_RESOLVERS } from '../dataproducts/links.js';
 import { dataProductTransferRoutes } from '../dataproducts/transfer-routes.js';
@@ -23,9 +24,10 @@ export default defineFeature({
   module: 'dataProducts',
   // the discovery sources first: /data-products/discovery-sources is not a product id; checks and health (WP3); the
   // pictures (WP6): the pipeline of a product, the product map, the lineage of an element; costs and scorecard (WP4);
-  // import and export, ODPS (WP7)
+  // import and export, ODPS (WP7); lineage sources, their push and the proposals (0.24.0, phase 2)
   routes: [
     discoveryRoutes,
+    dataLineageRoutes,
     dataProductRoutes,
     dataProductHealthRoutes,
     dataProductViewRoutes,
