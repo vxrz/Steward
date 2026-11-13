@@ -16,7 +16,7 @@ import { SbomImportModal, SbomLine, StackBadges } from '../components/catalogue/
 import { SystemFormModal } from './Systems';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DetailHeader } from '../components/page/DetailPage';
 import { FirewallNetworkPanel, NetworkAttributesView } from '../components/catalogue/network';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
@@ -215,7 +215,7 @@ export function SystemDetailPage() {
               </Text>
             </Stack>
           </Paper>
-          <OwningTeams kind="system" id={s.id} mt="md" />
+          <AccessTab kind="system" id={s.id} mt="md" />
           {s.backlinks.length > 0 && (
             <Paper withBorder p="md" mt="md" data-testid="system-backlinks">
               <Stack gap={4}>

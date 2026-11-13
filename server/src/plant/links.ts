@@ -8,6 +8,7 @@ import { siteRights, sitePermissions } from './access.js';
 import { plantEnabled } from './settings.js';
 import type { AssetRow, SiteRow } from './model.js';
 import { sinksOf } from './collections-model.js';
+import { catalogueScope, seesEntry } from './catalogue-access.js';
 
 /**
  * Sites and assets as link kinds (#218): documents, records, tickets, services and applications can name them, and
@@ -77,19 +78,22 @@ export const seesProfiles = (u = currentUser()): boolean => !!u && u.roles.some(
 type ProfileLinkRow = { id: string; name: string; manufacturer: string; model: string };
 const profileDetail = (p: ProfileLinkRow) => [p.manufacturer, p.model].filter(Boolean).join(' ') || undefined;
 
+// 0.21.0 (#293): a profile the reader may not see (owning teams, shares) is "not visible", like one that does not exist
 const profileLinkKind: LinkResolver = {
   resolve(id) {
     if (!plantEnabled() || !seesProfiles()) return null;
     const p = db().get<ProfileLinkRow>('SELECT id, name, manufacturer, model FROM plant_profiles WHERE id = ?', id);
-    return p ? { label: p.name, path: `/plant/profiles/${encodeURIComponent(p.id)}`, detail: profileDetail(p) } : null;
+    if (!p || !seesEntry(currentUser(), 'device_profile', p.id)) return null;
+    return { label: p.name, path: `/plant/profiles/${encodeURIComponent(p.id)}`, detail: profileDetail(p) };
   },
   search(q, limit): LinkTarget[] {
     if (!plantEnabled() || !seesProfiles()) return [];
     const text = q.trim().toLowerCase();
+    const scope = catalogueScope();
     // filtered here, not by a pattern (it matches case differently on SQLite and PostgreSQL)
     return db()
       .all<ProfileLinkRow>('SELECT id, name, manufacturer, model FROM plant_profiles ORDER BY name, id')
-      .filter((p) => !text || [p.name, p.id].some((x) => x.toLowerCase().includes(text)))
+      .filter((p) => scope.profile(p.id) && (!text || [p.name, p.id].some((x) => x.toLowerCase().includes(text))))
       .slice(0, limit)
       .map((p) => ({ kind: 'device-profile' as const, id: p.id, label: p.name, detail: profileDetail(p) }));
   },

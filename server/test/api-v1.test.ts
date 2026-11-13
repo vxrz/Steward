@@ -567,6 +567,12 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   if (apiService) await get('/services/{serviceId}/cost-plan', `/services/${apiService}/cost-plan`);
   // what the payment schedules of contracts still owe (ADR 0030)
   await listAll('/cost-commitments', '/cost-commitments');
+  // price books and estimates (0.21.0, ADR 0035)
+  for (const b of await listAll('/price-books', '/price-books')) {
+    await get('/price-books/{bookId}', `/price-books/${b.id}`);
+    await listAll('/price-books/{bookId}/items', `/price-books/${b.id}/items`);
+  }
+  for (const e of await listAll('/cost-estimates', '/cost-estimates')) await get('/cost-estimates/{estimateId}', `/cost-estimates/${e.id}`);
   for (const x of (await listAll('/objectives', '/objectives')).slice(0, 5)) await listAll('/objectives/{objectiveId}/samples', `/objectives/${x.id}/samples`);
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
@@ -702,6 +708,32 @@ describe('every endpoint', () => {
       amount: '100',
       currency: 'EUR',
       reference: 'INV-API',
+    });
+    // a price book and an estimate of the service (0.21.0, ADR 0035)
+    const book = await s.api('POST', '/costs/price-books', { name: 'API prices', kind: 'list', provider: 'API AG', currency: 'EUR' });
+    await s.api('PUT', `/costs/price-books/${book.id}/entries`, {
+      entries: [
+        {
+          sku: 'req',
+          name: 'Requests',
+          unit: '{request}',
+          price: '0.40',
+          block: 1000000,
+          currency: 'EUR',
+          tiers: [
+            { from: '0', price: '0.40' },
+            { from: '1000000', price: '0.3' },
+          ],
+        },
+      ],
+    });
+    await s.api('POST', '/costs/estimates', {
+      title: 'API estimate',
+      ownerKind: 'service',
+      ownerId: apiService,
+      currency: 'EUR',
+      lines: [{ provider: 'API AG', sku: 'req', quantity: { low: '1000', expected: '2000000', high: '5000000' }, unit: '{request}' }],
+      adjustments: [{ kind: 'percent', percent: '-5', reason: 'API what-if' }],
     });
     await s.api('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
     // a system it runs on (#129), with a component per environment

@@ -234,7 +234,8 @@ test('the Owning teams panel previews opening a supplier and asks about contacts
   // a company-wide contact, and nothing to scope it to: the administrator chooses
   expect((await api.post(`/api/suppliers/${sup.id}/contacts`, { data: { name: 'Team desk', email: 'desk@team.example' } })).ok()).toBe(true);
   try {
-    await page.goto(`/suppliers/${sup.id}`);
+    // the Owning teams panel is on the supplier's Access tab (ADR 0033)
+    await page.goto(`/suppliers/${sup.id}?tab=access`);
     const teams = page.getByRole('combobox', { name: 'Teams' });
     await teams.click();
     await teams.press('Backspace');

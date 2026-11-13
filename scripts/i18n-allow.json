@@ -212,7 +212,11 @@
       "Insights Hub: {{target}}",
       "Insights Hub",
       "Bucket",
-      "Measurement"
+      "Measurement",
+      "Credits",
+      "Tokens",
+      "Definition (YAML)",
+      "{{value}} % ad hoc: {{reason}}"
     ]
   }
 }

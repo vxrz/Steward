@@ -133,7 +133,8 @@
       "tickets": "Tickets",
       "scorecard": "Scorecard",
       "costs": "Cost plan",
-      "responsibilities": "Responsibilities"
+      "responsibilities": "Responsibilities",
+      "access": "Access"
     },
     "archivedScorecard": "An archived service has no scorecard.",
     "systems": {

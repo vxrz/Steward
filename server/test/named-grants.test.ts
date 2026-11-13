@@ -159,8 +159,9 @@ describe('catalogue owners', () => {
     await confirm();
     await tara('PUT', `/services/${service}`, { name: 'Order intake', owners: ['team:orders', 'user:vic'] });
     expect((await granted(service))[0]).toMatchObject({ entityType: 'service', details: { field: 'owners', granted: ['user:vic'] } });
+    // an owner of a service is an implied Edit share (ADR 0033 part 2), computed from the owner field
     const why = await vic('GET', `/access/explain?kind=service&id=${service}`);
-    expect(why.reasons).toEqual([expect.objectContaining({ source: 'named', as: 'owner', subject: 'user:vic' })]);
+    expect(why.reasons).toEqual([expect.objectContaining({ source: 'implied', as: 'owner', subject: 'user:vic', level: 'edit' })]);
   });
 
   it('say before saving who is outside (the forms’ hint), to who may change the item', async () => {

@@ -175,5 +175,60 @@
   "state": {
     "on": "On",
     "off": "Off"
+  },
+  "notYours": {
+    "title": "You do not use this module",
+    "text": "Ask an administrator if you need it."
+  },
+  "access": {
+    "usedBy": "Used by",
+    "open": "Who may use it",
+    "openLabel": "Who may use it: {{name}}",
+    "title": "Who may use {{name}}",
+    "intro": "Everyone signed in uses a module by default. Restricted to selected teams and users, it is left out for everyone else – its pages, menu entries, notifications and report sections. Administrators and auditors always use every module.",
+    "modeLabel": "Who uses it",
+    "mode": {
+      "everyone": "Everyone signed in",
+      "selected": "Selected teams and users"
+    },
+    "modeHint": {
+      "everyone": "The default: everyone who may sign in to {{brand}}.",
+      "selected": "Only the teams and users below (a team: its members). A single sign-on group reaches the module through the team it is mapped to."
+    },
+    "subjects": "Teams and users",
+    "subjectsHint": "Teams are kept up to date by their members and by the single sign-on team mapping (Users → Teams).",
+    "unknownHint": "A deleted team stays on the list and matches nobody, so deleting a team never opens the module.",
+    "now": {
+      "everyone": "Now: everyone signed in uses this module.",
+      "selected": "Now: {{subjects}} (and administrators and auditors).",
+      "nobody": "Now: administrators and auditors only."
+    },
+    "previewing": "Working out who gains and who loses the module…",
+    "previewFailed": "Could not work out who gains and who loses the module. Try again.",
+    "previewTitle": "Before you save",
+    "nobodyChanges": "Nobody gains or loses the module.",
+    "gains_one": "{{count}} person gains the module:",
+    "gains_other": "{{count}} people gain the module:",
+    "loses_one": "{{count}} person loses the module:",
+    "loses_other": "{{count}} people lose the module:",
+    "more": "and {{count}} more",
+    "owningTeamsWithout": "These teams own items of the module but would not use it: {{teams}}. Their members keep the items' rights but cannot open them.",
+    "widensHint": "This widens who uses the module: saving asks you to confirm that it is you.",
+    "confirmTitle": "Restrict {{name}}",
+    "confirmLoses_one": "{{count}} person loses the module. Their notifications and report sections of it stop at once.",
+    "confirmLoses_other": "{{count}} people lose the module. Their notifications and report sections of it stop at once.",
+    "confirmNobody": "Nobody loses the module now, but the list gets shorter.",
+    "confirm": "Restrict access",
+    "saved": "Saved who may use {{name}}",
+    "notSaved": "Who may use the module was not saved",
+    "through": {
+      "everyone": "everyone signed in",
+      "admin": "as an administrator",
+      "auditor": "as an auditor",
+      "user": "named on its list",
+      "team": "through team {{team}}"
+    },
+    "uses": "Uses {{name}} {{through}}",
+    "notUses": "Does not use {{name}}"
   }
 }

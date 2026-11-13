@@ -7,7 +7,9 @@ import type { AccessExplanation, AccessReason, OwnedKind, Team, UserInfo } from 
 import { get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { supplierKeys } from '../queryKeys';
+import { fmtDay } from '../format';
 import { OpenSupplierModal } from './suppliers/SharedSuppliers';
+import { useModuleUseText } from './modules/moduleUse';
 
 interface OwningTeamsResponse {
   teams: { id: string; name: string }[];
@@ -18,7 +20,7 @@ interface OwningTeamsResponse {
  * Owning teams of a process or platform (#131): members of these teams have their roles in the team on it; everyone
  * else only what the access list below gives. Administrators change them; everybody can see why they have access.
  */
-export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?: 'md' }) {
+export function OwningTeams({ kind, id, mt, restricted }: { kind: OwnedKind; id: string; mt?: 'md'; restricted?: boolean }) {
   const { t } = useTranslation(['access', 'common']);
   const qc = useQueryClient();
   const key = ['owning-teams', kind, id];
@@ -62,7 +64,7 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
           </Button>
         </Group>
         <Text size="sm" c="dimmed">
-          {current.length ? t(`owning.hintOwned.${kind}`) : t(`owning.hintNone.${kind}`)}
+          {current.length ? t(`owning.hintOwned.${kind}`) : restricted ? t('owning.hintRestricted') : t(`owning.hintNone.${kind}`)}
         </Text>
         {canChange && kind === 'service' && <ServiceBulkTeams serviceId={id} onDone={() => qc.invalidateQueries({ queryKey: key })} />}
         {canChange ? (
@@ -118,6 +120,7 @@ function ExplainModal({ kind, id, onClose }: { kind: OwnedKind; id: string; onCl
   // others' rights: administrators and auditors (the server checks it as well)
   const mayAskForOthers = isAdmin || caps.viewAudit;
   const [user, setUser] = useState(username);
+  const moduleUse = useModuleUseText();
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<UserInfo[]>('/users'), enabled: isAdmin });
   const q = useQuery({
     queryKey: ['access-explain', kind, id, user],
@@ -138,6 +141,12 @@ function ExplainModal({ kind, id, onClose }: { kind: OwnedKind; id: string; onCl
         )}
         {q.data && (
           <>
+            {q.data.module && (
+              <Text size="sm" c={q.data.module.uses ? undefined : 'orange'} data-testid="explain-module">
+                {moduleUse(q.data.module)}
+                {!q.data.module.uses && ` – ${t('owning.moduleNotUsed')}`}
+              </Text>
+            )}
             <Text size="sm">
               {q.data.permissions.length
                 ? t('owning.rights', { user: q.data.user, rights: q.data.permissions.map((p) => t(`common:permissions.${p}`, { defaultValue: p })).join(', ') })
@@ -180,6 +189,21 @@ function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['
       return r.as === 'responsible'
         ? t('owning.reason.namedResponsible', { subject: r.subject, rights })
         : t('owning.reason.namedOwner', { subject: r.subject, rights });
+    case 'implied':
+      // ADR 0033 part 2: "Owner (user:dana): Edit (implied)" – computed from the owner field, not stored
+      return t('owning.reason.implied', {
+        as: t(`shares.as.${r.as ?? 'owner'}`),
+        subject: r.subject,
+        level: t(`owning.level.${r.level ?? 'edit'}`),
+      });
+    case 'share': {
+      // ADR 0033: "Shared with team Payments – Edit, run (until 31 Jan 2027)"
+      const level = [t(`owning.level.${r.level ?? 'view'}`), ...(r.actions ?? []).map((a) => t(`common:permissions.${a}`, { defaultValue: a }))].join(', ');
+      const name = (r.subject ?? '').replace(/^(user|team|role):/, '');
+      const type = r.subject?.startsWith('team:') ? 'shareTeam' : r.subject?.startsWith('role:') ? 'shareRole' : 'shareUser';
+      const text = t(`owning.reason.${type}`, { name: type === 'shareRole' ? t(`common:roles.${name}`, { defaultValue: name }) : name, level });
+      return r.expiresAt ? t('owning.reason.until', { text, date: fmtDay(r.expiresAt) }) : text;
+    }
     default:
       return t('owning.reason.accessList', { subject: r.subject, rights });
   }

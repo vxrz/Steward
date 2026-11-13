@@ -15,6 +15,7 @@ export const NOTIFICATION_EVENTS = [
   'ticket.unchecked',
   'summary.daily',
   'access.undocumented',
+  'access.share_expiring',
   'document.review',
   'stack.eol',
   'stack.release',
@@ -42,6 +43,7 @@ export const NOTIFICATION_EVENTS = [
   'soa.approval_waiting',
   'cost.booking_due',
   'cost.volume',
+  'cost.price_review_due',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -93,6 +95,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'ticket.unchecked': 'An open ticket reference you are responsible for was not checked for a while',
   'summary.daily': 'The daily summary of people who turned it on in their profile (in-app and e-mail only)',
   'access.undocumented': 'The access reconciliation found access changes without an access change entry',
+  'access.share_expiring': 'A share of an item you manage ends in 7 days (it is removed then unless someone extends it)',
   'document.review': 'A living document you review is due for its periodic review soon (or is overdue)',
   'stack.eol': 'A component of an application you own reaches the end of life of its release cycle soon (or reached it)',
   'stack.release': 'A new major release of a product in the tech stack of an application or system you are responsible for',
@@ -121,6 +124,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'cost.booking_due': 'Contract payments of last month of a service you own have no cost entry yet (off by default: turn it on in your profile)',
   'cost.volume':
     'A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum',
+  'cost.price_review_due': 'A price book you maintain by hand is due for its review (Mark as checked when its prices are still right)',
 };
 
 /**

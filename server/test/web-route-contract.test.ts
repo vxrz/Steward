@@ -44,8 +44,6 @@ const BASE_HELPERS = new Set(['withBase', 'appUrl']);
  * clients. A key ending in "/*" covers everything below it.
  */
 const API_ONLY: Record<string, string> = {
-  // review 0.20.0: the counts per kind before deleting a team that alone owns items (the Users page shows the refusal
-  // TEAM_OWNS_RESOURCES today; its dialog to choose the team they move to is a web change of its own)
   // the web UI itself and its files
   'GET /': 'the web UI (hint page without a build)',
   'GET /*': 'the web UI (static files)',
@@ -60,6 +58,8 @@ const API_ONLY: Record<string, string> = {
   'DELETE /api/v1/*': 'public API (docs/API.md)',
   'GET /api/docs/*': 'Swagger UI of the public API (linked from the URL /api/public-api returns)',
   'GET /api/docs': 'Swagger UI of the public API (linked from the URL /api/public-api returns)',
+  'GET /api/costs/calculators/:calculatorId/versions/:n':
+    'a published version of a cost calculator, for scripts and reviews (0.21.0); the editor shows the current one',
   'POST /api/mcp': 'MCP endpoint (docs/MCP.md)',
   'GET /api/mcp': 'MCP endpoint: answers 405',
   'PUT /api/mcp': 'MCP endpoint: answers 405',

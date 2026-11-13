@@ -725,6 +725,45 @@ describe.each(versions)('upgrade from %s', (version) => {
     expect((await admin('GET', '/teams')).every((t: any) => !Object.keys(t.memberRoles ?? {}).length)).toBe(true);
   });
 
+  it('gives nobody access and takes none away on services, applications, systems and suppliers (ADR 0033)', async () => {
+    const user = client();
+    await user('POST', '/auth/login', { username: m.approver, password: m.demoPassword });
+    const ids = (x: any) => (Array.isArray(x) ? x : (x.items ?? [])).map((y: any) => ({ id: y.id, owners: (y.owners ?? []) as string[] }));
+    const name = String(m.approver).toLowerCase();
+    // the subjects that named the approver as an owner in 0.20: the user and the teams they are a member of
+    const teams = ((await admin('GET', '/teams')) as { name: string; members?: unknown }[])
+      .filter((t) =>
+        JSON.stringify(t.members ?? [])
+          .toLowerCase()
+          .includes(`"${name}"`),
+      )
+      .map((t) => `team:${t.name.toLowerCase()}`);
+    const mine = new Set([`user:${name}`, ...teams]);
+    const roles = ((await user('GET', '/auth/me')) as { user: { roles: string[] } }).user.roles;
+    const editsByRole = roles.some((r) => r === 'admin' || r === 'designer');
+    for (const [kind, url] of [
+      ['service', '/services'],
+      ['application', '/applications'],
+      ['system', '/systems'],
+      ['supplier', '/suppliers'],
+    ] as const) {
+      const items = ids(await admin('GET', url).catch(() => []));
+      for (const it of items.slice(0, 5)) {
+        // no share is stored and nothing is Restricted: owners stay a field, their Edit is implied
+        const v = await admin('GET', `/access/${kind}/${it.id}/shares`);
+        expect(v, `${kind} ${it.id}`).toMatchObject({ shares: [], restricted: false });
+        // the approver has the rights of 0.20 (no team owns anything after the upgrade): view, and edit as an owner
+        const why = await user('GET', `/access/explain?kind=${kind}&id=${it.id}`);
+        const owner = it.owners.some((o: string) => mine.has(o.toLowerCase()));
+        expect(
+          why.permissions.filter((p: string) => p !== 'manage'),
+          `${kind} ${it.id}`,
+        ).toEqual(owner || editsByRole ? ['view', 'edit'] : ['view']);
+        expect(why.reasons.some((r: { source: string }) => r.source === 'share')).toBe(false);
+      }
+    }
+  });
+
   it('keeps the audit log valid after working on the upgraded data', async () => {
     expect((await admin('GET', '/audit/verify')).ok).toBe(true);
   });

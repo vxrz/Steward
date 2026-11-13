@@ -358,6 +358,39 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/costs/platform-plans/:platformId/imports/:importId': DESIGN,
   // an application's or system's "Costs and contracts" (0.19.0): who may see it
   'GET /api/costs/attribution/:kind/:id': ALL,
+  // price books, calculators and estimates (0.21.0, ADR 0035): list books, calculators and the dry run for everyone in
+  // Costs; books and calculators without owning teams kept by the costs managers (designers); estimates as the cost plan
+  'GET /api/costs/price-books': ALL,
+  'POST /api/costs/price-books': DESIGN,
+  'GET /api/costs/price-books/:bookId': ALL,
+  'PUT /api/costs/price-books/:bookId': DESIGN,
+  'DELETE /api/costs/price-books/:bookId': DESIGN,
+  'PUT /api/costs/price-books/:bookId/entries': DESIGN,
+  'GET /api/costs/price-books/:bookId/versions/:n': ALL,
+  'POST /api/costs/price-books/:bookId/import/preview': DESIGN,
+  'POST /api/costs/price-books/:bookId/import': DESIGN,
+  'POST /api/costs/price-books/:bookId/check': DESIGN,
+  'GET /api/costs/calculators': ALL,
+  'POST /api/costs/calculators': DESIGN,
+  'GET /api/costs/calculators/:calculatorId': ALL,
+  'PUT /api/costs/calculators/:calculatorId': DESIGN,
+  'DELETE /api/costs/calculators/:calculatorId': DESIGN,
+  'GET /api/costs/calculators/:calculatorId/export': ALL,
+  'GET /api/costs/calculators/:calculatorId/versions/:n': ALL,
+  'POST /api/costs/calculate': ALL,
+  'GET /api/costs/estimates': ALL,
+  'POST /api/costs/estimates': DESIGN,
+  'GET /api/costs/estimates/:estimateId': ALL,
+  'PUT /api/costs/estimates/:estimateId': DESIGN,
+  'DELETE /api/costs/estimates/:estimateId': DESIGN,
+  'POST /api/costs/estimates/:estimateId/recalculate': DESIGN,
+  'POST /api/costs/estimates/:estimateId/accept': DESIGN,
+  'GET /api/costs/estimates/:estimateId/proposals': ALL,
+  'POST /api/costs/estimates/:estimateId/proposals': DESIGN,
+  'POST /api/costs/estimates/:estimateId/update-lines': DESIGN,
+  'GET /api/costs/fx-rates': ALL,
+  'PUT /api/costs/fx-rates': DESIGN,
+  'DELETE /api/costs/fx-rates': DESIGN,
   // data contracts (#221), here the demo's "Shop orders" (no owning team): everyone who works in Steward sees and checks
   // them, operators test them, designers create and change them
   'GET /api/data-contracts': ALL,
@@ -590,6 +623,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/reports/:id/download': ALL,
   'GET /api/report-schedules': ALL,
   'POST /api/report-schedules': NOT_VIEWER,
+  'POST /api/report-schedules/recipients-preview': NOT_VIEWER,
   'GET /api/report-schedules/reports': ALL,
   'GET /api/report-schedules/:id': ADMIN_AUDITOR,
   'PUT /api/report-schedules/:id': ADMIN,
@@ -1041,6 +1075,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/scorecard': ALL,
   'GET /api/v1/services/:serviceId/cost-plan': ALL,
   'GET /api/v1/cost-commitments': ALL,
+  // price books and estimates (0.21.0, ADR 0035): what the token owner may see
+  'GET /api/v1/price-books': ALL,
+  'GET /api/v1/price-books/:bookId': ALL,
+  'GET /api/v1/price-books/:bookId/items': ALL,
+  'GET /api/v1/cost-estimates': ALL,
+  'GET /api/v1/cost-estimates/:estimateId': ALL,
   'GET /api/v1/objectives': ALL,
   'GET /api/v1/objectives/:objectiveId/samples': ALL,
   'GET /api/v1/access-changes': ALL,
@@ -1119,6 +1159,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/access/explain': ALL,
   // which named users and teams are outside an item's owning teams (#195): the forms' hint; who may change the item
   'POST /api/access/named-outside': ALL,
+  // the Access tab (ADR 0033, #290) of the demo service: whoever sees it reads it (the share list only who manages
+  // it); designers and administrators manage it by role; administrators switch Restricted
+  'GET /api/access/:kind/:id/shares': ALL,
+  'PUT /api/access/:kind/:id/shares': DESIGN,
+  'PUT /api/access/:kind/:id/scope': ADMIN,
+  'POST /api/access/:kind/:id/preview': DESIGN,
 
   // ---- daily summary ----
   'GET /api/me/daily-summary': ALL,
@@ -1198,6 +1244,10 @@ const EXPECT: Record<string, Access> = {
   // ---- the module registry (0.11.0, ADR 0016): the switches are the administrators' (a session, step-up) ----
   'GET /api/settings/modules': ADMIN,
   'PUT /api/settings/modules/:id': ADMIN,
+  // module access (0.21.0, ADR 0034): who uses a module – administrators, in a signed-in session
+  'GET /api/settings/modules/:id/access': ADMIN,
+  'PUT /api/settings/modules/:id/access': ADMIN,
+  'POST /api/settings/modules/:id/access/preview': ADMIN,
   // what the signed-in person may see (the sidebar, honest empty states): two booleans per area, their own
   'GET /api/me/visibility': ALL,
   // the map of sites (#234): its source is the administrators' (a session); tiles for everyone who sees the registry
@@ -1290,6 +1340,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/plant/sites/:siteId/documentation': PLANT,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
+  'GET /api/plant/catalogue/hidden': PLANT,
   'POST /api/plant/profiles': DESIGN,
   // 0.12.0: extract a base profile (the candidates and the preview change nothing)
   'POST /api/plant/profiles/extract-base/candidates': DESIGN,
@@ -1387,6 +1438,15 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // shares (ADR 0033 part 7): share lists name people and are read and changed in the app
+  'GET /api/access/:kind/:id/shares',
+  'PUT /api/access/:kind/:id/shares',
+  'PUT /api/access/:kind/:id/scope',
+  'POST /api/access/:kind/:id/preview',
+  // module access (ADR 0034): tokens act with their owner's module access, they never change it
+  'GET /api/settings/modules/:id/access',
+  'PUT /api/settings/modules/:id/access',
+  'POST /api/settings/modules/:id/access/preview',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -1428,6 +1488,26 @@ const SESSION_ONLY = [
   'POST /api/costs/platform-plans/:platformId/entries/import/preview',
   'POST /api/costs/platform-plans/:platformId/entries/import',
   'DELETE /api/costs/platform-plans/:platformId/imports/:importId',
+  // price books, calculators and estimates (0.21.0, ADR 0035 part 8): every write is a person's in the app
+  'POST /api/costs/price-books',
+  'PUT /api/costs/price-books/:bookId',
+  'DELETE /api/costs/price-books/:bookId',
+  'PUT /api/costs/price-books/:bookId/entries',
+  'POST /api/costs/price-books/:bookId/import/preview',
+  'POST /api/costs/price-books/:bookId/import',
+  'POST /api/costs/price-books/:bookId/check',
+  'POST /api/costs/calculators',
+  'PUT /api/costs/calculators/:calculatorId',
+  'DELETE /api/costs/calculators/:calculatorId',
+  'POST /api/costs/estimates',
+  'PUT /api/costs/estimates/:estimateId',
+  'DELETE /api/costs/estimates/:estimateId',
+  'POST /api/costs/estimates/:estimateId/recalculate',
+  'POST /api/costs/estimates/:estimateId/accept',
+  'POST /api/costs/estimates/:estimateId/proposals',
+  'POST /api/costs/estimates/:estimateId/update-lines',
+  'PUT /api/costs/fx-rates',
+  'DELETE /api/costs/fx-rates',
   'PUT /api/settings/modules/:id',
   'GET /api/settings/plant/map',
   'PUT /api/settings/plant/map',
@@ -1567,6 +1647,13 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/vault/passphrase': 'always',
   // the Teams bot (ADR 0013): its credential and where decisions can be taken
   'PUT /api/settings/teams-bot': 'always',
+  // a share that gives someone a right, Restricted switched off (ADR 0033 part 5); narrowing never asks
+  'PUT /api/access/:kind/:id/shares': { sensitive: { shares: [{ subject: 'user:vera', level: 'view' }] }, harmless: { shares: [] } },
+  'PUT /api/access/:kind/:id/scope': {
+    sensitive: { restricted: false },
+    harmless: { restricted: true },
+    path: () => `/api/access/service/${fx.serviceRestricted}/scope`,
+  },
   // adding an owning team gives its members their roles on the resource (#131)
   'PUT /api/owning-teams/:kind/:id': {
     get sensitive() {
@@ -1773,6 +1860,12 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/settings/plant/map': { sensitive: { source: 'openfreemap' }, harmless: { source: 'osm' } },
   // switching a module (0.11.0, ADR 0016); repeating its state is harmless – the plant registry's own switch, too
   'PUT /api/settings/modules/:id': { sensitive: { enabled: false }, harmless: { enabled: true } },
+  // widening who uses a module (ADR 0034): opening the fixtures' restricted Teams bot module; keeping it as it is: no step-up
+  'PUT /api/settings/modules/:id/access': {
+    sensitive: { mode: 'everyone', grants: [] },
+    harmless: { mode: 'selected', grants: [] },
+    path: () => '/api/settings/modules/teamsBot/access',
+  },
   'PUT /api/settings/plant': {
     sensitive: { enabled: false, enterprise: '', labels: {}, fields: {} },
     harmless: { enabled: true, enterprise: '', labels: {}, fields: {} },
@@ -2032,6 +2125,8 @@ function fill(url: string): string {
       // the module registry (ADR 0016): a module the fixtures do not depend on
       .replace(/\/api\/settings\/modules\/:id/, '/api/settings/modules/statusPages')
       .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
+      // the Access tab (ADR 0033): the demo service
+      .replace(/\/api\/access\/:kind\/:id/, `/api/access/service/${fx.service}`)
       .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
       .replace(/\/api\/costs\/attribution\/:kind\/:id/, `/api/costs/attribution/application/${fx.application}`)
       // database schemas (#222): the demo database platform, the newest snapshot
@@ -2077,6 +2172,10 @@ function fill(url: string): string {
       .replace(/:monitorId/g, fx.monitor!)
       .replace(/:recordId/g, fx.record!)
       .replace(/:serviceId/g, fx.service!)
+      // price books, calculators and estimates (0.21.0): the matrix's own
+      .replace(/:bookId/g, fx.priceBook!)
+      .replace(/:calculatorId/g, fx.calculator!)
+      .replace(/:estimateId/g, fx.estimate!)
       .replace(/:lineId/g, fx.planLine!)
       .replace(/:entryId/g, fx.planEntry!)
       .replace(/:teamId/g, fx.team!)
@@ -2223,6 +2322,9 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
   'POST /api/access/named-outside': { kind: 'service', subjects: ['user:vera'] },
+  'PUT /api/access/:kind/:id/shares': { shares: [] },
+  'PUT /api/access/:kind/:id/scope': { restricted: true },
+  'POST /api/access/:kind/:id/preview': { shares: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },
@@ -2293,6 +2395,8 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/suppliers/:id/certificates/:certificateId': { kind: 'iso27001', validUntil: '2030-01-01' },
   'PUT /api/settings/plant': { enabled: true, enterprise: '', labels: {}, fields: {} },
   'PUT /api/settings/modules/:id': { enabled: true },
+  'PUT /api/settings/modules/:id/access': { mode: 'everyone', grants: [] },
+  'POST /api/settings/modules/:id/access/preview': { mode: 'selected', grants: [] },
   'PUT /api/settings/plant/map': { source: 'osm' },
   'POST /api/settings/plant/map/check': { kind: 'raster', url: 'https://tiles.example.com/{z}/{x}/{y}.png', attribution: 'Example tiles' },
   'POST /api/plant/sites': { id: 'matrix-new', name: 'Matrix new site' },
@@ -2683,6 +2787,12 @@ beforeAll(async () => {
     contractTeam: (await a('POST', `/suppliers/${supplierTeam}/contracts`, { title: 'Matrix team contract', owners: ['team:matrix owners'] })).contracts.find(
       (c: { title: string }) => c.title === 'Matrix team contract',
     ).id as string,
+    // a Restricted service (ADR 0033): switching it off gives the instance roles their defaults back (step-up)
+    serviceRestricted: await (async () => {
+      const id = (await a('POST', '/services', { name: 'Matrix restricted service', owners: [] })).id as string;
+      await a('PUT', `/access/service/${id}/scope`, { restricted: true });
+      return id;
+    })(),
     // a platform of another team (security review 0.19.0 M1): covering it gives that team the contract
     platformOutside: await (async () => {
       const id = (await a('POST', '/platforms', { name: 'Matrix outside platform', kind: 'rest', baseUrl: 'https://matrix-outside.example' })).id as string;
@@ -2820,6 +2930,19 @@ beforeAll(async () => {
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
   QUERY['GET /api/costs/schedules'] = `?serviceId=${fx.service}`;
+  // a price book, a calculator and an estimate of the matrix service (0.21.0, ADR 0035)
+  fx.priceBook = (await a('POST', '/costs/price-books', { name: 'Matrix prices', kind: 'list', provider: 'Matrix AG', currency: 'EUR' })).id;
+  await a('PUT', `/costs/price-books/${fx.priceBook}/entries`, { entries: [{ sku: 'x', name: 'X', unit: 'h', price: '1', currency: 'EUR' }] });
+  fx.calculator = (
+    await a('POST', '/costs/calculators', {
+      definition: 'kind: costCalculator\nid: matrix\nname: Matrix\nlines:\n  - { item: { provider: Matrix AG, sku: x }, quantity: 2, unit: h }\n',
+      publish: true,
+    })
+  ).id;
+  fx.estimate = (
+    await a('POST', '/costs/estimates', { title: 'Matrix estimate', ownerKind: 'service', ownerId: fx.service, currency: 'EUR', calculatorId: fx.calculator })
+  ).id;
+  QUERY['GET /api/costs/estimates'] = `?ownerKind=service&ownerId=${fx.service}`;
   const vaultPlatform = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'privilege-vault').id;
   QUERY['GET /api/credentials/vault-secrets'] = `?platformId=${vaultPlatform}&q=`;
   // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
@@ -2908,6 +3031,12 @@ beforeAll(async () => {
       new Date().toISOString(),
       new Date().toISOString(),
     );
+  }
+  // module access (ADR 0034): the Teams bot module restricted to administrators and auditors (its one route is for
+  // administrators anyway) – the step-up of widening it is checked below
+  {
+    const { db } = await import('../src/db.js');
+    db().run("INSERT INTO module_access (module_id, mode, updated_by, updated_at) VALUES ('teamsBot', 'selected', 'admin', ?)", new Date().toISOString());
   }
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {
@@ -3109,6 +3238,61 @@ describe('route permission matrix', () => {
     }
     expect(problems).toEqual([]);
   });
+
+  it('answers 404 MODULE_NO_ACCESS on every route of a restricted module to the roles that do not use it (ADR 0034)', async () => {
+    const { db } = await import('../src/db.js');
+    const { moduleOfRoute } = await import('@sm/shared');
+    const { routeAccess } = await import('../src/app.js');
+    const declared = routeAccess(s.app);
+    // the costs module, used by its list (the designer) – administrators and auditors use every module
+    const now = new Date().toISOString();
+    db().run("INSERT INTO module_access (module_id, mode, updated_by, updated_at) VALUES ('costs', 'selected', 'admin', ?)", now);
+    db().run(
+      "INSERT INTO module_grants (id, module_id, subject, role, created_by, created_at) VALUES ('mg_matrix', 'costs', 'user:dana', NULL, 'admin', ?)",
+      now,
+    );
+    const problems: string[] = [];
+    const b = bodies();
+    let checked = 0;
+    const send = async (who: Who, method: string, url: string, body: unknown) => {
+      const headers: Record<string, string> = { 'x-sm-client': '1' };
+      if (typeof who === 'object') headers.authorization = `Bearer ${who.bearer}`;
+      else Object.assign(headers, authHeaders(cookies[who as Role]));
+      const withBody = method !== 'GET' && method !== 'DELETE';
+      if (withBody) headers['content-type'] = 'application/json';
+      const res = await fetch(s.base + url, { method, headers, redirect: 'manual', body: withBody ? JSON.stringify(body ?? {}) : undefined });
+      const text = await res.text();
+      return { status: res.status, code: (text.startsWith('{') ? (JSON.parse(text) as { code?: string }).code : undefined) ?? '' };
+    };
+    try {
+      for (const r of routes) {
+        const k = key(r);
+        const access = EXPECT[k];
+        if (!Array.isArray(access) || moduleOfRoute(r.url) !== 'costs') continue;
+        const v1 = r.url.startsWith('/api/v1/');
+        // the roles that do not use the module: refused before the route's code, whatever they send
+        for (const role of ['operator', 'approver', 'viewer'] as Role[]) {
+          const got = await send(v1 ? { bearer: readTokens[role] } : role, r.method, target(r), b[k] ?? {});
+          checked++;
+          // a route that declares its roles refuses the others before anything else (#16): never served either
+          if (declared[k]?.roles && !declared[k]!.roles!.includes(role) && got.status === 403 && got.code === 'FORBIDDEN') continue;
+          if (got.status !== 404 || got.code !== 'MODULE_NO_ACCESS') problems.push(`${k} as ${role}: ${got.status} ${got.code}`);
+        }
+        if (r.method !== 'GET') continue;
+        // the designer on the list, administrators and auditors: served as before
+        for (const role of ['admin', 'auditor', 'designer'] as Role[]) {
+          if (!access.includes(role) || NO_POSITIVE.has(k)) continue;
+          const got = await send(v1 ? { bearer: readTokens[role] } : role, r.method, target(r), {});
+          if (!(got.status >= 200 && got.status < 400)) problems.push(`${k} as ${role}: ${got.status} ${got.code} (must be served)`);
+        }
+      }
+    } finally {
+      db().run("DELETE FROM module_grants WHERE module_id = 'costs'");
+      db().run("DELETE FROM module_access WHERE module_id = 'costs'");
+    }
+    expect(checked, 'routes of the costs module were tried').toBeGreaterThan(30);
+    expect(problems).toEqual([]);
+  }, 120_000);
 
   it('refuses callers by the declared access before reading the body (#16)', async () => {
     const { routeAccess } = await import('../src/app.js');

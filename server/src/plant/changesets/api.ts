@@ -25,11 +25,13 @@ import { me } from '../../auth/access.js';
 import { ROUTE_LIMITS } from '../../rateLimits.js';
 import { HttpError, nowIso, parseJson } from '../../util.js';
 import { canManageCatalogue, plantProposesSome, siteRights } from '../access.js';
+import { catalogueScope } from '../catalogue-access.js';
 import { requirePlant } from '../settings.js';
 import { currentParams } from '../ids.js';
 import {
   applyStored,
   canSee,
+  catalogueOps,
   catalogueReview,
   changeSetLevel,
   detailOf,
@@ -101,11 +103,13 @@ export function listChangeSets(q: z.infer<typeof listQuery>, u: AuthUser = me())
     ...states,
     ...(q.source ? [q.source] : []),
   );
+  const ops = catalogueOps();
+  const scope = catalogueScope(u);
   const items = rows
     .filter((r) => {
       if (q.box === 'drafts' || q.box === 'mine') return isAuthor(r, u);
-      if (!canSee(r, u, rights)) return false;
-      if (q.box === 'review') return !isAuthor(r, u) && !rightsProblem(r, u);
+      if (!canSee(r, u, rights, ops, scope)) return false;
+      if (q.box === 'review') return !isAuthor(r, u) && !rightsProblem(r, u, ops, scope);
       return true;
     })
     .filter((r) => !q.site || parseJson<string[]>(r.sites, []).includes(q.site))
@@ -115,9 +119,11 @@ export function listChangeSets(q: z.infer<typeof listQuery>, u: AuthUser = me())
 
 /** How many proposed change sets `u` may decide (the count on Plant → Changes). */
 export function toReview(u: AuthUser = me()): number {
+  const ops = catalogueOps();
+  const scope = catalogueScope(u);
   return db()
     .all<CsRow>("SELECT * FROM plant_change_sets WHERE state = 'proposed' ORDER BY updated_at DESC LIMIT 2000")
-    .filter((r) => !isAuthor(r, u) && !rightsProblem(r, u)).length;
+    .filter((r) => !isAuthor(r, u) && !rightsProblem(r, u, ops, scope)).length;
 }
 
 /** What the plant pages need to know about change sets (GET /api/plant/config). */
@@ -153,7 +159,9 @@ export function openChanges(q: { kind?: string; scope?: string; id?: string; sit
     );
   }
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);
-  const seen = rows.filter((r) => canSee(r, u, rights));
+  const ops = catalogueOps();
+  const scope = catalogueScope(u);
+  const seen = rows.filter((r) => canSee(r, u, rights, ops, scope));
   const own = (r: CsRow) => isAuthor(r, u) && r.state === 'draft';
   return {
     count: seen.length,

@@ -12,6 +12,8 @@ import { params } from './params.js';
  * Scheduled summary reports (mounted under /api):
  *   GET    /report-schedules                 schedules the user may see {items, canCreate, sections}
  *   POST   /report-schedules                 create (the creator becomes the owner)
+ *   POST   /report-schedules/recipients-preview  who gets the report without the sections of a restricted module
+ *                                           (ADR 0034), for the form – nothing is saved
  *   GET    /report-schedules/reports         generated scheduled reports the user may see
  *   GET    /report-schedules/:id             schedule
  *   PUT    /report-schedules/:id             change (owner, administrators)
@@ -27,6 +29,8 @@ export async function reportScheduleRoutes(app: FastifyInstance): Promise<void> 
   });
 
   app.post('/report-schedules', async (req) => schedules.createReportSchedule(schedules.scheduleInputSchema.parse(req.body ?? {})));
+
+  app.post('/report-schedules/recipients-preview', async (req) => schedules.reportModuleRecipients(schedules.recipientsPreviewSchema.parse(req.body ?? {})));
 
   app.get('/report-schedules/reports', async (req) => {
     const u = me();

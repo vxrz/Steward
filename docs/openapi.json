@@ -24893,6 +24893,9 @@
                 },
                 "exists": {
                   "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -24902,7 +24905,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "The bases, nearest first"
+            "description": "The bases, nearest first. 0.21.0: a base the token owner may not see has `hidden: true`, a placeholder id (`~hidden-1`) and the name `~hidden`; its items stay this profile’s model"
           },
           "extendedBy": {
             "type": "array",
@@ -24922,7 +24925,11 @@
               ],
               "additionalProperties": false
             },
-            "description": "Profiles that extend this one directly"
+            "description": "Profiles that extend this one directly (that the token owner may see)"
+          },
+          "extendedByHidden": {
+            "type": "integer",
+            "description": "0.21.0: profiles that extend this one that the token owner may not see (counted)"
           },
           "assets": {
             "type": "array",
@@ -26954,7 +26961,12 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "0.21.0: a profile the token owner may not see has the id `~hidden-1`, the name `~hidden` and no maker"
+          },
+          "profileHidden": {
+            "type": "boolean",
+            "description": "0.21.0 (#293): the device profile is one the token owner may not see – its interfaces are the asset’s model"
           },
           "model": {
             "type": "array",
@@ -27336,6 +27348,9 @@
                         },
                         "category": {
                           "type": "string"
+                        },
+                        "hidden": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -27349,7 +27364,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "0.21.0: a definition the token owner may not see has `hidden: true`, a placeholder id and the name `~hidden`"
                 }
               },
               "required": [
@@ -35590,6 +35606,34 @@
                   ],
                   "description": "The payment schedule of a supplier contract the line was made from (0.18.0); changed: the contract changed since (Contract changed)"
                 },
+                "estimate": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "changed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "changed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The cost estimate the line was made from (0.21.0); changed: the estimate no longer proposes what the line was made from (Estimate changed)"
+                },
                 "contractEnds": {
                   "type": [
                     "null",
@@ -35774,6 +35818,7 @@
                 "renewalDate",
                 "note",
                 "schedule",
+                "estimate",
                 "contractEnds",
                 "twoLines",
                 "paymentDates",
@@ -37555,6 +37600,2359 @@
           "schedules",
           "totals",
           "amountsHidden"
+        ],
+        "additionalProperties": false
+      },
+      "CostRange": {
+        "title": "CostRange",
+        "type": "object",
+        "properties": {
+          "low": {
+            "type": "string",
+            "description": "Low – a decimal (e.g. \"1840.00\")"
+          },
+          "expected": {
+            "type": "string",
+            "description": "Expected – a decimal (e.g. \"1840.00\")"
+          },
+          "high": {
+            "type": "string",
+            "description": "High – a decimal (e.g. \"1840.00\")"
+          }
+        },
+        "required": [
+          "low",
+          "expected",
+          "high"
+        ],
+        "additionalProperties": false,
+        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+      },
+      "PriceBook": {
+        "title": "PriceBook",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "list",
+              "contracted"
+            ],
+            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supplierContract": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "csv"
+            ]
+          },
+          "reviewDays": {
+            "type": "integer"
+          },
+          "checkedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewDue": {
+            "type": "boolean",
+            "description": "Kept by hand and not checked for longer than its review interval"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The current version (0: no prices yet)"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "provider",
+          "currency",
+          "description",
+          "platform",
+          "supplier",
+          "supplierContract",
+          "source",
+          "reviewDays",
+          "checkedAt",
+          "checkedBy",
+          "reviewDue",
+          "version",
+          "entries",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "PriceBookDetail": {
+        "title": "PriceBookDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "list",
+              "contracted"
+            ],
+            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supplier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supplierContract": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "csv"
+            ]
+          },
+          "reviewDays": {
+            "type": "integer"
+          },
+          "checkedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewDue": {
+            "type": "boolean",
+            "description": "Kept by hand and not checked for longer than its review interval"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The current version (0: no prices yet)"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "integer"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "manual",
+                    "csv",
+                    "migration",
+                    "source"
+                  ]
+                },
+                "entries": {
+                  "type": "integer"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "changes": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "added": {
+                          "type": "integer"
+                        },
+                        "removed": {
+                          "type": "integer"
+                        },
+                        "changed": {
+                          "type": "integer"
+                        },
+                        "unchanged": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "added",
+                        "removed",
+                        "changed",
+                        "unchanged"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "What changed against the version before"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "createdBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "source",
+                "entries",
+                "note",
+                "sha256",
+                "changes",
+                "createdAt",
+                "createdBy"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "provider",
+          "currency",
+          "description",
+          "platform",
+          "supplier",
+          "supplierContract",
+          "source",
+          "reviewDays",
+          "checkedAt",
+          "checkedBy",
+          "reviewDue",
+          "version",
+          "entries",
+          "updatedAt",
+          "updatedBy",
+          "versions"
+        ],
+        "additionalProperties": false
+      },
+      "PriceBookItem": {
+        "title": "PriceBookItem",
+        "type": "object",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "The item's id in the book (the provider's SKU where there is one)"
+          },
+          "priceId": {
+            "type": "string",
+            "description": "Several prices of one SKU (region, edition): their id; empty when the SKU has one"
+          },
+          "name": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "driver": {
+            "type": "string",
+            "description": "What is counted (throughput, storage, requests, hours …)"
+          },
+          "unit": {
+            "type": "string",
+            "description": "UCUM code of the unit (GBy, h, GBy.mo, MBy/s, {request}); annotations in braces are counted things"
+          },
+          "charge": {
+            "type": "string",
+            "enum": [
+              "usage",
+              "recurring",
+              "oneOff"
+            ]
+          },
+          "price": {
+            "type": "string",
+            "description": "Per block, up to 12 decimals, in `currency` – or in units of `creditSku` (a price in credits)"
+          },
+          "block": {
+            "type": "integer",
+            "description": "1, 1000 or 1000000 units"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "creditSku": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tiers": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "price": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "price"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bands of the quantity per month (after the included quantity)"
+          },
+          "tierMode": {
+            "type": "string",
+            "enum": [
+              "graduated",
+              "volume"
+            ]
+          },
+          "included": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Free per month"
+          },
+          "minimum": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "At least per month (when anything is used)"
+          },
+          "validFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "validTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "sourceNote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sku",
+          "priceId",
+          "name",
+          "service",
+          "category",
+          "driver",
+          "unit",
+          "charge",
+          "price",
+          "block",
+          "currency",
+          "creditSku",
+          "tiers",
+          "tierMode",
+          "included",
+          "minimum",
+          "validFrom",
+          "validTo",
+          "attributes",
+          "sourceNote"
+        ],
+        "additionalProperties": false
+      },
+      "CostEstimateSummary": {
+        "title": "CostEstimateSummary",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "platform"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "for": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "application",
+                      "system",
+                      "platform"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calculator": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "appliesFrom": {
+            "type": "string",
+            "description": "YYYY-MM"
+          },
+          "monthly": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "string"
+                  },
+                  "high": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "low",
+                  "expected",
+                  "high"
+                ],
+                "additionalProperties": false,
+                "description": "Usage and recurring per month; null when the token owner may not see amounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Usage and recurring per month; null when the token owner may not see amounts"
+          },
+          "oneOff": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "string"
+                  },
+                  "expected": {
+                    "type": "string"
+                  },
+                  "high": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "low",
+                  "expected",
+                  "high"
+                ],
+                "additionalProperties": false,
+                "description": "One-off; null when the token owner may not see amounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-off; null when the token owner may not see amounts"
+          },
+          "ranged": {
+            "type": "boolean"
+          },
+          "adjusted": {
+            "type": "boolean",
+            "description": "With ad-hoc adjustments (what-if prices, never written back)"
+          },
+          "atListPrice": {
+            "type": "boolean",
+            "description": "Some lines are shown at list price: they were priced with rates the token owner may not see"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "A recalculation with new prices waits for \"Accept new prices\""
+          },
+          "planLines": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "owner",
+          "for",
+          "calculator",
+          "currency",
+          "appliesFrom",
+          "monthly",
+          "oneOff",
+          "ranged",
+          "adjusted",
+          "atListPrice",
+          "pending",
+          "planLines",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CostEstimateDetail": {
+        "title": "CostEstimateDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "platform"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "for": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "application",
+                      "system",
+                      "platform"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "visible"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calculator": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "integer"
+                  },
+                  "latest": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "version",
+                  "latest"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {}
+              },
+              "required": [
+                "key"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "currency": {
+            "type": "string"
+          },
+          "appliesFrom": {
+            "type": "string"
+          },
+          "amountsVisible": {
+            "type": "boolean"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "calculatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "calculatedBy": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "appliesFrom": {
+                    "type": "string"
+                  },
+                  "hoursPerMonth": {
+                    "type": "number",
+                    "description": "730 – the convention of the cloud price lists"
+                  },
+                  "calculator": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ranged": {
+                    "type": "boolean"
+                  },
+                  "adjusted": {
+                    "type": "boolean"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        },
+                        "sku": {
+                          "type": "string"
+                        },
+                        "priceId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "charge": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "usage",
+                                "recurring",
+                                "oneOff"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "type": "object",
+                          "properties": {
+                            "low": {
+                              "type": "string"
+                            },
+                            "expected": {
+                              "type": "string"
+                            },
+                            "high": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "low",
+                            "expected",
+                            "high"
+                          ],
+                          "additionalProperties": false,
+                          "description": "In the item's unit"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "credits": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Priced in credits: how many"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Priced in credits: how many"
+                        },
+                        "creditSku": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "book": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "list",
+                                    "contracted"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "kind",
+                                "version"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unitPrice": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "block": {
+                          "type": "integer"
+                        },
+                        "priceCurrency": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tiered": {
+                          "type": "boolean"
+                        },
+                        "fx": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string"
+                                },
+                                "rate": {
+                                  "type": "string"
+                                },
+                                "date": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "rate",
+                                "date"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The manual exchange rate the line was converted with"
+                        },
+                        "found": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "What the price found comes to, before an adjustment"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "What the price found comes to, before an adjustment"
+                        },
+                        "adjustment": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "scope": {
+                                  "type": "string",
+                                  "enum": [
+                                    "line",
+                                    "estimate"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "percent",
+                                    "price"
+                                  ]
+                                },
+                                "value": {
+                                  "type": "string"
+                                },
+                                "currency": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "block": {
+                                  "type": "integer"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "scope",
+                                "kind",
+                                "value",
+                                "currency",
+                                "block",
+                                "reason"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "fixedMoved": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "was": {
+                                  "type": "string"
+                                },
+                                "now": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "was",
+                                "now"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "amount": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Per month (usage, recurring) or once (one-off); null without a price"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Per month (usage, recurring) or once (one-off); null without a price"
+                        },
+                        "priceHidden": {
+                          "type": "boolean",
+                          "description": "Priced with rates the token owner may not see – shown at list price (or left out)"
+                        },
+                        "missing": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "noBook",
+                                "noItem",
+                                "unit",
+                                "ambiguous"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "label",
+                        "group",
+                        "provider",
+                        "sku",
+                        "priceId",
+                        "name",
+                        "charge",
+                        "quantity",
+                        "unit",
+                        "credits",
+                        "creditSku",
+                        "book",
+                        "unitPrice",
+                        "block",
+                        "priceCurrency",
+                        "tiered",
+                        "fx",
+                        "found",
+                        "adjustment",
+                        "fixedMoved",
+                        "amount",
+                        "priceHidden",
+                        "missing"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "totals": {
+                    "type": "object",
+                    "properties": {
+                      "monthly": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      },
+                      "usage": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      },
+                      "recurring": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      },
+                      "oneOff": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      }
+                    },
+                    "required": [
+                      "monthly",
+                      "usage",
+                      "recurring",
+                      "oneOff"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "months": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "month": {
+                              "type": "string"
+                            },
+                            "monthly": {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string",
+                                  "description": "Low – a decimal (e.g. \"1840.00\")"
+                                },
+                                "expected": {
+                                  "type": "string",
+                                  "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                },
+                                "high": {
+                                  "type": "string",
+                                  "description": "High – a decimal (e.g. \"1840.00\")"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                            }
+                          },
+                          "required": [
+                            "month",
+                            "monthly"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The next 36 months, only when a price changes within them"
+                  },
+                  "books": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "list",
+                            "contracted"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "provider": {
+                          "type": "string"
+                        },
+                        "hidden": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "kind",
+                        "version",
+                        "provider",
+                        "hidden"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "rate": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to",
+                        "rate",
+                        "date"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "missing": {
+                    "type": "integer"
+                  },
+                  "atListPrice": {
+                    "type": "boolean"
+                  },
+                  "incomplete": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "calculatedAt",
+                  "calculatedBy",
+                  "currency",
+                  "appliesFrom",
+                  "hoursPerMonth",
+                  "calculator",
+                  "ranged",
+                  "adjusted",
+                  "lines",
+                  "totals",
+                  "months",
+                  "books",
+                  "rates",
+                  "missing",
+                  "atListPrice",
+                  "incomplete"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when the token owner may not see amounts"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "calculatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "calculatedBy": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "appliesFrom": {
+                    "type": "string"
+                  },
+                  "hoursPerMonth": {
+                    "type": "number",
+                    "description": "730 – the convention of the cloud price lists"
+                  },
+                  "calculator": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "ranged": {
+                    "type": "boolean"
+                  },
+                  "adjusted": {
+                    "type": "boolean"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "group": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        },
+                        "sku": {
+                          "type": "string"
+                        },
+                        "priceId": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "charge": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "usage",
+                                "recurring",
+                                "oneOff"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "type": "object",
+                          "properties": {
+                            "low": {
+                              "type": "string"
+                            },
+                            "expected": {
+                              "type": "string"
+                            },
+                            "high": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "low",
+                            "expected",
+                            "high"
+                          ],
+                          "additionalProperties": false,
+                          "description": "In the item's unit"
+                        },
+                        "unit": {
+                          "type": "string"
+                        },
+                        "credits": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Priced in credits: how many"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Priced in credits: how many"
+                        },
+                        "creditSku": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "book": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "list",
+                                    "contracted"
+                                  ]
+                                },
+                                "version": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "kind",
+                                "version"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "unitPrice": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "block": {
+                          "type": "integer"
+                        },
+                        "priceCurrency": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "tiered": {
+                          "type": "boolean"
+                        },
+                        "fx": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string"
+                                },
+                                "rate": {
+                                  "type": "string"
+                                },
+                                "date": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "rate",
+                                "date"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The manual exchange rate the line was converted with"
+                        },
+                        "found": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "What the price found comes to, before an adjustment"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "What the price found comes to, before an adjustment"
+                        },
+                        "adjustment": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "scope": {
+                                  "type": "string",
+                                  "enum": [
+                                    "line",
+                                    "estimate"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "percent",
+                                    "price"
+                                  ]
+                                },
+                                "value": {
+                                  "type": "string"
+                                },
+                                "currency": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "block": {
+                                  "type": "integer"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "scope",
+                                "kind",
+                                "value",
+                                "currency",
+                                "block",
+                                "reason"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "fixedMoved": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "was": {
+                                  "type": "string"
+                                },
+                                "now": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "was",
+                                "now"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "amount": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Per month (usage, recurring) or once (one-off); null without a price"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Per month (usage, recurring) or once (one-off); null without a price"
+                        },
+                        "priceHidden": {
+                          "type": "boolean",
+                          "description": "Priced with rates the token owner may not see – shown at list price (or left out)"
+                        },
+                        "missing": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "noBook",
+                                "noItem",
+                                "unit",
+                                "ambiguous"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "label",
+                        "group",
+                        "provider",
+                        "sku",
+                        "priceId",
+                        "name",
+                        "charge",
+                        "quantity",
+                        "unit",
+                        "credits",
+                        "creditSku",
+                        "book",
+                        "unitPrice",
+                        "block",
+                        "priceCurrency",
+                        "tiered",
+                        "fx",
+                        "found",
+                        "adjustment",
+                        "fixedMoved",
+                        "amount",
+                        "priceHidden",
+                        "missing"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "totals": {
+                    "type": "object",
+                    "properties": {
+                      "monthly": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      },
+                      "usage": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      },
+                      "recurring": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      },
+                      "oneOff": {
+                        "type": "object",
+                        "properties": {
+                          "low": {
+                            "type": "string",
+                            "description": "Low – a decimal (e.g. \"1840.00\")"
+                          },
+                          "expected": {
+                            "type": "string",
+                            "description": "Expected – a decimal (e.g. \"1840.00\")"
+                          },
+                          "high": {
+                            "type": "string",
+                            "description": "High – a decimal (e.g. \"1840.00\")"
+                          }
+                        },
+                        "required": [
+                          "low",
+                          "expected",
+                          "high"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                      }
+                    },
+                    "required": [
+                      "monthly",
+                      "usage",
+                      "recurring",
+                      "oneOff"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "months": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "month": {
+                              "type": "string"
+                            },
+                            "monthly": {
+                              "type": "object",
+                              "properties": {
+                                "low": {
+                                  "type": "string",
+                                  "description": "Low – a decimal (e.g. \"1840.00\")"
+                                },
+                                "expected": {
+                                  "type": "string",
+                                  "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                },
+                                "high": {
+                                  "type": "string",
+                                  "description": "High – a decimal (e.g. \"1840.00\")"
+                                }
+                              },
+                              "required": [
+                                "low",
+                                "expected",
+                                "high"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                            }
+                          },
+                          "required": [
+                            "month",
+                            "monthly"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The next 36 months, only when a price changes within them"
+                  },
+                  "books": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "list",
+                            "contracted"
+                          ]
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "provider": {
+                          "type": "string"
+                        },
+                        "hidden": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "kind",
+                        "version",
+                        "provider",
+                        "hidden"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "rate": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to",
+                        "rate",
+                        "date"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "missing": {
+                    "type": "integer"
+                  },
+                  "atListPrice": {
+                    "type": "boolean"
+                  },
+                  "incomplete": {
+                    "type": "boolean"
+                  },
+                  "changePct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "calculatedAt",
+                  "calculatedBy",
+                  "currency",
+                  "appliesFrom",
+                  "hoursPerMonth",
+                  "calculator",
+                  "ranged",
+                  "adjusted",
+                  "lines",
+                  "totals",
+                  "months",
+                  "books",
+                  "rates",
+                  "missing",
+                  "atListPrice",
+                  "incomplete",
+                  "changePct"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planLines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "fiscalYear": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "changed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "fiscalYear",
+                "title",
+                "changed"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "owner",
+          "for",
+          "calculator",
+          "inputs",
+          "currency",
+          "appliesFrom",
+          "amountsVisible",
+          "result",
+          "pending",
+          "planLines",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
         ],
         "additionalProperties": false
       },
@@ -51389,6 +53787,494 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/price-books": {
+      "get": {
+        "operationId": "listPriceBooks",
+        "summary": "List price books",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Price books (ADR 0035, docs/PRICE-BOOKS.md): versioned lists of items priced per unit of a driver – list books (published prices, every reader of the Costs module) and contracted books (the prices of a contract or a platform: only for who sees that contract or the platform’s amounts). Contract conditions are never part of this API.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "description": "Only books of this provider (case-insensitive)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "list",
+                "contracted"
+              ]
+            },
+            "in": "query",
+            "name": "kind",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PriceBook"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/price-books/{bookId}": {
+      "get": {
+        "operationId": "getPriceBook",
+        "summary": "Get a price book",
+        "tags": [
+          "Costs"
+        ],
+        "description": "One price book with its versions – each with how it came to be (by hand, CSV, the migration of the Snowflake fallback’s price) and what changed against the one before. The items of the current version: GET /price-books/{bookId}/items.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "bookId",
+            "required": true,
+            "description": "The id of the price book"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceBookDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/price-books/{bookId}/items": {
+      "get": {
+        "operationId": "listPriceBookItems",
+        "summary": "List the items of a price book",
+        "tags": [
+          "Costs"
+        ],
+        "description": "The items of the current version, by SKU: unit (UCUM), charge, price per block (up to 12 decimals) in a currency or in credits of another item, tiers, included quantity, minimum, validity and attributes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Only items whose SKU, name, service or driver contains this text"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 200
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–500, default 200)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "bookId",
+            "required": true,
+            "description": "The id of the price book"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PriceBookItem"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/cost-estimates": {
+      "get": {
+        "operationId": "listCostEstimates",
+        "summary": "List cost estimates",
+        "tags": [
+          "Costs"
+        ],
+        "description": "Estimates of services and platforms the token owner may see (ADR 0035, docs/PRICE-BOOKS.md#estimates): per month (usage and recurring) and one-off, low, expected and high where inputs are ranges, in the estimate’s currency; null where the token owner may not see amounts. Labelled estimates – not quotes.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false,
+            "description": "Only the estimates of this service"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "platformId",
+            "required": false,
+            "description": "Only the estimates of this platform"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CostEstimateSummary"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/cost-estimates/{estimateId}": {
+      "get": {
+        "operationId": "getCostEstimate",
+        "summary": "Get a cost estimate",
+        "tags": [
+          "Costs"
+        ],
+        "description": "One estimate: its inputs, the calculator version, and the result Steward priced exactly – per line the quantity and unit, the book and version that priced it, the unit price, a manual exchange rate where converted, an ad-hoc adjustment with its reason, the amount (low, expected, high); totals; the 36 months ahead when a price changes within them; the plan lines made from it. A line priced with rates the token owner may not see is shown at list price (priceHidden).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "estimateId",
+            "required": true,
+            "description": "The id of the estimate"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostEstimateDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

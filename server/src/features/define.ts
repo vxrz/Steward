@@ -7,6 +7,7 @@ import type { ToolDef } from '../mcp/tooling.js';
 import type { BuiltinDataset } from '../dashboards/builtin.js';
 import type { LinkResolver } from '../records/links.js';
 import type { ReportSectionDef } from '../reports/sections.js';
+import type { ShareKindDef } from '../auth/shares.js';
 
 /**
  * The manifest of a feature (docs/ARCHITECTURE.md "How features are wired"): everything it brings to the rest of
@@ -35,6 +36,8 @@ export interface FeatureManifest {
   mcpTools?: readonly ToolDef[];
   /** Link kinds of records, documents and tickets (records/links.ts) */
   linkKinds?: readonly { kind: string; resolver: LinkResolver }[];
+  /** Kinds of resources it switches to shares (ADR 0033, auth/shares.ts): their share model, name, link and rights */
+  shareKinds?: readonly ShareKindDef[];
   /**
    * Its migration lists (server/src/migrations/). Named for ownership only: they run in the order of
    * migrations/index.ts, which is history and never changes (upgraded and new databases must end up the same).

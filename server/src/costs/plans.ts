@@ -68,6 +68,7 @@ import {
   type Schedule,
 } from './schedule-model.js';
 import { VolumeUse, volumeView } from './volumes.js';
+import { estimateLineStates } from './estimate-model.js';
 
 /**
  * Service cost planning (0.16.0, ADR 0026, docs/COSTS.md#planning-per-service): plan lines per service and fiscal year,
@@ -140,6 +141,9 @@ export interface LineRow {
   /** The days a prepaid one-off payment covers */
   covers_from: string | null;
   covers_to: string | null;
+  /** 0.21.0 (ADR 0035): the estimate a line was made from, and what it was made from (JSON: key, months, list) */
+  estimate_id?: string | null;
+  estimate_basis?: string | null;
   renewal_date: string | null;
   note: string;
   created_at: string;
@@ -482,6 +486,8 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       changes.sort((a, b) => Number(!!a.after) - Number(!!b.after));
       if (changes.length) scheduleChanges.set(sch.row.id, changes);
     }
+  // lines made from estimates (0.21.0, ADR 0035): Estimate changed when the estimate no longer proposes what they say
+  const estimateStates = estimateLineStates(lines, start);
   // contracts with a schedule paying in this year: a hand-made line for one of them is a second line for it
   const scheduledContracts = new Set(schedules.filter((x) => x.parts(fy, start).length).map((x) => x.contract.id));
   const monthIndex = (date: string) => months.indexOf(date.slice(0, 7));
@@ -642,6 +648,7 @@ export function planYearOf(info: ScopeInfo, year: number | undefined, now: numbe
       renewalDate: l.renewal_date,
       note: l.note,
       schedule: sch ? { id: sch.row.id, contractId: sch.contract.id, title: sch.row.title, changed: scheduleChanges.has(sch.row.id) } : null,
+      estimate: estimateStates.get(l.id) ?? null,
       contractEnds: suppliers.contractEnds(l, bounds),
       twoLines: !l.schedule_id && !!l.supplier_contract_id && scheduledContracts.has(l.supplier_contract_id),
       paymentDates: part?.paymentDates ?? null,

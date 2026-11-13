@@ -47,6 +47,8 @@
     "link_other": "{{count}} Verknüpfungen",
     "owning_team_one": "{{count}} zuständiges Team",
     "owning_team_other": "{{count}} zuständige Teams",
+    "share_one": "{{count}} Eintrag unter „Geteilt mit“ oder Einschränkung",
+    "share_other": "{{count}} Einträge unter „Geteilt mit“ oder Einschränkungen",
     "credential_one": "{{count}} Zugangsdaten-Eintrag (verwendet von)",
     "credential_other": "{{count}} Zugangsdaten-Einträge (verwendet von)",
     "import_one": "{{count}} früherer Import",

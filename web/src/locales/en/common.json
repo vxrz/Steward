@@ -97,7 +97,8 @@
     "approve": "approve",
     "manage": "manage",
     "use": "use",
-    "acknowledge": "acknowledge"
+    "acknowledge": "acknowledge",
+    "test": "test"
   },
   "breadcrumb": "Breadcrumb",
   "loadFailed": "Could not load this page",
@@ -289,6 +290,7 @@
     "copiedFrom": "Copied from",
     "copiedAt": "on {{date}} by {{by}}",
     "copiedFromHidden": "A copy, made on {{date}} by {{by}} (the original is gone or not visible to you).",
+    "plantScope": "The copy belongs to the same owning teams as the original (and is Restricted if the original is); who the original is shared with is not copied.",
     "systemNote": "The copy has the attributes and the stack entered by hand, and is in the same segments without the original’s addresses. The CMDB entry, the platform and the systems in a segment are not copied."
   },
   "sections": {

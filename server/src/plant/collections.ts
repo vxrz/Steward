@@ -1,3 +1,5 @@
+import { currentUser } from '../auth/context.js';
+import { mayChangeAssetProfile, seesEntry } from './catalogue-access.js';
 import type { z } from 'zod';
 import YAML from 'yaml';
 import {
@@ -21,7 +23,7 @@ import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { resolveTarget } from '../records/links.js';
 import { HttpError, nowIso } from '../util.js';
-import { canManageCatalogue, requireManage } from './access.js';
+import { requireManage } from './access.js';
 import { changedKeys, collectionLinks, removeCollectionLinks } from './model.js';
 import { pruneSources } from './collections-sources.js';
 import { visibleAsset } from './service.js';
@@ -127,7 +129,8 @@ export function assetCollections(assetId: string): PlantAssetCollections {
     asset: { id: row.id, name: row.name, siteId: row.site_id },
     canManage: perms.includes('manage'),
     canPropose: perms.includes('propose'),
-    canManageCatalogue: canManageCatalogue(),
+    // 0.21.0 (#293): the Edit right on the asset's profile
+    canManageCatalogue: mayChangeAssetProfile(assetId),
     collections,
     interfaces: ctx.interfaces.map((i) => ({ id: i.id, name: i.name, protocol: i.protocol, direction: i.direction })),
     points,
@@ -417,6 +420,8 @@ export function collectorCollections(kind: string, ref: string): PlantCollection
 
 /** The collections that read a data point of a profile (or of one that extends it), on assets the caller may see. */
 export function pointCollections(profileId: string, pointId: string): PlantCollectionBrief[] {
+  // 0.21.0 (#293): a profile the caller may not see reads like one that does not exist (no collections)
+  if (!seesEntry(currentUser(), 'device_profile', profileId)) return [];
   const v = visibleAssets();
   const profiles = allProfiles();
   const assignments = allAssignments();

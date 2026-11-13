@@ -89,6 +89,7 @@ export const NOT_MOVED: Record<string, string> = {
   supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
   cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
   cost_volume_notices: 'send bookkeeping of the source (a warning of a contract volume may be sent again on the target)',
+  cost_price_review_notices: 'send bookkeeping of the source (a price book due for its review may be reminded of again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -102,10 +103,14 @@ export const USER_ID_TABLES: Record<string, string> = {
 export type RefKind =
   /** a plain user name */
   | 'username'
+  /** one subject: "user:x" | "team:y" (module access, ADR 0034) */
+  | 'subject'
   /** JSON array of { subject: "user:x" | "team:y" | "role:z", … } */
   | 'acl'
   /** JSON array of subjects */
   | 'subjects'
+  /** one subject ("user:x" | "team:y" | "role:z") as plain text – a share's subject (ADR 0033), part of its key */
+  | 'subject'
   /** JSON { users: [names], teams: [names], … } */
   | 'recipients'
   /** monitor definition: outputs[].subscribers are subjects */
@@ -120,6 +125,11 @@ export interface UserRef {
    * matches nobody, because removing it could leave no team and so open the row to more people (auth/subjects.ts).
    */
   keepDeletedTeams?: true;
+  /**
+   * Kind `subject`: the other columns of the row's key besides the subject (a share is keyed by kind, resource and
+   * subject). A rename onto a subject the same resource already has keeps one row (auth/subjects.ts, migration/import.ts).
+   */
+  key?: readonly string[];
 }
 
 /** Columns that decide who owns something or may do something now: mapped on import. */
@@ -171,6 +181,11 @@ export const USER_REFS: UserRef[] = [
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
   // the access list of a plant registry site (#218)
   { table: 'plant_sites', column: 'acl', kind: 'acl' },
+  // shares (0.21.0, ADR 0033): who a resource is shared with; a deleted team stays a share that matches nobody
+  { table: 'resource_shares', column: 'subject', kind: 'subject', keepDeletedTeams: true, key: ['kind', 'resource_id'] },
+  // module access (0.21.0, ADR 0034): the teams and users that use a restricted module; a deleted team stays as a grant
+  // that matches nobody, so the list still says whom the administrator chose (a dropped team on import: the row goes)
+  { table: 'module_grants', column: 'subject', kind: 'subject', keepDeletedTeams: true },
 ];
 
 /**
@@ -178,6 +193,12 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // who shared a resource and who made it Restricted (0.21.0, ADR 0033)
+  'resource_shares.created_by',
+  'resource_restrictions.created_by',
+  // module access (0.21.0, ADR 0034): who restricted a module, who gave a team or user its use
+  'module_access.updated_by',
+  'module_grants.created_by',
   'ai_usage.actor',
   'ai_budgets.updated_by',
   // platform costs (#226)
@@ -194,6 +215,18 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_schedules.updated_by',
   'cost_entry_imports.created_by',
   'cost_entry_imports.removed_by',
+  // price books, calculators and estimates (0.21.0, ADR 0035): who made, changed, checked and published them
+  'cost_price_books.checked_by',
+  'cost_price_books.created_by',
+  'cost_price_books.updated_by',
+  'cost_price_book_versions.created_by',
+  'cost_fx_rates.set_by',
+  'cost_calculators.created_by',
+  'cost_calculators.updated_by',
+  'cost_calculator_versions.published_by',
+  'cost_estimates.created_by',
+  'cost_estimates.updated_by',
+  'cost_estimate_results.replaced_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',
@@ -389,6 +422,9 @@ export const HISTORY_COLUMNS: string[] = [
 
 /** Columns whose names look like people but are not (classification test). */
 export const NOT_PEOPLE_COLUMNS: string[] = [
+  // the service or platform an estimate belongs to (0.21.0, ADR 0035), not a person
+  'cost_estimates.owner_kind',
+  'cost_estimates.owner_id',
   'access_findings.subject_id',
   'access_findings.subject_name',
   'access_snapshots.subject_count',

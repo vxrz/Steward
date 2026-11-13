@@ -85,6 +85,10 @@ describe('demo data', () => {
       'aws.costs',
       'snowflake.users',
       'snowflake.credits',
+      'snowflake.cost-services',
+      'snowflake.cost-warehouses',
+      'snowflake.cost-storage',
+      'snowflake.waste',
       'prom.slo',
       'k8s.health',
       'checkmk.trends',
@@ -265,6 +269,185 @@ describe('Snowflake – account hygiene and usage', () => {
     expect(credits.rows.find((x: any) => x._key === 'TRANSFORM_WH')).toMatchObject({ 'Credits (7 days)': 31.25, _status: 'warning' });
     const tasks = await s.api('GET', '/datasets/snowflake.tasks');
     expect(tasks.rows).toEqual([expect.objectContaining({ Task: 'SHOP.STAGING.LOAD_EVENTS', _status: 'critical' })]);
+  });
+});
+
+describe('Snowflake – cost estimate and trend', () => {
+  const checksOf = (r: any) => Object.fromEntries(r.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+  const near = (a: number, b: number, eps = 0.05) => expect(Math.abs(a - b), `${a} ≈ ${b}`).toBeLessThanOrEqual(eps);
+
+  it('publishes the month so far, the projection and the previous month per service type, warehouse, database and query tag', async () => {
+    const inputs = { monthlyBudget: 100, growthPercent: 5, minGrowthCost: 0, pricePerCredit: 2.5, currency: 'EUR' };
+    const r = await finish(await start('snowflake-cost-estimate', { snowflake: platformByKind.snowflake! }, inputs));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+
+    const services = await s.api('GET', '/datasets/snowflake.cost-services');
+    const m = services.metrics;
+    expect(services.rows.map((x: any) => x.Service)).toEqual(
+      expect.arrayContaining(['Warehouses', 'Serverless tasks', 'Snowpipe', 'Automatic clustering', 'Materialised views', 'Search optimisation', 'Storage']),
+    );
+    // the account total is the sum of the service types and storage; credits × the price per credit
+    near(
+      m.projectedCost,
+      services.rows.reduce((n: number, x: any) => n + x['Projected cost'], 0),
+    );
+    near(m.computeProjectedCost + m.serverlessProjectedCost + m.storageProjectedCost, m.projectedCost);
+    const pipe = services.rows.find((x: any) => x._key === 'PIPE');
+    near(pipe['Cost this month'], pipe['Credits this month'] * 2.5);
+    expect(pipe.Currency).toBe('EUR');
+    // the warehouses' cloud services above 10 % of their compute are billed, the rest is the adjustment
+    expect(services.rows.find((x: any) => x._key === 'WAREHOUSE_METERING')['Cloud services adjustment']).toBeLessThanOrEqual(0);
+    expect(m.budget).toBe(100);
+
+    const wh = await s.api('GET', '/datasets/snowflake.cost-warehouses');
+    const by = Object.fromEntries(wh.rows.map((x: any) => [x._key, x]));
+    expect(Object.keys(by).sort()).toEqual(['BI_WH', 'PBI_WH', 'TRANSFORM_WH', 'UNUSED_WH']);
+    for (const x of wh.rows) {
+      // projected = the complete days so far + the daily average of the last 7 days × the days left (today included)
+      near(x['Projected credits'], x['Credits this month'] + x['Credits per day (run rate)'] * m.daysLeft, 0.2);
+      near(x['Credits this month'], x['Compute credits this month'] + x['Cloud services credits this month']);
+      // warns when the projection grows by more than 5 % against last month (no minimum cost)
+      expect(x._status, x._key).toBe(x['Change (%)'] > 5 ? 'warning' : 'good');
+    }
+    // PBI_WH runs twice as much as before (whatever the month), UNUSED_WH has stopped
+    expect(by.PBI_WH._status).toBe('warning');
+    expect(by.UNUSED_WH).toMatchObject({ 'Credits per day (run rate)': 0, _status: 'good' });
+
+    const storage = await s.api('GET', '/datasets/snowflake.cost-storage');
+    const st = Object.fromEntries(storage.rows.map((x: any) => [x._key, x]));
+    expect(Object.keys(st).sort()).toEqual(['(stages)', 'CRM', 'PRD_SDC_OPQ_PBI_DEV', 'SHOP']);
+    expect(st.SHOP).toMatchObject({ 'Size (TB)': 2.395, 'Fail-safe (TB)': 0.299 });
+    expect(storage.metrics).toMatchObject({ databases: 3 });
+    near(
+      m.storageProjectedCost,
+      storage.rows.reduce((n: number, x: any) => n + x['Projected cost'], 0),
+    );
+
+    const attribution = await s.api('GET', '/datasets/snowflake.cost-attribution');
+    expect(attribution.metrics).toMatchObject({ available: 1, users: 5, tags: 4 });
+    expect(attribution.rows.map((x: any) => x._key)).toEqual(expect.arrayContaining(['dbt_nightly|ETL_SVC', '(no tag)|ALICE', 'powerbi|SVC_PBI_GATEWAY']));
+    // the nightly dbt runs spend 55 % of the transformation warehouse's compute
+    near(attribution.rows.find((x: any) => x._key === 'dbt_nightly|ETL_SVC')['Credits this month'], by.TRANSFORM_WH['Compute credits this month'] * 0.55);
+
+    const checks = checksOf(r);
+    expect(checks.budget).toBe('failed');
+    expect(checks.rowsGrowth).toBe('failed');
+    expect(checks.growth).toBe(m.changePct > 5 ? 'failed' : 'succeeded');
+    const budget = r.steps.find((x: any) => x.stepId === 'budget');
+    expect(budget.summary).toMatch(
+      /^✘ Projected [\d.]+ EUR for the month \(budget 100 EUR, [\d.]+ EUR so far, \d+ days left, budget (already used up|used up around \d+ \w+)/,
+    );
+  });
+
+  it('a budget above the projection and a generous threshold pass; without a budget the budget check is skipped', async () => {
+    const r = await finish(await start('snowflake-cost-estimate', { snowflake: platformByKind.snowflake! }, { monthlyBudget: 1_000_000, growthPercent: 1000 }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toEqual({ budget: 'succeeded', growth: 'succeeded', rowsGrowth: 'succeeded' });
+    const plain = await finish(await start('snowflake-cost-estimate', { snowflake: platformByKind.snowflake! }, { growthPercent: 1000 }));
+    expect(checksOf(plain).budget).toBe('skipped');
+  });
+});
+
+describe('Snowflake – waste check', () => {
+  const checksOf = (r: any) => Object.fromEntries(r.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+
+  it('finds idle, late-suspending and oversized warehouses, unread tables, time travel, failing tasks and pipes, unread serverless objects and long failed queries', async () => {
+    const r = await finish(await start('snowflake-waste-check', { snowflake: platformByKind.snowflake! }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toEqual({
+      idleOk: 'failed',
+      autoSuspendOk: 'failed',
+      sizeOk: 'failed',
+      tablesRead: 'failed',
+      retentionOk: 'failed',
+      failingOk: 'failed',
+      featuresOk: 'failed',
+      longQueriesOk: 'failed',
+      accessHistory: 'succeeded',
+    });
+    const d = await s.api('GET', '/datasets/snowflake.waste');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(by['Idle warehouse|UNUSED_WH']).toMatchObject({ 'Saving per month (credits)': 3, 'Saving per month': 9, _status: 'warning' });
+    // 1800 s: two thirds of its metered hours ran no query, 60 s would save all but 60/1800 of that
+    expect(by['Auto-suspend|BI_WH']).toMatchObject({
+      'Saving per month (credits)': 25.78,
+      'SQL to consider': 'ALTER WAREHOUSE "BI_WH" SET AUTO_SUSPEND = 60;',
+    });
+    expect(by['Auto-suspend|PBI_WH'].Reason).toMatch(/^auto-suspend is off/);
+    expect(by['Oversized warehouse|BI_WH']).toMatchObject({
+      'Saving per month (credits)': 20,
+      'SQL to consider': `ALTER WAREHOUSE "BI_WH" SET WAREHOUSE_SIZE = 'MEDIUM';`,
+    });
+    expect(by['Oversized warehouse|PBI_WH']['SQL to consider']).toContain("WAREHOUSE_SIZE = 'XSMALL'");
+    // TRANSFORM_WH spills and runs long queries: right-sized
+    expect(Object.keys(by).filter((k) => k.endsWith('|TRANSFORM_WH'))).toEqual([]);
+    expect(by['Table not read|SHOP.STAGING.RAW_EVENTS_2024']).toMatchObject({ 'Saving per month (credits)': '–', 'Saving per month': 11.04 });
+    expect(by['Table not read|CRM.CORE.CONTACTS_BACKUP_2025']).toBeTruthy();
+    expect(by['Table not read|SHOP.SALES.ORDERS']).toBeUndefined();
+    expect(by['Time travel and fail-safe|SHOP.STAGING.RAW_EVENTS']['SQL to consider']).toBe(
+      'ALTER TABLE "SHOP"."STAGING"."RAW_EVENTS" SET DATA_RETENTION_TIME_IN_DAYS = 1;',
+    );
+    expect(by['Failing task|SHOP.STAGING.LOAD_EVENTS']).toMatchObject({ 'Saving per month (credits)': 9 });
+    // a task on a warehouse: its credits are the warehouse's, no saving of its own
+    expect(by['Failing task|CRM.CORE.SYNC_CONTACTS']).toMatchObject({ 'Saving per month (credits)': '–', 'Saving per month': '–' });
+    expect(by['Failing pipe|SHOP.STAGING.EVENTS_PIPE']).toMatchObject({ 'Saving per month (credits)': 3.38 });
+    expect(by['Serverless feature, rarely read|SHOP.REPORTING.ORDER_FACTS']['SQL to consider']).toContain('SUSPEND RECLUSTER');
+    expect(by['Serverless feature, rarely read|SHOP.REPORTING.DAILY_REVENUE_MV']).toBeTruthy();
+    // search optimisation on ORDERS serves thousands of queries
+    expect(by['Serverless feature, rarely read|SHOP.SALES.ORDERS']).toBeUndefined();
+    expect(by['Long failed queries|Z004EFGH on BI_WH']).toMatchObject({ 'Saving per month (credits)': 28 });
+    expect(d.metrics).toMatchObject({
+      findings: 15,
+      idleWarehouses: 1,
+      autoSuspend: 2,
+      oversized: 2,
+      unusedTables: 2,
+      retention: 1,
+      failing: 3,
+      serverless: 2,
+      longQueries: 2,
+      accessHistory: 1,
+      // each object once, with its largest saving (BI_WH: auto-suspend 77.34 rather than its size 60)
+      saving: 473.23,
+      savingCredits: 146.52,
+    });
+  });
+
+  it('without ACCESS_HISTORY and QUERY_ATTRIBUTION_HISTORY both go on and say what they could not check', async () => {
+    const { setSnowflakeUnavailableViews } = await import('../src/mock/mockSnowflakeUsage.js');
+    setSnowflakeUnavailableViews(['ACCESS_HISTORY', 'QUERY_ATTRIBUTION_HISTORY']);
+    try {
+      const waste = await finish(await start('snowflake-waste-check', { snowflake: platformByKind.snowflake! }));
+      expect([waste.status, waste.error]).toEqual(['succeeded', null]);
+      expect(checksOf(waste)).toMatchObject({ tablesRead: 'skipped', featuresOk: 'skipped', accessHistory: 'failed', idleOk: 'failed' });
+      expect(waste.steps.find((x: any) => x.stepId === 'accessHistory').summary).toContain('ACCESS_HISTORY cannot be read');
+      expect((await s.api('GET', '/datasets/snowflake.waste')).metrics).toMatchObject({ findings: 11, unusedTables: 0, serverless: 0, accessHistory: 0 });
+
+      const cost = await finish(await start('snowflake-cost-estimate', { snowflake: platformByKind.snowflake! }));
+      expect([cost.status, cost.error]).toEqual(['succeeded', null]);
+      expect(JSON.stringify(cost.logs)).toContain('QUERY_ATTRIBUTION_HISTORY could not be read');
+      const attribution = await s.api('GET', '/datasets/snowflake.cost-attribution');
+      expect([attribution.rowCount, attribution.metrics.available]).toEqual([0, 0]);
+      expect((await s.api('GET', '/datasets/snowflake.cost-services')).rowCount).toBeGreaterThan(0);
+    } finally {
+      setSnowflakeUnavailableViews([]);
+    }
+  });
+
+  it('both only read: every statement is a SELECT or SHOW, every call marked as not mutating', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const YAML = (await import('yaml')).default;
+    for (const f of ['621-snowflake-cost-estimate.yaml', '622-snowflake-waste-check.yaml']) {
+      const def = YAML.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'examples', 'processes', f), 'utf8'));
+      const calls = def.steps.filter((x: any) => x.type === 'http');
+      expect(calls.length, f).toBeGreaterThan(4);
+      for (const c of calls) {
+        expect([c.mutating, c.method, c.path], `${f} ${c.id}`).toEqual([false, 'POST', '/api/v2/statements']);
+        expect(c.body.statement, `${f} ${c.id}`).toMatch(/^(SELECT|SHOW) /);
+        expect(c.body.statement, `${f} ${c.id}`).not.toMatch(/\b(ALTER|DROP|CREATE|INSERT|UPDATE|DELETE|MERGE|GRANT|REVOKE|CALL|EXECUTE)\b/i);
+      }
+    }
   });
 });
 
@@ -582,6 +765,20 @@ describe('template metadata for the gallery', () => {
       ],
       minVersion: '0.2.8',
       tags: expect.arrayContaining(['access-review']),
+    });
+    expect(by['621-snowflake-cost-estimate']).toMatchObject({
+      connectionKinds: ['snowflake'],
+      recommendedSchedule: { cron: '20 9 * * *', text: expect.stringMatching(/^daily/) },
+      datasets: ['snowflake.cost-attribution', 'snowflake.cost-services', 'snowflake.cost-storage', 'snowflake.cost-warehouses'],
+      dashboards: [{ id: '62-snowflake-costs', name: 'Snowflake costs' }],
+      minVersion: '0.21.0',
+      tags: expect.arrayContaining(['costs', 'snowflake']),
+    });
+    expect(by['622-snowflake-waste-check']).toMatchObject({
+      recommendedSchedule: { cron: '30 7 * * 1', text: expect.stringMatching(/^weekly/) },
+      datasets: ['snowflake.waste'],
+      dashboards: [{ id: '62-snowflake-costs', name: 'Snowflake costs' }],
+      minVersion: '0.21.0',
     });
     // a slot that takes several kinds
     expect(by['82-github-repository-health']).toMatchObject({

@@ -1,10 +1,12 @@
 import { Cron } from 'croner';
 import { z } from 'zod';
 import {
+  accessModule,
   boundedRecord,
   REPORT_LANGS,
   REPORT_SCHEDULE_PRESETS,
   type ReportRecord,
+  type ReportModuleRecipients,
   type ReportRecipients,
   type ReportSchedule,
   type ReportSchedulePreset,
@@ -22,7 +24,9 @@ import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.
 import { notify, titleName } from '../notifications/service.js';
 import { assertEmailsAllowed } from '../notifications/domains.js';
 import { formatDateTime, t } from '../i18n/index.js';
-import { generateScheduledReport } from './service.js';
+import { generateScheduledReport, reportSectionsFor, restrictableModulesOf } from './service.js';
+import { moduleAccessMode } from '../modules/registry.js';
+import { subjectUsesModule, usesModule } from '../modules/access.js';
 import { asBackgroundPdf } from './pdf/pool.js';
 import { parseSections, reportSection } from './sections.js';
 import { me } from '../auth/access.js';
@@ -162,7 +166,10 @@ const canView = (u: AuthUser | null, r: Row) =>
 /** Archived scheduled reports: the owner, the recipients, auditors and administrators. */
 export function canViewScheduledReport(rec: ReportRecord, u: AuthUser | null = currentUser()): boolean {
   if (!u) return false;
-  if (capabilities(u).viewAudit || rec.createdBy.toLowerCase() === u.username.toLowerCase()) return true;
+  if (capabilities(u).viewAudit) return true;
+  // a report with sections of a module the person does not use (ADR 0034): not theirs – recipients read the copy without them
+  if (rec.modules?.some((m) => !usesModule(u, m))) return false;
+  if (rec.createdBy.toLowerCase() === u.username.toLowerCase()) return true;
   const r = rec.scheduleId ? db().get<Row>('SELECT * FROM report_schedules WHERE id = ?', rec.scheduleId) : undefined;
   return !!r && canView(u, r);
 }
@@ -249,6 +256,42 @@ export const scheduleInputSchema = z.object({
   team: z.string().trim().min(1).max(100).nullable().default(null),
 });
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
+
+/** POST /report-schedules/recipients-preview: the sections chosen and the recipients, as the form holds them. */
+export const recipientsPreviewSchema = z
+  .object({
+    /** An existing schedule: its owner's module access counts instead of the caller's */
+    id: z.string().trim().min(1).max(100).optional(),
+    sections: z.array(z.string().trim().min(1).max(64)).max(100),
+    recipients: scheduleInputSchema.shape.recipients,
+  })
+  .strict();
+
+/**
+ * Who gets a schedule's report without the sections of a restricted module (ADR 0034 decision 12), for the form:
+ * named users who do not use it, teams that are not on its list (their members get the copy unless they use the module
+ * otherwise) and the e-mail addresses outside Steward (they never use a restricted module). `ownerUses`: false when the
+ * owner does not use it – the sections are then left out for everyone. Nothing for a module open to everyone.
+ */
+export function reportModuleRecipients(input: z.infer<typeof recipientsPreviewSchema>): ReportModuleRecipients {
+  const u = me();
+  const row = input.id ? db().get<Row>('SELECT * FROM report_schedules WHERE id = ?', input.id) : undefined;
+  if (input.id && (!row || !canEdit(u, row))) throw new HttpError(404, `Report schedule ${input.id} not found`, 'REPORT_SCHEDULE_NOT_FOUND', { id: input.id });
+  if (!row && !canCreateReportSchedules(u))
+    throw new HttpError(403, 'You are not allowed to create report schedules', 'FORBIDDEN', { context: 'createReportSchedule' });
+  const ownerInfo = row ? findUserByName(row.owner) : undefined;
+  const owner = ownerInfo ? toAuthUser(ownerInfo) : u;
+  const modules = restrictableModulesOf(input.sections).filter((m) => moduleAccessMode(accessModule(m)) === 'selected');
+  return {
+    modules: modules.map((m) => ({
+      module: m,
+      ownerUses: usesModule(owner, m),
+      users: [...new Set(input.recipients.users.filter((n) => !subjectUsesModule(`user:${n}`, m)))],
+      teams: [...new Set(input.recipients.teams.filter((n) => !subjectUsesModule(`team:${n}`, m)))],
+      emails: new Set(input.recipients.emails).size,
+    })),
+  };
+}
 
 /**
  * A report is a PDF that may be mailed with an attachment: at most once an hour. Five fields only (no
@@ -446,10 +489,10 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
     const at = o.at ?? Date.now();
     const { from, to } = reportPeriod(r.preset, r.period_days, r.timezone, at);
     let rec: ReportRecord & { texts: string[]; pdf: Buffer };
+    // the scheduler's own reports wait for the PDF queue; one started by a person is refused when it is full
+    const generate = (input: Parameters<typeof generateScheduledReport>[0]) =>
+      o.actor === 'system' ? asBackgroundPdf(() => generateScheduledReport(input)) : generateScheduledReport(input);
     try {
-      // the scheduler's own reports wait for the PDF queue; one started by a person is refused when it is full
-      const generate = (input: Parameters<typeof generateScheduledReport>[0]) =>
-        o.actor === 'system' ? asBackgroundPdf(() => generateScheduledReport(input)) : generateScheduledReport(input);
       rec = await generate({
         actor: o.actor,
         owner,
@@ -478,7 +521,23 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
       throw e;
     }
     db().run('UPDATE report_schedules SET last_run_at = ?, last_report_id = ?, last_error = NULL WHERE id = ?', nowIso(), rec.id, id);
-    sendReport(r, rec);
+    await sendReport(r, rec, (sections) =>
+      generate({
+        actor: o.actor,
+        owner,
+        scheduleId: r.id,
+        scheduleName: r.name,
+        teamId: scheduleTeam(r)?.id ?? null,
+        title: r.title || r.name,
+        from,
+        to,
+        sections,
+        lang: r.lang,
+        classification: r.classification,
+        timeZone: r.timezone,
+        compress: o.compress,
+      }),
+    );
     const { pdf: _pdf, ...out } = rec;
     return out;
   } finally {
@@ -486,10 +545,44 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
   }
 }
 
-function sendReport(r: Row, rec: ReportRecord & { pdf: Buffer }): void {
+/**
+ * Sends the report to its recipients. A recipient who does not use a restricted module whose sections it holds gets the
+ * report without those sections (ADR 0034 decision 12): one more rendering at most per run, without the sections of
+ * every restricted module one of them does not use; e-mail addresses outside Steward count as not using any.
+ */
+async function sendReport(
+  r: Row,
+  rec: ReportRecord & { pdf: Buffer },
+  again: (sections: Record<string, unknown>) => Promise<ReportRecord & { pdf: Buffer }>,
+): Promise<void> {
   const recipients = parseJson<ReportRecipients>(r.recipients, { users: [], teams: [], emails: [] });
   const users = recipientUsers(recipients);
   if (!users.length && !recipients.emails.length) return;
+  const restricted = (rec.modules ?? []).filter((m) => moduleAccessMode(accessModule(m)) === 'selected');
+  if (!restricted.length) return notifyReport(r, rec, users, recipients.emails);
+  const whole = users.filter((u) => restricted.every((m) => usesModule(u, m)));
+  const others = users.filter((u) => !whole.includes(u));
+  notifyReport(r, rec, whole, []);
+  if (!others.length && !recipients.emails.length) return;
+  const missing = new Set(restricted.filter((m) => recipients.emails.length > 0 || others.some((u) => !usesModule(u, m))));
+  const sections = reportSectionsFor(parseJson(r.sections, {}), (m) => !missing.has(accessModule(m)) && !missing.has(m));
+  if (!Object.keys(sections).length) {
+    logger.info(
+      { schedule: r.id, recipients: others.length + recipients.emails.length },
+      'report not sent to recipients who do not use its modules: no section left',
+    );
+    return;
+  }
+  try {
+    notifyReport(r, await again(sections), others, recipients.emails);
+  } catch (err) {
+    // the full report is made and sent; the copy failing is logged, not the run
+    logger.warn({ err, schedule: r.id }, 'the copy of a report without restricted modules could not be made');
+  }
+}
+
+function notifyReport(r: Row, rec: ReportRecord & { pdf: Buffer }, users: UserInfo[], emails: string[]): void {
+  if (!users.length && !emails.length) return;
   const attach = !!r.attach_pdf && rec.pdf.length <= ATTACH_MAX_BYTES;
   notify({
     event: 'report.ready',
@@ -504,7 +597,7 @@ function sendReport(r: Row, rec: ReportRecord & { pdf: Buffer }): void {
     }),
     link: `/reports?report=${encodeURIComponent(rec.id)}`,
     recipients: users,
-    emails: recipients.emails,
+    emails,
     attachments: attach ? [{ filename: rec.filename, content: rec.pdf, contentType: 'application/pdf' }] : undefined,
     inAppKey: `report:${rec.id}`,
     externalKey: `report:${rec.id}`,

@@ -131,6 +131,8 @@ export const plantKeys = {
   assignment: (assetId: string | null | undefined) => ['plant', 'assignment', assetId] as const,
   checks: ['plant', 'checks'] as const,
   explore: (q: string) => ['plant', 'explore', q] as const,
+  /** 0.21.0 (#293): how many profiles and KPI definitions the reader may not see */
+  hiddenCatalogue: ['plant', 'catalogue', 'hidden'] as const,
   // part 3 (#220): the OT network of a site, of an asset
   network: (siteId: string | null | undefined) => ['plant', 'network', siteId] as const,
   /** #230: the VLANs the hosts of a site's data paths are in (the diagram) */

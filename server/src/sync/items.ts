@@ -23,12 +23,14 @@ import { canCreateMonitors, monitorRow, permissionsOfRow } from '../monitors/mod
 import * as recordTypes from '../records/types.js';
 import { canManageRecordTypes } from '../records/access.js';
 import { dashboardVisible, dashboardAccess } from '../dashboards/service.js';
+import * as calculators from '../costs/calculators.js';
+import { moduleEnabled } from '../modules/registry.js';
 
 /**
- * The four kinds of items a Git sync source can bring in, in the formats Steward already
+ * The kinds of items a Git sync source can bring in, in the formats Steward already
  * imports and exports: process YAML/JSON (graph or sequential steps), dashboard YAML,
- * monitor files (`kind: monitor` / `kind: monitorTemplate`, platforms by name or id) and
- * record type files (`kind: recordType`). Files are parsed as data only – nothing in them is run.
+ * monitor files (`kind: monitor` / `kind: monitorTemplate`, platforms by name or id),
+ * record type files (`kind: recordType`) and cost calculators (`kind: costCalculator`, 0.21.0). Files are parsed as data only – nothing in them is run.
  */
 
 export interface ParsedItem {
@@ -94,6 +96,7 @@ export function classify(raw: unknown): SyncKind | 'bundle' | null {
   if ((BUNDLE_FORMATS as readonly unknown[]).includes(o.format)) return 'bundle';
   if (o.kind === 'monitor' || o.kind === 'monitorTemplate') return 'monitor';
   if (o.kind === 'recordType') return 'recordType';
+  if (o.kind === 'costCalculator') return 'costCalculator';
   if (Array.isArray(o.widgets)) return 'dashboard';
   if (Array.isArray(o.nodes) || Array.isArray(o.steps)) return 'process';
   return null;
@@ -161,6 +164,13 @@ export async function parseFile(file: string, text: string, kinds: SyncKind[]): 
         );
       return { ok: true, item: { kind, identity: r.data.key, name: r.data.name, content: r.data, hash: sha256(canonicalJson(r.data)) } };
     }
+    case 'costCalculator': {
+      // the Costs module (0.21.0, ADR 0035): a calculator's file is stored as it is, its hash is that of the text
+      if (!moduleEnabled('costs')) return fail(kind, ['The Costs module is switched off'], typeof o.id === 'string' ? o.id : null);
+      const p = calculators.parseCalculator(text);
+      if (!p.ok || !p.definition) return fail(kind, p.errors, typeof o.id === 'string' ? o.id : null);
+      return { ok: true, item: { kind, identity: p.definition.id, name: p.definition.name, content: { text }, hash: sha256(text) } };
+    }
   }
 }
 
@@ -189,6 +199,8 @@ export function findLocal(kind: SyncKind, identity: string): LocalItem | null {
       const r = db().get<{ id: string; name: string }>('SELECT id, name FROM record_types WHERE key = ?', identity.toUpperCase());
       return r ?? null;
     }
+    case 'costCalculator':
+      return calculators.calculatorByKey(identity);
   }
 }
 
@@ -203,6 +215,8 @@ export function localById(kind: SyncKind, id: string): LocalItem | null {
       return db().get<{ id: string; name: string }>('SELECT id, name FROM monitors WHERE id = ?', id) ?? null;
     case 'recordType':
       return db().get<{ id: string; name: string }>('SELECT id, name FROM record_types WHERE id = ?', id) ?? null;
+    case 'costCalculator':
+      return db().get<{ id: string; name: string }>('SELECT id, name FROM cost_calculators WHERE id = ?', id) ?? null;
   }
 }
 
@@ -239,6 +253,8 @@ export function localHash(kind: SyncKind, id: string): string | null {
       const r = db().get<recordTypes.TypeRow>('SELECT * FROM record_types WHERE id = ?', id);
       return r ? sha256(canonicalJson(typeShape(r))) : null;
     }
+    case 'costCalculator':
+      return calculators.calculatorHash(id);
   }
 }
 
@@ -266,6 +282,10 @@ export function localText(kind: SyncKind, id: string): { text: string; definitio
         const r = db().get<recordTypes.TypeRow>('SELECT * FROM record_types WHERE id = ?', id);
         return r ? { text: yaml({ kind: 'recordType', ...typeShape(r) }) } : null;
       }
+      case 'costCalculator': {
+        const t = calculators.calculatorText(id);
+        return t === null ? null : { text: t };
+      }
     }
   } catch {
     return null;
@@ -273,6 +293,7 @@ export function localText(kind: SyncKind, id: string): { text: string; definitio
 }
 
 export function incomingText(kind: SyncKind, content: unknown): string {
+  if (kind === 'costCalculator') return (content as { text: string }).text;
   return yaml(kind === 'recordType' ? { kind: 'recordType', ...(content as object) } : content);
 }
 
@@ -298,6 +319,8 @@ export function canView(kind: SyncKind, entityId: string): boolean {
       return !r || dashboardVisible(r);
     }
     case 'recordType':
+    case 'costCalculator':
+      // calculators hold no prices: every reader of the Costs module sees them
       return true;
   }
 }
@@ -322,6 +345,8 @@ export function canDecide(kind: SyncKind, entityId: string | null): boolean {
     }
     case 'recordType':
       return canManageRecordTypes(u);
+    case 'costCalculator':
+      return local ? calculators.calculatorRights({ id: local.id }, u).edit : calculators.mayAddCalculators(u);
   }
 }
 
@@ -378,6 +403,14 @@ export async function applyItem(
       const input = recordTypes.typeInput.parse(content);
       const t = target ? recordTypes.updateType(target, input) : recordTypes.createType(input);
       return { entityId: t.id, version: null };
+    }
+    case 'costCalculator': {
+      // accepted from Git is published: the review of the update is the review of the version
+      const text = (content as { text: string }).text;
+      const c = target
+        ? calculators.saveCalculator(target, { definition: text, publish: true }, 'git')
+        : calculators.createCalculator({ definition: text, publish: true }, 'git');
+      return { entityId: c.id, version: c.version };
     }
   }
 }

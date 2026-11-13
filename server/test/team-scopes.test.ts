@@ -224,7 +224,8 @@ describe('owning teams on the service catalogue', () => {
     expect((await dave('GET', `/applications/${other}`)).name).toBe('Shared wiki');
     const why = await s.api('GET', `/access/explain?kind=application&id=${app}&user=tara`);
     expect(why.owningTeams.map((t: any) => t.name)).toEqual(['Orders']);
-    expect(why.reasons).toEqual([expect.objectContaining({ source: 'teamRole', team: 'Orders', permissions: ['view', 'edit'] })]);
+    // designers among the members manage it by role (ADR 0033 decision 3: its shares, owners from outside)
+    expect(why.reasons).toEqual([expect.objectContaining({ source: 'teamRole', team: 'Orders', permissions: ['view', 'edit', 'manage'] })]);
   });
 
   it('give the service back to the whole instance when removed', async () => {

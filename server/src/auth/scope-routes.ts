@@ -2,8 +2,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   OWNED_KINDS,
+  PLANT_SHARE_KINDS,
   SUPPLIER_CONTACT_CHOICES,
   boundedRecord,
+  moduleOfItemKind,
   type AccessExplanation,
   type AccessReason,
   type AclEntry,
@@ -20,9 +22,12 @@ import { dashboardAccess } from '../dashboards/service.js';
 import { canCreateTickets, ticketAccess } from '../tickets/service.js';
 import { siteAccess } from '../plant/access.js';
 import { plantEnabled } from '../plant/settings.js';
+import { catalogueEntryAccess } from '../plant/catalogue-access.js';
+import { moduleUseOf } from '../modules/access.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
 import {
+  SHARED_CATALOGUE_KINDS,
   catalogueAccess,
   catalogueTeams,
   contractAccess,
@@ -42,7 +47,10 @@ import { findUserByName, listUsers, toAuthUser } from './users.js';
 import { protectOpening } from '../suppliers/shared.js';
 import { canManageSuppliers, contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
+import { isRestricted } from './share-store.js';
 import type { AuthUser } from './context.js';
+import { bookRights, bookRow } from '../costs/price-books.js';
+import { calculatorRights } from '../costs/calculators.js';
 
 /**
  * Owning teams of resources and why someone has access (#131).
@@ -92,6 +100,12 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   // platform identities (0.13.0, ADR 0009): name and access list; the platform decides who sees them
   if (kind === 'platform_identity')
     return db().get<ResourceRow & { platform_id?: string }>('SELECT id, name, acl, platform_id FROM platform_identities WHERE id = ?', id);
+  // price books and calculators (0.21.0, ADR 0035): their own rules (costs/price-books.ts, costs/calculators.ts)
+  if (kind === 'cost_price_book') return db().get<ResourceRow>('SELECT id, name FROM cost_price_books WHERE id = ?', id);
+  if (kind === 'cost_calculator') return db().get<ResourceRow>('SELECT id, name FROM cost_calculators WHERE id = ?', id);
+  // the plant catalogues (0.21.0, #293): only while the module is on
+  if (kind === 'device_profile') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_profiles WHERE id = ?', id) : undefined;
+  if (kind === 'kpi_definition') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_kpis WHERE id = ?', id) : undefined;
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -123,9 +137,21 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
     const d = identityAccess(u, platform, { id: r.id, default: isDefault, acl: parseJson(r.acl, []) });
     return d.permissions.length ? d : { permissions: ['view'], reasons: seen.reasons };
   }
+  if (kind === 'cost_price_book') {
+    const row = bookRow(r.id);
+    const b = row ? bookRights(row, u) : { view: false, edit: false };
+    return { permissions: [...(b.view ? ['view'] : []), ...(b.edit ? ['edit'] : [])], reasons: [] };
+  }
+  if (kind === 'cost_calculator') {
+    const c = calculatorRights({ id: r.id }, u);
+    return { permissions: [...(c.view ? ['view'] : []), ...(c.edit ? ['edit'] : [])], reasons: [] };
+  }
+  if (kind === 'device_profile' || kind === 'kpi_definition') return catalogueEntryAccess(u, kind, r.id);
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
-  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
+  // Manage (its shares, owners from outside) on the kinds switched to shares (ADR 0033)
+  const manage = d.manage && SHARED_CATALOGUE_KINDS.has(kind);
+  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : []), ...(manage ? ['manage'] : [])], reasons: d.reasons };
 }
 
 /** Whether `u` may see a resource of any kind that can have owning teams (the held messages re-check this at release). */
@@ -149,8 +175,14 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   contract: ['Data contract not found', 'DATA_CONTRACT_NOT_FOUND'],
   platform_identity: ['Identity not found', 'IDENTITY_NOT_FOUND'],
   supplier: ['Supplier not found', 'SUPPLIER_NOT_FOUND'],
+  cost_price_book: ['Price book not found', 'COST_PRICE_BOOK_NOT_FOUND'],
+  cost_calculator: ['Calculator not found', 'COST_CALCULATOR_NOT_FOUND'],
+  device_profile: ['Device profile not found', 'PLANT_PROFILE_NOT_FOUND'],
+  kpi_definition: ['KPI definition not found', 'PLANT_KPI_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
+/** 404 for an item of a kind, like one that does not exist (the Access tab's routes, auth/share-routes.ts). */
+export const resourceNotFound = notFound;
 
 /** The resource, if the caller may see it (404 otherwise, like one that does not exist). */
 function visible(kind: OwnedKind, id: string): ResourceRow {
@@ -163,7 +195,7 @@ const teamIds = z.object({ teamIds: z.array(z.string().max(64)).max(50) });
 /** POST /access/named-outside (#195): an item (or a supplier's contract) and the users and teams a form names */
 const namedOutsideInput = z.object({
   kind: z.union([kindParam, z.literal('supplierContract')]),
-  id: z.string().max(64).optional(),
+  id: z.string().max(100).optional(),
   supplierId: z.string().max(64).optional(),
   subjects: z.array(z.string().max(200)).max(50),
   /** A platform to be added to the contract (`supplierContract` with `id`): who it gives the contract to from outside its teams (0.19.0) */
@@ -196,7 +228,7 @@ const bulkInput = z.object({
   /** set: exactly these teams; add / remove: these teams beside the ones there are */
   mode: z.enum(['set', 'add', 'remove']).default('set'),
   resources: z
-    .array(z.object({ kind: kindParam, id: z.string().max(64) }))
+    .array(z.object({ kind: kindParam, id: z.string().max(100) }))
     .max(500)
     .default([]),
   /** all resources of a service: the service, its applications, linked records and ticket references, credentials belonging to them */
@@ -262,10 +294,10 @@ function nextTeams(before: OwningTeam[], b: BulkInput, known: Map<string, string
 }
 
 export async function scopeRoutes(app: FastifyInstance): Promise<void> {
-  // a plant viewer (#218) sees the owning teams of sites only (the site page shows them)
+  // a plant viewer (#218) sees the owning teams of the plant registry's kinds only (sites, device profiles, KPI definitions)
   app.get('/owning-teams/:kind/:id', { config: { access: ACCESS.plantViewer } }, async (req) => {
     const { kind, id } = params(req);
-    if (kind !== 'site' && plantOnly(me())) throw notFound(kind, id);
+    if (!PLANT_SHARE_KINDS.includes(kind) && plantOnly(me())) throw notFound(kind, id);
     const r = visible(kind, id);
     return { teams: owningTeams(kind, r.id), canChange: isAdmin(me()) };
   });
@@ -437,13 +469,18 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       // the rights beyond seeing it: only who may change the item learns who is in its owning teams
       if (!access(b.kind, r, u).permissions.some((p) => p !== 'view')) throw notFound(b.kind, b.id);
       teams = isCatalogue(b.kind) ? catalogueTeams(b.kind, r.id) : owningTeams(b.kind, r.id);
+      // a Restricted item (ADR 0033): every subject named is from outside
+      if (isCatalogue(b.kind) && SHARED_CATALOGUE_KINDS.has(b.kind) && !teams.length && isRestricted(b.kind, r.id))
+        return { teams: [], outside: uncoveredSubjects([], [], b.subjects, true) };
     }
     return { teams: teams.map((t) => t.name), outside: uncoveredSubjects(teams, [], b.subjects) };
   });
 
-  app.get('/access/explain', async (req): Promise<AccessExplanation> => {
-    const q = z.object({ kind: kindParam, id: z.string().max(64), user: z.string().max(64).optional() }).parse(req.query);
+  // plant viewers ask about the plant registry's kinds only (the Access tab of a device profile, ADR 0033)
+  app.get('/access/explain', { config: { access: ACCESS.plantViewer } }, async (req): Promise<AccessExplanation> => {
+    const q = z.object({ kind: kindParam, id: z.string().max(100), user: z.string().max(64).optional() }).parse(req.query);
     const caller = me();
+    if (!PLANT_SHARE_KINDS.includes(q.kind) && plantOnly(caller)) throw notFound(q.kind, q.id);
     const r = visible(q.kind, q.id);
     let who = caller;
     if (q.user && q.user.toLowerCase() !== caller.username.toLowerCase()) {
@@ -455,6 +492,10 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
     }
     const d = access(q.kind, r, who);
     const teams = isCatalogue(q.kind) ? catalogueTeams(q.kind, r.id) : owningTeams(q.kind, r.id);
-    return { kind: q.kind, id: r.id, user: who.username, owningTeams: teams, permissions: d.permissions, reasons: d.reasons };
+    // an item of a module (a site, a data contract): the module layer first (ADR 0034) – without it, no rights at all
+    const mod = moduleOfItemKind(q.kind);
+    const module = mod ? moduleUseOf(who, mod) : undefined;
+    const permissions = module && !module.uses ? [] : d.permissions;
+    return { kind: q.kind, id: r.id, user: who.username, owningTeams: teams, permissions, reasons: d.reasons, ...(module ? { module } : {}) };
   });
 }

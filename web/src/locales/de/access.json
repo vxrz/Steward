@@ -47,7 +47,11 @@
       "site": "Dieser Standort gehört der ganzen Instanz: Rollen und die Zugriffsliste bestimmen, wer ihn, seine Hierarchie und seine Anlagen sehen und verwalten darf.",
       "contract": "Dieser Datenvertrag gehört der ganzen Instanz: Alle, die in Steward arbeiten, sehen ihn; Operatoren testen ihn, Designer ändern ihn.",
       "platform_identity": "Kein zuständiges Team: Nur Administratoren und die Zugriffsliste unten dürfen diese Identität verwenden.",
-      "supplier": "Dieser Lieferant gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Designer, Administratoren und seine Eigentümer ändern ihn."
+      "supplier": "Dieser Lieferant gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Designer, Administratoren und seine Eigentümer ändern ihn.",
+      "cost_price_book": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen dieses Preisbuch; ein Listenpreisbuch lesen alle, die Kosten verwenden.",
+      "cost_calculator": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn.",
+      "device_profile": "Dieses Geräteprofil gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen es; Designer und Administratoren ändern es. Zuständige Teams beschränken es auf ihre Mitglieder – Anlagen mit diesem Profil zeigen weiterhin die Daten, die sie liefern.",
+      "kpi_definition": "Diese KPI-Definition gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen sie; Designer und Administratoren ändern sie."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
@@ -61,10 +65,15 @@
       "dashboard": "Nur Mitglieder dieser Teams sehen dieses Dashboard, außerdem sein Eigentümer, Administratoren und Auditoren.",
       "ticket": "Nur Mitglieder dieser Teams sehen diese Ticket-Referenz (Designer und Operatoren unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Auditoren.",
       "site": "Nur Mitglieder dieser Teams sehen diesen Standort mit Hierarchie und Anlagen (Designer unter ihnen verwalten ihn), außerdem die Einträge seiner Zugriffsliste, Administratoren und Auditoren.",
-      "contract": "Nur Mitglieder dieser Teams sehen diesen Datenvertrag (Operatoren unter ihnen testen ihn, Designer ändern ihn), außerdem Administratoren und Prüfer. Ein fehlgeschlagener Test benachrichtigt sie.",
+      "contract": "Nur Mitglieder dieser Teams sehen diesen Datenvertrag (Operatoren unter ihnen testen ihn, Designer ändern ihn), außerdem Administratoren und Auditoren. Ein fehlgeschlagener Test benachrichtigt sie.",
       "platform_identity": "Mitglieder dieser Teams mit der Rolle Designer oder Operator dürfen diese Identität verwenden; alle anderen nur, was ihre Zugriffsliste erlaubt.",
-      "supplier": "Nur Mitglieder dieser Teams sehen diesen Lieferanten (Designer unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren."
+      "supplier": "Nur Mitglieder dieser Teams sehen diesen Lieferanten (Designer unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren.",
+      "cost_price_book": "Designer dieser Teams pflegen dieses Preisbuch; ein vertragliches Buch lesen nur die Mitglieder der Teams, Administratoren und Auditoren.",
+      "cost_calculator": "Designer dieser Teams pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn.",
+      "device_profile": "Nur Mitglieder dieser Teams sehen dieses Geräteprofil (Designer unter ihnen verwalten es), außerdem Administratoren und Auditoren. Andere sehen die Schnittstellen und Datenpunkte, die es einer für sie sichtbaren Anlage gibt, ohne seinen Namen.",
+      "kpi_definition": "Nur Mitglieder dieser Teams sehen diese KPI-Definition (Designer unter ihnen verwalten sie), außerdem Administratoren und Auditoren. Ihre KPI-Instanzen an Anlagen, die andere sehen, laufen weiter, ohne ihren Namen."
     },
+    "hintRestricted": "Eingeschränkt: kein zuständiges Team, und Rollen in der Instanz geben darauf nichts – nur die Einträge unter „Geteilt mit“, seine Eigentümer, Administratoren und Prüfer erreichen ihn.",
     "saved": "Zuständige Teams gespeichert",
     "notSaved": "Zuständige Teams nicht gespeichert",
     "why": "Warum habe ich Zugriff?",
@@ -81,7 +90,17 @@
       "teamRole": "{{role}} im Team {{team}}: {{rights}}",
       "accessList": "Zugriffsliste ({{subject}}): {{rights}}",
       "namedOwner": "Als Eigentümer benannt ({{subject}}): {{rights}}",
-      "namedResponsible": "Als Verantwortliche benannt ({{subject}}): {{rights}}"
+      "namedResponsible": "Als Verantwortliche benannt ({{subject}}): {{rights}}",
+      "shareUser": "Geteilt mit {{name}} – {{level}}",
+      "shareTeam": "Geteilt mit Team {{name}} – {{level}}",
+      "shareRole": "Geteilt mit allen mit der Rolle {{name}} – {{level}}",
+      "until": "{{text}} (bis {{date}})",
+      "implied": "{{as}} ({{subject}}): {{level}} (abgeleitet)"
+    },
+    "level": {
+      "view": "Ansehen",
+      "edit": "Bearbeiten",
+      "manage": "Verwalten"
     },
     "save": "Zuständige Teams speichern",
     "bulk": {
@@ -117,9 +136,14 @@
         "site": "Standort",
         "contract": "Datenvertrag",
         "platform_identity": "Plattform-Identitäten",
-        "supplier": "Lieferant"
+        "supplier": "Lieferant",
+        "cost_price_book": "Preisbücher",
+        "cost_calculator": "Rechner",
+        "device_profile": "Geräteprofile",
+        "kpi_definition": "KPI-Definitionen"
       }
-    }
+    },
+    "moduleNotUsed": "ohne das Modul gelten die Rechte unten nicht"
   },
   "restrictedSite": "<b>Eingeschränkt:</b> Nur die Einträge unten erhalten die genannten Rechte am Standort, seiner Hierarchie und seinen Anlagen, außerdem Administratoren. Auditoren können immer lesen.",
   "defaultsSite": "<b>Es gelten die Rollenrechte</b> (alle, die in Steward arbeiten, sehen den Standort, Designer verwalten ihn). Fügen Sie Einträge hinzu, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
@@ -138,5 +162,56 @@
     "hint_other": "{{names}} gehören nicht zu den zuständigen Teams ({{teams}}) und werden diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",
     "platformHint_one": "{{names}} gehört nicht zu den zuständigen Teams des Vertrags ({{teams}}) und wird ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind.",
     "platformHint_other": "{{names}} gehören nicht zu den zuständigen Teams des Vertrags ({{teams}}) und werden ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind."
+  },
+  "shares": {
+    "title": "Geteilt mit",
+    "loading": "Geteilte Zugriffe werden geladen …",
+    "loadFailed": "Die geteilten Zugriffe konnten nicht geladen werden.",
+    "scope": {
+      "instance": "Bereich: die ganze Instanz – die Rollen aller gelten, die Einträge unten kommen hinzu.",
+      "teams": "Bereich: die zuständigen Teams ({{teams}}) – ihre Mitglieder haben ihre Rollen, die Einträge unten fügen Ausnahmen hinzu.",
+      "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag."
+    },
+    "restricted": "Eingeschränkt",
+    "restrictedHint": "Instanzrollen geben auf diesem Eintrag nichts: Nur die Einträge unter „Geteilt mit“, Eigentümer, Administratoren und Prüfer erreichen ihn.",
+    "implied": "{{as}} – {{level}} (abgeleitet)",
+    "as": {
+      "owner": "Eigentümer",
+      "responsible": "Verantwortlicher"
+    },
+    "outside": "außerhalb der zuständigen Teams",
+    "impliedHint": "Eigentümer haben abgeleitet das Recht Bearbeiten: Es ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
+    "notYours": "Mit wem dieser Eintrag geteilt ist, sehen nur, wer ihn verwaltet, Administratoren und Prüfer. „Warum habe ich Zugriff?“ zeigt Ihre eigenen Gründe.",
+    "empty": "Mit niemandem geteilt.",
+    "unknown": "Existiert nicht mehr – dieser Eintrag trifft auf niemanden zu",
+    "level": "Stufe",
+    "levelFor": "Stufe für {{name}}",
+    "until": "Endet am",
+    "untilFor": "Enddatum für {{name}}",
+    "untilShort": "bis {{date}}",
+    "remove": "Teilen mit {{name}} beenden",
+    "hidden_one": "Und {{count}} Eintrag mit einem Benutzer oder Team, das Sie nicht sehen dürfen – er bleibt beim Speichern erhalten.",
+    "hidden_other": "Und {{count}} Einträge mit Benutzern oder Teams, die Sie nicht sehen dürfen – sie bleiben beim Speichern erhalten.",
+    "add": "Teilen mit",
+    "newLevel": "Stufe des neuen Eintrags",
+    "addButton": "Hinzufügen",
+    "save": "Geteilte Zugriffe speichern",
+    "saved": "Geteilte Zugriffe gespeichert",
+    "scopeSaved": "Bereich gespeichert",
+    "notSaved": "Zugriff nicht geändert",
+    "previewTitle": "Bevor Sie speichern",
+    "nothingChanges": "Niemand erhält oder verliert etwas.",
+    "gains": "Wer was erhält",
+    "losses": "Wer was verliert",
+    "gainLine": "{{who}} erhält: {{rights}}",
+    "lossLine": "{{who}} verliert: {{rights}}",
+    "everyoneByRole": "Alle über ihre Rolle",
+    "change": {
+      "extended": "ein späteres Enddatum",
+      "shortened": "ein früheres Enddatum",
+      "roleDefaults": "die Standardrechte ihrer Rollen"
+    },
+    "stepUpHint": "Wenn Sie Zugriff geben, bestätigen Sie anschließend, dass Sie es sind.",
+    "confirm": "Speichern"
   }
 }

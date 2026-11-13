@@ -191,8 +191,14 @@ export async function parseLibraryItem(p: string, content: Buffer): Promise<{ ok
       return { ok: false, errors: [`${p}: ${(e as Error).message.slice(0, 500)}`] };
     }
   }
-  const r = await parseFile(p, t, [...SYNC_KINDS]);
+  // cost calculators (0.21.0) are synced from Git, not shipped in libraries
+  const r = await parseFile(
+    p,
+    t,
+    SYNC_KINDS.filter((k) => k !== 'costCalculator'),
+  );
   if (!r.ok) return { ok: false, errors: r.errors.map((e) => `${p}: ${e}`) };
+  if (r.item.kind === 'costCalculator') return { ok: false, errors: [`${p}: cost calculators are not part of a library`] };
   if (r.item.kind === 'process') {
     const pins = (r.item.content as ProcessDefinition).nodes.filter((n) => n.type === 'subprocess' && (n as { version?: number }).version !== undefined);
     if (pins.length)
@@ -203,7 +209,7 @@ export async function parseLibraryItem(p: string, content: Buffer): Promise<{ ok
         ],
       };
   }
-  return { ok: true, item: { ...r.item, path: p } };
+  return { ok: true, item: { ...r.item, kind: r.item.kind, path: p } };
 }
 
 /** All items of the manifest, parsed; ids unique per kind. Collects every problem before refusing. */

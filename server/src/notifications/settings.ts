@@ -43,6 +43,8 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'ticket.unchecked',
     'summary.daily',
     'access.undocumented',
+    // shares that end soon (ADR 0033 decision 4): to the item's Manage holders
+    'access.share_expiring',
     'document.review',
     'stack.eol',
     'stack.release',

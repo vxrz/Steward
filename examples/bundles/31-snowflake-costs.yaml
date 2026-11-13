@@ -1,0 +1,18 @@
+# steward-min-version: 0.21.0
+name: Snowflake costs (estimate and waste)
+description: |
+  The daily cost estimate of a Snowflake account (this month so far, the projection for the month and the previous
+  month per service type, warehouse, database and query tag, with budget and growth checks) and the weekly waste
+  check (idle and oversized warehouses, late auto-suspend, unread tables, large time travel, failing tasks and pipes,
+  serverless features on objects hardly read, long failed queries – with the estimated saving), with the "Snowflake
+  costs" dashboard. Set your contracted price per credit and per TB in the schedules' inputs. Read-only
+  (docs/SNOWFLAKE.md).
+tags: [costs, finops, snowflake]
+platforms:
+  - key: snowflake
+    label: Snowflake account
+    kinds: [snowflake]
+processes:
+  - template: 621-snowflake-cost-estimate
+  - template: 622-snowflake-waste-check
+dashboards: [62-snowflake-costs]

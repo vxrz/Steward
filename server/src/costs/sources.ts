@@ -9,6 +9,7 @@ import { HttpError } from '../util.js';
 import { costSettings, requireScope } from './access.js';
 import { aiLines, awsLines, awsWindow, confluentLines, confluentRanges, readFrom, snowflakeCosts, type ConfluentCost } from './readers.js';
 import { noteRead, sourceRow } from './service.js';
+import { snowflakeCreditPrice } from './price-books.js';
 import { ingest, remap, type IngestResult } from './store.js';
 
 /**
@@ -62,10 +63,13 @@ export async function readSource(platformId: string, actor: string, now = Date.n
     if (source === 'snowflake') {
       const { snowflakeClient } = await import('../snowflake/service.js');
       const from = readFrom(platformId, source, now);
+      // the price per credit of the fallback lives in the platform's contracted price book since 0.21.0 (ADR 0035
+      // decision 15); the source's own column is read only when there is no book (it is migrated into one)
       const row = sourceRow(platformId);
+      const book = snowflakeCreditPrice(platformId);
       const r = await snowflakeCosts(snowflakeClient(platform, secrets), platform, from, {
-        price: row?.credit_price ?? null,
-        currency: row?.credit_currency ?? null,
+        price: book?.price ?? row?.credit_price ?? null,
+        currency: book?.currency ?? row?.credit_currency ?? null,
       });
       const result = ingest({
         sourcePlatformId: platformId,

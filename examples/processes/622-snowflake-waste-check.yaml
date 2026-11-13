@@ -1,0 +1,779 @@
+# steward-min-version: 0.21.0
+name: "Snowflake – Waste check"
+description: |
+  Where a Snowflake account spends credits and storage for nothing, from
+  SNOWFLAKE.ACCOUNT_USAGE and SHOW WAREHOUSES, each finding with its reason,
+  the object, an estimated saving per month (where it can be computed) and
+  the SQL a person could run – as text only: the process never changes
+  anything. Findings: warehouses with auto-suspend off or longer than N
+  seconds; warehouses that burned credits with no or almost no queries;
+  oversized warehouses (mostly short queries, low load, no spilling or
+  queuing – the next smaller size halves the credits per hour); tables not
+  read for N days and their storage (ACCESS_HISTORY, Enterprise Edition –
+  without it this part is skipped and a note says so); large time travel and
+  fail-safe; tasks and pipes that keep failing and still use credits;
+  automatic clustering, materialised views and search optimisation spending
+  credits on objects hardly anyone reads; long queries that failed or were
+  cancelled. Checks warn per kind of finding.
+
+  Savings are estimates for 30 days from the last N days (input): an idle
+  warehouse all its credits, auto-suspend the share of metered hours without
+  a query (less what the suggested 60 seconds still cost), an oversized
+  warehouse half of its credits, a table its storage at the price per TB and
+  month, time travel its bytes, a failing task or pipe the share of its
+  credits spent on failures, a serverless feature all its credits, a failed
+  long query its hours × the credits per hour of the warehouse size. Findings
+  of one object overlap: the total counts each object's largest saving once.
+
+  Recommended schedule: weekly (`30 7 * * 1`). Publishes `snowflake.waste`
+  (one row per finding) for the "Snowflake costs" dashboard. Needs a
+  Snowflake platform whose role has IMPORTED PRIVILEGES on the SNOWFLAKE
+  database (or the database roles SNOWFLAKE.USAGE_VIEWER and, for
+  ACCESS_HISTORY, SNOWFLAKE.GOVERNANCE_VIEWER), MONITOR USAGE on the account
+  or MONITOR on the warehouses (SHOW WAREHOUSES lists only warehouses the
+  role has a privilege on) and a warehouse (docs/SNOWFLAKE.md).
+  ACCOUNT_USAGE lags 45 minutes (QUERY_HISTORY, TASK_HISTORY) to three hours
+  (the metering, load and serverless histories, ACCESS_HISTORY).
+recommendedSchedule: "30 7 * * 1"
+tags: [costs, finops, housekeeping, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only)
+inputs:
+  - name: days
+    label: Look at the last … days (1–90)
+    type: number
+    default: 30
+  - name: pricePerCredit
+    label: Price per credit (your contracted price)
+    type: number
+    default: 3
+  - name: storagePricePerTb
+    label: Storage price per TB and month (TB = 2^40 bytes)
+    type: number
+    default: 23
+  - name: currency
+    label: Currency of the prices
+    type: string
+    default: USD
+  - name: maxAutoSuspend
+    label: Warehouses suspend after at most (seconds of idle time)
+    type: number
+    default: 600
+  - name: idleQueries
+    label: Idle warehouse – at most this many queries in the period
+    type: number
+    default: 5
+  - name: minCredits
+    label: Ignore warehouses and objects with fewer credits in the period
+    type: number
+    default: 1
+  - name: shortSeconds
+    label: Oversized warehouse – a short query runs under (seconds)
+    type: number
+    default: 10
+  - name: shortSharePercent
+    label: Oversized warehouse – at least this share of short queries (%)
+    type: number
+    default: 90
+  - name: maxAverageLoad
+    label: Oversized warehouse – average load at most (queries running while it runs)
+    type: number
+    default: 0.5
+  - name: unreadDays
+    label: Tables not read for (days, ACCESS_HISTORY)
+    type: number
+    default: 90
+  - name: minTableGb
+    label: Unread tables from (GB)
+    type: number
+    default: 10
+  - name: minRetentionGb
+    label: Time travel and fail-safe from (GB per table)
+    type: number
+    default: 100
+  - name: minTaskFailures
+    label: Tasks failing at least … times in the period
+    type: number
+    default: 3
+  - name: minFailedFiles
+    label: Pipes with at least … failed files in the period
+    type: number
+    default: 10
+  - name: maxReads
+    label: Clustering, materialised views, search optimisation on objects read at most … times
+    type: number
+    default: 10
+  - name: longQueryMinutes
+    label: Failed or cancelled queries that ran at least (minutes)
+    type: number
+    default: 10
+constants:
+  # credits per hour of a standard warehouse and the next smaller size; keys as SHOW WAREHOUSES and QUERY_HISTORY write
+  # the sizes, in upper case without "-" and spaces (sizeAliases: the other spellings)
+  sizes:
+    XSMALL: { label: X-Small, credits: 1 }
+    SMALL: { label: Small, credits: 2, smaller: XSMALL }
+    MEDIUM: { label: Medium, credits: 4, smaller: SMALL }
+    LARGE: { label: Large, credits: 8, smaller: MEDIUM }
+    XLARGE: { label: X-Large, credits: 16, smaller: LARGE }
+    XXLARGE: { label: 2X-Large, credits: 32, smaller: XLARGE }
+    XXXLARGE: { label: 3X-Large, credits: 64, smaller: XXLARGE }
+    X4LARGE: { label: 4X-Large, credits: 128, smaller: XXXLARGE }
+    X5LARGE: { label: 5X-Large, credits: 256, smaller: X4LARGE }
+    X6LARGE: { label: 6X-Large, credits: 512, smaller: X5LARGE }
+  sizeAliases: { "2XLARGE": XXLARGE, "3XLARGE": XXXLARGE, "4XLARGE": X4LARGE, "5XLARGE": X5LARGE, "6XLARGE": X6LARGE }
+steps:
+  - id: setup
+    type: set
+    name: Period and prices
+    values:
+      days: "{{ $max([1, $min([90, $round($number(inputs.days))])]) }}"
+      back: "{{ $string(-vars.days) }}"
+      perMonth: "{{ 30 / vars.days }}"
+      creditPrice: "{{ $number(inputs.pricePerCredit) }}"
+      tbPrice: "{{ $number(inputs.storagePricePerTb) }}"
+  - id: readWarehouseList
+    type: http
+    name: Warehouses and their settings (SHOW WAREHOUSES)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: SHOW WAREHOUSES
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: warehouseListRead
+  - id: readMetering
+    type: http
+    name: Credits and metered hours per warehouse (ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT WAREHOUSE_NAME, SUM(CREDITS_USED) AS CREDITS, COUNT_IF(CREDITS_USED_COMPUTE > 0) AS METERED_HOURS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY WAREHOUSE_NAME
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: meteringRead
+  - id: readQueryStats
+    type: http
+    name: Queries per warehouse (ACCOUNT_USAGE.QUERY_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT WAREHOUSE_NAME, COUNT(*) AS QUERIES,
+        COUNT_IF(EXECUTION_TIME < ?) AS SHORT_QUERIES,
+        COUNT_IF(BYTES_SPILLED_TO_LOCAL_STORAGE > 0 OR BYTES_SPILLED_TO_REMOTE_STORAGE > 0) AS SPILLING_QUERIES,
+        COUNT_IF(QUEUED_OVERLOAD_TIME > 0) AS QUEUED_QUERIES,
+        COUNT(DISTINCT DATE_TRUNC('hour', START_TIME)) AS ACTIVE_HOURS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+        WHERE WAREHOUSE_NAME IS NOT NULL AND WAREHOUSE_SIZE IS NOT NULL AND START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY WAREHOUSE_NAME
+      bindings:
+        "1": { type: FIXED, value: "{{ $string($round($number(inputs.shortSeconds) * 1000)) }}" }
+        "2": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: queryStatsRead
+  - id: readLoad
+    type: http
+    name: Load per warehouse (ACCOUNT_USAGE.WAREHOUSE_LOAD_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT WAREHOUSE_NAME, AVG(IFF(AVG_RUNNING > 0, AVG_RUNNING, NULL)) AS AVG_RUNNING, AVG(AVG_QUEUED_LOAD) AS AVG_QUEUED
+        FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_LOAD_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY WAREHOUSE_NAME
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: loadRead
+  - id: readLongQueries
+    type: http
+    name: Long queries that failed or were cancelled (ACCOUNT_USAGE.QUERY_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT USER_NAME, WAREHOUSE_NAME, WAREHOUSE_SIZE, COUNT(*) AS QUERIES,
+        COUNT_IF(ERROR_MESSAGE ILIKE '%cancel%') AS CANCELLED,
+        SUM(TOTAL_ELAPSED_TIME) / 3600000 AS ELAPSED_HOURS,
+        MAX_BY(ERROR_MESSAGE, START_TIME) AS LAST_ERROR
+        FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
+        WHERE EXECUTION_STATUS = 'FAIL' AND WAREHOUSE_NAME IS NOT NULL
+        AND TOTAL_ELAPSED_TIME >= ? AND START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY USER_NAME, WAREHOUSE_NAME, WAREHOUSE_SIZE ORDER BY ELAPSED_HOURS DESC LIMIT 50
+      bindings:
+        "1": { type: FIXED, value: "{{ $string($round($number(inputs.longQueryMinutes) * 60000)) }}" }
+        "2": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: longQueriesRead
+  - id: readRetention
+    type: http
+    name: Time travel and fail-safe per table (ACCOUNT_USAGE.TABLE_STORAGE_METRICS)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, ACTIVE_BYTES, TIME_TRAVEL_BYTES, FAILSAFE_BYTES, IS_TRANSIENT
+        FROM SNOWFLAKE.ACCOUNT_USAGE.TABLE_STORAGE_METRICS
+        WHERE DELETED = FALSE AND TABLE_DROPPED IS NULL AND TIME_TRAVEL_BYTES + FAILSAFE_BYTES >= ?
+        ORDER BY TIME_TRAVEL_BYTES + FAILSAFE_BYTES DESC LIMIT 50
+      bindings:
+        "1": { type: FIXED, value: "{{ $string($round($number(inputs.minRetentionGb) * 1073741824)) }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: retentionRead
+  - id: probeAccessHistory
+    type: http
+    name: Is ACCESS_HISTORY readable (Enterprise Edition)?
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    # 422: the view does not exist for this account or role – the checks that need it are skipped
+    expectStatus: [200, 422]
+    body:
+      statement: SELECT COUNT(*) AS ACCESS_ROWS FROM SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY WHERE QUERY_START_TIME >= DATEADD(day, -2, CURRENT_TIMESTAMP())
+      timeout: 60
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: accessProbe
+  - id: access
+    type: set
+    name: ACCESS_HISTORY available?
+    values:
+      accessAvailable: "{{ vars.accessProbe.status = 200 and $number(vars.accessProbe.body.data[0][0]) > 0 }}"
+      accessNote: >-
+        {{ vars.accessProbe.status != 200
+          ? 'ACCESS_HISTORY cannot be read (' & $substring($string(vars.accessProbe.body.message), 0, 200) & ')'
+          : ($number(vars.accessProbe.body.data[0][0]) > 0 ? 'ACCESS_HISTORY readable' : 'ACCESS_HISTORY is empty for the last two days') }}
+  - id: readUnusedTables
+    type: http
+    name: Tables not read for N days (ACCOUNT_USAGE.TABLE_STORAGE_METRICS, ACCESS_HISTORY)
+    when: "vars.accessAvailable"
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT t.TABLE_CATALOG, t.TABLE_SCHEMA, t.TABLE_NAME, t.ACTIVE_BYTES, t.TIME_TRAVEL_BYTES, t.FAILSAFE_BYTES,
+        TO_VARCHAR(t.TABLE_CREATED, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS TABLE_CREATED
+        FROM SNOWFLAKE.ACCOUNT_USAGE.TABLE_STORAGE_METRICS t
+        WHERE t.DELETED = FALSE AND t.TABLE_DROPPED IS NULL AND t.TABLE_CATALOG <> 'SNOWFLAKE' AND t.ACTIVE_BYTES >= ?
+        AND t.TABLE_CREATED < DATEADD(day, ?, CURRENT_TIMESTAMP())
+        AND t.TABLE_CATALOG || '.' || t.TABLE_SCHEMA || '.' || t.TABLE_NAME NOT IN (
+        SELECT f.value:"objectName"::STRING FROM SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY a, LATERAL FLATTEN(a.BASE_OBJECTS_ACCESSED) f
+        WHERE a.QUERY_START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP()) AND f.value:"objectName" IS NOT NULL)
+        ORDER BY t.ACTIVE_BYTES DESC LIMIT 100
+      bindings:
+        "1": { type: FIXED, value: "{{ $string($round($number(inputs.minTableGb) * 1073741824)) }}" }
+        "2": { type: FIXED, value: "{{ $string(-$abs($round($number(inputs.unreadDays)))) }}" }
+        "3": { type: FIXED, value: "{{ $string(-$abs($round($number(inputs.unreadDays)))) }}" }
+      timeout: 300
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: unusedTablesRead
+  - id: readTasks
+    type: http
+    name: Tasks that keep failing (ACCOUNT_USAGE.TASK_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT DATABASE_NAME, SCHEMA_NAME, NAME, COUNT(*) AS RUNS, COUNT_IF(STATE = 'FAILED') AS FAILURES,
+        MAX_BY(ERROR_MESSAGE, IFF(STATE = 'FAILED', SCHEDULED_TIME, NULL)) AS LAST_ERROR
+        FROM SNOWFLAKE.ACCOUNT_USAGE.TASK_HISTORY
+        WHERE STATE IN ('SUCCEEDED', 'FAILED') AND SCHEDULED_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY DATABASE_NAME, SCHEMA_NAME, NAME HAVING COUNT_IF(STATE = 'FAILED') >= ?
+        ORDER BY FAILURES DESC LIMIT 100
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+        "2": { type: FIXED, value: "{{ $string($max([1, $round($number(inputs.minTaskFailures))])) }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: tasksRead
+  - id: readTaskCredits
+    type: http
+    name: Credits of serverless tasks (ACCOUNT_USAGE.SERVERLESS_TASK_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT DATABASE_NAME, SCHEMA_NAME, TASK_NAME, SUM(CREDITS_USED) AS CREDITS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.SERVERLESS_TASK_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY DATABASE_NAME, SCHEMA_NAME, TASK_NAME
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: taskCreditsRead
+  - id: readPipes
+    type: http
+    name: Pipes with failed files (ACCOUNT_USAGE.COPY_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT PIPE_CATALOG_NAME, PIPE_SCHEMA_NAME, PIPE_NAME, COUNT(*) AS FILES,
+        COUNT_IF(STATUS ILIKE '%failed%') AS FAILED_FILES,
+        MAX_BY(FIRST_ERROR_MESSAGE, IFF(STATUS ILIKE '%failed%', LAST_LOAD_TIME, NULL)) AS LAST_ERROR
+        FROM SNOWFLAKE.ACCOUNT_USAGE.COPY_HISTORY
+        WHERE PIPE_NAME IS NOT NULL AND LAST_LOAD_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY PIPE_CATALOG_NAME, PIPE_SCHEMA_NAME, PIPE_NAME HAVING COUNT_IF(STATUS ILIKE '%failed%') >= ?
+        ORDER BY FAILED_FILES DESC LIMIT 100
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+        "2": { type: FIXED, value: "{{ $string($max([1, $round($number(inputs.minFailedFiles))])) }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: pipesRead
+  - id: readPipeCredits
+    type: http
+    name: Credits of the pipes (ACCOUNT_USAGE.PIPE_USAGE_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT PIPE_NAME, SUM(CREDITS_USED) AS CREDITS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.PIPE_USAGE_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP())
+        GROUP BY PIPE_NAME
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: pipeCreditsRead
+  - id: readFeatures
+    type: http
+    name: Credits of clustering, materialised views and search optimisation per object
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    # 422: one of the three views is not there for this account – the rest of the check goes on
+    expectStatus: [200, 422]
+    body:
+      statement: >-
+        SELECT 'clustering' AS FEATURE, DATABASE_NAME, SCHEMA_NAME, TABLE_NAME, SUM(CREDITS_USED) AS CREDITS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.AUTOMATIC_CLUSTERING_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP()) GROUP BY 2, 3, 4
+        UNION ALL
+        SELECT 'materialised view', DATABASE_NAME, SCHEMA_NAME, TABLE_NAME, SUM(CREDITS_USED)
+        FROM SNOWFLAKE.ACCOUNT_USAGE.MATERIALIZED_VIEW_REFRESH_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP()) GROUP BY 2, 3, 4
+        UNION ALL
+        SELECT 'search optimisation', DATABASE_NAME, SCHEMA_NAME, TABLE_NAME, SUM(CREDITS_USED)
+        FROM SNOWFLAKE.ACCOUNT_USAGE.SEARCH_OPTIMIZATION_HISTORY
+        WHERE START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP()) GROUP BY 2, 3, 4
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+        "2": { type: FIXED, value: "{{ vars.back }}" }
+        "3": { type: FIXED, value: "{{ vars.back }}" }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: featuresRead
+  - id: tables
+    type: set
+    name: Result sets as rows
+    values:
+      # the SQL API answers rows as arrays, with the column names in resultSetMetaData; a read that was skipped or
+      # answered 422 has none
+      rs: >-
+        {{ (
+          $rows := function($r) { $r.status = 200 ? ($c := [$r.body.resultSetMetaData.rowType.name]; [$map($r.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) : [] };
+          {
+            "warehouses": $rows(vars.warehouseListRead),
+            "metering": $rows(vars.meteringRead),
+            "queryStats": $rows(vars.queryStatsRead),
+            "load": $rows(vars.loadRead),
+            "longQueries": $rows(vars.longQueriesRead),
+            "retention": $rows(vars.retentionRead),
+            "unusedTables": $rows(vars.unusedTablesRead),
+            "tasks": $rows(vars.tasksRead),
+            "taskCredits": $rows(vars.taskCreditsRead),
+            "pipes": $rows(vars.pipesRead),
+            "pipeCredits": $rows(vars.pipeCreditsRead),
+            "features": $rows(vars.featuresRead)
+          }
+        ) }}
+      featureObjects: "{{ [vars.rs.features[$number(CREDITS) >= $inputs.minCredits].(DATABASE_NAME & '.' & SCHEMA_NAME & '.' & TABLE_NAME)] }}"
+  - id: noFeatures
+    type: log
+    name: Serverless feature histories not readable
+    when: "vars.featuresRead.status != 200"
+    level: warn
+    message: "Clustering, materialised view and search optimisation credits could not be read: {{ $string(vars.featuresRead.body.message) }}"
+  - id: readFeatureReads
+    type: http
+    name: How often those objects were read (ACCOUNT_USAGE.ACCESS_HISTORY)
+    when: "vars.accessAvailable and $count(vars.featureObjects) > 0"
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT f.value:"objectName"::STRING AS OBJECT_NAME, COUNT(DISTINCT a.QUERY_ID) AS READS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY a, LATERAL FLATTEN(ARRAY_CAT(a.DIRECT_OBJECTS_ACCESSED, a.BASE_OBJECTS_ACCESSED)) f
+        WHERE a.QUERY_START_TIME >= DATEADD(day, ?, CURRENT_TIMESTAMP()) AND ARRAY_CONTAINS(f.value:"objectName", SPLIT(?, ','))
+        GROUP BY 1
+      bindings:
+        "1": { type: FIXED, value: "{{ vars.back }}" }
+        "2": { type: TEXT, value: "{{ $join(vars.featureObjects, ',') }}" }
+      timeout: 300
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: featureReadsRead
+  - id: evaluate
+    type: set
+    name: Findings with their saving
+    values:
+      reads: >-
+        {{ vars.featureReadsRead.status = 200
+          ? ($c := [vars.featureReadsRead.body.resultSetMetaData.rowType.name]; [$map(vars.featureReadsRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })])
+          : [] }}
+      warehouseStats: >-
+        {{ (
+          $n := function($v) { $v ? $number($v) : 0 };
+          $sizeKey := function($s) { ($k := $uppercase($replace($replace($string($s), '-', ''), ' ', '')); $a := $lookup($const.sizeAliases, $k); $a ? $a : $k) };
+          [vars.rs.warehouses.(
+            $w := $;
+            $m := $vars.rs.metering[WAREHOUSE_NAME = $w.name][0];
+            $q := $vars.rs.queryStats[WAREHOUSE_NAME = $w.name][0];
+            $l := $vars.rs.load[WAREHOUSE_NAME = $w.name][0];
+            $k := $sizeKey($w.size);
+            $s := $lookup($const.sizes, $k);
+            {
+              "name": $w.name,
+              "type": $w.type ? $w.type : 'STANDARD',
+              "size": $s ? $s.label : $string($w.size),
+              "smaller": $s.smaller ? $lookup($const.sizes, $s.smaller).label : null,
+              "smallerKey": $s.smaller ? $s.smaller : null,
+              "autoSuspend": $n($w.auto_suspend),
+              "credits": $n($m.CREDITS),
+              "meteredHours": $n($m.METERED_HOURS),
+              "queries": $n($q.QUERIES),
+              "shortQueries": $n($q.SHORT_QUERIES),
+              "spilling": $n($q.SPILLING_QUERIES),
+              "queued": $n($q.QUEUED_QUERIES),
+              "activeHours": $n($q.ACTIVE_HOURS),
+              "load": $l.AVG_RUNNING ? $number($l.AVG_RUNNING) : null,
+              "idleShare": $n($m.METERED_HOURS) > 0 ? $max([0, 1 - $n($q.ACTIVE_HOURS) / $n($m.METERED_HOURS)]) : 0
+            }
+          )]
+        ) }}
+      idle: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          [vars.warehouseStats[credits >= $inputs.minCredits and queries <= $inputs.idleQueries].{
+            "category": "Idle warehouse",
+            "object": name,
+            "reason": $round(credits, 2) & ' credits in ' & $vars.days & ' days with ' & queries & ' queries',
+            "savingCredits": $round(credits * $vars.perMonth, 2),
+            "savingMoney": null,
+            "sql": 'ALTER WAREHOUSE ' & $q(name) & ' SUSPEND;  -- or DROP WAREHOUSE ' & $q(name) & '; once nobody needs it'
+          }]
+        ) }}
+      autoSuspend: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          [vars.warehouseStats[autoSuspend = 0 or autoSuspend > $inputs.maxAutoSuspend].(
+            $off := autoSuspend = 0;
+            {
+              "category": "Auto-suspend",
+              "object": name,
+              "reason": ($off ? 'auto-suspend is off: it runs until someone suspends it' : 'AUTO_SUSPEND = ' & autoSuspend & ' s (more than ' & $inputs.maxAutoSuspend & ' s)')
+                & (meteredHours > 0 ? '; ' & $round(idleShare * 100) & ' % of its ' & meteredHours & ' metered hours ran no query' : ''),
+              "savingCredits": $round(credits * $vars.perMonth * idleShare * ($off ? 1 : 1 - 60 / autoSuspend), 2),
+              "savingMoney": null,
+              "sql": 'ALTER WAREHOUSE ' & $q(name) & ' SET AUTO_SUSPEND = 60;'
+            }
+          )]
+        ) }}
+      oversized: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          [vars.warehouseStats[smallerKey and type = 'STANDARD' and credits >= $inputs.minCredits and queries > $inputs.idleQueries
+            and shortQueries / queries * 100 >= $inputs.shortSharePercent and spilling = 0 and queued * 100 <= queries
+            and (load ? load : 0) <= $inputs.maxAverageLoad].{
+            "category": "Oversized warehouse",
+            "object": name,
+            "reason": size & ': ' & $round(shortQueries / queries * 100) & ' % of ' & $formatNumber(queries, '#,##0') & ' queries ran under ' & $inputs.shortSeconds
+              & ' s, average load ' & (load ? $string($round(load, 2)) : '–') & ', no spilling or queuing – ' & smaller & ' costs half the credits per hour',
+            "savingCredits": $round(credits * $vars.perMonth / 2, 2),
+            "savingMoney": null,
+            "sql": 'ALTER WAREHOUSE ' & $q(name) & " SET WAREHOUSE_SIZE = '" & smallerKey & "';"
+          }]
+        ) }}
+      unusedTables: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          $gb := function($b) { $round($number($b) / 1073741824) };
+          [vars.rs.unusedTables.(
+            $bytes := $number(ACTIVE_BYTES) + $number(TIME_TRAVEL_BYTES) + $number(FAILSAFE_BYTES);
+            {
+              "category": "Table not read",
+              "object": TABLE_CATALOG & '.' & TABLE_SCHEMA & '.' & TABLE_NAME,
+              "reason": 'not read for ' & $inputs.unreadDays & ' days or more (created ' & $substring(TABLE_CREATED, 0, 10) & '): '
+                & $gb(ACTIVE_BYTES) & ' GB of data, ' & $gb(TIME_TRAVEL_BYTES) & ' GB time travel, ' & $gb(FAILSAFE_BYTES) & ' GB fail-safe',
+              "savingCredits": null,
+              "savingMoney": $round($bytes / 1099511627776 * $vars.tbPrice, 2),
+              "sql": '-- once its owner agreed (UNDROP TABLE brings it back within its time travel): DROP TABLE '
+                & $q(TABLE_CATALOG) & '.' & $q(TABLE_SCHEMA) & '.' & $q(TABLE_NAME) & ';'
+            }
+          )]
+        ) }}
+      retention: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          $gb := function($b) { $round($number($b) / 1073741824) };
+          [vars.rs.retention.{
+            "category": "Time travel and fail-safe",
+            "object": TABLE_CATALOG & '.' & TABLE_SCHEMA & '.' & TABLE_NAME,
+            "reason": $gb(TIME_TRAVEL_BYTES) & ' GB time travel and ' & $gb(FAILSAFE_BYTES) & ' GB fail-safe next to ' & $gb(ACTIVE_BYTES) & ' GB of data'
+              & (IS_TRANSIENT = 'NO' and $number(FAILSAFE_BYTES) > 0 ? '; only a transient table has no fail-safe (for data that can be loaded again)' : ''),
+            "savingCredits": null,
+            "savingMoney": $round($number(TIME_TRAVEL_BYTES) / 1099511627776 * $vars.tbPrice, 2),
+            "sql": 'ALTER TABLE ' & $q(TABLE_CATALOG) & '.' & $q(TABLE_SCHEMA) & '.' & $q(TABLE_NAME) & ' SET DATA_RETENTION_TIME_IN_DAYS = 1;'
+          }]
+        ) }}
+      failingTasks: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          [vars.rs.tasks.(
+            $t := $;
+            $c := $vars.rs.taskCredits[DATABASE_NAME = $t.DATABASE_NAME and SCHEMA_NAME = $t.SCHEMA_NAME and TASK_NAME = $t.NAME][0];
+            $runs := $number(RUNS);
+            $failed := $number(FAILURES);
+            {
+              "category": "Failing task",
+              "object": DATABASE_NAME & '.' & SCHEMA_NAME & '.' & NAME,
+              "reason": $formatNumber($failed, '#,##0') & ' of ' & $formatNumber($runs, '#,##0') & ' runs failed in ' & $vars.days & ' days'
+                & ($c ? '' : ' (it runs on a warehouse: its credits count there)') & ': ' & $substring($string(LAST_ERROR), 0, 200),
+              "savingCredits": $c and $runs > 0 ? $round($number($c.CREDITS) * $failed / $runs * $vars.perMonth, 2) : null,
+              "savingMoney": null,
+              "sql": 'ALTER TASK ' & $q(DATABASE_NAME) & '.' & $q(SCHEMA_NAME) & '.' & $q(NAME) & ' SUSPEND;  -- until the error is fixed'
+            }
+          )]
+        ) }}
+      failingPipes: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          [vars.rs.pipes.(
+            $p := $;
+            $c := $vars.rs.pipeCredits[$split(PIPE_NAME, '.')[-1] = $p.PIPE_NAME][0];
+            $files := $number(FILES);
+            $failed := $number(FAILED_FILES);
+            {
+              "category": "Failing pipe",
+              "object": PIPE_CATALOG_NAME & '.' & PIPE_SCHEMA_NAME & '.' & PIPE_NAME,
+              "reason": $formatNumber($failed, '#,##0') & ' of ' & $formatNumber($files, '#,##0') & ' files failed to load in ' & $vars.days & ' days: ' & $substring($string(LAST_ERROR), 0, 200),
+              "savingCredits": $c and $files > 0 ? $round($number($c.CREDITS) * $failed / $files * $vars.perMonth, 2) : null,
+              "savingMoney": null,
+              "sql": 'ALTER PIPE ' & $q(PIPE_CATALOG_NAME) & '.' & $q(PIPE_SCHEMA_NAME) & '.' & $q(PIPE_NAME) & ' SET PIPE_EXECUTION_PAUSED = TRUE;  -- until the files load again'
+            }
+          )]
+        ) }}
+      features: >-
+        {{ vars.accessAvailable ? (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          [vars.rs.features[$number(CREDITS) >= $inputs.minCredits].(
+            $name := DATABASE_NAME & '.' & SCHEMA_NAME & '.' & TABLE_NAME;
+            $object := $q(DATABASE_NAME) & '.' & $q(SCHEMA_NAME) & '.' & $q(TABLE_NAME);
+            $r := $vars.reads[OBJECT_NAME = $name][0];
+            $reads := $r ? $number($r.READS) : 0;
+            $reads <= $inputs.maxReads ? {
+              "category": "Serverless feature, rarely read",
+              "object": $name,
+              "reason": FEATURE & ': ' & $round($number(CREDITS), 2) & ' credits in ' & $vars.days & ' days, read by ' & $reads & ' queries in that time',
+              "savingCredits": $round($number(CREDITS) * $vars.perMonth, 2),
+              "savingMoney": null,
+              "sql": FEATURE = 'clustering' ? 'ALTER TABLE ' & $object & ' SUSPEND RECLUSTER;'
+                : (FEATURE = 'materialised view' ? 'ALTER MATERIALIZED VIEW ' & $object & ' SUSPEND;' : 'ALTER TABLE ' & $object & ' DROP SEARCH OPTIMIZATION;')
+            } : undefined
+          )]
+        ) : [] }}
+      longQueries: >-
+        {{ (
+          $q := function($s) { '"' & $replace($s, '"', '""') & '"' };
+          $sizeKey := function($s) { ($k := $uppercase($replace($replace($string($s), '-', ''), ' ', '')); $a := $lookup($const.sizeAliases, $k); $a ? $a : $k) };
+          [vars.rs.longQueries.(
+            $s := $lookup($const.sizes, $sizeKey(WAREHOUSE_SIZE));
+            $hours := $number(ELAPSED_HOURS);
+            {
+              "category": "Long failed queries",
+              "object": USER_NAME & ' on ' & WAREHOUSE_NAME,
+              "reason": QUERIES & ' queries ran ' & $inputs.longQueryMinutes & ' minutes or more and failed (' & CANCELLED & ' cancelled), '
+                & $round($hours, 1) & ' h in total: ' & $substring($string(LAST_ERROR), 0, 200),
+              "savingCredits": $s ? $round($hours * $s.credits * $vars.perMonth, 2) : null,
+              "savingMoney": null,
+              "sql": '-- a statement timeout ends runaway queries sooner: ALTER WAREHOUSE ' & $q(WAREHOUSE_NAME) & ' SET STATEMENT_TIMEOUT_IN_SECONDS = 3600;'
+            }
+          )]
+        ) }}
+      findings: >-
+        {{ [[vars.idle, vars.autoSuspend, vars.oversized, vars.unusedTables, vars.retention, vars.failingTasks, vars.failingPipes, vars.features, vars.longQueries].(
+          $money := savingMoney != null ? savingMoney : (savingCredits != null ? savingCredits * $vars.creditPrice : null);
+          $merge([$, { "key": category & '|' & object, "saving": $money != null ? $round($money, 2) : null }])
+        )] }}
+      # findings of one object overlap (an idle warehouse also suspends late): each object counts with its largest saving
+      savingTotal: >-
+        {{ ($g := vars.findings[saving != null]{ object: $max(saving) }; $g ? $round($sum($each($g, function($v) { $v })), 2) : 0) }}
+      savingCreditsTotal: >-
+        {{ ($g := vars.findings[savingCredits != null]{ object: $max(savingCredits) }; $g ? $round($sum($each($g, function($v) { $v })), 2) : 0) }}
+  - id: publish
+    type: publish
+    name: Publish the findings
+    dataset: snowflake.waste
+    title: Snowflake waste
+    rows: vars.findings
+    key: key
+    columns:
+      - { label: Finding, value: category }
+      - { label: Object, value: object }
+      - { label: Reason, value: reason }
+      - { label: Saving per month (credits), value: "savingCredits != null ? savingCredits : '–'" }
+      - { label: Saving per month, value: "saving != null ? saving : '–'" }
+      - { label: Currency, value: "$inputs.currency" }
+      - { label: SQL to consider, value: sql }
+    status: "'warning'"
+    statusText: reason
+    metrics:
+      findings: "$count(vars.findings)"
+      saving: "vars.savingTotal"
+      savingCredits: "vars.savingCreditsTotal"
+      idleWarehouses: "$count(vars.idle)"
+      autoSuspend: "$count(vars.autoSuspend)"
+      oversized: "$count(vars.oversized)"
+      unusedTables: "$count(vars.unusedTables)"
+      retention: "$count(vars.retention)"
+      failing: "$count(vars.failingTasks) + $count(vars.failingPipes)"
+      serverless: "$count(vars.features)"
+      longQueries: "$count(vars.longQueries)"
+      accessHistory: "vars.accessAvailable ? 1 : 0"
+    staleAfterMinutes: 20160
+  - id: idleOk
+    type: check
+    name: No idle warehouse burns credits
+    severity: warning
+    condition: "$count(vars.idle) = 0"
+    message: "{{ $count(vars.idle) = 0 ? 'Every warehouse with credits ran more than ' & inputs.idleQueries & ' queries in ' & vars.days & ' days' : $join(vars.idle.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.idle) & ' idle Snowflake warehouses used credits' }}"
+    value: "$count(vars.idle)"
+    items: "vars.idle.(object & ': ' & reason)"
+  - id: autoSuspendOk
+    type: check
+    name: Warehouses suspend soon enough
+    severity: warning
+    condition: "$count(vars.autoSuspend) = 0"
+    message: "{{ $count(vars.autoSuspend) = 0 ? 'Every warehouse suspends within ' & inputs.maxAutoSuspend & ' s' : $join(vars.autoSuspend.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.autoSuspend) & ' Snowflake warehouses suspend late or never' }}"
+    value: "$count(vars.autoSuspend)"
+    items: "vars.autoSuspend.(object & ': ' & reason)"
+  - id: sizeOk
+    type: check
+    name: No oversized warehouse
+    severity: warning
+    condition: "$count(vars.oversized) = 0"
+    message: "{{ $count(vars.oversized) = 0 ? 'No warehouse looks oversized' : $join(vars.oversized.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.oversized) & ' Snowflake warehouses could be one size smaller' }}"
+    value: "$count(vars.oversized)"
+    items: "vars.oversized.(object & ' → ' & $substringAfter(sql, 'WAREHOUSE_SIZE = '))"
+  - id: tablesRead
+    type: check
+    name: Large tables are read
+    severity: warning
+    when: "vars.accessAvailable"
+    condition: "$count(vars.unusedTables) = 0"
+    message: "{{ $count(vars.unusedTables) = 0 ? 'Every table of ' & inputs.minTableGb & ' GB or more was read within ' & inputs.unreadDays & ' days' : $join(vars.unusedTables.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.unusedTables) & ' Snowflake tables not read for ' & inputs.unreadDays & ' days' }}"
+    value: "$count(vars.unusedTables)"
+    items: "vars.unusedTables.(object & ' (' & saving & ' ' & $inputs.currency & ' a month)')"
+  - id: retentionOk
+    type: check
+    name: Time travel and fail-safe are small
+    severity: warning
+    condition: "$count(vars.retention) = 0"
+    message: "{{ $count(vars.retention) = 0 ? 'No table keeps ' & inputs.minRetentionGb & ' GB or more in time travel and fail-safe' : $join(vars.retention.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.retention) & ' Snowflake tables keep large time travel or fail-safe' }}"
+    value: "$count(vars.retention)"
+    items: "vars.retention.(object & ': ' & reason)"
+  - id: failingOk
+    type: check
+    name: No task or pipe keeps failing
+    severity: warning
+    condition: "$count(vars.failingTasks) + $count(vars.failingPipes) = 0"
+    message: "{{ $count(vars.failingTasks) + $count(vars.failingPipes) = 0 ? 'No task or pipe failed repeatedly in ' & vars.days & ' days' : $join([vars.failingTasks, vars.failingPipes].(object & ': ' & reason), '; ') }}"
+    headline: "{{ ($count(vars.failingTasks) + $count(vars.failingPipes)) & ' Snowflake tasks and pipes keep failing' }}"
+    value: "$count(vars.failingTasks) + $count(vars.failingPipes)"
+    items: "[vars.failingTasks, vars.failingPipes].(object & ': ' & reason)"
+  - id: featuresOk
+    type: check
+    name: Serverless features serve objects that are read
+    severity: warning
+    when: "vars.accessAvailable"
+    condition: "$count(vars.features) = 0"
+    message: "{{ $count(vars.features) = 0 ? 'Clustering, materialised views and search optimisation serve objects read more than ' & inputs.maxReads & ' times' : $join(vars.features.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.features) & ' Snowflake objects spend serverless credits but are hardly read' }}"
+    value: "$count(vars.features)"
+    items: "vars.features.(object & ': ' & reason)"
+  - id: longQueriesOk
+    type: check
+    name: No long query failed or was cancelled
+    severity: warning
+    condition: "$count(vars.longQueries) = 0"
+    message: "{{ $count(vars.longQueries) = 0 ? 'No query of ' & inputs.longQueryMinutes & ' minutes or more failed in ' & vars.days & ' days' : $join(vars.longQueries.(object & ': ' & reason), '; ') }}"
+    headline: "{{ $count(vars.longQueries) & ' users and warehouses with long failed Snowflake queries' }}"
+    value: "$count(vars.longQueries)"
+    items: "vars.longQueries.(object & ': ' & reason)"
+  - id: accessHistory
+    type: check
+    name: ACCESS_HISTORY readable (unread tables, rarely read objects)
+    severity: info
+    notify: false
+    condition: "vars.accessAvailable"
+    message: "{{ vars.accessAvailable ? vars.accessNote : vars.accessNote & ' – tables not read and serverless features on rarely read objects were not checked' }}"

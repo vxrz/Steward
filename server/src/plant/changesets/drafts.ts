@@ -1,3 +1,4 @@
+import { presentEntryValues } from '../catalogue-access.js';
 import {
   PLANT_CHANGESET_LIMITS,
   PLANT_ENTRY_SCOPE,
@@ -282,8 +283,9 @@ export function addOperation(cs: CsRow, o: NewOp, u: AuthUser): number {
 
 /** 409 PLANT_ENTRY_CHANGED: what the form needs to offer "Keep mine" or "Take theirs" per field. */
 export function entryChanged(now: EntrySnap, revision: number, mine: Record<string, unknown>): HttpError & { entryChanged: PlantEntryChanged } {
-  const base = bodyOf(now.kind, valuesAt(now, revision) ?? mine);
-  const current = bodyOf(now.kind, now.values);
+  // 0.21.0 (#293): what the reader may not see of the catalogue by its placeholders, as the form has it
+  const base = presentEntryValues(now.kind, now.id, bodyOf(now.kind, valuesAt(now, revision) ?? mine));
+  const current = presentEntryValues(now.kind, now.id, bodyOf(now.kind, now.values));
   const m = mergeThreeWay(base, current, mine);
   const err = new HttpError(409, `${now.kind} "${now.id}" was changed by someone else since you opened it – choose per field`, 'PLANT_ENTRY_CHANGED', {
     kind: now.kind,

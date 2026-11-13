@@ -379,6 +379,11 @@ export interface CostPlanLine {
    * year differs from what the line was made from (Contract changed); null: an ordinary line
    */
   schedule: { id: string; contractId: string; title: string; changed: boolean } | null;
+  /**
+   * The estimate the line was made from (0.21.0, ADR 0035): `changed` when the estimate no longer proposes what the
+   * line was made from (Estimate changed, with Update lines); null: an ordinary line
+   */
+  estimate: { id: string; title: string; changed: boolean } | null;
   /** A line naming a contract without a schedule (0.17 style) whose contract ends in this fiscal year: its end */
   contractEnds: string | null;
   /** A hand-made line for a contract that also has a payment schedule with payments in this year (a hint, not a block) */

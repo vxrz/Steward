@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActionIcon,
+  Alert,
   Anchor,
   Badge,
   Box,
@@ -25,17 +26,20 @@ import {
   Tooltip,
   VisuallyHidden,
 } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { COST_SCOPES, DUTY_LEVELS, LLM_GATEWAY_KIND, REPORT_LANGS } from '@sm/shared';
+import { BRAND, COST_SCOPES, DUTY_LEVELS, LLM_GATEWAY_KIND, REPORT_LANGS } from '@sm/shared';
 import type {
   GatusMetricsSource,
+  ModuleId,
   MonitorSummary,
   Platform,
   ProcessSummary,
   RecordType,
+  ReportModuleRecipients,
   ReportRecord,
   ReportSchedule,
   ReportSchedulePreset,
@@ -47,7 +51,8 @@ import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from 
 import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
-import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
+import { fmtBytes, fmtDate, fmtDay, fmtRelative, listFormat } from '../format';
+
 import { confirmDanger } from '../components/confirm';
 import { CronPreview } from '../components/CronPreview';
 import { useMe } from '../auth';
@@ -419,6 +424,59 @@ type SectionConfig = Record<string, unknown> & {
   days?: number;
 };
 
+/**
+ * Recipients who get the report without the sections of a module they do not use (ADR 0034 decision 12): named users,
+ * teams that are not on the module's list and e-mail addresses outside Steward; and a module the owner does not use,
+ * whose sections are left out for everyone. Nothing while every module of the chosen sections is open to everyone.
+ */
+function ModuleRecipients({
+  id,
+  sections,
+  recipients,
+  userLabel,
+}: {
+  id?: string;
+  sections: string[];
+  recipients: Draft['recipients'];
+  userLabel: (username: string) => string;
+}) {
+  const { t } = useTranslation(['reportSchedules', 'modules']);
+  const [body] = useDebouncedValue(JSON.stringify({ ...(id ? { id } : {}), sections, recipients }), 400);
+  const q = useQuery({
+    queryKey: ['report-schedules', 'recipients-preview', body],
+    queryFn: () => post<ReportModuleRecipients>('/report-schedules/recipients-preview', JSON.parse(body)),
+    enabled: sections.length > 0,
+    retry: false,
+  });
+  const rows = (q.data?.modules ?? []).filter((m) => !m.ownerUses || m.users.length || m.teams.length || m.emails);
+  if (!rows.length) return null;
+  const name = (m: ModuleId) => t(`modules:items.${m}.name`, { brand: BRAND.name });
+  return (
+    <Alert color="blue" variant="light" p="xs" data-testid="schedule-module-recipients" aria-live="polite">
+      <Stack gap={4}>
+        {rows.map((m) =>
+          !m.ownerUses ? (
+            <Text size="sm" key={m.module}>
+              {t(id ? 'form.moduleOwnerNot' : 'form.moduleYouNot', { name: name(m.module) })}
+            </Text>
+          ) : (
+            <Text size="sm" key={m.module}>
+              {t('form.moduleWithout', {
+                name: name(m.module),
+                who: listFormat().format([
+                  ...m.users.map(userLabel),
+                  ...m.teams.map((x) => t('form.moduleTeam', { team: x })),
+                  ...(m.emails ? [t('form.moduleEmails', { count: m.emails })] : []),
+                ]),
+              })}
+            </Text>
+          ),
+        )}
+      </Stack>
+    </Alert>
+  );
+}
+
 function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; sections: string[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation(['reportSchedules', 'common']);
   const { t: tDuties } = useTranslation('duties');
@@ -733,6 +791,12 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           maxTags={20}
           value={d.recipients.emails}
           onChange={(v) => set({ recipients: { ...d.recipients, emails: v } })}
+        />
+        <ModuleRecipients
+          id={d.id}
+          sections={Object.keys(d.sections)}
+          recipients={d.recipients}
+          userLabel={(n) => users.find((x) => x.value === n)?.label ?? n}
         />
         <Select
           label={t('form.team')}

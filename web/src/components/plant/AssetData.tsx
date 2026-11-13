@@ -24,7 +24,7 @@ import { Field } from '../records/common';
 import { plantKeys } from '../../queryKeys';
 import { fmtDate } from '../../format';
 import { NotInSourceBadge, useNameOf, usePlantLabel } from './common';
-import { Breakable, ChecksList, ParamsView, ProtocolBadge, RowMenu, UnitText } from './data';
+import { Breakable, ChecksList, DataPointTable, ParamsView, ProtocolBadge, RowMenu, UnitText } from './data';
 import {
   AssignmentFormModal,
   AssignmentInterfaceModal,
@@ -183,6 +183,8 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
     }
   };
   const profile = v.profile;
+  // 0.21.0 (#293, decision 10): a profile the reader may not see – its interfaces and data points are the asset's model
+  const hiddenProfile = !!v.profileHidden;
   // the asset's model: its profile's interfaces with what it adds itself (0.11.0)
   const model = v.model;
   const addedIface = (id: string) => v.added.interfaces.includes(id);
@@ -231,7 +233,7 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
   const pointOptions = model.flatMap((i) => i.groups.flatMap((g) => g.dataPoints.map((d) => ({ value: d.id, label: `${d.name} (${d.id})` }))));
   const pointName = (id: string) => pointOptions.find((p) => p.value === id)?.label ?? id;
   const pointLink = (id: string) =>
-    profile && pointOptions.some((p) => p.value === id) ? (
+    profile && !hiddenProfile && pointOptions.some((p) => p.value === id) ? (
       <Anchor component={Link} to={`/plant/profiles/${encodeURIComponent(profile.id)}/points/${encodeURIComponent(id)}`} size="sm">
         {pointName(id)}
       </Anchor>
@@ -322,8 +324,12 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
         <Paper withBorder p="md">
           <Stack gap="md">
             <Group gap="xl" wrap="wrap">
-              <Field label={t('assignment.profile')}>
-                {profile ? (
+              <Field label={hiddenProfile ? t('catalogueAccess.modelOfAsset') : t('assignment.profile')}>
+                {hiddenProfile ? (
+                  <Text size="sm" c="dimmed" data-testid="asset-model-hidden">
+                    {t('catalogueAccess.modelOfAssetHint')}
+                  </Text>
+                ) : profile ? (
                   <Anchor component={Link} to={`/plant/profiles/${encodeURIComponent(profile.id)}`} size="sm" fw={500}>
                     {profile.name}
                   </Anchor>
@@ -438,6 +444,27 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                     );
                   })}
                 </Stack>
+              </Part>
+            )}
+            {hiddenProfile && (
+              <Part title={t('catalogueAccess.modelPoints')} help={t('catalogueAccess.modelPointsHelp')} testId="asset-model-points" defaultOpen={false}>
+                {model
+                  .filter((i) => !addedIface(i.id))
+                  .map((iface) => (
+                    <Stack key={iface.id} gap={4}>
+                      <Text size="sm" fw={500}>
+                        {iface.name || iface.id}
+                      </Text>
+                      <DataPointTable
+                        profileId={null}
+                        protocol={iface.protocol}
+                        points={iface.groups.flatMap((g) => g.dataPoints).filter((d) => !addedPoint(d.id))}
+                        label={iface.name || iface.id}
+                        canManage={false}
+                        onEdit={() => undefined}
+                      />
+                    </Stack>
+                  ))}
               </Part>
             )}
             {addedPoints.length > 0 && (
@@ -642,7 +669,11 @@ export function AssetDataSection({ assetId }: { assetId: string }) {
                         <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
                           <Stack gap={4} style={{ minWidth: 0 }}>
                             <Group gap={6} wrap="wrap">
-                              {shown?.definition ? (
+                              {shown?.definition?.hidden ? (
+                                <Text size="sm" fw={500} c="dimmed" data-testid={`kpi-hidden-${k.job}`}>
+                                  {t('catalogueAccess.hiddenKpi')}
+                                </Text>
+                              ) : shown?.definition ? (
                                 <Anchor component={Link} to={`/plant/kpis/${encodeURIComponent(k.kpi)}`} size="sm" fw={500}>
                                   {nameOf(shown.definition)}
                                 </Anchor>

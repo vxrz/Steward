@@ -5,6 +5,7 @@ import { decide } from '../auth/policy.js';
 import { forbid, hasRole } from '../auth/access.js';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
+import { usesModule } from '../modules/access.js';
 
 /**
  * Rights in the plant registry (#218): per site, through the one policy module (auth/policy.ts, ADR 0006). Assets,
@@ -35,6 +36,9 @@ export function siteAccess(
   u: AuthUser | null,
   s: { id: string; acl: AclEntry<PlantPermission>[] | string },
 ): { permissions: PlantPermission[]; reasons: AccessReason[] } {
+  // someone who does not use the plant registry (ADR 0034) has no right on a site: wherever a core page names a site
+  // or an asset (maintenance targets, impact, links), they see nothing of it
+  if (u && !usesModule(u, 'plant')) return { permissions: [], reasons: [] };
   const acl = typeof s.acl === 'string' ? parseJson<AclEntry<PlantPermission>[]>(s.acl, []) : s.acl;
   const d = decide(u, { kind: 'site', id: s.id, acl }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view');
   // managing a site includes seeing it and proposing changes; proposing includes seeing it
@@ -55,6 +59,8 @@ export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => h
  * with these rights: applying runs as the person who applies, with their own rights.
  */
 let proposerElevation = 0;
+/** Whether a proposer's dry run is under way (the catalogues elevate like sites: plant/catalogue-access.ts). */
+export const proposing = (): boolean => proposerElevation > 0;
 export function asProposer<T>(fn: () => T): T {
   if (!db().inTransaction) throw new Error('asProposer runs only inside a transaction that is rolled back (dryRun)');
   proposerElevation++;
@@ -80,8 +86,9 @@ export function plantProposesSome(u: AuthUser | null = currentUser()): boolean {
 }
 
 /**
- * Who manages the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site: whoever
- * may add sites (designers and administrators). Everyone who sees the plant registry sees them.
+ * Who adds entries to the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site:
+ * whoever may add sites (designers and administrators). Since 0.21.0 (#293) the rights on one entry follow its owning
+ * teams and shares (plant/catalogue-access.ts); an entry without them is managed by these people, as before.
  */
 export const canManageCatalogue = (u: AuthUser | null = currentUser()): boolean => canCreateSites(u);
 

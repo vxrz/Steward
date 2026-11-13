@@ -47,7 +47,11 @@
       "site": "This site belongs to the whole instance: roles and the access list decide who may see and manage it, its hierarchy and its assets.",
       "contract": "This data contract belongs to the whole instance: everybody who works in Steward sees it; operators test it, designers change it.",
       "platform_identity": "No owning team: only administrators and the access list below may use this identity.",
-      "supplier": "This supplier belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it."
+      "supplier": "This supplier belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it.",
+      "cost_price_book": "No owning team: the costs managers (administrators and designers) maintain this price book; a list book is read by everyone using Costs.",
+      "cost_calculator": "No owning team: the costs managers (administrators and designers) maintain this calculator; everyone using Costs reads it.",
+      "device_profile": "This device profile belongs to the whole instance: everyone who sees the plant registry sees it; designers and administrators change it. Owning teams keep it to their members – assets that have it still show the data they deliver.",
+      "kpi_definition": "This KPI definition belongs to the whole instance: everyone who sees the plant registry sees it; designers and administrators change it."
     },
     "hintOwned": {
       "process": "Members of these teams have their roles in the team on this process. Everyone else sees it only through the access list below; administrators always, auditors may view.",
@@ -63,8 +67,13 @@
       "site": "Only members of these teams see this site with its hierarchy and assets (designers among them manage it), besides those on its access list, administrators and auditors.",
       "contract": "Only members of these teams see this data contract (operators among them test it, designers change it), besides administrators and auditors. A failed test notifies them.",
       "platform_identity": "Members of these teams who design or operate may use this identity; everyone else only what its access list gives.",
-      "supplier": "Only members of these teams see this supplier (designers among them change it), besides its owners, administrators and auditors."
+      "supplier": "Only members of these teams see this supplier (designers among them change it), besides its owners, administrators and auditors.",
+      "cost_price_book": "Designers of these teams maintain this price book; a contracted book is read only by the teams’ members, administrators and auditors.",
+      "cost_calculator": "Designers of these teams maintain this calculator; everyone using Costs reads it.",
+      "device_profile": "Only members of these teams see this device profile (designers among them manage it), besides administrators and auditors. Others see the interfaces and data points it gives an asset they may see, without its name.",
+      "kpi_definition": "Only members of these teams see this KPI definition (designers among them manage it), besides administrators and auditors. Its KPI instances on assets others may see keep working, without its name."
     },
+    "hintRestricted": "Restricted: no owning team, and roles in the instance give nothing on it – only its shares, its owners, administrators and auditors reach it.",
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
     "why": "Why do I have access?",
@@ -81,7 +90,17 @@
       "teamRole": "{{role}} in team {{team}}: {{rights}}",
       "accessList": "Access list ({{subject}}): {{rights}}",
       "namedOwner": "Named owner ({{subject}}): {{rights}}",
-      "namedResponsible": "Named responsible ({{subject}}): {{rights}}"
+      "namedResponsible": "Named responsible ({{subject}}): {{rights}}",
+      "shareUser": "Shared with {{name}} – {{level}}",
+      "shareTeam": "Shared with team {{name}} – {{level}}",
+      "shareRole": "Shared with everyone with the role {{name}} – {{level}}",
+      "until": "{{text}} (until {{date}})",
+      "implied": "{{as}} ({{subject}}): {{level}} (implied)"
+    },
+    "level": {
+      "view": "View",
+      "edit": "Edit",
+      "manage": "Manage"
     },
     "save": "Save owning teams",
     "bulk": {
@@ -117,9 +136,14 @@
         "site": "Site",
         "contract": "Data contract",
         "platform_identity": "Platform identities",
-        "supplier": "Supplier"
+        "supplier": "Supplier",
+        "cost_price_book": "Price books",
+        "cost_calculator": "Calculators",
+        "device_profile": "Device profiles",
+        "kpi_definition": "KPI definitions"
       }
-    }
+    },
+    "moduleNotUsed": "without the module, the rights below do not apply"
   },
   "restrictedSite": "<b>Restricted:</b> only the subjects below get the listed rights on the site, its hierarchy and its assets, plus administrators. Auditors can always read.",
   "defaultsSite": "<b>Default role rights apply</b> (everyone who works in Steward sees the site, designers manage it). Add entries to restrict access to specific users, teams or roles.",
@@ -138,5 +162,56 @@
     "hint_other": "{{names}} are not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you.",
     "platformHint_one": "{{names}} is not in the contract’s owning teams ({{teams}}) and will see this contract through the platform. Adding it asks you to confirm it is you.",
     "platformHint_other": "{{names}} are not in the contract’s owning teams ({{teams}}) and will see this contract through the platform. Adding it asks you to confirm it is you."
+  },
+  "shares": {
+    "title": "Shared with",
+    "loading": "Loading the shares …",
+    "loadFailed": "The shares could not be loaded.",
+    "scope": {
+      "instance": "Scope: the whole instance – everybody's roles apply, and the shares below add to them.",
+      "teams": "Scope: the owning teams ({{teams}}) – their members have their roles, and the shares below add exceptions.",
+      "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item."
+    },
+    "restricted": "Restricted",
+    "restrictedHint": "Instance roles give nothing on this item: only its shares, owners, administrators and auditors reach it.",
+    "implied": "{{as}} – {{level}} (implied)",
+    "as": {
+      "owner": "Owner",
+      "responsible": "Responsible"
+    },
+    "outside": "outside the owning teams",
+    "impliedHint": "Owners have an implied Edit share: it is computed from the owner field and goes when the owner is removed.",
+    "notYours": "Only who manages this item, administrators and auditors see whom it is shared with. Why do I have access? shows your own reasons.",
+    "empty": "Not shared with anyone.",
+    "unknown": "No longer exists – this share matches nobody",
+    "level": "Level",
+    "levelFor": "Level for {{name}}",
+    "until": "Ends on",
+    "untilFor": "End date for {{name}}",
+    "untilShort": "until {{date}}",
+    "remove": "Remove the share with {{name}}",
+    "hidden_one": "And {{count}} share with a user or team you may not see – it is kept when you save.",
+    "hidden_other": "And {{count}} shares with users or teams you may not see – they are kept when you save.",
+    "add": "Share with",
+    "newLevel": "Level of the new share",
+    "addButton": "Add",
+    "save": "Save shares",
+    "saved": "Shares saved",
+    "scopeSaved": "Scope saved",
+    "notSaved": "Access not changed",
+    "previewTitle": "Before you save",
+    "nothingChanges": "Nobody gains or loses anything.",
+    "gains": "Who gains what",
+    "losses": "Who loses what",
+    "gainLine": "{{who}} gains: {{rights}}",
+    "lossLine": "{{who}} loses: {{rights}}",
+    "everyoneByRole": "Everyone by their role",
+    "change": {
+      "extended": "a later end date",
+      "shortened": "an earlier end date",
+      "roleDefaults": "the defaults of their roles"
+    },
+    "stepUpHint": "Giving access asks you to confirm it is you.",
+    "confirm": "Save"
   }
 }

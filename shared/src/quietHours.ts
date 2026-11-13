@@ -77,6 +77,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'supplier.notice_due': 'reminders',
   'corrective.action_due': 'reminders',
   'access.undocumented': 'reminders',
+  'access.share_expiring': 'reminders',
   'plant.change_decided': 'reminders',
   'report.ready': 'reports',
   'stack.eol': 'reports',
@@ -85,6 +86,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'cost.budget': 'costs',
   'cost.booking_due': 'costs',
   'cost.volume': 'costs',
+  'cost.price_review_due': 'costs',
   'summary.daily': null,
   'security.emergency': null,
 };

@@ -66,7 +66,8 @@
       "process": "Prozesse",
       "dashboard": "Dashboards",
       "monitor": "Monitore",
-      "recordType": "Dokumentarten"
+      "recordType": "Dokumentarten",
+      "costCalculator": "Kostenrechner"
     },
     "token": "Zugriffstoken",
     "tokenHint": "Nur Lesezugriff auf die Inhalte des Repositorys. Wird verschlüsselt im Tresor gespeichert und nie wieder angezeigt. Leer für öffentliche Repositorys.",

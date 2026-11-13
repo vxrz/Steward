@@ -444,18 +444,26 @@ The scope is not part of the document's content: changing it needs no new editio
 | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | See applications, ratings, protection needs and the scale                      | Everyone who can sign in                                                                  |
 | Create applications                                                            | Designers and administrators                                                              |
-| Edit, archive, rate an application; change its links                           | Designers, administrators and the users and teams responsible for it                      |
+| Edit, archive, rate an application; change its links                           | Designers, administrators, the users and teams responsible for it and Edit shares         |
 | Map platforms to an application, remove them                                   | Whoever may edit the application **and** has the manage right on the platform             |
 | Add, change and remove components; edit their tech stack; import SBOMs         | Whoever may edit the application (not while it is archived)                               |
 | Add systems to an application ("runs on"), change or remove them               | Whoever may edit the application (not while it is archived)                               |
 | Create systems                                                                 | Designers and administrators                                                              |
-| Change and delete a system, edit its stack, import SBOMs                       | Designers, administrators and the users and teams responsible for it                      |
+| Change and delete a system, edit its stack, import SBOMs                       | Designers, administrators, the users and teams responsible for it and Edit shares         |
+| Share an application, service or system; name an owner from outside its teams  | Who manages it: designers among the members, administrators, Manage shares                |
+| Make one Restricted                                                            | Administrators                                                                            |
 | Change the environment list                                                    | Administrators                                                                            |
 | Add applications to a service, change their role, override its protection need | Whoever may edit the service (designers, administrators, its responsible users and teams) |
 | Change the CIA scale                                                           | Administrators, with a fresh confirmation (step-up)                                       |
 | Change the applications a document applies to                                  | Whoever may edit the document                                                             |
 
-Applications have no access lists, like services: the catalogue is readable for everyone. Only platforms keep their own access lists – an application never shows a platform to someone who may not see it.
+Applications, services and systems have no access lists: without owning teams the catalogue is readable for everyone. Since 0.21.0 they have **shares** ([TEAMS.md](TEAMS.md#sharing-the-access-tab), [ADR 0033](adr/0033-one-access-model.md)) – the _Access_ section of an application or system and the _Access_ tab of a service: _Shared with_ gives a user, a team or a role View (see it and what follows it), Edit (change it, its components, ratings, links and duties) or Manage (also its shares and owners from outside its owning teams). Designers among the members (or all designers, while it has no owning team) manage it by role. An administrator can make one **Restricted**: roles in the instance then give nothing on it, only its shares, owners, administrators and auditors reach it.
+
+- **Owners** are responsibility: an owner has an implied Edit share, computed from the owner field (_Owner – Edit (implied)_ on the tab, _Owner (user:dana): Edit (implied)_ in _Why do I have access?_). Naming an owner from outside the owning teams – or any new owner of a Restricted item – needs Manage and asks for the step-up, as before; removing the owner removes the implied share.
+- **An application without owning teams of its own** still belongs to the teams of its services. **Shares and the scope of a service do not flow to its applications**: each item has its own shares, so sharing a service with a team does not show that team its applications – share those too, or give the application owning teams of its own.
+- Children follow their item: components, ratings, "runs on" links, duties and objectives are seen and changed with it, on every surface (lists, search, link pickers, backlinks, the start page, reports, evidence packs, `/api/v1`, MCP, exports).
+
+Only platforms keep their own access lists – an application never shows a platform to someone who may not see it.
 
 ## Audit, API, evidence packs, migration
 

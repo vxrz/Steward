@@ -75,10 +75,11 @@ test('naming an owner from outside the owning teams is said before saving, confi
     expect(changed.ok(), `${changed.status()} ${await changed.text()}`).toBeTruthy();
     oCtx = await browser.newContext({ baseURL: baseURL(), serviceWorkers: 'block', storageState: sessionState(baseURL(), oCookie, oKeys) });
     const other = await oCtx.newPage();
-    await other.goto(`/services/${service.id}`);
+    await other.goto(`/services/${service.id}/access`);
     await other.getByRole('button', { name: 'Why do I have access?' }).click();
     const why = other.getByRole('dialog', { name: 'Who may do what, and why' });
-    await expect(why.getByText(`Named owner (user:${outsider}): view, edit`)).toBeVisible();
+    // an owner has an implied Edit share (ADR 0033 part 2)
+    await expect(why.getByText(`Owner (user:${outsider}): Edit (implied)`)).toBeVisible();
   } finally {
     await ctx?.close();
     await oCtx?.close();

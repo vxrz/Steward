@@ -41,6 +41,7 @@ import { invalidateAliases } from './aliases.js';
 import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
 import { assertAddressSafe, guardedLookup } from '../platforms/outbound.js';
+import { restrictedModuleUses } from '../modules/access.js';
 import { readCookie, ssoBindingCookie, ssoBindingCookieName } from './cookies.js';
 import { aliasTarget } from './aliases.js';
 import {
@@ -1572,6 +1573,10 @@ export function testResult(testId: string, adminId: string, draft?: unknown): Ss
     if (r.userinfoError) out.userinfoError = r.userinfoError;
     out.preview = decide(c, mergedClaims(c, r)).preview;
     if (c.useUserinfo && r.userinfo) out.preview.notes.push({ code: 'USERINFO_USED' });
+    // the modules restricted to selected teams and users: which the person would use with these roles and teams (ADR 0034)
+    const p = out.preview;
+    const modules = restrictedModuleUses({ id: p.account?.id ?? '', username: p.account?.username ?? p.username, roles: p.roles, teams: p.teams });
+    if (modules.length) p.modules = modules;
   }
   return out;
 }

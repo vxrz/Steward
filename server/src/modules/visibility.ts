@@ -4,7 +4,7 @@ import { logger } from '../log.js';
 import { me, hasRole } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
-import { moduleEnabled } from './registry.js';
+import { moduleAvailable } from './access.js';
 import { HttpError } from '../util.js';
 
 /**
@@ -258,7 +258,8 @@ export async function visibilitySummary(): Promise<VisibilitySummary> {
   const areas: VisibilitySummary['areas'] = {};
   for (const [key, rule] of Object.entries(all) as [VisibilityArea, AreaRule][]) {
     const mod = moduleOfNav(key);
-    if (mod && !moduleEnabled(mod)) continue;
+    // switched off, or a module the person does not use (ADR 0034): the area is left out
+    if (mod && !moduleAvailable(mod, u)) continue;
     let any: boolean;
     let show: boolean;
     try {

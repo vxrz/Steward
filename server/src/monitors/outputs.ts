@@ -27,7 +27,7 @@ import { storedKindProblem } from './kinds.js';
 import { zabbixSend } from './zabbix.js';
 import { loadMonitor, monitorPermissions, monitorRow, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
-import { checkMessage, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
+import { MODULE_CHECK_TEXT, checkMessage, moduleCheckHidden, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
 import { teamsCard, type OutgoingMessage } from '../notifications/channels.js';
 import { absoluteLink } from '../notifications/settings.js';
 import { defaultLocale } from '../notifications/service.js';
@@ -310,6 +310,8 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
   const to = recipients(o, m);
   const views = new Map(to.map((u) => [u.id, monitorVisibility(toAuthUser(u))]));
   const everyone: MonitorVisibility = (id) => to.length > 0 && to.every((u) => views.get(u.id)!(id));
+  // a check of a module a recipient does not use (ADR 0034): its status, not what it found
+  const moduleHidden = new Map(to.map((u) => [u.id, moduleCheckHidden(toAuthUser(u))]));
   for (const e of events) {
     const where = e.level === 'monitor' ? m.name : `${m.name} › ${e.check?.name}`;
     notify({
@@ -318,9 +320,10 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       text: (locale, u) => {
         const v = eventFor(m, e, (u && views.get(u.id)) || everyone);
         const causes = v.causedBy.map((c) => (c.hidden ? t(locale, 'monitor.hiddenMonitor') : c.monitorId === m.id ? c.checkName : causeText(c))).join(', ');
+        const message = u && moduleCheckOf(m, e, moduleHidden.get(u.id)) ? MODULE_CHECK_TEXT : v.message;
         return {
           title: t(locale, `monitor.${e.status}` as MessageKey, { where }),
-          body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${v.message}`.slice(0, 800),
+          body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${message}`.slice(0, 800),
         };
       },
       link: `/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`,
@@ -334,6 +337,19 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       data: payload(eventFor(m, e, everyone)),
     });
   }
+}
+
+/**
+ * Whether an event's message is what a check of a module the recipient does not use found: a check's own event, or the
+ * monitor's event whose message is its root cause's (engine.ts, rootMessage).
+ */
+function moduleCheckOf(m: LoadedMonitor, e: OutEvent, hidden: ((type: string) => boolean) | undefined): boolean {
+  if (!hidden) return false;
+  if (e.check) return hidden(e.check.type);
+  return e.causedBy.some((c) => {
+    const type = c.monitorId === m.id ? m.def.checks.find((x) => x.id === c.checkId)?.type : undefined;
+    return !!type && hidden(type);
+  });
 }
 
 /** At most this many Teams cards per output and evaluation (one per status change); the rest are left out. */

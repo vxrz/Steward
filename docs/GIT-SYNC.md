@@ -37,12 +37,13 @@ Steward remembers what it applied. When an item was edited in Steward after the 
 
 Use the formats Steward exports and the example library uses, one item per file:
 
-| Kind        | File                                                                     | Steward id                                                           |
-| ----------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| Process     | Process YAML/JSON (graph or sequential `steps`), as _Export YAML_ writes | `id:` in the file, otherwise the file name (`10-name.yaml` → `name`) |
-| Dashboard   | Dashboard YAML (`widgets:`)                                              | `id:` in the file, otherwise the file name                           |
-| Monitor     | `kind: monitor` or `kind: monitorTemplate` (monitor _Export_)            | `key:`                                                               |
-| Record type | `kind: recordType` with `key`, `name`, `workflow`, `template`, `fields`  | `key:`                                                               |
+| Kind            | File                                                                                                                                                                        | Steward id                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Process         | Process YAML/JSON (graph or sequential `steps`), as _Export YAML_ writes                                                                                                    | `id:` in the file, otherwise the file name (`10-name.yaml` → `name`) |
+| Dashboard       | Dashboard YAML (`widgets:`)                                                                                                                                                 | `id:` in the file, otherwise the file name                           |
+| Monitor         | `kind: monitor` or `kind: monitorTemplate` (monitor _Export_)                                                                                                               | `key:`                                                               |
+| Record type     | `kind: recordType` with `key`, `name`, `workflow`, `template`, `fields`                                                                                                     | `key:`                                                               |
+| Cost calculator | `kind: costCalculator` with `id`, `name`, `inputs`, `let`, `lines` ([PRICE-BOOKS.md](PRICE-BOOKS.md#calculators); 0.21.0, Costs module) – accepting publishes a new version | `id:`                                                                |
 
 Example document type file:
 

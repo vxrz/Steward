@@ -5,7 +5,7 @@ Steward has a core and optional areas, the **modules**. An administrator switche
 ## Switching a module off
 
 - Everything is on in a new installation and after an upgrade. Only the plant registry and its map are off until an administrator turns them on.
-- Switched off, a module is gone for everyone: its sidebar entries, tabs and pages, its settings, its connectors in _Add platform_, its search results and its Home tiles. Its pages say _This area is switched off_; administrators get a link to _Settings → Modules_.
+- Switched off, a module is gone for everyone: its sidebar entries, tabs and pages, its settings, its connectors in _Add platform_, its search results and its Home tiles. Its pages say _This area is switched off_; administrators get a link to _Settings → Modules_. To keep a module from some people only, restrict who uses it instead (below).
 - Its routes answer `404` with the code `MODULE_OFF` (`PLANT_MODULE_OFF` for the plant registry), in the internal API and in the public API (`/api/v1`).
 - Its background jobs do not run. _System status_ shows them as _Module switched off_.
 - Its data stays. Switched on again, everything is back as it was.
@@ -13,6 +13,47 @@ Steward has a core and optional areas, the **modules**. An administrator switche
 - The plant registry is switched in its own card on the same page ([PLANT.md](PLANT.md)); the map of sites is on while the registry is on and a map source is chosen.
 
 API: `GET /api/settings/modules` lists the modules, `PUT /api/settings/modules/:id` with `{ "enabled": false }` switches one. Both are for administrators; the switch needs a session (no API token).
+
+## Who may use a module
+
+A module that is on is not needed by everyone. Since 0.21.0 an administrator decides per module who uses it ([ADR 0034](adr/0034-module-access.md)):
+
+- **Everyone signed in** – the default for every module, new ones included. An upgrade changes nothing.
+- **Selected teams and users** – the module is _restricted_: only the users and teams on its list use it (a team: its members). A single sign-on group reaches a module through the team it is mapped to.
+- **Administrators** always use every module; **auditors** always, as viewers – evidence must not depend on who was given a module.
+- The **status pages** cannot be restricted (they publish), and the **map of sites** follows the plant registry. Every other module can be restricted; a new module declares it in `shared/src/modules.ts` (`access`).
+
+Someone who does not use a module meets it like a switched-off one, with a code of its own:
+
+- Its sidebar entries, tabs, pages, Home tiles, connectors in _Add platform_, built-in datasets and search results are not shown. Its pages say _You do not use this module_ – _Ask an administrator if you need it._ `GET /api/auth/status` says per module `on`, `off` or `notYours` (`capabilities.moduleAccess`).
+- Its routes answer `404` with the code `MODULE_NO_ACCESS` (`{ module }`), in the internal API and in the public API (`/api/v1`) – decided by the matched route, after authentication and before a step-up or the route's own code.
+- **MCP:** its tools are not listed and a call is refused. A token acts with its owner's module access, checked on every request.
+- **Notifications:** its events (for example `cost.budget`, `plant.change_proposed`) are not sent to them, in no channel; held messages are checked again when quiet hours or a digest release them. A team's own channel gets them only while the team uses the module. Addresses outside Steward count as not using a restricted module.
+- **Reports:** a section of a module the schedule's owner does not use is left out. A recipient who does not use a restricted module gets a copy of the report without its sections (one more report per run at most); the full report is not theirs to open. The schedule form says which recipients are affected – named users, teams that are not on the module's list and e-mail addresses outside Steward – before you save (`POST /api/report-schedules/recipients-preview`).
+- **Core pages** leave out the module's parts: a service's _Costs_, _Scorecard_ and _Responsibilities_ tabs, a platform's or an application's costs and contracts, the module's check types in the monitor editor. A monitor check of the module (cost change, data contract, version behind, page watch) keeps running – it is the monitor's – but shows them only its status: _A check of a module you do not use_, no message, no value, in the monitor's page, its results and its history, and in the monitor's notifications to them (also the monitor's own message when that check is its root cause).
+- **Links** from a core item they may see to an item of the module are counted, not named: _An item of a module you do not use_ – no title, id, link or note. Saving the core item keeps the link; they cannot add one, and the link picker does not offer the module's items.
+- **Export parts** of the module are not offered to them; scheduled exports and backups run as the instance, as before.
+- Its background jobs keep running: they are the instance's.
+
+### Changing who uses a module
+
+_Settings → Modules_ shows each module that can be restricted with its access (_Used by: Everyone signed in_ or _Selected teams and users_). **Who may use it** opens the dialog:
+
+1. Choose **Everyone signed in** or **Selected teams and users**, and pick the teams and users. A team means its members; a single sign-on group reaches the module through the team it is mapped to ([TEAMS.md](TEAMS.md#modules-through-teams)).
+2. Before you save, the dialog shows **who gains** and **who loses** the module, and the **teams that own items of the module but would not use it** (their members keep their rights on those items but cannot open them).
+3. **Save.** Widening – opening a restricted module, or adding a team or user – asks you to confirm that it is you (step-up, control point `access.grant`). Narrowing asks no step-up, but the dialog asks you to confirm it once more, with the list of who loses the module. The sidebar, Home and the search follow at once.
+
+Changing who uses a module needs an administrator in a signed-in session (no API token). Every change is an access change in the audit log (`access.module_access_changed`, with the mode before and after, who was granted and who removed; a widening carries the step-up's proof). A deleted team stays on the list as an entry that matches nobody, so deleting a team never widens a restricted module – and a new team that takes its name does not inherit it ([TEAMS.md](TEAMS.md)).
+
+### Reviewing who uses a module
+
+- **Why do I have access?** on a site of the plant registry or a data contract starts with the module layer: _Uses Plant registry through team Invented plant engineering_, or _Does not use Data contracts_ – without the module, the item's rights do not apply.
+- **Person access reviews** of a Steward user list the restricted modules and whether the person uses each, and through what – read when the review is opened, since module access is changed in Steward, not on a platform ([COMPLIANCE.md](COMPLIANCE.md)).
+- The **assurance report** has a section _Module access_: who uses each restricted module at the end of the period, and every change in it with who made it and how it was confirmed ([ASSURANCE.md](ASSURANCE.md)).
+- **Evidence packs** of auditors and administrators hold `access/module-access.json` with the same data for the pack's period.
+- The **test sign-in** of a single sign-on provider shows the restricted modules a person would use ([SSO.md](SSO.md#test-sign-in)).
+
+API (administrators, signed-in session): `GET /api/settings/modules/:id/access`, `PUT /api/settings/modules/:id/access` with `{ "mode": "selected", "grants": [{ "subject": "team:plant engineering" }] }` (or `{ "mode": "everyone", "grants": [] }`), and `POST /api/settings/modules/:id/access/preview` with the same body – who would gain and who would lose the module, and which teams own items of it but would not use it. `GET /api/settings/modules` names each module's `accessMode`.
 
 ## Modules
 

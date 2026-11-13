@@ -10,7 +10,7 @@ export const GIT_PROVIDERS = ['forgejo', 'github', 'gitlab'] as const;
 export type GitProvider = (typeof GIT_PROVIDERS)[number];
 
 /** What a source may bring in. */
-export const SYNC_KINDS = ['process', 'dashboard', 'monitor', 'recordType'] as const;
+export const SYNC_KINDS = ['process', 'dashboard', 'monitor', 'recordType', 'costCalculator'] as const;
 export type SyncKind = (typeof SYNC_KINDS)[number];
 
 /** What a source follows: a branch (its newest commit) or a tag (the commit it points to). */

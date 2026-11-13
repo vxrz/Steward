@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ShareLevel } from './access.js';
 import { isCalendarDate } from './costPlans.js';
 import { boundedRecord } from './zodLimits.js';
 
@@ -784,6 +785,11 @@ export interface SupplierMergePreview {
   narrows: boolean;
   /** Who loses sight of a source's company record and contracts */
   losers: string[];
+  /**
+   * The shares of the result that show a source to someone who did not see it (ADR 0033, #292): each subject, its level
+   * and the sources it opens – a widening, so the merge is for administrators and asks for the step-up
+   */
+  shares: { subject: string; level: ShareLevel; supplierIds: string[] }[];
   /** The owning teams of the result (none: the whole instance) */
   teams: string[];
   contracts: { supplierId: string; id: string; title: string; reference: string; owners: string[]; ownersAfter: string[]; sameReference: boolean }[];

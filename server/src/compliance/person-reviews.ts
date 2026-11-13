@@ -16,7 +16,8 @@ import { audit } from '../audit.js';
 import { type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { fourEyesRequired, noteFourEyes, samePerson } from '../auth/assurance.js';
-import { findUserByName } from '../auth/users.js';
+import { findUserByName, toAuthUser } from '../auth/users.js';
+import { restrictedModuleUses } from '../modules/access.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateChecks, canReadCheck, identitiesOf, readsEverything, same, visiblePlatformName } from './access.js';
 import { readCheckSource } from './reconciliation.js';
@@ -201,7 +202,19 @@ function toReview(u: AuthUser, r: ReviewRow): PersonReview {
     canDecide: mayDecide(u, r),
     canApprove: mayApprove(u, r),
     canRecheck: mayRecheck(u, r),
+    ...personModules(r.person_user),
   };
+}
+
+/**
+ * The module layer of a Steward user's review (ADR 0034 part 7): the restricted modules and whether they use each,
+ * through which team – read now, like Settings → Modules shows it; nothing while every module is open to everyone.
+ */
+function personModules(username: string | null): Pick<PersonReview, 'modules'> {
+  const person = username ? findUserByName(username) : undefined;
+  if (!person) return {};
+  const modules = restrictedModuleUses(toAuthUser(person));
+  return modules.length ? { modules } : {};
 }
 
 /** The identities Steward knows for a Steward user: user name, e-mail and former names (imported accounts). */

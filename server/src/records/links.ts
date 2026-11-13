@@ -1,6 +1,16 @@
 import { seesRun } from '../engine/visibility.js';
 import { z } from 'zod';
-import { LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
+import {
+  LINK_KINDS,
+  moduleOfItemKind,
+  type Backlink,
+  type ItemLink,
+  type LinkKind,
+  type LinkTarget,
+  type ModuleId,
+  type PlatformPermission,
+  type AclEntry,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
@@ -15,6 +25,7 @@ import { checkLinkType, linkTypeByKey, linkTypeKey } from './link-types.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { dashboardVisible } from '../dashboards/service.js';
 import { watchesLinkingTo } from '../changedetection/store.js';
+import { modulesNotUsedBy } from '../modules/access.js';
 
 /**
  * Generic links from a record or service to an internal item ({ kind, id })
@@ -46,6 +57,15 @@ const like = (q: string) => `%${likeEscape(q.trim().toLowerCase())}%`;
 const RESOLVERS = new Map<string, LinkResolver>();
 export function registerLinkKind(kind: string, r: LinkResolver): void {
   RESOLVERS.set(kind, r);
+}
+
+/**
+ * The resolver of a kind for the current person: none for a kind of a module they do not use (ADR 0034) – its items
+ * neither resolve, nor turn up in the link picker, nor can be linked; a link to one is counted, not named.
+ */
+function resolverOf(kind: string, notUsed: ReadonlySet<ModuleId> = modulesNotUsedBy(currentUser())): LinkResolver | undefined {
+  const mod = moduleOfItemKind(kind);
+  return mod && notUsed.has(mod) ? undefined : RESOLVERS.get(kind);
 }
 
 registerLinkKind('process', {
@@ -325,7 +345,7 @@ interface LinkRow {
 /** The registry's own kinds: the only ones a plant viewer (#218) may open. */
 const PLANT_KINDS = new Set(['site', 'asset', 'device-profile', 'data-collection', 'data-sink']);
 
-function toLink(r: LinkRow, plantViewer = plantOnly(currentUser())): ItemLink {
+function toLink(r: LinkRow, plantViewer = plantOnly(currentUser()), notUsed: ReadonlySet<ModuleId> = modulesNotUsedBy(currentUser())): ItemLink {
   if (!r.to_kind) {
     return {
       id: r.id,
@@ -341,6 +361,23 @@ function toLink(r: LinkRow, plantViewer = plantOnly(currentUser())): ItemLink {
       createdBy: r.created_by,
     };
   }
+  // an item of a module the reader does not use (ADR 0034): counted, not named – no title, id, path or note, the module only
+  const otherModule = moduleOfItemKind(r.to_kind);
+  if (otherModule && notUsed.has(otherModule))
+    return {
+      id: r.id,
+      kind: r.to_kind as LinkKind,
+      targetId: null,
+      url: null,
+      linkType: null,
+      label: '',
+      note: '',
+      visible: false,
+      path: null,
+      module: otherModule,
+      createdAt: r.created_at,
+      createdBy: r.created_by,
+    };
   const target = RESOLVERS.get(r.to_kind)?.resolve(r.to_id!) ?? null;
   // a plant viewer sees the name of a linked system or application, not a way to it (they open the registry only)
   const nameOnly = !!target && plantViewer && !PLANT_KINDS.has(r.to_kind);
@@ -363,14 +400,15 @@ function toLink(r: LinkRow, plantViewer = plantOnly(currentUser())): ItemLink {
 
 export function listLinks(from: LinkSource, id: string): ItemLink[] {
   const plantViewer = plantOnly(currentUser());
+  const notUsed = modulesNotUsedBy(currentUser());
   return db()
     .all<LinkRow>('SELECT * FROM item_links WHERE from_kind = ? AND from_id = ? ORDER BY created_at, id', from, id)
-    .map((r) => toLink(r, plantViewer));
+    .map((r) => toLink(r, plantViewer, notUsed));
 }
 
 /** Whether the current user may see an item (services: everyone; records: everyone but access change entries). */
 export function targetVisible(kind: string, id: string): boolean {
-  return !!RESOLVERS.get(kind)?.resolve(id);
+  return !!resolverOf(kind)?.resolve(id);
 }
 
 /**
@@ -382,9 +420,11 @@ export function listBacklinks(kind: string, id: string): Backlink[] {
   const out: Backlink[] = [];
   // a plant viewer (#218) sees the registry's own sources only: records, services and credentials are not theirs
   const plantViewer = plantOnly(currentUser());
+  const notUsed = modulesNotUsedBy(currentUser());
   for (const r of rows) {
     if (plantViewer && !PLANT_KINDS.has(r.from_kind)) continue;
-    const src = RESOLVERS.get(r.from_kind)?.resolve(r.from_id);
+    // sources that are items of a module the reader does not use are left out (resolverOf)
+    const src = resolverOf(r.from_kind, notUsed)?.resolve(r.from_id);
     if (!src) continue;
     out.push({ linkId: r.id, kind: r.from_kind as Backlink['kind'], id: r.from_id, label: src.label, note: r.note, path: src.path });
   }
@@ -407,20 +447,21 @@ export function listBacklinks(kind: string, id: string): Backlink[] {
 }
 
 export function searchTargets(kind: LinkKind, q: string, limit = 20): LinkTarget[] {
-  const r = RESOLVERS.get(kind);
-  if (!r) throw new HttpError(400, `Unknown link kind ${kind}`, 'LINK_KIND_UNKNOWN', { kind });
+  if (!RESOLVERS.has(kind)) throw new HttpError(400, `Unknown link kind ${kind}`, 'LINK_KIND_UNKNOWN', { kind });
+  const r = resolverOf(kind);
+  if (!r) return [];
   return r.search(q.slice(0, 100), Math.min(Math.max(limit, 1), 50));
 }
 
 /** Name and page of a link target the current user may see (null: missing or not visible). */
 export function resolveTarget(kind: string, id: string): { label: string; path: string } | null {
-  const r = RESOLVERS.get(kind)?.resolve(id);
+  const r = resolverOf(kind)?.resolve(id);
   return r ? { label: r.label, path: r.path } : null;
 }
 
 /** Label of a link target for audit summaries (never the label of an invisible item). */
 export function describeTarget(kind: string, id: string): string | null {
-  return RESOLVERS.get(kind)?.resolve(id)?.label ?? null;
+  return resolverOf(kind)?.resolve(id)?.label ?? null;
 }
 
 // ---------- write ----------
@@ -435,7 +476,7 @@ export function addLink(from: LinkSource, fromId: string, input: LinkInput, enti
   if ('kind' in input) {
     if (input.kind === from && input.id === fromId) throw new HttpError(400, 'An item cannot link to itself', 'LINK_SELF');
     // Only targets the user can see can be linked (no probing for ids of hidden items).
-    const target = RESOLVERS.get(input.kind)?.resolve(input.id);
+    const target = resolverOf(input.kind)?.resolve(input.id);
     if (!target) throw new HttpError(404, `${input.kind} ${input.id} not found`, 'LINK_TARGET_NOT_FOUND', { kind: input.kind, id: input.id });
     if (db().get('SELECT 1 FROM item_links WHERE from_kind = ? AND from_id = ? AND to_kind = ? AND to_id = ?', from, fromId, input.kind, input.id)) {
       throw new HttpError(409, 'This link exists already', 'LINK_EXISTS');
@@ -504,7 +545,7 @@ export function updateLink(from: LinkSource, fromId: string, linkId: string, inp
   if (r.to_kind) {
     if (input.label !== undefined || input.linkType !== undefined)
       throw new HttpError(400, 'Internal links only have a note (no label or type)', 'LINK_INTERNAL_FIELDS');
-    target = RESOLVERS.get(r.to_kind)?.resolve(r.to_id!)?.label ?? null;
+    target = resolverOf(r.to_kind)?.resolve(r.to_id!)?.label ?? null;
     if (target === null) throw new HttpError(404, 'Link not found', 'LINK_NOT_FOUND');
   } else {
     if (input.label !== undefined) after.label = input.label;

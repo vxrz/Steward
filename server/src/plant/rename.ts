@@ -350,6 +350,10 @@ const REFERENCES_ALL: RefSpec[] = [
   pair('item_links', 'to_kind', 'device-profile', 'to_id', 'profile', 'link'),
   pair('copied_from', 'kind', 'device-profile', 'id', 'profile', 'copy'),
   pair('copied_from', 'kind', 'device-profile', 'source_id', 'profile', 'copy'),
+  // 0.21.0 (#293): its owning teams, shares and Restricted scope
+  pair('resource_teams', 'kind', 'device_profile', 'resource_id', 'profile', 'owning_team'),
+  pair('resource_shares', 'kind', 'device_profile', 'resource_id', 'profile', 'share'),
+  pair('resource_restrictions', 'kind', 'device_profile', 'resource_id', 'profile', 'share'),
   {
     table: 'plant_id_aliases',
     column: 'scope[interface, data_point]',
@@ -503,6 +507,9 @@ const REFERENCES_ALL: RefSpec[] = [
   json<{ kpi: string }[]>('plant_assignments', 'kpis', 'kpi', 'kpi', 'assignment', ['asset_id'], inObjects('kpi')),
   pair('copied_from', 'kind', 'kpi-definition', 'id', 'kpi', 'copy'),
   pair('copied_from', 'kind', 'kpi-definition', 'source_id', 'kpi', 'copy'),
+  pair('resource_teams', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'owning_team'),
+  pair('resource_shares', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'share'),
+  pair('resource_restrictions', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'share'),
   // ---- the OT network of a site
   col('plant_vlans', 'id', 'vlan', 'vlan', 'site_id'),
   json<string[]>('plant_zones', 'vlans', '[]', 'vlan', 'zone', ['site_id', 'id'], inList, bySite),
@@ -691,9 +698,17 @@ export function checkRename(kind: PlantIdKind, scope: string, from: string, to: 
   if (from === to) return { entry, problem: { code: 'PLANT_ID_SAME', message: 'The new id is the id it has' } };
   const format = idFormatProblem(kind, to);
   if (format) return { entry, problem: { code: 'PLANT_ID_FORMAT', message: format } };
-  const busy = taken?.(to) ?? (!!entryOf(kind, scope, to) || familyHas(kind, scope, to));
+  const other = entryOf(kind, scope, to);
+  const busy = taken?.(to) ?? (!!other || familyHas(kind, scope, to));
+  // 0.21.0 (#293): an id a device profile or KPI definition the caller may not see has is refused neutrally
+  const catalogue = kind === 'profile' || kind === 'kpi';
+  if (busy && catalogue && other && !entryPermissions(other).includes('view'))
+    return { entry, problem: { code: 'PLANT_ID_UNAVAILABLE', message: `The id "${to}" cannot be used – choose another one` } };
   if (busy) return { entry, problem: { code: 'PLANT_ID_TAKEN', message: `Another ${kind} has the id "${to}" already` } };
   const alias = aliasTarget(kind, scope, to);
+  const aliased = alias ? entryOf(kind, scope, alias) : null;
+  if (alias && alias !== from && catalogue && aliased && !entryPermissions(aliased).includes('view'))
+    return { entry, problem: { code: 'PLANT_ID_UNAVAILABLE', message: `The id "${to}" cannot be used – choose another one` } };
   if (alias && alias !== from)
     return {
       entry,
@@ -882,6 +897,8 @@ function refuse(p: { code: string; message: string }, kind: PlantIdKind, id: str
       throw new HttpError(409, p.message, 'PLANT_ID_SAME', params);
     case 'PLANT_ID_TAKEN':
       throw new HttpError(409, p.message, 'PLANT_ID_TAKEN', params);
+    case 'PLANT_ID_UNAVAILABLE':
+      throw new HttpError(409, p.message, 'PLANT_ID_UNAVAILABLE', { id: params.id });
     default:
       throw new HttpError(409, p.message, 'PLANT_ID_ALIAS', params);
   }

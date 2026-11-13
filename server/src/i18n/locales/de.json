@@ -623,6 +623,20 @@
     "noticeBody": "Der letzte Tag, um den Vertrag „{{title}}“ des Lieferanten „{{supplier}}“ zu kündigen, ist der {{date}}. Bitte entscheiden Sie, ob er sich verlängern soll.",
     "hint": "Sie erhalten diese Nachricht, weil Sie in Steward für den Vertrag oder den Lieferanten verantwortlich sind."
   },
+  "shareExpiry": {
+    "title_one": "{{item}}: Das Teilen mit {{subject}} endet in {{count}} Tag",
+    "title_other": "{{item}}: Das Teilen mit {{subject}} endet in {{count}} Tagen",
+    "body": "„{{item}}“ ist bis {{date}} mit {{subject}} geteilt ({{level}}). Danach entfällt dieser Zugriff. Verlängern Sie ihn im Reiter Zugriff, falls er noch gebraucht wird.",
+    "hint": "Sie erhalten diese Nachricht, weil Sie „{{item}}“ in Steward verwalten.",
+    "user": "{{name}}",
+    "team": "Team {{name}}",
+    "role": "alle mit der Rolle {{name}}",
+    "levels": {
+      "view": "Ansehen",
+      "edit": "Bearbeiten",
+      "manage": "Verwalten"
+    }
+  },
   "costBooking": {
     "title_one": "{{service}}: {{count}} Vertragszahlung von {{month}} nicht gebucht",
     "title_other": "{{service}}: {{count}} Vertragszahlungen von {{month}} nicht gebucht",
@@ -651,5 +665,9 @@
     "runsOutOn": "Voraussichtlich aufgebraucht am {{date}}.",
     "estimateNote": "Die Schätzung ist linear aus der Nutzung der letzten Monate und ändert sich, wenn sich die Nutzung ändert.",
     "stateOnly": "Die Zahlen werden nicht gezeigt: Das Volumen nutzen auch Services oder Plattformen, die Sie nicht sehen dürfen."
+  },
+  "priceReview": {
+    "title": "Preise prüfen: {{book}}",
+    "body": "Das Preisbuch „{{book}}“ wird von Hand gepflegt und wurde zuletzt am {{checked}} geprüft (Prüfung alle {{days}} Tage). Vergleichen Sie die Preise mit denen des Anbieters und speichern Sie eine neue Version oder wählen Sie „Als geprüft markieren“."
   }
 }

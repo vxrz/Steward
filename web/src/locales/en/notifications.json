@@ -108,6 +108,10 @@
       "undocumented": {
         "label": "Undocumented access",
         "info": "The access reconciliation found access changes without an access change entry"
+      },
+      "share_expiring": {
+        "label": "Share ends soon",
+        "info": "A share of an item you manage ends in 7 days (it is removed then unless someone extends it)"
       }
     },
     "document": {
@@ -216,6 +220,10 @@
       "volume": {
         "label": "Contract volume",
         "info": "A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum"
+      },
+      "price_review_due": {
+        "label": "Prices to review",
+        "info": "A price book you maintain by hand is due for its review (Mark as checked when its prices are still right)"
       }
     },
     "contract": {

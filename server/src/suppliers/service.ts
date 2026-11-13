@@ -69,8 +69,9 @@ import { ticketAccess } from '../tickets/service.js';
 import { instanceTimeZone, localDate } from '../duties/periods.js';
 import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { moduleEnabled } from '../modules/registry.js';
+import { moduleAvailable } from '../modules/access.js';
 import { supplierVisible, visibleContracts } from './links.js';
+import { forgetShares } from '../auth/shares.js';
 import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
 import { dropSchedules, type ScheduleRow } from '../costs/schedule-model.js';
 
@@ -411,7 +412,7 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
   const lineRows = db().all<{ id: string; service_id: string; fiscal_year: number; title: string; supplier_id: string; supplier_contract_id: string | null }>(
     'SELECT id, service_id, fiscal_year, title, supplier_id, supplier_contract_id FROM cost_plan_lines WHERE supplier_id IS NOT NULL ORDER BY fiscal_year DESC, title',
   );
-  const respRows = moduleEnabled('compliance')
+  const respRows = moduleAvailable('compliance')
     ? db().all<{ service_id: string; area: string; supplier_id: string; contract_id: string | null }>(
         'SELECT service_id, area, supplier_id, contract_id FROM service_responsibilities WHERE supplier_id IS NOT NULL ORDER BY service_id, area',
       )
@@ -419,7 +420,7 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
   const dutyRows = db().all<{ id: string; name: string; service_id: string; supplier_id: string; supplier_contract_id: string | null }>(
     'SELECT id, name, service_id, supplier_id, supplier_contract_id FROM service_duties WHERE supplier_id IS NOT NULL AND archived = 0 ORDER BY name',
   );
-  const findingRows = moduleEnabled('compliance')
+  const findingRows = moduleAvailable('compliance')
     ? db().all<FindingRow>('SELECT * FROM ca_findings WHERE supplier_id IS NOT NULL ORDER BY created_at DESC, number DESC')
     : [];
   const named = [
@@ -456,7 +457,7 @@ export function usageOf(ids?: string[]): Map<string, SupplierUsage[]> {
         ...contractOf(d.supplier_contract_id),
       });
   // the responsibility matrix of services and the rows of statements of applicability (ADR 0029 part 2, Compliance module)
-  if (moduleEnabled('compliance')) {
+  if (moduleAvailable('compliance')) {
     for (const r of respRows)
       if (want(r.supplier_id) && serviceSeen(r.service_id))
         add(r.supplier_id, {
@@ -1167,6 +1168,7 @@ export function dismissSupplier(id: string): { ok: true; unlinked: Record<string
     db().run('DELETE FROM supplier_contacts WHERE supplier_id = ?', id);
     db().run('DELETE FROM suppliers WHERE id = ?', id);
     forgetOwningTeams('supplier', id);
+    forgetShares('supplier', id);
     audit({
       action: 'supplier.dismissed',
       entityType: 'supplier',

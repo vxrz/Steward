@@ -31,7 +31,7 @@ import {
   type JsonRpcRequest,
   type JsonRpcResponse,
 } from './protocol.js';
-import { callTool, findTool, listTools, type ToolContext } from './tools.js';
+import { callTool, findTool, listTools, toolOpen, type ToolContext } from './tools.js';
 
 const PV = 'io.modelcontextprotocol/protocolVersion';
 const CAPS = 'io.modelcontextprotocol/clientCapabilities';
@@ -109,7 +109,7 @@ async function toolsCall(req: JsonRpcRequest, ctx: ToolContext, timedOut: () => 
   const name = req.params?.name;
   if (typeof name !== 'string' || !name) throw new McpError(INVALID_PARAMS, 'params.name (the tool name) is required');
   const tool = findTool(name);
-  if (!tool || (tool.visible && !tool.visible(ctx))) throw new McpError(INVALID_PARAMS, `Unknown tool: ${name.slice(0, 100)}`);
+  if (!tool || !toolOpen(tool, ctx)) throw new McpError(INVALID_PARAMS, `Unknown tool: ${name.slice(0, 100)}`);
   const args = req.params?.arguments;
   if (args !== undefined && (typeof args !== 'object' || args === null || Array.isArray(args)))
     throw new McpError(INVALID_PARAMS, 'params.arguments must be an object');

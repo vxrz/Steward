@@ -18,6 +18,7 @@ import {
   IconTicket,
   IconTool,
   IconUsersGroup,
+  IconLock,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { CopyId } from '../components/CopyId';
@@ -41,7 +42,7 @@ import { ScorecardPanel } from '../components/scorecard/ScorecardPanel';
 import { ObjectivesPanel } from '../components/scorecard/ObjectivesPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
 import { OpenMeasuresPanel } from '../components/records/IncidentReview';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DataTable } from '../components/DataTable';
 import { DetailPage } from '../components/page/DetailPage';
 import { CostsButton } from '../components/costs/CostsButton';
@@ -66,6 +67,7 @@ export const SERVICE_TABS = [
   'scorecard',
   'costs',
   'responsibilities',
+  'access',
 ] as const;
 export type ServiceTab = (typeof SERVICE_TABS)[number];
 const TAB_ICONS = {
@@ -80,6 +82,7 @@ const TAB_ICONS = {
   scorecard: IconGauge,
   costs: IconReceipt,
   responsibilities: IconUsersGroup,
+  access: IconLock,
 } as const;
 
 export function ServiceDetailPage() {
@@ -223,7 +226,6 @@ export function ServiceDetailPage() {
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 4 }}>
               <ServiceFacts service={s} />
-              <OwningTeams kind="service" id={s.id} mt="md" />
             </Grid.Col>
           </Grid>
         )}
@@ -244,6 +246,7 @@ export function ServiceDetailPage() {
           ))}
         {tab === 'costs' && <ServiceCostPlan serviceId={s.id} />}
         {tab === 'responsibilities' && <ServiceResponsibilitiesPanel serviceId={s.id} />}
+        {tab === 'access' && <AccessTab kind="service" id={s.id} />}
       </div>
       {editing && s.canEdit && <ServiceFormModal service={s} onClose={() => setEditing(false)} onSaved={(x) => refresh(x)} />}
     </DetailPage>

@@ -19,12 +19,13 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 | Process (with its schedules and runs) | roles and the access list                                             | team roles; the access list adds exceptions for others            |
 | Platform                              | roles and the access list                                             | team roles; the access list adds exceptions for others            |
 | Monitor                               | roles and the access list                                             | team roles; the access list adds exceptions for others            |
-| Service, application, system          | everybody sees it; designers and owners change it                     | designers among the members change it                             |
+| Service, application, system          | everybody sees it; designers and owners change it; shares add         | designers among the members change it; shares add                 |
 | Record, living document               | everybody sees it; editors and the owner change it; approvers approve | editors change it, approvers approve it (four-eyes still applies) |
 | Credential                            | readers by role; editors and owners change it                         | members with a reading or editing role                            |
 | Dashboard                             | everybody sees it; its owner changes it                               | members see it                                                    |
 | Ticket reference                      | everybody sees it; editors and responsibles change it                 | editors change it                                                 |
 | Plant registry site (with its assets) | everybody sees it; designers manage it; an access list restricts it   | designers among the members manage it; the access list adds more  |
+| Device profile, KPI definition        | everyone who sees the plant registry; designers manage it             | members see it, designers among them manage it; shares add more   |
 
 **Child objects follow their parent.** Components, duties, objectives and CIA ratings follow their service or application; editions, reviews, attachments and links follow their record; schedules and runs follow their process.
 
@@ -35,6 +36,8 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 **New resources** get their creator's teams, but only teams that already own something. A team that owns nothing does not use team scopes yet, so after an upgrade new resources stay the whole instance's. Administrators' new resources get no owning team.
 
 **Suppliers are the exception** (0.18.0, [ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)): a new supplier gets no owning team, whoever creates it – the company record is shared by the instance, and the setting below does not apply to it. Each team keeps its own **contracts** with the supplier instead: a new contract's owners are its creator and the creator's teams for new resources, and a team-owned contract is seen only by its owners, the readers of the services it covers, administrators and auditors ([SUPPLIERS.md](SUPPLIERS.md#contracts-and-the-services-they-cover)). An administrator can still restrict a supplier on its _Owning teams_ panel; changing its owning teams there shows a preview first and protects its contracts and contacts ([SUPPLIERS.md](SUPPLIERS.md#shared-suppliers-merging-and-opening)).
+
+**Device profiles and KPI definitions** (0.21.0, [ADR 0033](adr/0033-one-access-model.md) decision 9) are the same: a new one gets no owning team, whoever adds it – they describe device models every site may use. A team keeps one to itself deliberately (the _Owning teams_ panel on its _Access_ tab, administrators); an asset that uses a profile its reader may not see still shows the interfaces and data points it delivers, without the profile's name ([PLANT.md](PLANT.md#rights)). A **copy** – _Duplicate_, or a base extracted from profiles (the leading profile's) – gets its original's owning teams, and is Restricted when the original is, never the whole instance's when the original was not; shares are not copied, and who reaches the original only through a share cannot make a copy they would not see (`PLANT_COPY_NOT_VISIBLE`).
 
 Each team can change that in its settings (_Users → Teams_ → settings → _New resources_): **Once the team owns something** (the default, as above), **Always** (from the start, so a new team can begin with its members' own resources) or **Never** (the team only owns what administrators give it).
 
@@ -56,21 +59,49 @@ Applications take options: their components (the stack entered by hand; what was
 ## Setting it up
 
 1. In _Users → Teams_, create a team per service team, add its members, and give each member their roles in the team (e.g. _designer_ in team Orders, _viewer_ in team Payments).
-2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors and documents, and on the page itself for services, applications, systems, credentials, dashboards and ticket references.
-3. To move a whole service at once, use **Owning teams for the whole service** on the service page (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
+2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors, documents, services, suppliers, device profiles and KPI definitions, and on the page itself for applications, systems (with their shares below it), credentials, dashboards and ticket references.
+3. To move a whole service at once, use **Owning teams for the whole service** on the service's _Access_ tab (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
 
 Only administrators change owning teams. Adding a team, and removing every team (the resource then belongs to the whole instance), is confirmed with a step-up, like other grants – also in a bulk change. Every change is audited as `access.owning_teams_changed`, and a bulk change audits each resource. A **supplier** in a bulk change gets the same protections as on its own panel: its contracts keep their teams and its contacts their readers ([SUPPLIERS.md](SUPPLIERS.md#shared-suppliers-merging-and-opening)).
 
-**Deleting a team** removes it from owner lists, but an entry that restricts who sees something stays as an entry that matches nobody: access lists and the owners of supplier contracts keep it, so deleting a team never widens anyone's access ([USERS.md](USERS.md)). The same holds for owning teams (0.20.0): a team that owns items together with other teams is just removed from them, but a team that is the **only owning team** of items is not deleted – Steward answers _The team … is the only owning team of n item(s)_ (`TEAM_OWNS_RESOURCES`) – until you name the team they move to (`DELETE /api/teams/{id}?moveTo={teamId}`; `GET /api/teams/{id}/deletion` counts them per kind) or give them other owning teams first. Moving them to a team with members grants those members sight and asks for the step-up of granting access; a team without members keeps them with administrators (and auditors, named owners and access lists where the kind allows). Each moved item is audited as an access change (`access.owning_teams_changed`); a supplier keeps the protections of opening it (its contracts and contacts stay with who saw them).
+**Deleting a team** removes it from owner lists, but an entry that restricts who sees something stays as an entry that matches nobody: access lists and the owners of supplier contracts keep it, so deleting a team never widens anyone's access ([USERS.md](USERS.md)). A new team that takes a deleted team's name – created with it or renamed to it – does not inherit what the deleted team was given: its leftover shares and module grants are removed first, each audited as an access change (`access.share_removed`, `access.module_access_changed`, reason `teamNameReused`); they matched nobody, so nobody loses anything. The same holds for owning teams (0.20.0): a team that owns items together with other teams is just removed from them, but a team that is the **only owning team** of items is not deleted – Steward answers _The team … is the only owning team of n item(s)_ (`TEAM_OWNS_RESOURCES`) – until you name the team they move to (`DELETE /api/teams/{id}?moveTo={teamId}`; `GET /api/teams/{id}/deletion` counts them per kind) or give them other owning teams first. Moving them to a team with members grants those members sight and asks for the step-up of granting access; a team without members keeps them with administrators (and auditors, named owners and access lists where the kind allows). Each moved item is audited as an access change (`access.owning_teams_changed`); a supplier keeps the protections of opening it (its contracts and contacts stay with who saw them).
 
 **Why do I have access?** On every owning-teams panel, this button shows your rights and where each one comes from, for example "designer in team Orders", "access list team:payments: use", "Named owner (user:vic): view, edit", "Named responsible (team:payments): view, edit" or "Auditor: view". Administrators and auditors can ask the same for any user. Access reviews use the same explanation.
+
+## Sharing: the Access tab
+
+Owning teams are the scope of a resource; **shares** are the exceptions (0.21.0, [ADR 0033](adr/0033-one-access-model.md)). A share gives one subject – a user (`user:dana`), a team (`team:payments`) or, on a Restricted resource, everyone with a role (`role:operator`) – a **level** on one resource:
+
+| Level                    | What it gives                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| **View** (_Ansehen_)     | see the item and everything that follows it                                                  |
+| **Edit** (_Bearbeiten_)  | View, and change the item and its children                                                   |
+| **Manage** (_Verwalten_) | Edit, and change its shares and name owners from outside its owning teams (only Manage does) |
+
+Kinds with **action rights** offer them beside the level (`use` on a platform, `run` and `approve` on a process, `acknowledge` on a monitor, `propose` on a site, `test` on a data contract) – using a production tenant is not editing it. A share may have an **end date** (at most a year ahead): it stops counting at once when the date has passed, the job removes it (`access.share_expired`), and whoever manages the item is reminded seven days before. Shares only add; there are no deny rules.
+
+The **Access** tab (_Zugriff_) of a resource shows, from top to bottom:
+
+- its **owning teams** with _Why do I have access?_,
+- its **scope**: the whole instance, its owning teams, or **Restricted** – no owning team, and roles in the instance give nothing on it: only its shares, its owners, administrators and auditors reach it, and – as on a team's item – only who may change it puts it on a status page or plans its maintenance. Administrators switch it; switching it off asks for the step-up,
+- **Shared with** (_Geteilt mit_): the shares, each with its level, action rights and end date; a share whose user or team no longer exists stays as an entry that matches nobody and is marked so,
+- the **implied shares** of owners: an owner has _Owner – Edit (implied)_, computed from the owner field and never stored; it is not removable there – removing the owner removes it.
+
+**Who sees the list:** who manages the item, administrators and auditors. Everyone else who sees the item finds only their own reasons in _Why do I have access?_ (for example _Shared with team Payments – View_). A manager who may not list users and teams (a viewer given Manage) sees only their own subjects; the others are **counted, not named** (_And 2 shares with users or teams you may not see_) and kept when the list is saved.
+
+**Changing shares** needs Manage. Nobody shares more than they hold (administrators excepted): a share cannot carry a level or action right its author lacks. Before saving, the tab says **who gains and who loses what** (`POST /api/access/:kind/:id/preview`); a change that gives anyone a right they did not have – a new share, a higher level, a new action right, a later end date, Restricted switched off – asks for the step-up `grantAccess` (control point `access.grant`), and narrowing never does. API tokens cannot change shares at all: share lists name people and are read and changed in the app. **Which kinds:** services, applications, systems and suppliers, device profiles and KPI definitions (0.21.0; the plant catalogues with the action right _propose_ beside the level, and a Plant viewer reaches the tab of an entry they see – [PLANT.md](PLANT.md#owning-teams-and-shares)). A supplier's share opens its company record, not its team-owned contracts or the contacts scoped to them ([SUPPLIERS.md](SUPPLIERS.md#sharing-a-supplier)). Their children – components, duties, objectives, CIA ratings, links, "runs on" – follow their item. An application without owning teams of its own inherits its services' teams, but **not their shares or scope**. Upgrading changes nobody's access: no share is stored and nothing is Restricted at the upgrade, owners keep exactly their rights through the implied share.
+
+Every change is audited in the access family – `access.share_added`, `access.share_changed`, `access.share_removed`, `access.scope_changed` – with the step-up's proof, so it appears in the assurance report and the evidence packs.
+
+**Not every subject can be given a share:** status viewers get none, plant viewers only on the plant registry, and a share of a module's item goes only to users and teams who use that module (`SHARE_SUBJECT_UNSUITABLE` – giving module access stays an administrator's decision, [ADR 0034](adr/0034-module-access.md)).
 
 ## Named owners and responsibles
 
 The people who change a team's item can name a `user:` or `team:` as its owner or responsible – also one from **outside the owning teams**, for example a contact person in another team. That subject then sees the item and changes it: a grant across teams without an administrator. It stays possible, but it is as deliberate as changing an access list (0.19.0, #195):
 
 - **Covered** subjects need nothing: a member of one of the item's owning teams, or one of those teams itself.
-- An item **without owning teams** belongs to the whole instance: naming anyone there grants nothing new, so nothing is asked.
+- An item **without owning teams** belongs to the whole instance: naming anyone there grants nothing new, so nothing is asked – unless it is **Restricted** (services, applications, systems and suppliers since 0.21.0): then every new owner gains access and is asked for.
+- On services, applications, systems and suppliers an owner is an **implied Edit share** (0.21.0, [ADR 0033](adr/0033-one-access-model.md)): it is shown on the _Access_ tab and in _Why do I have access?_ as _Owner – Edit (implied)_, and only who **manages** the item (designers among the members, administrators, Manage shares) names one from outside the owning teams (`FORBIDDEN`, context `nameOutside`, for others). An owner named from outside gets Edit, not Manage, so they cannot name further outsiders.
 - **Adding** an uncovered subject asks for the **step-up** (_Name an owner or responsible from outside the owning teams_, the baseline control point `access.grant` – [SECURITY-HARDENING.md](SECURITY-HARDENING.md#step-up-re-authentication), [ASSURANCE.md](ASSURANCE.md)). **Removing** one, or keeping one already named, never asks.
 - It is audited as an **access change**: `access.named_subjects_granted` on the item, with the field, who was granted (`granted`), what they may do (`rights`) and the owning teams they are outside of (`owningTeams`), and the step-up's proof (`assurance`) – so it appears in the assurance report and the evidence packs that include it. The ordinary change entry (`credential.updated`, `service.updated` …) is written as before.
 - **API tokens** cannot confirm, so they are refused (`SESSION_REQUIRED`), as for access lists; a change that only names covered subjects works with a token as before. Every other path – duplicates, suggestions turned into findings, a merge of suppliers – asks the same in the service before it writes anything, so nothing is granted without a confirmation. The public API (`/api/v1`) is read-only.
@@ -112,6 +143,16 @@ Microsoft Teams also reaches people one by one: with the Teams bot on, each pers
 
 An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **roles in these teams**. On each sign-in with _Synchronise roles_, the member's team roles follow the mapping: they are added, changed, or removed when the mapping no longer gives any.
 
+### Modules through teams
+
+Who may use a restricted module ([MODULES.md](MODULES.md#who-may-use-a-module), [ADR 0034](adr/0034-module-access.md)) names **teams and users**, never SSO groups. A group reaches a module through the team it is mapped to – so membership, its audit trail and the access review stay in one place:
+
+1. _Users → Single sign-on → provider → Groups and roles_: map the group (for example the claim value `plant-engineering`) to a team, `Invented plant engineering`, with _Synchronise roles_ on.
+2. _Settings → Modules → Plant registry → Who may use it_: **Selected teams and users**, add the team `Invented plant engineering`. The preview shows who gains and who loses the module before you save.
+3. Check it with the provider's **test sign-in**: its preview lists the restricted modules and whether the person would use each (_Uses Plant registry through team Invented plant engineering_).
+
+When the group leaves the token, the next sign-in removes the team membership and with it the module. A deleted team stays on a module's list as an entry that matches nobody, so deleting a team never opens a restricted module. A team that owns items of a module but is not on its list is named in the preview: its members keep their rights on those items but cannot open them.
+
 ## Upgrade and migration
 
 - The upgrade only adds columns (`team_members.roles`, `team_members.new_resources`) and tables (`resource_teams`, `team_settings`). No owning team is set and every team starts with the defaults above, so every installation keeps its visibility.
@@ -119,13 +160,17 @@ An SSO claim mapping can set team memberships (_Teams_) and, beside them, the **
 
 ## API
 
-|                                        |                                                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| `GET /api/owning-teams/:kind/:id`      | the owning teams (for whoever can see the resource)                                |
-| `PUT /api/owning-teams/:kind/:id`      | `{ teamIds }`: set them (administrators)                                           |
-| `POST /api/owning-teams/bulk`          | `{ teamIds, mode: set\|add\|remove, resources?: [{kind,id}], service?, preview? }` |
-| `GET /api/access/explain?kind&id&user` | the rights of a user and where they come from                                      |
-| `POST /api/access/named-outside`       | `{ kind, id?, supplierId?, subjects }`: which are outside the item's owning teams  |
-| `GET/PUT /api/me/new-resource-teams`   | the owning teams of your new resources and your choice (`{ teamId \| null }`)      |
+|                                        |                                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/owning-teams/:kind/:id`      | the owning teams (for whoever can see the resource)                                                                 |
+| `PUT /api/owning-teams/:kind/:id`      | `{ teamIds }`: set them (administrators)                                                                            |
+| `POST /api/owning-teams/bulk`          | `{ teamIds, mode: set\|add\|remove, resources?: [{kind,id}], service?, preview? }`                                  |
+| `GET /api/access/explain?kind&id&user` | the rights of a user and where they come from                                                                       |
+| `GET /api/access/:kind/:id/shares`     | the Access tab: scope, owning teams, shares (Manage, administrators, auditors), implied shares, what you may change |
+| `PUT /api/access/:kind/:id/shares`     | `{ shares: [{ subject, level, actions?, expiresAt? }] }`: replace them (Manage; a widening asks for the step-up)    |
+| `PUT /api/access/:kind/:id/scope`      | `{ restricted }`: switch Restricted (administrators; switching it off asks for the step-up)                         |
+| `POST /api/access/:kind/:id/preview`   | `{ shares?, restricted? }`: who would gain and who would lose what, nothing stored                                  |
+| `POST /api/access/named-outside`       | `{ kind, id?, supplierId?, subjects }`: which are outside the item's owning teams                                   |
+| `GET/PUT /api/me/new-resource-teams`   | the owning teams of your new resources and your choice (`{ teamId \| null }`)                                       |
 
 `kind` is one of `process`, `platform`, `service`, `application`, `system`, `record`, `credential`, `monitor`, `dashboard` and `ticket`. Report schedules keep their own rule (owner, recipients, auditors and administrators) and have no owning teams.

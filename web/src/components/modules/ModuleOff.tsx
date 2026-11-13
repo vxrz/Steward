@@ -2,19 +2,29 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { IconPuzzleOff } from '@tabler/icons-react';
+import { IconLock, IconPuzzleOff } from '@tabler/icons-react';
 import type { ModuleId } from '@sm/shared';
 import { EmptyState, PageHeader } from '../common';
 import { useMe } from '../../auth';
-import { useModuleOn } from '../../modules';
+import { moduleNotYours, useModuleOn } from '../../modules';
 
 /**
  * A page of a switched-off module (U10): says that the area is off and who can turn it on – nothing else (no names,
- * no counts). Administrators get the link to Settings → Modules.
+ * no counts). Administrators get the link to Settings → Modules. A module the person does not use (ADR 0034) says so.
  */
 export function ModuleOffPage({ module }: { module: ModuleId }) {
   const { t } = useTranslation('modules');
   const { caps } = useMe();
+  // on, but not used by the person (ADR 0034): who can change that is an administrator – no link, nothing more
+  if (moduleNotYours(caps, module))
+    return (
+      <>
+        <PageHeader title={t(`items.${module}.name`)} />
+        <EmptyState icon={IconLock} title={t('notYours.title')} testId="module-not-yours">
+          {t('notYours.text')}
+        </EmptyState>
+      </>
+    );
   return (
     <>
       <PageHeader title={t(`items.${module}.name`)} />

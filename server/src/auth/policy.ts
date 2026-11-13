@@ -8,6 +8,9 @@
  * - With owning teams, members of those teams have their instance and team roles on it; everyone else only
  *   what an access list entry gives (an exception for sharing across teams). Administrators have every right,
  *   auditors may view, a process's owner may do everything.
+ * - **Shares** (ADR 0033) give a user, a team or a role a level (View, Edit, Manage) and the kind's action rights on
+ *   one resource – for kinds that pass their share model (`ShareModel`). A resource whose scope is **Restricted** gives
+ *   instance roles nothing: only its owning teams, its shares, administrators, auditors and owners reach it.
  * - Rights only add up; there are no deny rules.
  */
 import {
@@ -24,11 +27,15 @@ import {
   type PlatformPermission,
   type ProcessPermission,
   type Role,
+  type ShareAction,
+  type ShareLevel,
+  SHARE_LEVELS,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, parseJson } from '../util.js';
 import { currentStore, type AuthUser } from './context.js';
-import { isAdmin, matches, DEFAULT_PLATFORM, DEFAULT_PROCESS } from './permissions.js';
+import { isAdmin, matches, subjectsOf, DEFAULT_PLATFORM, DEFAULT_PROCESS } from './permissions.js';
+import { isRestricted, sharesFor } from './share-store.js';
 
 export interface OwningTeam {
   id: string;
@@ -204,6 +211,52 @@ interface Decision<P extends string> {
   reasons: AccessReason[];
 }
 
+// ---------- shares (ADR 0033) ----------
+
+/**
+ * How a kind's rights follow from a share: the rights of each level (each includes the lower ones' – Manage is Edit
+ * and changing shares) and of each action right the kind offers beside the level. A kind passes its model to decide()
+ * once it is switched to shares; until then shares and Restricted do not count for it.
+ */
+export interface ShareModel<P extends string> {
+  levels: Record<ShareLevel, readonly P[]>;
+  actions?: Partial<Record<ShareAction, readonly P[]>>;
+}
+
+/** The reasons `u` has from the shares of a resource: one per share of one of their subjects that has not ended. */
+export function shareReasons<P extends string>(u: AuthUser, r: { kind: OwnedKind; id: string }, model: ShareModel<P>): AccessReason[] {
+  return sharesFor(u.id, subjectsOf(u), r.kind, r.id).map((s) => ({
+    source: 'share' as const,
+    subject: s.subject,
+    level: s.level,
+    ...(s.actions.length ? { actions: [...s.actions] } : {}),
+    ...(s.expiresAt ? { expiresAt: s.expiresAt } : {}),
+    permissions: [...new Set<string>([...model.levels[s.level], ...s.actions.flatMap((a) => model.actions?.[a] ?? [])])],
+  }));
+}
+
+/** What someone holds on a resource in share terms: the highest level all of whose rights they have, and the action rights. */
+export interface HeldShare {
+  level: ShareLevel | null;
+  actions: ShareAction[];
+}
+
+/**
+ * What `u` may give away by sharing (ADR 0033 part 5, "nobody shares more than they hold"): administrators everything
+ * (`'all'`), anyone else the level and action rights their rights on the resource cover. Manage is what changes shares.
+ */
+export function heldShare<P extends string>(u: AuthUser | null, model: ShareModel<P>, permissions: readonly P[]): HeldShare | 'all' {
+  if (isAdmin(u)) return 'all';
+  const has = new Set<string>(permissions);
+  const covers = (rights: readonly P[] | undefined) => !!rights?.length && rights.every((p) => has.has(p));
+  const level = [...SHARE_LEVELS].reverse().find((l) => covers(model.levels[l])) ?? null;
+  const actions = (Object.keys(model.actions ?? {}) as ShareAction[]).filter((a) => covers(model.actions?.[a]));
+  return { level, actions };
+}
+
+/** Whether these rights include Manage (changing shares, decision 3: Edit may not re-share). */
+export const managesShares = (held: HeldShare | 'all'): boolean => held === 'all' || held.level === 'manage';
+
 /**
  * The rights `u` has on a resource, with the reasons. `all` lists every right of the kind (in order), `defaults`
  * the rights each role gives, `owner` the user who owns the resource (processes).
@@ -214,8 +267,11 @@ export function decide<P extends string>(
   all: readonly P[],
   defaults: Record<Role, readonly P[]>,
   auditorView?: P,
-  /** instanceDefaults false (identities, ADR 0009): instance roles alone give nothing – only owning teams and the access list */
-  opts: { instanceDefaults?: boolean } = {},
+  /**
+   * instanceDefaults false (identities, ADR 0009): instance roles alone give nothing – only owning teams and the access
+   * list. shares: the kind's share model (ADR 0033) – its shares add rights, and Restricted keeps instance roles out
+   */
+  opts: { instanceDefaults?: boolean; shares?: ShareModel<P> } = {},
 ): Decision<P> {
   if (!u) return { permissions: [], reasons: [] };
   if (isAdmin(u)) return { permissions: [...all], reasons: [{ source: 'admin', role: 'admin', permissions: [...all] }] };
@@ -226,7 +282,9 @@ export function decide<P extends string>(
   const teams = owningTeams(r.kind, r.id);
   if (!teams.length) {
     // the whole instance's resource: as before team scopes
-    if (!r.acl.length && opts.instanceDefaults !== false)
+    // Restricted (ADR 0033): only the shares, as a non-empty access list
+    const restricted = !!opts.shares && isRestricted(r.kind, r.id);
+    if (!r.acl.length && !restricted && opts.instanceDefaults !== false)
       for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...(defaults[role] ?? [])] });
   } else {
     // members of an owning team: their instance roles and their roles in that team
@@ -239,6 +297,8 @@ export function decide<P extends string>(
   }
   // access list entries: the only rights on an unowned resource that has a list, an exception on an owned one
   for (const e of r.acl) if (matches(u, e.subject)) add({ source: 'accessList', subject: e.subject, permissions: [...e.permissions] });
+  // shares (ADR 0033): an exception on an owned resource, the way in on a Restricted one
+  if (opts.shares) for (const reason of shareReasons(u, r, opts.shares)) add(reason);
   const granted = new Set(reasons.flatMap((x) => x.permissions));
   return { permissions: all.filter((x) => granted.has(x)), reasons };
 }
@@ -392,38 +452,73 @@ export function catalogueTeams(kind: CatalogueKind, id: string): OwningTeam[] {
 export interface CatalogueDecision {
   view: boolean;
   edit: boolean;
+  /** Changing its shares and naming owners from outside its owning teams (ADR 0033 decision 3) */
+  manage: boolean;
   reasons: AccessReason[];
 }
 
+/** The catalogue kinds switched to shares (ADR 0033 phase 1): their shares and the Restricted scope count. */
+export const SHARED_CATALOGUE_KINDS: ReadonlySet<CatalogueKind> = new Set<CatalogueKind>(['service', 'application', 'system', 'supplier']);
+
+/** How a share gives rights on a catalogue item: View sees it and its children, Edit changes them, Manage also its shares. */
+export const CATALOGUE_SHARE_MODEL: ShareModel<'view' | 'edit' | 'manage'> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+};
+
 /**
- * Seeing and changing a catalogue item. Without owning teams: everybody signed in sees it, designers, administrators
- * and its named owners change it (as before). With owning teams: members of those teams see it and change it when
- * they are designers there; its named owners, administrators (both: change) and auditors (see) as well.
+ * Seeing, changing and managing a catalogue item. Without owning teams: everybody signed in sees it, designers and
+ * administrators change and manage it, its named owners change it (as before). With owning teams: members of those
+ * teams see it and change and manage it when they are designers there; auditors see it. Administrators may do
+ * everything.
+ *
+ * For the kinds switched to shares (ADR 0033, `SHARED_CATALOGUE_KINDS`):
+ * - **Shares** add a level – View, Edit or Manage – for a user, a team or a role.
+ * - An **owner** has an implied Edit share (reason `implied`, computed from the owner field, never stored): who may
+ *   edit by role keeps Manage by role, an owner named from outside the owning teams can no longer name further
+ *   outsiders (decision 3).
+ * - **Restricted** (an item without owning teams that an administrator restricted): instance roles give nothing –
+ *   only its shares, its owners, administrators and auditors reach it.
+ * - An application without owning teams of its own belongs to those of its services (catalogueTeams); shares and the
+ *   scope of a service do **not** flow to its applications – each item has its own.
+ *
  * The plant role's "see" only names the systems and applications that sites and assets link to (without a way to
  * them): a plant viewer reaches no route of the catalogue (app.ts, plantOnly).
  */
 export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): CatalogueDecision {
-  if (!u) return { view: false, edit: false, reasons: [] };
-  if (isAdmin(u)) return { view: true, edit: true, reasons: [{ source: 'admin', role: 'admin', permissions: ['view', 'edit'] }] };
+  if (!u) return { view: false, edit: false, manage: false, reasons: [] };
+  const shared = SHARED_CATALOGUE_KINDS.has(r.kind);
+  // who may edit by role manages by role (decision 3); kinds not switched to shares say only view and edit, as before
+  const editor = shared ? ['view', 'edit', 'manage'] : ['view', 'edit'];
+  if (isAdmin(u)) return { view: true, edit: true, manage: true, reasons: [{ source: 'admin', role: 'admin', permissions: editor }] };
   const reasons: AccessReason[] = [];
+  const byRole = (role: Role): string[] => (CATALOGUE_EDITORS.includes(role) ? editor : ['view']);
   // a named owner (#195: "Why do I have access?" says so; adding one from outside the owning teams is a confirmed grant)
   const owner = r.owners.find((s) => matches(u, s));
-  if (owner) reasons.push({ source: 'named', as: 'owner', subject: owner, permissions: ['view', 'edit'] });
+  if (owner)
+    reasons.push(
+      shared
+        ? { source: 'implied', as: 'owner', subject: owner, level: 'edit', permissions: ['view', 'edit'] }
+        : { source: 'named', as: 'owner', subject: owner, permissions: ['view', 'edit'] },
+    );
   const teams = catalogueTeams(r.kind, r.id);
   if (!teams.length) {
-    for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
+    // Restricted (ADR 0033): instance roles give nothing, auditors still see it
+    if (shared && isRestricted(r.kind, r.id)) {
+      if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
+    } else for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: byRole(role) });
   } else {
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
     const mine = memberships(u);
     for (const t of teams) {
       const m = mine.get(t.id);
       if (!m) continue;
-      for (const role of new Set([...u.roles, ...m.roles]))
-        reasons.push({ source: 'teamRole', role, team: t.name, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
+      for (const role of new Set([...u.roles, ...m.roles])) reasons.push({ source: 'teamRole', role, team: t.name, permissions: byRole(role) });
     }
   }
+  if (shared) reasons.push(...shareReasons(u, r, CATALOGUE_SHARE_MODEL));
   const granted = new Set(reasons.flatMap((x) => x.permissions));
-  return { view: granted.has('view'), edit: granted.has('edit'), reasons };
+  // before shares, whoever changed an item named its owners: editors keep that on kinds not switched yet
+  return { view: granted.has('view'), edit: granted.has('edit'), manage: shared ? granted.has('manage') : granted.has('edit'), reasons };
 }
 
 // ---------- records and living documents ----------

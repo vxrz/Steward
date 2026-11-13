@@ -1,4 +1,4 @@
-import type { ModuleStates } from './modules.js';
+import type { ModuleId, ModuleStates, ModuleUse, ModuleUseState } from './modules.js';
 import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
@@ -10,6 +10,7 @@ import type { Locale } from './locales.js';
 import type { DailySummaryPrefs } from './dailySummary.js';
 import type { PlantChange, PlantImportProblem } from './plant.js';
 import type { DigestPrefs, QuietHours } from './quietHours.js';
+import type { ShareAction, ShareLevel } from './access.js';
 import type {
   SsoConfigWarning,
   SsoGroupValues,
@@ -393,19 +394,35 @@ export const OWNED_KINDS = [
   'platform_identity',
   /** A supplier (0.17.0, ADR 0029): like systems */
   'supplier',
+  /** A price book (0.21.0, ADR 0035): its owning teams maintain it */
+  'cost_price_book',
+  /** A cost calculator (0.21.0, ADR 0035) */
+  'cost_calculator',
+  /** A device profile of the plant registry (0.21.0, #293, ADR 0033 part 3): no owning team unless a team restricts it */
+  'device_profile',
+  /** A KPI definition of the plant registry (0.21.0, #293) */
+  'kpi_definition',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
 /** Why someone has a right on a resource (#131): shown in the UI and used in access reviews. */
 export interface AccessReason {
-  /** admin | owner | auditor | instanceRole | teamRole | accessList | named (a named owner or responsible, #195) */
-  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named';
-  /** The role, the team, or the access list subject the right comes from */
+  /**
+   * admin | owner | auditor | instanceRole | teamRole | accessList | named (a named owner or responsible, #195) |
+   * share (a share of the resource, ADR 0033) | implied (a share implied by an owner or responsible field: computed, not
+   * stored – ADR 0033 part 2)
+   */
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share' | 'implied';
+  /** The role, the team, or the access list or share subject the right comes from */
   role?: Role;
   team?: string;
   subject?: string;
-  /** source named: named as an owner or as a responsible (ticket references) */
+  /** source named or implied: named as an owner or as a responsible (ticket references) */
   as?: 'owner' | 'responsible';
+  /** source share or implied: its level, action rights and end date (ADR 0033) */
+  level?: ShareLevel;
+  actions?: ShareAction[];
+  expiresAt?: string | null;
   permissions: string[];
 }
 
@@ -416,6 +433,11 @@ export interface AccessExplanation {
   owningTeams: { id: string; name: string }[];
   permissions: string[];
   reasons: AccessReason[];
+  /**
+   * An item of a module (a site of the plant registry, a data contract): whether the person uses the module and through
+   * what (ADR 0034). Someone who does not use it has no rights on its items, whatever the reasons say.
+   */
+  module?: ModuleUse;
 }
 
 export interface Capabilities {
@@ -441,8 +463,13 @@ export interface Capabilities {
   plantManage?: boolean;
   /** A plant viewer: role "plant" and no other working role – the web app shows the Plant area and the profile only. Missing means false. */
   plantOnly?: boolean;
-  /** The modules (0.11.0, ADR 0016) and whether each is on; a module missing here is on. Only in GET /auth/status. */
+  /**
+   * The modules (0.11.0, ADR 0016) and whether each is on for the person; a module missing here is on. False also for a
+   * module the person does not use (ADR 0034): the web app hides it the same way. Only in GET /auth/status.
+   */
   modules?: ModuleStates;
+  /** Per module: on, switched off, or on but not used by the person (ADR 0034); tells the pages which message to show. Only in GET /auth/status. */
+  moduleAccess?: Partial<Record<ModuleId, ModuleUseState>>;
 }
 
 export interface Me {

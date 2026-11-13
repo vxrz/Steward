@@ -190,6 +190,13 @@ describe('evidence packs', () => {
     expect(names.some((n) => /reconciliation\/.*\/snapshot-\d+\.json$/.test(n))).toBe(true);
     expect(names).toContain('access-changes/access-changes.csv');
     const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString());
+    // the module layer of access (ADR 0034): who uses each restricted module, and the changes in the period
+    expect(index.moduleAccess).toMatchObject({ included: true, files: ['access/module-access.json'] });
+    expect(JSON.parse((await zip.read(zip.find('access/module-access.json')!)).toString())).toMatchObject({
+      format: 'steward-module-access',
+      current: expect.any(Array),
+      changes: expect.any(Array),
+    });
     expect(index.controls.map((c: any) => `${c.catalogue} ${c.ref}`)).toEqual(['ISO27001 5.18', 'ISO27001 8.2']);
     expect(index.items.some((i: any) => i.kind === 'accessChange' && i.detail === 'afterTheFact')).toBe(true);
     expect((await zip.read(zip.find('index.pdf')!)).subarray(0, 5).toString()).toBe('%PDF-');
@@ -254,6 +261,7 @@ describe('evidence packs', () => {
     const zip = await ZipReader.open(file);
     const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString());
     expect(zip.find('audit/audit-log-excerpt.json')).toBeUndefined();
+    expect(zip.find('access/module-access.json')).toBeUndefined();
     expect(index.omitted.join('\n')).toContain('only auditors and administrators');
     // the auditor sees every pack, the viewer none; others cannot download someone else's pack
     expect((await audrey('GET', '/compliance/evidence-packs')).map((x: any) => x.id)).toContain(p.id);
