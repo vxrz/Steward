@@ -134,7 +134,10 @@ function convert(k: AclKind, d: Dialect): string {
     ON CONFLICT DO NOTHING;`;
 }
 
-const aclShares = (d: Dialect): string => ['ALTER TABLE resource_shares ADD COLUMN rights TEXT;', ...KINDS.map((k) => convert(k, d))].join('\n');
+/** The conversion of every access list (without the new column) – exported for the proof (acl-shares-migration.test.ts). */
+export const aclConversion = (d: 'sqlite' | 'postgres'): string => KINDS.map((k) => convert(k, d === 'sqlite' ? 'sqlite' : 'pg')).join('\n');
+
+const aclShares = (d: Dialect): string => ['ALTER TABLE resource_shares ADD COLUMN rights TEXT;', aclConversion(d === 'sqlite' ? 'sqlite' : 'postgres')].join('\n');
 
 export const ACCESS_MIGRATIONS: NamedMigration[] = [
   {
