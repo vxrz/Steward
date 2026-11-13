@@ -141,9 +141,10 @@ function healthFromLinks(
 }
 
 /** Health of elements, by id (the reader decides which checks are named; statuses of hidden ones count). */
-export function elementHealthOf(u: AuthUser | null, elementIds: readonly string[]): Map<string, ElementHealth> {
+export function elementHealthOf(u: AuthUser | null, elementIds: readonly string[], links?: CheckLinkRow[]): Map<string, ElementHealth> {
   const ids = [...new Set(elementIds)];
-  return healthFromLinks(u, ids, checkLinksOf(ids)).health;
+  // `links`: every check link of these elements, when the caller has read them already (the scorecard)
+  return healthFromLinks(u, ids, links ?? checkLinksOf(ids)).health;
 }
 
 /** Internal elements only degrade a product (ADR 0036 part 10). */

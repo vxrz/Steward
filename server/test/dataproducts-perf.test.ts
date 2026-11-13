@@ -9,7 +9,7 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * - **Statements:** a fixed number per request – the same for a product before and after it grew by 300 members and
  *   150 steps, about the same for a page of 50 and of 100 rows and for the map with 50 more products (one statement per
  *   kind of fact and chunk of 500 ids, one per depth level for lineage – never one per row); bounded as the ADR says
- *   (the product page at most 25 beyond what every request costs).
+ *   (the product page at most 20 and the scorecard at most 37 beyond what every request costs).
  * - **Time:** with SM_PERF=1 the volumes of the ADR – 250,000 elements, 2,000 products, 30,000 memberships, 10,000
  *   steps, 5,000 check links – and 300 ms per read, the map of all 2,000 products 1 s (run alone:
  *   `SM_PERF=1 npx vitest run test/dataproducts-perf.test.ts`).
@@ -257,10 +257,18 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
     const after: number[] = [];
     for (const [name, url] of reads) after.push(record(`${name} (grown)`, await measure(url)).statements);
     expect(after).toEqual(before);
-    // the product page: at most 26 beyond what every request costs (ADR 0036; 0.23.0 adds one read of the module
+    // the product page: at most 20 beyond what every request costs (ADR 0036; 0.23.0 adds one read of the module
     // roles granted – module_access and module_grants in one statement per request, ADR 0034 phase 2 – and reads
-    // the Restricted scopes of shares once per request, ADR 0033)
-    expect(report['product page (grown)']!.statements - (await overhead())).toBeLessThanOrEqual(26);
+    // the Restricted scopes of shares once per request, ADR 0033). 0.25.0: 26 → 20 – the ports, bindings, declared and
+    // implemented data objects and the members its rating floor reads are read once for the page (ProductReads), the
+    // member counts come from those members
+    const base = await overhead();
+    expect(report['product page (grown)']!.statements - base).toBeLessThanOrEqual(20);
+    // the scorecard: at most 37 beyond (0.25.0: 51 → 37) – the floor's ports, bindings and members read once, the check
+    // links of the output elements once for their freshness samples and their health, one read of the bound contracts
+    // for lint and personal fields, completeness results only for ports with a completeness objective, and traceability
+    // walks upstream only (one statement per level)
+    expect(report['scorecard (grown)']!.statements - base).toBeLessThanOrEqual(37);
   }, 300_000);
 
   it('a page of the list costs about the same for 50 and 100 rows: one statement per kind of fact, never per row', async () => {

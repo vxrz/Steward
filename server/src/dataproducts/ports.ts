@@ -24,6 +24,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { onLifecycleChanged, onPortDeleted } from './notices.js';
 import { forgetGovernance } from './governance-cleanup.js';
+import type { ProductReads } from './ratings.js';
 import { HIDDEN, L, actorName, elementNotFound, json, limitReached, objectNotFound, portNotFound, productNotFound, refOf } from './common.js';
 import {
   bindingsOf,
@@ -77,14 +78,16 @@ const objectives = (s: string): DataObjectives => parseJson<DataObjectives>(s, {
  * statements), as `u` sees them. `known`: data object rows the caller read already (the product page's rating floor
  * reads the exposed ones) – only the others are read here.
  */
-export function portViews(u: AuthUser | null, productId: string, known?: ReadonlyMap<string, ObjectRow>): DataPort[] {
-  const ports = portsOf([productId]);
+export function portViews(u: AuthUser | null, productId: string, known?: ReadonlyMap<string, ObjectRow>, read?: ProductReads): DataPort[] {
+  // the product page passes what its rating floor read of this product (ProductReads): read once, not twice
+  const ports = read?.ports ?? portsOf([productId]);
   if (!ports.length) return [];
   const ids = ports.map((p) => p.id);
-  const bindings = bindingsOf(ids);
-  const declared = portObjectsOf(ids);
+  const bindings = read?.bindings ?? bindingsOf(ids);
+  const declared = read?.portObjects ?? portObjectsOf(ids);
   const boundElements = [...new Set(bindings.flatMap((b) => b.elementIds))];
-  const implemented = objectsOfElements(boundElements);
+  const bound = new Set(boundElements);
+  const implemented = read?.objectElements ? read.objectElements.filter((x) => bound.has(x.element_id)) : objectsOfElements(boundElements);
   const wanted = [...new Set([...declared.map((d) => d.object_id), ...implemented.map((i) => i.object_id)])];
   const objectRows = new Map([...wanted.flatMap((id) => (known?.has(id) ? [[id, known.get(id)!] as const] : []))]);
   for (const [id, o] of objectsByIds(wanted.filter((id) => !known?.has(id)))) objectRows.set(id, o);

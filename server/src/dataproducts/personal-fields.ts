@@ -68,14 +68,27 @@ export function personalFieldsOfDoc(doc: Record<string, unknown>): DataPersonalF
  * The fields of these contract versions (version null: the contract's current one), keyed `contract#version` – one
  * statement for the current versions and one per 500 versions not yet in memory.
  */
-export function fieldsOfVersions(pairs: readonly { contractId: string; version: number | null }[]): {
+/** What the personal fields need of a contract: its key, name and current version. */
+export interface ContractHead {
+  id: string;
+  contract_key: string;
+  name: string;
+  current_version: number;
+}
+
+export function fieldsOfVersions(
+  pairs: readonly { contractId: string; version: number | null }[],
+  /** The contracts' rows when the caller read them already (the scorecard, 0.25.0) */
+  known?: ReadonlyMap<string, ContractHead>,
+): {
   fields: Map<string, DataPersonalField[]>;
   resolved: (contractId: string, version: number | null) => number | null;
-  contracts: Map<string, { id: string; contract_key: string; name: string; current_version: number }>;
+  contracts: Map<string, ContractHead>;
 } {
   const ids = [...new Set(pairs.map((p) => p.contractId))];
-  const contracts = new Map(
-    chunks(ids).flatMap((part) =>
+  const contracts = new Map<string, ContractHead>(ids.flatMap((id) => (known?.has(id) ? [[id, known.get(id)!] as const] : [])));
+  for (const [id, c] of new Map(
+    chunks(ids.filter((id) => !known?.has(id))).flatMap((part) =>
       db()
         .all<{ id: string; contract_key: string; name: string; current_version: number }>(
           `SELECT id, contract_key, name, current_version FROM data_contracts WHERE id IN (${marks(part.length)})`,
@@ -83,7 +96,8 @@ export function fieldsOfVersions(pairs: readonly { contractId: string; version: 
         )
         .map((r) => [r.id, { ...r, current_version: Number(r.current_version) }] as const),
     ),
-  );
+  ))
+    contracts.set(id, c);
   const resolved = (contractId: string, version: number | null) => version ?? contracts.get(contractId)?.current_version ?? null;
   const keys = [
     ...new Set(
@@ -186,9 +200,12 @@ export function productPersonalFields(productId: string, q: { environment?: stri
 }
 
 /** Personal fields per product (the scorecard's evidence), for the output bindings in each product's environment. */
-export function personalFieldCounts(bindings: readonly BindingWithElements[]): Map<string, number> {
+export function personalFieldCounts(bindings: readonly BindingWithElements[], known?: ReadonlyMap<string, ContractHead>): Map<string, number> {
   const withContract = bindings.filter((b) => b.contract_id);
-  const { fields, resolved } = fieldsOfVersions(withContract.map((b) => ({ contractId: b.contract_id!, version: b.contract_version })));
+  const { fields, resolved } = fieldsOfVersions(
+    withContract.map((b) => ({ contractId: b.contract_id!, version: b.contract_version })),
+    known,
+  );
   const out = new Map<string, number>();
   for (const b of withContract) {
     const v = resolved(b.contract_id!, b.contract_version);

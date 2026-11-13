@@ -24,7 +24,10 @@ import {
   portObjectsOf,
   portsOf,
   ratingsOf,
+  type BindingWithElements,
+  type MemberRow,
   type ObjectRow,
+  type PortRow,
   type RatingRow,
 } from './store.js';
 
@@ -117,24 +120,53 @@ export function deleteRatings(kind: 'product' | 'object', itemId: string): void 
 // ---------- what a product exposes, and its floor ----------
 
 /**
- * The data objects each product exposes (part 2): declared on its output ports, and implemented by the elements of its
- * output ports' bindings or its output members. In bulk: a fixed number of statements for any number of products.
+ * What the reads of a product page or scorecard share (0.25.0): the ports, bindings, members, declared objects and the
+ * data objects of elements that exposedObjectsOf reads – a caller that needs them too passes the same object and reads
+ * each kind once (the statement budgets of dataproducts-perf.test.ts). Each list is of all the products' ports (both
+ * directions) and members; `objectElements` covers every bound element and every output member.
  */
-export function exposedObjectsOf(productIds: readonly string[]): Map<string, Set<string>> {
+export interface ProductReads {
+  ports?: PortRow[];
+  bindings?: BindingWithElements[];
+  members?: MemberRow[];
+  portObjects?: { port_id: string; object_id: string }[];
+  objectElements?: { object_id: string; element_id: string; note: string }[];
+  /** The exposed data objects' rows (floorsOf) */
+  objects?: Map<string, ObjectRow>;
+}
+
+/**
+ * The data objects each product exposes (part 2): declared on its output ports, and implemented by the elements of its
+ * output ports' bindings or its output members. In bulk: a fixed number of statements for any number of products;
+ * what `reads` holds already is not read again, what is read is left there.
+ */
+export function exposedObjectsOf(productIds: readonly string[], reads: ProductReads = {}): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>(productIds.map((id) => [id, new Set<string>()]));
   if (!productIds.length) return out;
-  const outputs = portsOf(productIds).filter((p) => p.direction === 'output');
+  const ports = (reads.ports ??= portsOf(productIds));
+  const outputs = ports.filter((p) => p.direction === 'output');
   const productOfPort = new Map(outputs.map((p) => [p.id, p.product_id]));
-  for (const po of portObjectsOf(outputs.map((p) => p.id))) out.get(productOfPort.get(po.port_id)!)?.add(po.object_id);
+  const portIds = ports.map((p) => p.id);
+  for (const po of (reads.portObjects ??= portObjectsOf(portIds))) {
+    const product = productOfPort.get(po.port_id);
+    if (product) out.get(product)?.add(po.object_id);
+  }
+  const bindings = (reads.bindings ??= bindingsOf(portIds));
+  const members = (reads.members ??= membersOf(productIds));
   const elementsOf = new Map<string, Set<string>>();
   const addElement = (productId: string, elementId: string) => {
     const s = elementsOf.get(elementId) ?? new Set<string>();
     s.add(productId);
     elementsOf.set(elementId, s);
   };
-  for (const b of bindingsOf(outputs.map((p) => p.id))) for (const e of b.elementIds) addElement(productOfPort.get(b.port_id)!, e);
-  for (const m of membersOf(productIds)) if (m.role === 'output') addElement(m.product_id, m.element_id);
-  for (const oe of objectsOfElements([...elementsOf.keys()])) for (const p of elementsOf.get(oe.element_id) ?? []) out.get(p)?.add(oe.object_id);
+  for (const b of bindings) {
+    const product = productOfPort.get(b.port_id);
+    if (product) for (const e of b.elementIds) addElement(product, e);
+  }
+  for (const m of members) if (m.role === 'output') addElement(m.product_id, m.element_id);
+  // every bound element (the ports' views name the objects of input bindings too) and the output members
+  reads.objectElements ??= objectsOfElements([...new Set([...bindings.flatMap((b) => b.elementIds), ...elementsOf.keys()])]);
+  for (const oe of reads.objectElements) for (const p of elementsOf.get(oe.element_id) ?? []) out.get(p)?.add(oe.object_id);
   return out;
 }
 
@@ -158,10 +190,13 @@ export function floorsOf(
   products: readonly { id: string; classification: string | null; rating_reason: string }[],
   ratings: Map<string, DataRating>,
   scale: Scale = currentScale(),
-  /** Receives the exposed data objects' rows (a caller that shows them reads them only once) */
-  read?: { objects?: Map<string, ObjectRow> },
+  /** Receives the exposed data objects' rows and what was read to find them (a caller that shows them reads them only once) */
+  read?: ProductReads,
 ): Map<string, RatingFloor & { objectIds: string[] }> {
-  const exposed = exposedObjectsOf(products.map((p) => p.id));
+  const exposed = exposedObjectsOf(
+    products.map((p) => p.id),
+    read,
+  );
   const objectIds = [...new Set([...exposed.values()].flatMap((s) => [...s]))];
   const objects = objectsByIds(objectIds);
   if (read) read.objects = objects;
