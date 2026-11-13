@@ -128,7 +128,9 @@ describe('the arithmetic', () => {
   it('splits a line in whole micros, never above it, the rounded share in total', async () => {
     const { splitMicros } = await import('../src/dataproducts/costs.js');
     expect(splitMicros(2, [1, 1, 1], 3)).toEqual([1, 1, 0]);
-    expect(splitMicros(1, [1, 1, 1], 3)).toEqual([0, 0, 0]);
+    // a whole line between three: the last micro goes to one of them
+    expect(splitMicros(1, [1, 1, 1], 3)).toEqual([1, 0, 0]);
+    expect(splitMicros(1, [1], 3)).toEqual([0]);
     expect(splitMicros(100, [1, 1, 1], 3).reduce((a, b) => a + b, 0)).toBe(100);
     expect(splitMicros(-100, [1, 1, 1], 3)).toEqual([-34, -33, -33]);
     // weights: 60 % and 30 % of 1,000,001 – 10 % not attributed

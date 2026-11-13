@@ -51,11 +51,11 @@ import {
 // ---------- the seam to the health of elements (WP3) ----------
 
 /**
- * The health of elements in an environment, as `u` may see it. **Seam:** the scorecard's one dependency on the
- * module's health (WP3, `healthOf(user, elementIds, environment)` in health.ts). Until that is merged it answers _no
- * data_ for every element – never OK without a check; the integrator replaces the body with the call to healthOf.
+ * The health of elements (each lives in one environment), as `u` may see it. **Seam:** the scorecard's one dependency
+ * on the module's health (WP3, health.ts). Until that is merged it answers _no data_ for every element – never OK
+ * without a check; the integrator replaces the body with `return elementHealthOf(u, elementIds)` from health.ts.
  */
-export function elementHealthOf(_u: AuthUser | null, elementIds: readonly string[], _environment: string): Map<string, ElementHealth> {
+export function scorecardElementHealth(_u: AuthUser | null, elementIds: readonly string[]): Map<string, ElementHealth> {
   return new Map(elementIds.map((id) => [id, { elementId: id, status: 'noData' as DataHealthStatus, checks: { visible: 0, hidden: 0 } }]));
 }
 
@@ -260,7 +260,7 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
     // healthy: the product's monitor in the environment, else its output elements' worst (the seam to WP3)
     const envRow = env ? envRows.find((e) => e.product_id === p.id && e.environment === env) : undefined;
     const monitorId = envRow?.monitor_id ?? null;
-    const elementHealth = env ? elementHealthOf(u, outElements, env) : new Map<string, ElementHealth>();
+    const elementHealth = env ? scorecardElementHealth(u, outElements) : new Map<string, ElementHealth>();
     const health: DataHealthStatus = monitorId
       ? (monitorStatus.get(monitorId) ?? 'unknown')
       : outElements.length

@@ -142,11 +142,13 @@ describe('the scorecard', () => {
 
   it('reaches level 3 when every output binding has a lint-clean contract whose last test passed', async () => {
     await dana('PUT', `/data-products/${product}/ports/${port}/bindings/prod`, { elementIds: [topic], contractId: contract });
+    const { db } = await import('../src/db.js');
+    // the demo's contract was tested already: drop its runs to start untested
+    db().run('DELETE FROM data_contract_runs WHERE contract_id = ?', contract);
     let c = await card();
     expect(state(c, 'contracted')).toBe('partial');
     expect(c.parts.find((p) => p.id === 'contracted')!.evidence).toContainEqual({ key: 'evidence.contracted.notTested', values: { count: 1 } });
     expect(state(c, 'compliance')).toBe('noEvidence');
-    const { db } = await import('../src/db.js');
     const run = (id: string, result: string, at: string) =>
       db().run(
         `INSERT INTO data_contract_runs (id, contract_id, version, result, via, report, report_sha256, started_at, actor) VALUES (?, ?, 1, ?, 'push', '{}', 'x', ?, 'dana')`,

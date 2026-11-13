@@ -42,7 +42,7 @@ import {
  *  - `dataproduct.discovery_failed` – once per source until a run succeeds, to the source's owner (who it runs as) and
  *    the platform's managers who may see the platform (else the administrators).
  *
- * The discovery job (WP2) calls noticeDiscoveryRun after each run.
+ * The discovery job (WP2) calls noticeElementsMissing and noticeDiscoveryFailed (or noticeDiscoveryRun for both).
  */
 
 const LINK = (productId: string) => `/data-products/${encodeURIComponent(productId)}`;
@@ -57,7 +57,7 @@ function claim(kind: string, itemId: string, key: string): boolean {
 }
 
 const forget = (kind: string, itemId: string, prefix: string): void => {
-  db().run('DELETE FROM dp_notices WHERE kind = ? AND item_id = ? AND notice_key LIKE ?', kind, itemId, `${prefix}%`);
+  db().run('DELETE FROM dp_notices WHERE kind = ? AND item_id = ? AND substr(notice_key, 1, ?) = ?', kind, itemId, prefix.length, prefix);
 };
 
 interface Person {
@@ -219,34 +219,76 @@ export interface DiscoveryRunNotice {
   status: DataDiscoveryRunStatus;
   /** The run's error (failed runs) – shown to the recipients, at most 500 characters */
   error?: string | null;
-  /** When the source started failing (its failingSince; default now) */
+  /** When the source started failing (its failingSince; default the source's, else now) */
   failingSince?: string | null;
   /** Elements this run newly marked missing (store.markMissing) */
   missingElementIds?: readonly string[];
 }
 
 /**
- * Called by the discovery job after every run: a failed run tells the source's owner and the platform's managers once
- * until a run succeeds (`dataproduct.discovery_failed`); a run that succeeds (or is truncated) clears that; elements the
- * run marked missing tell each product they are part of once (`dataproduct.elements_missing`). Never throws. Returns
- * the number of notices sent.
+ * All notices of one discovery run at once: a failed run tells (once per failing period), a run that succeeds (or is
+ * truncated) clears the bookkeeping, elements the run marked missing tell their products. Never throws.
  */
 export function noticeDiscoveryRun(run: DiscoveryRunNotice): { failed: number; missing: number } {
   const out = { failed: 0, missing: 0 };
-  try {
-    if (run.status === 'failed') out.failed = sendDiscoveryFailed(run);
-    else if (run.status === 'succeeded' || run.status === 'truncated') forget('source', run.sourceId, 'failed');
-    if (run.missingElementIds?.length) out.missing = sendElementsMissing(run.sourceId, run.runId, run.missingElementIds);
-  } catch (err) {
-    logger.warn({ err, sourceId: run.sourceId, runId: run.runId }, 'discovery notice could not be sent');
+  if (run.status === 'failed') out.failed = noticeDiscoveryFailed(run.sourceId, { message: run.error ?? '' }, run.failingSince ?? null, run.runId);
+  else if (run.status === 'succeeded' || run.status === 'truncated') {
+    try {
+      forget('source', run.sourceId, 'failed:');
+    } catch (err) {
+      logger.warn({ err, sourceId: run.sourceId }, 'discovery notice bookkeeping could not be cleared');
+    }
   }
+  if (run.missingElementIds?.length) out.missing = noticeElementsMissing(run.sourceId, run.missingElementIds, run.runId);
   return out;
 }
 
-function sendDiscoveryFailed(run: DiscoveryRunNotice): number {
-  const src = discoverySourceRow(run.sourceId);
+/**
+ * `dataproduct.discovery_failed` – the call of the discovery job (discovery/job.ts) when a source starts failing:
+ * once per source and failing period (the source's `failing_since`, or `failingSince`), to who it runs as and the
+ * platform's managers who may see the platform (else the administrators). A source that fails again after a success
+ * has a new failing period and tells again. Never throws; returns the number of recipients.
+ */
+export function noticeDiscoveryFailed(
+  sourceId: string,
+  problem: { code?: string; message: string },
+  failingSince: string | null = null,
+  runId: string | null = null,
+): number {
+  try {
+    return sendDiscoveryFailed(sourceId, problem, failingSince, runId);
+  } catch (err) {
+    logger.warn({ err, sourceId }, 'discovery notice could not be sent');
+    return 0;
+  }
+}
+
+/**
+ * `dataproduct.elements_missing` – the call of the discovery job (discovery/job.ts) with the elements a run newly
+ * marked missing: once per product and run (`runId`, else the source's newest run), to the product's owners. Never
+ * throws; returns the number of products told.
+ */
+export function noticeElementsMissing(sourceId: string, elementIds: readonly string[], runId: string | null = null): number {
+  try {
+    const run =
+      runId ??
+      db().get<{ id: string }>('SELECT id FROM dp_discovery_runs WHERE source_id = ? ORDER BY started_at DESC, id DESC LIMIT 1', sourceId)?.id ??
+      nowIso();
+    return sendElementsMissing(sourceId, run, elementIds);
+  } catch (err) {
+    logger.warn({ err, sourceId }, 'missing-element notice could not be sent');
+    return 0;
+  }
+}
+
+function sendDiscoveryFailed(sourceId: string, problem: { code?: string; message: string }, failingSince: string | null, runId: string | null): number {
+  const src = discoverySourceRow(sourceId);
   if (!src) return 0;
-  if (!claim('source', src.id, 'failed')) return 0;
+  const since = failingSince ?? src.failing_since ?? nowIso();
+  const key = `failed:${since}`;
+  if (!claim('source', src.id, key)) return 0;
+  // an earlier failing period's bookkeeping goes
+  db().run("DELETE FROM dp_notices WHERE kind = 'source' AND item_id = ? AND notice_key <> ?", src.id, key);
   const platform = db().get<{ id: string; name: string; acl: string }>('SELECT id, name, acl FROM platforms WHERE id = ?', src.platform_id);
   if (!platform) return 0;
   const acl = parseJson<AclEntry<PlatformPermission>[]>(platform.acl, []);
@@ -259,8 +301,7 @@ function sendDiscoveryFailed(run: DiscoveryRunNotice): number {
   );
   if (!recipients.length) recipients = all.filter((p) => p.info.roles.includes('admin'));
   if (!recipients.length) return 0;
-  const since = run.failingSince ?? src.failing_since ?? nowIso();
-  const error = (run.error ?? '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  const error = problem.message.replace(/\s+/g, ' ').trim().slice(0, 500);
   notify({
     event: 'dataproduct.discovery_failed',
     text: (l: Locale) => ({
@@ -275,7 +316,7 @@ function sendDiscoveryFailed(run: DiscoveryRunNotice): number {
     about: { kind: 'platform', id: platform.id },
     inAppKey: `source:${src.id}:${since}`,
     externalKey: `source:${src.id}:${since}`,
-    data: { sourceId: src.id, platformId: platform.id, runId: run.runId },
+    data: { sourceId: src.id, platformId: platform.id, ...(runId ? { runId } : {}), ...(problem.code ? { code: problem.code } : {}) },
   });
   return recipients.length;
 }
@@ -290,7 +331,7 @@ function sendElementsMissing(sourceId: string, runId: string, elementIds: readon
   for (const m of memberships) byProduct.set(m.product_id, [...(byProduct.get(m.product_id) ?? []), m.element_id]);
   // old bookkeeping of missing elements goes after 90 days (one row per product and run)
   db().run(
-    "DELETE FROM dp_notices WHERE kind = 'product' AND notice_key LIKE 'missing:%' AND sent_at < ?",
+    "DELETE FROM dp_notices WHERE kind = 'product' AND substr(notice_key, 1, 8) = 'missing:' AND sent_at < ?",
     new Date(Date.now() - 90 * 86_400_000).toISOString(),
   );
   const all = people();

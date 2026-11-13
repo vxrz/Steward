@@ -182,12 +182,26 @@ describe('discovery notices', () => {
     expect(await notes(olivia, 'dataproduct.elements_missing', orders)).toHaveLength(0);
     // a later run tells again
     expect(noticeDiscoveryRun({ sourceId: source, runId: 'dpn_n2', status: 'truncated', missingElementIds: [topic] }).missing).toBe(1);
+    // the job's call: the source and the elements – the run is the source's newest
+    const { noticeElementsMissing } = await import('../src/dataproducts/notices.js');
+    db().run(
+      "INSERT INTO dp_discovery_runs (id, source_id, status, started_at, actor) VALUES ('dpn_n3', ?, 'succeeded', ?, 'system')",
+      source,
+      new Date().toISOString(),
+    );
+    expect(noticeElementsMissing(source, [topic])).toBe(1);
+    expect(noticeElementsMissing(source, [topic])).toBe(0);
+    // elements of no product tell nobody
+    expect(noticeElementsMissing(source, ['dpe_none'])).toBe(0);
   });
 
   it('tells the source owner and the platform managers once until the source succeeds again', async () => {
-    const { noticeDiscoveryRun } = await import('../src/dataproducts/notices.js');
-    const r = noticeDiscoveryRun({ sourceId: source, runId: 'dpn_f1', status: 'failed', error: 'HTTP 401 – the key was refused' });
-    expect(r.failed).toBeGreaterThanOrEqual(1);
+    const { noticeDiscoveryRun, noticeDiscoveryFailed } = await import('../src/dataproducts/notices.js');
+    const { db } = await import('../src/db.js');
+    // the job records when the source started failing, then tells
+    db().run('UPDATE dp_discovery_sources SET failing_since = ? WHERE id = ?', '2026-11-12T08:00:00.000Z', source);
+    expect(noticeDiscoveryFailed(source, { code: 'DATA_DISCOVERY_AUTH', message: 'HTTP 401 – the key was refused' })).toBeGreaterThanOrEqual(1);
+    expect(noticeDiscoveryFailed(source, { message: 'again' })).toBe(0);
     expect(noticeDiscoveryRun({ sourceId: source, runId: 'dpn_f2', status: 'failed', error: 'again' }).failed).toBe(0);
     const d = await notes(dana, 'dataproduct.discovery_failed');
     expect(d).toHaveLength(1);
@@ -196,7 +210,6 @@ describe('discovery notices', () => {
     // viewers see no platforms and are not told
     expect(await notes(vera, 'dataproduct.discovery_failed')).toHaveLength(0);
     noticeDiscoveryRun({ sourceId: source, runId: 'dpn_ok', status: 'succeeded' });
-    const { db } = await import('../src/db.js');
     db().run("DELETE FROM notifications WHERE event = 'dataproduct.discovery_failed'");
     expect(
       noticeDiscoveryRun({ sourceId: source, runId: 'dpn_f3', status: 'failed', error: 'down', failingSince: '2026-11-13T10:00:00Z' }).failed,
