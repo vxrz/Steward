@@ -94,3 +94,27 @@ test('a platform offers View and Manage with "use"; a monitor shows its owner ab
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoHorizontalScroll(page);
 });
+
+test('a dashboard and a data contract have the Access section; a contract share offers "relax the breaking-change rule"', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const boards = await json<{ id: string }[]>(await api.get('/api/dashboards'));
+  await page.goto(`/dashboards/${boards[0]!.id}`);
+  await expect(page.getByTestId('access-tab').getByTestId('shares-panel')).toBeVisible();
+  await expectAccessible(page, 'dashboard access section');
+
+  await page.goto('/data-contracts');
+  await page.getByRole('link', { name: 'Shop orders' }).first().click();
+  const panel = page.getByTestId('shares-panel');
+  await expect(panel).toBeVisible();
+  // a new share (nothing is saved): the contract's action rights beside the level
+  await panel.getByRole('combobox', { name: 'Share with' }).click();
+  await page.keyboard.type('vera');
+  await page.getByRole('option', { name: /\(vera\)/ }).click();
+  await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  const row = panel.getByTestId('share-row').filter({ hasText: /vera/i });
+  await expect(row.getByRole('checkbox', { name: 'relax the breaking-change rule' })).toBeVisible();
+  await expect(row.getByRole('checkbox', { name: 'test' })).toBeVisible();
+  await expectAccessible(page, 'data contract access section');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoHorizontalScroll(page);
+});

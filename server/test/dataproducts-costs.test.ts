@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 
 /**
  * Costs of data products (ADR 0036 part 11, WP4): matches by resource, sub-account, service, tag and application,
@@ -337,7 +337,7 @@ describe('matches, direct lines and shares', () => {
     db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('data_product', ?, ?, ?)", h, team, new Date().toISOString());
     await s.api('POST', `/data-products/${h}/costs/matches`, { environment: 'prod', platformId: p1, kind: 'resource', value: 'lkc-1' });
     // dana manages the platform now
-    db().run('UPDATE platforms SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:dana', permissions: ['manage'] }]), p1);
+    await storeAcl('platform', p1, [{ subject: 'user:dana', permissions: ['manage'] }]);
     const list = (await dana('GET', `/data-products/cost-allocations?platformId=${p1}`)) as any[];
     const lkc = list.find((x) => x.value === 'lkc-1');
     expect(lkc.products.map((p: any) => p.product.key)).toEqual(['cost-a', 'cost-b']);
@@ -384,7 +384,7 @@ describe('matches, direct lines and shares', () => {
     expect(forDana).toMatchObject({ hiddenProducts: 1, hiddenWeightPct: 25, notAttributedPct: 0 });
     // viewers see no platforms: no allocations
     expect(await vera('GET', '/data-products/cost-allocations')).toEqual([]);
-    db().run("UPDATE platforms SET acl = '[]' WHERE id = ?", p1);
+    await storeAcl('platform', p1, []);
   });
 
   it('makes a month incomplete where the reader may not see the amounts – never a figure to subtract from', async () => {
@@ -406,8 +406,7 @@ describe('matches, direct lines and shares', () => {
       const d = await costs(a);
       expect(monthOf(d)).toMatchObject({ incomplete: true, amountsHidden: true, totals: [] });
       // a product on two platforms: the visible one's part is shown, the total marked incomplete
-      const { db } = await import('../src/db.js');
-      db().run('UPDATE platforms SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:dana', permissions: ['manage'] }]), p2);
+      await storeAcl('platform', p2, [{ subject: 'user:dana', permissions: ['manage'] }]);
       await match(a, { platformId: p2, kind: 'subAccount', value: 'ACME-WH' });
       const mixed = await costs(a);
       expect(monthOf(mixed).incomplete).toBe(true);
@@ -417,7 +416,7 @@ describe('matches, direct lines and shares', () => {
       const al = ((await dana('GET', `/data-products/cost-allocations?platformId=${p1}`)) as any[]).find((x) => x.value === 'lkc-1');
       expect(al).toMatchObject({ weightsShown: false, hiddenWeightPct: null, notAttributedPct: null });
       expect(al.products.every((p: any) => p.weightPct === null)).toBe(true);
-      db().run("UPDATE platforms SET acl = '[]' WHERE id = ?", p2);
+      await storeAcl('platform', p2, []);
     } finally {
       await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 });
     }
@@ -481,7 +480,8 @@ describe('performance', () => {
     expect(monthOf(v).lines.length).toBeGreaterThan(1);
     expect(monthOf(v).lines.find((l: any) => l.match.value === 'env-7')).toMatchObject({ kind: 'share', products: 61 });
     expect(counted.get(url)).toBe(few);
-    expect(few).toBeLessThanOrEqual(25);
+    // (0.23.0: deciding a platform reads its shares and the Restricted ones once per request – fixed, not per line)
+    expect(few).toBeLessThanOrEqual(27);
   });
 });
 
