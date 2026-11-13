@@ -7047,6 +7047,8 @@ export interface Resources {
     'items.plant.description': string;
     'items.plantMap.name': string;
     'items.plantMap.description': string;
+    'items.dataProducts.name': string;
+    'items.dataProducts.description': string;
     'maturity.label': string;
     'maturity.stable.name': string;
     'maturity.stable.text': string;
