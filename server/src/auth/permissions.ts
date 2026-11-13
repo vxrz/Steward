@@ -37,7 +37,8 @@ export const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
   designer: ['view', 'use'],
   operator: ['view', 'use'],
   approver: [],
-  auditor: [],
+  // 0.23.0 (ADR 0033 decision 8): auditors view every platform, as every other kind – never use or change it
+  auditor: ['view'],
   viewer: [],
   status: [],
   plant: [],

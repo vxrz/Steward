@@ -48,7 +48,8 @@ export function canReadAccessEntry(u: AuthUser | null, platformId: string, owner
   if (!u) return false;
   if (readsEverything(u) || hasRole(u, ['approver']) || isSystem(u)) return true;
   if (same(owner, u.username)) return true;
-  return !!platformId && platformPerms(u, platformId).length > 0;
+  // who uses or manages the platform – seeing it (`view`, 0.23.0) is not enough: the entries name people and rights
+  return !!platformId && platformPerms(u, platformId).some((p) => p !== 'view');
 }
 
 /** Create, change or document access change entries of a platform: record editors (and Steward itself) who may use the platform. */

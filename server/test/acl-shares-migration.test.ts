@@ -188,6 +188,8 @@ function legacyRights(u: U, it: Item): string[] {
     case 'platform': {
       const got = legacyDecide(u, it, ['use', 'manage'], LEGACY_PLATFORM);
       // 0.23.0 names seeing a platform: any right includes `view` (there was no other way to see one)
+      // auditors view every platform since 0.23.0 (decision 8 – its own change, not the migration's)
+      if (u.roles.includes('auditor') && !got.length) return ['view'];
       return got.length ? ['view', ...closure(['use', 'manage'], got, { implies: { manage: ['use'] } })] : [];
     }
     case 'platform_identity': {

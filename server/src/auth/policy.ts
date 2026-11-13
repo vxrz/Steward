@@ -359,7 +359,8 @@ export function processAccess(u: AuthUser | null, p: { id: string; owner?: strin
 }
 
 export function platformAccess(u: AuthUser | null, p: { id: string } & Legacy): Decision<PlatformPermission> {
-  const d = decide(u, { kind: 'platform', id: p.id, acl: [] }, PLATFORM_PERMISSIONS, DEFAULT_PLATFORM, undefined, { shares: PLATFORM_SHARE_MODEL });
+  // auditors view every platform (0.23.0, decision 8): also a team's and a Restricted one
+  const d = decide(u, { kind: 'platform', id: p.id, acl: [] }, PLATFORM_PERMISSIONS, DEFAULT_PLATFORM, 'view', { shares: PLATFORM_SHARE_MODEL });
   // manage includes use; any right includes seeing it
   const out = new Set(d.permissions);
   if (out.has('manage')) out.add('use');
