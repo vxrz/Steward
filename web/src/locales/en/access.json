@@ -47,7 +47,11 @@
       "site": "This site belongs to the whole instance: roles and the access list decide who may see and manage it, its hierarchy and its assets.",
       "contract": "This data contract belongs to the whole instance: everybody who works in Steward sees it; operators test it, designers change it.",
       "platform_identity": "No owning team: only administrators and the access list below may use this identity.",
-      "supplier": "This supplier belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it."
+      "supplier": "This supplier belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it.",
+      "data_product": "This data product belongs to the whole instance: everybody who works in Steward sees it; designers and its product owners change it.",
+      "data_object": "This data object belongs to the whole instance: everybody who works in Steward sees it; designers change it.",
+      "data_element": "This element belongs to the whole instance: everybody who works in Steward sees it; designers change it.",
+      "data_domain": "This data domain belongs to the whole instance: everybody who works in Steward sees it; designers and its owners change it."
     },
     "hintOwned": {
       "process": "Members of these teams have their roles in the team on this process. Everyone else sees it only through the access list below; administrators always, auditors may view.",
@@ -63,7 +67,11 @@
       "site": "Only members of these teams see this site with its hierarchy and assets (designers among them manage it), besides those on its access list, administrators and auditors.",
       "contract": "Only members of these teams see this data contract (operators among them test it, designers change it), besides administrators and auditors. A failed test notifies them.",
       "platform_identity": "Members of these teams who design or operate may use this identity; everyone else only what its access list gives.",
-      "supplier": "Only members of these teams see this supplier (designers among them change it), besides its owners, administrators and auditors."
+      "supplier": "Only members of these teams see this supplier (designers among them change it), besides its owners, administrators and auditors.",
+      "data_product": "Only members of these teams see this data product (designers among them change it), besides its product owners, administrators and auditors.",
+      "data_object": "Only members of these teams see this data object (designers among them change it), besides its data owner and stewards, administrators and auditors.",
+      "data_element": "Only members of these teams see this element of the catalogue (designers among them change it), besides administrators and auditors. Data products it is part of still show it as their content.",
+      "data_domain": "Only members of these teams see this data domain (designers among them change it), besides its owners, administrators and auditors."
     },
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
@@ -117,7 +125,11 @@
         "site": "Site",
         "contract": "Data contract",
         "platform_identity": "Platform identities",
-        "supplier": "Supplier"
+        "supplier": "Supplier",
+        "data_product": "Data product",
+        "data_object": "Data object",
+        "data_element": "Element",
+        "data_domain": "Data domain"
       }
     }
   },
