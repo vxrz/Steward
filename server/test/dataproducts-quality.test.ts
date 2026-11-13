@@ -255,9 +255,16 @@ describe('scorecard history', () => {
   it('takes one snapshot a day per product and environment, keeps 400 days, and draws the history', async () => {
     const { takeScorecardSnapshots } = await import('../src/dataproducts/scorecard-history.js');
     const { db } = await import('../src/db.js');
+    await dana('POST', '/data-products', { key: 'dp-q-other', name: 'Invented other product' });
     const n0 = takeScorecardSnapshots();
     expect(n0).toBeGreaterThan(0);
     // once a day
+    expect(takeScorecardSnapshots()).toBe(0);
+    // a run that stopped half-way: the next one takes what is missing – and only that
+    const today = new Date().toISOString().slice(0, 10);
+    const missing = db().run('DELETE FROM dp_scorecard_snapshots WHERE day = ? AND product_id = ?', today, product).changes;
+    expect(missing).toBeGreaterThan(0);
+    expect(takeScorecardSnapshots()).toBe(missing);
     expect(takeScorecardSnapshots()).toBe(0);
     // earlier days, and one beyond the retention
     const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
