@@ -28,7 +28,8 @@ import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
-import { auditNamedGrant, requireNamedGrant, uncoveredSubjects, type NamedGrant } from '../auth/named-grants.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
+import { isRestricted } from '../auth/share-store.js';
 import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 
 /**
@@ -579,6 +580,14 @@ function namedResponsibles(before: TicketRow | undefined, b: TicketInput): Named
     before: before ? parseJson<string[]>(before.responsible, []) : [],
     after: [...new Set(b.responsible)],
     rights: ['view', 'edit'],
+    // 0.23.0 (ADR 0033 decision 3): only who manages it names a responsible from outside; on a Restricted one every new
+    // responsible is from outside
+    ...(before
+      ? {
+          restricted: !owningTeams('ticket', before.id).length && isRestricted('ticket', before.id),
+          mayGrant: ticketAccess(currentUser(), before).permissions.includes('manage'),
+        }
+      : {}),
   };
 }
 
@@ -587,7 +596,7 @@ export function ticketNamesOutsiders(id: string | null, body: unknown): string[]
   const p = ticketInputSchema.safeParse(body ?? {});
   if (!p.success) return [];
   const g = namedResponsibles(id ? requireTicket(id, 'edit') : undefined, p.data);
-  return uncoveredSubjects(g.teams, g.before, g.after);
+  return outsidersOf(g);
 }
 
 export function createTicket(b: TicketInput): TicketDetail {

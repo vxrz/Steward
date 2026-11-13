@@ -23,6 +23,7 @@ import type { AuthUser } from '../auth/context.js';
 import { hasRole, isAdmin, matches } from '../auth/permissions.js';
 import { assertKnownSubjects, subjectExists } from '../auth/subjects.js';
 import { catalogueTeams, owningTeams } from '../auth/policy.js';
+import { isRestricted } from '../auth/share-store.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, userSubject, type NamedGrant } from '../auth/named-grants.js';
 import { findUserByName } from '../auth/users.js';
 import { checkFourEyes, fourEyesRequired } from '../auth/assurance.js';
@@ -237,18 +238,37 @@ export function canRecordFindings(u: AuthUser): boolean {
     .some((s) => canEditService(u, { kind: 'service', id: s.id, owners: parseJson<string[]>(s.owners, []) }));
 }
 
+/**
+ * Whether a finding belongs to a team (0.23.0, ADR 0033 decision 14): its service has owning teams or is Restricted –
+ * then the service's readers read it, not every instance designer and approver.
+ */
+const teamFinding = (s: ServiceRef | undefined): boolean => !!s && (catalogueTeams('service', s.id).length > 0 || isRestricted('service', s.id));
+
+/**
+ * Read a finding: administrators, auditors, its owner, the owners of its actions (or of its review's measures), the
+ * owners of the contract it names; and – for a finding of a service of the whole instance, or without one – designers,
+ * approvers and the service's editors, as before. A finding of a team's service (decision 14) is read by that service's
+ * readers instead: members of its owning teams, its shares and owners.
+ */
 export function canReadFinding(u: AuthUser, f: FindingRow, ctx: CaContext): boolean {
-  if (hasRole(u, READS_ALL) || same(f.owner, u.username)) return true;
+  if (hasRole(u, ['admin', 'auditor']) || same(f.owner, u.username)) return true;
   if (ctx.workOf(f).some((w) => w.owners.some((s) => matches(u, s)))) return true;
   // the owners of the contract it names (ADR 0031): a team reviews what it holds
   if (f.supplier_contract_id && ctx.contractOwners(f.supplier_contract_id).some((s) => matches(u, s))) return true;
-  return editsService(u, ctx.service(f.service_id));
+  const s = ctx.service(f.service_id);
+  if (teamFinding(s)) return canViewCatalogue(u, { kind: 'service', id: s!.id, owners: s!.owners });
+  return hasRole(u, READS_ALL) || editsService(u, s);
 }
 
-/** Change a finding and its actions: designers, administrators, the service's editors – while it is not closed or cancelled. */
+/**
+ * Change a finding and its actions: administrators, the service's editors and – for a finding of a service of the whole
+ * instance, or without one – designers; while it is not closed or cancelled.
+ */
 export function canEditFinding(u: AuthUser, f: FindingRow, ctx: CaContext): boolean {
   if (FINAL.includes(f.status)) return false;
-  return hasRole(u, ['admin', 'designer']) || editsService(u, ctx.service(f.service_id));
+  const s = ctx.service(f.service_id);
+  if (hasRole(u, ['admin']) || editsService(u, s)) return true;
+  return hasRole(u, ['designer']) && !teamFinding(s);
 }
 
 /** Who takes part in the fix now: the finding's owner, the owners of its actions (subjects), who marked an action done. */

@@ -236,6 +236,8 @@ describe('owners, Manage by default and the decisions', () => {
     expect(await rights('dashboard', id, 'desi')).toEqual([]);
     const dana = await s.as('dana', PW);
     expect((await dana('GET', `/dashboards/${id}`)).canEdit).toBe(true);
+    // deleting it is Manage: its owner's, not the designer's
+    expect(await code(dana('DELETE', `/dashboards/${id}`))).toBe('FORBIDDEN');
   });
 
   it('decision 12: relaxing the breaking-change rule is an action right (relax, formerly manage)', async () => {

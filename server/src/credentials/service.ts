@@ -42,8 +42,9 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
+import { isRestricted } from '../auth/share-store.js';
 import { assignCreatorTeams, forgetOwningTeams, memberships, newResourceTeams, owningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
-import { auditNamedGrant, requireNamedGrant, uncoveredSubjects, type NamedGrant } from '../auth/named-grants.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -927,6 +928,14 @@ function namedOwners(id: string | null, b: CredentialInput, ownerSubjects?: stri
     before: before ? parseJson<string[]>(before.owner_subjects, []) : [],
     after,
     rights: ['view', 'edit'],
+    // 0.23.0 (ADR 0033 decision 3): only who manages the entry names an owner from outside; on a Restricted one every
+    // new owner is from outside
+    ...(before
+      ? {
+          restricted: !owningTeams('credential', before.id).length && isRestricted('credential', before.id),
+          mayGrant: credentialAccess(currentUser(), before).permissions.includes('manage'),
+        }
+      : {}),
   };
 }
 
@@ -935,7 +944,7 @@ export function credentialNamesOutsiders(id: string | null, body: unknown): stri
   const p = credentialInputSchema.safeParse(body ?? {});
   if (!p.success) return [];
   const g = namedOwners(id, p.data);
-  return uncoveredSubjects(g.teams, g.before, g.after);
+  return outsidersOf(g);
 }
 
 export function createCredential(b: CredentialInput): Credential {

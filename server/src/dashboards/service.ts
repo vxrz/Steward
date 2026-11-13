@@ -133,7 +133,10 @@ export function saveDashboard(id: string, def: unknown): Dashboard {
 
 export function deleteDashboard(id: string): void {
   const d = getDashboard(id);
-  if (!d.canEdit) throw new HttpError(403, 'Only the owner or an administrator can delete this dashboard');
+  // deleting is Manage (0.23.0, ADR 0033): its owner, administrators, Manage shares – not who edits it by role
+  const row = db().get<Pick<DashRow, 'id' | 'owner'>>('SELECT id, owner FROM dashboards WHERE id = ?', id)!;
+  if (!dashboardAccess(currentUser(), row).permissions.includes('manage'))
+    throw new HttpError(403, 'Only the owner or an administrator can delete this dashboard', 'FORBIDDEN', { context: 'right_manage' });
   db().tx(() => {
     db().run('DELETE FROM dashboards WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
