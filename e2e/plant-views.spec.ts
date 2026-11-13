@@ -76,7 +76,8 @@ test.describe('as a designer', () => {
     await page.getByTestId('view-mode').getByText('Table').click();
     const table = page.getByTestId('structure-table');
     await expect(table.getByRole('link', { name: 'Machining' })).toBeVisible();
-    await expect(table).toContainText('Operational 3, Maintenance 1');
+    // Machining: the three milling centres, the power meter of the first and (0.25.0) the edge device of line 1
+    await expect(table).toContainText('Operational 4, Maintenance 1');
     await expect(table).toContainText('Documentation only');
     await expectAccessible(page, 'site structure as a table');
     await picture(page);

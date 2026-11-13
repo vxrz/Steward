@@ -74,6 +74,7 @@ test.describe('edge devices', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
     await page.goto('/plant/assets/rvs-mill-01/collections?collection=edge-state');
+    await page.getByRole('tab', { name: 'Where the data goes' }).click();
     const button = page.getByTestId('sink-element-databus');
     await expect(button).toBeVisible();
     await button.click();
