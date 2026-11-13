@@ -24,6 +24,7 @@ import { confirmDanger } from '../../components/confirm';
 import { OwningTeams } from '../../components/OwningTeams';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { ObjectForm } from '../../components/dataproducts/ObjectForm';
+import { OssieMenu } from '../../components/dataproducts/Transfer';
 import { RatingForm, domainOptions } from '../../components/dataproducts/ProductForm';
 import { fmtDate, fmtRelative } from '../../format';
 import { dpKeys, pagesOf, qs, useDomains, useInvalidateDataProducts, useObject, useObjectElements, useObjectList } from './api';
@@ -81,6 +82,7 @@ export function DataObjectsPage() {
           </Button>
         )
       }
+      actions={<OssieMenu />}
       search={
         none
           ? undefined

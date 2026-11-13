@@ -55,7 +55,7 @@ lines:
 
 ## Estimates
 
-An estimate belongs to a **service or a platform** (the owners of cost plans) and is optionally for an application or system of the service, or a platform. Its plan's tab lists them (_Estimates_, _New estimate_); its page has the inputs, lines by hand, the books, ad-hoc adjustments, the result, the 36 months ahead, _Compare_ and the plan lines.
+An estimate belongs to a **service or a platform** (the owners of cost plans) and is optionally for an application or system of the service, a platform, or – since 0.24.0, with the data products module – a **data product** its editor may see (_For a data product_ on its page): the product's _Costs_ tab then sets it against what is attributed to the product ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#estimates)); plan lines from it stay the service's or platform's, never the product's. Its plan's tab lists them (_Estimates_, _New estimate_); its page has the inputs, lines by hand, the books, ad-hoc adjustments, the result, the 36 months ahead, _Compare_ and the plan lines.
 
 - **Prices**: per provider the book the estimate chose, else the **contracted book** the calculating person may see (the estimate's platform's first), else the **list book**. Each line says how its price was found (_Contracted prices: Snowflake (demo) – contracted prices (v3)_), its unit price per block, the credits it took, the exchange rate where converted.
 - **Lines by hand**: an item of a visible book and a quantity – anything with a price can be estimated without a formula.

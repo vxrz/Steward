@@ -1183,7 +1183,7 @@
   },
   "allocations": {
     "title": "Shared lines",
-    "help": "Lines several products match are split by their platform team's rule – equally, or by weight. Never more than 100 % of a line; what no product takes is not attributed.",
+    "help": "Lines several products match are split by their platform team's rule – equally, by weight or by measured use. Never more than 100 % of a line; what no product takes is not attributed.",
     "equal": "Split equally",
     "byWeight": "By weight",
     "rule": "Rule",
@@ -1194,7 +1194,8 @@
     "over100": "The weights add up to more than 100 %",
     "hiddenKept_one": "The weight of {{count}} product you may not see stays as it is.",
     "hiddenKept_other": "The weights of {{count}} products you may not see stay as they are.",
-    "audit": "Who may manage the platform sets the split; it is in the audit log."
+    "audit": "Who may manage the platform sets the split; it is in the audit log.",
+    "measured": "By measured use"
   },
   "transfer": {
     "menu": "Import and export",
@@ -1273,5 +1274,53 @@
     "odpsRead_one": "{{count}} ODPS document read as a data product.",
     "odpsRead_other": "{{count}} ODPS documents read as data products.",
     "stepUp": "The import removes more than one entry or list item: importing asks you to confirm it is you."
+  },
+  "measured": {
+    "help": "Each product takes its measured use of the line: credits of its warehouses or query tags, or the bytes written to its topics – priced with the platform’s contracted price book where it has a price, else as its share of everything measured. Read once a day; never more than the line together.",
+    "measure": "What is measured",
+    "measures": {
+      "snowflakeWarehouse": "Snowflake credits per warehouse",
+      "snowflakeQueryTag": "Snowflake credits per query tag",
+      "confluentTopic": "Confluent bytes per topic"
+    },
+    "subjectsHint": {
+      "snowflakeWarehouse": "Its warehouses (names)",
+      "snowflakeQueryTag": "Its query tags",
+      "confluentTopic": "Its topics – none: its member topics"
+    },
+    "hiddenKept_one": "What is measured for {{count}} product you may not see stays as it is.",
+    "hiddenKept_other": "What is measured for {{count}} products you may not see stays as it is.",
+    "priced": "priced with the price book",
+    "shareOfTotal": "share of the measured total",
+    "readAt": "Read {{at}}",
+    "notRead": "Not read yet – the job reads it within the hour",
+    "pricing": {
+      "book": "priced with the platform’s price book",
+      "share": "no price: share of the measured total"
+    },
+    "error": "The last read failed: {{error}}"
+  },
+  "estimates": {
+    "title": "Estimated against attributed",
+    "help": "Estimates made for this product (they belong to a service or a platform, under Costs) beside what is attributed to it. Showback: nothing is netted or booked.",
+    "none": "No estimate is for this product yet – make one under Costs on a service or a platform and name this product as what it is for.",
+    "of": "{{owner}} · from {{from}}",
+    "perMonth": "{{amount}} a month",
+    "atListPrice": "at list price for you",
+    "atListPriceShort": "list price",
+    "table": "Estimated against attributed per month",
+    "estimated": "Estimated",
+    "attributed": "Attributed",
+    "difference": "Difference",
+    "withinRange": "within the range",
+    "above": "above the estimate",
+    "below": "below the estimate"
+  },
+  "ossie": {
+    "menu": "Ossie export",
+    "label": "The data objects as an Apache Ossie model",
+    "yaml": "Ossie 0.1.1 (YAML)",
+    "json": "Ossie 0.1.1 (JSON)",
+    "dev": "Ossie 0.2.0.dev0 (YAML)"
   }
 }

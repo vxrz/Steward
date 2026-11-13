@@ -15,6 +15,7 @@ import { DataTable, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtRelative } from '../format';
 import { CatalogueProposalReview, MappingsProposalReview } from '../components/mcp/ProposalReview';
 import { PlantProposalReview } from '../components/mcp/PlantProposalReview';
+import { DataProductsProposalReview } from '../components/mcp/DataProductsProposalReview';
 
 const STATUS_COLOR: Record<McpRequest['status'], string> = {
   pending: TONE.attention,
@@ -42,7 +43,7 @@ const what = (r: McpRequest) =>
     ? `${r.proposalSummary.key} – ${r.proposalSummary.name}`
     : r.proposalSummary?.type === 'mappings'
       ? `${r.proposalSummary.catalogueKey} · ${r.proposalSummary.mappings} ↔`
-      : r.proposalSummary?.type === 'plant'
+      : r.proposalSummary?.type === 'plant' || r.proposalSummary?.type === 'dataProducts'
         ? r.proposalSummary.title
         : r.kind === 'gateway'
           ? `${r.method} ${r.path}`
@@ -209,6 +210,7 @@ export function McpRequestDetailPage() {
         {r.proposal?.type === 'catalogue' && <CatalogueProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
         {r.proposal?.type === 'mappings' && <MappingsProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
         {r.proposal?.type === 'plant' && <PlantProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
+        {r.proposal?.type === 'dataProducts' && <DataProductsProposalReview p={r.proposal} editable={r.canApprove} onChange={onSelection} />}
         {!r.proposal && (
           <Paper withBorder p="sm">
             {r.kind === 'gateway' ? (
@@ -299,7 +301,9 @@ export function McpRequestDetailPage() {
                   ? t('proposals.resultCatalogue', r.resultBody as Record<string, number>)
                   : r.proposal.type === 'plant'
                     ? t('plantProposal.result', r.resultBody as Record<string, number>)
-                    : t('proposals.resultMappings', r.resultBody as Record<string, number>)}
+                    : r.proposal.type === 'dataProducts'
+                      ? t('dpProposal.applied', r.resultBody as Record<string, number>)
+                      : t('proposals.resultMappings', r.resultBody as Record<string, number>)}
               </Text>
             )}
             {r.runId && (

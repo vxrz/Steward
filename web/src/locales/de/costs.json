@@ -1198,6 +1198,12 @@
     "history": {
       "title": "Frühere Ergebnisse",
       "line": "{{at}} von {{by}}: {{monthly}} je Monat, {{oneOff}} einmalig"
+    },
+    "forProduct": {
+      "label": "Für ein Datenprodukt",
+      "hint": "Sein Reiter Kosten stellt diese Schätzung dem gegenüber, was ihm zugeordnet ist.",
+      "hidden": "ein Datenprodukt, das Sie nicht sehen dürfen",
+      "none": "Kein Datenprodukt gefunden"
     }
   }
 }

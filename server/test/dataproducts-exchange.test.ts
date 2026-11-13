@@ -84,7 +84,9 @@ describe('import mode replace', () => {
     const r = await dana('POST', '/data-products/import', { files: [file(FULL())], mode: 'update', origin: 'inventory-files' });
     expect(r.counts.add).toBeGreaterThan(0);
     const { db } = await import('../src/db.js');
-    const kinds = db().all<{ kind: string; n: number }>("SELECT kind, COUNT(*) AS n FROM dp_import_origins WHERE origin = 'inventory-files' GROUP BY kind ORDER BY kind");
+    const kinds = db().all<{ kind: string; n: number }>(
+      "SELECT kind, COUNT(*) AS n FROM dp_import_origins WHERE origin = 'inventory-files' GROUP BY kind ORDER BY kind",
+    );
     expect(kinds).toEqual([
       { kind: 'dataObject', n: 2 },
       { kind: 'dataProduct', n: 2 },
@@ -100,7 +102,11 @@ describe('import mode replace', () => {
     const team = (await s.api('POST', '/teams', { name: 'Inventory secret team' })).id;
     const hidden = await s.api('POST', '/data-products', { key: 'inv-secret', name: 'Secret stock' });
     db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('data_product', ?, ?, ?)", hidden.id, team, new Date().toISOString());
-    db().run("INSERT INTO dp_import_origins (origin, kind, item_id, recorded_at) VALUES ('inventory-files', 'dataProduct', ?, ?)", hidden.id, new Date().toISOString());
+    db().run(
+      "INSERT INTO dp_import_origins (origin, kind, item_id, recorded_at) VALUES ('inventory-files', 'dataProduct', ?, ?)",
+      hidden.id,
+      new Date().toISOString(),
+    );
     const next = FULL();
     next.data_objects = next.data_objects.filter((o) => o.key !== 'warehouse');
     next.data_products = [{ ...next.data_products[0]!, members: [next.data_products[0]!.members[0]!], ports: [next.data_products[0]!.ports![0]!], steps: [] }];
@@ -197,7 +203,10 @@ describe('ODPS import', () => {
     expect(got.description).toContain('Limitations: No history');
     const ports = await dana('GET', `/data-products/${got.id}/ports`);
     expect(ports.map((x: any) => `${x.direction} ${x.name}`).sort()).toEqual(['input raw', 'output figures']);
-    const bad = await dana('POST', '/data-products/import/preview', { files: [file({ apiVersion: 'v1.0.0', kind: 'DataProduct', id: 'x' }, 'bad.yaml')], mode: 'add' });
+    const bad = await dana('POST', '/data-products/import/preview', {
+      files: [file({ apiVersion: 'v1.0.0', kind: 'DataProduct', id: 'x' }, 'bad.yaml')],
+      mode: 'add',
+    });
     expect(bad.problems.length).toBeGreaterThan(0);
     expect(bad.problems[0].path).toBe('(ODPS)');
   });
@@ -337,7 +346,10 @@ describe('Git sync of products and data objects', () => {
   it('classifies and checks files of the module’s format, one entry per file', async () => {
     const { parseFile } = await import('../src/sync/items.js');
     const { SYNC_KINDS } = await import('@sm/shared');
-    const product = YAML.stringify({ version: 1, data_product: { key: 'git-product', name: 'From Git', members: [{ element: el('INV.STOCK'), role: 'input' }] } });
+    const product = YAML.stringify({
+      version: 1,
+      data_product: { key: 'git-product', name: 'From Git', members: [{ element: el('INV.STOCK'), role: 'input' }] },
+    });
     const r = await parseFile('products/git-product.yaml', product, [...SYNC_KINDS]);
     expect(r).toMatchObject({ ok: true, item: { kind: 'dataProduct', identity: 'git-product', name: 'From Git' } });
     const obj = await parseFile('objects/supplier.yaml', `kind: dataObject\nversion: 1\ndata_object:\n  key: supplier\n  name: Supplier\n`, [...SYNC_KINDS]);
@@ -353,7 +365,20 @@ describe('Git sync of products and data objects', () => {
     const { runAs } = await import('../src/auth/context.js');
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
     const u = toAuthUser(findUserByName('dana')!);
-    const v1 = { text: JSON.stringify({ version: 1, data_product: { key: 'git-product', name: 'From Git', members: [{ element: el('INV.STOCK'), role: 'input' }], ports: [{ direction: 'output', name: 'a', version: 'v1' }, { direction: 'output', name: 'b', version: 'v1' }] } }) };
+    const v1 = {
+      text: JSON.stringify({
+        version: 1,
+        data_product: {
+          key: 'git-product',
+          name: 'From Git',
+          members: [{ element: el('INV.STOCK'), role: 'input' }],
+          ports: [
+            { direction: 'output', name: 'a', version: 'v1' },
+            { direction: 'output', name: 'b', version: 'v1' },
+          ],
+        },
+      }),
+    };
     const created = await runAs(u, () => {
       expect(canDecide('dataProduct', null)).toBe(true);
       return applyItem('dataProduct', v1, null, { identity: 'git-product', comment: 'From Git', sourceId: 'gsr_test' });
@@ -363,7 +388,17 @@ describe('Git sync of products and data objects', () => {
     expect(db().get("SELECT 1 FROM dp_import_origins WHERE origin = 'git:gsr_test' AND item_id = ?", created.entityId)).toBeTruthy();
     const before = localHash('dataProduct', created.entityId);
     // the repository drops port b: accepting the update removes it
-    const v2 = { text: JSON.stringify({ version: 1, data_product: { key: 'git-product', name: 'From Git', members: [{ element: el('INV.STOCK'), role: 'input' }], ports: [{ direction: 'output', name: 'a', version: 'v1' }] } }) };
+    const v2 = {
+      text: JSON.stringify({
+        version: 1,
+        data_product: {
+          key: 'git-product',
+          name: 'From Git',
+          members: [{ element: el('INV.STOCK'), role: 'input' }],
+          ports: [{ direction: 'output', name: 'a', version: 'v1' }],
+        },
+      }),
+    };
     await runAs(u, () => applyItem('dataProduct', v2, created.entityId, { identity: 'git-product', comment: 'From Git', sourceId: 'gsr_test' }));
     expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_ports WHERE product_id = ?', created.entityId)!.n).toBe(1);
     expect(localHash('dataProduct', created.entityId)).not.toBe(before);
@@ -382,7 +417,13 @@ describe('the Ossie export of data objects', () => {
         file({
           version: 1,
           data_objects: [
-            { key: 'warehouse', name: 'Warehouse', synonyms: ['depot'], definition: 'A place that keeps stock.', attributes: [{ name: 'warehouse_id', description: 'Key' }] },
+            {
+              key: 'warehouse',
+              name: 'Warehouse',
+              synonyms: ['depot'],
+              definition: 'A place that keeps stock.',
+              attributes: [{ name: 'warehouse_id', description: 'Key' }],
+            },
             { key: 'ossie-hidden', name: 'Hidden object', attributes: [{ name: 'id' }] },
           ],
         }),
@@ -410,7 +451,9 @@ describe('the Ossie export of data objects', () => {
       expect(wh.primary_key).toEqual(['warehouse_id']);
       expect(wh.ai_context.synonyms).toEqual(expect.arrayContaining(['Warehouse', 'depot']));
       expect(model.relationships).toEqual(
-        expect.arrayContaining([expect.objectContaining({ from: 'stock_item', to: 'warehouse', from_columns: ['warehouse_id'], to_columns: ['warehouse_id'] })]),
+        expect.arrayContaining([
+          expect.objectContaining({ from: 'stock_item', to: 'warehouse', from_columns: ['warehouse_id'], to_columns: ['warehouse_id'] }),
+        ]),
       );
     }
     // the download of the app

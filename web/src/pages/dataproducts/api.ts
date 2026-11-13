@@ -18,6 +18,7 @@ import type {
   DataProductMember,
   DataProductSummary,
   DataProductCosts,
+  DataProductEstimates,
   DataProductListFacts,
   DataProductScorecard,
   DataStep,
@@ -164,6 +165,14 @@ export const useProductCosts = (id: string, environment: string, months: number)
   useQuery({
     queryKey: dpKeys.costs(id, environment, String(months)),
     queryFn: () => get<DataProductCosts>(`/data-products/${enc(id)}/costs?${qs({ environment, months })}`),
+    placeholderData: keepPreviousData,
+  });
+
+/** Estimated against attributed (GET /api/data-products/:id/estimates, phase 2). */
+export const useProductEstimates = (id: string, environment: string, months: number) =>
+  useQuery({
+    queryKey: [...dpKeys.costs(id, environment, String(months)), 'estimates'],
+    queryFn: () => get<DataProductEstimates>(`/data-products/${enc(id)}/estimates?${qs({ environment, months })}`),
     placeholderData: keepPreviousData,
   });
 

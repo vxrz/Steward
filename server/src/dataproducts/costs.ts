@@ -544,37 +544,37 @@ export function productCostsOf(
     allocations,
     wanted,
     (a) => {
-    const c = cell(a.unit, a.month);
-    const info = infos ? infos.get(a.platformId) : undefined;
-    if (infos && (!info || !info.amounts)) {
-      // a part the reader may not see: left out, the month is incomplete
-      c.incomplete = true;
-      c.amountsHidden = true;
-      return;
-    }
-    const id = JSON.stringify([a.platformId, a.kind, a.rule, a.share, a.currency, keyOf(a.key), a.measured?.priced ?? null]);
-    const idx = lineIndex.get(c) ?? new Map<string, DataProductCostLine>();
-    lineIndex.set(c, idx);
-    const line = idx.get(id);
-    if (line) {
-      line.amountMicros += a.amount;
-      line.products = Math.max(line.products, a.products);
-    } else {
-      const l: DataProductCostLine = {
-        platformId: a.platformId,
-        platformName: names.get(a.platformId)?.name ?? a.platformId,
-        kind: a.kind,
-        rule: a.rule,
-        share: Math.round(a.share * 1_000_000) / 1_000_000,
-        amountMicros: a.amount,
-        currency: a.currency,
-        match: { kind: a.key.kind, value: a.key.value, tagKey: a.key.tagKey },
-        products: a.products,
-        ...(a.measured ? { measured: a.measured } : {}),
-      };
-      idx.set(id, l);
-      c.lines.push(l);
-    }
+      const c = cell(a.unit, a.month);
+      const info = infos ? infos.get(a.platformId) : undefined;
+      if (infos && (!info || !info.amounts)) {
+        // a part the reader may not see: left out, the month is incomplete
+        c.incomplete = true;
+        c.amountsHidden = true;
+        return;
+      }
+      const id = JSON.stringify([a.platformId, a.kind, a.rule, a.share, a.currency, keyOf(a.key), a.measured?.priced ?? null]);
+      const idx = lineIndex.get(c) ?? new Map<string, DataProductCostLine>();
+      lineIndex.set(c, idx);
+      const line = idx.get(id);
+      if (line) {
+        line.amountMicros += a.amount;
+        line.products = Math.max(line.products, a.products);
+      } else {
+        const l: DataProductCostLine = {
+          platformId: a.platformId,
+          platformName: names.get(a.platformId)?.name ?? a.platformId,
+          kind: a.kind,
+          rule: a.rule,
+          share: Math.round(a.share * 1_000_000) / 1_000_000,
+          amountMicros: a.amount,
+          currency: a.currency,
+          match: { kind: a.key.kind, value: a.key.value, tagKey: a.key.tagKey },
+          products: a.products,
+          ...(a.measured ? { measured: a.measured } : {}),
+        };
+        idx.set(id, l);
+        c.lines.push(l);
+      }
     },
     months,
   );
@@ -912,9 +912,7 @@ export function listAllocations(q: { platformId?: string }): DataCostAllocation[
     for (const x of k.units.values()) byProduct.set(x.productId, [...(byProduct.get(x.productId) ?? []), x.environment]);
     if (byProduct.size < 2 && !a) continue;
     const measured =
-      a?.rule === 'measured' && a.measure
-        ? { subjects: subjectsOf(a, [...byProduct.keys()], topics), pricing: info.amounts ? pricing(a) : null }
-        : null;
+      a?.rule === 'measured' && a.measure ? { subjects: subjectsOf(a, [...byProduct.keys()], topics), pricing: info.amounts ? pricing(a) : null } : null;
     out.push(allocationView(k, a, byProduct, products, sees, info, measured));
   }
   return out.sort(
@@ -988,8 +986,7 @@ const allocationProblem = (
   context: 'over100' | 'product' | 'noMatch' | 'measure' | 'measurePlatform' | 'measureScope' | 'subjects',
   message: string,
   extra: Record<string, string | number> = {},
-) =>
-  new HttpError(400, message, 'DATA_COST_ALLOCATION', { context, ...extra });
+) => new HttpError(400, message, 'DATA_COST_ALLOCATION', { context, ...extra });
 
 /**
  * PUT /api/data-products/cost-allocations (session only): who may manage the platform splits its lines of one match key
@@ -1022,7 +1019,10 @@ export function setAllocation(body: unknown): DataCostAllocation {
     if (!kinds.includes(kind))
       throw allocationProblem('measurePlatform', `${input.measure} is measured on a platform of kind ${kinds.join(' or ')}`, { kind: kinds.join(', ') });
     if (input.measure === 'confluentTopic' && !measureScope(input.measure, k, input.platformId))
-      throw allocationProblem('measureScope', 'Topics are measured per cluster: split the lines of the cluster (a resource match lkc-…, or a Kafka platform that names its cluster)');
+      throw allocationProblem(
+        'measureScope',
+        'Topics are measured per cluster: split the lines of the cluster (a resource match lkc-…, or a Kafka platform that names its cluster)',
+      );
     // subjects of matching products the manager may not see stay as they are
     const beforeSubjects = before?.rule === 'measured' ? storedSubjects(before) : new Map<string, string[]>();
     for (const [p, list] of beforeSubjects) if (matching.has(p) && !sees.get(p)) subjects.set(p, list);

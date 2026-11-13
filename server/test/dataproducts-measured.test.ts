@@ -36,7 +36,13 @@ const fail = async (p: Promise<unknown>): Promise<{ status: number; code: string
 };
 
 let seq = 0;
-async function lines(platformId: string, sourcePlatformId: string, days: number, amount: number, f: { resource?: string; subAccount?: string; service?: string }) {
+async function lines(
+  platformId: string,
+  sourcePlatformId: string,
+  days: number,
+  amount: number,
+  f: { resource?: string; subAccount?: string; service?: string },
+) {
   const { db } = await import('../src/db.js');
   db().tx(() => {
     for (let i = 0; i < days; i++) {
@@ -125,7 +131,10 @@ describe('Snowflake warehouses', () => {
     // a designer who may not manage the platform
     expect((await fail(dana('PUT', '/data-products/cost-allocations', body))).status).toBe(403);
     expect(await fail(allocation({ ...body, measure: undefined }))).toMatchObject({ code: 'DATA_COST_ALLOCATION', params: { context: 'measure' } });
-    expect(await fail(allocation({ ...body, measure: 'confluentTopic' }))).toMatchObject({ code: 'DATA_COST_ALLOCATION', params: { context: 'measurePlatform' } });
+    expect(await fail(allocation({ ...body, measure: 'confluentTopic' }))).toMatchObject({
+      code: 'DATA_COST_ALLOCATION',
+      params: { context: 'measurePlatform' },
+    });
     const al = await allocation({
       ...body,
       subjects: [
@@ -138,7 +147,14 @@ describe('Snowflake warehouses', () => {
       ['meas-a', ['TRANSFORM_WH']],
       ['meas-b', ['BI_WH']],
     ]);
-    await allocation({ ...body, value: 'MEAS-SMALL', subjects: [{ productId: a, subjects: ['TRANSFORM_WH'] }, { productId: b, subjects: ['BI_WH'] }] });
+    await allocation({
+      ...body,
+      value: 'MEAS-SMALL',
+      subjects: [
+        { productId: a, subjects: ['TRANSFORM_WH'] },
+        { productId: b, subjects: ['BI_WH'] },
+      ],
+    });
     // audited on the platform, with the measure and the subjects
     const { db } = await import('../src/db.js');
     const e = db().get<{ details: string }>(
@@ -195,7 +211,9 @@ describe('Snowflake warehouses', () => {
     const { productCostsOf } = await import('../src/dataproducts/costs.js');
     const all = productCostsOf(null, [a, b], [month]);
     let sum = 0;
-    for (const byEnv of all.values()) for (const byMonth of byEnv.values()) for (const c of byMonth.values()) for (const l of c.lines) if (l.match.value === 'MEAS-SMALL') sum += l.amountMicros;
+    for (const byEnv of all.values())
+      for (const byMonth of byEnv.values())
+        for (const c of byMonth.values()) for (const l of c.lines) if (l.match.value === 'MEAS-SMALL') sum += l.amountMicros;
     expect(sum).toBeLessThanOrEqual(200 * M);
   });
 
@@ -212,7 +230,10 @@ describe('Snowflake warehouses', () => {
     db().run("UPDATE dp_cost_allocations SET updated_by = 'vera' WHERE platform_id = ? AND measure = 'snowflakeWarehouse'", snowflake);
     const r = await read();
     expect(r.failed).toBeGreaterThan(0);
-    const row = db().get<{ read_error: string | null }>("SELECT read_error FROM dp_cost_allocations WHERE platform_id = ? AND match_value = 'MEAS-ACCT'", snowflake)!;
+    const row = db().get<{ read_error: string | null }>(
+      "SELECT read_error FROM dp_cost_allocations WHERE platform_id = ? AND match_value = 'MEAS-ACCT'",
+      snowflake,
+    )!;
     expect(row.read_error).toContain('vera');
     // the quantities read before stay – the shares do not drop to nothing because one read failed
     expect(lineOf(await costs(a), 'MEAS-ACCT')).toMatchObject({ amountMicros: 241 * M });
@@ -247,7 +268,11 @@ describe('Snowflake query tags', () => {
     expect(tags[0]!.sql).not.toContain('orders');
     expect(tags[0]!.bindings).toEqual(expect.arrayContaining(['orders', 'customer360', 'unknown-tag']));
     // 30.5 and 12.25 credits × 2 USD of a 200 USD line
-    expect(lineOf(await costs(c), 'MEAS-TAGS')).toMatchObject({ rule: 'measured', amountMicros: 61 * M, measured: { measure: 'snowflakeQueryTag', priced: true } });
+    expect(lineOf(await costs(c), 'MEAS-TAGS')).toMatchObject({
+      rule: 'measured',
+      amountMicros: 61 * M,
+      measured: { measure: 'snowflakeQueryTag', priced: true },
+    });
     expect(lineOf(await costs(d), 'MEAS-TAGS')).toMatchObject({ amountMicros: 24.5 * M });
   });
 });
@@ -260,9 +285,9 @@ describe('Confluent topics', () => {
     // f's topic is a member element; e names its topic
     const el = await dana('POST', '/data-elements', { platformId: kafka, kind: 'kafka.topic', qualifiedName: 'payments', environment: 'prod' });
     await dana('POST', `/data-products/${f}/members`, { elementIds: [el.id], role: 'output' });
-    expect(
-      await fail(allocation({ platformId: kafka, kind: 'resource', value: 'lkc-demo1', rule: 'measured', measure: 'snowflakeWarehouse' })),
-    ).toMatchObject({ params: { context: 'measurePlatform' } });
+    expect(await fail(allocation({ platformId: kafka, kind: 'resource', value: 'lkc-demo1', rule: 'measured', measure: 'snowflakeWarehouse' }))).toMatchObject({
+      params: { context: 'measurePlatform' },
+    });
     const al = await allocation({
       platformId: kafka,
       kind: 'resource',
@@ -278,7 +303,11 @@ describe('Confluent topics', () => {
     // ours), a tenth not attributed
     const { db } = await import('../src/db.js');
     const line = Number(
-      db().get<{ n: number }>("SELECT SUM(effective_cost) AS n FROM cost_records WHERE platform_id = ? AND resource_id = 'lkc-demo1' AND month = ?", kafka, month)!.n,
+      db().get<{ n: number }>(
+        "SELECT SUM(effective_cost) AS n FROM cost_records WHERE platform_id = ? AND resource_id = 'lkc-demo1' AND month = ?",
+        kafka,
+        month,
+      )!.n,
     );
     const le = lineOf(await costs(e), 'lkc-demo1');
     const lf = lineOf(await costs(f), 'lkc-demo1');

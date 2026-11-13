@@ -125,7 +125,13 @@ const add = (r: Reading, month: string, subject: string, q: bigint) => {
 };
 
 /** Snowflake: credits per warehouse of the account, or per query tag (and the account's warehouse credits as the total). */
-async function readSnowflake(platform: Platform, secrets: Record<string, string>, measure: DataCostMeasure, subjects: string[], from: string): Promise<Reading> {
+async function readSnowflake(
+  platform: Platform,
+  secrets: Record<string, string>,
+  measure: DataCostMeasure,
+  subjects: string[],
+  from: string,
+): Promise<Reading> {
   const { snowflakeClient } = await import('../snowflake/service.js');
   const c = snowflakeClient(platform, secrets);
   const r: Reading = { byMonth: new Map() };
@@ -230,7 +236,12 @@ async function readConfluent(
 export function storedSubjects(a: Pick<MeasuredAllocationRow, 'subjects'>): Map<string, string[]> {
   const o = parseJson<Record<string, unknown>>(a.subjects, {});
   const out = new Map<string, string[]>();
-  for (const [k, v] of Object.entries(o)) if (Array.isArray(v)) out.set(k, v.filter((x): x is string => typeof x === 'string'));
+  for (const [k, v] of Object.entries(o))
+    if (Array.isArray(v))
+      out.set(
+        k,
+        v.filter((x): x is string => typeof x === 'string'),
+      );
   return out;
 }
 
@@ -248,17 +259,18 @@ export function memberTopics(productIds: readonly string[]): Map<string, string[
 }
 
 /** What each product is measured by: its declared subjects, else (topics) its member topics. */
-export function subjectsOf(a: Pick<MeasuredAllocationRow, 'subjects' | 'measure'>, productIds: readonly string[], topics?: Map<string, string[]>): Map<string, string[]> {
+export function subjectsOf(
+  a: Pick<MeasuredAllocationRow, 'subjects' | 'measure'>,
+  productIds: readonly string[],
+  topics?: Map<string, string[]>,
+): Map<string, string[]> {
   const stored = storedSubjects(a);
   const out = new Map<string, string[]>();
   const fallback = a.measure === 'confluentTopic' ? (topics ?? memberTopics(productIds)) : new Map<string, string[]>();
   for (const p of productIds) {
     const own = stored.get(p);
     const list = own && own.length ? own : (fallback.get(p) ?? []);
-    out.set(
-      p,
-      a.measure === 'confluentTopic' || a.measure === 'snowflakeQueryTag' ? list : list.map((s) => s.toUpperCase()),
-    );
+    out.set(p, a.measure === 'confluentTopic' || a.measure === 'snowflakeQueryTag' ? list : list.map((s) => s.toUpperCase()));
   }
   return out;
 }
@@ -309,7 +321,8 @@ async function readGroup(group: MeasuredAllocationRow[], now: number): Promise<v
         ? await readConfluent(platform, secrets, scope, [...subjects], from, now)
         : await readSnowflake(platform, secrets, measure, [...subjects], from);
     db().tx(() => {
-      for (const m of months) db().run('DELETE FROM dp_cost_usage WHERE platform_id = ? AND measure = ? AND scope = ? AND month = ?', a.platform_id, measure, scope, m);
+      for (const m of months)
+        db().run('DELETE FROM dp_cost_usage WHERE platform_id = ? AND measure = ? AND scope = ? AND month = ?', a.platform_id, measure, scope, m);
       for (const [month, bySubject] of reading.byMonth) {
         if (!months.includes(month)) continue;
         for (const [subject, q] of bySubject)
@@ -324,12 +337,14 @@ async function readGroup(group: MeasuredAllocationRow[], now: number): Promise<v
             at,
           );
       }
-      for (const part of chunks(ids)) db().run(`UPDATE dp_cost_allocations SET read_at = ?, read_error = NULL WHERE id IN (${marks(part.length)})`, at, ...part);
+      for (const part of chunks(ids))
+        db().run(`UPDATE dp_cost_allocations SET read_at = ?, read_error = NULL WHERE id IN (${marks(part.length)})`, at, ...part);
     });
   } catch (e) {
     const error = (e as Error).message.slice(0, 500);
     logger.warn({ platform: a.platform_id, measure, error }, 'measured use of a data products allocation could not be read');
-    for (const part of chunks(ids)) db().run(`UPDATE dp_cost_allocations SET read_at = ?, read_error = ? WHERE id IN (${marks(part.length)})`, at, error, ...part);
+    for (const part of chunks(ids))
+      db().run(`UPDATE dp_cost_allocations SET read_at = ?, read_error = ? WHERE id IN (${marks(part.length)})`, at, error, ...part);
   }
 }
 
@@ -360,7 +375,7 @@ export async function readMeasuredUse(now = Date.now(), o: { force?: boolean; pl
     if (!due) continue;
     await runAs(null, () => readGroup(g, now));
     read++;
-    if (db().get("SELECT 1 FROM dp_cost_allocations WHERE id = ? AND read_error IS NOT NULL", g[0]!.id)) failed++;
+    if (db().get('SELECT 1 FROM dp_cost_allocations WHERE id = ? AND read_error IS NOT NULL', g[0]!.id)) failed++;
   }
   return { read, failed };
 }

@@ -129,7 +129,12 @@ export function dataObjectsSemanticModel(u: AuthUser, version: OssieVersion = DE
     datasets,
     relationships,
     metrics: [],
-    custom_extensions: ext({ product: 'Steward', serverVersion: config.version, documentation: 'docs/DATA-PRODUCTS.md#ossie-export', objects: datasets.length }),
+    custom_extensions: ext({
+      product: 'Steward',
+      serverVersion: config.version,
+      documentation: 'docs/DATA-PRODUCTS.md#ossie-export',
+      objects: datasets.length,
+    }),
   };
   return dev ? { version, ...model } : { version, semantic_model: [model] };
 }

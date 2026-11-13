@@ -199,7 +199,10 @@ export async function parseLibraryItem(p: string, content: Buffer): Promise<{ ok
   );
   if (!r.ok) return { ok: false, errors: r.errors.map((e) => `${p}: ${e}`) };
   if (r.item.kind === 'costCalculator' || r.item.kind === 'dataProduct' || r.item.kind === 'dataObject')
-    return { ok: false, errors: [`${p}: ${r.item.kind === 'costCalculator' ? 'cost calculators' : 'data products and data objects'} are not part of a library`] };
+    return {
+      ok: false,
+      errors: [`${p}: ${r.item.kind === 'costCalculator' ? 'cost calculators' : 'data products and data objects'} are not part of a library`],
+    };
   if (r.item.kind === 'process') {
     const pins = (r.item.content as ProcessDefinition).nodes.filter((n) => n.type === 'subprocess' && (n as { version?: number }).version !== undefined);
     if (pins.length)

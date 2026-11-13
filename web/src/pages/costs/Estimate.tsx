@@ -45,6 +45,7 @@ import { confirmDialog } from '../../components/confirm';
 import { fmtMoney, fmtMonth, planPath } from '../../components/costs/common';
 import { estimateKeys, RangeBar, RangeText } from '../../components/costs/Estimates';
 import { numberFormat } from '../../format';
+import { useModuleOn } from '../../modules';
 import '../../components/dashboard/viz.css';
 
 /**
@@ -62,6 +63,8 @@ interface Draft {
   lines: CostEstimateHandLine[];
   adjustments: CostAdjustmentInput[];
   books: { provider: string; bookId: string }[];
+  /** The data product the estimate is for (ADR 0035 part 6; null: none, or another target kept as it is) */
+  forProduct: string | null;
 }
 
 const CURRENCIES = [...ISO_4217_CODES].sort();
@@ -76,13 +79,14 @@ function draftOf(e: CostEstimate): Draft {
     lines: e.lines,
     adjustments: e.adjustments.map(({ by: _b, at: _a, ...a }) => a),
     books: e.books,
+    forProduct: e.for?.kind === 'dataProduct' ? e.for.id : null,
   };
 }
 
 const bodyOf = (e: CostEstimate, d: Draft) => ({
   title: d.title.trim() || e.title,
   description: e.description,
-  for: e.for ? { kind: e.for.kind, id: e.for.id } : null,
+  for: d.forProduct ? { kind: 'dataProduct', id: d.forProduct } : e.for && e.for.kind !== 'dataProduct' ? { kind: e.for.kind, id: e.for.id } : null,
   calculatorId: e.calculator?.id ?? null,
   calculatorVersion: null,
   inputs: [...d.inputs].map(([key, value]) => ({ key, value })),
@@ -246,6 +250,7 @@ export function EstimatePage() {
                 onChange={(ev) => setDraft({ ...draft, appliesFrom: ev.currentTarget.value })}
               />
             </SimpleGrid>
+            <ForDataProduct e={e} value={draft.forProduct} onChange={(forProduct) => setDraft({ ...draft, forProduct })} />
             {e.calculator && (
               <Text size="xs" c="dimmed">
                 {t('estimates.inputs.calculator', { name: e.calculator.name, version: e.calculator.version })}{' '}
@@ -1247,5 +1252,57 @@ function PlanLines({ e, onChanged }: { e: CostEstimate; onChanged: () => void })
         </Text>
       )}
     </Stack>
+  );
+}
+
+/**
+ * What the estimate is for – a data product (ADR 0035 part 6, the data products module on): its Costs tab sets the
+ * estimate against what is attributed to it. Products are searched on the server as you type; a product the reader may
+ * not see is never named.
+ */
+function ForDataProduct({ e, value, onChange }: { e: CostEstimate; value: string | null; onChange: (id: string | null) => void }) {
+  const { t } = useTranslation('costs');
+  const on = useModuleOn('dataProducts');
+  const [search, setSearch] = useState('');
+  const q = useQuery({
+    queryKey: ['dataProducts', 'estimatePicker', search],
+    queryFn: () => get<{ items: { id: string; key: string; name: string }[] }>(`/data-products?limit=20&q=${encodeURIComponent(search)}`),
+    enabled: on && e.canEdit,
+  });
+  if (!on) return null;
+  const current = e.for?.kind === 'dataProduct' ? e.for : null;
+  if (!e.canEdit)
+    return current ? (
+      <Text size="sm">
+        {t('estimates.forProduct.label')}:{' '}
+        {current.visible ? (
+          <Anchor component={Link} to={`/data-products/${encodeURIComponent(current.id)}/costs`} size="sm">
+            {current.name}
+          </Anchor>
+        ) : (
+          t('estimates.forProduct.hidden')
+        )}
+      </Text>
+    ) : null;
+  const options = [
+    ...(current && current.visible && !(q.data?.items ?? []).some((x) => x.id === current.id) ? [{ value: current.id, label: current.name }] : []),
+    ...(q.data?.items ?? []).map((x) => ({ value: x.id, label: `${x.name} (${x.key})` })),
+  ];
+  return (
+    <Select
+      label={t('estimates.forProduct.label')}
+      description={t('estimates.forProduct.hint')}
+      placeholder={current && !current.visible ? t('estimates.forProduct.hidden') : undefined}
+      data={options}
+      value={value}
+      onChange={onChange}
+      searchable
+      clearable
+      searchValue={search}
+      onSearchChange={setSearch}
+      nothingFoundMessage={t('estimates.forProduct.none')}
+      maw={420}
+      data-testid="estimate-for-product"
+    />
   );
 }

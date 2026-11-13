@@ -49,7 +49,8 @@ function customOf(v: unknown): Map<string, unknown> {
   return out;
 }
 
-const pick = <T extends string>(v: unknown, allowed: readonly T[]): T | undefined => (typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : undefined);
+const pick = <T extends string>(v: unknown, allowed: readonly T[]): T | undefined =>
+  typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
 
 /** "orders/orders v2" → the product key, the port's name and version. */
 function parseSource(s: string): { product: string; port: string; version: string } | null {
@@ -181,7 +182,10 @@ export function odpsToFile(raw: Obj): OdpsConversion {
     const contract = str(p.contractId);
     if (contract) {
       if (environment) port.bindings = [{ environment, contract }];
-      else warnings.push(`ODPS ${key}: output port ${name} names the contract ${contract}, but no environment is known to bind it in – name one under customProperties (environment)`);
+      else
+        warnings.push(
+          `ODPS ${key}: output port ${name} names the contract ${contract}, but no environment is known to bind it in – name one under customProperties (environment)`,
+        );
     }
     ports.push(port);
   }
@@ -207,7 +211,10 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   };
   const inputs = [
     ...(Array.isArray(raw.inputPorts) ? raw.inputPorts.filter(isObj) : []).map((p) => ({ p, contract: str(p.contractId) ?? null })),
-    ...(Array.isArray(custom.get('inputsWithoutContract')) ? (custom.get('inputsWithoutContract') as unknown[]).filter(isObj) : []).map((p) => ({ p, contract: null })),
+    ...(Array.isArray(custom.get('inputsWithoutContract')) ? (custom.get('inputsWithoutContract') as unknown[]).filter(isObj) : []).map((p) => ({
+      p,
+      contract: null,
+    })),
   ];
   for (const { p, contract } of inputs) {
     const name = str(p.name);

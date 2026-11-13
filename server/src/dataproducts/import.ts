@@ -709,13 +709,7 @@ function buildPlan(input: ImportInput, o: ImportOptions = {}): Plan {
       // replace: what the product holds that the reader may not see is kept (counted) – members on hidden platforms,
       // consumers they may not see
       if (row && plan.replaceLists) plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + hiddenItems(row, current!);
-      record(
-        'dataProduct',
-        plan.products,
-        { file: f.name, key: p.key, row, incoming, current },
-        undefined,
-        plan.replaceLists ? replacedLists : undefined,
-      );
+      record('dataProduct', plan.products, { file: f.name, key: p.key, row, incoming, current }, undefined, plan.replaceLists ? replacedLists : undefined);
     }
   }
   if (input.mode === 'replace' && input.origin) planRemovals(plan, input.origin, s);
@@ -1507,9 +1501,10 @@ function recordOrigins(run: Run, origin: string): void {
 }
 
 function fingerprintOf(plan: Plan): string {
-  return sha256(
-    stable({ mode: plan.mode, counts: plan.counts, changes: plan.changes, files: plan.files.map((f) => f.sha256), origin: plan.origin }),
-  ).slice(0, 32);
+  return sha256(stable({ mode: plan.mode, counts: plan.counts, changes: plan.changes, files: plan.files.map((f) => f.sha256), origin: plan.origin })).slice(
+    0,
+    32,
+  );
 }
 
 /**
@@ -1614,7 +1609,12 @@ export function applyImport(body: unknown, o: ImportOptions = {}): DataProductIm
           ...(plan.origin ? { origin: plan.origin } : {}),
           ...(plan.odps ? { odps: plan.odps } : {}),
           ...(plan.mode === 'replace'
-            ? { removed: plan.changes.filter((x) => x.action === 'remove').map((x) => ({ kind: x.kind, key: x.key })).slice(0, 500) }
+            ? {
+                removed: plan.changes
+                  .filter((x) => x.action === 'remove')
+                  .map((x) => ({ kind: x.kind, key: x.key }))
+                  .slice(0, 500),
+              }
             : {}),
         },
       });

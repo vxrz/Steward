@@ -31,7 +31,35 @@ export const transferUrls = {
   product: (id: string, format: 'yaml' | 'json') => apiUrl(`/data-products/${enc(id)}/export?format=${format}`),
   odps: (id: string) => apiUrl(`/data-products/${enc(id)}/odps`),
   schema: () => apiUrl('/data-products/schema'),
+  /** The data objects the reader may see as an Apache Ossie semantic model (phase 2) */
+  ossie: (format: 'yaml' | 'json', version: '0.1.1' | '0.2.0.dev0' = '0.1.1') => apiUrl(`/data-objects/semantic-model?format=${format}&version=${version}`),
 };
+
+/** The data objects list's export: the business vocabulary as an Apache Ossie semantic model (phase 2). */
+export function OssieMenu() {
+  const { t } = useTranslation('dataProducts');
+  return (
+    <Menu position="bottom-end" withinPortal shadow="md">
+      <Menu.Target>
+        <Button size="xs" variant="default" leftSection={<IconFileExport size={14} />} data-testid="objects-ossie">
+          {t('ossie.menu')}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t('ossie.label')}</Menu.Label>
+        <Menu.Item component="a" href={transferUrls.ossie('yaml')} leftSection={<IconDownload size={14} />} data-testid="objects-ossie-yaml">
+          {t('ossie.yaml')}
+        </Menu.Item>
+        <Menu.Item component="a" href={transferUrls.ossie('json')} leftSection={<IconDownload size={14} />} data-testid="objects-ossie-json">
+          {t('ossie.json')}
+        </Menu.Item>
+        <Menu.Item component="a" href={transferUrls.ossie('yaml', '0.2.0.dev0')} leftSection={<IconDownload size={14} />}>
+          {t('ossie.dev')}
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
 
 /** The products list's _Import and export_ menu: everything the reader may see (or the filtered domain), and Import. */
 export function TransferMenu({ domain, canImport, onImport }: { domain?: string; canImport: boolean; onImport: () => void }) {

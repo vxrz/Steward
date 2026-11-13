@@ -368,6 +368,14 @@ Phase 1 as planned, in eight work packages ([docs/DATA-PRODUCTS.md](../DATA-PROD
 
 **Moved to phase 2** (beside the list under _Phases_): module roles granted per team – the _contributor_ – waits for ADR 0034 phase 2; shares of data objects, elements and domains (they keep owning teams); editable layers and regulatory flags (built-in lists in 0.22.0); a part of the instance export; the product map's health reads the members' elements in chunks of 500 ids – 150 statements and about 0.5 s for 2,000 products – and should become one grouped read.
 
+## Built in 0.24.0 (phase 2, package D)
+
+- **Cost splitting by measured use** (part 11): the allocation rule _by measured use_ – Snowflake credits per warehouse (`WAREHOUSE_METERING_HISTORY`) and per query tag (`QUERY_ATTRIBUTION_HISTORY`), Confluent bytes per topic (the Metrics API) – read daily by the job `data-products` through the platforms' clients as the person who set the allocation, priced with the platform's contracted price book (the price per credit, `KAFKA_NETWORK_WRITE`) or, without a price, as the share of the measured total; never above 100 % of a line, hidden amounts keep the total incomplete (`dp_cost_usage`, migration `dataproducts-005d-measured-use-origins`).
+- **Estimates for data products** (part 11, ADR 0035 part 6): an estimate of a service or platform may be _for_ a product; the product's _Costs_ tab shows estimated against attributed; `get_data_product_costs` returns both; `calculate_cost_estimate` compares with a product (`compareWith`). _Decided on the way:_ the product is the estimate's **target**, not its owner – ownership stays with the cost plans' owners (ADR 0035 decision 11), so plan lines are never a product's.
+- **MCP proposals** (part 14): `get_data_products_format`, `propose_data_product_changes` – waiting under _AI requests_, applied by a person as the import (add and update) with their rights; only additions and changes.
+- **ODPS import, import mode _replace_ and Git sync** (parts 15, 16): ODPS v1 documents read as products of the format; `replace` with an origin removes what an earlier import of that origin brought in and the files no longer hold (never what the importer may not see; the step-up `dataproduct.bulkChange` above one removal); Git sync kinds `dataProduct` and `dataObject` (origin `git:<source>`, the product's lists from the file).
+- **Ossie export of data objects** (part 2): each data object a dataset with its key attributes as fields, relationships from attributes named after another object's key, team scope (`GET /api/v1/data-objects/semantic-model`).
+
 ## Owner decisions (accepted as recommended)
 
 1. **Own model or a catalogue.** _Recommendation:_ an own thin model with links out to catalogues; reading from DataHub or OpenMetadata later, never as the basis.

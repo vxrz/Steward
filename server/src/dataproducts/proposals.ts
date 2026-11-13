@@ -144,16 +144,25 @@ function precheck(r: Row, selection: McpProposalSelection | undefined, u: AuthUs
   const n = previewNow(p);
   if (n.problems.length) {
     const first = n.problems[0]!;
-    throw new HttpError(409, `The proposal cannot be applied (${n.problems.length} problem(s)): ${first.path}: ${first.message}`, 'DATA_PRODUCT_IMPORT_INVALID', {
-      count: n.problems.length,
-      file: first.file,
-      path: first.path,
-      message: first.message,
-    });
+    throw new HttpError(
+      409,
+      `The proposal cannot be applied (${n.problems.length} problem(s)): ${first.path}: ${first.message}`,
+      'DATA_PRODUCT_IMPORT_INVALID',
+      {
+        count: n.problems.length,
+        file: first.file,
+        path: first.path,
+        message: first.message,
+      },
+    );
   }
   const sel = selectionOf(selection);
   if (p.proposed && n.fingerprint !== p.proposed.fingerprint && sel?.fingerprint !== n.fingerprint)
-    throw new HttpError(409, 'The proposal’s preview changed since it was proposed – check the preview of now and accept it again', 'DATA_PRODUCT_IMPORT_CHANGED');
+    throw new HttpError(
+      409,
+      'The proposal’s preview changed since it was proposed – check the preview of now and accept it again',
+      'DATA_PRODUCT_IMPORT_CHANGED',
+    );
 }
 
 /** Applies the proposal as the reviewer (their rights): the import, mode add and update, in one transaction. */
@@ -278,7 +287,9 @@ export const dataProductProposalTools: ToolDef[] = [
       if (retired.length) throw new ToolError(`A proposal does not retire products (${retired.join(', ')}) – a person does that in Steward`);
       const text = JSON.stringify(doc);
       if (Buffer.byteLength(text) > L.partBytes)
-        throw new ToolError(`${what} is too large (at most ${L.partBytes / 1024} KB) – split it into parts: the first with more: true, the next ones with the returned proposalId`);
+        throw new ToolError(
+          `${what} is too large (at most ${L.partBytes / 1024} KB) – split it into parts: the first with more: true, the next ones with the returned proposalId`,
+        );
       if (!a.proposalId && (!a.title || !a.rationale)) throw new ToolError('Give `title` and `rationale` (with the first part of a proposal in parts)');
       const more = a.more === true;
       // each part is a document of the format by itself: its format problems are told now (names it refers to may be in

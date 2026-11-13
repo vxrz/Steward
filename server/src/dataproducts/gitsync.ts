@@ -37,7 +37,8 @@ export function classifyDataFile(o: Obj): DataSyncKind | null {
   return o.kind === 'dataProduct' || o.kind === 'dataObject' ? o.kind : null;
 }
 
-export type DataParse = { ok: true; identity: string; name: string; content: { text: string }; hash: string } | { ok: false; identity: string | null; errors: string[] };
+export type DataParse =
+  { ok: true; identity: string; name: string; content: { text: string }; hash: string } | { ok: false; identity: string | null; errors: string[] };
 
 /** Checks a file with the format's schema (credentials were refused by the sync engine before). */
 export function parseDataFile(kind: DataSyncKind, raw: Obj): DataParse {
@@ -91,9 +92,12 @@ export function dataLocalText(kind: DataSyncKind, id: string): string | null {
   if (!row || !objectAccess(s.u, row).permissions.length) return null;
   const links = db().all<{ element_id: string; note: string }>('SELECT element_id, note FROM dp_object_elements WHERE object_id = ?', row.id);
   s.elements(links.map((l) => l.element_id));
-  return YAML.stringify(compact({ version: DATA_PRODUCT_FORMAT_VERSION, data_object: objectEntry(s, row, ratingsByItem('object', [row.id]).get(row.id)!, links) }), {
-    lineWidth: 0,
-  });
+  return YAML.stringify(
+    compact({ version: DATA_PRODUCT_FORMAT_VERSION, data_object: objectEntry(s, row, ratingsByItem('object', [row.id]).get(row.id)!, links) }),
+    {
+      lineWidth: 0,
+    },
+  );
 }
 
 export const dataIncomingText = (content: unknown): string => YAML.stringify(parseJson((content as { text: string }).text, {}), { lineWidth: 0 });
