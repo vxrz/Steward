@@ -50,6 +50,7 @@ export function RecordsOfProcessingPage() {
       <HiddenCount count={hidden} />
     </Stack>
   );
+  const recipients = (e: DataRopaEntry) => e.recipients.map((r) => `${r.kind === 'team' || r.kind === 'user' ? subject(r.label) : r.label} (${r.via})`);
   const basis = (e: DataRopaEntry) => (e.legalBasis ? t(`dataProducts:objects.legalBases.${e.legalBasis}`) : '–');
   const processors = (e: DataRopaEntry) =>
     e.processors.map((p) =>
@@ -75,6 +76,7 @@ export function RecordsOfProcessingPage() {
           <Select
             size="xs"
             label={t('ropa.domain')}
+            placeholder={t('ropa.allDomains')}
             data={(domains.data ?? []).map((d) => ({ value: d.id, label: d.name }))}
             value={domain || null}
             onChange={(v) => set('domain', v ?? '')}
@@ -192,7 +194,7 @@ export function RecordsOfProcessingPage() {
                     <div key={p.product.id}>
                       <RefLink r={p.product} base="/data-products" />
                       {p.purpose && (
-                        <Text size="xs" c="dimmed" lineClamp={2}>
+                        <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
                           {p.purpose}
                         </Text>
                       )}
@@ -206,11 +208,7 @@ export function RecordsOfProcessingPage() {
             {
               key: 'recipients',
               header: t('ropa.recipients'),
-              cell: (e) =>
-                list(
-                  e.recipients.map((r) => `${r.kind === 'team' || r.kind === 'user' ? subject(r.label) : r.label} (${r.via})`),
-                  e.hiddenRecipients,
-                ),
+              cell: (e) => list(recipients(e), e.hiddenRecipients),
             },
             { key: 'processors', header: t('ropa.processors'), cell: (e) => list(processors(e), e.hiddenProcessors) },
             {
@@ -237,24 +235,35 @@ export function RecordsOfProcessingPage() {
                   </Anchor>
                   <PersonalDataBadge value={e.personalData} size="xs" />
                 </Group>
+                {/* everything the table says: a DPO reads the Art. 30 view on a phone too */}
                 <Text size="xs">
                   {t('ropa.legalBasis')}: {basis(e)}
                 </Text>
+                {e.purposes.length > 0 && <Text size="xs">{t('ropa.purposes', { list: e.purposes.join(', ') })}</Text>}
                 <Text size="xs">
                   {t('ropa.categories')}: {e.categories.join(', ') || '–'}
                 </Text>
+                {e.specialCategories.length > 0 && (
+                  <Text size="xs" c="red">
+                    {t('ropa.special', { list: e.specialCategories.join(', ') })}
+                  </Text>
+                )}
+                <Text size="xs">{t('ropa.subjects', { list: e.subjects.join(', ') || '–' })}</Text>
                 <Text size="xs">
                   {t('ropa.products')}: {e.products.map((p) => p.product.name).join(', ') || '–'}
                 </Text>
                 <HiddenCount count={e.hiddenProducts} />
                 <Text size="xs">
-                  {t('ropa.recipients')}: {e.recipients.map((r) => r.label).join(', ') || '–'}
+                  {t('ropa.recipients')}: {recipients(e).join(', ') || '–'}
                 </Text>
+                <HiddenCount count={e.hiddenRecipients} />
                 <Text size="xs">
                   {t('ropa.processors')}: {processors(e).join('; ') || '–'}
                 </Text>
+                <HiddenCount count={e.hiddenProcessors} />
                 <Text size="xs">
                   {t('ropa.retention')}: {e.retention || '–'}
+                  {e.deletionRule && ` – ${e.deletionRule}`}
                 </Text>
               </Stack>
             </Paper>

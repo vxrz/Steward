@@ -183,6 +183,8 @@ test.describe('governance of data products', () => {
   test('governance on a phone @mobile', async ({ page }) => {
     await page.goto(`/data-products/records-of-processing?q=${s.token}`);
     await expect(page.getByTestId('ropa-card').first()).toBeVisible();
+    // the card says what the table says: the data subjects too
+    await expect(page.getByTestId('ropa-card').first()).toContainText('Data subjects: customers');
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'records of processing on a phone');
     await page.goto('/data-products/access-requests');

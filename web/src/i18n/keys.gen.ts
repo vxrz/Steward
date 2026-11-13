@@ -4795,6 +4795,7 @@ export interface Resources {
     'ropa.disclaimer': string;
     'ropa.search': string;
     'ropa.domain': string;
+    'ropa.allDomains': string;
     'ropa.personalData': string;
     'ropa.all': string;
     'ropa.csv': string;

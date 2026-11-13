@@ -266,6 +266,7 @@
     "disclaimer": "A working view for the data protection officer from the data products – not the record of processing activities itself. What you may not see is counted, never named.",
     "search": "Search data objects",
     "domain": "Domain",
+    "allDomains": "All domains",
     "personalData": "Personal data",
     "all": "All",
     "csv": "CSV",
