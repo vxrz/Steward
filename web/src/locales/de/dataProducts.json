@@ -716,8 +716,8 @@
         "availability": "{{uptime}} % verfügbar über 30 Tage (Ziel {{target}} %)",
         "availabilityShort": "Verfügbarkeitsziel {{target}} %: Der Monitor läuft noch keine 30 Tage",
         "availabilityNoMonitor": "Verfügbarkeitsziel {{target}} %: noch kein Monitor",
-        "freshness": "{{port}}: {{uptime}} % der Zeit aktuell (Ziel {{target}})",
-        "freshnessShort": "{{port}}: Aktualitätsziel {{target}}, noch keine 30 Tage Prüfungen",
+        "freshness": "{{port}}: {{uptime}} % der Zeit aktuell (Ziel {{target}} %)",
+        "freshnessShort": "{{port}}: Aktualitätsziel {{target}} %, noch keine 30 Tage Prüfungen",
         "none": "Keine Ziele an den Ausgangsports"
       },
       "dependencies": {

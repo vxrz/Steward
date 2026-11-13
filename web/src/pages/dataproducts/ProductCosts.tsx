@@ -36,6 +36,7 @@ import { confirmDanger } from '../../components/confirm';
 import { FormModal } from '../../components/FormModal';
 import { TableScroll } from '../../components/TableScroll';
 import { useLevel } from '../../components/catalogue/cia';
+import { fmtMonth } from '../../components/costs/common';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
 import { fmtNumber, numberFormat } from '../../format';
 import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts } from './api';
@@ -142,7 +143,7 @@ export function ProductCostsTab({ p }: { p: DataProduct }) {
                             onClick={() => setMonth(m.month)}
                             aria-pressed={m.month === shown?.month}
                           >
-                            {m.month}
+                            {fmtMonth(m.month)}
                           </Button>
                         </Table.Td>
                         <Table.Td ta="right" className="nowrap">
@@ -175,7 +176,7 @@ function LinesOfMonth({ month }: { month: DataProductCosts['months'][number] }) 
   const { t } = useTranslation('dataProducts');
   const matchText = useMatchText();
   return (
-    <Section title={t('costs.title', { month: month.month })} testId="cost-lines">
+    <Section title={t('costs.title', { month: fmtMonth(month.month, 'long') })} testId="cost-lines">
       <TableScroll>
         <Table fz="sm" aria-label={t('costs.lines')}>
           <Table.Thead>
@@ -584,7 +585,7 @@ export function ValueAndCosts({ p, withCosts = true }: { p: DataProduct; withCos
       )}
       {withCosts && (
         <Text size="sm" mt="sm" data-testid="product-costs-line">
-          {t('value.costsLastMonth', { month: last?.month ?? '–', costs: costText })}
+          {t('value.costsLastMonth', { month: last ? fmtMonth(last.month, 'long') : '–', costs: costText })}
         </Text>
       )}
     </Section>
@@ -606,6 +607,8 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
   const level = useLevel();
   const evidence = (e: { key: string; values?: Record<string, string | number> }) => {
     const values: Record<string, string | number> = { ...(e.values ?? {}) };
+    // numbers in the reader's format (99,5 in German); `count` stays a number for the plural
+    for (const [k, v] of Object.entries(values)) if (typeof v === 'number' && k !== 'count') values[k] = fmtNumber(v);
     // a health status in words (healthy.status)
     if (typeof values.status === 'string') values.status = t(`dataProductViews:health.${values.status as 'up'}`);
     if (typeof values.source === 'string') values.source = t(`scorecard.sources.${values.source as 'monitor'}`);

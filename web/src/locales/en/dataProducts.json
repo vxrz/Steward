@@ -701,8 +701,8 @@
         "availability": "Available {{uptime}} % over 30 days (objective {{target}} %)",
         "availabilityShort": "Availability objective {{target}} %: the monitor has not run for 30 days yet",
         "availabilityNoMonitor": "Availability objective {{target}} %: no monitor yet",
-        "freshness": "{{port}}: fresh {{uptime}} % of the time (objective {{target}})",
-        "freshnessShort": "{{port}}: freshness objective {{target}}, no 30 days of checks yet",
+        "freshness": "{{port}}: fresh {{uptime}} % of the time (objective {{target}} %)",
+        "freshnessShort": "{{port}}: freshness objective {{target}} %, no 30 days of checks yet",
         "none": "No objectives set on the output ports"
       },
       "dependencies": {
