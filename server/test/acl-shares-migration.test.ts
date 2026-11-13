@@ -93,6 +93,8 @@ const USERS: [string, Role[]][] = [
 
 // ---------- the rules of 0.22 (before the migration), reading the access lists ----------
 
+const ROLES_022 = new Map<string, Role[]>(USERS);
+
 const LEGACY_PLATFORM: Record<Role, readonly string[]> = {
   admin: ['use', 'manage'],
   designer: ['use'],
@@ -102,6 +104,18 @@ const LEGACY_PLATFORM: Record<Role, readonly string[]> = {
   viewer: [],
   status: [],
   plant: [],
+};
+// the site defaults of 0.22 (plant/access.ts): since 0.23.0 they are derived from the module's roles, and the
+// deprecated role `plant` gives the plant registry's contributor role through a grant instead of a default
+const LEGACY_PLANT: Record<Role, readonly string[]> = {
+  admin: ['view', 'propose', 'manage'],
+  designer: ['view', 'propose', 'manage'],
+  operator: ['view', 'propose'],
+  approver: ['view', 'propose'],
+  auditor: ['view'],
+  viewer: ['view'],
+  status: [],
+  plant: ['view', 'propose'],
 };
 const LEGACY_IDENTITY: Record<Role, readonly string[]> = {
   admin: ['use'],
@@ -182,7 +196,9 @@ function legacyRights(u: U, it: Item): string[] {
         },
       );
     case 'site': {
-      const got = legacyDecide(u, it, ['view', 'propose', 'manage'], plantAccess.DEFAULT_PLANT, 'view');
+      // the roles of 0.22: module roles (0.23.0) turned the deprecated role `plant` into a plant contributor grant
+      const was = { ...u, roles: ROLES_022.get(u.username) ?? u.roles };
+      const got = legacyDecide(was, it, ['view', 'propose', 'manage'], LEGACY_PLANT, 'view');
       return got.includes('manage') ? ['view', 'propose', 'manage'] : got.includes('propose') ? ['view', 'propose'] : got;
     }
     case 'platform': {
