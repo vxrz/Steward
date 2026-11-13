@@ -170,7 +170,16 @@
     "verify": "Siegel prüfen",
     "verifyOk": "Das Siegel passt zur Prüfung.",
     "verifyBad": "Das Siegel passt nicht – die Prüfung wurde in der Datenbank geändert.",
-    "openNamed": "Zugriffsprüfung von {{port}} in {{environment}} öffnen"
+    "openNamed": "Zugriffsprüfung von {{port}} in {{environment}} öffnen",
+    "facts": {
+      "until": "bis {{date}}",
+      "identities": "Identitäten {{list}}",
+      "seenAs": "gesehen als {{list}}",
+      "reads_one": "{{n}} Lesezugriff",
+      "reads_other": "{{n}} Lesezugriffe",
+      "lastSeen": "zuletzt {{date}}",
+      "subjectType": "Typ {{type}}"
+    }
   },
   "settings": {
     "title": "Zugriffseinstellungen",

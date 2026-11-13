@@ -4718,6 +4718,13 @@ export interface Resources {
     'reviews.verifyOk': string;
     'reviews.verifyBad': string;
     'reviews.openNamed': string;
+    'reviews.facts.until': string;
+    'reviews.facts.identities': string;
+    'reviews.facts.seenAs': string;
+    'reviews.facts.reads_one': string;
+    'reviews.facts.reads_other': string;
+    'reviews.facts.lastSeen': string;
+    'reviews.facts.subjectType': string;
     'settings.title': string;
     'settings.editTitle': string;
     'settings.process': string;

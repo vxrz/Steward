@@ -5,13 +5,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconClipboardCheck, IconSettings, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { DataPortReview, DataPortReviewItem, DataProduct } from '@sm/shared';
+import type { DataPortReview, DataPortReviewFacts, DataPortReviewItem, DataProduct } from '@sm/shared';
 import { get, getOptional, post, put } from '../../../api';
 import { QueryState, useFieldErrors } from '../../../components/common';
 import { FormModal } from '../../../components/FormModal';
 import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
-import { fmtDate, fmtDay } from '../../../format';
+import { fmtDate, fmtDay, fmtNumber } from '../../../format';
 import { CardTable, Section, useSortedEnvironments } from '../parts';
 import { ProductRequests } from './AccessRequests';
 import { useAccessSettings, useInvalidateGovernance, useProductReviews, useReview } from './api';
@@ -227,6 +227,19 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
   const subject = useSubjectLabel();
   // a registration of a Steward user or team is frozen with its subject (team:…): its name, as everywhere else
   const entryLabel = (i: DataPortReviewItem) => (i.kind === 'registered' && /^(user|team):/.test(i.label) ? subject(i.label) : i.label);
+  /** The facts an entry was frozen with, in the reader's words, dates and numbers. */
+  const factsText = (f: DataPortReviewFacts): string[] =>
+    [
+      f.purpose || '',
+      f.until ? t('reviews.facts.until', { date: fmtDay(f.until) }) : '',
+      f.identities?.length ? t('reviews.facts.identities', { list: f.identities.join(', ') }) : '',
+      f.seenAs?.length ? t('reviews.facts.seenAs', { list: f.seenAs.join(', ') }) : '',
+      f.platform === null ? t('actual.hiddenPlatform') : (f.platform ?? ''),
+      f.objects?.length ? f.objects.join(', ') : '',
+      typeof f.reads === 'number' ? t('reviews.facts.reads', { count: f.reads, n: fmtNumber(f.reads) }) : '',
+      f.lastSeen ? t('reviews.facts.lastSeen', { date: fmtDate(f.lastSeen) }) : '',
+      f.subjectType ? t('reviews.facts.subjectType', { type: f.subjectType }) : '',
+    ].filter(Boolean);
   const r = q.data;
   const decide = (item: DataPortReviewItem, decision: 'keep' | 'remove' | null, note = item.comment) =>
     run(async () => {
@@ -286,7 +299,11 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
                     </Text>
                     <Text size="xs" c="dimmed">
                       {t(`reviews.kinds.${i.kind}`)}
-                      {i.detail && ` · ${i.detail}`}
+                      {/* frozen facts in the reader's language; entries sealed before them carry their text as it was */}
+                      {(i.facts ? factsText(i.facts) : [i.detail])
+                        .filter(Boolean)
+                        .map((x) => ` · ${x}`)
+                        .join('')}
                     </Text>
                   </div>
                 ),

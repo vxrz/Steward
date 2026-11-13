@@ -170,7 +170,16 @@
     "verify": "Verify the seal",
     "verifyOk": "The seal matches the review.",
     "verifyBad": "The seal does not match – the review was changed in the database.",
-    "openNamed": "Open the access review of {{port}} in {{environment}}"
+    "openNamed": "Open the access review of {{port}} in {{environment}}",
+    "facts": {
+      "until": "until {{date}}",
+      "identities": "identities {{list}}",
+      "seenAs": "seen as {{list}}",
+      "reads_one": "{{n}} read",
+      "reads_other": "{{n}} reads",
+      "lastSeen": "last {{date}}",
+      "subjectType": "type {{type}}"
+    }
   },
   "settings": {
     "title": "Access settings",

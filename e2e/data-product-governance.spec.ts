@@ -136,8 +136,19 @@ test.describe('governance of data products', () => {
     await expect(review.getByTestId('review-decision')).toHaveValue('Keep');
     await review.getByTestId('review-submit').click();
     await expect(review).toContainText('Submitted');
+    // the frozen facts in the reader's language: the registration's end date
+    await expect(review.getByTestId('review-entry').first()).toContainText('until 31 Dec 2027');
     await expectAccessible(page, 'port access review');
     await page.keyboard.press('Escape');
+    // … and in German, with the German date
+    await page.evaluate(() => localStorage.setItem('steward.language', 'de'));
+    await page.reload();
+    await page.getByTestId('review-row').first().getByTestId('review-open').click();
+    await expect(page.getByTestId('review-modal').getByTestId('review-entry').first()).toContainText('bis 31.12.2027');
+    await expect(page.getByTestId('review-modal').getByTestId('review-entry').first()).toContainText('Registrierter Konsument');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => localStorage.setItem('steward.language', 'en'));
+    await page.reload();
 
     // promotion from dev to prod by the name rules, with its evidence
     await page.goto(`/data-products/${s.product}`);
