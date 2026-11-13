@@ -138,15 +138,32 @@ export function conditionsSight(u: AuthUser | null = currentUser()): (contractId
   const hide = costSettings().hideAmountsFromViewers;
   const privileged = isAdmin(u) || u.roles.includes('auditor');
   const memo = new Map<string, boolean>();
+  let rows: Map<string, ContractRow> | null = null;
+  const decide = (id: string, c: ContractRow | undefined) => {
+    const s = c && { id: c.supplier_id, owners: c.s_owners, status: c.s_status };
+    return !!c && !!s && ctx.reads(c, s) && (privileged || !hide || ctx.edits(c, s));
+  };
   return (id) => {
     let v = memo.get(id);
-    if (v === undefined) {
-      const c = contractRows([id]).get(id);
-      ctx.load([id]);
-      const s = c && { id: c.supplier_id, owners: c.s_owners, status: c.s_status };
-      v = !!c && !!s && ctx.reads(c, s) && (privileged || !hide || ctx.edits(c, s));
-      memo.set(id, v);
+    if (v !== undefined) return v;
+    // the first question reads every contract that has conditions, and its order forms, at once (a fixed number of
+    // statements for a page of estimates, whatever the number of lines and contracts)
+    if (!rows) {
+      const ids = db()
+        .all<{ id: string }>(
+          'SELECT id FROM supplier_contracts WHERE id IN (SELECT contract_id FROM supplier_contract_conditions) OR parent_id IN (SELECT contract_id FROM supplier_contract_conditions)',
+        )
+        .map((r) => r.id);
+      rows = contractRows(ids);
+      ctx.load([...rows.keys()]);
     }
+    let c = rows.get(id);
+    if (!c) {
+      c = contractRows([id]).get(id);
+      ctx.load([id]);
+    }
+    v = decide(id, c);
+    memo.set(id, v);
     return v;
   };
 }
