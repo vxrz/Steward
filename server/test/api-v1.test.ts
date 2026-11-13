@@ -208,7 +208,8 @@ beforeAll(async () => {
   ajv = new Ajv2020({ strict: false, allErrors: true });
   addFormats(ajv);
   ajv.addSchema({ $id: 'openapi', components: doc.components });
-});
+  // the demo, the plant registry with advisories and data products: about 60 s on PostgreSQL in CI
+}, 180_000);
 
 afterAll(async () => {
   await s?.app.close();
