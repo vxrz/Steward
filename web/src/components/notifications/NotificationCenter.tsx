@@ -74,6 +74,10 @@ const EVENT_COLORS: Record<string, string> = {
   'dataproduct.deprecated': 'orange',
   'dataproduct.elements_missing': 'yellow',
   'dataproduct.discovery_failed': 'red',
+  'dataproduct.access_requested': 'violet',
+  'dataproduct.access_decided': 'blue',
+  'dataproduct.endorsement_review': 'yellow',
+  'dataproduct.access_review_due': 'yellow',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */

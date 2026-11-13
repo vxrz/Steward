@@ -4,6 +4,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
+import { dataConsumerAnswer } from './mockDataConsumers.js';
 import { dataElementAnswer } from './mockDataElements.js';
 
 /**
@@ -817,6 +818,9 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
       // the data products checks (ADR 0036 part 10, mockDataElements.ts) first, then discovery (part 5): both tag dp-…
       const check = dataElementAnswer(tag, sql, arg, TABLES);
       if (check) return result(reply, check.names, check.rows);
+      // who reads a port's objects (0.24.0, ACCESS_HISTORY – mockDataConsumers.ts)
+      const readers = dataConsumerAnswer(tag, bindings);
+      if (readers) return 'error' in readers ? reply.code(422).send({ code: '002003', message: readers.error }) : result(reply, readers.names, readers.rows);
       const r = discoveryAnswer(tag, sql, bindings);
       return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : resultInPartitions(reply, r.names, r.rows);
     }

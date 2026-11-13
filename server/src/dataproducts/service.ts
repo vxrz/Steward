@@ -60,6 +60,7 @@ import {
 } from './store.js';
 import { portViews } from './ports.js';
 import { onLifecycleChanged } from './notices.js';
+import { forgetGovernance } from './governance-cleanup.js';
 
 /**
  * Domains, data objects and data products (ADR 0036 parts 1–4, 12, 17): reading with team scope (a reader never sees,
@@ -923,6 +924,7 @@ export function deleteProduct(id: string): void {
   const ports = portsOf([row.id]);
   const portIds = ports.map((p) => p.id);
   db().tx(() => {
+    forgetGovernance({ productId: row.id, portIds });
     // input ports of other products that consumed its ports keep a note of what they consumed
     for (const c of consumingPorts(portIds).filter((c) => c.product_id !== row.id)) {
       const src = ports.find((p) => p.id === c.source_port_id);

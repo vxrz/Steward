@@ -5,6 +5,7 @@ import { renderScheduledReport } from '../scheduled-draw.js';
 import { drawPackPdf } from '../../compliance/pack-pdf.js';
 import { drawAssurancePdf } from '../../compliance/assurance-pdf.js';
 import { drawSoaPdf } from '../../compliance/soa-pdf.js';
+import { drawRopaPdf } from '../../dataproducts/ropa-pdf.js';
 import type { ReportSectionDraw } from '../section-draw.js';
 import { availabilitySectionDraw, credentialsSectionDraw, gatusSectionDraw, runsSectionDraw } from '../builtin-sections-draw.js';
 import { recordsSectionDraw } from '../../records/report-section-draw.js';
@@ -29,6 +30,8 @@ export const PDF_DRAWERS = {
   pack: drawPackPdf,
   assurance: drawAssurancePdf,
   soa: drawSoaPdf,
+  // the GDPR Art. 30 view of data products (0.24.0, ADR 0036 phase 2)
+  ropa: drawRopaPdf,
 };
 
 export type PdfDrawers = typeof PDF_DRAWERS;

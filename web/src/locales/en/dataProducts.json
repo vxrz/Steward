@@ -738,7 +738,9 @@
       "confidentiality": {
         "notRated": "Confidentiality not rated",
         "rated": "Confidentiality rated {{level}}",
-        "belowFloor": "Confidentiality {{level}}: below its data objects"
+        "belowFloor": "Confidentiality {{level}}: below its data objects",
+        "accessReviewed": "An approved access review of its ports within 12 months.",
+        "notReviewed": "No approved access review of its ports within 12 months."
       }
     }
   },

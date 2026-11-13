@@ -21,6 +21,8 @@ import { statusPointsOf, upAndDown, uptimeHundredths } from '../monitors/stats.j
 import { parseJson } from '../util.js';
 import { elementHealthOf } from './health.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
+import { validEndorsements } from './endorsements.js';
+import { reviewedProducts } from './port-reviews.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import {
   bindingsOf,
@@ -43,8 +45,8 @@ import {
  * computed on read in bulk (a fixed number of statements for any number of products), never typed – the parts
  * _documented_, _rated_, _ports_, _contracted_, _observed_, _healthy_, _objectives met_, _dependencies_, _costs known_,
  * and the ISO/IEC 25012 dimensions with the evidence Steward has (the others: _no evidence yet_). The maturity follows
- * (shared maturityLevel): 1 documented and rated, 2 observed, 3 contracted, 4 objectives met for 30 days; 5 (endorsed)
- * is phase 2.
+ * (shared maturityLevel): 1 documented and rated, 2 observed, 3 contracted, 4 objectives met for 30 days; 5 a valid
+ * endorsement on top of 4 (endorsements.ts, 0.24.0).
  *
  * Evidence is i18n keys with values (`evidence.<part>.<fact>`), counts and statuses only – never the name of a
  * contract, check or product the reader may not see.
@@ -107,6 +109,10 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   const ratings = ratingsByItem('product', ids, scale);
   const read: { objects?: Map<string, ObjectRow> } = {};
   const floors = floorsOf([...products.values()], ratings, scale, read);
+  // maturity 5 (0.24.0): a valid endorsement on top of level 4; the confidentiality evidence: an approved port access
+  // review within 12 months (one statement each for the page)
+  const endorsed = validEndorsements([...products.keys()], (id) => !!floors.get(id)?.warning);
+  const reviewed = reviewedProducts([...products.keys()], new Date(now - 365 * 24 * 3600_000).toISOString());
   const objects = read.objects ?? new Map<string, ObjectRow>();
   const envRows = environmentsOf(ids);
   const ports = portsOf(ids);
@@ -404,7 +410,10 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
     const cBelow = floor.findings.some((f) => f.dimension === 'confidentiality' && !f.reason);
     isoState.set('confidentiality', [
       !c || c.needsRerating ? 'notMet' : cBelow ? 'partial' : 'met',
-      [!c || c.needsRerating ? ev('confidentiality.notRated') : ev(cBelow ? 'confidentiality.belowFloor' : 'confidentiality.rated', { level: c.level })],
+      [
+        !c || c.needsRerating ? ev('confidentiality.notRated') : ev(cBelow ? 'confidentiality.belowFloor' : 'confidentiality.rated', { level: c.level }),
+        ev(reviewed.has(p.id) ? 'confidentiality.accessReviewed' : 'confidentiality.notReviewed'),
+      ],
     ]);
     for (const d of ISO_25012_DIMENSIONS) {
       const x = isoState.get(d);
@@ -412,7 +421,7 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
     }
 
     const state = (id: DataScorecardPartId) => parts.find((x) => x.group === 'part' && x.id === id)?.state;
-    out.set(p.id, { productId: p.id, environment: env, environments: envs, parts, maturity: maturityLevel(state) });
+    out.set(p.id, { productId: p.id, environment: env, environments: envs, parts, maturity: maturityLevel(state, endorsed.has(p.id)) });
   }
   return out;
 }

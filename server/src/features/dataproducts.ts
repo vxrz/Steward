@@ -9,6 +9,7 @@ import { dataProductTransferRoutes } from '../dataproducts/transfer-routes.js';
 import { dataProductApiRoutes } from '../dataproducts/api-v1.js';
 import { dataProductTools } from '../dataproducts/mcp.js';
 import { DATA_PRODUCT_SHARE_KIND } from '../dataproducts/shares.js';
+import { dataProductGovernanceRoutes } from '../dataproducts/governance-routes.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /**
@@ -22,7 +23,17 @@ export default defineFeature({
   // the discovery sources first: /data-products/discovery-sources is not a product id; checks and health (WP3); the
   // pictures (WP6): the pipeline of a product, the product map, the lineage of an element; costs and scorecard (WP4);
   // import and export, ODPS (WP7)
-  routes: [discoveryRoutes, dataProductRoutes, dataProductHealthRoutes, dataProductViewRoutes, dataProductCostRoutes, dataProductTransferRoutes],
+  routes: [
+    discoveryRoutes,
+    dataProductRoutes,
+    dataProductHealthRoutes,
+    dataProductViewRoutes,
+    dataProductCostRoutes,
+    dataProductTransferRoutes,
+    // consumers, access and governance (0.24.0, ADR 0036 phase 2): actual consumers, access requests and reviews,
+    // promotion, endorsement, the GDPR Art. 30 view
+    dataProductGovernanceRoutes,
+  ],
   // the public API (read-only) and the MCP read tools (WP7, ADR 0036 parts 14 and 19); not listed while the module is off
   apiV1: [dataProductApiRoutes],
   mcpTools: dataProductTools,
@@ -35,5 +46,7 @@ export default defineFeature({
   jobs: [
     // ADR 0036 part 5: the discovery sources that are due, one at a time (a run stops after 10 minutes)
     every5Minutes('data-products', 30 * MINUTE, () => import('../dataproducts/discovery/job.js').then((m) => m.runDataProductsJob())),
+    // 0.24.0: actual consumers read again daily, endorsement and access review reminders (at most hourly)
+    every5Minutes('data-products-governance', 20 * MINUTE, () => import('../dataproducts/governance-job.js').then((m) => m.runGovernanceJob())),
   ],
 });

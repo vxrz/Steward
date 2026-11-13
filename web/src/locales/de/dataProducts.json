@@ -753,7 +753,9 @@
       "confidentiality": {
         "notRated": "Vertraulichkeit nicht eingestuft",
         "rated": "Vertraulichkeit als {{level}} eingestuft",
-        "belowFloor": "Vertraulichkeit {{level}}: unter seinen Datenobjekten"
+        "belowFloor": "Vertraulichkeit {{level}}: unter seinen Datenobjekten",
+        "accessReviewed": "Eine freigegebene Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
+        "notReviewed": "Keine freigegebene Zugriffsprüfung seiner Ports in den letzten 12 Monaten."
       }
     }
   },

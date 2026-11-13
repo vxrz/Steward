@@ -96,6 +96,9 @@ export const NOT_MOVED: Record<string, string> = {
   dp_discovery_runs: 'the run history of the discovery sources (not moved, as the sources)',
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
+  // 0.24.0 (ADR 0036 phase 2): who really reads a port, as the platforms said – read again on the target
+  dp_actual_reads: 'when the actual consumers of a port were read and how (ACCESS_HISTORY, consumer groups): read again on the target',
+  dp_actual_consumers: 'who read a port as the platforms said (ACCESS_HISTORY, consumer groups): read again on the target',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -201,6 +204,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'dp_objects', column: 'custodians', kind: 'subjects' },
   { table: 'dp_consumers', column: 'consumer_subjects', kind: 'subjects' },
   { table: 'dp_consumers', column: 'contacts', kind: 'subjects' },
+  // 0.24.0: the consumer an access request asks for (a team or user), mapped like a registration's
+  { table: 'dp_access_requests', column: 'consumer_subjects', kind: 'subjects' },
 ];
 
 /**
@@ -456,6 +461,15 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_check_links.created_by',
   'dp_cost_matches.created_by',
   'dp_cost_allocations.updated_by',
+  // 0.24.0 (ADR 0036 phase 2): who decided, reviewed, promoted and endorsed
+  'dp_access_settings.updated_by',
+  'dp_access_requests.decided_by',
+  'dp_port_reviews.created_by',
+  'dp_port_reviews.submitted_by',
+  'dp_port_reviews.approved_by',
+  'dp_port_review_items.decided_by',
+  'dp_promotions.created_by',
+  'dp_endorsements.endorsed_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */

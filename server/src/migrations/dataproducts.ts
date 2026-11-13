@@ -388,4 +388,138 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  // 0.24.0 (ADR 0036 phase 2, package C): consumers, access and governance – platform identities of registrations,
+  // what platforms say who reads a port (ACCESS_HISTORY, consumer groups: read again on a target, not moved), access
+  // requests with their settings, port access reviews, promotions between environments and endorsements
+  {
+    name: 'dataproducts-005c-governance',
+    sql: `
+      CREATE TABLE dp_consumer_identities (
+        consumer_id TEXT NOT NULL,
+        identity TEXT NOT NULL,
+        PRIMARY KEY (consumer_id, identity)
+      );
+      CREATE TABLE dp_actual_reads (
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT NOT NULL DEFAULT '',
+        window_days INTEGER NOT NULL DEFAULT 30,
+        objects INTEGER NOT NULL DEFAULT 0,
+        read_at TEXT NOT NULL,
+        read_by TEXT NOT NULL,
+        PRIMARY KEY (port_id, environment, platform_id)
+      );
+      CREATE INDEX dp_actual_reads_at ON dp_actual_reads(read_at);
+      CREATE TABLE dp_actual_consumers (
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        name TEXT NOT NULL,
+        objects TEXT NOT NULL DEFAULT '[]',
+        reads INTEGER,
+        last_seen TEXT,
+        detail TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (port_id, environment, platform_id, kind, name)
+      );
+      CREATE TABLE dp_access_settings (
+        product_id TEXT PRIMARY KEY,
+        process_id TEXT,
+        ticket_source TEXT,
+        review_months INTEGER,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE dp_access_requests (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        requester TEXT NOT NULL,
+        consumer_kind TEXT NOT NULL,
+        ref_id TEXT,
+        consumer_subjects TEXT NOT NULL DEFAULT '[]',
+        consumer_text TEXT NOT NULL DEFAULT '',
+        purpose TEXT NOT NULL DEFAULT '',
+        until_date TEXT,
+        agreement TEXT,
+        identities TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'pending',
+        four_eyes INTEGER NOT NULL DEFAULT 0,
+        approvals TEXT NOT NULL DEFAULT '[]',
+        decided_by TEXT,
+        decided_at TEXT,
+        decision_comment TEXT NOT NULL DEFAULT '',
+        consumer_id TEXT,
+        ticket_id TEXT,
+        run_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX dp_access_requests_product ON dp_access_requests(product_id, status);
+      CREATE INDEX dp_access_requests_port ON dp_access_requests(port_id, status);
+      CREATE INDEX dp_access_requests_requester ON dp_access_requests(requester, created_at);
+      CREATE INDEX dp_access_requests_status ON dp_access_requests(status, created_at);
+      CREATE TABLE dp_port_reviews (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        four_eyes INTEGER NOT NULL DEFAULT 1,
+        check_info TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        submitted_by TEXT,
+        submitted_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        approval_comment TEXT NOT NULL DEFAULT '',
+        seal_hash TEXT
+      );
+      CREATE INDEX dp_port_reviews_port ON dp_port_reviews(port_id, environment, status);
+      CREATE INDEX dp_port_reviews_product ON dp_port_reviews(product_id, created_at);
+      CREATE TABLE dp_port_review_items (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        consumer_id TEXT,
+        label TEXT NOT NULL,
+        finding TEXT NOT NULL DEFAULT '',
+        detail TEXT NOT NULL DEFAULT '',
+        decision TEXT,
+        comment TEXT NOT NULL DEFAULT '',
+        decided_by TEXT,
+        decided_at TEXT
+      );
+      CREATE INDEX dp_port_review_items_review ON dp_port_review_items(review_id, seq);
+      CREATE TABLE dp_promotions (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        from_env TEXT NOT NULL,
+        to_env TEXT NOT NULL,
+        members INTEGER NOT NULL DEFAULT 0,
+        bindings INTEGER NOT NULL DEFAULT 0,
+        missing INTEGER NOT NULL DEFAULT 0,
+        evidence TEXT,
+        note TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX dp_promotions_product ON dp_promotions(product_id, created_at);
+      CREATE TABLE dp_endorsements (
+        product_id TEXT PRIMARY KEY,
+        endorsed_by TEXT NOT NULL,
+        endorsed_at TEXT NOT NULL,
+        review_date TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        review_reason TEXT,
+        review_flagged_at TEXT
+      );
+      CREATE INDEX dp_endorsements_review ON dp_endorsements(review_date);
+    `,
+  },
 ];
