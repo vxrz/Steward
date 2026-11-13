@@ -20,6 +20,7 @@ import {
 } from '@sm/shared';
 import { get, isUnavailable, notifyError, notifyOk, put } from '../../api';
 import { FormModal, FormModalCancel } from '../FormModal';
+import { fmtDayOnly, fmtDecimal, fmtNumber } from '../../format';
 
 /**
  * The "Prices" of a supplier contract (0.23.0, ADR 0035 parts 3 and 4, docs/PRICE-BOOKS.md#contract-conditions): its
@@ -42,22 +43,24 @@ export function conditionText(t: T, c: CostCondition): string {
       : t(`conditions.scopeText.${c.on}`, { provider: c.provider, target: c.target });
   const value =
     c.kind === 'percentOff' || c.kind === 'baseDiscount' || c.kind === 'markup'
-      ? t(`conditions.value.${c.kind}`, { percent: c.percent ?? '0' })
+      ? t(`conditions.value.${c.kind}`, { percent: fmtDecimal(c.percent ?? '0') })
       : c.kind === 'negotiatedPrice' || c.kind === 'feePerUnit'
         ? t(`conditions.value.${c.kind}`, {
-            price: c.price ?? '0',
+            price: fmtDecimal(c.price ?? '0'),
             currency: c.currency ?? '',
-            block: c.block.toLocaleString(),
+            block: fmtNumber(c.block),
             unit: (c.unit ?? '').replace(/[{}]/g, ''),
           })
         : c.kind === 'fixedFee'
-          ? t('conditions.value.fixedFee', { price: c.price ?? '0', currency: c.currency ?? '' })
-          : t('conditions.value.commitment', { bands: (c.bands ?? []).map((b) => `${b.from}: ${b.percent} %`).join(', ') });
+          ? t('conditions.value.fixedFee', { price: fmtDecimal(c.price ?? '0'), currency: c.currency ?? '' })
+          : t('conditions.value.commitment', { bands: (c.bands ?? []).map((b) => `${fmtDecimal(b.from)}: ${fmtDecimal(b.percent)} %`).join(', ') });
   return `${value} – ${scope}`;
 }
 
 const validText = (t: T, c: Pick<CostCondition, 'validFrom' | 'validTo'>) =>
-  c.validFrom || c.validTo ? t('conditions.validRange', { from: c.validFrom ?? '…', to: c.validTo ?? '…' }) : t('conditions.validTerm');
+  c.validFrom || c.validTo
+    ? t('conditions.validRange', { from: c.validFrom ? fmtDayOnly(c.validFrom) : '…', to: c.validTo ? fmtDayOnly(c.validTo) : '…' })
+    : t('conditions.validTerm');
 
 function ConditionsTable({ list, testId }: { list: CostConditionView[]; testId: string }) {
   const { t } = useTranslation('costs');
@@ -390,7 +393,7 @@ export function ConditionsDialog({
                   {(r.kind === 'negotiatedPrice' || r.kind === 'feePerUnit') && (
                     <Select
                       label={t('conditions.block')}
-                      data={['1', '1000', '1000000'].map((b) => ({ value: b, label: Number(b).toLocaleString() }))}
+                      data={['1', '1000', '1000000'].map((b) => ({ value: b, label: fmtNumber(Number(b)) }))}
                       value={String(r.block)}
                       allowDeselect={false}
                       onChange={(v) => set(i, { block: Number(v ?? 1) as Row['block'] })}

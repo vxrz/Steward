@@ -16,6 +16,7 @@ import {
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../../api';
 import { subjectOptionLabel, useSubjectLabel, useSubjects } from '../SubjectsInput';
+import { fmtDayOnly } from '../../format';
 
 /** One share as the form edits it (end date as a day, empty: none). */
 interface Draft {
@@ -267,7 +268,7 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                     ) : (
                       <Badge variant="light">
                         {(s.custom ? [t('shares.customShort')] : [t(`owning.level.${s.level}`), ...s.actions.map(rightName)]).join(', ')}
-                        {s.until ? ` · ${t('shares.untilShort', { date: s.until })}` : ''}
+                        {s.until ? ` · ${t('shares.untilShort', { date: fmtDayOnly(s.until) })}` : ''}
                       </Badge>
                     )}
                   </Group>

@@ -174,3 +174,25 @@ test('contract conditions and derived books on a phone @mobile', async ({ page, 
     await cleanup(api, f);
   }
 });
+
+test('the contract’s prices in German: percentages and days in the UI language', async ({ page, apiAs }) => {
+  test.setTimeout(120_000);
+  const api = await apiAs('admin');
+  const f = await fixture(api);
+  try {
+    const conditions = [
+      { kind: 'percentOff', provider: f.provider, on: 'service', target: 'Compute', percent: '12.5', validFrom: '2026-01-01', validTo: '2026-12-31' },
+    ];
+    expect((await api.put(`/api/costs/contracts/${f.contract}/conditions`, { data: { conditions } })).ok()).toBe(true);
+    await page.addInitScript(() => localStorage.setItem('steward.language', 'de'));
+    await page.goto(`/suppliers/${f.supplier}/contracts/${f.contract}`);
+    const table = page.getByTestId('contract-prices').getByTestId('contract-conditions');
+    // "12,5 % Nachlass", the validity as German days – not "12.5" and "2026-01-01"
+    await expect(table).toContainText('12,5 % Nachlass');
+    await expect(table).toContainText('01.01.2026');
+    await expect(table).not.toContainText('2026-01-01');
+    await expectAccessible(page, 'contract prices (de)');
+  } finally {
+    await cleanup(api, f);
+  }
+});
