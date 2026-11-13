@@ -118,6 +118,9 @@ const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown>
   { process: 'github-repository-health', cron: '20 * * * *', bind: { github: 'forgejo' }, label: 'Forgejo' },
   { process: 'dependency-track-vulnerabilities', cron: '0 */6 * * *' },
   { process: 'snowflake-account-hygiene', cron: '15 6 * * *' },
+  // 0.21.0: the cost estimate and the waste check of the simulated account (mockSnowflakeUsage.ts)
+  { process: 'snowflake-cost-estimate', cron: '20 9 * * *' },
+  { process: 'snowflake-waste-check', cron: '30 7 * * 1' },
   // database platforms (0.7.0): the demo database answers the catalog queries and the examples' statements
   { process: 'database-account-hygiene', cron: '25 6 * * *' },
   { process: 'database-table-sizes', cron: '35 6 * * *' },
