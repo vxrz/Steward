@@ -193,6 +193,29 @@ describe('large dbt files', () => {
     expect(() => readDbtInThread('manifest', Buffer.from('[1'))).toThrow('not JSON');
   }, 120_000);
 
+  it('starts at most DBT_WORKERS workers at a time, server-wide: more files wait for a free one', async () => {
+    const { openDbtFile, DBT_WORKERS } = await import('../src/dataproducts/lineage/dbt-parse.js');
+    const body = Buffer.from(JSON.stringify({ metadata: {}, nodes: {}, sources: {} }));
+    const open = await Promise.all(Array.from({ length: DBT_WORKERS }, () => openDbtFile('manifest', body)));
+    expect(open.every((r) => r.inWorker)).toBe(true);
+    let started = false;
+    const next = openDbtFile('manifest', body).then((r) => {
+      started = true;
+      return r;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(started).toBe(false);
+    // a reader closed (twice: freed once) hands its worker on
+    open[0]!.close();
+    open[0]!.close();
+    const third = await next;
+    expect(third.inWorker).toBe(true);
+    for (const r of [...open.slice(1), third]) r.close();
+    // all free again: as many open at once as before
+    const again = await Promise.all(Array.from({ length: DBT_WORKERS }, () => openDbtFile('manifest', body)));
+    for (const r of again) r.close();
+  }, 60_000);
+
   it('a 40 MB manifest and its run results are parsed off the main thread: no turn of the event loop over about 50 ms', async () => {
     const src = (await dana('POST', '/data-products/lineage-sources', { name: 'dbt big (invented)', kind: 'dbt', platformId: snowflake })).id as string;
     // elements for a part of the models, so the import matches (and writes) as on a real platform
