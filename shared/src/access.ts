@@ -131,6 +131,11 @@ export interface ImpliedShare {
   as: 'owner' | 'responsible';
   /** From outside the owning teams (or on a Restricted item): naming it was a widening, confirmed with the step-up */
   outside: boolean;
+  /**
+   * 0.25.0: the subject is one of the item's owning teams. The owner field only gives this share – it never scopes the
+   * item (owning teams do): a team named as owner that is no owning team leaves the scope as it is (the Access tab's hint)
+   */
+  owningTeam: boolean;
 }
 
 /** What someone holds on an item in share terms: `'all'` for administrators. */
