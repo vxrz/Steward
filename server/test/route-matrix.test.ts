@@ -379,6 +379,53 @@ const EXPECT: Record<string, Access> = {
   'POST /api/data-contracts/:id/service-lint': ALL,
   'GET /api/data-contracts/:id/runs': ALL,
   'GET /api/data-contracts/:id/runs/:runId': ALL,
+  // ---- data products (ADR 0036, on in these fixtures): every working role reads, designers change (rights per item) ----
+  'GET /api/data-domains': ALL,
+  'POST /api/data-domains': DESIGN,
+  'GET /api/data-domains/:id': ALL,
+  'PUT /api/data-domains/:id': DESIGN,
+  'DELETE /api/data-domains/:id': DESIGN,
+  'GET /api/data-objects': ALL,
+  'POST /api/data-objects': DESIGN,
+  'GET /api/data-objects/:id': ALL,
+  'PUT /api/data-objects/:id': DESIGN,
+  'DELETE /api/data-objects/:id': DESIGN,
+  'PUT /api/data-objects/:id/rating': DESIGN,
+  'GET /api/data-objects/:id/elements': ALL,
+  'POST /api/data-objects/:id/elements': DESIGN,
+  'DELETE /api/data-objects/:id/elements/:elementId': DESIGN,
+  'GET /api/data-products': ALL,
+  'POST /api/data-products': DESIGN,
+  'GET /api/data-products/:id': ALL,
+  'PUT /api/data-products/:id': DESIGN,
+  'DELETE /api/data-products/:id': DESIGN,
+  'PUT /api/data-products/:id/rating': DESIGN,
+  'POST /api/data-products/:id/lifecycle': DESIGN,
+  'PUT /api/data-products/:id/environments/:environment': DESIGN,
+  'DELETE /api/data-products/:id/environments/:environment': DESIGN,
+  'GET /api/data-products/:id/members': ALL,
+  'POST /api/data-products/:id/members': DESIGN,
+  'PUT /api/data-products/:id/members/:elementId': DESIGN,
+  'DELETE /api/data-products/:id/members/:elementId': DESIGN,
+  'GET /api/data-products/:id/ports': ALL,
+  'POST /api/data-products/:id/ports': DESIGN,
+  'PUT /api/data-products/:id/ports/:portId': DESIGN,
+  'DELETE /api/data-products/:id/ports/:portId': DESIGN,
+  'PUT /api/data-products/:id/ports/:portId/bindings/:environment': DESIGN,
+  'DELETE /api/data-products/:id/ports/:portId/bindings/:environment': DESIGN,
+  'GET /api/data-products/:id/ports/:portId/consumers': ALL,
+  'POST /api/data-products/:id/ports/:portId/consumers': DESIGN,
+  'PUT /api/data-products/:id/ports/:portId/consumers/:consumerId': DESIGN,
+  'DELETE /api/data-products/:id/ports/:portId/consumers/:consumerId': DESIGN,
+  'GET /api/data-products/:id/steps': ALL,
+  'POST /api/data-products/:id/steps': DESIGN,
+  'PUT /api/data-products/:id/steps/:stepId': DESIGN,
+  'DELETE /api/data-products/:id/steps/:stepId': DESIGN,
+  'GET /api/data-elements': ALL,
+  'POST /api/data-elements': DESIGN,
+  'GET /api/data-elements/:id': ALL,
+  'PUT /api/data-elements/:id': DESIGN,
+  'DELETE /api/data-elements/:id': DESIGN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1386,6 +1433,8 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // data products (ADR 0036): retiring a product is a decision of a person in the app
+  'POST /api/data-products/:id/lifecycle',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2044,6 +2093,12 @@ function fill(url: string): string {
       .replace(/:processId/g, fx.process!)
       // a test run of the demo's data contract (#221)
       .replace(/^\/api\/data-contracts\/:id\/runs\/:runId/, `/api/data-contracts/${fx.contract}/runs/${fx.contractRun}`)
+      // data products (ADR 0036): the fixtures' product, its port, consumer, step and member element
+      .replace(/^\/api\/data-products\/:id\/steps\/:stepId/, `/api/data-products/${fx.dataProduct}/steps/${fx.dataStep}`)
+      .replace(/:portId/g, fx.dataPort!)
+      .replace(/:consumerId/g, fx.dataConsumer!)
+      .replace(/:elementId/g, fx.dataElement!)
+      .replace(/:environment/g, 'prod')
       .replace(/:runId/g, fx.run!)
       .replace(/:stepId/g, fx.step!)
       .replace(/:nodeId/g, fx.node!)
@@ -2175,6 +2230,10 @@ function fill(url: string): string {
           'library-publishers': 'libraryPublisher',
           'library-keys': 'libraryKey',
           'data-contracts': 'contract',
+          'data-products': 'dataProduct',
+          'data-objects': 'dataObject',
+          'data-elements': 'dataElement',
+          'data-domains': 'dataDomain',
         };
         return seg(map[prefix] ?? '', `none_${prefix}`);
       })
@@ -2805,6 +2864,22 @@ beforeAll(async () => {
   fx.contract = contract.id;
   fx.contractRun = contract.lastRun.id;
   QUERY['GET /api/data-contracts/:id/compare'] = '?from=1&to=1';
+  // data products (ADR 0036): the module on; a domain, a data object, a product with two members, an output port bound
+  // in prod, a consumer and a step – all of the whole instance (made by the administrator)
+  await a('PUT', '/settings/modules/dataProducts', { enabled: true });
+  fx.dataDomain = (await a('POST', '/data-domains', { key: 'matrix', name: 'Matrix domain' })).id;
+  fx.dataObject = (await a('POST', '/data-objects', { key: 'matrix-object', name: 'Matrix object', domainId: fx.dataDomain })).id;
+  const snowflake = (await a('GET', '/platforms')).find((p: { kind: string }) => p.kind === 'snowflake').id;
+  const element = (name: string) => a('POST', '/data-elements', { platformId: snowflake, kind: 'snowflake.table', qualifiedName: name, environment: 'prod' });
+  fx.dataElement = (await element('MATRIX.RAW.ORDERS')).id;
+  const curated = (await element('MATRIX.CURATED.ORDERS')).id;
+  await a('POST', `/data-objects/${fx.dataObject}/elements`, { elementId: fx.dataElement });
+  fx.dataProduct = (await a('POST', '/data-products', { key: 'matrix-product', name: 'Matrix product', domainId: fx.dataDomain })).id;
+  await a('POST', `/data-products/${fx.dataProduct}/members`, { elementIds: [fx.dataElement, curated], role: 'internal' });
+  fx.dataPort = (await a('POST', `/data-products/${fx.dataProduct}/ports`, { direction: 'output', name: 'orders', version: 'v1' })).id;
+  await a('PUT', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/bindings/prod`, { elementIds: [curated] });
+  fx.dataConsumer = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/consumers`, { kind: 'text', text: 'Matrix consumer' })).id;
+  fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
