@@ -361,7 +361,9 @@ function Canvas({
           height: s.height,
           ariaLabel: text.aria(n),
         };
-      }) as (PartNode | StepNode)[];
+      })
+      // the order in the page is the order of the keyboard: upstream to downstream, top to bottom in a column
+      .sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y) as (PartNode | StepNode)[];
     return [...areas, ...headers, ...parts];
   }, [graphNodes, layout, highlight, selected, matches, byId, text, headerText]);
   const edges: WayEdge[] = useMemo(

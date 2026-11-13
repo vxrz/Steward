@@ -118,6 +118,13 @@ test.describe('the pictures of data products', () => {
     await expect(page.getByTestId('graph-legend')).toContainText('never OK');
     await expectAccessible(page, 'pipeline picture');
 
+    // the keyboard goes through the parts as the data flows: column by column, top to bottom
+    const order = await graph.locator('.react-flow__node[tabindex="0"]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+    expect(order.length).toBeGreaterThan(3);
+    for (let i = 1; i < order.length; i++) {
+      const [a, b] = [order[i - 1]!, order[i]!];
+      expect(Math.round(a.x) < Math.round(b.x) || (Math.round(a.x) === Math.round(b.x) && a.y <= b.y), `part ${i} after part ${i - 1}`).toBe(true);
+    }
     // a focusable, named node; Space selects it and highlights its way end to end
     const node = graph.locator(`.react-flow__node[data-id="${s.staged}"]`);
     await expect(node).toHaveAttribute('aria-label', /Snowflake table: ORDERS, .*STAGED\.ORDERS\. Role: Internal\. .*Health: No data.*Enter opens its page/);
