@@ -150,7 +150,9 @@ export function getAssignment(assetId: string, scope: CatalogueScope = catalogue
       return {
         ...k,
         kpi: refs.kpis.ref(k.kpi),
-        definition: d ? { id: refs.kpis.ref(d.id), name: d.name, names: d.names, category: hidden ? '' : d.category, ...(hidden ? { hidden: true } : {}) } : null,
+        definition: d
+          ? { id: refs.kpis.ref(d.id), name: d.name, names: d.names, category: hidden ? '' : d.category, ...(hidden ? { hidden: true } : {}) }
+          : null,
         results: results(k),
       };
     }),

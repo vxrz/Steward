@@ -174,8 +174,7 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
   for (const id of ids) {
     const p = scope.profile(id) ? own.get(id) : undefined;
     if (!p) say('profile_unknown', `There is no device profile "${id}"`, { profile: id });
-    else if (!scope.rights('device_profile', id).includes('manage'))
-      say('profile_unknown', `You may not change device profile "${p.name}"`, { profile: id });
+    else if (!scope.rights('device_profile', id).includes('manage')) say('profile_unknown', `You may not change device profile "${p.name}"`, { profile: id });
     else if (p.extends)
       say('has_base', `Device profile "${p.name}" extends "${p.extends}" already – only profiles without a base can get a new one`, {
         profile: id,
@@ -183,13 +182,19 @@ function analyse(input: PlantExtractInput, own: OwnProfiles): Analysis {
       });
   }
   if (own.has(input.id))
-    say('base_taken', scope.profile(input.id) ? `A device profile with the id ${input.id} exists already` : `The id ${input.id} cannot be used`, { id: input.id });
+    say('base_taken', scope.profile(input.id) ? `A device profile with the id ${input.id} exists already` : `The id ${input.id} cannot be used`, {
+      id: input.id,
+    });
   else {
     const alias = aliasTarget('profile', '', input.id);
     if (alias)
-      say('base_taken', scope.profile(alias) ? `"${input.id}" is an old id of device profile "${alias}" and still leads to it` : `The id ${input.id} cannot be used`, {
-        id: input.id,
-      });
+      say(
+        'base_taken',
+        scope.profile(alias) ? `"${input.id}" is an old id of device profile "${alias}" and still leads to it` : `The id ${input.id} cannot be used`,
+        {
+          id: input.id,
+        },
+      );
   }
   if (problems.length) return out();
   const where = new Map(ids.map((id) => [id, located(own.get(id)!)]));

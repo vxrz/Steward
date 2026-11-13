@@ -225,8 +225,10 @@ function InheritedGroup({ group, within, confirm }: { group: PlantDocGroup; with
           <Anchor component={Link} to={from.path} size="sm" fw={600}>
             {from.label}
           </Anchor>
+        ) : hidden ? (
+          t('plant:catalogueAccess.hiddenProfile')
         ) : (
-          hidden ? t('plant:catalogueAccess.hiddenProfile') : from.label
+          from.label
         )}
         {from.kind === 'device-profile' && !hidden && (
           <Text span size="xs" c="dimmed" className="mono">

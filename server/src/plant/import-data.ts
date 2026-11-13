@@ -54,16 +54,7 @@ import {
 } from './data-model.js';
 import { assignmentChecks, kpiChecks } from './checks.js';
 import { descendantsOf, extendsProblems, normalizeOwnPart, ownPartProblems, resolveAll, resolveChain, resolvedProblems } from './resolve.js';
-import {
-  HiddenRefs,
-  assignmentRefs,
-  catalogueScope,
-  kpiRefs,
-  presentAssignment,
-  presentInputs,
-  presentKpis,
-  presentProfiles,
-} from './catalogue-access.js';
+import { HiddenRefs, assignmentRefs, catalogueScope, kpiRefs, presentAssignment, presentInputs, presentKpis, presentProfiles } from './catalogue-access.js';
 
 /**
  * The YAML import and export of part 2 (#219): device profiles, KPI definitions and assignments, in the same file
@@ -1002,7 +993,8 @@ export function computeData(c: DataContext): PlantCheck[] {
   // they name profiles and KPI definitions the importer may not see "~hidden" (0.21.0)
   const shownProfiles = presentProfiles(postProfiles, scope);
   const shownKpis = presentKpis(postKpis, scope);
-  for (const x of checked) checks.push(...assignmentChecks({ kind: 'asset', id: x.assetId, name: x.name, siteId: x.siteId }, x.values, shownProfiles, shownKpis));
+  for (const x of checked)
+    checks.push(...assignmentChecks({ kind: 'asset', id: x.assetId, name: x.name, siteId: x.siteId }, x.values, shownProfiles, shownKpis));
   for (const pk of p.kpis.values()) {
     const k = postKpis.get(pk.values.id);
     if (k) checks.push(...kpiChecks(k, shownProfiles));

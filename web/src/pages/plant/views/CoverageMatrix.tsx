@@ -430,7 +430,10 @@ function MatrixRow({
             {row.asset.name}
           </Anchor>
           <Text size="xs" c="dimmed" lineClamp={1}>
-            {[row.area ? nameOf(row.area) : null, row.profile ? (row.profile.hidden ? t('plant:catalogueAccess.hiddenProfile') : row.profile.name) : t('coverage.noProfile')]
+            {[
+              row.area ? nameOf(row.area) : null,
+              row.profile ? (row.profile.hidden ? t('plant:catalogueAccess.hiddenProfile') : row.profile.name) : t('coverage.noProfile'),
+            ]
               .filter(Boolean)
               .join(' · ')}
           </Text>

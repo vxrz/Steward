@@ -631,7 +631,10 @@ export function assetFlow(assetId: string, scope: CatalogueScope = catalogueScop
   const profile = resolvedProfile(a?.profileId) ?? undefined;
   // 0.21.0: the flow runs on the whole model; a profile or KPI definition the caller may not see is not named (part 4)
   const kpis = presentKpis(allKpis(), scope);
-  const kpiRefs = new HiddenRefs(scope.kpi, (a?.kpis ?? []).map((k) => k.kpi));
+  const kpiRefs = new HiddenRefs(
+    scope.kpi,
+    (a?.kpis ?? []).map((k) => k.kpi),
+  );
   const checks = a
     ? assignmentChecks(
         { kind: 'asset', id: row.id, name: row.name, siteId: row.site_id },

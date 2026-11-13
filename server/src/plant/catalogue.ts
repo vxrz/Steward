@@ -22,7 +22,7 @@ import { aliasTarget, refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageCatalogue, plantProposesSome, siteRights } from './access.js';
+import { canManageCatalogue, siteRights } from './access.js';
 import { requirePlant } from './settings.js';
 import { changedKeys, type AssetRow, type SiteRow } from './model.js';
 import {
@@ -115,13 +115,7 @@ function requireCatalogue(what: string): string {
 }
 
 /** An existing entry the caller may see (404 like an unknown one otherwise) and may change as `need` says (403). */
-function requireEntryRight(
-  scope: CatalogueScope,
-  kind: 'device_profile' | 'kpi_definition',
-  id: string,
-  need: PlantCataloguePermission,
-  what: string,
-): string {
+function requireEntryRight(scope: CatalogueScope, kind: 'device_profile' | 'kpi_definition', id: string, need: PlantCataloguePermission, what: string): string {
   requirePlant();
   const u = me();
   const rights = requireEntry(scope, kind, id, kind === 'device_profile' ? profileNotFound : kpiNotFound);

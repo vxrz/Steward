@@ -98,7 +98,10 @@ export function entryOf(kind: PlantIdKind, scope: string, id: string): Entry | n
  * The rights of the current user on an entry: view and manage. Catalogue entries (0.21.0, #293): those of the device
  * profile or KPI definition – an interface or data point follows its profile; renaming or removing it needs Manage on it.
  */
-export function entryPermissions(e: Pick<Entry, 'siteId'> & Partial<Pick<Entry, 'kind' | 'scope' | 'id'>>, rights?: Map<string, PlantPermission[]>): PlantPermission[] {
+export function entryPermissions(
+  e: Pick<Entry, 'siteId'> & Partial<Pick<Entry, 'kind' | 'scope' | 'id'>>,
+  rights?: Map<string, PlantPermission[]>,
+): PlantPermission[] {
   if (e.siteId === null) {
     const of = catalogueEntryOf(e);
     if (!of) return canManageCatalogue() ? ['view', 'manage'] : ['view'];

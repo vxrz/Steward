@@ -191,7 +191,9 @@ describe('a profile of a team', () => {
     // a placeholder it does not have reads like an unknown id, too
     expect(await status(dana('PUT', '/plant/assets/rvs-mill-01-meter/assignment', { profileId: '~hidden-1' }))).toEqual(unknown);
     // a KPI input naming it anew
-    expect(await status(dana('POST', '/plant/kpis', { id: 'example-hidden-input', name: 'Hidden input', inputs: [{ profile: C80, dataPoints: ['x'] }] }))).toEqual({
+    expect(
+      await status(dana('POST', '/plant/kpis', { id: 'example-hidden-input', name: 'Hidden input', inputs: [{ profile: C80, dataPoints: ['x'] }] })),
+    ).toEqual({
       status: 404,
       code: 'PLANT_PROFILE_NOT_FOUND',
     });
@@ -309,7 +311,13 @@ describe('shares and Restricted', () => {
     expect(why.reasons).toContainEqual(expect.objectContaining({ source: 'share', subject: 'user:vera', level: 'view' }));
     expect((await vera('GET', '/plant/assets/rvs-mill-01/assignment')).profileHidden).toBeUndefined();
     // Restricted, without owning teams: instance roles give nothing on it
-    d.run('INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?)', 'kpi_definition', 'energy-consumption', 'admin', '');
+    d.run(
+      'INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?)',
+      'kpi_definition',
+      'energy-consumption',
+      'admin',
+      '',
+    );
     expect(await status(dana('GET', '/plant/kpis/energy-consumption'))).toEqual({ status: 404, code: 'PLANT_KPI_NOT_FOUND' });
     expect(await dana('GET', '/plant/catalogue/hidden')).toEqual({ profiles: 1, kpis: 1 });
     expect((await s.api('GET', '/plant/kpis/energy-consumption')).canManage).toBe(true);

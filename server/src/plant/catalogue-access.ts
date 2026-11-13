@@ -164,7 +164,8 @@ export function catalogueScope(u: AuthUser | null = currentUser()): CatalogueSco
     return r;
   };
   // seeing an entry of the whole instance needs no decision (the common case: one lookup in the request's indexes)
-  const sees = (kind: PlantCatalogueKind, id: string): boolean => (!u ? true : !reaches ? rights(kind, id).length > 0 : openEntry(kind, id) || rights(kind, id).length > 0);
+  const sees = (kind: PlantCatalogueKind, id: string): boolean =>
+    !u ? true : !reaches ? rights(kind, id).length > 0 : openEntry(kind, id) || rights(kind, id).length > 0;
   let hp: Set<string> | undefined;
   let hk: Set<string> | undefined;
   const hiddenOf = (kind: PlantCatalogueKind, table: string): Set<string> => {
@@ -317,8 +318,7 @@ export function requireEntry(
  * An id the caller cannot have for a new entry because an entry they may not see has it (or an old id of one leads
  * there): refused neutrally, without saying what holds it (part 4).
  */
-export const idUnavailable = (id: string): HttpError =>
-  new HttpError(409, `The id ${id} cannot be used – choose another one`, 'PLANT_ID_UNAVAILABLE', { id });
+export const idUnavailable = (id: string): HttpError => new HttpError(409, `The id ${id} cannot be used – choose another one`, 'PLANT_ID_UNAVAILABLE', { id });
 
 /** Refuses a change the reader's rights on an entry do not cover (403, after the entry is known to be visible). */
 export function requireRight(rights: readonly PlantCataloguePermission[], need: PlantCataloguePermission, what: string): void {
@@ -373,7 +373,10 @@ export function assignmentRefs(
 ): { profiles: HiddenRefs; kpis: HiddenRefs } {
   return {
     profiles: new HiddenRefs(scope.profile, [a?.profileId, ...chain.slice(1)]),
-    kpis: new HiddenRefs(scope.kpi, (a?.kpis ?? []).map((k) => k.kpi)),
+    kpis: new HiddenRefs(
+      scope.kpi,
+      (a?.kpis ?? []).map((k) => k.kpi),
+    ),
   };
 }
 

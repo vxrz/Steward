@@ -152,8 +152,7 @@ function editCatalogue(kind: 'profile' | 'kpi', id: string, set: PlantBulkSet, a
   if (!row || !rights.includes('view'))
     return { item: { scope: '', id, name: id, outcome: 'refused', reason: reason('PLANT_ENTRY_NOT_FOUND', `There is no ${kind} "${id}"`) } };
   const base = { scope: '', id, name: row.name };
-  if (!rights.includes('edit'))
-    return { item: { ...base, outcome: 'skipped', reason: reason('FORBIDDEN', `You may not change ${kind} "${id}"`) } };
+  if (!rights.includes('edit')) return { item: { ...base, outcome: 'skipped', reason: reason('FORBIDDEN', `You may not change ${kind} "${id}"`) } };
   if (kind === 'profile') {
     const before = profileValuesOf(row as Parameters<typeof profileValuesOf>[0]);
     const v = {
