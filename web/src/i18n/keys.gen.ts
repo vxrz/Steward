@@ -6309,6 +6309,7 @@ export interface Resources {
     'transfer.preview': string;
     'transfer.run': string;
     'transfer.jobElements': string;
+    'transfer.jobCount': string;
     'transfer.jobEntries': string;
     'transfer.jobUndo': string;
     'transfer.jobSucceeded': string;

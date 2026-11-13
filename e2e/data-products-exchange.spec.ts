@@ -252,6 +252,57 @@ test.describe('exchange', () => {
     await expect(page.getByText(/1 removed/).first()).toBeVisible();
   });
 
+  test('a background import: the phase in the live region, the count on the bar', async ({ page }) => {
+    const k = tag().toLowerCase();
+    // the server's answers for a large import (a job) are stood in for: the dialog's own reading of them is tested
+    const job = (o: Record<string, unknown>) => ({
+      id: 'dpj_e2e',
+      state: 'running',
+      phase: 'elements',
+      done: 400,
+      total: 1200,
+      mode: 'add',
+      origin: null,
+      createdBy: 'dana',
+      createdAt: new Date().toISOString(),
+      finishedAt: null,
+      result: null,
+      error: null,
+      undone: null,
+      ...o,
+    });
+    let finished = false;
+    await page.route(/\/api\/data-products\/import$/, (r) =>
+      r.request().method() === 'POST' ? r.fulfill({ status: 202, json: { job: job({}) } }) : r.fallback(),
+    );
+    await page.route(/\/api\/data-products\/import\/jobs\//, (r) =>
+      r.fulfill({
+        json: finished
+          ? job({ state: 'succeeded', phase: 'done', done: 1200, result: { counts: { add: 1, change: 0, unchanged: 0, skip: 0 } } })
+          : job({ done: 800 }),
+      }),
+    );
+    await page.goto('/data-products');
+    await page.getByTestId('products-transfer').click();
+    await page.getByTestId('products-import').click();
+    await animationsDone(page);
+    const doc = ['version: 1', 'data_products:', `  - key: ${k}-job`, `    name: Job ${k}`].join('\n') + '\n';
+    await page.locator('input[type="file"]').setInputFiles({ name: 'job.yaml', mimeType: 'application/yaml', buffer: Buffer.from(doc) });
+    await page.getByTestId('import-preview-run').click();
+    await expect(page.getByTestId('import-preview').getByText(`${k}-job`)).toBeVisible();
+    await page.getByTestId('import-run').click();
+    const phase = page.getByTestId('import-job-phase');
+    const bar = page.getByTestId('import-job').getByRole('progressbar');
+    await expect(bar).toHaveAttribute('aria-valuetext', '800 of 1,200 elements written');
+    // the live region says only the phase: the count changing every second is not announced
+    await expect(phase).toHaveAttribute('aria-live', 'polite');
+    await expect(phase).toHaveText('Importing in the background: writing the elements …');
+    await expect(page.getByTestId('import-job-count')).toHaveText('800 of 1,200 elements written');
+    await expectAccessible(page, 'background import in progress');
+    finished = true;
+    await expect(page.getByText('Imported: 1 added, 0 changed, 0 unchanged, 0 skipped').first()).toBeVisible();
+  });
+
   test('the import preview on a phone @mobile', async ({ page }) => {
     const k = tag().toLowerCase();
     await page.goto('/data-products');
