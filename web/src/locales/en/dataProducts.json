@@ -481,8 +481,8 @@
     "monitor": "Monitor",
     "createMonitor": "Create monitor",
     "updateMonitor": "Update monitor",
-    "hasMonitor": "The product has a monitor in this environment. Update monitor proposes checks for elements added since.",
-    "noMonitor": "No monitor yet. Create monitor proposes one: a check per element along the pipeline, linked so that the root cause alerts.",
+    "hasMonitor": "The product has a monitor in this environment. “Update monitor” proposes checks for elements added since.",
+    "noMonitor": "No monitor yet. “Create monitor” proposes one: a check per element along the pipeline, linked so that the root cause alerts.",
     "monitorHint": "You see the proposal first; the monitor is a disabled draft to review – Steward never enables it.",
     "elements": "Elements and their checks",
     "checks": "Checks",
@@ -936,7 +936,7 @@
     },
     "origin": "Origin",
     "origins": {
-      "made": "Made by Create monitor",
+      "made": "Made by “Create monitor”",
       "linked": "Linked",
       "found": "Found – names the element"
     },
@@ -1133,7 +1133,7 @@
     "everyMinutes_one": "Every {{count}} minute",
     "everyMinutes_other": "Every {{count}} minutes",
     "enabled": "Read on its schedule",
-    "enabledHint": "Off: only Read now reads it.",
+    "enabledHint": "Off: only “Read now” reads it.",
     "runsAs": "Runs as",
     "runsAsLine": "runs as {{user}}",
     "settings": "Settings",
