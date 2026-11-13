@@ -58866,7 +58866,7 @@
         "tags": [
           "Data products"
         ],
-        "description": "The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "description": "The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. A ?step= that is no step of the product answers 404 \"Step … not found\". Only while the data products module is on (Settings → Modules); otherwise 404.",
         "parameters": [
           {
             "schema": {

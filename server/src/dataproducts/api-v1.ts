@@ -312,7 +312,7 @@ export function dataProductApiRoutes(get: Get): void {
       operationId: 'getDataProductOpenLineage',
       tag: TAG,
       summary: 'Export a data product as OpenLineage events',
-      description: `The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. ${MODULE}`,
+      description: `The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. A ?step= that is no step of the product answers 404 "Step … not found". ${MODULE}`,
       params: { productId: 'Data product id' },
       query: DataProductOpenLineageQuery,
       response: {
@@ -323,7 +323,15 @@ export function dataProductApiRoutes(get: Get): void {
     async (req, reply) => {
       const id = (req.params as { productId: string }).productId;
       const q = req.query as z.infer<typeof DataProductOpenLineageQuery>;
-      const f = found(() => openLineageExport(id, { environment: q.environment, stepId: q.step }), `Data product ${id}`);
+      const f = found(() => {
+        try {
+          return openLineageExport(id, { environment: q.environment, stepId: q.step });
+        } catch (e) {
+          // the product was found: an unknown ?step= (or one of another product) is the step's 404, not the product's
+          if (e instanceof HttpError && e.code === 'DATA_STEP_NOT_FOUND') throw notFound(`Step ${q.step}`);
+          throw e;
+        }
+      }, `Data product ${id}`);
       return reply.type('application/x-ndjson; charset=utf-8').send(f.body);
     },
   );

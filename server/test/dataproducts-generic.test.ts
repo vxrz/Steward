@@ -396,6 +396,11 @@ describe('the OpenLineage export', () => {
         .split('\n')
         .some((l) => l.includes('Capture shop orders')),
     ).toBe(true);
+    // an unknown step: the step's 404, not the product's (the internal API answers DATA_STEP_NOT_FOUND)
+    const noStep = await text(`/api/v1/data-products/${orders}/openlineage?step=dps_nope`);
+    expect(noStep.status).toBe(404);
+    expect(noStep.type).toContain('application/problem+json');
+    expect(JSON.parse(noStep.body)).toMatchObject({ detail: 'Step dps_nope not found' });
     // a product the reader may not see: 404 on both
     expect((await text(`/api/v1/data-products/${orders}/openlineage`, (await vera('POST', '/me/tokens', { name: 'v', scope: 'read' })).token)).status).toBe(
       404,
