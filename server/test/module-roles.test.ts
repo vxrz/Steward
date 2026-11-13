@@ -479,6 +479,32 @@ describe('single sign-on (ADR 0034 part 6)', () => {
   });
 });
 
+describe('the data products module (ADR 0036 part 12)', () => {
+  it('core roles give what 0.22.0 gave; a granted contributor creates entries, a granted manager changes them', async () => {
+    const { FROM_CORE_ROLES } = await import('../src/dataproducts/access.js');
+    for (const role of ROLES) expect(moduleRoleFromCore('dataProducts', [role]), role).toBe(FROM_CORE_ROLES[role]);
+    expect(moduleRolesOf('dataProducts')).toEqual(['viewer', 'contributor', 'manager']);
+    await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
+    const vera = await s.as('vera', PW);
+    expect((await status(vera('POST', '/data-products', { key: 'invented-roles-a', name: 'Invented product A' }))).status).toBe(403);
+    const id = (await s.api('GET', '/users')).find((u: { username: string }) => u.username === 'vera').id;
+    await s.api('PUT', `/users/${id}`, { moduleRoles: [{ module: 'dataProducts', role: 'contributor' }] });
+    try {
+      const made = await vera('POST', '/data-products', { key: 'invented-roles-b', name: 'Invented product B' });
+      const product = await s.api('POST', '/data-products', { key: 'invented-roles-c', name: 'Invented product C' });
+      // a contributor sees, does not change what others made
+      expect((await status(vera('PUT', `/data-products/${product.id}`, { key: 'invented-roles-c', name: 'Renamed' }))).status).toBe(403);
+      await s.api('PUT', `/users/${id}`, { moduleRoles: [{ module: 'dataProducts', role: 'manager' }] });
+      const explain = await s.api('GET', `/access/explain?kind=data_product&id=${product.id}&user=vera`);
+      expect(explain.permissions).toEqual(expect.arrayContaining(['view', 'edit', 'manage']));
+      expect(explain.reasons).toEqual(expect.arrayContaining([expect.objectContaining({ source: 'moduleRole', moduleRole: 'manager' })]));
+      expect(made.id).toBeTruthy();
+    } finally {
+      await s.api('PUT', `/users/${id}`, { moduleRoles: [{ module: 'dataProducts', role: null }] });
+    }
+  });
+});
+
 describe('the module policy is read once per request', () => {
   it('deciding every site costs the same statements however many grants there are', async () => {
     const { siteRights } = await import('../src/plant/access.js');
