@@ -1,5 +1,4 @@
 import {
-  DEPRECATED_ROLES,
   MODULE_IDS,
   MODULE_ROLES,
   higherModuleRole,
@@ -10,7 +9,6 @@ import {
   type ModuleGrantSource,
   type ModuleId,
   type ModuleRole,
-  type Role,
   type UserModuleRole,
 } from '@sm/shared';
 import { z } from 'zod';
@@ -21,7 +19,10 @@ import { currentActor, currentUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { forgetModulePolicy, modulePolicy, type ModulePolicy } from './grants.js';
 import { moduleAccessMode } from './registry.js';
-import { recordModuleAccessChange } from './access-change.js';
+import { recordModuleAccessChange } from './access-audit.js';
+import { setModuleRoleHook } from '../auth/users.js';
+
+export { splitDeprecatedRoles } from '@sm/shared';
 
 /**
  * A person's own module roles (0.23.0, ADR 0034 parts 4 and 5): the grants whose subject is the person
@@ -56,12 +57,6 @@ export function moduleRolesOfUser(username: string, policy: ModulePolicy = modul
       best.set(key, { module: id, role: higherModuleRole(prev?.role, g.role)!, source: g.source });
     }
   return [...best.values()].sort((a, b) => a.module.localeCompare(b.module) || a.source.localeCompare(b.source));
-}
-
-/** Splits the deprecated roles off a role list: the roles to store, and the module roles they stand for. */
-export function splitDeprecatedRoles(roles: readonly Role[]): { roles: Role[]; moduleRoles: { module: ModuleId; role: ModuleRole }[] } {
-  const alias = roles.includes('plant');
-  return { roles: roles.filter((r) => !DEPRECATED_ROLES.includes(r)), moduleRoles: alias ? [PLANT_ROLE_ALIAS] : [] };
 }
 
 interface Row {
@@ -144,54 +139,6 @@ export function setUserModuleRoles(username: string, next: UserModuleRolesInput,
 }
 
 /**
- * Synchronises a person's module roles from single sign-on (ADR 0034 part 6): the grants with source `sso` become
- * exactly `wanted` (the mappings' module roles, the alias of the role "plant" among them), as roles are synchronised.
- * The sign-in is the confirmation (the administrator's mapping decided it); each change is an access change.
- */
-export function syncSsoModuleRoles(username: string, wanted: { module: ModuleId; role: ModuleRole }[]): string[] {
-  const subject = `user:${username.toLowerCase()}`;
-  const want = new Map<ModuleId, ModuleRole>();
-  for (const w of wanted) if (moduleRolesOf(w.module).includes(w.role)) want.set(w.module, higherModuleRole(want.get(w.module), w.role)!);
-  const have = new Map<ModuleId, ModuleRole | null>();
-  for (const r of db().all<{ module_id: string; role: string | null }>(
-    "SELECT module_id, role FROM module_grants WHERE lower(subject) = ? AND source = 'sso'",
-    subject,
-  ))
-    have.set(r.module_id as ModuleId, higherModuleRole(have.get(r.module_id as ModuleId), isModuleRole(r.role) ? r.role : null));
-  const changes: string[] = [];
-  const now = nowIso();
-  for (const id of new Set<ModuleId>([...want.keys(), ...have.keys()])) {
-    const before = have.get(id) ?? null;
-    const after = want.get(id) ?? null;
-    if (before === after && have.has(id) === want.has(id)) continue;
-    db().run("DELETE FROM module_grants WHERE module_id = ? AND lower(subject) = ? AND source = 'sso'", id, subject);
-    if (after)
-      db().run(
-        "INSERT INTO module_grants (id, module_id, subject, role, source, created_by, created_at) VALUES (?, ?, ?, ?, 'sso', ?, ?)",
-        newId('mg_'),
-        id,
-        subject,
-        after,
-        username,
-        now,
-      );
-    const mode = moduleAccessMode(id);
-    recordModuleAccessChange({
-      module: id,
-      before: { mode, subjects: [] },
-      after: { mode, subjects: [] },
-      granted: !before && after ? [subject] : [],
-      removed: before && !after ? [subject] : [],
-      roles: [{ subject, before, after }],
-      via: 'sso',
-    });
-    changes.push(`${id} ${before ?? '–'} → ${after ?? '–'}`);
-  }
-  if (changes.length) forgetModulePolicy();
-  return changes;
-}
-
-/**
  * The former instance role "plant" (ADR 0034 part 5): every account that still carries it – an installation from
  * before 0.23.0, a migration package of an older version – gets the plant registry's contributor grant instead, once.
  * An account of a single sign-on provider that synchronises roles gets it as a synchronised grant (the next sign-in
@@ -265,3 +212,6 @@ export function convertDeprecatedRoles(): number {
   forgetModulePolicy();
   return affected.length;
 }
+
+// the user form and the alias of the role "plant" in auth/users.ts (registered, so users.ts imports nothing of this module)
+setModuleRoleHook(setUserModuleRoles);

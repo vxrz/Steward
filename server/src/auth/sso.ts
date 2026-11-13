@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   MODULE_IDS,
   MODULE_ROLES,
+  splitDeprecatedRoles,
   higherModuleRole,
   moduleRolesOf,
   type ModuleId,
@@ -48,7 +49,7 @@ import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
 import { assertAddressSafe, guardedLookup } from '../platforms/outbound.js';
 import { previewModuleUses } from '../modules/access.js';
-import { splitDeprecatedRoles, syncSsoModuleRoles } from '../modules/user-roles.js';
+import { syncSsoModuleRoles } from '../modules/sso-roles.js';
 import { readCookie, ssoBindingCookie, ssoBindingCookieName } from './cookies.js';
 import { aliasTarget } from './aliases.js';
 import {

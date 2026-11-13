@@ -45,6 +45,14 @@ export const ROLE_INFO: Record<Role, string> = {
  */
 export const DEPRECATED_ROLES: readonly Role[] = ['plant'];
 
+/** Splits the deprecated roles off a role list: the roles to store, and the module roles they stand for ("plant": the plant registry's contributor). */
+export function splitDeprecatedRoles(roles: readonly Role[]): { roles: Role[]; moduleRoles: { module: ModuleId; role: ModuleRole }[] } {
+  return {
+    roles: roles.filter((r) => !DEPRECATED_ROLES.includes(r)),
+    moduleRoles: roles.includes('plant') ? [{ module: 'plant', role: 'contributor' }] : [],
+  };
+}
+
 /** A module role of one user (0.23.0, ADR 0034 part 4): set in the user form, or synchronised by single sign-on. */
 export interface UserModuleRole {
   module: ModuleId;

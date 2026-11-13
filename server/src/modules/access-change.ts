@@ -18,7 +18,8 @@ import {
 } from '@sm/shared';
 import { z } from 'zod';
 import { db } from '../db.js';
-import { auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
+import { requireAccessGrant } from '../auth/access-change.js';
+import { recordModuleAccessChange } from './access-audit.js';
 import { isStatusViewer, me } from '../auth/access.js';
 import { assertKnownSubjects, subjectExists } from '../auth/subjects.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
@@ -197,45 +198,7 @@ export function previewModuleAccess(id: ModuleId, input: ModuleAccessInput): Mod
   return { module: id, widens: moduleAccessWidens(id, input), gains, loses, ...(withRoles ? { roleChanges } : {}), owningTeamsWithout };
 }
 
-export interface ModuleAccessChange {
-  module: ModuleId;
-  before: { mode: ModuleAccessMode; subjects: string[] };
-  after: { mode: ModuleAccessMode; subjects: string[] };
-  granted: string[];
-  removed: string[];
-  /** Module roles given, changed or taken (0.23.0): subject, before and after (null: none) */
-  roles?: { subject: string; before: ModuleRole | null; after: ModuleRole | null }[];
-  /** Who changed it when it was not the dialog (the user form, single sign-on) */
-  via?: 'userForm' | 'sso' | 'roleAlias';
-}
-
-/**
- * The audit entry of a change of module access, in the family of access changes (ADR 0033): mode before and after,
- * who was granted and removed, whose module role changed; the step-up's proof is added by audit(). One function, so it
- * can move to the shared access-change module (#289) without touching the callers.
- */
-export function recordModuleAccessChange(c: ModuleAccessChange): void {
-  const name = moduleDef(c.module).name;
-  const what =
-    c.after.mode === 'everyone'
-      ? 'everyone signed in'
-      : `selected teams and users${c.after.subjects.length ? ` (${c.after.subjects.join(', ')})` : ' (administrators and auditors only)'}`;
-  const roles = (c.roles ?? []).map((r) => `${r.subject} ${r.before ?? '–'} → ${r.after ?? '–'}`);
-  auditAccessChange({
-    action: 'access.module_access_changed',
-    entityType: 'settings',
-    entityId: `module:${c.module}`,
-    summary: `Who uses the module "${name}": ${what}${c.before.mode !== c.after.mode ? ` (was: ${c.before.mode === 'everyone' ? 'everyone signed in' : 'selected teams and users'})` : ''}${roles.length ? `; module roles ${roles.join(', ')}` : ''}`,
-    details: {
-      module: c.module,
-      mode: { before: c.before.mode, after: c.after.mode },
-      granted: c.granted,
-      removed: c.removed,
-      ...(c.roles?.length ? { roles: c.roles } : {}),
-      ...(c.via ? { via: c.via } : {}),
-    },
-  });
-}
+export { recordModuleAccessChange, type ModuleAccessChange } from './access-audit.js';
 
 /** Sets a module's access and module roles (administrators; the route asks for the step-up when it widens). Audited; nothing for no change. */
 export function setModuleAccess(id: ModuleId, input: ModuleAccessInput): ModuleAccessView {

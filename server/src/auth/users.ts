@@ -6,7 +6,10 @@ import {
   SSO_SYNCED_FIELDS,
   isLocale,
   type Locale,
+  type ModuleId,
+  type ModuleRole,
   type Role,
+  splitDeprecatedRoles as splitRoles,
   type SsoSyncRules,
   type Team,
   type UserInfo,
@@ -35,7 +38,22 @@ import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 import { forgetStaleTeamGrants, rewriteTeamReferences } from './subjects.js';
 import { revokeOAuthGrants } from '../mcp/oauth-grants.js';
 import { clientAddress } from '../rateLimits.js';
-import { setUserModuleRoles, splitDeprecatedRoles, type UserModuleRolesInput } from '../modules/user-roles.js';
+import type { UserModuleRolesInput } from '../modules/user-roles.js';
+
+/**
+ * Module roles of a person (0.23.0, ADR 0034): set by modules/user-roles.ts, which registers here – users.ts imports
+ * nothing of the module layer. Without it (never in a running server) the deprecated role "plant" stays a role, which
+ * the policy still reads as the plant registry's contributor.
+ */
+type ModuleRoleHook = (username: string, next: UserModuleRolesInput, via: 'userForm' | 'roleAlias', opts?: { raiseOnly?: boolean }) => void;
+let moduleRoleHook: ModuleRoleHook | null = null;
+export const setModuleRoleHook = (fn: ModuleRoleHook): void => {
+  moduleRoleHook = fn;
+};
+const setUserModuleRoles: ModuleRoleHook = (...args) => moduleRoleHook?.(...args);
+/** The deprecated roles split off – only while the module layer can store what they stand for. */
+const splitDeprecatedRoles = (roles: Role[]): { roles: Role[]; moduleRoles: { module: ModuleId; role: ModuleRole }[] } =>
+  moduleRoleHook ? splitRoles(roles) : { roles, moduleRoles: [] };
 
 interface UserRow {
   id: string;
