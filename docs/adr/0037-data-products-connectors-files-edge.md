@@ -88,6 +88,17 @@ Four work packages, each with its migrations prefixed by its letter:
 - **C – Object storage:** `files.path` discovery on S3, freshness and volume, stage and pipe links, file ports.
 - **D – Semantic models and previews:** Ossie documents per product with versions, sign-off, lint, drafts, drift, export and MCP; contract examples; the Kafka peek on topic elements.
 
+## Built in 0.25.0 (packages A, B, D)
+
+Phase 3, in packages ([docs/DATA-PRODUCTS.md](../DATA-PRODUCTS.md)); package C follows:
+
+- **Generic parts and bridges** (package A; part 0): the generic kinds `generic.dataset`, `generic.stream`, `generic.files` and `generic.endpoint` with technology, OpenLineage namespace and properties, the step kind `bridge`, a technology on every runner, one technology list (built in, administrators add their own) and _Convert to …_ keeping the element; migration `dataproducts-006a-generic-parts-technologies`.
+- **Connector lineage and the OpenLineage export** (package A; parts 1 and 5): an allow-list of non-secret keys in the Kafka Connect and Confluent readouts, Debezium, Snowflake and S3 sink ways proposed in the lineage inbox, _Create step from connector_ and the connector's state as the step's health; a product and each step as OpenLineage 2-0-x events, also on `/api/v1` (an unknown step answers the step's 404).
+- **Devices and systems** (package B; part 3): a plant device is the Steward system it is (_Apps on this device_, _Collects data from_, the OT network diagram), a system names its IEM device id with its status, and the installations readout feeds suggestions a person confirms; migrations `plant-032-device-system` and `catalogue-015-edge-devices`.
+- **Edge applications in data products** (package B; part 3): `mqtt.topic` – its broker the platform's url or, without one, the generic parts' editable namespace (decided at integration instead of a create-only flag) – _Create element from this sink_ and _Runs on_ for application and connector runners, so a bridge reads _Industrial Edge · Edge Stream Bridge @ ied-line-01.example (prod)_; the demo's Databus → Confluent step is a bridge.
+- **Semantic models** (package D; part 4): one Apache Ossie document per product as a governed record – every save a version with its SHA-256, lint against the vendored schemas, drift on read, sign-off by a second person, drafts from contracts, export as stored or rewritten per environment, ODPS links, MCP read and proposals, `/api/v1`; migration `dataproducts-006d-semantic-models-ropa`.
+- **Previews and Art. 30** (package D; parts 6 and 4): contract examples, masked recorded responses linked to a port and the Kafka peek on topic elements – a signed-in person's action only, never over API tokens –, no sample rows; transfers to third countries with their safeguards and the measures' reference in the Art. 30 view, its CSV and PDF.
+
 ## Security notes
 
 - Every new read is metadata only and goes through the outbound policy; S3 needs list rights on named prefixes only; the connector allow-list is tested so no secret is stored.
