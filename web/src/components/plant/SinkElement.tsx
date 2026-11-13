@@ -34,7 +34,7 @@ export function SinkElementButton({ assetId, collectionId, sink }: { assetId: st
   return (
     <>
       <Button
-        size="compact-xs"
+        size="xs"
         variant="default"
         leftSection={<IconDatabasePlus size={12} />}
         onClick={() => setOpen(true)}

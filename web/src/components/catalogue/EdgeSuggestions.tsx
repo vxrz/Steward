@@ -120,7 +120,7 @@ export function EdgeSuggestionsSection({ canRestore }: { canRestore: boolean }) 
               </Text>
             )}
             {e.dismissed > 0 && canRestore && (
-              <Button size="compact-xs" variant="subtle" onClick={() => void restore()}>
+              <Button size="xs" variant="subtle" onClick={() => void restore()}>
                 {t('edgeSuggestions.restore')}
               </Button>
             )}
