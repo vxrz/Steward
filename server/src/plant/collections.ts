@@ -1,5 +1,5 @@
 import { currentUser } from '../auth/context.js';
-import { seesEntry } from './catalogue-access.js';
+import { mayChangeAssetProfile, seesEntry } from './catalogue-access.js';
 import type { z } from 'zod';
 import YAML from 'yaml';
 import {
@@ -23,7 +23,7 @@ import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { resolveTarget } from '../records/links.js';
 import { HttpError, nowIso } from '../util.js';
-import { canManageCatalogue, requireManage } from './access.js';
+import { requireManage } from './access.js';
 import { changedKeys, collectionLinks, removeCollectionLinks } from './model.js';
 import { pruneSources } from './collections-sources.js';
 import { visibleAsset } from './service.js';
@@ -129,7 +129,8 @@ export function assetCollections(assetId: string): PlantAssetCollections {
     asset: { id: row.id, name: row.name, siteId: row.site_id },
     canManage: perms.includes('manage'),
     canPropose: perms.includes('propose'),
-    canManageCatalogue: canManageCatalogue(),
+    // 0.21.0 (#293): the Edit right on the asset's profile
+    canManageCatalogue: mayChangeAssetProfile(assetId),
     collections,
     interfaces: ctx.interfaces.map((i) => ({ id: i.id, name: i.name, protocol: i.protocol, direction: i.direction })),
     points,

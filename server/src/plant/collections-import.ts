@@ -24,7 +24,7 @@ import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
-import { catalogueEntryAccess } from './catalogue-access.js';
+import { catalogueEntryAccess, mayChangeAssetProfile } from './catalogue-access.js';
 import { canManageCatalogue, requireManage } from './access.js';
 import { changedKeys, removeCollectionLinks } from './model.js';
 import { visibleAsset } from './service.js';
@@ -430,7 +430,8 @@ export function previewCollectionImport(assetId: string, input: CollectionImport
     problems,
     warnings,
     points: p.ctx.points.map(({ aliases: _a, protocol: _p, ...x }) => x),
-    canManageCatalogue: canManageCatalogue(),
+    // 0.21.0 (#293): the Edit right on the asset's profile
+    canManageCatalogue: mayChangeAssetProfile(assetId),
   };
 }
 

@@ -407,3 +407,12 @@ export function presentEntryValues(kind: string, id: string, v: Record<string, u
   }
   return v;
 }
+
+/**
+ * Whether the caller may change the device profile an asset has (known-as names and data points a collection import
+ * adds to it): the Edit right on that profile (0.21.0); an asset without one: who may add catalogue entries.
+ */
+export function mayChangeAssetProfile(assetId: string, u: AuthUser | null = currentUser()): boolean {
+  const profileId = db().get<{ profile_id: string | null }>('SELECT profile_id FROM plant_assignments WHERE asset_id = ?', assetId)?.profile_id;
+  return profileId ? catalogueEntryAccess(u, 'device_profile', profileId).permissions.includes('edit') : canManageCatalogue(u);
+}
