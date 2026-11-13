@@ -505,6 +505,19 @@ describe('contract drafts from an element', () => {
   });
 });
 
+describe('Snowflake names in statements', () => {
+  it('upper-cases unquoted parts, keeps quoted ones, and refuses what does not belong into a statement', async () => {
+    const { snowflakeParts, snowflakeIdent } = await import('../src/dataproducts/checks/freshness.js');
+    expect(snowflakeParts('shop.sales.orders')).toEqual(['SHOP', 'SALES', 'ORDERS']);
+    expect(snowflakeParts('"Shop".SALES."Orders-2"')).toEqual(['Shop', 'SALES', 'Orders-2']);
+    expect(snowflakeParts('SHOP.SALES.ORDERS; DROP TABLE X')).toBeNull();
+    expect(snowflakeParts('A.B.C.D')).toBeNull();
+    expect(snowflakeParts('"SHOP.SALES')).toBeNull();
+    expect(snowflakeIdent('SHOP')).toBe('SHOP');
+    expect(snowflakeIdent('Shop')).toBe('"Shop"');
+  });
+});
+
 describe('the module switch', () => {
   it('reports the check unknown while the module is off', async () => {
     await s.api('PUT', '/settings/modules/dataProducts', { enabled: false });

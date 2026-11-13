@@ -158,6 +158,7 @@ export async function snowflakeFreshness(c: Check, el: ElementRow, sf: Snowflake
     case 'snowflake.schema':
     case 'snowflake.database': {
       if (el.kind === 'snowflake.schema' && parts.length !== 2) return { status: 'unknown', message: `"${el.qualified_name}" is not DATABASE.SCHEMA` };
+      if (el.kind === 'snowflake.database' && parts.length !== 1) return { status: 'unknown', message: `"${el.qualified_name}" is not a database name` };
       const [row] = await sf.query(
         `/* steward:dp-project-fresh */ SELECT COUNT(*) AS TABLES, TO_VARCHAR(MAX(LAST_ALTERED), ${ISO}) AS NEWEST, TO_VARCHAR(MIN(LAST_ALTERED), ${ISO}) AS OLDEST,
          MIN_BY(TABLE_SCHEMA || '.' || TABLE_NAME, LAST_ALTERED) AS OLDEST_NAME, COUNT_IF(LAST_ALTERED < DATEADD(minute, ?, CURRENT_TIMESTAMP())) AS STALE
