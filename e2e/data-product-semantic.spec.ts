@@ -100,6 +100,10 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(page.getByTestId('semantic-document')).toContainText('customer_email');
     // who saved it does not sign it off
     await expect(page.getByTestId('semantic-version-1').getByRole('button', { name: 'Sign off version 1' })).toHaveCount(0);
+    // … and is told why
+    await expect(page.getByTestId('semantic-version-1').getByTestId('semantic-own-version')).toHaveText(
+      'You saved or proposed this version: a second person signs it off.',
+    );
     await settle(page);
     await expectAccessible(page, 'semantic model tab');
 

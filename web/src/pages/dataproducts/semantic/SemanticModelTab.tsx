@@ -108,9 +108,17 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
                       <Text size="sm">{t('signedOff', { by: x.signOff.by, date: fmtDay(x.signOff.validFrom) })}</Text>
                     </Group>
                   ) : (
-                    <Text size="sm" c="dimmed">
-                      {t('notSignedOff')}
-                    </Text>
+                    <Stack gap={0}>
+                      <Text size="sm" c="dimmed">
+                        {t('notSignedOff')}
+                      </Text>
+                      {/* who may sign off but saved this version learns why the button is missing (four eyes) */}
+                      {v.maySignOff && own(x) && (
+                        <Text size="xs" c="dimmed" data-testid="semantic-own-version">
+                          {t('ownVersion')}
+                        </Text>
+                      )}
+                    </Stack>
                   ),
               },
               { key: 'note', header: t('note'), cell: (x) => x.note || '–' },
