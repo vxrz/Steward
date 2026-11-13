@@ -623,12 +623,24 @@ export function upsertDiscovered(
   d.tx(() => {
     // what exists: by name (the batch and its parents) and by external id (renames)
     const names = new Set<string>();
+    const kinds = new Set<string>();
     for (const e of batch) {
       names.add(elementNameNorm(e.qualifiedName));
-      if (e.parentQualifiedName) names.add(elementNameNorm(e.parentQualifiedName));
+      kinds.add(e.kind);
+      if (e.parentQualifiedName) {
+        names.add(elementNameNorm(e.parentQualifiedName));
+        for (const k of DATA_ELEMENT_KIND_DEFS[e.kind].parentKinds) kinds.add(k);
+      }
     }
     const known = new Map<string, Known>();
-    for (const r of inChunks<Known>((m) => `SELECT ${cols} FROM dp_elements WHERE platform_id = ? AND name_norm IN (${m})`, [...names], platformId))
+    // by kind and name (the index on both), so a platform with many elements is not scanned
+    const kindList = [...kinds];
+    for (const r of inChunks<Known>(
+      (m) => `SELECT ${cols} FROM dp_elements WHERE platform_id = ? AND kind IN (${marks(kindList.length)}) AND name_norm IN (${m})`,
+      [...names],
+      platformId,
+      ...kindList,
+    ))
       known.set(keyOf(r.kind, r.environment, r.name_norm), r);
     const extIds = batch.map((e) => e.externalId).filter((x): x is string => !!x);
     const byExternal = new Map<string, Known>();

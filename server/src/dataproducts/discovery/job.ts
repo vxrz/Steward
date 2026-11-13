@@ -164,7 +164,8 @@ export async function runSource(sourceId: string, opts: RunOptions): Promise<Dat
   return startRun(sourceId, opts).done;
 }
 
-const yieldToLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
+/** A turn of the event loop for everything else (a timer, so the timers phase runs between two batches). */
+const yieldToLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 async function execute(sourceId: string, runId: string, actor: string, opts: RunOptions): Promise<DataDiscoveryRun> {
   const t0 = Date.now();

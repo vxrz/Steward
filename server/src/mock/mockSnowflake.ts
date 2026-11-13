@@ -454,6 +454,13 @@ let catalogue = seedCatalogue();
 let bulk: SnowflakeCatalogueObject[] = [];
 let catalogueDatabases = [...SEEDED_DATABASES];
 let nextObjectId = 900_000;
+/** SCHEMA_IDs and DATABASE_IDs (key `#DB`), unique in the account (an object keeps its id while it exists) */
+const schemaIds = new Map<string, number>();
+const schemaId = (qualified: string): number => {
+  let id = schemaIds.get(qualified);
+  if (id === undefined) schemaIds.set(qualified, (id = 100 + schemaIds.size));
+  return id;
+};
 
 /** Every object of the discovery catalogue (the seeded ones and the bulk ones). */
 const objects = (): SnowflakeCatalogueObject[] => (bulk.length ? [...catalogue, ...bulk] : catalogue);
@@ -466,13 +473,15 @@ export function resetSnowflakeCatalogue(): void {
   statements = [];
 }
 
+/** TABLE_IDs of bulk objects: never used twice in a process (a dropped table's id is not given to another) */
+let bulkId = 2_000_000;
+
 /** For tests at scale: a database with `schemas` × `tablesPerSchema` tables (TABLE_IDs from 2,000,000). */
 export function addSnowflakeBulk(database: string, schemas: number, tablesPerSchema: number): void {
   if (!catalogueDatabases.includes(database)) catalogueDatabases.push(database);
-  let id = 2_000_000 + bulk.length;
   for (let s = 0; s < schemas; s++)
     for (let t = 0; t < tablesPerSchema; t++)
-      bulk.push({ database, schema: `S${s}`, name: `T${t}`, type: 'BASE TABLE', id: ++id, rows: t, bytes: t * 100, alteredHours: 1 });
+      bulk.push({ database, schema: `S${s}`, name: `T${t}`, type: 'BASE TABLE', id: ++bulkId, rows: t, bytes: t * 100, alteredHours: 1 });
 }
 
 /** For tests: an object renamed in Snowflake (ALTER … RENAME: the same TABLE_ID under a new name). */
@@ -500,6 +509,9 @@ export function snowflakeStatements(): { sql: string; bindings: string[] }[] {
 export function resetSnowflakeStatements(): void {
   statements = [];
 }
+
+/** Snowflake's ORDER BY on names without a collation: by code points (and quick for a large catalogue). */
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 const TABLE_KINDS = new Set(['BASE TABLE', 'VIEW', 'MATERIALIZED VIEW', 'EXTERNAL TABLE']);
 
@@ -550,19 +562,22 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
         names: ['TABLE_SCHEMA', 'TABLE_NAME', 'TABLE_TYPE', 'IS_TRANSIENT', 'ROW_COUNT', 'BYTES', 'LAST_ALTERED'],
         rows: objects()
           .filter((o) => o.database === s.database && (TABLE_KINDS.has(o.type) || o.type === 'DYNAMIC TABLE') && (!s.rest.length || s.rest.includes(o.schema)))
-          .sort((a, b) => a.schema.localeCompare(b.schema) || a.name.localeCompare(b.name))
+          .sort((a, b) => cmp(a.schema, b.schema) || cmp(a.name, b.name))
           .slice(0, limit)
           .map((o) => [o.schema, o.name, o.type === 'DYNAMIC TABLE' ? 'BASE TABLE' : o.type, o.transient ? 'YES' : 'NO', n(o.rows), n(o.bytes), ts(o.alteredHours)]),
       };
     }
     case 'dp-au-databases':
-      return { names: ['DATABASE_ID', 'DATABASE_NAME'], rows: catalogueDatabases.filter((d) => args.includes(d)).map((d, i) => [String(10 + i), d]) };
+      return {
+        names: ['DATABASE_ID', 'DATABASE_NAME'],
+        rows: catalogueDatabases.flatMap((d) => (args.includes(d) ? [[String(schemaId(`#${d}`)), d]] : [])),
+      };
     case 'dp-au-schemata': {
       const inScope = scopeOf(args);
       const seen = new Map<string, Cell[]>();
       for (const o of objects()) {
         const k = `${o.database}.${o.schema}`;
-        if (inScope(o) && !seen.has(k)) seen.set(k, [String(100 + seen.size), o.database, o.schema]);
+        if (inScope(o) && !seen.has(k)) seen.set(k, [String(schemaId(k)), o.database, o.schema]);
       }
       return { names: ['SCHEMA_ID', 'CATALOG_NAME', 'SCHEMA_NAME'], rows: [...seen.values()].slice(0, limit) };
     }
@@ -582,7 +597,7 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
         names: ['TABLE_ID', 'TABLE_CATALOG', 'TABLE_SCHEMA', 'TABLE_NAME', 'TABLE_TYPE', 'IS_TRANSIENT', 'ROW_COUNT', 'BYTES', 'LAST_ALTERED'],
         rows: objects()
           .filter((o) => (TABLE_KINDS.has(o.type) || o.type === 'DYNAMIC TABLE') && inScope(o))
-          .sort((a, b) => a.database.localeCompare(b.database) || a.schema.localeCompare(b.schema) || a.name.localeCompare(b.name))
+          .sort((a, b) => cmp(a.database, b.database) || cmp(a.schema, b.schema) || cmp(a.name, b.name))
           .slice(0, limit)
           .map((o) => [
             String(o.id),
