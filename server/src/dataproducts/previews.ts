@@ -32,7 +32,8 @@ import { bindingsOf, chunks, environmentsOf, marks, portRow, type BindingWithEle
  * - **Contract examples:** the `examples` of the properties of the data contract bound to an output port (the version it
  *   is held to) – the contract's own text, shown to who may see the contract (a hidden one is said, not shown).
  * - **Recorded responses** (#105) linked to a port: answers the platform team recorded, shown masked to who may use
- *   their platform (recordings can hold personal data; others are counted). Linking changes the product.
+ *   their platform (recordings can hold personal data; others are counted) – also the fields the bound contract marks
+ *   personal, whether or not the reader may see the contract. Linking changes the product.
  * - **The Kafka peek on elements:** the existing peek (KAFKA.md#peek) offered on `kafka.topic` elements and their
  *   bindings with its rules – the platform's managers only, off unless the platform allows it, at most 5 messages of
  *   4 KB, masked, audited without values – and it also masks the fields the contracts bound with the topic mark
@@ -151,15 +152,17 @@ export async function portPreview(productId: string, portId: string, raw: unknow
       'SELECT id, contract_key, name, current_version FROM data_contracts WHERE id = ?',
       b.contract_id,
     );
-    if (c && contractAccess(u, { id: c.id }).permissions.includes('view')) {
+    if (c) {
       const version = b.contract_version ?? Number(c.current_version);
       const doc = contractDocsOf([`${c.id}#${version}`]).get(`${c.id}#${version}`) ?? null;
-      if (doc) {
+      // its personal fields mask the recordings whoever may see the contract (masking more is safe, as the peek does)
+      if (doc) keys = personalKeys([doc]);
+      if (!contractAccess(u, { id: c.id }).permissions.includes('view')) hiddenContract = true;
+      else if (doc) {
         const ex = examplesOf(doc);
         examples = { contract: { id: c.id, key: c.contract_key, name: c.name }, version, objects: ex.objects, more: ex.more };
-        keys = personalKeys([doc]);
       }
-    } else if (c) hiddenContract = true;
+    }
   }
   const links = db().all<LinkRow>(
     `SELECT l.recording_id, l.platform_id, l.note, l.added_by, l.added_at, r.method, r.path, r.status, r.body, pl.name AS platform_name

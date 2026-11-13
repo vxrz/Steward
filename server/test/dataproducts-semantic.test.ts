@@ -470,6 +470,53 @@ describe('previews', () => {
     expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(['dataproduct.port_recording_linked', 'dataproduct.port_recording_unlinked']));
   });
 
+  it('masks a recording by the bound contract’s personal fields also for a reader who may not see the contract', async () => {
+    const platforms = (await s.api('GET', '/platforms')) as { id: string; kind: string }[];
+    const http = platforms.find((p) => p.kind !== 'snowflake' && p.kind !== 'kafka')!;
+    const tiers = (
+      await dana('POST', '/data-contracts', {
+        yaml: `apiVersion: v3.0.2
+kind: DataContract
+id: sem-tiers
+name: Semantic tiers
+version: 1.0.0
+status: active
+schema:
+  - name: tiers
+    properties:
+      - { name: total, logicalType: number }
+      - name: loyalty_tier
+        logicalType: string
+        customProperties: [{ property: personalData, value: true }]
+`,
+      })
+    ).id as string;
+    const tierPort = (await dana('POST', `/data-products/${product}/ports`, { direction: 'output', name: 'tiers', type: 'table', version: 'v1' })).id;
+    await dana('PUT', `/data-products/${product}/ports/${tierPort}/bindings/prod`, { elementIds: [table], contractId: tiers });
+    const rec = await s.api('POST', `/platforms/${http.id}/recordings`, {
+      method: 'GET',
+      path: '/tiers/{id}',
+      status: 200,
+      body: { total: 3, loyalty_tier: 'gold' },
+    });
+    await s.api('POST', `/data-products/${product}/ports/${tierPort}/recordings`, { recordingId: rec.id });
+    // Vera may use the platform, but not see the contract
+    const before = (await s.api('GET', `/access/platform/${http.id}/shares`)).shares as { subject: string; level: string; actions: string[] }[];
+    await s.api('PUT', `/access/platform/${http.id}/shares`, {
+      shares: [...before.map(({ subject, level, actions }) => ({ subject, level, actions })), { subject: 'user:vera', level: 'view', actions: ['use'] }],
+    });
+    const { db } = await import('../src/db.js');
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('contract', ?, ?, ?)", tiers, secretTeam, new Date().toISOString());
+    try {
+      const p = await vera('GET', `/data-products/${product}/ports/${tierPort}/preview?environment=prod`);
+      expect(p).toMatchObject({ hiddenContract: true, examples: null });
+      expect(p.recordings).toHaveLength(1);
+      expect(JSON.parse(p.recordings[0].body)).toEqual({ total: 3, loyalty_tier: '***' });
+    } finally {
+      db().run("DELETE FROM resource_teams WHERE kind = 'contract' AND resource_id = ?", tiers);
+    }
+  });
+
   it('peeks at a topic element: managers of the platform, masked by the bound contract, audited without values', async () => {
     const { addKafkaMessages, addKafkaTopic } = await import('../src/mock/mockKafka.js');
     addKafkaTopic('sem.orders.v1', 1);
