@@ -811,6 +811,9 @@ export interface DiscoveredElement {
   externalId?: string | null;
   flags?: Record<string, string | number | boolean>;
   readout?: Omit<DataElementReadout, 'readAt'> | null;
+  /** The OpenLineage dataset (openLineageDataset; phase 2 matches run events by it) */
+  olNamespace?: string | null;
+  olName?: string | null;
 }
 
 export interface DiscoveryUpsertResult {
@@ -863,6 +866,15 @@ export interface DataDiscoverySource {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  /** The platform's name and kind (the reader sees the platform, or the source is not listed) */
+  platformName?: string;
+  platformKind?: string;
+  /** What the reader may do: view; manage (change, delete, Read now) */
+  permissions?: ('view' | 'manage')[];
+  /** A run is going on now */
+  running?: boolean;
+  /** The newest run */
+  lastRun?: DataDiscoveryRun | null;
 }
 
 export interface DataDiscoveryRun {
@@ -879,8 +891,74 @@ export interface DataDiscoveryRun {
   removed: number;
   unchanged: number;
   truncated: boolean;
+  /**
+   * Why the run failed or stopped early, or what it could not read (a Schema Registry), in English; the web app shows
+   * errors:codes.<errorCode> with errorParams when there is a code
+   */
   error: string | null;
+  errorCode?: string | null;
+  errorParams?: Record<string, string | number | boolean | null> | null;
   actor: string;
+}
+
+/** Limits and defaults of discovery (ADR 0036 parts 5 and 19, _Performance_). */
+export const DATA_DISCOVERY_LIMITS = {
+  /** How often a source is read (minutes): at most hourly, daily by default, at least weekly */
+  intervalMinutes: { min: 60, default: 1_440, max: 10_080 },
+  /** Entries of a scope (Snowflake databases or schemas, Kafka prefixes, SQL schemas) */
+  scope: 50,
+  /** Include and exclude prefixes each */
+  prefixes: 100,
+  environmentRules: 20,
+  elementTeams: 20,
+  /**
+   * Elements written per transaction, with a yield to the event loop between batches: 250 keep one batch well below
+   * 100 ms on PostgreSQL (each statement is a hop to the database), so the event loop's lag stays below 200 ms
+   */
+  batch: 250,
+  /** A run stops after this long and says truncated */
+  timeBudgetMs: 10 * 60_000,
+  /** The Snowflake SQL API's statement timeout (seconds) */
+  statementTimeoutSeconds: 120,
+  /** Missing elements in no product are removed after this many days */
+  missingDays: 30,
+  /** Schema Registry subjects whose latest version one run reads (the others keep their last readout) */
+  registrySubjects: 2_000,
+  /** Topics described per Kafka request */
+  topicsPerRequest: 200,
+} as const;
+
+/** The scope entry that is a whole Snowflake database or a schema (`DB`, `DB.SCHEMA`; unquoted identifiers). */
+export const SNOWFLAKE_DISCOVERY_SCOPE_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}(\.[A-Za-z_][A-Za-z0-9_$]{0,254})?$/;
+
+/**
+ * The environment of a discovered element by the source's rules (part 4): the first rule whose prefix starts, or whose
+ * suffix ends, the element's root name (the Snowflake database, the SQL schema, the Kafka topic) – compared without
+ * case; plain comparisons, no patterns. No rule matches: `fallback` (the platform's environment).
+ */
+export function environmentByRules(rootName: string, rules: readonly DataEnvironmentRule[], fallback: string): string {
+  const n = rootName.trim().toLowerCase();
+  for (const r of rules) {
+    const v = r.value.trim().toLowerCase();
+    if (!v) continue;
+    if (r.match === 'prefix' ? n.startsWith(v) : n.endsWith(v)) return r.environment;
+  }
+  return fallback;
+}
+
+/**
+ * Whether a source keeps an element by its include and exclude prefixes (plain comparisons without case, no patterns):
+ * excluded when an exclude prefix starts its qualified name; with include prefixes, kept when one starts its name – or,
+ * for a container (a database, a schema), when the container leads to one (`SHOP` and `SHOP.SALES` for `SHOP.SALES.`).
+ */
+export function discoveryKeeps(qualifiedName: string, include: readonly string[], exclude: readonly string[], container = false): boolean {
+  const n = qualifiedName.trim().toLowerCase();
+  if (exclude.some((x) => x && n.startsWith(x.trim().toLowerCase()))) return false;
+  if (!include.length) return true;
+  return include.some((raw) => {
+    const x = raw.trim().toLowerCase();
+    return !x || n.startsWith(x) || (container && (x.startsWith(`${n}.`) || x === n));
+  });
 }
 
 // ---------- steps and lineage (part 9) ----------
