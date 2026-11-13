@@ -48,7 +48,9 @@
       "$ref": "#/$defs/DataProduct"
     }
   },
-  "required": ["version"],
+  "required": [
+    "version"
+  ],
   "additionalProperties": false,
   "$defs": {
     "DataDomain": {
@@ -84,7 +86,20 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": ["gray", "green", "teal", "cyan", "blue", "indigo", "violet", "grape", "pink", "yellow", "orange", "red"]
+              "enum": [
+                "gray",
+                "green",
+                "teal",
+                "cyan",
+                "blue",
+                "indigo",
+                "violet",
+                "grape",
+                "pink",
+                "yellow",
+                "orange",
+                "red"
+              ]
             },
             {
               "type": "null"
@@ -102,7 +117,10 @@
           }
         }
       },
-      "required": ["key", "name"],
+      "required": [
+        "key",
+        "name"
+      ],
       "additionalProperties": false
     },
     "DataObject": {
@@ -145,13 +163,23 @@
         },
         "lifecycle": {
           "type": "string",
-          "enum": ["draft", "active", "deprecated", "retired"]
+          "enum": [
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ]
         },
         "classification": {
           "anyOf": [
             {
               "type": "string",
-              "enum": ["public", "internal", "confidential", "strictly_confidential"]
+              "enum": [
+                "public",
+                "internal",
+                "confidential",
+                "strictly_confidential"
+              ]
             },
             {
               "type": "null"
@@ -160,7 +188,11 @@
         },
         "personal_data": {
           "type": "string",
-          "enum": ["none", "personal", "special"]
+          "enum": [
+            "none",
+            "personal",
+            "special"
+          ]
         },
         "categories": {
           "maxItems": 50,
@@ -201,7 +233,14 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": ["consent", "contract", "legalObligation", "vitalInterests", "publicTask", "legitimateInterests"]
+              "enum": [
+                "consent",
+                "contract",
+                "legalObligation",
+                "vitalInterests",
+                "publicTask",
+                "legitimateInterests"
+              ]
             },
             {
               "type": "null"
@@ -256,7 +295,9 @@
                 "type": "boolean"
               }
             },
-            "required": ["name"],
+            "required": [
+              "name"
+            ],
             "additionalProperties": false
           }
         },
@@ -354,12 +395,17 @@
                 "maxLength": 2000
               }
             },
-            "required": ["element"],
+            "required": [
+              "element"
+            ],
             "additionalProperties": false
           }
         }
       },
-      "required": ["key", "name"],
+      "required": [
+        "key",
+        "name"
+      ],
       "additionalProperties": false
     },
     "ExternalRef": {
@@ -375,7 +421,9 @@
           "pattern": "^https?:\\/\\/\\S+$"
         }
       },
-      "required": ["label", "url"],
+      "required": [
+        "url"
+      ],
       "additionalProperties": false,
       "description": "A link with a label"
     },
@@ -392,7 +440,10 @@
           "maxLength": 2000
         }
       },
-      "required": ["level", "justification"],
+      "required": [
+        "level",
+        "justification"
+      ],
       "additionalProperties": false,
       "description": "A level of the instance’s CIA scale with its justification"
     },
@@ -456,7 +507,10 @@
           "description": "An environment of Settings → Environments (empty: none)"
         }
       },
-      "required": ["kind", "qualified_name"],
+      "required": [
+        "kind",
+        "qualified_name"
+      ],
       "additionalProperties": false,
       "description": "An element of the catalogue: platform, kind, qualified name and environment"
     },
@@ -599,7 +653,10 @@
           }
         }
       },
-      "required": ["kind", "qualified_name"],
+      "required": [
+        "kind",
+        "qualified_name"
+      ],
       "additionalProperties": false
     },
     "DataProduct": {
@@ -627,7 +684,11 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": ["sourceAligned", "aggregate", "consumerAligned"]
+              "enum": [
+                "sourceAligned",
+                "aggregate",
+                "consumerAligned"
+              ]
             },
             {
               "type": "null"
@@ -688,7 +749,12 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": ["low", "medium", "high", "critical"]
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
             },
             {
               "type": "null"
@@ -730,7 +796,11 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": ["high", "medium", "low"]
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
             },
             {
               "type": "null"
@@ -791,7 +861,13 @@
         },
         "lifecycle": {
           "type": "string",
-          "enum": ["proposed", "draft", "active", "deprecated", "retired"]
+          "enum": [
+            "proposed",
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ]
         },
         "sunset_date": {
           "anyOf": [
@@ -844,7 +920,12 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": ["public", "internal", "confidential", "strictly_confidential"]
+                  "enum": [
+                    "public",
+                    "internal",
+                    "confidential",
+                    "strictly_confidential"
+                  ]
                 },
                 {
                   "type": "null"
@@ -918,10 +999,16 @@
               },
               "state": {
                 "type": "string",
-                "enum": ["planned", "available", "withdrawn"]
+                "enum": [
+                  "planned",
+                  "available",
+                  "withdrawn"
+                ]
               }
             },
-            "required": ["environment"],
+            "required": [
+              "environment"
+            ],
             "additionalProperties": false
           }
         },
@@ -937,7 +1024,11 @@
               },
               "role": {
                 "type": "string",
-                "enum": ["input", "internal", "output"]
+                "enum": [
+                  "input",
+                  "internal",
+                  "output"
+                ]
               },
               "include_descendants": {
                 "type": "boolean"
@@ -947,7 +1038,9 @@
                 "maxLength": 2000
               }
             },
-            "required": ["element"],
+            "required": [
+              "element"
+            ],
             "additionalProperties": false
           }
         },
@@ -967,7 +1060,10 @@
           }
         }
       },
-      "required": ["key", "name"],
+      "required": [
+        "key",
+        "name"
+      ],
       "additionalProperties": false
     },
     "Port": {
@@ -975,7 +1071,10 @@
       "properties": {
         "direction": {
           "type": "string",
-          "enum": ["input", "output"]
+          "enum": [
+            "input",
+            "output"
+          ]
         },
         "name": {
           "type": "string",
@@ -989,7 +1088,13 @@
         },
         "type": {
           "type": "string",
-          "enum": ["table", "topic", "api", "file", "other"]
+          "enum": [
+            "table",
+            "topic",
+            "api",
+            "file",
+            "other"
+          ]
         },
         "description": {
           "type": "string",
@@ -997,7 +1102,12 @@
         },
         "lifecycle": {
           "type": "string",
-          "enum": ["draft", "active", "deprecated", "retired"]
+          "enum": [
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ]
         },
         "sunset_date": {
           "anyOf": [
@@ -1026,7 +1136,9 @@
                   "maxLength": 60
                 }
               },
-              "required": ["name"],
+              "required": [
+                "name"
+              ],
               "additionalProperties": false
             },
             {
@@ -1071,7 +1183,10 @@
           }
         }
       },
-      "required": ["direction", "name"],
+      "required": [
+        "direction",
+        "name"
+      ],
       "additionalProperties": false
     },
     "Objectives": {
@@ -1225,7 +1340,9 @@
           "$ref": "#/$defs/Objectives"
         }
       },
-      "required": ["environment"],
+      "required": [
+        "environment"
+      ],
       "additionalProperties": false
     },
     "PortConsumer": {
@@ -1233,7 +1350,14 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["team", "user", "application", "service", "product", "text"]
+          "enum": [
+            "team",
+            "user",
+            "application",
+            "service",
+            "product",
+            "text"
+          ]
         },
         "subject": {
           "description": "kind team or user: team:<name> or user:<name>",
@@ -1285,7 +1409,12 @@
               "properties": {
                 "kind": {
                   "type": "string",
-                  "enum": ["record", "contract", "ticket", "url"]
+                  "enum": [
+                    "record",
+                    "contract",
+                    "ticket",
+                    "url"
+                  ]
                 },
                 "ref": {
                   "type": "string",
@@ -1297,7 +1426,10 @@
                   "maxLength": 200
                 }
               },
-              "required": ["kind", "ref"],
+              "required": [
+                "kind",
+                "ref"
+              ],
               "additionalProperties": false
             },
             {
@@ -1316,7 +1448,9 @@
           }
         }
       },
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false
     },
     "Step": {
@@ -1329,7 +1463,15 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["ingest", "stage", "transform", "curate", "publish", "replicate", "other"]
+          "enum": [
+            "ingest",
+            "stage",
+            "transform",
+            "curate",
+            "publish",
+            "replicate",
+            "other"
+          ]
         },
         "runner": {
           "anyOf": [
@@ -1357,14 +1499,26 @@
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": ["rename", "scale", "unit", "aggregate", "filter", "enrich", "compute", "format", "other"]
+                "enum": [
+                  "rename",
+                  "scale",
+                  "unit",
+                  "aggregate",
+                  "filter",
+                  "enrich",
+                  "compute",
+                  "format",
+                  "other"
+                ]
               },
               "text": {
                 "type": "string",
                 "maxLength": 2000
               }
             },
-            "required": ["kind", "text"],
+            "required": [
+              "kind"
+            ],
             "additionalProperties": false
           }
         },
@@ -1383,7 +1537,9 @@
           }
         }
       },
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false
     },
     "StepRunner": {
@@ -1391,7 +1547,14 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["application", "platform", "process", "element", "connector", "tool"]
+          "enum": [
+            "application",
+            "platform",
+            "process",
+            "element",
+            "connector",
+            "tool"
+          ]
         },
         "name": {
           "description": "application, platform, process: its name; connector: the connector’s name",
@@ -1419,7 +1582,9 @@
           "maxLength": 2000
         }
       },
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false
     }
   }

@@ -483,7 +483,20 @@ function normaliseProduct(p: ProductFile): void {
   for (const st of p.steps ?? []) {
     refs(st.inputs);
     refs(st.outputs);
+    if (st.runner?.kind === 'tool') st.runner = { kind: 'tool', tool: st.runner.tool ?? '', text: st.runner.text ?? '' };
+    for (const n of st.notes ?? []) n.text ??= '';
   }
+  for (const x of p.ports ?? []) for (const c of x.consumers ?? []) if (c.agreement) c.agreement.label ??= '';
+  for (const r of p.external_refs ?? []) r.label ??= '';
+}
+
+/** The same for a data object: list items an export writes without their empty values. */
+function normaliseObject(o: ObjectFile): void {
+  for (const a of o.attributes ?? []) {
+    a.description ??= '';
+    a.personal ??= false;
+  }
+  for (const r of o.external_refs ?? []) r.label ??= '';
 }
 
 const entriesOf = <T>(many: T[] | undefined, one: T | undefined): T[] => [...(many ?? []), ...(one ? [one] : [])];
@@ -610,6 +623,7 @@ function buildPlan(input: ImportInput): Plan {
     for (const [i, o] of entriesOf(f.file.data_objects, f.file.data_object).entries()) {
       if (!once(f.name, 'data_objects', o.key)) continue;
       const incoming = structuredClone(o);
+      normaliseObject(incoming);
       canonicalRefs(r, incoming, `data_objects[${i}]`, (path, message) => problems.push({ file: f.name, path, message }));
       const row = r.object(o.key) ?? null;
       let current: ObjectFile | null = null;
@@ -753,7 +767,7 @@ function writeObjects(run: Run): void {
           owner: m.owner ?? null,
           stewards: m.stewards ?? [],
           custodians: m.custodians ?? [],
-          externalRefs: m.external_refs ?? [],
+          externalRefs: (m.external_refs ?? []).map((x) => ({ label: x.label ?? '', url: x.url })),
         };
         const o = e.row ? svc.updateObject(e.row.id, body) : svc.createObject(body);
         r.objectIds.set(m.key, o.id);
@@ -876,7 +890,7 @@ function productBody(r: Resolver, e: Entry<ProductFile, ProductRow>, withSuccess
     valueCurrency: m.value_currency ?? null,
     successorId,
     tags: m.tags ?? [],
-    externalRefs: m.external_refs ?? [],
+    externalRefs: (m.external_refs ?? []).map((x) => ({ label: x.label ?? '', url: x.url })),
   };
 }
 
@@ -1131,7 +1145,7 @@ function writeProducts(run: Run): void {
           runner: runnerInput(r, x.runner, rowRunner),
           schedule: x.schedule ?? '',
           description: x.description ?? '',
-          notes: x.notes ?? [],
+          notes: (x.notes ?? []).map((n) => ({ kind: n.kind, text: n.text ?? '' })),
           inputs: (x.inputs ?? []).map((ref) => r.elementId(ref)),
           outputs: (x.outputs ?? []).map((ref) => r.elementId(ref)),
         };

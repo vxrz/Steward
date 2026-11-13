@@ -88,7 +88,7 @@ const httpUrl = () =>
     .max(L.url)
     .regex(/^https?:\/\/\S+$/i, 'an http(s) address');
 const externalRef = z
-  .object({ label: text(L.short), url: httpUrl() })
+  .object({ label: text(L.short).optional(), url: httpUrl() })
   .strict()
   .meta({ id: 'ExternalRef', description: 'A link with a label' });
 const externalRefs = () => z.array(externalRef).max(L.externalRefs).describe('Links: a wiki page, a catalogue entry (a DataHub URN as a URL), a repository');
@@ -311,7 +311,7 @@ const stepSchema = z
     schedule: text(L.short).optional(),
     description: text(L.description).optional(),
     notes: z
-      .array(z.object({ kind: z.enum(DATA_TRANSFORM_KINDS), text: text() }).strict())
+      .array(z.object({ kind: z.enum(DATA_TRANSFORM_KINDS), text: text().optional() }).strict())
       .max(L.transformNotes)
       .optional(),
     inputs: z.array(elementRefSchema).max(L.stepEnds).optional(),
