@@ -3695,6 +3695,12 @@ export interface Resources {
     'conditions.noSchedules': string;
     'conditions.bands': string;
     'conditions.bandsHint': string;
+    'conditions.bandFrom': string;
+    'conditions.bandFromPlaceholder': string;
+    'conditions.bandPercent': string;
+    'conditions.bandRemove': string;
+    'conditions.bandAdd': string;
+    'conditions.noBooks': string;
     'conditions.validFrom': string;
     'conditions.validTo': string;
     'conditions.note': string;

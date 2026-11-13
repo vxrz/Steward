@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { ActionIcon, Anchor, Autocomplete, Badge, Button, Group, Input, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -18,6 +18,8 @@ import {
   type CostConditionScope,
   type CostConditionView,
   type CostContractConditions,
+  type CostPriceBook,
+  type CostPriceBookDetail,
 } from '@sm/shared';
 import { get, isUnavailable, notifyError, notifyOk, put } from '../../api';
 import { ApiError } from '../../apiError';
@@ -192,12 +194,29 @@ interface Row {
   block: 1 | 1000 | 1000000;
   currency: string;
   unit: string;
-  bands: string;
+  bands: Band[];
   scheduleId: string | null;
   validFrom: string;
   validTo: string;
   note: string;
 }
+
+/** A band of a commitment as typed: the committed amount per year from which the percentage applies. */
+interface Band {
+  from: string;
+  percent: string;
+}
+
+/** The bands in the short form of 0.23.0's first dialog – "0:0;100000:15;500000:25" – still read when pasted. */
+export const parseBands = (text: string): Band[] =>
+  text
+    .split(';')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => {
+      const at = x.indexOf(':');
+      return { from: at < 0 ? x : x.slice(0, at).trim(), percent: at < 0 ? '' : x.slice(at + 1).trim() };
+    });
 
 const rowOf = (c: CostCondition): Row => ({
   id: c.id,
@@ -211,7 +230,7 @@ const rowOf = (c: CostCondition): Row => ({
   block: c.block,
   currency: c.currency ?? 'USD',
   unit: c.unit ?? '',
-  bands: (c.bands ?? []).map((b) => `${b.from}:${b.percent}`).join(';'),
+  bands: (c.bands ?? []).map((b) => ({ from: b.from, percent: b.percent })),
   scheduleId: c.scheduleId,
   validFrom: c.validFrom ?? '',
   validTo: c.validTo ?? '',
@@ -228,14 +247,7 @@ const inputOf = (r: Row): CostConditionInput => {
   if (r.kind === 'negotiatedPrice') return { ...base, ...valid, priceId: r.priceId.trim(), price: decimalText(r.price), block: r.block, currency: r.currency };
   if (r.kind === 'feePerUnit') return { ...base, ...valid, price: decimalText(r.price), block: r.block, currency: r.currency, unit: r.unit.trim() };
   if (r.kind === 'fixedFee') return { ...base, ...valid, price: decimalText(r.price), currency: r.currency };
-  const bands = r.bands
-    .split(';')
-    .map((x) => x.trim())
-    .filter(Boolean)
-    .map((x) => {
-      const at = x.indexOf(':');
-      return { from: decimalText(at < 0 ? x : x.slice(0, at)), percent: at < 0 ? '' : decimalText(x.slice(at + 1)) };
-    });
+  const bands = r.bands.filter((b) => b.from.trim() || b.percent.trim()).map((b) => ({ from: decimalText(b.from), percent: decimalText(b.percent) }));
   return { ...base, ...valid, bands, scheduleId: r.scheduleId };
 };
 
@@ -296,6 +308,10 @@ export function ConditionsDialog({
 }) {
   const { t } = useTranslation('costs');
   const [rows, setRows] = useState<Row[]>(() => initial.map(rowOf));
+  // the books the person sees: their providers to pick from, a book as the target, the targets of its items
+  const booksQ = useQuery({ queryKey: ['costs', 'price-books'], queryFn: () => get<CostPriceBook[]>('/costs/price-books') });
+  const books = useMemo(() => booksQ.data ?? [], [booksQ.data]);
+  const providers = useMemo(() => [...new Set(books.map((b) => b.provider))].sort((a, b) => a.localeCompare(b)), [books]);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -330,7 +346,7 @@ export function ConditionsDialog({
         block: 1,
         currency: 'USD',
         unit: '',
-        bands: '',
+        bands: [{ from: '0', percent: '' }],
         scheduleId: schedules[0]?.id ?? null,
         validFrom: '',
         validTo: '',
@@ -393,11 +409,13 @@ export function ConditionsDialog({
                       data-testid={`condition-${i}-kind`}
                       error={err(i, 'kind')}
                     />
-                    <TextInput
+                    <Autocomplete
                       label={t('conditions.provider')}
+                      data={providers}
                       value={r.provider}
                       required
-                      onChange={(e) => set(i, { provider: e.currentTarget.value })}
+                      onChange={(v) => set(i, { provider: v })}
+                      comboboxProps={{ withinPortal: true }}
                       data-testid={`condition-${i}-provider`}
                       error={err(i, 'provider')}
                     />
@@ -426,14 +444,7 @@ export function ConditionsDialog({
                 </Group>
                 <SimpleGrid cols={{ base: 1, sm: 3 }}>
                   {r.on !== 'provider' && (
-                    <TextInput
-                      label={t(`conditions.targets.${r.on}`)}
-                      value={r.target}
-                      required
-                      onChange={(e) => set(i, { target: e.currentTarget.value })}
-                      data-testid={`condition-${i}-target`}
-                      error={err(i, 'target')}
-                    />
+                    <TargetField row={r} books={books} onChange={(target) => set(i, { target })} testId={`condition-${i}-target`} error={err(i, 'target')} />
                   )}
                   {(r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') && (
                     <TextInput
@@ -496,14 +507,7 @@ export function ConditionsDialog({
                         description={schedules.length ? undefined : t('conditions.noSchedules')}
                         error={err(i, 'scheduleId')}
                       />
-                      <TextInput
-                        label={t('conditions.bands')}
-                        description={t('conditions.bandsHint')}
-                        value={r.bands}
-                        required
-                        onChange={(e) => set(i, { bands: e.currentTarget.value })}
-                        error={err(i, 'bands')}
-                      />
+                      <BandsEditor bands={r.bands} n={i} onChange={(bands) => set(i, { bands })} error={err(i, 'bands')} />
                     </>
                   )}
                   <TextInput
@@ -546,5 +550,131 @@ export function ConditionsDialog({
         </Stack>
       </form>
     </FormModal>
+  );
+}
+
+const norm = (x: string) => x.trim().toLowerCase();
+
+/**
+ * What a condition is for: a book of the provider to pick, or a service, category, driver or item – typed, with the
+ * ones the provider's books name as suggestions (the first page of up to five books).
+ */
+function TargetField({
+  row,
+  books,
+  onChange,
+  testId,
+  error,
+}: {
+  row: Row;
+  books: CostPriceBook[];
+  onChange: (target: string) => void;
+  testId: string;
+  error?: string;
+}) {
+  const { t } = useTranslation('costs');
+  const mine = books.filter((b) => norm(b.provider) === norm(row.provider));
+  const suggest = row.on !== 'book' && row.on !== 'provider';
+  const details = useQueries({
+    queries: mine.slice(0, 5).map((b) => ({
+      queryKey: ['costs', 'price-books', b.id, 'targets'],
+      queryFn: () => get<CostPriceBookDetail>(`/costs/price-books/${encodeURIComponent(b.id)}`),
+      staleTime: 60_000,
+      enabled: suggest,
+    })),
+  });
+  const items = details.flatMap((d) => d.data?.items ?? []);
+  const field = (e: (typeof items)[number]) => (row.on === 'item' ? e.sku : row.on === 'service' ? e.service : row.on === 'category' ? e.category : e.driver);
+  const options = suggest ? [...new Set(items.map(field).filter(Boolean))].sort((a, b) => a.localeCompare(b)).slice(0, 200) : [];
+  const label = t(`conditions.targets.${row.on as 'book'}`);
+  if (row.on === 'book') {
+    const data = mine.map((b) => ({ value: b.id, label: `${b.name} (${t(`prices.kinds.${b.kind}`)})` }));
+    if (row.target && !data.some((d) => d.value === row.target)) data.unshift({ value: row.target, label: row.target });
+    return (
+      <Select
+        label={label}
+        data={data}
+        value={row.target || null}
+        onChange={(v) => onChange(v ?? '')}
+        searchable
+        required
+        nothingFoundMessage={t('conditions.noBooks')}
+        comboboxProps={{ withinPortal: true }}
+        data-testid={testId}
+        error={error}
+      />
+    );
+  }
+  return (
+    <Autocomplete
+      label={label}
+      data={options}
+      value={row.target}
+      required
+      onChange={onChange}
+      comboboxProps={{ withinPortal: true }}
+      data-testid={testId}
+      error={error}
+    />
+  );
+}
+
+/** The bands of a commitment, a row each: from a committed amount per year, a percentage off (the short form pasted is read). */
+function BandsEditor({ bands, n, onChange, error }: { bands: Band[]; n: number; onChange: (b: Band[]) => void; error?: string }) {
+  const { t } = useTranslation('costs');
+  const setBand = (i: number, patch: Partial<Band>) => {
+    // "0:0;100000:15" pasted into a field: the bands of the short form
+    const text = patch.from ?? patch.percent ?? '';
+    if (/[:;]/.test(text)) return onChange(parseBands(text));
+    onChange(bands.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  };
+  return (
+    <Input.Wrapper label={t('conditions.bands')} description={t('conditions.bandsHint')} error={error} required data-testid={`condition-${n}-bands`}>
+      <Stack gap={4} mt={4}>
+        {bands.map((b, i) => (
+          <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
+            <TextInput
+              aria-label={t('conditions.bandFrom', { n: i + 1 })}
+              placeholder={t('conditions.bandFromPlaceholder')}
+              inputMode="decimal"
+              value={b.from}
+              onChange={(e) => setBand(i, { from: e.currentTarget.value })}
+              error={!!error}
+              style={{ flex: 2, minWidth: 0 }}
+            />
+            <TextInput
+              aria-label={t('conditions.bandPercent', { n: i + 1 })}
+              placeholder="%"
+              inputMode="decimal"
+              value={b.percent}
+              onChange={(e) => setBand(i, { percent: e.currentTarget.value })}
+              error={!!error}
+              rightSection="%"
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="lg"
+              aria-label={t('conditions.bandRemove', { n: i + 1 })}
+              onClick={() => onChange(bands.filter((_, j) => j !== i))}
+            >
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Group>
+        ))}
+        <Group>
+          <Button
+            size="xs"
+            variant="subtle"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => onChange([...bands, { from: '', percent: '' }])}
+            disabled={bands.length >= COST_CONDITION_LIMITS.bands}
+          >
+            {t('conditions.bandAdd')}
+          </Button>
+        </Group>
+      </Stack>
+    </Input.Wrapper>
   );
 }

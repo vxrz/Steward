@@ -1292,7 +1292,13 @@
     "schedule": "Volumenplan",
     "noSchedules": "Dieser Vertrag hat noch keinen Volumenplan – fügen Sie einen unter Zahlungen hinzu.",
     "bands": "Stufen",
-    "bandsHint": "Zugesagter Betrag je Jahr und Prozentsatz: 0:0;100000:15;500000:25",
+    "bandsHint": "Ab einem zugesagten Betrag je Jahr ein Prozentsatz Nachlass – die höchste erreichte Stufe zählt (die Kurzform 0:0;100000:15 kann eingefügt werden)",
+    "bandFrom": "Zugesagter Betrag je Jahr, Stufe {{n}}",
+    "bandFromPlaceholder": "Ab (je Jahr)",
+    "bandPercent": "Prozentsatz, Stufe {{n}}",
+    "bandRemove": "Stufe {{n}} entfernen",
+    "bandAdd": "Stufe hinzufügen",
+    "noBooks": "Kein Buch dieses Anbieters",
     "validFrom": "Gültig ab",
     "validTo": "Gültig bis",
     "note": "Notiz",
@@ -1328,7 +1334,7 @@
       "item": "Ein Artikel"
     },
     "targets": {
-      "book": "Buch-ID",
+      "book": "Buch",
       "category": "Kategorie",
       "service": "Dienst",
       "driver": "Bezugsgröße",

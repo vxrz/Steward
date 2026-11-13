@@ -1292,7 +1292,13 @@
     "schedule": "Volume schedule",
     "noSchedules": "This contract has no volume schedule yet – add one under Payments.",
     "bands": "Bands",
-    "bandsHint": "Committed amount per year and percentage: 0:0;100000:15;500000:25",
+    "bandsHint": "From a committed amount per year, a percentage off – the highest band reached counts (the short form 0:0;100000:15 can be pasted)",
+    "bandFrom": "Committed amount per year, band {{n}}",
+    "bandFromPlaceholder": "From (per year)",
+    "bandPercent": "Percentage, band {{n}}",
+    "bandRemove": "Remove band {{n}}",
+    "bandAdd": "Add band",
+    "noBooks": "No book of this provider",
     "validFrom": "Valid from",
     "validTo": "Valid to",
     "note": "Note",
@@ -1328,7 +1334,7 @@
       "item": "One item"
     },
     "targets": {
-      "book": "Book id",
+      "book": "Book",
       "category": "Category",
       "service": "Service",
       "driver": "Driver",

@@ -110,7 +110,22 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   if (mobile) await expectNoHorizontalScroll(page);
   if (!mobile) {
     await prices.getByTestId('contract-prices-edit').click();
+    // the target suggests what the provider's books name; a book is picked from them
+    await page.getByTestId('condition-0-target').fill('Netw');
+    await expect(page.getByRole('option', { name: 'Network', exact: true })).toBeVisible();
+    await page.getByTestId('condition-0-target').fill('Compute');
+    await page.getByTestId('conditions-form').getByText('The most specific condition wins').click();
     await page.getByTestId('condition-add').click();
+    // a commitment's bands, a row each – the short form pasted is read into rows
+    await page.getByTestId('condition-4-kind').click();
+    await page.getByRole('option', { name: 'Commitment', exact: true }).click();
+    const bands = page.getByTestId('condition-4-bands');
+    await bands.getByRole('textbox', { name: 'Committed amount per year, band 1' }).fill('0:0;100000:15');
+    await expect(bands.getByRole('textbox', { name: 'Committed amount per year, band 2' })).toHaveValue('100000');
+    await expect(bands.getByRole('textbox', { name: 'Percentage, band 2' })).toHaveValue('15');
+    await expectAccessible(page, 'contract prices: a commitment with its bands');
+    await page.getByTestId('condition-4-kind').click();
+    await page.getByRole('option', { name: 'Percent off list', exact: true }).click();
     // saving without a percentage: the form marks the field in plain words and puts the focus there
     await page.getByTestId('conditions-save').click();
     await expect(page.getByTestId('condition-4-percent')).toHaveAttribute('aria-invalid', 'true');
