@@ -53,7 +53,7 @@ const invalid = (where: string, problem: string, index?: number) =>
     `Not an OpenLineage 2-0-x event${index !== undefined ? ` (event ${index + 1})` : ''}: ${where ? `${where}: ` : ''}${problem}`,
     'DATA_LINEAGE_EVENT_INVALID',
     {
-      where: where.slice(0, 200),
+      where: (where || 'body').slice(0, 200),
       ...(index !== undefined ? { index: index + 1 } : {}),
     },
   );

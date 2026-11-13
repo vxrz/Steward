@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { SegmentedControl, Stack, Text } from '@mantine/core';
+import { Badge, Group, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useSearchParams } from 'react-router-dom';
 import { IconBuildingFactory2 } from '@tabler/icons-react';
 import { DATA_GRAPH_LIMITS, type DataGraphEdge, type DataGraphNode, type DataLineageView } from '@sm/shared';
@@ -102,9 +102,16 @@ function LineageGraph({ view, depth, onDepth }: { view: DataLineageView; depth: 
             key: s.id || `hidden-${i}`,
             cells: [
               <Stack gap={0} key="n">
-                <Text size="sm" fw={500} fs={s.hidden ? 'italic' : undefined}>
-                  {s.hidden ? t('hidden.step') : s.name}
-                </Text>
+                <Group gap={6} wrap="nowrap">
+                  <Text size="sm" fw={500} fs={s.hidden ? 'italic' : undefined}>
+                    {s.hidden ? t('hidden.step') : s.name}
+                  </Text>
+                  {s.proposed && (
+                    <Badge size="xs" variant="outline" color="gray" tt="none" data-testid="lineage-step-proposed">
+                      {t('edge.proposed')}
+                    </Badge>
+                  )}
+                </Group>
                 <Text size="xs" c="dimmed">
                   {t(`stepKinds.${s.kind}`)}
                 </Text>
@@ -122,7 +129,22 @@ function LineageGraph({ view, depth, onDepth }: { view: DataLineageView; depth: 
           }))}
         />
       }
-      legend={<LegendItem mark={<IconBuildingFactory2 size={14} />}>{t('legend.plant')}</LegendItem>}
+      legend={
+        <>
+          <LegendItem mark={<IconBuildingFactory2 size={14} />}>{t('legend.plant')}</LegendItem>
+          {view.steps.some((x) => x.proposed) && <LegendItem mark={<ProposedMark />}>{t('legend.proposed')}</LegendItem>}
+        </>
+      }
     />
+  );
+}
+
+/** The legend's mark of a proposed way: the dotted line of the picture (0.24.0). */
+function ProposedMark() {
+  return (
+    <svg width={34} height={10} viewBox="0 0 34 10" aria-hidden>
+      <path d="M1 5 H27" className="pv-edge-base" data-proposed strokeWidth={2} />
+      <path d="M27 1 L33 5 L27 9 Z" fill="var(--pv-edge)" />
+    </svg>
   );
 }

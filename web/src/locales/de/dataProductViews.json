@@ -78,7 +78,8 @@
     "step": "Ein Schritt mit vielen Ein- und Ausgängen",
     "deprecated": "Nutzt einen abgekündigten oder außer Betrieb genommenen Port",
     "neighbour": "Außerhalb der Filter, mit einem Treffer verbunden",
-    "plant": "Eine Datenerfassung der Anlagendokumentation, die in ein Element schreibt"
+    "plant": "Eine Datenerfassung der Anlagendokumentation, die in ein Element schreibt",
+    "proposed": "Von einem Werkzeug vorgeschlagen, noch nicht dokumentiert (gepunktet) – Daten → Erkennung entscheidet"
   },
   "table": {
     "filter": "Tabelle filtern",
@@ -168,7 +169,8 @@
     "more_other": "{{names}} und {{count}} weitere",
     "count_one": "{{count}} Schritt",
     "count_other": "{{count}} Schritte",
-    "deprecated": "Abgekündigt"
+    "deprecated": "Abgekündigt",
+    "proposed": "Vorgeschlagen"
   },
   "health": {
     "up": "OK",

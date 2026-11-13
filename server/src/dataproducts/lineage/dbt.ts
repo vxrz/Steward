@@ -77,7 +77,7 @@ const invalid = (file: 'manifest' | 'runResults', where: string, problem: string
     'DATA_LINEAGE_DBT_INVALID',
     {
       context: file,
-      where: where.slice(0, 200),
+      where: (where || 'body').slice(0, 200),
     },
   );
 

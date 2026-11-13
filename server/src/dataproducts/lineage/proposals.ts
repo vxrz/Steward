@@ -235,6 +235,8 @@ function auditProduct(u: AuthUser, outputs: readonly string[]): { id: string; na
 export function acceptProposal(id: string, body: unknown): DataLineageProposal {
   const { row, u, view } = visibleProposal(id);
   const input = dataLineageAcceptInput.parse(body ?? {});
+  // who may not decide learns nothing about its state
+  if (view.cannotAccept === 'notAllowed') forbid('accept this proposal', 'dataLineageProposal');
   if (row.status === 'documented' || row.status === 'accepted')
     throw new HttpError(409, 'The steps say this already', 'DATA_LINEAGE_PROPOSAL_DECIDED', { status: row.status });
   if (view.cannotAccept === 'noOutputs')
@@ -243,7 +245,6 @@ export function acceptProposal(id: string, body: unknown): DataLineageProposal {
     throw new HttpError(403, 'The proposal names elements you may not see – someone who sees them all accepts it', 'DATA_LINEAGE_ENDS_HIDDEN', {
       count: view.hiddenInputs + view.hiddenOutputs,
     });
-  if (view.cannotAccept === 'notAllowed') forbid('accept this proposal', 'dataLineageProposal');
   const inputs = view.inputs.map((e) => e.id);
   const outputs = view.outputs.map((e) => e.id);
   const now = nowIso();
@@ -340,9 +341,13 @@ export function acceptProposal(id: string, body: unknown): DataLineageProposal {
 
 /** Rejects a proposal: it stays rejected until the tool names other datasets for the job. */
 export function rejectProposal(id: string): DataLineageProposal {
-  const { row, u, view } = visibleProposal(id);
+  const { row, u, source } = visibleProposal(id);
+  // who manages the source, or may change what the job writes (as for accepting) – asked before its state is told
+  const outputs = proposalEnds([row.id])
+    .filter((e) => e.direction === 'out')
+    .map((e) => e.element_id);
+  if (!source.manage && !canEditStep(u, outputs)) forbid('reject this proposal', 'dataLineageProposal');
   if (row.status !== 'open') throw new HttpError(409, 'Only an open proposal can be rejected', 'DATA_LINEAGE_PROPOSAL_DECIDED', { status: row.status });
-  if (!view.canReject) forbid('reject this proposal', 'dataLineageProposal');
   const now = nowIso();
   db().tx(() => {
     // a proposal that had become a step and changed: rejecting keeps the step as it is (and the proposal accepted)

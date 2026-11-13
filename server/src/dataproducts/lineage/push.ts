@@ -151,21 +151,25 @@ const asResponse = (e: HttpError): PushResponse => ({
   body: { error: e.message, ...(e.code ? { code: e.code } : {}), ...(e.params ? { params: e.params } : {}) },
 });
 
+const notJson = (message: string, file: PushHead['file']) =>
+  file === 'openlineage'
+    ? new HttpError(400, message, 'DATA_LINEAGE_EVENT_INVALID', { where: 'body' })
+    : new HttpError(400, message, 'DATA_LINEAGE_DBT_INVALID', { where: 'body', context: file === 'manifest' ? 'manifest' : 'runResults' });
+
 function parseBody(raw: Buffer | undefined, file: PushHead['file']): unknown {
   const text = (raw ?? Buffer.alloc(0)).toString('utf8');
-  if (!text.trim())
-    throw new HttpError(400, 'The body is empty', file === 'openlineage' ? 'DATA_LINEAGE_EVENT_INVALID' : 'DATA_LINEAGE_DBT_INVALID', { where: '' });
+  if (!text.trim()) throw notJson('The body is empty', file);
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new HttpError(400, 'The body is not JSON', file === 'openlineage' ? 'DATA_LINEAGE_EVENT_INVALID' : 'DATA_LINEAGE_DBT_INVALID', { where: '' });
+    throw notJson('The body is not JSON', file);
   }
 }
 
 /** The source of a verified token, refused when it is paused or of the other kind. */
 function sourceFor(token: VerifiedLineageToken, file: PushHead['file']): LineageSourceRow {
   const src = lineageSourceRow(token.sourceId);
-  if (!src) throw new HttpError(404, 'Not found', 'NOT_FOUND');
+  if (!src) throw new HttpError(404, `Lineage source ${token.sourceId} not found`, 'DATA_LINEAGE_SOURCE_NOT_FOUND', { id: token.sourceId });
   if (!Number(src.enabled)) throw new HttpError(409, `Lineage source "${src.name}" is paused`, 'DATA_LINEAGE_SOURCE_PAUSED', { name: src.name });
   const wants = file === 'openlineage' ? 'openlineage' : 'dbt';
   if (src.kind !== wants)

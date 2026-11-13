@@ -76,6 +76,8 @@ export function graphText(t: T): GraphText {
     const more = e.count - e.labels.length;
     const names = e.labels.join(', ');
     const text = more > 0 ? (names ? t('edge.more', { names, count: more }) : t('edge.count', { count: e.count })) : names;
+    // 0.24.0: a way a lineage source proposes, not documented yet
+    if (e.proposed) return [t('edge.proposed'), text].filter(Boolean).join(' · ');
     return e.deprecated ? [t('edge.deprecated'), text].filter(Boolean).join(' · ') : text;
   };
   const edgeAria = (e: DataGraphEdge, name: (id: string) => string): string =>
