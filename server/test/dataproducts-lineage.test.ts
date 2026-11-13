@@ -374,6 +374,9 @@ describe('the inbox of proposed steps', () => {
     await dana('POST', `/data-products/lineage-proposals/${p.id}/accept`);
     expect(((await stepOf()).inputs as string[]).sort()).toEqual([customers.id, staged.id].sort());
     expect((await dana('GET', `/data-products/lineage-proposals/${p.id}`)).status).toBe('accepted');
+    // the step deleted: the proposal waits for a decision again
+    await dana('DELETE', `/data-products/${c360}/steps/${accepted.stepId}`);
+    expect(await dana('GET', `/data-products/lineage-proposals/${p.id}`)).toMatchObject({ status: 'open', stepId: null, canAccept: true });
   });
 
   it('rejects for good until the job names other datasets', async () => {

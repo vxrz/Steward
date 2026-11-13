@@ -255,6 +255,8 @@ export function deleteStep(productId: string, productName: string, stepId: strin
   db().tx(() => {
     db().run('DELETE FROM dp_step_elements WHERE step_id = ?', row.id);
     db().run('DELETE FROM dp_check_links WHERE step_id = ?', row.id);
+    // 0.24.0: a proposal that became this step, or that it documented, waits for a decision again
+    db().run("UPDATE dp_lineage_proposals SET status = 'open', step_id = NULL, changed = 0 WHERE step_id = ?", row.id);
     db().run('DELETE FROM dp_steps WHERE id = ?', row.id);
     audit({
       action: 'dataproduct.step_removed',

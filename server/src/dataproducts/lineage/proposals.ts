@@ -117,8 +117,11 @@ function toProposal(
   const hiddenInputs = ins.length - inputs.length;
   const hiddenOutputs = outs.length - outputs.length;
   // may change the products of the outputs (any of them, as canEditStep), or – outside products – every output
+  // as steps.canEditStep: outputs in products – who may change one of those products; else who may change every output
+  const inProducts = outs.some((o) => v.productsOf.has(o));
   const mayChange =
-    outs.length > 0 && (outs.some((o) => (v.productsOf.get(o) ?? []).some((pid) => v.editable.has(pid))) || outs.every((o) => v.editable.has(`element:${o}`)));
+    outs.length > 0 &&
+    (inProducts ? outs.some((o) => (v.productsOf.get(o) ?? []).some((pid) => v.editable.has(pid))) : outs.every((o) => v.editable.has(`element:${o}`)));
   const cannotAccept: DataLineageProposal['cannotAccept'] = !outs.length
     ? 'noOutputs'
     : hiddenInputs + hiddenOutputs
@@ -284,7 +287,8 @@ export function acceptProposal(id: string, body: unknown): DataLineageProposal {
         details: { stepId: existing.id, proposalId: row.id, inputs: ins.length, outputs: outs.length },
       });
     } else {
-      // the step limit of the products its outputs belong to
+      // the step's right, as when it is written by hand (decision 16), and the step limit of the products of its outputs
+      if (!canEditStep(u, outputs)) forbid('accept this proposal', 'dataLineageProposal');
       for (const pid of new Set(membershipsOfElements(outputs).map((m) => m.product_id))) {
         const members = membersOf([pid]).map((m) => m.element_id);
         if (stepsOfElements(members).steps.length >= L.stepsPerPipeline) throw limitReached('stepsPerPipeline', L.stepsPerPipeline);
