@@ -5022,6 +5022,7 @@ export interface Resources {
     'codes.FORBIDDEN_right_run': string;
     'codes.FORBIDDEN_right_use': string;
     'codes.FORBIDDEN_right_manage': string;
+    'codes.FORBIDDEN_nameOutside': string;
     'codes.FORBIDDEN_right_approve': string;
     'codes.FORBIDDEN_right_acknowledge': string;
     'codes.FORBIDDEN_right_delete': string;
@@ -14372,6 +14373,7 @@ export interface Resources {
     'hub.tabs.scorecard': string;
     'hub.tabs.costs': string;
     'hub.tabs.responsibilities': string;
+    'hub.tabs.access': string;
     'hub.archivedScorecard': string;
     'hub.systems.title': string;
     'hub.systems.help': string;

@@ -7,7 +7,8 @@ import { aliasTarget, teamAliasTarget } from './aliases.js';
 import { requireStepUp } from './assurance.js';
 import type { StepUpRule } from './step-up.js';
 import type { StepUpAction } from '@sm/shared';
-import { catalogueTeams, newResourceTeams, type CatalogueKind, type OwningTeam } from './policy.js';
+import { SHARED_CATALOGUE_KINDS, catalogueAccess, catalogueTeams, newResourceTeams, type CatalogueKind, type OwningTeam } from './policy.js';
+import { isRestricted } from './share-store.js';
 
 /**
  * Owners and responsible people from outside the owning teams (#195, docs/TEAMS.md#named-owners-and-responsibles).
@@ -44,10 +45,11 @@ function userIdOf(name: string): string | undefined {
 
 /**
  * The subjects of `after` that `before` does not have and that are not covered by `teams` (the item's owning teams).
- * Empty for an item without owning teams.
+ * Empty for an item without owning teams – unless it is Restricted (ADR 0033): then nobody is covered by a team, and
+ * every new subject gains access.
  */
-export function uncoveredSubjects(teams: readonly OwningTeam[], before: readonly string[], after: readonly string[]): string[] {
-  if (!teams.length) return [];
+export function uncoveredSubjects(teams: readonly OwningTeam[], before: readonly string[], after: readonly string[], restricted = false): string[] {
+  if (!teams.length && !restricted) return [];
   const had = new Set(before.map(norm));
   const ids = new Set(teams.map((t) => t.id));
   const out: string[] = [];
@@ -65,7 +67,9 @@ export function uncoveredSubjects(teams: readonly OwningTeam[], before: readonly
       continue;
     }
     const uid = userIdOf(name);
-    const member = !!uid && !!db().get(`SELECT 1 FROM team_members WHERE user_id = ? AND team_id IN (${[...ids].map(() => '?').join(', ')})`, uid, ...ids);
+    // a Restricted item without teams: nobody is a member (and PostgreSQL refuses an empty IN list)
+    const member =
+      !!uid && ids.size > 0 && !!db().get(`SELECT 1 FROM team_members WHERE user_id = ? AND team_id IN (${[...ids].map(() => '?').join(', ')})`, uid, ...ids);
     if (!member) out.push(raw);
   }
   return out.sort();
@@ -89,25 +93,42 @@ export interface NamedGrant {
   rights: readonly string[];
   /** More details for the audit entry, e.g. the contract of a supplier */
   details?: Record<string, unknown>;
+  /** The item is Restricted (ADR 0033): without owning teams, every new subject is from outside */
+  restricted?: boolean;
+  /**
+   * Whether the author may name subjects from outside (ADR 0033 decision 3: Manage on the item); false refuses them
+   * (403 FORBIDDEN, context nameOutside). Left out: the kind's editors may, as before shares
+   */
+  mayGrant?: boolean;
 }
 
-/** The subjects a grant adds from outside the owning teams (the routes' step-up rules). */
-export const outsidersOf = (g: NamedGrant): string[] => uncoveredSubjects(g.teams, g.before, g.after);
+/**
+ * The subjects a grant adds from outside the owning teams (the routes' step-up rules). None when the author may not
+ * name outsiders at all: the service refuses them (requireNamedGrant), so nobody confirms a change that is refused.
+ */
+export const outsidersOf = (g: NamedGrant): string[] => (g.mayGrant === false ? [] : uncoveredSubjects(g.teams, g.before, g.after, g.restricted));
 
 /**
  * The owners of a service, application, system or supplier a change names: with the item's teams (an application's
  * own, else those of its services), or – for a new item – those it gets from its creator (a new supplier gets none).
  */
 export function catalogueGrant(kind: CatalogueKind, cur: { id: string; owners: string } | undefined, name: string, owners: readonly string[]): NamedGrant {
+  const teams = cur ? catalogueTeams(kind, cur.id) : kind === 'supplier' ? [] : newResourceTeams(currentUser()).teams;
+  const before = cur ? parseJson<string[]>(cur.owners, []) : [];
+  const shared = SHARED_CATALOGUE_KINDS.has(kind);
+  const u = currentUser();
   return {
     entityType: kind,
     entityId: cur?.id ?? null,
     label: `${kind} "${name}"`,
     field: 'owners',
-    teams: cur ? catalogueTeams(kind, cur.id) : kind === 'supplier' ? [] : newResourceTeams(currentUser()).teams,
-    before: cur ? parseJson<string[]>(cur.owners, []) : [],
+    teams,
+    before,
     after: [...new Set(owners)],
     rights: ['view', 'edit'],
+    // ADR 0033: on a Restricted item every new owner gains access; only Manage names owners from outside (decision 3)
+    ...(shared && cur && !teams.length && isRestricted(kind, cur.id) ? { restricted: true } : {}),
+    ...(shared && cur && u ? { mayGrant: catalogueAccess(u, { kind, id: cur.id, owners: before }).manage } : {}),
   };
 }
 
@@ -147,8 +168,10 @@ export function requireStepUpNow(point: string, u: AuthUser, action: StepUpActio
  * factor). Call it before anything is written. Jobs without a signed-in user are not asked (they name nobody).
  */
 export function requireNamedGrant(g: NamedGrant): string[] {
-  const added = uncoveredSubjects(g.teams, g.before, g.after);
+  const added = uncoveredSubjects(g.teams, g.before, g.after, g.restricted);
   if (!added.length) return added;
+  if (g.mayGrant === false)
+    throw new HttpError(403, `Only who manages ${g.label} may name ${added.join(', ')} from outside its owning teams`, 'FORBIDDEN', { context: 'nameOutside' });
   const u = currentUser();
   if (u) requireStepUpNow('access.grant', u, 'grantNamedAccess');
   return added;
@@ -161,12 +184,13 @@ export function requireNamedGrant(g: NamedGrant): string[] {
 export function auditNamedGrant(g: NamedGrant & { entityId: string }, added: readonly string[]): void {
   if (!added.length) return;
   const teams = g.teams.map((t) => t.name);
+  const where = teams.length ? `outside its owning teams (${teams.join(', ')})` : 'on a Restricted item';
   audit({
     action: 'access.named_subjects_granted',
     entityType: g.entityType,
     entityId: g.entityId,
-    summary: `${added.join(', ')} named in ${g.field} of ${g.label} outside its owning teams (${teams.join(', ')}): may ${g.rights.join(', ')}`.slice(0, 500),
-    details: { ...g.details, field: g.field, granted: [...added], rights: [...g.rights], owningTeams: teams },
+    summary: `${added.join(', ')} named in ${g.field} of ${g.label} ${where}: may ${g.rights.join(', ')}`.slice(0, 500),
+    details: { ...g.details, field: g.field, granted: [...added], rights: [...g.rights], owningTeams: teams, ...(g.restricted ? { restricted: true } : {}) },
   });
 }
 

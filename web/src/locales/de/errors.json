@@ -45,6 +45,7 @@
     "FORBIDDEN_right_run": "Dafür brauchen Sie das Recht „Ausführen“.",
     "FORBIDDEN_right_use": "Dafür brauchen Sie das Recht „Verwenden“ auf dieser Plattform.",
     "FORBIDDEN_right_manage": "Dafür brauchen Sie das Recht „Verwalten“.",
+    "FORBIDDEN_nameOutside": "Nur wer diesen Eintrag verwaltet, darf Eigentümer außerhalb der zuständigen Teams benennen.",
     "FORBIDDEN_right_approve": "Dafür brauchen Sie das Recht „Freigeben“.",
     "FORBIDDEN_right_acknowledge": "Sie dürfen Probleme dieses Monitors nicht bestätigen und seine Prüfungen nicht ausführen.",
     "FORBIDDEN_right_delete": "Sie dürfen das nicht löschen.",

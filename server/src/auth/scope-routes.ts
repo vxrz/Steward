@@ -23,6 +23,7 @@ import { plantEnabled } from '../plant/settings.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
 import {
+  SHARED_CATALOGUE_KINDS,
   catalogueAccess,
   catalogueTeams,
   contractAccess,
@@ -42,6 +43,7 @@ import { findUserByName, listUsers, toAuthUser } from './users.js';
 import { protectOpening } from '../suppliers/shared.js';
 import { canManageSuppliers, contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
+import { isRestricted } from './share-store.js';
 import type { AuthUser } from './context.js';
 
 /**
@@ -125,7 +127,9 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   }
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
-  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
+  // Manage (its shares, owners from outside) on the kinds switched to shares (ADR 0033)
+  const manage = d.manage && SHARED_CATALOGUE_KINDS.has(kind);
+  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : []), ...(manage ? ['manage'] : [])], reasons: d.reasons };
 }
 
 /** Whether `u` may see a resource of any kind that can have owning teams (the held messages re-check this at release). */
@@ -439,6 +443,9 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       // the rights beyond seeing it: only who may change the item learns who is in its owning teams
       if (!access(b.kind, r, u).permissions.some((p) => p !== 'view')) throw notFound(b.kind, b.id);
       teams = isCatalogue(b.kind) ? catalogueTeams(b.kind, r.id) : owningTeams(b.kind, r.id);
+      // a Restricted item (ADR 0033): every subject named is from outside
+      if (isCatalogue(b.kind) && SHARED_CATALOGUE_KINDS.has(b.kind) && !teams.length && isRestricted(b.kind, r.id))
+        return { teams: [], outside: uncoveredSubjects([], [], b.subjects, true) };
     }
     return { teams: teams.map((t) => t.name), outside: uncoveredSubjects(teams, [], b.subjects) };
   });

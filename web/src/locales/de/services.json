@@ -133,7 +133,8 @@
       "tickets": "Ticket-Referenzen",
       "scorecard": "Scorecard",
       "costs": "Kostenplan",
-      "responsibilities": "Verantwortlichkeiten"
+      "responsibilities": "Verantwortlichkeiten",
+      "access": "Zugriff"
     },
     "archivedScorecard": "Ein archivierter Service hat keine Scorecard.",
     "systems": {

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconShare, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  SHARE_ACTION_RIGHTS,
   SHARE_LEVELS,
   levelIncludes,
   type AccessPreview,
@@ -381,8 +382,11 @@ function PreviewModal({
   subjectName: (s: string) => string;
 }) {
   const { t } = useTranslation(['access', 'common']);
+  // levels first (View, Edit, Manage), then the action rights and the rest, as the tab lists them
+  const ORDER: readonly string[] = [...SHARE_LEVELS, ...SHARE_ACTION_RIGHTS, 'extended', 'shortened', 'roleDefaults'];
   const rights = (r: string[]) =>
-    r
+    [...r]
+      .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))
       .map((x) =>
         (SHARE_LEVELS as readonly string[]).includes(x)
           ? t(`owning.level.${x as ShareLevel}`)

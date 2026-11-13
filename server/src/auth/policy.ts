@@ -452,38 +452,73 @@ export function catalogueTeams(kind: CatalogueKind, id: string): OwningTeam[] {
 export interface CatalogueDecision {
   view: boolean;
   edit: boolean;
+  /** Changing its shares and naming owners from outside its owning teams (ADR 0033 decision 3) */
+  manage: boolean;
   reasons: AccessReason[];
 }
 
+/** The catalogue kinds switched to shares (ADR 0033 phase 1): their shares and the Restricted scope count. */
+export const SHARED_CATALOGUE_KINDS: ReadonlySet<CatalogueKind> = new Set<CatalogueKind>(['service', 'application', 'system']);
+
+/** How a share gives rights on a catalogue item: View sees it and its children, Edit changes them, Manage also its shares. */
+export const CATALOGUE_SHARE_MODEL: ShareModel<'view' | 'edit' | 'manage'> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+};
+
 /**
- * Seeing and changing a catalogue item. Without owning teams: everybody signed in sees it, designers, administrators
- * and its named owners change it (as before). With owning teams: members of those teams see it and change it when
- * they are designers there; its named owners, administrators (both: change) and auditors (see) as well.
+ * Seeing, changing and managing a catalogue item. Without owning teams: everybody signed in sees it, designers and
+ * administrators change and manage it, its named owners change it (as before). With owning teams: members of those
+ * teams see it and change and manage it when they are designers there; auditors see it. Administrators may do
+ * everything.
+ *
+ * For the kinds switched to shares (ADR 0033, `SHARED_CATALOGUE_KINDS`):
+ * - **Shares** add a level – View, Edit or Manage – for a user, a team or a role.
+ * - An **owner** has an implied Edit share (reason `implied`, computed from the owner field, never stored): who may
+ *   edit by role keeps Manage by role, an owner named from outside the owning teams can no longer name further
+ *   outsiders (decision 3).
+ * - **Restricted** (an item without owning teams that an administrator restricted): instance roles give nothing –
+ *   only its shares, its owners, administrators and auditors reach it.
+ * - An application without owning teams of its own belongs to those of its services (catalogueTeams); shares and the
+ *   scope of a service do **not** flow to its applications – each item has its own.
+ *
  * The plant role's "see" only names the systems and applications that sites and assets link to (without a way to
  * them): a plant viewer reaches no route of the catalogue (app.ts, plantOnly).
  */
 export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id: string; owners: string[] }): CatalogueDecision {
-  if (!u) return { view: false, edit: false, reasons: [] };
-  if (isAdmin(u)) return { view: true, edit: true, reasons: [{ source: 'admin', role: 'admin', permissions: ['view', 'edit'] }] };
+  if (!u) return { view: false, edit: false, manage: false, reasons: [] };
+  const shared = SHARED_CATALOGUE_KINDS.has(r.kind);
+  // who may edit by role manages by role (decision 3); kinds not switched to shares say only view and edit, as before
+  const editor = shared ? ['view', 'edit', 'manage'] : ['view', 'edit'];
+  if (isAdmin(u)) return { view: true, edit: true, manage: true, reasons: [{ source: 'admin', role: 'admin', permissions: editor }] };
   const reasons: AccessReason[] = [];
+  const byRole = (role: Role): string[] => (CATALOGUE_EDITORS.includes(role) ? editor : ['view']);
   // a named owner (#195: "Why do I have access?" says so; adding one from outside the owning teams is a confirmed grant)
   const owner = r.owners.find((s) => matches(u, s));
-  if (owner) reasons.push({ source: 'named', as: 'owner', subject: owner, permissions: ['view', 'edit'] });
+  if (owner)
+    reasons.push(
+      shared
+        ? { source: 'implied', as: 'owner', subject: owner, level: 'edit', permissions: ['view', 'edit'] }
+        : { source: 'named', as: 'owner', subject: owner, permissions: ['view', 'edit'] },
+    );
   const teams = catalogueTeams(r.kind, r.id);
   if (!teams.length) {
-    for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
+    // Restricted (ADR 0033): instance roles give nothing, auditors still see it
+    if (shared && isRestricted(r.kind, r.id)) {
+      if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
+    } else for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: byRole(role) });
   } else {
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
     const mine = memberships(u);
     for (const t of teams) {
       const m = mine.get(t.id);
       if (!m) continue;
-      for (const role of new Set([...u.roles, ...m.roles]))
-        reasons.push({ source: 'teamRole', role, team: t.name, permissions: CATALOGUE_EDITORS.includes(role) ? ['view', 'edit'] : ['view'] });
+      for (const role of new Set([...u.roles, ...m.roles])) reasons.push({ source: 'teamRole', role, team: t.name, permissions: byRole(role) });
     }
   }
+  if (shared) reasons.push(...shareReasons(u, r, CATALOGUE_SHARE_MODEL));
   const granted = new Set(reasons.flatMap((x) => x.permissions));
-  return { view: granted.has('view'), edit: granted.has('edit'), reasons };
+  // before shares, whoever changed an item named its owners: editors keep that on kinds not switched yet
+  return { view: granted.has('view'), edit: granted.has('edit'), manage: shared ? granted.has('manage') : granted.has('edit'), reasons };
 }
 
 // ---------- records and living documents ----------
