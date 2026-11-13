@@ -53,7 +53,9 @@
     "dataObjects": "Data objects",
     "dataDomains": "Domains",
     "dataMap": "Product map",
-    "dataDiscovery": "Discovery"
+    "dataDiscovery": "Discovery",
+    "dataAccessRequests": "Access requests",
+    "dataRecordsOfProcessing": "Records of processing"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",

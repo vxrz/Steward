@@ -23,6 +23,7 @@ import { factsOf, parseContract } from '../datacontracts/odcs.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { onLifecycleChanged, onPortDeleted } from './notices.js';
+import { forgetGovernance } from './governance-cleanup.js';
 import { HIDDEN, L, actorName, elementNotFound, json, limitReached, objectNotFound, portNotFound, productNotFound, refOf } from './common.js';
 import {
   bindingsOf,
@@ -339,6 +340,7 @@ export function updatePort(productId: string, productName: string, portId: strin
 export function deletePort(productId: string, productName: string, portId: string): void {
   const cur = portOf(productId, portId);
   db().tx(() => {
+    forgetGovernance({ portIds: [cur.id] });
     db().run('DELETE FROM dp_port_elements WHERE binding_id IN (SELECT id FROM dp_port_bindings WHERE port_id = ?)', cur.id);
     db().run('DELETE FROM dp_port_bindings WHERE port_id = ?', cur.id);
     db().run('DELETE FROM dp_port_objects WHERE port_id = ?', cur.id);
@@ -676,6 +678,7 @@ export function removeConsumer(productId: string, productName: string, portId: s
   const port = portOf(productId, portId);
   const cur = consumerOf(port.id, consumerId);
   db().tx(() => {
+    forgetGovernance({ consumerIds: [cur.id] });
     db().run('DELETE FROM dp_consumers WHERE id = ?', cur.id);
     audit({
       action: 'dataproduct.consumer_removed',

@@ -711,6 +711,90 @@
       "hint": "Sie erhalten dies einmal je Vertragsversion, weil Sie als Nutzer registriert sind oder ein Datenprodukt besitzen, das den Port nutzt. Prüfen Sie, was die Änderung für Sie bedeutet, und sprechen Sie mit den Besitzern des Produkts."
     }
   },
+  "dataProductGovernance": {
+    "requested": {
+      "title": "Zugriff beantragt: {{port}} von {{product}}",
+      "body": "{{requester}} beantragt Zugriff auf den Port „{{port}}“ des Datenprodukts „{{product}}“ in {{environment}}.",
+      "purpose": "Zweck: {{purpose}}",
+      "until": "Bis: {{date}}",
+      "fourEyes": "Das Produkt ist hoch oder höher eingestuft: Zwei Personen genehmigen.",
+      "second": "{{first}} hat genehmigt: Jetzt entscheidet eine zweite Person.",
+      "hint": "Sie erhalten dies, weil Sie über Zugriffsanträge des Produkts entscheiden. Entscheiden Sie im Reiter Zugriff des Produkts."
+    },
+    "decided": {
+      "approvedTitle": "Zugriff genehmigt: {{product}}",
+      "refusedTitle": "Zugriff abgelehnt: {{product}}",
+      "approvedBody": "{{by}} hat Ihren Antrag für den Port „{{port}}“ von „{{product}}“ in {{environment}} genehmigt. Sie sind jetzt als Konsument registriert.",
+      "refusedBody": "{{by}} hat Ihren Antrag für den Port „{{port}}“ von „{{product}}“ in {{environment}} abgelehnt.",
+      "comment": "Kommentar: {{comment}}",
+      "hint": "Steward vergibt selbst keine Rechte auf der Plattform: Wo das Produkt einen Prozess oder ein Ticket nennt, vergibt das Plattform-Team den Zugriff."
+    },
+    "reviewDue": {
+      "title": "Zugriffsprüfung fällig: {{port}} von {{product}}",
+      "body": "Die regelmäßige Zugriffsprüfung des Ports „{{port}}“ von „{{product}}“ in {{environment}} ist am {{date}} fällig.",
+      "last": "Letzte freigegebene Prüfung: {{date}}.",
+      "never": "Der Port wurde noch nicht geprüft.",
+      "hint": "Beginnen Sie die Prüfung im Reiter Zugriff des Produkts: Dort werden registrierte Konsumenten, tatsächliche Leser und Berechtigungen verglichen."
+    },
+    "endorsementReview": {
+      "title": "Bestätigung prüfen: {{product}}",
+      "reviewDue": "Die Bestätigung von „{{product}}“ ist am {{date}} zur Prüfung fällig.",
+      "expired": "Die Bestätigung von „{{product}}“ ist am {{date}} abgelaufen – sie zählt nicht mehr für Reifegrad 5.",
+      "breakingChange": "Ein an „{{product}}“ gebundener Datenvertrag hatte eine inkompatible Änderung: Die Bestätigung muss geprüft werden.",
+      "belowFloor": "Die Einstufung von „{{product}}“ liegt ohne Begründung unter der seiner Datenobjekte: Die Bestätigung muss geprüft werden.",
+      "by": "Bestätigt von {{by}} am {{date}}.",
+      "hint": "Bestätigen Sie es erneut (oder widerrufen Sie die Bestätigung) in der Übersicht des Produkts."
+    },
+    "ropa": {
+      "title": "Verarbeitungstätigkeiten",
+      "subtitle": "Datenobjekte mit personenbezogenen Daten in Datenprodukten (DSGVO Art. 30) – eine Arbeitsansicht",
+      "disclaimer": "Eine Arbeitsansicht aus den Datenprodukten in Steward für die bzw. den Datenschutzbeauftragten, nicht das Verzeichnis der Verarbeitungstätigkeiten selbst. Sie enthält nur, was die exportierende Person sehen darf; Teile, die sie nicht sehen darf, werden gezählt.",
+      "domainHidden": "eine Domäne, die Sie nicht sehen dürfen",
+      "hidden_one": "{{count}} weiteres, das Sie nicht sehen dürfen",
+      "hidden_other": "{{count}} weitere, die Sie nicht sehen dürfen",
+      "head": {
+        "object": "Datenobjekt",
+        "key": "Schlüssel",
+        "domain": "Domäne",
+        "personalData": "Personenbezogene Daten",
+        "categories": "Datenkategorien",
+        "specialCategories": "Besondere Kategorien",
+        "subjects": "Betroffene Personen",
+        "legalBasis": "Rechtsgrundlage",
+        "purposes": "Zwecke",
+        "products": "Verarbeitet in",
+        "recipients": "Empfänger",
+        "processors": "Plattformen und Auftragsverarbeiter",
+        "retention": "Aufbewahrung",
+        "deletion": "Löschregel",
+        "owner": "Datenverantwortliche Person",
+        "flags": "Regulatorische Kennzeichen"
+      },
+      "personal": {
+        "none": "keine",
+        "personal": "personenbezogen",
+        "special": "besondere Kategorien (Art. 9)"
+      },
+      "basis": {
+        "consent": "Einwilligung (Art. 6 Abs. 1 lit. a)",
+        "contract": "Vertrag (Art. 6 Abs. 1 lit. b)",
+        "legalObligation": "rechtliche Verpflichtung (Art. 6 Abs. 1 lit. c)",
+        "vitalInterests": "lebenswichtige Interessen (Art. 6 Abs. 1 lit. d)",
+        "publicTask": "öffentliche Aufgabe (Art. 6 Abs. 1 lit. e)",
+        "legitimateInterests": "berechtigte Interessen (Art. 6 Abs. 1 lit. f)"
+      },
+      "dpa": {
+        "inPlace": "AVV vorhanden",
+        "missing": "AVV fehlt",
+        "unknown": "AVV nicht erfasst"
+      },
+      "pd": {
+        "yes": "verarbeitet personenbezogene Daten",
+        "no": "keine personenbezogenen Daten",
+        "unknown": "personenbezogene Daten nicht beantwortet"
+      }
+    }
+  },
   "estimateChanged": {
     "title": "Schätzung geändert: {{title}}",
     "body": "Die Schätzung „{{title}}“ von {{owner}} wurde mit neuen Preisen neu berechnet{{cause}}: {{after}} im Monat statt {{before}} ({{pct}} %). Sie behält ihr Ergebnis, bis Sie Neue Preise übernehmen wählen.",

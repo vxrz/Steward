@@ -536,6 +536,36 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/:id/odps': ALL,
   'POST /api/data-products/import/preview': ALL,
   'POST /api/data-products/import': DESIGN,
+  // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
+  // decides requests (the owners, else who manages the product) decides; reading the platforms, reviews, promotion and
+  // endorsement (the domain's owners, else the module's managers) change – the Art. 30 view lists what the reader sees
+  'GET /api/data-products/records-of-processing': ALL,
+  'GET /api/data-products/records-of-processing.csv': ALL,
+  'GET /api/data-products/records-of-processing.pdf': ALL,
+  'GET /api/data-products/access-requests': ALL,
+  'GET /api/data-products/access-requests/:requestId': ALL,
+  'POST /api/data-products/access-requests/:requestId/decision': DESIGN,
+  'POST /api/data-products/access-requests/:requestId/withdraw': ADMIN,
+  'GET /api/data-products/:id/access-requests': ALL,
+  'POST /api/data-products/:id/ports/:portId/access-requests': ALL,
+  'GET /api/data-products/:id/access-settings': ALL,
+  'PUT /api/data-products/:id/access-settings': DESIGN,
+  'GET /api/data-products/:id/ports/:portId/actual': ALL,
+  'POST /api/data-products/:id/ports/:portId/actual/read': DESIGN,
+  'PUT /api/data-products/:id/ports/:portId/consumers/:consumerId/identities': DESIGN,
+  'GET /api/data-products/:id/port-reviews': ALL,
+  'POST /api/data-products/:id/ports/:portId/reviews': DESIGN,
+  'GET /api/data-products/port-reviews/:reviewId': ALL,
+  'GET /api/data-products/port-reviews/:reviewId/verify': ALL,
+  'PUT /api/data-products/port-reviews/:reviewId/decisions': DESIGN,
+  'POST /api/data-products/port-reviews/:reviewId/submit': DESIGN,
+  'POST /api/data-products/port-reviews/:reviewId/approval': ['admin', 'designer', 'approver'],
+  'GET /api/data-products/:id/promotion': ALL,
+  'POST /api/data-products/:id/promotion': DESIGN,
+  'GET /api/data-products/:id/promotions': ALL,
+  'GET /api/data-products/:id/endorsement': ALL,
+  'PUT /api/data-products/:id/endorsement': DESIGN,
+  'DELETE /api/data-products/:id/endorsement': DESIGN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1601,6 +1631,17 @@ const SESSION_ONLY = [
   // imports of data products files: a person decides, in a session (ADR 0036 security notes)
   'POST /api/data-products/import/preview',
   'POST /api/data-products/import',
+  // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
+  'POST /api/data-products/access-requests/:requestId/decision',
+  'PUT /api/data-products/:id/access-settings',
+  'POST /api/data-products/:id/ports/:portId/actual/read',
+  'POST /api/data-products/:id/ports/:portId/reviews',
+  'PUT /api/data-products/port-reviews/:reviewId/decisions',
+  'POST /api/data-products/port-reviews/:reviewId/submit',
+  'POST /api/data-products/port-reviews/:reviewId/approval',
+  'POST /api/data-products/:id/promotion',
+  'PUT /api/data-products/:id/endorsement',
+  'DELETE /api/data-products/:id/endorsement',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2318,6 +2359,8 @@ function fill(url: string): string {
       .replace(/:objectId/g, fx.dataObject!)
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
+      .replace(/:requestId/g, fx.dataRequest!)
+      .replace(/^\/api\/data-products\/port-reviews\/:reviewId/, `/api/data-products/port-reviews/${fx.dataReview}`)
       .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
       .replace(/:environment/g, 'prod')
@@ -2468,6 +2511,8 @@ function fill(url: string): string {
 
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
+  'GET /api/data-products/:id/ports/:portId/actual': '?environment=prod',
+  'GET /api/data-products/:id/promotion': '?from=prod&to=dev',
   'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/plant/assets/:assetId/collection-sources/diff': '?from=pcs_matrix&to=pcs_matrix',
   'GET /api/plant/documents': '?kind=device-profile&id=matrix-profile',
@@ -3117,6 +3162,15 @@ beforeAll(async () => {
   await a('PUT', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/bindings/prod`, { elementIds: [curated] });
   fx.dataConsumer = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/consumers`, { kind: 'text', text: 'Matrix consumer' })).id;
   fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
+  // an open access request (asked by the administrator) and an open port access review of the port (0.24.0)
+  fx.dataRequest = (
+    await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/access-requests`, {
+      environment: 'prod',
+      consumer: { kind: 'text', text: 'Matrix consumer' },
+      purpose: 'Matrix',
+    })
+  ).id;
+  fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
   // a discovery source of the demo Snowflake account, never read (disabled)
   fx.discoverySource = (
     await a('POST', '/data-products/discovery-sources', { name: 'Matrix discovery', platformId: snowflake, scope: ['SHOP'], enabled: false })

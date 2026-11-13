@@ -23,6 +23,8 @@ import { elementHealthOf } from './health.js';
 import { personalFieldCounts } from './personal-fields.js';
 import { completenessCounts, latestQualityResults, summariseQuality } from './quality.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
+import { validEndorsements } from './endorsements.js';
+import { reviewedProducts } from './port-reviews.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import {
   bindingsOf,
@@ -48,8 +50,8 @@ import {
  * _accuracy_, _completeness_ and _consistency_ from the quality results of the output elements (quality.ts), the
  * completeness objective of ports, and the personal fields of the bound contracts as evidence of _confidentiality_
  * (personal-fields.ts). The maturity follows
- * (shared maturityLevel): 1 documented and rated, 2 observed, 3 contracted, 4 objectives met for 30 days; 5 (endorsed)
- * is phase 2.
+ * (shared maturityLevel): 1 documented and rated, 2 observed, 3 contracted, 4 objectives met for 30 days; 5 a valid
+ * endorsement on top of 4 (endorsements.ts, 0.24.0).
  *
  * Evidence is i18n keys with values (`evidence.<part>.<fact>`), counts and statuses only – never the name of a
  * contract, check or product the reader may not see.
@@ -112,6 +114,10 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   const ratings = ratingsByItem('product', ids, scale);
   const read: { objects?: Map<string, ObjectRow> } = {};
   const floors = floorsOf([...products.values()], ratings, scale, read);
+  // maturity 5 (0.24.0): a valid endorsement on top of level 4; the confidentiality evidence: an approved port access
+  // review within 12 months (one statement each for the page)
+  const endorsed = validEndorsements([...products.keys()], (id) => !!floors.get(id)?.warning);
+  const reviewed = reviewedProducts([...products.keys()], new Date(now - 365 * 24 * 3600_000).toISOString());
   const objects = read.objects ?? new Map<string, ObjectRow>();
   const envRows = environmentsOf(ids);
   const ports = portsOf(ids);
@@ -455,6 +461,7 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
         ...(personalFields
           ? [ev(undocumented ? 'confidentiality.personalFieldsUndocumented' : 'confidentiality.personalFields', { count: personalFields })]
           : []),
+        ev(reviewed.has(p.id) ? 'confidentiality.accessReviewed' : 'confidentiality.notReviewed'),
       ],
     ]);
     for (const d of ISO_25012_DIMENSIONS) {
@@ -463,7 +470,7 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
     }
 
     const state = (id: DataScorecardPartId) => parts.find((x) => x.group === 'part' && x.id === id)?.state;
-    out.set(p.id, { productId: p.id, environment: env, environments: envs, parts, maturity: maturityLevel(state) });
+    out.set(p.id, { productId: p.id, environment: env, environments: envs, parts, maturity: maturityLevel(state, endorsed.has(p.id)) });
   }
   return out;
 }

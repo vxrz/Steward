@@ -104,6 +104,9 @@ export const NOT_MOVED: Record<string, string> = {
   dp_lineage_proposals: 'proposed steps of the lineage sources (not moved, as the sources): the next push proposes them again; accepted steps move',
   dp_lineage_proposal_elements: 'the elements of the proposed steps (not moved, as the proposals)',
   dp_lineage_tests: 'the tests of the last dbt manifest of a lineage source (not moved, as the sources)',
+  // 0.24.0 (ADR 0036 phase 2): who really reads a port, as the platforms said – read again on the target
+  dp_actual_reads: 'when the actual consumers of a port were read and how (ACCESS_HISTORY, consumer groups): read again on the target',
+  dp_actual_consumers: 'who read a port as the platforms said (ACCESS_HISTORY, consumer groups): read again on the target',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -209,6 +212,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'dp_objects', column: 'custodians', kind: 'subjects' },
   { table: 'dp_consumers', column: 'consumer_subjects', kind: 'subjects' },
   { table: 'dp_consumers', column: 'contacts', kind: 'subjects' },
+  // 0.24.0: the consumer an access request asks for (a team or user), mapped like a registration's
+  { table: 'dp_access_requests', column: 'consumer_subjects', kind: 'subjects' },
 ];
 
 /**
@@ -468,6 +473,15 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_cost_matches.created_by',
   'dp_cost_allocations.updated_by',
   'dp_quality_results.recorded_by',
+  // 0.24.0 (ADR 0036 phase 2): who decided, reviewed, promoted and endorsed
+  'dp_access_settings.updated_by',
+  'dp_access_requests.decided_by',
+  'dp_port_reviews.created_by',
+  'dp_port_reviews.submitted_by',
+  'dp_port_reviews.approved_by',
+  'dp_port_review_items.decided_by',
+  'dp_promotions.created_by',
+  'dp_endorsements.endorsed_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */
@@ -501,6 +515,8 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'db_schema_settings.subject_id',
   // the data subjects of a data object (customers, employees …): categories of people, never persons (ADR 0036 part 2)
   'dp_objects.subjects',
+  // 0.24.0: how many members a promotion added, not people
+  'dp_promotions.members',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */

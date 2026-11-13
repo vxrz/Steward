@@ -12,6 +12,7 @@ import { dataProductTools } from '../dataproducts/mcp.js';
 import { DATA_PRODUCT_SHARE_KIND } from '../dataproducts/shares.js';
 import { dataProductQualityRoutes } from '../dataproducts/quality-routes.js';
 import { dataProductsSection } from '../dataproducts/report-section.js';
+import { dataProductGovernanceRoutes } from '../dataproducts/governance-routes.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /**
@@ -35,6 +36,9 @@ export default defineFeature({
     dataProductTransferRoutes,
     // 0.24.0 (phase 2, package B): quality results, personal fields from contracts, scorecard history
     dataProductQualityRoutes,
+    // consumers, access and governance (0.24.0, ADR 0036 phase 2): actual consumers, access requests and reviews,
+    // promotion, endorsement, the GDPR Art. 30 view
+    dataProductGovernanceRoutes,
   ],
   // 0.24.0 (ADR 0036 phase 2; the module's report section for ADR 0034): maturity, health and quality per product
   reportSections: [dataProductsSection],
@@ -57,5 +61,7 @@ export default defineFeature({
       timeoutMs: 30 * MINUTE,
       run: () => import('../dataproducts/scorecard-history.js').then((m) => m.runScorecardJob()),
     },
+    // 0.24.0: actual consumers read again daily, endorsement and access review reminders (at most hourly)
+    every5Minutes('data-products-governance', 20 * MINUTE, () => import('../dataproducts/governance-job.js').then((m) => m.runGovernanceJob())),
   ],
 });

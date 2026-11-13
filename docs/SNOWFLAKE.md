@@ -161,6 +161,8 @@ GRANT APPLICATION ROLE SNOWFLAKE.DATA_QUALITY_MONITORING_VIEWER TO ROLE STEWARD_
 
 **Contract tests** of a `snowflake` server through the datacontract CLI ([DATA-CONTRACTS.md](DATA-CONTRACTS.md#testing)) use the platform's account, user, role, warehouse and key pair; the CLI's data checks need `SELECT` on what the contracts test – a data right Steward's own reads never need.
 
+**Who really reads a port** (0.24.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#declared-against-actual-consumers)): one fixed, read-only statement (`/* steward:dp-access-history */`) on `SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY` (the objects read, `BASE_OBJECTS_ACCESSED`) joined to `QUERY_HISTORY` for the role – the last 30 days, aggregated per user and role, the port's object names as bound JSON arrays, never a query text. It needs the Enterprise edition and the database role `SNOWFLAKE.GOVERNANCE_VIEWER` (or `IMPORTED PRIVILEGES` on `SNOWFLAKE`): `GRANT DATABASE ROLE SNOWFLAKE.GOVERNANCE_VIEWER TO ROLE STEWARD_READ;`. Without it the port says _not available_ there.
+
 ## Templates
 
 Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):

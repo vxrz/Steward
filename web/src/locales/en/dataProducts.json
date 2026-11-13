@@ -751,6 +751,8 @@
         "notRated": "Confidentiality not rated",
         "rated": "Confidentiality rated {{level}}",
         "belowFloor": "Confidentiality {{level}}: below its data objects",
+        "accessReviewed": "An approved access review of its ports within 12 months.",
+        "notReviewed": "No approved access review of its ports within 12 months.",
         "personalFields_one": "{{count}} personal field in the bound contracts",
         "personalFields_other": "{{count}} personal fields in the bound contracts",
         "personalFieldsUndocumented_one": "{{count}} personal field in the bound contracts, but no exposed data object holds personal data",

@@ -279,6 +279,22 @@
         "label": "Data product discovery failing",
         "info": "A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)"
       },
+      "access_requested": {
+        "label": "Data product access requested",
+        "info": "Someone asks for access to an output port of a data product you own (or manage), and you decide"
+      },
+      "access_decided": {
+        "label": "Data product access decided",
+        "info": "Your request for access to a data product’s port was approved or refused"
+      },
+      "endorsement_review": {
+        "label": "Data product endorsement review",
+        "info": "An endorsement of a data product you own or endorsed is due for its review (or a breaking change or a rating below the floor needs one)"
+      },
+      "access_review_due": {
+        "label": "Data product access review due",
+        "info": "The periodic access review of a port of a data product you own is due"
+      },
       "contract_breaking": {
         "label": "Breaking contract change",
         "info": "A new version of the data contract of an output port you consume has breaking changes (registered consumers and the owners of products that use it; once per version)"

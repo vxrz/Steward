@@ -766,6 +766,8 @@
         "notRated": "Vertraulichkeit nicht eingestuft",
         "rated": "Vertraulichkeit als {{level}} eingestuft",
         "belowFloor": "Vertraulichkeit {{level}}: unter seinen Datenobjekten",
+        "accessReviewed": "Eine freigegebene Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
+        "notReviewed": "Keine freigegebene Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
         "personalFields_one": "{{count}} personenbezogenes Feld in den gebundenen Verträgen",
         "personalFields_other": "{{count}} personenbezogene Felder in den gebundenen Verträgen",
         "personalFieldsUndocumented_one": "{{count}} personenbezogenes Feld in den gebundenen Verträgen, aber kein bereitgestelltes Datenobjekt enthält personenbezogene Daten",

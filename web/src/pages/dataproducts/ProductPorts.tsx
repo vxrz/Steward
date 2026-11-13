@@ -13,6 +13,8 @@ import type { PickedElement } from '../../components/dataproducts/ElementPicker'
 import { fmtDay } from '../../format';
 import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from './api';
 import { EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam } from './parts';
+import { ActualConsumers } from './governance/ActualConsumers';
+import { RequestAccessButton } from './governance/AccessRequests';
 
 const enc = encodeURIComponent;
 
@@ -380,6 +382,9 @@ function PortCard({
               {t('consumers.summary', { registered: port.consumers.registered, derived: port.consumers.derived })}
             </Button>
             <Collapse expanded={open}>{open && <Consumers p={p} port={port} canEdit={canEdit} onEdit={onConsumer} />}</Collapse>
+            {/* 0.24.0 (ADR 0036 phase 2): who really reads, and asking for access */}
+            {binding && <ActualConsumers p={p} port={port} environment={environment} />}
+            <RequestAccessButton p={p} port={port} />
           </div>
         )}
       </Stack>

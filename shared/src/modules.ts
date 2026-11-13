@@ -343,7 +343,7 @@ export const MODULES: readonly ModuleDef[] = [
     maturity: 'preview',
     defaultOn: false,
     switchable: true,
-    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery'],
+    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery', 'dataAccessRequests', 'dataRecordsOfProcessing'],
     pages: ['/data-products', '/data-elements', '/data-objects', '/data-domains'],
     routes: [
       '/api/data-products',
@@ -356,13 +356,22 @@ export const MODULES: readonly ModuleDef[] = [
       // 0.24.0: the push of OpenLineage events and dbt files to lineage sources (their push tokens)
       '/api/hooks/data-lineage',
     ],
-    jobs: ['data-products', 'data-products-scorecard'],
+    jobs: ['data-products', 'data-products-scorecard', 'data-products-governance'],
     // module access (ADR 0034 phase 1): restrictable to selected teams and users; within it the core roles give the
     // module roles (designer → manager, other working roles → viewer – dataproducts/access.ts). Contributors as a
     // module role of their own follow in phase 2 (the report section came in 0.24.0); the instance export has no part of it yet.
     access: {
       restrictable: true,
-      events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed', 'dataproduct.contract_breaking'],
+      events: [
+        'dataproduct.deprecated',
+        'dataproduct.elements_missing',
+        'dataproduct.discovery_failed',
+        'dataproduct.contract_breaking',
+        'dataproduct.access_requested',
+        'dataproduct.access_decided',
+        'dataproduct.endorsement_review',
+        'dataproduct.access_review_due',
+      ],
       // 0.24.0 (ADR 0036 phase 2): maturity, health and quality per product
       reportSections: ['dataProducts'],
       mcpTools: [
