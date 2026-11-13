@@ -214,6 +214,10 @@
       "volume": {
         "label": "Vertragsvolumen",
         "info": "Ein Vertragsvolumen, das Ihr Service oder Ihre Plattform bezahlt, wird knapp, ist aufgebraucht, überschreitet seine Obergrenze oder endet voraussichtlich deutlich unter seinem zugesagten Minimum"
+      },
+      "price_review_due": {
+        "label": "Preise prüfen",
+        "info": "Ein Preisbuch, das Sie von Hand pflegen, ist zur Prüfung fällig (Als geprüft markieren, wenn die Preise noch stimmen)"
       }
     },
     "contract": {
