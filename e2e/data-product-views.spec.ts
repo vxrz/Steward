@@ -69,6 +69,8 @@ async function seed(admin: APIRequestContext): Promise<Seed> {
   await post(admin, `/api/data-products/${mart}/steps`, { name: 'revenue', kind: 'transform', inputs: [curated], outputs: [martTable] });
   // a team's product and element that vera may not see, feeding the staged table
   const team = (await post(admin, '/api/teams', { name: `Secret team ${token}`, members: ['dana'] })).id;
+  // the team takes no new items of its members: dana's items in the other specs stay the whole instance's
+  expect((await admin.put(`/api/teams/${team}/settings`, { data: { newResources: 'never' } })).ok()).toBe(true);
   const secret = (await post(admin, '/api/data-products', { key: `${key}-secret`, name: `Secret CRM ${token}` })).id;
   const secretEl = await el(`${token}.SECRET.CUSTOMERS`, 'raw');
   for (const [kind, id] of [
