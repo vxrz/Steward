@@ -113,10 +113,102 @@ Three pictures show how data moves – each with a **table** that says the same 
 
 Team scope applies everywhere: what a reader may not see is neither listed nor counted nor named (_Part of 1 product you may not see_). Naming an owner from outside the owning teams asks for a confirmation (control point `access.grant`) and is recorded as an access change. Module access and module roles (viewer, contributor, manager) follow with [ADR 0034](adr/0034-module-access.md).
 
+## File format, import and export
+
+Steward's own format holds domains, data objects, the element catalogue and data products with their ports, members and steps – YAML or JSON in snake_case, `version: 1`, described by the JSON Schema [data-products-1.schema.json](data-products/data-products-1.schema.json) (also at `GET /api/data-products/schema`). A file holds any of `domains`, `data_objects`, `elements` and `data_products`, or a single `domain:`, `data_object:` or `data_product:`; several files are one import.
+
+```yaml
+version: 1
+elements:
+  - { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.ORDERS, environment: prod, layer: curated }
+data_products:
+  - key: orders
+    name: Orders
+    type: sourceAligned
+    domain: sales
+    owners: [user:dana]
+    members:
+      - element: { platform: Kafka (demo), kind: kafka.topic, qualified_name: orders.v1, environment: prod }
+        role: input
+    ports:
+      - direction: output
+        name: orders
+        version: v2
+        data_objects: [order]
+        objectives: { freshness_minutes: 60 }
+        bindings:
+          - environment: prod
+            elements: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.ORDERS, environment: prod }]
+            contract: shop-orders # the data contract's ODCS id
+        consumers:
+          - { kind: team, subject: team:finance, purpose: Monthly close }
+    steps:
+      - name: Curate orders
+        kind: curate
+        runner: { kind: tool, tool: dbt }
+        inputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.ORDERS, environment: prod }]
+```
+
+**Identity.** Domains, data objects and products by `key`; elements by platform (its name, or `platform_id`), kind, qualified name (case does not matter) and environment; ports by direction, name and version; bindings by environment; consumers by kind and whom they name; steps by name within their product (a step is documented with the product whose element it writes). Platforms, applications, services and processes are named by their names, data contracts by their ODCS id, other products by their key.
+
+**Never in a file:** credentials, platform variables, discovery run-as users, readouts, check states and costs. Owning teams are not part of the format either – a new entry gets the importer's teams, as when it is made on a page.
+
+### Export
+
+_Export_ writes a product (`GET /api/data-products/:id/export`), a domain with its sub-domains (`GET /api/data-products/export?domain=`) or everything you may see (`GET /api/data-products/export`) – optionally for one environment (`?environment=prod`) and as JSON (`?format=json`). Everything means the domains, data objects and products, the elements they name, and the entered and imported elements of the catalogue; discovered elements no product names come back with their discovery. At most 20,000 elements are written (the header `x-steward-elements-left-out` counts the rest). Empty values are left out.
+
+The file holds only what you may see: a domain, successor, data object, contract, consumer or element you may not see is left out of the entry that names it – imported again, the entry keeps what Steward has there.
+
+### Import
+
+`POST /api/data-products/import/preview` shows what an import adds, changes (field by field: `ports[output orders v2].bindings[prod].objectives`), leaves unchanged and skips, and the problems that stop it – the format, names that are not known, and what the services would refuse (the preview runs the same writes in a transaction that is rolled back). `POST /api/data-products/import` imports, in one transaction:
+
+| Mode             | What exists                                                                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `add` (Add only) | is skipped; new entries are added                                                                                                                                            |
+| `update`         | takes what the files say; **a key a file leaves out keeps Steward's value**, list items (ports, members, consumers, steps …) are matched and added or changed, never removed |
+
+An export imported again changes nothing. _Replace an earlier import_ with removals follows in phase 2.
+
+- **Your rights, the module's rules.** Every write goes through the services of the pages: creating needs the module's contributor or manager role, changing an entry its edit right; the limits, the lifecycle rules (an _active_ product needs an owner and an output port), the bindings' environments and the rating floor apply; naming an owner from outside the owning teams asks for your confirmation (`access.grant`). Lifecycle, rating and successor are written last, after ports and bindings.
+- **What you may not see does not exist** for an import: a key, element, platform, contract, application or product you may not see is refused like an unknown one, never named; a key taken by a product you may not see answers _taken_, as on the page.
+- **Elements** a file adds are marked _imported_; for elements that exist, an import changes the people's fields (display name, layer, description, type label, API reference) – not the parent, the flags or what discovery reads.
+- **Limits** as the other YAML importers: 8 MB and 500 files together, keys bounded before parsing, duplicate keys refused, at most 100 aliases and 12 levels, 20,000 elements per import.
+- **No credentials.** A value under a key that looks secret (password, token, API key …) or a password in an address is refused with its place – the value itself is never shown or kept.
+- **Session only.** Imports are made by a person signed in (API tokens are refused); the preview's `fingerprint` passed to the import refuses it when the data changed since (`DATA_PRODUCT_IMPORT_CHANGED`).
+- **Audit:** each write as on the pages, and `dataproduct.imported` with the mode, the counts and each file's SHA-256.
+
+### ODPS
+
+`GET /api/data-products/:id/odps` (and `GET /api/v1/data-products/{id}/odps` as JSON) exports a product as an [Open Data Product Standard](https://github.com/bitol-io/open-data-product-standard) v1.0.0 document, checked in the tests against the official JSON Schema (vendored with its Apache 2.0 licence in `server/assets/odps/`):
+
+| ODPS                               | From                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `name`, `version`, `status`  | key, name, version, lifecycle                                                                                                                     |
+| `domain`                           | the domain's name (its key under `customProperties`)                                                                                              |
+| `description`                      | `purpose` and `usage` (the description)                                                                                                           |
+| `team`, `support`                  | owning teams and product owners (`role: productOwner`); the support channel with its address                                                      |
+| `outputPorts`                      | name, type, version, description and `contractId` – the bound contract's ODCS id in one environment (production unless `?environment=`)           |
+| `inputPorts`                       | input ports that consume an output port with a contract (ODPS requires a `contractId`); the others under `customProperties.inputsWithoutContract` |
+| `tags`, `authoritativeDefinitions` | tags, external references                                                                                                                         |
+| `managementPorts`                  | the product's page and its `/api/v1` address, where `SM_PUBLIC_URL` is set                                                                        |
+| `customProperties`                 | Steward's id, type, rating and classification, criticality, support tier, sunset date, data objects, environments                                 |
+
+ODPS import follows in phase 2.
+
+## Public API and MCP
+
+**`/api/v1`** (read-only, a token of scope _Read only_ is enough; [API.md](API.md)): `GET /data-products` (paged; `domain`, `lifecycle`, `type`, `environment`, `team`), `/data-products/{id}` (ports with bindings and contract ids, objectives, member counts, data objects, health per environment, the scorecard summary), `/data-products/{id}/odps`, `/data-products/{id}/lineage` (the pipeline, or with `?element=` the lineage of one of its elements), `GET /data-elements` (paged; `platformId`, `kind`, `environment`, `prefix`), `/data-elements/{id}`, `GET /data-objects`, `/data-objects/{id}`. 404 while the module is off.
+
+**MCP** ([MCP.md](MCP.md#data-products)): `list_data_products`, `get_data_product`, `search_data_elements`, `get_data_element`, `get_data_lineage`, `get_data_product_health`, `get_data_product_costs`, `list_data_objects`, `get_data_object` – and `list_data_contracts`, `get_data_contract` of the data contracts module.
+
+Both read as the token owner: what they may not see is not listed, counted or named, a product they may not see in a lineage is _a product you may not see_. Lists read a page with a fixed number of statements whatever the size of the catalogue.
+
 ## Links
 
 Documents, records and ticket references link data products and data objects (link kinds _Data product_ and _Data object_), offered while the module is on.
 
 ## To come
 
-Discovery, costs and the scorecard, the pages, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
+Discovery, costs and the scorecard, the pages – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
