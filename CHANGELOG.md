@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-13
+
+Steward 0.23.0 completes **one access model** and brings **module roles** and **price books, phase 2**. The access lists of processes, platforms, platform identities, monitors and plant sites become shares on an _Access_ tab – nobody gains or loses a right in the upgrade – and records, credentials, ticket references, dashboards and data contracts get shares too ([ADR 0033](docs/adr/0033-one-access-model.md) phase 2). The plant registry, Costs and data products have module roles – viewer, contributor and manager – and someone with only module roles sees only those modules; the role _Plant viewer_ becomes the plant registry's contributor role ([ADR 0034](docs/adr/0034-module-access.md) phase 2). Supplier contracts carry price conditions, providers with a fee on top price from derived books, Snowflake's rate sheet and Confluent keep contracted books current, and estimates are recalculated when prices change ([ADR 0035](docs/adr/0035-price-books-and-calculators.md) phase 2). A release review of security, performance, UI, UX and accessibility (WCAG 2.2) was fixed before the release, the data flow cards of an asset name all its collections, and the decision record for data products phase 3 ([ADR 0037](docs/adr/0037-data-products-connectors-files-edge.md)) is accepted. The upgrade fixture of 0.22.0 is added. Migrations are additive (`costs-008-contract-conditions`, `costs-009-estimate-recalculation`, `modules-003-grant-source`, `access-001-acl-shares`).
+
 ### Added
 
 - **Decision record for data products, phase 3** ([ADR 0037](docs/adr/0037-data-products-connectors-files-edge.md), accepted, planned for 0.25.0): generic parts and bridges with one technology list, lineage from Debezium, Kafka Connect and Confluent connectors, file-based products on object storage, edge devices linked to their systems, an Industrial Edge readout that suggests, semantic models as governed records and an OpenLineage export.
@@ -1528,7 +1532,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/vxrz/steward/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/vxrz/steward/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/vxrz/steward/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/vxrz/steward/compare/v0.19.0...v0.20.0
