@@ -290,6 +290,49 @@ describe('a profile of a team', () => {
     unnamed((await call('search_data_points', { query: 'program' })).structuredContent);
     unnamed((await call('get_plant_asset', { assetId: 'rvs-mill-01' })).structuredContent);
   });
+
+  it('a proposal (MCP) that names the hidden profile is refused like one that names an unknown profile', async () => {
+    const token = (await dana('POST', '/me/tokens', { name: 'mcp dana', scope: 'mcp' })).token;
+    const propose = async (profile: string) => {
+      const r = await fetch(`${s.base}/api/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          authorization: `Bearer ${token}`,
+          'mcp-protocol-version': '2026-07-28',
+          'mcp-method': 'tools/call',
+          'mcp-name': 'propose_plant_changes',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: {
+            name: 'propose_plant_changes',
+            arguments: {
+              title: 'Meter profile (example)',
+              rationale: 'From the vendor manual (example)',
+              document: { version: 1, assignment: { asset: 'rvs-mill-01-meter', profile } },
+            },
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+              'io.modelcontextprotocol/clientCapabilities': {},
+              'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+            },
+          },
+        }),
+      });
+      const result = (await r.json()).result;
+      return { isError: !!result.isError, text: String(result.content?.[0]?.text ?? '') };
+    };
+    const hidden = await propose(C80);
+    const unknown = await propose('no-such-profile');
+    expect(hidden.isError).toBe(true);
+    expect(unknown.isError).toBe(true);
+    expect(hidden.text.split(C80).join('X')).toBe(unknown.text.split('no-such-profile').join('X'));
+    expect(hidden.text).not.toContain(C80_NAME);
+  });
 });
 
 describe('shares and Restricted', () => {
