@@ -3735,6 +3735,18 @@
             }
           ]
         },
+        "system": {
+          "description": "0.25.0: the Steward system this device is (its id); left out: unchanged",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "purpose": {
           "anyOf": [
             {

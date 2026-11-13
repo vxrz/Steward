@@ -28,6 +28,8 @@ import { CostAttributionPanel } from '../components/costs/Attribution';
 import { IfModule } from '../components/modules/ModuleOff';
 import { TableScroll } from '../components/TableScroll';
 import { useSubjectLabel } from '../components/SubjectsInput';
+import { IemStatus, SystemEdgePanels } from '../components/plant/EdgeDevice';
+import type { IemDeviceStatus } from '@sm/shared';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -37,6 +39,12 @@ export function SystemDetailPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const q = useQuery({ queryKey: ['system', id], queryFn: () => get<SystemDetail>(`/systems/${id}`) });
+  // 0.25.0: the status of its Industrial Edge device, from the examples' dataset
+  const iem = useQuery({
+    queryKey: ['system', id, 'iem', q.data?.iemDeviceId],
+    queryFn: () => get<IemDeviceStatus | null>(`/systems/${id}/iem`),
+    enabled: !!q.data?.iemDeviceId,
+  });
   const [editing, setEditing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useSearchParams();
@@ -166,6 +174,7 @@ export function SystemDetailPage() {
                 </TableScroll>
               )}
             </Stack>
+            <SystemEdgePanels systemId={s.id} />
             <IfModule module="costs">
               <CostAttributionPanel kind="system" id={s.id} />
             </IfModule>
@@ -192,6 +201,16 @@ export function SystemDetailPage() {
                 )}
               </Field>
               <SystemSchemaField system={s} />
+              {s.iemDeviceId && (
+                <Field label={t('systems.iemDeviceId')}>
+                  <Stack gap={4}>
+                    <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                      {s.iemDeviceId}
+                    </Text>
+                    {iem.data && <IemStatus status={iem.data} />}
+                  </Stack>
+                </Field>
+              )}
               <Field label={t('environments.title')}>
                 {s.environments.length ? (
                   <Group gap={4}>

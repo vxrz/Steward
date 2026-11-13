@@ -718,6 +718,7 @@ export const deviceSchema = z
     id,
     hostname: text(NL.host),
     domain: text(NL.host),
+    system: text(100).describe('0.25.0: the Steward system this device is (its id); left out: unchanged'),
     purpose: short,
     mac: text(20).describe('MAC address (EUI-48): AC-DE-48-00-00-80, ac:de:48:00:00:80 or acde.4800.0080'),
     serial: short,

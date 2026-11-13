@@ -259,8 +259,14 @@ export interface PlantStatusCheck {
 
 export interface PlantDeviceValues {
   id: string;
+  /** The host name: kept here only – a linked system shows it read through (0.25.0) */
   hostname: string;
   domain: string;
+  /**
+   * 0.25.0 (ADR 0037 part 3): the Steward system this device is (an edge device is equipment here and a host in the
+   * catalogue), or null. Its applications are the asset's _Apps on this device_.
+   */
+  system: string | null;
   purpose: string;
   /** EUI-48, written in IEEE 802 notation (AC-DE-48-00-00-80), or empty */
   mac: string;
@@ -399,6 +405,10 @@ export interface PlantConduitView extends PlantConduitValues, PlantSource {
 export interface PlantDeviceView extends PlantDeviceValues, PlantSource {
   assetId: string;
   assetName: string;
+  /** 0.25.0: the system it is, named and linked when the reader may see it (`system` is null when they may not) */
+  systemRef: PlantItemRef | null;
+  /** 0.25.0: it is a system the reader may not see (kept when they save the device) */
+  systemHidden: boolean;
   live: PlantLiveStatus;
   /** What looks wrong: the VLAN does not exist, the address is outside its subnets, the address is in a blocked range */
   hints: ('vlan_missing' | 'address_outside' | 'address_blocked')[];
