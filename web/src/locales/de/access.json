@@ -181,7 +181,7 @@
       "responsible": "Verantwortlicher"
     },
     "outside": "außerhalb der zuständigen Teams",
-    "impliedHint": "Eigentümer haben abgeleitet das Recht Bearbeiten: Es ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
+    "impliedHint": "Eigentümer und Verantwortliche haben abgeleitet die angezeigte Stufe: Sie ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
     "notYours": "Mit wem dieser Eintrag geteilt ist, sehen nur, wer ihn verwaltet, Administratoren und Prüfer. „Warum habe ich Zugriff?“ zeigt Ihre eigenen Gründe.",
     "empty": "Mit niemandem geteilt.",
     "unknown": "Existiert nicht mehr – dieser Eintrag trifft auf niemanden zu",

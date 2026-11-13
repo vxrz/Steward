@@ -88,7 +88,7 @@ test('a platform offers View and Manage with "use"; a monitor shows its owner ab
   const monitor = (Array.isArray(monitors) ? monitors : (monitors.items ?? []))[0]!;
   await page.goto(`/monitors/${monitor.id}`);
   await page.getByRole('tab', { name: 'Access' }).click();
-  await expect(page.getByTestId('owner-field').getByRole('textbox', { name: 'Owner' })).not.toHaveValue('');
+  await expect(page.getByTestId('owner-field').getByRole('combobox', { name: 'Owner' })).not.toHaveValue('');
   await expect(page.getByTestId('shares-panel')).toBeVisible();
   await expectAccessible(page, 'monitor access tab');
   await page.setViewportSize({ width: 390, height: 844 });
