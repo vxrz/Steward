@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { dataElementAnswer } from './mockDataElements.js';
 
 /**
  * A demo Snowflake account (#115) under /mock/snowflake: the SQL API (POST /api/v2/statements) answering the
@@ -523,6 +524,9 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
           ]),
         );
       default: {
+        // the data products checks (ADR 0036 part 10): mockDataElements.ts
+        const dp = tag ? dataElementAnswer(tag, sql, arg, TABLES) : null;
+        if (dp) return result(reply, dp.names, dp.rows);
         const r = untagged(sql, arg);
         return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : result(reply, r.names, r.rows);
       }

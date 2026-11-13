@@ -508,7 +508,42 @@
     "contractErrorAs": "Ein Befund vom Typ Fehler",
     "contractWarningAs": "Ein Test mit Warnungen",
     "contractWarningFindingAs": "Ein Befund vom Typ Warnung",
-    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet die zuletzt gespeicherte Ausführung."
+    "contractTestHint": "Ein Test liest Daten: Er erhält mindestens eine Minute, unabhängig vom Zeitlimit oben (höchstens 300 s). Ein Testlauf des Monitors (aufgezeichnete Antworten) ruft den Dienst nicht auf – er bewertet die zuletzt gespeicherte Ausführung.",
+    "dataElement": "Datenelement",
+    "dataElementHint": "Suchen Sie im Elementkatalog nach dem Namen. Die Prüfung liest seine Plattform mit den Rechten des Monitor-Eigentümers: Er muss das Element sehen und seine Plattform nutzen dürfen",
+    "dataElementMissing": "Dieses Element gibt es nicht mehr, oder Sie dürfen es nicht sehen",
+    "chooseDataElement": "Nach einem Element suchen",
+    "searching": "Suche …",
+    "noDataElement": "Kein Element, das Sie sehen dürfen, passt",
+    "dataElementMode": "Was geprüft wird",
+    "dataElementModes": {
+      "freshness": "Aktualität",
+      "schema": "Schema gegen den Vertrag"
+    },
+    "dataElementModeHints": {
+      "freshness": "Wie alt die Daten laut Metadaten sind: die letzte Änderung einer Tabelle, die letzte erfolgreiche Aktualisierung oder Ausführung, die neueste Nachricht eines Topics",
+      "schema": "Die Spalten oder Felder gegen den Datenvertrag, an den der Ausgabe-Port des Elements in seiner Umgebung gebunden ist"
+    },
+    "dataElementMaxAge": "Höchstes Alter (Minuten)",
+    "dataElementMaxAgeHint": "1440 ist ein Tag",
+    "dataElementEach": "Welche Tabellen oder Topics zählen",
+    "dataElementEachOptions": {
+      "any": "Das neueste (eines ist aktuell)",
+      "every": "Das älteste (jedes ist aktuell)"
+    },
+    "dataElementGroup": "Consumer-Gruppe (optional)",
+    "dataElementMaxLag": "Höchster Rückstand (Nachrichten)",
+    "dataElementSchemaVersion": "Schemaversion (optional)",
+    "dataElementSchemaVersionHint": "Leer: die neueste Version von <topic>-value",
+    "dataElementFailAs": "Status, wenn zu alt",
+    "dataElementSchemaFailAs": "Status bei fehlendem Feld oder anderem Typ",
+    "dataElementWarningAs": "Status einer Warnung",
+    "dataElementWarningHints": {
+      "freshness": "Die letzte Aktualisierung oder Ausführung schlug fehl, die Daten sind aber noch aktuell genug",
+      "schema": "Pflicht und optional weichen ab, oder es gibt Spalten, die der Vertrag nicht nennt"
+    },
+    "dataElementFreshnessNote": "Aktualität sind Metadaten, nie ein Datenwert: LAST_ALTERED ändert sich auch bei DDL und Hintergrundwartung, die Prüfung sagt also „geändert“, nicht „geladen“. Für den neuesten Wert einer Zeitstempelspalte schreiben Sie eine eigene Datenbankprüfung und verknüpfen sie mit dem Element.",
+    "dataElementSchemaNote": "Snowflake-Spalten stammen aus INFORMATION_SCHEMA.COLUMNS, Kafka-Felder aus der Schema Registry (Protobuf wird nicht verglichen), Datenbanktabellen aus dem neuesten Schema-Snapshot."
   },
   "detail": {
     "template": "Vorlage",
@@ -916,6 +951,10 @@
     "data-contract": {
       "label": "Datenvertrag",
       "help": "Ein ODCS-Datenvertrag: Sein Test über den Datenvertragsdienst besteht (Warnungen stufen herab), oder Stewards eigene Prüfungen – Eigentümer, letzter Test, Spalten verknüpfter Datenquellen und Tabellen – finden nichts"
+    },
+    "data-element": {
+      "label": "Datenelement",
+      "help": "Ein Element eines Datenprodukts (eine Snowflake-Tabelle, dynamische Tabelle, Aufgabe oder ein Schema, ein Kafka-Topic oder -Bündel): Seine Daten sind laut Metadaten aktuell, oder seine Spalten entsprechen dem Datenvertrag seines Ausgabe-Ports"
     }
   },
   "newCheck": {
@@ -945,7 +984,8 @@
     "db-schema": "Keine inkompatible Schemaänderung",
     "page-watch": "Herstellerseiten überwacht",
     "cost": "Kosten steigen nicht",
-    "data-contract": "Datenvertrag eingehalten"
+    "data-contract": "Datenvertrag eingehalten",
+    "data-element": "Datenelement aktuell"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"

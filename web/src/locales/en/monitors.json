@@ -508,7 +508,42 @@
     "contractErrorAs": "An error finding",
     "contractWarningAs": "A test with warnings",
     "contractWarningFindingAs": "A warning finding",
-    "contractTestHint": "A test reads data: it gets at least a minute, whatever the time limit above says (at most 300 s). A test run of the monitor (recorded responses) does not call the service – it judges the last stored run."
+    "contractTestHint": "A test reads data: it gets at least a minute, whatever the time limit above says (at most 300 s). A test run of the monitor (recorded responses) does not call the service – it judges the last stored run.",
+    "dataElement": "Data element",
+    "dataElementHint": "Search the element catalogue by name. The check reads its platform with the monitor owner’s rights: they must see the element and may use its platform",
+    "dataElementMissing": "This element no longer exists, or you may not see it",
+    "chooseDataElement": "Search for an element",
+    "searching": "Searching …",
+    "noDataElement": "No element you may see matches",
+    "dataElementMode": "What is checked",
+    "dataElementModes": {
+      "freshness": "Freshness",
+      "schema": "Schema against the contract"
+    },
+    "dataElementModeHints": {
+      "freshness": "How old the data is by metadata: the last change of a table, the last successful refresh or task run, the newest message of a topic",
+      "schema": "The columns or fields against the data contract the element’s output port is bound to in its environment"
+    },
+    "dataElementMaxAge": "Maximum age (minutes)",
+    "dataElementMaxAgeHint": "1440 is a day",
+    "dataElementEach": "Tables or topics that count",
+    "dataElementEachOptions": {
+      "any": "The newest one (any is fresh)",
+      "every": "The oldest one (every one is fresh)"
+    },
+    "dataElementGroup": "Consumer group (optional)",
+    "dataElementMaxLag": "Maximum lag (messages)",
+    "dataElementSchemaVersion": "Schema version (optional)",
+    "dataElementSchemaVersionHint": "Empty: the latest version of <topic>-value",
+    "dataElementFailAs": "Status when too old",
+    "dataElementSchemaFailAs": "Status of a missing field or another type",
+    "dataElementWarningAs": "Status of a warning",
+    "dataElementWarningHints": {
+      "freshness": "The last refresh or run failed while the data is still fresh enough",
+      "schema": "Required and nullable differ, or there are columns the contract does not name"
+    },
+    "dataElementFreshnessNote": "Freshness is metadata, never a data value: LAST_ALTERED also moves on DDL and background maintenance, so the check says “changed”, not “loaded”. For the newest value of a timestamp column, write a database check of your own and link it to the element.",
+    "dataElementSchemaNote": "Snowflake columns come from INFORMATION_SCHEMA.COLUMNS, Kafka fields from the Schema Registry (Protobuf is not compared), database tables from the latest schema snapshot."
   },
   "detail": {
     "template": "template",
@@ -916,6 +951,10 @@
     "data-contract": {
       "label": "Data contract",
       "help": "An ODCS data contract: its test through the data contract service passes (warnings degrade), or Steward’s own checks – owner, last test, columns of linked datasets and tables – find nothing"
+    },
+    "data-element": {
+      "label": "Data element",
+      "help": "An element of a data product (a Snowflake table, dynamic table, task or schema, a Kafka topic or bundle): its data is fresh by metadata, or its columns match the data contract of its output port"
     }
   },
   "newCheck": {
@@ -945,7 +984,8 @@
     "db-schema": "No breaking schema change",
     "page-watch": "Vendor pages watched",
     "cost": "Costs not rising",
-    "data-contract": "Data contract holds"
+    "data-contract": "Data contract holds",
+    "data-element": "Data element fresh"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"
