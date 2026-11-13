@@ -128,7 +128,7 @@
         "supplier": "Lieferant",
         "data_product": "Datenprodukt",
         "data_object": "Datenobjekt",
-        "data_element": "Element",
+        "data_element": "Datenelement",
         "data_domain": "Datendomäne"
       }
     }
