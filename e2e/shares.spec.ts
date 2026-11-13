@@ -149,3 +149,35 @@ test('an owner shows as an implied Edit share on the Access tab and in Why do I 
     await admin.post(`/api/applications/${app.id}/archive`, { data: { archived: true } });
   }
 });
+
+test('a supplier has the Access tab; the merge preview names a share that opens a source', async ({ page, apiAs }) => {
+  const admin = await apiAs('admin');
+  const reader = await ownUser('e2e-reader-', ['viewer'], 'Rita Reader (own)');
+  const name = uniq('Invented Share Mail');
+  const teamA = await json<{ id: string }>(await admin.post('/api/teams', { data: { name: uniq('Share A').replace(/[^\w .@-]/g, ''), members: [] } }));
+  const teamB = await json<{ id: string }>(await admin.post('/api/teams', { data: { name: uniq('Share B').replace(/[^\w .@-]/g, ''), members: [] } }));
+  for (const t of [teamA, teamB]) expect((await admin.put(`/api/teams/${t.id}/settings`, { data: { newResources: 'never' } })).ok()).toBe(true);
+  const target = await json<{ id: string }>(await admin.post('/api/suppliers', { data: { name } }));
+  const source = await json<{ id: string }>(await admin.post('/api/suppliers', { data: { name: `${name} GmbH` } }));
+  expect((await admin.put(`/api/owning-teams/supplier/${target.id}`, { data: { teamIds: [teamA.id] } })).ok()).toBe(true);
+  expect((await admin.put(`/api/owning-teams/supplier/${source.id}`, { data: { teamIds: [teamB.id] } })).ok()).toBe(true);
+  const put = await admin.put(`/api/access/supplier/${target.id}/shares`, { data: { shares: [{ subject: `user:${reader.username}`, level: 'view' }] } });
+  expect(put.ok(), await put.text()).toBe(true);
+  try {
+    await page.goto(`/suppliers/${target.id}?tab=access`);
+    const panel = page.getByTestId('shares-panel');
+    await expect(panel.getByTestId('share-row')).toContainText('Rita Reader (own)');
+    await expect(page.getByText('Owning teams', { exact: true })).toBeVisible();
+    await expectAccessible(page, 'access tab of a supplier');
+
+    await page.goto('/suppliers?status=unconfirmed');
+    const group = page.getByTestId('shared-group').filter({ hasText: `${name} GmbH` });
+    await group.getByTestId('shared-merge').click();
+    const preview = page.getByTestId('merge-preview');
+    await expect(preview.getByTestId('merge-shares')).toContainText('Rita Reader (own) (View)');
+    await expectAccessible(page, 'merge preview naming a share');
+  } finally {
+    for (const s of [target, source]) await admin.post(`/api/suppliers/${s.id}/archive`, { data: { archived: true } });
+    for (const t of [teamA, teamB]) await admin.delete(`/api/teams/${t.id}`);
+  }
+});

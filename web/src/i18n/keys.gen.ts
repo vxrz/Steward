@@ -15384,6 +15384,7 @@ export interface Resources {
     'detailTabs.contacts': string;
     'detailTabs.certificates': string;
     'detailTabs.usedBy': string;
+    'detailTabs.access': string;
     'contractsTab.help': string;
     'contractsTab.mine': string;
     'contractsTab.myServices': string;
@@ -15525,6 +15526,8 @@ export interface Resources {
     'shared.previewTitle': string;
     'shared.widens': string;
     'shared.gainers': string;
+    'shared.sharesWiden': string;
+    'shared.shareLine': string;
     'shared.narrows': string;
     'shared.losers': string;
     'shared.openTitle': string;

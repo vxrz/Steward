@@ -458,7 +458,7 @@ export interface CatalogueDecision {
 }
 
 /** The catalogue kinds switched to shares (ADR 0033 phase 1): their shares and the Restricted scope count. */
-export const SHARED_CATALOGUE_KINDS: ReadonlySet<CatalogueKind> = new Set<CatalogueKind>(['service', 'application', 'system']);
+export const SHARED_CATALOGUE_KINDS: ReadonlySet<CatalogueKind> = new Set<CatalogueKind>(['service', 'application', 'system', 'supplier']);
 
 /** How a share gives rights on a catalogue item: View sees it and its children, Edit changes them, Manage also its shares. */
 export const CATALOGUE_SHARE_MODEL: ShareModel<'view' | 'edit' | 'manage'> = {

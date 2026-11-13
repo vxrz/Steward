@@ -725,7 +725,7 @@ describe.each(versions)('upgrade from %s', (version) => {
     expect((await admin('GET', '/teams')).every((t: any) => !Object.keys(t.memberRoles ?? {}).length)).toBe(true);
   });
 
-  it('gives nobody access and takes none away on services, applications and systems (ADR 0033)', async () => {
+  it('gives nobody access and takes none away on services, applications, systems and suppliers (ADR 0033)', async () => {
     const user = client();
     await user('POST', '/auth/login', { username: m.approver, password: m.demoPassword });
     const ids = (x: any) => (Array.isArray(x) ? x : (x.items ?? [])).map((y: any) => ({ id: y.id, owners: (y.owners ?? []) as string[] }));
@@ -745,6 +745,7 @@ describe.each(versions)('upgrade from %s', (version) => {
       ['service', '/services'],
       ['application', '/applications'],
       ['system', '/systems'],
+      ['supplier', '/suppliers'],
     ] as const) {
       const items = ids(await admin('GET', url).catch(() => []));
       for (const it of items.slice(0, 5)) {

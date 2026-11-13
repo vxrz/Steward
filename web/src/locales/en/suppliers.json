@@ -235,7 +235,8 @@
     "services": "Services",
     "contacts": "Contacts",
     "certificates": "Certificates",
-    "usedBy": "Used by"
+    "usedBy": "Used by",
+    "access": "Access"
   },
   "contractsTab": {
     "help": "Each team holds its own contracts: a contract with a team among its owners is seen only by its owners, the readers of the services it covers, administrators and auditors.",
@@ -407,6 +408,8 @@
     "previewTitle": "Merge into one shared supplier",
     "widens": "This merge shows the company record to more people.",
     "gainers": "Gain sight of the company record (name, certificates, company-wide contacts): {{names}}",
+    "sharesWiden": "The result is shared, which shows the merged suppliers to people who did not see them – their contracts keep the teams of their supplier: {{shares}}",
+    "shareLine": "{{subject}} ({{level}})",
     "narrows": "This merge hides a supplier, and the contracts on it, from people who see it now.",
     "losers": "Lose sight of the supplier and its contracts (notice-by reminders of contracts nobody can see any more go to the administrators): {{names}}",
     "openTitle": "Change the owning teams of the supplier",

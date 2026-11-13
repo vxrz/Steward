@@ -224,13 +224,20 @@ function PreviewDetails({
   choices: Record<string, SupplierContactChoice>;
   setChoices: (c: Record<string, SupplierContactChoice>) => void;
 }) {
-  const { t } = useTranslation(['suppliers', 'common']);
+  const { t } = useTranslation(['suppliers', 'common', 'access']);
   const ownerLabel = useSubjectLabel();
   return (
     <>
       {p.widens && (
         <Alert color="orange" variant="light">
           {p.gainers.length ? t('shared.gainers', { names: p.gainers.join(', ') }) : t('shared.widens')}
+        </Alert>
+      )}
+      {(p.shares ?? []).length > 0 && (
+        <Alert color="orange" variant="light" data-testid="merge-shares">
+          {t('shared.sharesWiden', {
+            shares: p.shares.map((x) => t('shared.shareLine', { subject: ownerLabel(x.subject), level: t(`access:owning.level.${x.level}`) })).join(', '),
+          })}
         </Alert>
       )}
       {p.narrows && (

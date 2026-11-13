@@ -7,12 +7,14 @@ import {
   type SupplierMergePreview,
   type SupplierSharedMergeInput,
   type SupplierSharedSuggestion,
+  type ResourceShare,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin } from '../auth/permissions.js';
-import { catalogueAccess, forgetOwningTeams, owningTeams, setOwningTeams, type OwningTeam } from '../auth/policy.js';
+import { isAdmin, matches, subjectsOf } from '../auth/permissions.js';
+import { forgetOwningTeams, owningTeams, setOwningTeams, type OwningTeam } from '../auth/policy.js';
+import { forgetShares, isRestricted, sharesFor, sharesOf } from '../auth/shares.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { auditNamedGrant, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
@@ -90,26 +92,44 @@ function protectiveScope(src: SupplierRow): ScopeItem[] {
 const scopeRows = (contactId: string) =>
   db().all<{ kind: SupplierContactScopeKind; item_id: string }>('SELECT kind, item_id FROM supplier_contact_scopes WHERE contact_id = ?', contactId);
 
-/** Who sees the supplier with these owning teams and owners (active users). */
+const activeUsers = (): AuthUser[] =>
+  listUsers()
+    .filter((x) => x.active)
+    .map((u) => toAuthUser(u));
+
+/** Who sees the supplier with these owning teams and owners (active users) – its shares and scope as they are. */
 function readersOf(s: SupplierRow, teams: OwningTeam[], owners: string[] = ownersOf(s)): Set<string> {
   const out = new Set<string>();
-  for (const u of listUsers().filter((x) => x.active)) {
-    const a = toAuthUser(u);
-    // the owning teams as they would be: members of these teams, the named owners, administrators and auditors
-    const mine = teams.length ? catalogueAccessWith(a, owners, teams) : catalogueAccess(a, { kind: 'supplier', id: '\u0000none', owners }).view;
-    if (mine) out.add(u.username);
-  }
+  for (const a of activeUsers()) if (catalogueAccessWith(a, s.id, owners, teams)) out.add(a.username);
   return out;
 }
 
-/** catalogueAccess for a supplier as if it had these owning teams and owners (a preview; nothing is stored). */
-function catalogueAccessWith(u: AuthUser, owners: string[], teams: OwningTeam[]): boolean {
+/**
+ * catalogueAccess for a supplier as if it had these owning teams and owners (a preview; nothing is stored): the members
+ * of these teams (without teams: every role, unless it is Restricted), the named owners, its shares (ADR 0033),
+ * administrators and auditors.
+ */
+function catalogueAccessWith(u: AuthUser, id: string, owners: string[], teams: OwningTeam[], shares = true): boolean {
   if (isAdmin(u) || u.roles.includes('auditor')) return true;
   if (owners.some((o) => subjectMatches(u, o))) return true;
+  if (shares && sharesFor(u.id, subjectsOf(u), 'supplier', id).length) return true;
+  if (!teams.length) return !isRestricted('supplier', id) && u.roles.length > 0;
   const ids = new Set(teams.map((t) => t.id));
   return db()
     .all<{ team_id: string }>('SELECT team_id FROM team_members WHERE user_id = ?', u.id)
     .some((m) => ids.has(m.team_id));
+}
+
+/**
+ * The shares of the target that show a source to someone who did not see it (ADR 0033, #292): a share whose subject
+ * covers an active user who neither saw the source nor sees the target without its shares. A widening like a team
+ * that the source did not have.
+ */
+function wideningShares(target: SupplierRow, targetTeams: OwningTeam[], sourceReaders: ReadonlySet<string>): ResourceShare[] {
+  const shares = sharesOf('supplier', target.id);
+  if (!shares.length) return [];
+  const outside = activeUsers().filter((u) => !sourceReaders.has(u.username) && !catalogueAccessWith(u, target.id, ownersOf(target), targetTeams, false));
+  return shares.filter((sh) => outside.some((u) => matches(u, sh.subject)));
 }
 
 function subjectMatches(u: AuthUser, s: string): boolean {
@@ -150,6 +170,7 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
     gainers: [],
     narrows: false,
     losers: [],
+    shares: [],
     teams: targetTeams.map((t) => t.name),
     contracts: [],
     contacts: [],
@@ -172,16 +193,28 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
   const targetCertificates = db().all<CertificateRow>('SELECT * FROM supplier_certificates WHERE supplier_id = ?', target.id);
   for (const src of all) {
     const srcTeams = owningTeams('supplier', src.id);
-    const wide = widens(srcTeams, targetTeams);
+    const before = readersOf(src, srcTeams);
+    // a share of the result that shows the source to someone who did not see it widens like a new team (ADR 0033)
+    const viaShares = opening ? [] : wideningShares(target, targetTeams, before);
+    for (const sh of viaShares) {
+      const known = preview.shares.find((x) => x.subject === sh.subject);
+      if (known) known.supplierIds.push(src.id);
+      else preview.shares.push({ subject: sh.subject, level: sh.level, supplierIds: [src.id] });
+    }
+    const wide = widens(srcTeams, targetTeams) || viaShares.length > 0;
     if (wide) {
       preview.widens = true;
-      const before = readersOf(src, srcTeams);
       for (const n of targetReaders) if (!before.has(n) && !preview.gainers.includes(n)) preview.gainers.push(n);
     }
-    if (narrows(srcTeams, targetTeams)) {
+    // the source's own shares go with it (a merge): who saw it only through one loses it
+    if (narrows(srcTeams, targetTeams) || (!opening && sharesOf('supplier', src.id).length)) {
       // its readers who do not see the result lose it, and with it the contracts they saw through it
-      preview.narrows = true;
-      for (const n of readersOf(src, srcTeams)) if (!resultReaders.has(n) && !preview.losers.includes(n)) preview.losers.push(n);
+      for (const n of before)
+        if (!resultReaders.has(n) && !preview.losers.includes(n)) {
+          preview.losers.push(n);
+          preview.narrows = true;
+        }
+      if (narrows(srcTeams, targetTeams)) preview.narrows = true;
     }
     // contracts: without a team owner they get the source's owning teams
     for (const c of db().all<ContractRow>('SELECT * FROM supplier_contracts WHERE supplier_id = ? ORDER BY lower(title), id', src.id)) {
@@ -273,10 +306,16 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
  * answers 404 itself.
  */
 export function mergeGrants(intoId: string, ids: readonly string[]): boolean {
-  const target = db().get<{ id: string }>('SELECT id FROM suppliers WHERE id = ?', intoId);
+  const target = db().get<SupplierRow>('SELECT * FROM suppliers WHERE id = ?', intoId);
   if (!target) return false;
   const targetTeams = owningTeams('supplier', target.id);
-  return [...new Set(ids)].filter((id) => id !== intoId).some((id) => widens(owningTeams('supplier', id), targetTeams));
+  const sources = [...new Set(ids)].filter((id) => id !== intoId);
+  if (sources.some((id) => widens(owningTeams('supplier', id), targetTeams))) return true;
+  // a share of the target that shows a source to someone who did not see it (ADR 0033, #292)
+  return sources.some((id) => {
+    const src = db().get<SupplierRow>('SELECT * FROM suppliers WHERE id = ?', id);
+    return !!src && wideningShares(target, targetTeams, readersOf(src, owningTeams('supplier', src.id))).length > 0;
+  });
 }
 
 function loadMerge(intoId: string, ids: string[]): { target: SupplierRow; sources: SupplierRow[] } {
@@ -400,7 +439,8 @@ export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail 
   // a merge that changes who sees anything – widening or narrowing – changes a team scope: administrators (ADR 0031
   // part 8). Designers merge suppliers with the same owning teams.
   const targetTeams = owningTeams('supplier', target.id);
-  if (!isAdmin(u) && sources.some((x) => !sameTeams(owningTeams('supplier', x.id), targetTeams)))
+  // a share of the result that opens a source (ADR 0033, #292) is a widening too
+  if (!isAdmin(u) && (sources.some((x) => !sameTeams(owningTeams('supplier', x.id), targetTeams)) || p.preview.shares.length))
     forbid('merge suppliers with other owning teams into this one (administrators)', 'mergeWidening');
   const choose = p.preview.contacts.find((c) => c.action === 'choose');
   if (choose)
@@ -419,6 +459,8 @@ export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail 
     before: [...ownersOf(target), ...sources.flatMap(ownersOf)],
     after: owners,
     rights: ['view', 'edit'],
+    // a Restricted result (ADR 0033): every new owner is from outside
+    ...(!targetTeams.length && isRestricted('supplier', target.id) ? { restricted: true } : {}),
   };
   const named = requireNamedGrant(grant);
   const count = (table: string, ids: string[]) =>
@@ -456,6 +498,8 @@ export function mergeSuppliers(input: SupplierSharedMergeInput): SupplierDetail 
       db().run('UPDATE supplier_text_migrations SET supplier_id = ? WHERE supplier_id = ?', target.id, src.id);
       db().run('DELETE FROM suppliers WHERE id = ?', src.id);
       forgetOwningTeams('supplier', src.id);
+      // its shares and scope go with it (the preview named who loses sight of it)
+      forgetShares('supplier', src.id);
     }
     db().run(
       'UPDATE suppliers SET aliases = ?, owners = ?, updated_at = ?, updated_by = ? WHERE id = ?',

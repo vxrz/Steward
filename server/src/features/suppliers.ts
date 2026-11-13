@@ -4,6 +4,7 @@ import { supplierTools } from '../suppliers/mcp.js';
 import { capabilities } from '../auth/permissions.js';
 import { currentUser } from '../auth/context.js';
 import { SUPPLIER_MIGRATIONS } from '../migrations/suppliers.js';
+import { catalogueShareKind } from '../catalogue/shares.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** Suppliers (0.17.0, ADR 0029 part 1): core catalogue, linked from applications, systems, tickets, watches, cost plans and duties. */
@@ -21,4 +22,6 @@ export default defineFeature({
   ],
   mcpTools: supplierTools,
   migrations: [SUPPLIER_MIGRATIONS],
+  // shares (ADR 0033, #292): the company record; contracts and scoped contacts keep their own rules (ADR 0031)
+  shareKinds: [catalogueShareKind('supplier')],
 });
