@@ -253,7 +253,12 @@ describe('statements and time', () => {
           now,
           now,
         );
-        db().run(`INSERT INTO dp_members (product_id, element_id, role, include_descendants, note, added_by, added_at) VALUES (?, ?, 'internal', 0, '', 'dana', ?)`, big, `dpe_big${i}`, now);
+        db().run(
+          `INSERT INTO dp_members (product_id, element_id, role, include_descendants, note, added_by, added_at) VALUES (?, ?, 'internal', 0, '', 'dana', ?)`,
+          big,
+          `dpe_big${i}`,
+          now,
+        );
         if (i > 0) {
           db().run(
             `INSERT INTO dp_steps (id, name, step_kind, schedule, description, notes, created_at, created_by, updated_at, updated_by) VALUES (?, ?, 'transform', '', '', '[]', ?, 'dana', ?, 'dana')`,

@@ -37,6 +37,22 @@ _To come: discovery from Snowflake, Kafka and SQL schema snapshots (WP2)._ An el
 
 An output port is bound per environment to up to 20 elements of that environment and optionally to a **data contract** (the version it is held to and its ODCS server). Bound elements become members with the port's role. An input port names where its data comes from: another product's output port, an element of a source system, or a text. Consumers register on output ports; deprecating a port tells them (_to come_).
 
+## Pictures
+
+Three pictures show how data moves – each with a **table** that says the same in words (_Picture_ / _Table_ above it; phones start with the table, the picture is a tap away), a **legend**, a **search** that finds and selects a part, _Fit to screen_, and **export** as SVG or PNG (for documents: the theme's colours, statuses in words, no animation). They follow the conventions of the plant registry's pictures:
+
+- **Pipeline of a product** (`/data-products/{id}/views/pipeline`, the product's _Pipeline_ tab): its elements in columns by role – input ports, internal elements by layer (_source_, _raw_, _staged_, _curated_, _mart_), output ports – inside the product's area, and the elements outside it that its steps read from (upstream, left) or write to (downstream, right), greyed and named with their product. Steps are labelled edges (a step with many inputs and outputs is a node of its own); ports are named on their elements. Switch the **environment** above the picture (production first; `?environment=` in the address).
+- **Product map** (`/data-products/map`): the products in their domains and sub-domains, an edge from the product of an output port to every product whose input port consumes it (dashed and red when that port is deprecated or retired). Filter by domain (with its sub-domains), type, lifecycle and environment – the filters are in the address; the products a match depends on or feeds are drawn greyed.
+- **Lineage of an element** (`/data-elements/{id}/views/lineage`): the elements 1 to 4 steps upstream and downstream (`?depth=`, 2 by default) across products – products as areas –, the steps between them, and plant registry data collections that write to an element (named where you may see the site).
+
+**Health** on a node comes only from checks linked to the element or the product's monitor; without one it says _No data_ – never OK. It is shown as an icon and a word with its colour, never colour alone.
+
+**Keyboard and screen readers.** Every part is a stop of its own with its kind, name, role, layer and health in words; **Enter** opens its page, **Space** (or a click) selects it and highlights everything upstream and downstream of it – _Show only what is connected_ keeps only that (on the map: what depends on a product and what it depends on) – and **Escape** clears the selection. The moving dashes on the edges show the direction of the data; they stop with your system's _reduce motion_ setting or with _Animation off_, and the arrows stay.
+
+**What you may not see** stays in the picture without a name or an id – _An element you may not see_ – so the picture stays true; a note counts such elements and products.
+
+**Large pictures.** A response holds at most 2,000 elements (the rest are counted). The pipeline's picture draws at most 150 parts: beyond, elements collapse by their parent (_40 elements of STAGED_), then a column becomes one part; the map draws at most 300 products, beyond, each domain becomes one part with its count; a lineage stops at 200 elements (left out counted per direction). The table always lists everything the response holds. Each picture is read with a fixed number of statements whatever its size.
+
 ## Who may do what
 
 | Who                                             | Rights                                                                      |
@@ -55,4 +71,4 @@ Documents, records and ticket references link data products and data objects (li
 
 ## To come
 
-Discovery, health and _Create monitor_, costs and the scorecard, the pages and pictures, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
+Discovery, health and _Create monitor_, costs and the scorecard, the pages, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
