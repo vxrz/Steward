@@ -525,6 +525,7 @@ function DbtUpload({ source }: { source: DataLineageSource }) {
           <Text size="sm">{t('dbt.lastImportLine', { file: t(`dbt.files.${last.file}`), when: fmtRelative(last.at), by: last.by })}</Text>
           <Text size="xs" c="dimmed">
             {Object.entries(last.counts)
+              .filter(([, v]) => v > 0)
               .map(([k, v]) => `${fmtNumber(v)} ${t(`dbt.countKeys.${k as 'nodes'}`, { defaultValue: k })}`)
               .join(' · ')}
           </Text>

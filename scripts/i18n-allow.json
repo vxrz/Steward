@@ -222,7 +222,11 @@
       "Element",
       "Snowpipe",
       "OpenAPI",
-      "AsyncAPI"
+      "AsyncAPI",
+      "OpenLineage",
+      "dbt",
+      "manifest.json",
+      "run_results.json"
     ]
   }
 }

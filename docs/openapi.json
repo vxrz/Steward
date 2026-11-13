@@ -44731,6 +44731,10 @@
                 },
                 "hidden": {
                   "type": "boolean"
+                },
+                "proposed": {
+                  "type": "boolean",
+                  "description": "A way a lineage source reports that no step documents yet (an open proposal)"
                 }
               },
               "required": [
@@ -44777,6 +44781,10 @@
                 },
                 "hidden": {
                   "type": "boolean"
+                },
+                "proposed": {
+                  "type": "boolean",
+                  "description": "An open proposal of a lineage source, not a documented step"
                 }
               },
               "required": [
