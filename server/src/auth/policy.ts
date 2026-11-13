@@ -46,7 +46,16 @@ import { isAdmin, matches, subjectsOf, DEFAULT_PLATFORM, DEFAULT_PROCESS } from 
 /** A status viewer: role "status" and no other (#26) – auth/access.ts has the same; repeated so this module imports no route layer. */
 const isStatusViewer = (roles: readonly string[]): boolean => roles.length > 0 && roles.every((r) => r === 'status');
 import { isRestricted, sharesFor } from './share-store.js';
-import { grantedModuleRoles, modulesGrantingRoles } from '../modules/grants.js';
+import { formerRolesOf, grantedModuleRoles, modulesGrantingRoles } from '../modules/grants.js';
+
+/**
+ * The instance roles a person has for the rules outside a module's own kinds: their roles and the former role "plant"
+ * when the plant registry's contributor role or more is granted to them (ADR 0034 part 5, modules/grants.ts).
+ */
+export const policyRoles = (u: AuthUser): Role[] => {
+  const former = formerRolesOf(u);
+  return former.length ? [...u.roles, ...former] : u.roles;
+};
 
 export interface OwningTeam {
   id: string;
@@ -184,7 +193,7 @@ export function teamRoles(u: AuthUser, teams: OwningTeam[]): { team: string; rol
   const out: { team: string; roles: Role[] }[] = [];
   for (const t of teams) {
     const m = mine.get(t.id);
-    if (m) out.push({ team: t.name, roles: [...new Set([...u.roles, ...m.roles])] });
+    if (m) out.push({ team: t.name, roles: [...new Set([...policyRoles(u), ...m.roles])] });
   }
   return out;
 }
@@ -589,14 +598,14 @@ export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id
     // Restricted (ADR 0033): instance roles give nothing, auditors still see it
     if (shared && isRestricted(r.kind, r.id)) {
       if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
-    } else for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: byRole(role) });
+    } else for (const role of policyRoles(u)) reasons.push({ source: 'instanceRole', role, permissions: byRole(role) });
   } else {
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
     const mine = memberships(u);
     for (const t of teams) {
       const m = mine.get(t.id);
       if (!m) continue;
-      for (const role of new Set([...u.roles, ...m.roles])) reasons.push({ source: 'teamRole', role, team: t.name, permissions: byRole(role) });
+      for (const role of new Set([...policyRoles(u), ...m.roles])) reasons.push({ source: 'teamRole', role, team: t.name, permissions: byRole(role) });
     }
   }
   if (shared) reasons.push(...shareReasons(u, r, CATALOGUE_SHARE_MODEL));
@@ -681,7 +690,7 @@ export function teamScoped<P extends string>(
     });
   const teams = owningTeams(r.kind, r.id);
   if (!teams.length) {
-    for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });
+    for (const role of policyRoles(u)) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });
     return { permissions: o.unscoped(), reasons };
   }
   if (o.auditor && u.roles.includes('auditor')) add({ source: 'auditor', role: 'auditor', permissions: [...o.auditor] });

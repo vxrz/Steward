@@ -185,3 +185,25 @@ export function modulesGrantingRoles(u: GrantPerson, policy: ModulePolicy = modu
     if (rows.some((g) => !!declaredModuleRole(id, g.role) && subjects.has(g.subject.trim().toLowerCase())) && usesByPolicy(u, id, policy)) out.push(id);
   return out;
 }
+
+/** Per person object (a request): the former roles that still name them. */
+const formerRoleCache = new WeakMap<object, Role[]>();
+
+/**
+ * The former instance role "plant" (ADR 0034 part 5) as it still counts outside the plant registry: whoever is granted
+ * the plant registry's contributor or manager role (directly, through a team or single sign-on) is treated as having
+ * it where the role meant something – entries of access lists and shares that name `role:plant`, and the names of
+ * catalogue items, dashboards and ticket references a plant page shows. So converting the role into a grant changes
+ * nobody's rights. Someone who still carries the role, or whose manager role only comes from core roles, gets nothing
+ * more here.
+ */
+export function formerRolesOf(u: GrantPerson): Role[] {
+  if (u.roles.includes('plant')) return [];
+  let out = formerRoleCache.get(u);
+  if (!out) {
+    const granted = moduleRoleOf(u, 'plant').granted;
+    out = granted === 'contributor' || granted === 'manager' ? ['plant'] : [];
+    formerRoleCache.set(u, out);
+  }
+  return out;
+}

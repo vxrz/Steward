@@ -6,14 +6,13 @@ import {
   type PlatformPermission,
   type ProcessPermission,
   type Role,
-  moduleRoleAtLeast,
 } from '@sm/shared';
 import { HttpError, type ErrorParams } from '../util.js';
 import type { AuthUser } from './context.js';
 import { aliasSubjects, sameIdentity } from './aliases.js';
 import { fourEyesRequired } from './assurance-policy.js';
 import { memberships, platformAccess, processAccess } from './policy.js';
-import { moduleRoleOf } from '../modules/grants.js';
+import { formerRolesOf } from '../modules/grants.js';
 
 /**
  * Access model
@@ -52,27 +51,9 @@ export function subjectsOf(u: AuthUser): Set<string> {
     ...u.roles.map((r) => `role:${r}`),
     // former names from an imported migration package (aliases.ts)
     ...aliasSubjects(u),
-    ...formerRoleSubjects(u),
+    // the former role "plant": whoever is granted the plant registry's contributor role or more (ADR 0034 part 5)
+    ...formerRolesOf(u).map((r) => `role:${r}`),
   ]);
-}
-
-/** Per user object (a request): whether the former role "plant" still names them. */
-const formerRoles = new WeakMap<AuthUser, string[]>();
-
-/**
- * The former instance role "plant" (ADR 0034 part 5) became the plant registry's contributor grant: entries of access
- * lists and shares that name `role:plant` still name whoever is granted contributor or more there (directly, through a
- * team or single sign-on) – so nobody lost what such an entry gave them. A manager role that only comes from core roles
- * (designers) is not the former role.
- */
-function formerRoleSubjects(u: AuthUser): string[] {
-  if (u.roles.includes('plant')) return [];
-  let out = formerRoles.get(u);
-  if (!out) {
-    out = moduleRoleAtLeast(moduleRoleOf(u, 'plant').granted, 'contributor') ? ['role:plant'] : [];
-    formerRoles.set(u, out);
-  }
-  return out;
 }
 
 export function matches(u: AuthUser, subject: string): boolean {
