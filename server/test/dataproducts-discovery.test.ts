@@ -146,9 +146,10 @@ describe('discovery sources', () => {
     expect(await fail(vera('GET', `/data-products/discovery-sources/${src.id}`))).toMatchObject({ status: 404, code: 'DATA_DISCOVERY_NOT_FOUND' });
     expect(await vera('GET', '/data-products/discovery-sources')).toEqual([]);
     // a source keeps its platform
-    expect(
-      await fail(dana('PUT', `/data-products/discovery-sources/${src.id}`, { name: src.name, platformId: kafka, scope: [] })),
-    ).toMatchObject({ code: 'DATA_DISCOVERY_PLATFORM', params: { context: 'changed' } });
+    expect(await fail(dana('PUT', `/data-products/discovery-sources/${src.id}`, { name: src.name, platformId: kafka, scope: [] }))).toMatchObject({
+      code: 'DATA_DISCOVERY_PLATFORM',
+      params: { context: 'changed' },
+    });
     const audit = await s.api('GET', '/audit?action=datadiscovery.source_created');
     expect(JSON.stringify(audit)).toContain('Shop on Snowflake');
   });
@@ -238,7 +239,13 @@ describe('Snowflake (information schema)', () => {
   it('marks nothing missing after a truncated run, and says why', async () => {
     sf.dropSnowflakeObject('SHOP.SALES.ORDERS');
     const cut = await job.runSource(id, { trigger: 'schedule', limits: { elementsPerRun: 5 } });
-    expect(cut).toMatchObject({ status: 'truncated', truncated: true, missing: 0, errorCode: 'DATA_DISCOVERY_TOO_LARGE', errorParams: { context: 'run', max: 5 } });
+    expect(cut).toMatchObject({
+      status: 'truncated',
+      truncated: true,
+      missing: 0,
+      errorCode: 'DATA_DISCOVERY_TOO_LARGE',
+      errorParams: { context: 'run', max: 5 },
+    });
     expect((await elements('shop.sales.orders'))[0]!.missingSince).toBeNull();
     sf.resetSnowflakeCatalogue();
   });
@@ -254,7 +261,19 @@ describe('Snowflake (information schema)', () => {
     const src = await dana('GET', `/data-products/discovery-sources/${id}`);
     expect(src).toMatchObject({ lastStatus: 'failed', failingSince: expect.any(String) });
     // saving it again makes it the saver's: it runs with their right
-    const input = (({ name, platformId, scope, includePrefixes, excludePrefixes, environmentRules, mode, identityId, elementTeamIds, intervalMinutes, enabled }) => ({
+    const input = (({
+      name,
+      platformId,
+      scope,
+      includePrefixes,
+      excludePrefixes,
+      environmentRules,
+      mode,
+      identityId,
+      elementTeamIds,
+      intervalMinutes,
+      enabled,
+    }) => ({
       name,
       platformId,
       scope,

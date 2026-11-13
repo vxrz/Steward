@@ -81,7 +81,11 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
   const { source, platform } = ctx;
   const scope = snowflakeScope(source.scope);
   if (!scope.size)
-    throw new DiscoveryError({ message: 'Name at least one Snowflake database in the scope', code: 'DATA_DISCOVERY_SCOPE', params: { context: 'snowflakeEmpty' } });
+    throw new DiscoveryError({
+      message: 'Name at least one Snowflake database in the scope',
+      code: 'DATA_DISCOVERY_SCOPE',
+      params: { context: 'snowflakeEmpty' },
+    });
   // the account's origin itself must be allowed by the outbound policy (an allow-list may leave it out); every statement
   // then goes through the platform's request path (the policy for redirects, address pinning, the read-only identity)
   await assertOutboundAllowed(await buildUrl(platform, ctx.secrets, '/'), outboundContext());
@@ -229,7 +233,11 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
               qualifiedName: qn,
               parent: `${database}.${r.schema_name}`,
               env,
-              flags: { external: String(r.type ?? '').toUpperCase().startsWith('EXTERNAL') },
+              flags: {
+                external: String(r.type ?? '')
+                  .toUpperCase()
+                  .startsWith('EXTERNAL'),
+              },
               readout: { stageType: short(r.type, 40), cloud: short(r.cloud, 40), region: short(r.region, 60) },
             },
           ]
@@ -286,7 +294,9 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
       const qn = `${r.CATALOG_NAME}.${r.SCHEMA_NAME}`;
       if (!r.CATALOG_NAME || !r.SCHEMA_NAME || !keeps(r.CATALOG_NAME, true) || !keeps(qn, true)) continue;
       schemasKept.add(qn);
-      schemaElements.push(element({ kind: 'snowflake.schema', qualifiedName: qn, parent: r.CATALOG_NAME, env: envOf(r.CATALOG_NAME), externalId: r.SCHEMA_ID }));
+      schemaElements.push(
+        element({ kind: 'snowflake.schema', qualifiedName: qn, parent: r.CATALOG_NAME, env: envOf(r.CATALOG_NAME), externalId: r.SCHEMA_ID }),
+      );
     }
     yield schemaElements;
     const secure = new Set(

@@ -50,7 +50,13 @@ describe('discovery at scale', () => {
     const sf = await import('../src/mock/mockSnowflake.js');
     // 10 schemas × 4,980 tables, the database and its schemas: 49,811 elements (the run's limit is 50,000)
     sf.addSnowflakeBulk('BIG', 10, 4_980);
-    const src = await dana('POST', '/data-products/discovery-sources', { name: 'Big', platformId: snowflake, scope: ['BIG'], mode: 'accountUsage', enabled: false });
+    const src = await dana('POST', '/data-products/discovery-sources', {
+      name: 'Big',
+      platformId: snowflake,
+      scope: ['BIG'],
+      mode: 'accountUsage',
+      enabled: false,
+    });
     const first = await measured(src.id);
     expect(first.run).toMatchObject({ status: 'succeeded', added: 49_811, truncated: false });
     expect(first.ms).toBeLessThan(60_000);
@@ -71,7 +77,13 @@ describe('discovery at scale', () => {
   it('a run beyond the limit keeps the first and says truncated, marking nothing missing', async () => {
     const sf = await import('../src/mock/mockSnowflake.js');
     sf.addSnowflakeBulk('HUGE', 11, 4_600);
-    const src = await dana('POST', '/data-products/discovery-sources', { name: 'Huge', platformId: snowflake, scope: ['HUGE'], mode: 'accountUsage', enabled: false });
+    const src = await dana('POST', '/data-products/discovery-sources', {
+      name: 'Huge',
+      platformId: snowflake,
+      scope: ['HUGE'],
+      mode: 'accountUsage',
+      enabled: false,
+    });
     const r = await measured(src.id);
     expect(r.run).toMatchObject({ status: 'truncated', truncated: true, added: 50_000, missing: 0, errorCode: 'DATA_DISCOVERY_TOO_LARGE' });
     expect(r.maxLagMs).toBeLessThan(200);

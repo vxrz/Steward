@@ -562,7 +562,16 @@ export function forgetNotices(kind: string, itemId: string): void {
 /** The technical fields of a discovered element, hashed: an unchanged read writes only the readout. */
 const techHash = (e: DiscoveredElement, parentId: string | null): string =>
   sha256(
-    JSON.stringify([e.kind, e.qualifiedName.trim(), e.displayName ?? '', parentId, e.externalId ?? null, e.flags ?? {}, e.olNamespace ?? null, e.olName ?? null]),
+    JSON.stringify([
+      e.kind,
+      e.qualifiedName.trim(),
+      e.displayName ?? '',
+      parentId,
+      e.externalId ?? null,
+      e.flags ?? {},
+      e.olNamespace ?? null,
+      e.olName ?? null,
+    ]),
   );
 
 const readoutJson = (r: DiscoveredElement['readout']): string | null => {
@@ -578,8 +587,7 @@ const ROWS_PER_INSERT = 250;
 function insertRows(head: string, rows: readonly unknown[][], tail = ''): void {
   if (!rows.length) return;
   const one = `(${marks(rows[0]!.length)})`;
-  for (const part of chunks(rows, ROWS_PER_INSERT))
-    db().run(`${head} VALUES ${part.map(() => one).join(', ')}${tail ? ` ${tail}` : ''}`, ...part.flat());
+  for (const part of chunks(rows, ROWS_PER_INSERT)) db().run(`${head} VALUES ${part.map(() => one).join(', ')}${tail ? ` ${tail}` : ''}`, ...part.flat());
 }
 
 /**

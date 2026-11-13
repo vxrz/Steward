@@ -529,7 +529,8 @@ function scopeOf(bindings: string[]): (o: { database: string; schema: string }) 
 function discoveryAnswer(tag: string, sql: string, args: string[]): { names: string[]; rows: Cell[][] } | { error: string } {
   const inInfoSchema = (): { database: string; rest: string[] } | { error: string } => {
     const [database] = (args[0] ?? '').split('.');
-    if (!database || !catalogueDatabases.includes(database)) return { error: `SQL compilation error:\nDatabase '${database ?? ''}' does not exist or not authorized.` };
+    if (!database || !catalogueDatabases.includes(database))
+      return { error: `SQL compilation error:\nDatabase '${database ?? ''}' does not exist or not authorized.` };
     return { database, rest: args.slice(1) };
   };
   const limit = Number(/LIMIT (\d+)/.exec(sql)?.[1] ?? 1_000_000);
@@ -539,7 +540,13 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
     case 'dp-schemata': {
       const s = inInfoSchema();
       if ('error' in s) return s;
-      const names = [...new Set(objects().filter((o) => o.database === s.database).map((o) => o.schema))]
+      const names = [
+        ...new Set(
+          objects()
+            .filter((o) => o.database === s.database)
+            .map((o) => o.schema),
+        ),
+      ]
         .filter((x) => !s.rest.length || s.rest.includes(x))
         .sort();
       return { names: ['SCHEMA_NAME', 'LAST_ALTERED'], rows: names.slice(0, limit).map((x) => [x, ts(24)]) };
@@ -564,7 +571,15 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
           .filter((o) => o.database === s.database && (TABLE_KINDS.has(o.type) || o.type === 'DYNAMIC TABLE') && (!s.rest.length || s.rest.includes(o.schema)))
           .sort((a, b) => cmp(a.schema, b.schema) || cmp(a.name, b.name))
           .slice(0, limit)
-          .map((o) => [o.schema, o.name, o.type === 'DYNAMIC TABLE' ? 'BASE TABLE' : o.type, o.transient ? 'YES' : 'NO', n(o.rows), n(o.bytes), ts(o.alteredHours)]),
+          .map((o) => [
+            o.schema,
+            o.name,
+            o.type === 'DYNAMIC TABLE' ? 'BASE TABLE' : o.type,
+            o.transient ? 'YES' : 'NO',
+            n(o.rows),
+            n(o.bytes),
+            ts(o.alteredHours),
+          ]),
       };
     }
     case 'dp-au-databases':
@@ -620,14 +635,33 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
       if (!m) return { error: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 80)})` };
       const [, what, , database, schema] = m;
       if (!catalogueDatabases.includes(database!)) return { error: `SQL compilation error:\nDatabase '${database}' does not exist or not authorized.` };
-      const types: Record<string, SnowflakeCatalogueObject['type']> = { 'DYNAMIC TABLES': 'DYNAMIC TABLE', STREAMS: 'STREAM', TASKS: 'TASK', STAGES: 'STAGE', PIPES: 'PIPE' };
+      const types: Record<string, SnowflakeCatalogueObject['type']> = {
+        'DYNAMIC TABLES': 'DYNAMIC TABLE',
+        STREAMS: 'STREAM',
+        TASKS: 'TASK',
+        STAGES: 'STAGE',
+        PIPES: 'PIPE',
+      };
       const type = types[what!]!;
       const of = objects().filter((o) => o.type === type && o.database === database && (!schema || o.schema === schema));
       const created = epoch(30 * DAY);
       switch (type) {
         case 'DYNAMIC TABLE':
           return {
-            names: ['created_on', 'name', 'database_name', 'schema_name', 'rows', 'bytes', 'owner', 'target_lag', 'refresh_mode', 'warehouse', 'scheduling_state', 'text'],
+            names: [
+              'created_on',
+              'name',
+              'database_name',
+              'schema_name',
+              'rows',
+              'bytes',
+              'owner',
+              'target_lag',
+              'refresh_mode',
+              'warehouse',
+              'scheduling_state',
+              'text',
+            ],
             rows: of.map((o) => [
               created,
               o.name,
@@ -667,12 +701,31 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
         case 'STAGE':
           return {
             names: ['created_on', 'name', 'database_name', 'schema_name', 'url', 'has_credentials', 'owner', 'region', 'type', 'cloud'],
-            rows: of.map((o) => [created, o.name, o.database, o.schema, 's3://invented-landing.example/orders/', 'true', 'LOADER', 'eu-central-1', o.detail ?? 'INTERNAL', 'AWS']),
+            rows: of.map((o) => [
+              created,
+              o.name,
+              o.database,
+              o.schema,
+              's3://invented-landing.example/orders/',
+              'true',
+              'LOADER',
+              'eu-central-1',
+              o.detail ?? 'INTERNAL',
+              'AWS',
+            ]),
           };
         case 'PIPE':
           return {
             names: ['created_on', 'name', 'database_name', 'schema_name', 'definition', 'owner', 'notification_channel'],
-            rows: of.map((o) => [created, o.name, o.database, o.schema, 'copy into raw.orders_raw from @landing', 'LOADER', 'arn:aws:sqs:eu-central-1:000000000000:invented']),
+            rows: of.map((o) => [
+              created,
+              o.name,
+              o.database,
+              o.schema,
+              'copy into raw.orders_raw from @landing',
+              'LOADER',
+              'arn:aws:sqs:eu-central-1:000000000000:invented',
+            ]),
           };
         default:
           return { names: [], rows: [] };

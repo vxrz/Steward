@@ -362,5 +362,7 @@ export function readNow(id: string): DataDiscoveryRun {
   const { runId, done } = startRun(row.id, { trigger: 'manual', actor: u.username });
   // it settles by itself and the run history shows the end; a failure to write that end is only logged
   done.catch((err: unknown) => logger.warn({ err, source: row.id }, 'a data products discovery run did not finish'));
-  return runsOf([row.id]).get(row.id)!.find((r) => r.id === runId)!;
+  return runsOf([row.id])
+    .get(row.id)!
+    .find((r) => r.id === runId)!;
 }

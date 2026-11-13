@@ -1,4 +1,12 @@
-import { bootstrapList, DATA_DISCOVERY_LIMITS, discoveryKeeps, environmentByRules, KAFKA_TOPIC_RE, openLineageDataset, type DiscoveredElement } from '@sm/shared';
+import {
+  bootstrapList,
+  DATA_DISCOVERY_LIMITS,
+  discoveryKeeps,
+  environmentByRules,
+  KAFKA_TOPIC_RE,
+  openLineageDataset,
+  type DiscoveredElement,
+} from '@sm/shared';
 import { kafkaError, openKafka } from '../../kafka/client.js';
 import { chunks } from '../store.js';
 import { DiscoveryError, num, short, type DiscoveryContext } from './common.js';
@@ -36,14 +44,22 @@ export async function* readKafka(ctx: DiscoveryContext): AsyncGenerator<Discover
   try {
     reader = (await openKafka(platform, ctx.secrets)).reader;
   } catch (e) {
-    throw new DiscoveryError({ message: `The Kafka cluster could not be read: ${kafkaError(e)}`, code: 'DATA_DISCOVERY_FAILED', params: { message: kafkaError(e) } });
+    throw new DiscoveryError({
+      message: `The Kafka cluster could not be read: ${kafkaError(e)}`,
+      code: 'DATA_DISCOVERY_FAILED',
+      params: { message: kafkaError(e) },
+    });
   }
   try {
     let names: string[];
     try {
       names = await reader.listTopics();
     } catch (e) {
-      throw new DiscoveryError({ message: `The Kafka cluster could not be read: ${kafkaError(e)}`, code: 'DATA_DISCOVERY_FAILED', params: { message: kafkaError(e) } });
+      throw new DiscoveryError({
+        message: `The Kafka cluster could not be read: ${kafkaError(e)}`,
+        code: 'DATA_DISCOVERY_FAILED',
+        params: { message: kafkaError(e) },
+      });
     }
     const topics = names
       .filter(
@@ -62,7 +78,11 @@ export async function* readKafka(ctx: DiscoveryContext): AsyncGenerator<Discover
       try {
         described = await reader.describeTopics(part);
       } catch (e) {
-        throw new DiscoveryError({ message: `The Kafka cluster could not be read: ${kafkaError(e)}`, code: 'DATA_DISCOVERY_FAILED', params: { message: kafkaError(e) } });
+        throw new DiscoveryError({
+          message: `The Kafka cluster could not be read: ${kafkaError(e)}`,
+          code: 'DATA_DISCOVERY_FAILED',
+          params: { message: kafkaError(e) },
+        });
       }
       let schemas = new Map<string, SubjectVersion>();
       if (!registryFailed && registry.configured) {

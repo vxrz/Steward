@@ -128,7 +128,11 @@ function closeInterrupted(sourceId?: string): void {
   );
   for (const r of rows) {
     if (running.get(r.source_id) === r.id) continue;
-    const problem: DiscoveryProblem = { message: 'The run was interrupted (the server stopped)', code: 'DATA_DISCOVERY_FAILED', params: { context: 'interrupted' } };
+    const problem: DiscoveryProblem = {
+      message: 'The run was interrupted (the server stopped)',
+      code: 'DATA_DISCOVERY_FAILED',
+      params: { context: 'interrupted' },
+    };
     db().run("UPDATE dp_discovery_runs SET status = 'failed', finished_at = ?, error = ? WHERE id = ?", nowIso(), JSON.stringify(problem), r.id);
   }
 }
@@ -169,7 +173,6 @@ const yieldToLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 async function execute(sourceId: string, runId: string, actor: string, opts: RunOptions): Promise<DataDiscoveryRun> {
   const t0 = Date.now();
-  const startedAt = new Date(t0).toISOString();
   const row = discoverySourceRow(sourceId)!;
   const src = parseSource(row);
   const limit = Math.min(opts.limits?.elementsPerRun ?? DATA_PRODUCT_LIMITS.elementsPerRun, DATA_PRODUCT_LIMITS.elementsPerRun);

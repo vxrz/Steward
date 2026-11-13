@@ -75,7 +75,12 @@ export class RunRegistry {
           schemaType?: string;
         } | null;
         if (v && Number.isInteger(Number(v.version)))
-          out.set(topic, { subject, version: Number(v.version), id: v.id === undefined ? null : Number(v.id), type: String(v.schemaType ?? 'AVRO').slice(0, 20) });
+          out.set(topic, {
+            subject,
+            version: Number(v.version),
+            id: v.id === undefined ? null : Number(v.id),
+            type: String(v.schemaType ?? 'AVRO').slice(0, 20),
+          });
       }
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
