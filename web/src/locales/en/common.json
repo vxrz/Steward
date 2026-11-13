@@ -98,7 +98,8 @@
     "manage": "manage",
     "use": "use",
     "acknowledge": "acknowledge",
-    "test": "test"
+    "test": "test",
+    "relax": "relax the breaking-change rule"
   },
   "breadcrumb": "Breadcrumb",
   "loadFailed": "Could not load this page",

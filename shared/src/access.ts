@@ -12,7 +12,7 @@ export const SHARE_LEVELS = ['view', 'edit', 'manage'] as const;
 export type ShareLevel = (typeof SHARE_LEVELS)[number];
 
 /** Rights beside the level (decision 2): using a production tenant is not editing it, running a process is not changing it. */
-export const SHARE_ACTION_RIGHTS = ['run', 'approve', 'use', 'acknowledge', 'propose', 'test'] as const;
+export const SHARE_ACTION_RIGHTS = ['run', 'approve', 'use', 'acknowledge', 'propose', 'test', 'relax'] as const;
 export type ShareAction = (typeof SHARE_ACTION_RIGHTS)[number];
 
 /** The action rights each kind offers beside the level (ADR 0033 part 1); a kind without any has only the levels. */
@@ -21,7 +21,8 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   platform: ['use'],
   monitor: ['acknowledge'],
   site: ['propose'],
-  contract: ['test'],
+  // relax: switch off "breaking changes need a change record" (0.23.0, decision 12 – the former `manage` right)
+  contract: ['test', 'relax'],
   service: [],
   application: [],
   system: [],

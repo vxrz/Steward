@@ -1584,6 +1584,7 @@ export interface Resources {
     'permissions.use': string;
     'permissions.acknowledge': string;
     'permissions.test': string;
+    'permissions.relax': string;
     breadcrumb: string;
     loadFailed: string;
     notFound: string;

@@ -76,7 +76,7 @@ import { fieldLabel, optionLabel } from '../components/records/builtin';
 import { confirmDanger } from '../components/confirm';
 import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } from '../components/records/DocumentPanel';
 import { MeasuresPanel, TimelineButton } from '../components/records/IncidentReview';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DetailHeader } from '../components/page/DetailPage';
 import { TableFieldView, tableText } from '../components/records/TableField';
 import { FirewallContextPanel } from '../components/records/FirewallContext';
@@ -313,7 +313,7 @@ export function RecordDetailPage() {
           <DiscussionTab rec={rec} onChange={refresh} />
         </Tabs.Panel>
         <Tabs.Panel value="access">
-          <OwningTeams kind="record" id={rec.id} />
+          <AccessTab kind="record" id={rec.id} />
         </Tabs.Panel>
         <Tabs.Panel value="pdfs">
           <PdfTab rec={rec} onGenerate={() => setPdf(true)} onChange={refresh} />

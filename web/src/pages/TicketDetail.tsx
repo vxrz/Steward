@@ -14,7 +14,7 @@ import { TicketForm } from '../components/tickets/TicketForm';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { useCanStartReview, useStartReview } from '../components/records/IncidentReview';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DetailHeader } from '../components/page/DetailPage';
 
 export function TicketDetailPage() {
@@ -221,7 +221,7 @@ export function TicketDetailPage() {
               </Text>
             </Stack>
           </Paper>
-          <OwningTeams kind="ticket" id={x.id} mt="md" />
+          <AccessTab kind="ticket" id={x.id} mt="md" />
         </Grid.Col>
       </Grid>
       {editing && (

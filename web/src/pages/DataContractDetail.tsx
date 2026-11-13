@@ -20,7 +20,7 @@ import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { DetailState, Hint, JsonView, QueryState } from '../components/common';
 import { DetailPage } from '../components/page/DetailPage';
 import { LinkTabs } from '../components/page/LinkTabs';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DataTable } from '../components/DataTable';
 import { confirmDanger } from '../components/confirm';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
@@ -216,7 +216,7 @@ function Overview({ c, canEdit }: { c: DataContractDetail; canEdit: boolean }) {
       <Grid.Col span={{ base: 12, md: 5 }}>
         <Stack gap="md">
           <SettingsCard c={c} canEdit={canEdit} />
-          <OwningTeams kind="contract" id={c.id} />
+          <AccessTab kind="contract" id={c.id} />
         </Stack>
       </Grid.Col>
     </Grid>
@@ -254,9 +254,9 @@ function SettingsCard({ c, canEdit }: { c: DataContractDetail; canEdit: boolean 
     }
   };
   const usable = (platforms.data ?? []).filter((p) => p.permissions.includes('use') || p.id === c.servicePlatformId);
-  // switching the rule off is for who approves changes (the "manage" right): others can only switch it on – and who
-  // has only that right (an approver) can only switch it off
-  const canManage = c.permissions.includes('manage');
+  // switching the rule off is for who approves changes (the "relax" right, 0.23.0 – formerly "manage"): others can only
+  // switch it on – and who has only that right (an approver) can only switch it off
+  const canManage = c.permissions.includes('relax');
   const locked = c.requireChangeRecord && !canManage;
   const canSwitch = canEdit ? !locked : canManage && c.requireChangeRecord;
   return (

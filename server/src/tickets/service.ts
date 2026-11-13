@@ -27,7 +27,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { addLink, httpUrl, listLinks, removeLink, targetVisible } from '../records/links.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
 import { auditNamedGrant, requireNamedGrant, uncoveredSubjects, type NamedGrant } from '../auth/named-grants.js';
 import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
 
@@ -141,7 +141,7 @@ export const isResponsible = (u: AuthUser | null, r: Pick<TicketRow, 'responsibl
 export const canCreateTickets = (u: AuthUser | null = currentUser()): boolean => isEditorRole(u);
 
 export function ticketPermissions(u: AuthUser | null, r: Pick<TicketRow, 'id' | 'responsible'>): TicketPermission[] {
-  return ticketAccess(u, r).permissions.filter((p): p is TicketPermission => p !== 'view');
+  return ticketAccess(u, r).permissions.filter((p): p is TicketPermission => p !== 'view' && p !== 'manage');
 }
 
 /**
@@ -149,18 +149,29 @@ export function ticketPermissions(u: AuthUser | null, r: Pick<TicketRow, 'id' | 
  * it. With owning teams (#131): members of those teams, its responsibles, administrators and auditors only.
  */
 export function ticketAccess(u: AuthUser | null, r: Pick<TicketRow, 'id' | 'responsible'>) {
+  // `manage` (0.23.0, ADR 0033): changing its shares and naming a responsible from outside its owning teams – editors
+  // by role, Manage shares; a responsible has an implied Edit share. Deleting stays administrators'.
   const named = u ? parseJson<string[]>(r.responsible, []).find((s) => matches(u, s)) : undefined;
   const responsible = !!named;
-  const byRole = (role: string): ('view' | 'edit')[] => (TICKET_EDITOR_ROLES.includes(role) ? ['view', 'edit'] : ['view']);
-  return teamScoped<'view' | 'edit' | 'delete'>(
+  const byRole = (role: string): ('view' | 'edit' | 'manage')[] => (TICKET_EDITOR_ROLES.includes(role) ? ['view', 'edit', 'manage'] : ['view']);
+  return teamScoped<'view' | 'edit' | 'delete' | 'manage'>(
     u,
     { kind: 'ticket', id: r.id },
     {
-      all: ['view', 'edit', 'delete'],
+      all: ['view', 'edit', 'delete', 'manage'],
       byRole,
-      personal: named ? { permissions: ['view', 'edit'], subject: named, as: 'responsible' } : null,
+      personal: named ? { permissions: ['view', 'edit'], subject: named, as: 'responsible', level: 'edit' } : null,
       auditor: ['view'],
-      unscoped: () => (!u ? [] : ['view', ...(isEditorRole(u) || responsible ? (['edit'] as const) : []), ...(isAdmin(u) ? (['delete'] as const) : [])]),
+      shares: ITEM_SHARE_MODEL,
+      unscoped: () =>
+        !u
+          ? []
+          : [
+              'view',
+              ...(isEditorRole(u) || responsible ? (['edit'] as const) : []),
+              ...(isAdmin(u) ? (['delete'] as const) : []),
+              ...(isEditorRole(u) ? (['manage'] as const) : []),
+            ],
     },
   );
 }
