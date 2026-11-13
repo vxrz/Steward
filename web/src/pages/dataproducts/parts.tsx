@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Alert, Anchor, Badge, Group, Paper, Select, Stack, Text, Title, Tooltip } from '@mantine/core';
+import { Fragment, type ReactNode } from 'react';
+import { Alert, Anchor, Badge, Group, Paper, Select, Stack, Text, Title, Tooltip, VisuallyHidden } from '@mantine/core';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IconAlertTriangle, IconEyeOff, IconLock, IconUserShield } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ import {
   type PersonalDataLevel,
   type RatingFloor,
 } from '@sm/shared';
+import { DataTable } from '../../components/DataTable';
 import { useEnvironmentList } from '../../components/catalogue/environments';
 import { useLevel } from '../../components/catalogue/cia';
 
@@ -161,16 +162,34 @@ export function HiddenCount({ count }: { count: number }) {
   );
 }
 
+/**
+ * A technical name (SHOP.STAGED.ORDERS, orders-snowflake-sink) that may wrap after its dots, dashes, underscores,
+ * slashes and colons – at its own word boundaries, never in the middle of a part.
+ */
+export function Breakable({ text }: { text: string }) {
+  const parts = text.split(/(?<=[._/:-])/);
+  return (
+    <>
+      {parts.map((p, i) => (
+        <Fragment key={i}>
+          {i > 0 && <wbr />}
+          {p}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 /** An element as a product shows it: a link to its page where the reader may open it, else its name only. */
 export function ElementName({ e, short = false }: { e: Pick<DataElementOnProduct, 'id' | 'qualifiedName' | 'displayName' | 'visible'>; short?: boolean }) {
   const name = short ? e.displayName || e.qualifiedName : e.qualifiedName;
   return e.visible ? (
-    <Anchor component={Link} to={`/data-elements/${encodeURIComponent(e.id)}`} size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-      {name}
+    <Anchor component={Link} to={`/data-elements/${encodeURIComponent(e.id)}`} size="sm" className="mono" style={{ overflowWrap: 'break-word' }}>
+      <Breakable text={name} />
     </Anchor>
   ) : (
-    <Text span size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-      {name}
+    <Text span size="sm" className="mono" style={{ overflowWrap: 'break-word' }}>
+      <Breakable text={name} />
     </Text>
   );
 }
@@ -276,6 +295,72 @@ export function EnvironmentSwitch({
       allowDeselect={false}
       w={{ base: '100%', xs: 220 }}
       data-testid={testId}
+    />
+  );
+}
+
+export interface CardColumn<T> {
+  key: string;
+  header: string;
+  cell: (row: T) => ReactNode;
+  nowrap?: boolean;
+  /** A column of buttons: its header for screen readers only, no label in the card */
+  actions?: boolean;
+}
+
+/**
+ * A small table of a page (costs, health, steps, consumers, environments, runs, checks): Steward's DataTable – a table
+ * on wider screens, a card per row on phones with the first column as its title and the others labelled.
+ */
+export function CardTable<T>({
+  rows,
+  columns,
+  rowKey,
+  ariaLabel,
+  testId,
+  rowTestId,
+}: {
+  rows: T[];
+  columns: CardColumn<T>[];
+  rowKey: (row: T) => string;
+  ariaLabel: string;
+  testId?: string;
+  rowTestId?: (row: T) => string;
+}) {
+  const [first, ...rest] = columns;
+  return (
+    <DataTable
+      rows={rows}
+      rowKey={rowKey}
+      ariaLabel={ariaLabel}
+      testId={testId}
+      columns={columns.map((c) => ({ ...c, header: c.actions ? <VisuallyHidden>{c.header}</VisuallyHidden> : c.header, label: c.header }))}
+      rowProps={rowTestId ? (r) => ({ 'data-testid': rowTestId(r) }) : undefined}
+      card={(r) => (
+        <Paper withBorder p="sm" data-testid={rowTestId?.(r)}>
+          <Stack gap={4}>
+            {first && (
+              <Text size="sm" fw={500} component="div" style={{ minWidth: 0, overflowWrap: 'break-word' }}>
+                {first.cell(r)}
+              </Text>
+            )}
+            {rest.map((c) =>
+              !c.actions ? (
+                <Group key={c.key} gap={6} wrap="nowrap" align="flex-start">
+                  <Text size="xs" c="dimmed" style={{ flexShrink: 0, width: '7.5rem' }}>
+                    {c.header}
+                  </Text>
+                  <Text size="sm" component="div" style={{ minWidth: 0, flex: 1, overflowWrap: 'break-word' }}>
+                    {c.cell(r)}
+                  </Text>
+                </Group>
+              ) : (
+                <div key={c.key}>{c.cell(r)}</div>
+              ),
+            )}
+          </Stack>
+        </Paper>
+      )}
     />
   );
 }

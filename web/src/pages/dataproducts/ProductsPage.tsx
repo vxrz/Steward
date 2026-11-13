@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Button, Group, Paper, Select, Stack, Text, Tooltip } from '@mantine/core';
+import { Anchor, Button, Checkbox, Group, Paper, Popover, Select, Stack, Text, Tooltip } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconAlertTriangle, IconPackages, IconPlus, IconTopologyStar3 } from '@tabler/icons-react';
+import { IconAlertTriangle, IconColumns3, IconPackages, IconPlus, IconTopologyStar3 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { DATA_PRODUCT_LIFECYCLES, DATA_PRODUCT_TYPES, HEALTH_STATUSES, type DataHealthStatus, type DataProductSummary, type Team } from '@sm/shared';
 import { getOptional } from '../../api';
 import { QueryState, useCreateParam } from '../../components/common';
-import { DataTable, ListFooter } from '../../components/DataTable';
+import { DataTable, ListFooter, type DataColumn } from '../../components/DataTable';
 import { ListPage } from '../../components/page/ListPage';
+import { readJsonPref, writePref } from '../../components/page/prefs';
 import { RatingBadges } from '../../components/catalogue/cia';
 import { useEnvironmentList } from '../../components/catalogue/environments';
 import { ProductForm, domainOptions } from '../../components/dataproducts/ProductForm';
@@ -22,6 +23,55 @@ import { ClassificationBadge, LifecycleBadge, TypeBadge } from './parts';
 import { useCanCreate } from './rights';
 
 const to = (p: { id: string }) => `/data-products/${encodeURIComponent(p.id)}`;
+
+/** Columns the reader can add or remove (name, domain, type, lifecycle, health and rating are always shown). */
+const OPTIONAL_COLUMNS = ['environments', 'classification', 'maturity', 'costs', 'value', 'updated'] as const;
+type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number];
+const DEFAULT_COLUMNS: OptionalColumn[] = ['maturity', 'costs'];
+const COLUMNS_PREF = 'list.columns.data-products';
+const isColumns = (v: unknown): v is OptionalColumn[] => Array.isArray(v) && v.every((x) => (OPTIONAL_COLUMNS as readonly unknown[]).includes(x));
+
+/** The optional columns shown, remembered per user in this browser like the list's sort and view. */
+function useColumns(): [Set<OptionalColumn>, (next: OptionalColumn[]) => void] {
+  const [shown, setShown] = useState(() => new Set(readJsonPref(COLUMNS_PREF, isColumns, DEFAULT_COLUMNS)));
+  return [
+    shown,
+    (next) => {
+      setShown(new Set(next));
+      writePref(COLUMNS_PREF, JSON.stringify(next));
+    },
+  ];
+}
+
+function ColumnChooser({ shown, onChange }: { shown: Set<OptionalColumn>; onChange: (next: OptionalColumn[]) => void }) {
+  const { t } = useTranslation('dataProducts');
+  const label: Record<OptionalColumn, string> = {
+    environments: t('products.environments'),
+    classification: t('products.classification'),
+    maturity: t('products.maturity'),
+    costs: t('products.costsLastMonth'),
+    value: t('products.value'),
+    updated: t('products.updated'),
+  };
+  return (
+    <Popover position="bottom-end" shadow="md" withinPortal trapFocus returnFocus>
+      <Popover.Target>
+        <Button size="xs" variant="default" leftSection={<IconColumns3 size={14} />} data-testid="product-columns">
+          {t('products.columns')}
+        </Button>
+      </Popover.Target>
+      <Popover.Dropdown>
+        <Checkbox.Group label={t('products.columnsLabel')} value={[...shown]} onChange={(v) => onChange(OPTIONAL_COLUMNS.filter((c) => v.includes(c)))}>
+          <Stack gap={6} mt="xs">
+            {OPTIONAL_COLUMNS.map((c) => (
+              <Checkbox key={c} value={c} label={label[c]} size="sm" data-testid={`product-column-${c}`} />
+            ))}
+          </Stack>
+        </Checkbox.Group>
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
 
 /**
  * The data products the reader may see (ADR 0036 part 13): name, domain, type, lifecycle, environments, health, the
@@ -38,6 +88,7 @@ export function DataProductsPage() {
   const [q] = useDebouncedValue(search.trim(), 300);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [optional, setOptional] = useColumns();
   useCreateParam(canCreate, () => setCreating(true));
   const f = {
     domain: params.get('domain') ?? '',
@@ -53,7 +104,7 @@ export function DataProductsPage() {
     else next.delete(k);
     setParams(next, { replace: true });
   };
-  const query = qs({ q, domain: f.domain, type: f.type, lifecycle: f.lifecycle, team: f.team, environment: f.environment });
+  const query = qs({ q, domain: f.domain, type: f.type, lifecycle: f.lifecycle, team: f.team, environment: f.environment, health: f.health });
   const list = useProductList(query);
   const domains = useDomains();
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => getOptional<Team[]>('/teams', []), staleTime: 60_000 });
@@ -77,7 +128,6 @@ export function DataProductsPage() {
       text
     );
   };
-  const shown = f.health ? rows.filter((r) => healthOf.get(r.id) === f.health) : rows;
   const total = list.data?.pages[0]?.total ?? 0;
   const none = list.isSuccess && !query && total === 0;
   const active = Object.values(f).filter(Boolean).length + (q ? 1 : 0);
@@ -110,6 +160,7 @@ export function DataProductsPage() {
               {t('products.map')}
             </Button>
           )}
+          {!none && <ColumnChooser shown={optional} onChange={setOptional} />}
           {(!none || canCreate) && <TransferMenu domain={f.domain || undefined} canImport={canCreate} onImport={() => setImporting(true)} />}
         </>
       }
@@ -204,21 +255,16 @@ export function DataProductsPage() {
       }}
     >
       <QueryState query={list} />
-      {!none && list.isSuccess && shown.length === 0 && (
+      {!none && list.isSuccess && rows.length === 0 && (
         <Text size="sm" c="dimmed" data-testid="products-no-match">
           {t('products.noMatch')}
         </Text>
       )}
-      {f.health && list.hasNextPage && (
-        <Text size="xs" c="dimmed" mb="xs">
-          {t('products.healthFilterPage')}
-        </Text>
-      )}
-      {shown.length > 0 && (
+      {rows.length > 0 && (
         <DataTable
           testId="product-table"
           ariaLabel={t('products.title')}
-          rows={shown}
+          rows={rows}
           rowKey={(p) => p.id}
           rowHref={to}
           rememberSort="data-products"
@@ -260,86 +306,89 @@ export function DataProductsPage() {
               </Stack>
             </Paper>
           )}
-          columns={[
-            {
-              key: 'name',
-              header: t('products.name'),
-              sortValue: (p) => p.name,
-              cell: (p) => (
-                <>
-                  <Anchor component={Link} to={to(p)} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                    {p.name}
-                  </Anchor>
-                  <Text size="xs" c="dimmed" className="mono">
-                    {p.key}
-                  </Text>
-                </>
-              ),
-            },
-            {
-              key: 'domain',
-              header: t('products.domain'),
-              sortValue: (p) => p.domain?.name ?? '',
-              cell: (p) => (p.domain?.hidden ? t('hidden.domain') : (p.domain?.name ?? '–')),
-            },
-            { key: 'type', header: t('products.type'), sortValue: (p) => p.type ?? '', nowrap: true, cell: (p) => <TypeBadge type={p.type} size="xs" /> },
-            {
-              key: 'lifecycle',
-              header: t('products.lifecycle'),
-              sortValue: (p) => DATA_PRODUCT_LIFECYCLES.indexOf(p.lifecycle),
-              nowrap: true,
-              cell: (p) => <LifecycleBadge lifecycle={p.lifecycle} sunsetDate={p.sunsetDate} size="xs" />,
-            },
-            { key: 'environments', header: t('products.environments'), cell: (p) => p.environments.join(', ') || '–' },
-            {
-              key: 'health',
-              header: t('products.health'),
-              sortValue: (p) => HEALTH_STATUSES.indexOf(healthOf.get(p.id) ?? ('noData' as DataHealthStatus)),
-              nowrap: true,
-              cell: healthCell,
-            },
-            {
-              key: 'rating',
-              header: t('products.rating'),
-              cell: (p) => (
-                <Group gap={4} wrap="nowrap">
-                  <RatingBadges rating={p.rating} />
-                  {floorWarning(p)}
-                </Group>
-              ),
-            },
-            {
-              key: 'classification',
-              header: t('products.classification'),
-              nowrap: true,
-              cell: (p) => (p.classification ? <ClassificationBadge value={p.classification} size="xs" /> : '–'),
-            },
-            {
-              key: 'maturity',
-              header: t('products.maturity'),
-              sortValue: (p) => factsOf.get(p.id)?.maturity ?? null,
-              nowrap: true,
-              cell: (p) => {
-                const m = factsOf.get(p.id)?.maturity;
-                return m === undefined ? '–' : <Text size="sm">{t('scorecard.maturityShort', { level: m })}</Text>;
+          columns={(
+            [
+              {
+                key: 'name',
+                header: t('products.name'),
+                sortValue: (p) => p.name,
+                cell: (p) => (
+                  <>
+                    <Anchor component={Link} to={to(p)} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+                      {p.name}
+                    </Anchor>
+                    <Text size="xs" c="dimmed" className="mono">
+                      {p.key}
+                    </Text>
+                  </>
+                ),
               },
-            },
-            {
-              key: 'costs',
-              header: t('products.costsLastMonth'),
-              sortValue: (p) => factsOf.get(p.id)?.lastMonth?.totals[0]?.amountMicros ?? null,
-              nowrap: true,
-              cell: costCell,
-            },
-            {
-              key: 'value',
-              header: t('products.value'),
-              sortValue: (p) => (p.valueTier ? ['low', 'medium', 'high'].indexOf(p.valueTier) : null),
-              nowrap: true,
-              cell: (p) => (p.valueTier ? t(`valueTier.${p.valueTier}`) : '–'),
-            },
-            { key: 'updated', header: t('products.updated'), sortValue: (p) => p.updatedAt, nowrap: true, cell: (p) => fmtRelative(p.updatedAt) },
-          ]}
+              {
+                key: 'domain',
+                header: t('products.domain'),
+                sortValue: (p) => p.domain?.name ?? '',
+                cell: (p) => (p.domain?.hidden ? t('hidden.domain') : (p.domain?.name ?? '–')),
+              },
+              { key: 'type', header: t('products.type'), sortValue: (p) => p.type ?? '', nowrap: true, cell: (p) => <TypeBadge type={p.type} size="xs" /> },
+              {
+                key: 'lifecycle',
+                header: t('products.lifecycle'),
+                sortValue: (p) => DATA_PRODUCT_LIFECYCLES.indexOf(p.lifecycle),
+                nowrap: true,
+                cell: (p) => <LifecycleBadge lifecycle={p.lifecycle} sunsetDate={p.sunsetDate} size="xs" />,
+              },
+              { key: 'environments', header: t('products.environments'), cell: (p) => p.environments.join(', ') || '–' },
+              {
+                key: 'health',
+                header: t('products.health'),
+                sortValue: (p) => HEALTH_STATUSES.indexOf(healthOf.get(p.id) ?? ('noData' as DataHealthStatus)),
+                nowrap: true,
+                cell: healthCell,
+              },
+              {
+                key: 'rating',
+                header: t('products.rating'),
+                nowrap: true,
+                cell: (p) => (
+                  <Group gap={4} wrap="nowrap">
+                    <RatingBadges rating={p.rating} nowrap />
+                    {floorWarning(p)}
+                  </Group>
+                ),
+              },
+              {
+                key: 'classification',
+                header: t('products.classification'),
+                nowrap: true,
+                cell: (p) => (p.classification ? <ClassificationBadge value={p.classification} size="xs" /> : '–'),
+              },
+              {
+                key: 'maturity',
+                header: t('products.maturity'),
+                sortValue: (p) => factsOf.get(p.id)?.maturity ?? null,
+                nowrap: true,
+                cell: (p) => {
+                  const m = factsOf.get(p.id)?.maturity;
+                  return m === undefined ? '–' : <Text size="sm">{t('scorecard.maturityShort', { level: m })}</Text>;
+                },
+              },
+              {
+                key: 'costs',
+                header: t('products.costsLastMonth'),
+                sortValue: (p) => factsOf.get(p.id)?.lastMonth?.totals[0]?.amountMicros ?? null,
+                nowrap: true,
+                cell: costCell,
+              },
+              {
+                key: 'value',
+                header: t('products.value'),
+                sortValue: (p) => (p.valueTier ? ['low', 'medium', 'high'].indexOf(p.valueTier) : null),
+                nowrap: true,
+                cell: (p) => (p.valueTier ? t(`valueTier.${p.valueTier}`) : '–'),
+              },
+              { key: 'updated', header: t('products.updated'), sortValue: (p) => p.updatedAt, nowrap: true, cell: (p) => fmtRelative(p.updatedAt) },
+            ] satisfies DataColumn<DataProductSummary>[]
+          ).filter((c) => !(OPTIONAL_COLUMNS as readonly string[]).includes(c.key) || optional.has(c.key as OptionalColumn))}
           footer={
             <ListFooter
               shown={rows.length}

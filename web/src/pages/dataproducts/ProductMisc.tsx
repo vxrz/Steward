@@ -97,7 +97,7 @@ export function LinksTab({ kind, id }: { kind: 'data-product' | 'data-object'; i
                       {b.label}
                     </Anchor>
                   </Table.Td>
-                  <Table.Td style={{ overflowWrap: 'anywhere' }}>{b.note || '–'}</Table.Td>
+                  <Table.Td style={{ overflowWrap: 'break-word' }}>{b.note || '–'}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -174,7 +174,7 @@ export function ProductHistoryTab({ p }: { p: DataProduct }) {
                     <Table.Tr key={e.seq}>
                       <Table.Td className="nowrap">{fmtDate(e.ts)}</Table.Td>
                       <Table.Td>{e.actor}</Table.Td>
-                      <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                      <Table.Td style={{ overflowWrap: 'break-word' }}>
                         <Group gap={4} wrap="wrap">
                           <Text span size="xs" c="dimmed" className="mono">
                             {e.action}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Table, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconPencil, IconPlayerPlay, IconRadar, IconTrash } from '@tabler/icons-react';
@@ -11,12 +11,11 @@ import { DataTable } from '../../components/DataTable';
 import { ListPage } from '../../components/page/ListPage';
 import { DetailPage } from '../../components/page/DetailPage';
 import { confirmDanger } from '../../components/confirm';
-import { TableScroll } from '../../components/TableScroll';
 import { SourceForm } from '../../components/dataproducts/CatalogueForms';
 import { codeText } from '../../i18n/errors';
 import { fmtDate, fmtDuration, fmtNumber, fmtRelative } from '../../format';
 import { dpKeys, useInvalidateDataProducts, useRuns, useSource, useSources } from './api';
-import { Fact, Section } from './parts';
+import { CardTable, Fact, Section } from './parts';
 import { useCanManageModule } from './rights';
 
 const enc = encodeURIComponent;
@@ -317,44 +316,37 @@ export function DataDiscoverySourcePage() {
             </Text>
           )}
           {runs.data && runs.data.length > 0 && (
-            <TableScroll>
-              <Table fz="sm" aria-label={t('discovery.runs')}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th scope="col">{t('discovery.startedAt')}</Table.Th>
-                    <Table.Th scope="col">{t('discovery.status')}</Table.Th>
-                    <Table.Th scope="col">{t('discovery.duration')}</Table.Th>
-                    <Table.Th scope="col">{t('discovery.what')}</Table.Th>
-                    <Table.Th scope="col">{t('discovery.by')}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {runs.data.map((r) => (
-                    <Table.Tr key={r.id} data-testid="source-run">
-                      <Table.Td className="nowrap">{fmtDate(r.startedAt)}</Table.Td>
-                      <Table.Td>
-                        <RunStatusBadge status={r.status} size="xs" />
-                      </Table.Td>
-                      <Table.Td className="nowrap">{r.finishedAt ? fmtDuration(r.durationMs) : '–'}</Table.Td>
-                      <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                        <Text size="sm">{counts(r)}</Text>
-                        {runError(r) && (
-                          <Text size="xs" c={r.status === 'failed' ? 'red' : 'orange'} data-testid="run-error">
-                            {runError(r)}
-                          </Text>
-                        )}
-                        {r.truncated && (
-                          <Text size="xs" c="orange">
-                            {t('discovery.truncated')}
-                          </Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td>{r.actor}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </TableScroll>
+            <CardTable
+              ariaLabel={t('discovery.runs')}
+              rows={runs.data}
+              rowKey={(r) => r.id}
+              rowTestId={() => 'source-run'}
+              columns={[
+                { key: 'started', header: t('discovery.startedAt'), nowrap: true, cell: (r) => fmtDate(r.startedAt) },
+                { key: 'status', header: t('discovery.status'), cell: (r) => <RunStatusBadge status={r.status} size="xs" /> },
+                { key: 'duration', header: t('discovery.duration'), nowrap: true, cell: (r) => (r.finishedAt ? fmtDuration(r.durationMs) : '–') },
+                {
+                  key: 'what',
+                  header: t('discovery.what'),
+                  cell: (r) => (
+                    <>
+                      <Text size="sm">{counts(r)}</Text>
+                      {runError(r) && (
+                        <Text size="xs" c={r.status === 'failed' ? 'red' : 'orange'} data-testid="run-error">
+                          {runError(r)}
+                        </Text>
+                      )}
+                      {r.truncated && (
+                        <Text size="xs" c="orange">
+                          {t('discovery.truncated')}
+                        </Text>
+                      )}
+                    </>
+                  ),
+                },
+                { key: 'by', header: t('discovery.by'), cell: (r) => r.actor },
+              ]}
+            />
           )}
           <Group mt="sm">
             <Anchor component={Link} to={`/data-elements?platform=${enc(s.platformId)}`} size="sm">

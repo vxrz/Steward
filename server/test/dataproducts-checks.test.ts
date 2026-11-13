@@ -483,6 +483,14 @@ describe('health of products', () => {
       [c, 'noData', 'none'],
     ]);
     expect(JSON.stringify(list)).not.toContain(hidden);
+    // the list filters by health on the server: paged and counted after the filter, what the reader may not see left out
+    const noData = await dana('GET', '/data-products?q=wp3-health&health=noData&limit=1');
+    expect(noData.items.map((p: { id: string }) => p.id)).toEqual([c]);
+    expect(noData).toMatchObject({ total: 1, next: null });
+    const down = await dana('GET', '/data-products?q=wp3-health&health=down');
+    expect(down.items.map((p: { id: string }) => p.id)).toEqual([a]);
+    expect((await dana('GET', '/data-products?q=wp3-health')).total).toBe(3);
+    await expect(dana('GET', '/data-products?health=sideways')).rejects.toThrow(/400/);
   });
 
   it('takes a fixed number of statements whatever the number of products', async () => {

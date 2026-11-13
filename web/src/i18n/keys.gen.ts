@@ -4296,6 +4296,7 @@ export interface Resources {
     'graph.zoomIn': string;
     'graph.zoomOut': string;
     'graph.fitView': string;
+    'graph.panHint': string;
     'export.subtitle': string;
     'notes.truncated_one': string;
     'notes.truncated_other': string;
@@ -4392,6 +4393,7 @@ export interface Resources {
     'edge.count_one': string;
     'edge.count_other': string;
     'edge.deprecated': string;
+    'edge.deprecatedPort': string;
     'health.up': string;
     'health.degraded': string;
     'health.down': string;
@@ -4545,9 +4547,10 @@ export interface Resources {
     'products.classification': string;
     'products.value': string;
     'products.updated': string;
+    'products.columns': string;
+    'products.columnsLabel': string;
     'products.inEnvironments': string;
     'products.noMatch': string;
-    'products.healthFilterPage': string;
     'products.emptyTitle': string;
     'products.emptyText': string;
     'products.whoCanAct': string;
@@ -4571,7 +4574,8 @@ export interface Resources {
     'product.dataObjects': string;
     'product.noObjects': string;
     'product.consumers': string;
-    'product.consumerCounts': string;
+    'product.consumerCounts_one': string;
+    'product.consumerCounts_other': string;
     'product.toPorts': string;
     'product.noOutputPorts': string;
     'product.facts': string;
@@ -4726,7 +4730,8 @@ export interface Resources {
     'objectives.days_one': string;
     'objectives.days_other': string;
     'consumers.title': string;
-    'consumers.summary': string;
+    'consumers.summary_one': string;
+    'consumers.summary_other': string;
     'consumers.none': string;
     'consumers.derived_one': string;
     'consumers.derived_other': string;
@@ -4781,7 +4786,6 @@ export interface Resources {
     'steps.outputsRequired': string;
     'steps.hiddenInputs_one': string;
     'steps.hiddenInputs_other': string;
-    'steps.to': string;
     'steps.runner': string;
     'steps.runnerHint': string;
     'steps.runnerHidden': string;
@@ -4975,6 +4979,10 @@ export interface Resources {
     'scorecard.in': string;
     'scorecard.maturity': string;
     'scorecard.maturityHelp': string;
+    'scorecard.showNoEvidence_one': string;
+    'scorecard.showNoEvidence_other': string;
+    'scorecard.hideNoEvidence_one': string;
+    'scorecard.hideNoEvidence_other': string;
     'scorecard.levels.0': string;
     'scorecard.levels.1': string;
     'scorecard.levels.2': string;

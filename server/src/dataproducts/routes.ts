@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { DATA_ENVIRONMENT_STATES, dataElementListQuery, dataObjectListQuery, dataProductListQuery } from '@sm/shared';
+import { DATA_ENVIRONMENT_STATES, HEALTH_STATUSES, dataElementListQuery, dataObjectListQuery, dataProductListQuery } from '@sm/shared';
 import { ACCESS, me } from '../auth/access.js';
+import { healthOf } from './health.js';
 import * as svc from './service.js';
 import * as el from './elements.js';
 import * as ports from './ports.js';
@@ -71,7 +72,22 @@ export async function dataProductRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- products ----------
-  app.get('/data-products', async (req) => svc.listProducts(dataProductListQuery.parse(req.query)));
+  app.get('/data-products', async (req) => {
+    const q = dataProductListQuery.parse(req.query);
+    // ?health=: the products in that health (in ?environment=, else each one's default) – among those the reader may see
+    const health = z
+      .string()
+      .refine((s) => (HEALTH_STATUSES as readonly string[]).includes(s))
+      .optional()
+      .parse((req.query as Record<string, unknown> | undefined)?.health);
+    if (!health) return svc.listProducts(q);
+    return svc.listProducts(q, (ids) => {
+      const keep = new Set<string>();
+      for (let i = 0; i < ids.length; i += 500)
+        for (const [id, h] of healthOf(me(), ids.slice(i, i + 500), q.environment ?? null)) if (h.status === health) keep.add(id);
+      return keep;
+    });
+  });
   app.post('/data-products', async (req) => svc.createProduct(req.body));
   app.get('/data-products/:id', async (req) => svc.getProduct(idOf(req)));
   app.put('/data-products/:id', async (req) => svc.updateProduct(idOf(req), req.body));
