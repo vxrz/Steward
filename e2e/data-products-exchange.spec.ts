@@ -115,10 +115,9 @@ test.describe('costs: estimates and measured use', () => {
     await expect(page.getByTestId('allocation-measure')).toBeVisible();
     await choose(page, 'allocation-measure', 'Snowflake credits per warehouse');
     await expectAccessible(page, 'allocation by measured use');
-    await page
-      .getByRole('dialog')
-      .getByRole('textbox', { name: /^Measured / })
-      .fill('TRANSFORM_WH,');
+    const subjects = page.getByRole('dialog').getByRole('combobox', { name: /^Measured / });
+    await subjects.fill('TRANSFORM_WH');
+    await subjects.press('Enter');
     await page.getByTestId('allocation-save').click();
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page.getByTestId('cost-allocations').getByText(/By measured use/)).toBeVisible();

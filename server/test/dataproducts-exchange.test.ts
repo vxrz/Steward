@@ -309,7 +309,12 @@ describe('MCP proposals', () => {
     expect(asViewer.status).toBeGreaterThanOrEqual(400);
     const { db } = await import('../src/db.js');
     expect(db().get("SELECT 1 FROM dp_products WHERE key = 'proposed-product'")).toBeUndefined();
-    const done = await dana('POST', `/mcp-requests/${req.id}/decision`, { approve: true, comment: 'Looks right' });
+    // the selection the web app sends: the fingerprint of the preview the reviewer saw
+    const done = await dana('POST', `/mcp-requests/${req.id}/decision`, {
+      approve: true,
+      comment: 'Looks right',
+      selection: { dataProducts: { fingerprint: detail.proposal.now.fingerprint } },
+    });
     expect(done).toMatchObject({ status: 'done', resultBody: { add: 2, change: 0 } });
     expect(db().get("SELECT 1 FROM dp_products WHERE key = 'proposed-product'")).toBeTruthy();
     const actions = db()
