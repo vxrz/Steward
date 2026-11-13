@@ -100,6 +100,8 @@ Themes of this release (details in the CHANGELOG once released):
 - **Snowflake semantic views as drafts and comparisons** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 4): a product's semantic model drafted from, and compared with, the semantic views Snowflake holds.
 - **A data-quality hint when several devices name one system** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 3): plant devices linked to the same Steward system are flagged as a hint, not refused.
 - **Industrial Edge status and suggestions on `/api/v1`** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 3): read-only – a system's IEM device status and the open suggestions; confirming stays in the app, no MCP confirm.
+- **YAML imports of data products parsed in a worker** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md)): JSON files and dbt artefacts are read off the main thread or with `JSON.parse` since 0.25.0; a large YAML file is still parsed on it.
+- **Iceberg tables read by Snowflake linked to their S3 location** ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 2): `SHOW ICEBERG TABLES` gives each table's `base_location`, which would link the table to the `files.path` element of that prefix.
 
 ## Ideas parked
 
