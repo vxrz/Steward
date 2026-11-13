@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ROLES, TEAM_ROLES, type Subject, type UserInfo, boundedRecord } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -9,6 +9,8 @@ import * as teamSettings from '../teams/settings.js';
 import { chooseNewResourceTeam, newResourceTeams } from '../auth/policy.js';
 import { subjectReferences } from '../auth/subjects.js';
 import * as users from '../auth/users.js';
+import { deleteTeamSafely, handOverGrantsAccess, teamDeletionPreview } from '../auth/team-deletion.js';
+import { ownedResource } from '../auth/scope-routes.js';
 import * as sso from '../auth/sso.js';
 import * as personalData from '../auth/personal-data.js';
 import { changesAccess, changesTeamChannel, changesTeamMembers, grantsRoles } from '../auth/step-up-rules.js';
@@ -159,11 +161,28 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage teams');
     return users.saveTeam(teamBody.parse(req.body), params(req).id);
   });
-  app.delete('/teams/:id', { config: { access: ACCESS.adminSession } }, async (req) => {
+  // deleting a team never widens access (review 0.20.0, auth/team-deletion.ts): the items it alone owns go to the team
+  // named in moveTo – a step-up when that team has members – or the deletion is refused (TEAM_OWNS_RESOURCES)
+  const deleteQuery = z.object({ moveTo: z.string().min(1).max(100).optional() }).strip();
+  const moveTo = (req: FastifyRequest) => deleteQuery.safeParse(req.query).data?.moveTo;
+  app.get('/teams/:id/deletion', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
-    users.deleteTeam(params(req).id!);
-    return { ok: true };
+    return teamDeletionPreview(params(req).id!);
   });
+  app.delete(
+    '/teams/:id',
+    {
+      config: {
+        access: ACCESS.adminSession,
+        stepUp: { action: 'grantAccess', who: 'manageUsers', when: (req: FastifyRequest) => handOverGrantsAccess(params(req).id!, moveTo(req)) },
+      },
+    },
+    async (req) => {
+      requireCapability(me(), 'manageUsers', 'manage teams');
+      const { moved } = deleteTeamSafely(params(req).id!, deleteQuery.parse(req.query).moveTo, (kind, id) => ownedResource(kind, id)?.name);
+      return { ok: true, moved };
+    },
+  );
   // team settings (#136): members and administrators read them, administrators change them
   app.get('/teams/:id/settings', async (req) => teamSettings.getTeamSettings(params(req).id!, me()));
   app.put(

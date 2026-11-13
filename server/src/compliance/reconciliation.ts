@@ -1399,11 +1399,15 @@ export function findingAttention(): { open: number; checks: number } | null {
     .all<CheckRow>('SELECT * FROM access_checks')
     .filter((c) => canReadCheck(u, c));
   if (!readable.length && !readsEverything(u)) return null;
+  // one statement for the findings of every check (the start page asks on each load; review 0.20.0), not one per check;
+  // documented findings count again when their entry no longer counts (effectiveStatus); dismissed ones never
+  const ids = readable.map((c) => c.id);
   let open = 0;
-  for (const c of readable) {
-    // documented findings count again when their entry no longer counts (effectiveStatus); dismissed ones never
-    const rows = db().all<FindingRow>("SELECT * FROM access_findings WHERE check_id = ? AND status IN ('open', 'documented')", c.id);
-    open += rows.filter((f) => effectiveStatus(f) === 'open').length;
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    open += db()
+      .all<FindingRow>(`SELECT * FROM access_findings WHERE check_id IN (${part.map(() => '?').join(', ')}) AND status IN ('open', 'documented')`, ...part)
+      .filter((f) => effectiveStatus(f) === 'open').length;
   }
   return { open, checks: readable.length };
 }

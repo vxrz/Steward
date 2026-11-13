@@ -42,7 +42,7 @@ import type { McpPrincipal } from './tools.js';
 import { decide, getRequest, listRequests, privilegedUsesOf } from './requests.js';
 import { privilegedRefusal } from '../platforms/privileged.js';
 import { offersSignIn, resolveAccessGrant, resourceMetadataUrl, resourceOf } from './oauth.js';
-import { ROUTE_LIMITS } from '../rateLimits.js';
+import { clientAddress, ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, isStatusViewer } from '../auth/access.js';
 
 export const mcpLimiter = new TokenBucketLimiter();
@@ -145,7 +145,7 @@ async function guard(req: FastifyRequest, reply: FastifyReply): Promise<void> {
       'token_in_url',
     );
   }
-  const ipKey = `ip:${req.ip}`;
+  const ipKey = `ip:${clientAddress(req.ip)}`;
   const signIn = offersSignIn();
   const bearer = bearerToken(req.headers.authorization);
   // with OAuth on (#12), clients learn where to sign in from the resource metadata (RFC 9728)

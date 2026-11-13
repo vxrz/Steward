@@ -34,6 +34,7 @@ import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 import { rewriteTeamReferences } from './subjects.js';
 import { revokeOAuthGrants } from '../mcp/oauth-grants.js';
+import { clientAddress } from '../rateLimits.js';
 
 interface UserRow {
   id: string;
@@ -65,7 +66,24 @@ function teamsOf(userId: string): string[] {
     .map((r) => r.name);
 }
 
-function toInfo(r: UserRow, managed: (authSource: string) => UserInfo['managedFields'] = managedFields): UserInfo {
+/** The team names of every account at once (listUsers: one statement, not one per account – review 0.20.0). */
+function teamsOfAll(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const r of db().all<{ user_id: string; name: string }>(
+    'SELECT m.user_id, t.name FROM teams t JOIN team_members m ON m.team_id = t.id ORDER BY m.user_id, t.name',
+  )) {
+    const list = out.get(r.user_id);
+    if (list) list.push(r.name);
+    else out.set(r.user_id, [r.name]);
+  }
+  return out;
+}
+
+function toInfo(
+  r: UserRow,
+  managed: (authSource: string) => UserInfo['managedFields'] = managedFields,
+  teams: (userId: string) => string[] = teamsOf,
+): UserInfo {
   return {
     id: r.id,
     username: r.username,
@@ -73,7 +91,7 @@ function toInfo(r: UserRow, managed: (authSource: string) => UserInfo['managedFi
     email: r.email ?? undefined,
     emailNotifications: !!(r.email_notifications ?? 1),
     roles: parseJson<Role[]>(r.roles, []),
-    teams: teamsOf(r.id),
+    teams: teams(r.id),
     active: !!r.active,
     mustChangePassword: !!r.must_change_password,
     lastLoginAt: r.last_login_at,
@@ -157,9 +175,10 @@ export function listUsers(): UserInfo[] {
     if (!perProvider.has(source)) perProvider.set(source, managedFields(source));
     return perProvider.get(source)!;
   };
+  const teams = teamsOfAll();
   return db()
     .all<UserRow>('SELECT * FROM users ORDER BY username')
-    .map((r) => toInfo(r, managed));
+    .map((r) => toInfo(r, managed, (id) => teams.get(id) ?? []));
 }
 
 export function getUser(id: string): UserInfo {
@@ -486,6 +505,15 @@ export async function changePassword(id: string, current: string, next: string, 
 // ---------- Teams ----------
 
 export function listTeams(): Team[] {
+  // every membership in one statement, not one per team (review 0.20.0)
+  const members = new Map<string, MemberRow[]>();
+  for (const r of db().all<MemberRow & { team_id: string }>(
+    'SELECT m.team_id, u.username, m.roles FROM users u JOIN team_members m ON m.user_id = u.id ORDER BY m.team_id, u.username',
+  )) {
+    const list = members.get(r.team_id);
+    if (list) list.push(r);
+    else members.set(r.team_id, [r]);
+  }
   return db()
     .all<{ id: string; name: string; description: string; created_at: string }>('SELECT * FROM teams ORDER BY name')
     .map((t) => ({
@@ -493,16 +521,14 @@ export function listTeams(): Team[] {
       name: t.name,
       description: t.description,
       createdAt: t.created_at,
-      ...membersOf(t.id),
+      ...membersFrom(members.get(t.id) ?? []),
     }));
 }
 
+type MemberRow = { username: string; roles: string | null };
+
 /** A team's members and the roles they have in it (#131). */
-function membersOf(teamId: string): Pick<Team, 'members' | 'memberRoles'> {
-  const rows = db().all<{ username: string; roles: string | null }>(
-    'SELECT u.username, m.roles FROM users u JOIN team_members m ON m.user_id = u.id WHERE m.team_id = ? ORDER BY u.username',
-    teamId,
-  );
+function membersFrom(rows: MemberRow[]): Pick<Team, 'members' | 'memberRoles'> {
   const memberRoles: Record<string, Role[]> = {};
   for (const r of rows) {
     const roles = parseJson<string[]>(r.roles, []).filter((x): x is Role => (TEAM_ROLES as readonly string[]).includes(x));
@@ -622,14 +648,15 @@ export interface CreatedSession extends SessionKeys {
 }
 
 export async function login(username: string, password: string, meta: { ip?: string; userAgent?: string }): Promise<CreatedSession & { user: UserInfo }> {
-  const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
+  const key = `${username.toLowerCase()}|${clientAddress(meta.ip)}`;
   const f = failures.get(key);
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
   const byAccount = recent(accountFailures, account);
   if (byAccount.length >= ACCOUNT_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
-  const address = meta.ip ?? '';
+  // an IPv6 address by its /64 network: changing addresses within it does not reset the counters (review 0.20.0)
+  const address = clientAddress(meta.ip);
   const byAddress = recent(addressFailures, address);
   if (byAddress.length >= ADDRESS_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
@@ -674,14 +701,15 @@ export async function login(username: string, password: string, meta: { ip?: str
 export async function verifyStepUpPassword(userId: string, password: string, meta: { ip?: string }): Promise<{ username: string }> {
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', userId);
   const username = r?.username ?? '';
-  const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
+  const key = `${username.toLowerCase()}|${clientAddress(meta.ip)}`;
   const f = failures.get(key);
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
   const byAccount = recent(accountFailures, account);
   if (byAccount.length >= ACCOUNT_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
-  const address = meta.ip ?? '';
+  // an IPv6 address by its /64 network: changing addresses within it does not reset the counters (review 0.20.0)
+  const address = clientAddress(meta.ip);
   const byAddress = recent(addressFailures, address);
   if (byAddress.length >= ADDRESS_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');

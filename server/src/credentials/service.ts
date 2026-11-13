@@ -22,6 +22,7 @@ import {
   type PvSecretReadout,
   PVAULT_KIND,
   emailAddressSchema,
+  type CredentialBelongsTo,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -290,7 +291,9 @@ registerCredentialLinkKind('application', (id) => {
   return r && catalogueVisibleNow('application', r) ? r.name : null;
 });
 
-const resolveLink = (l: CredentialLink): CredentialLink => {
+const resolveLink = (l: CredentialLink, look?: Lookups): CredentialLink => {
+  const key = `${l.kind}\n${l.id}`;
+  if (look?.links.has(key)) return { kind: l.kind, id: l.id, label: look.links.get(key)! };
   const fn = linkResolvers.get(l.kind);
   let label: string | null;
   try {
@@ -298,40 +301,97 @@ const resolveLink = (l: CredentialLink): CredentialLink => {
   } catch {
     label = null;
   }
+  look?.links.set(key, label);
   return { kind: l.kind, id: l.id, label };
 };
 
 // ---------- mapping ----------
 
+/**
+ * What the entries of a listing name – platforms, identities, catalogue items, links – read once for the listing instead
+ * of once per entry (review 0.20.0: the register and the start page's tile read a statement per entry).
+ */
+interface Lookups {
+  platforms: Map<string, { name: string; acl: string }>;
+  platformVisible: Map<string, boolean>;
+  identities: Map<string, { platform_id: string; name: string; privileged: number | boolean }>;
+  belongs: Map<string, CredentialBelongsTo | null>;
+  links: Map<string, string | null>;
+}
+const IN_CHUNK = 500;
+function lookupsFor(rows: readonly CredentialRow[]): Lookups {
+  const platforms = new Map(
+    db()
+      .all<{ id: string; name: string; acl: string }>('SELECT id, name, acl FROM platforms')
+      .map((p) => [p.id, { name: p.name, acl: p.acl }]),
+  );
+  const identities: Lookups['identities'] = new Map();
+  const ids = [...new Set(rows.filter((r) => r.identity_id).map((r) => r.identity_id!))];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const part = ids.slice(i, i + IN_CHUNK);
+    for (const x of db().all<{ id: string; platform_id: string; name: string; privileged: number | boolean }>(
+      `SELECT id, platform_id, name, privileged FROM platform_identities WHERE id IN (${part.map(() => '?').join(', ')})`,
+      ...part,
+    ))
+      identities.set(x.id, x);
+  }
+  return { platforms, platformVisible: new Map(), identities, belongs: new Map(), links: new Map() };
+}
+
 /** The name of the linked platform – only for users with a right on it (null otherwise, like a missing platform). */
-function platformName(id: string | null, u: AuthUser | null): string | null {
+function platformName(id: string | null, u: AuthUser | null, look?: Lookups): string | null {
   if (!id) return null;
-  const p = db().get<{ name: string; acl: string }>('SELECT name, acl FROM platforms WHERE id = ?', id);
-  return p && platformPermissions(u, { id, acl: parseJson(p.acl, []) }).length ? p.name : null;
+  const p = look ? look.platforms.get(id) : db().get<{ name: string; acl: string }>('SELECT name, acl FROM platforms WHERE id = ?', id);
+  if (!p) return null;
+  let visible = look?.platformVisible.get(id);
+  if (visible === undefined) {
+    visible = platformPermissions(u, { id, acl: parseJson(p.acl, []) }).length > 0;
+    look?.platformVisible.set(id, visible);
+  }
+  return visible ? p.name : null;
 }
 
 /** The linked identity's name and flag – only where the platform's name is shown (a right on it). */
-function identityOf(r: Pick<CredentialRow, 'platform_id' | 'identity_id'>, visible: boolean): { name: string; privileged: boolean } | null {
+function identityOf(r: Pick<CredentialRow, 'platform_id' | 'identity_id'>, visible: boolean, look?: Lookups): { name: string; privileged: boolean } | null {
   if (!visible || !r.platform_id || !r.identity_id) return null;
-  const i = db().get<{ name: string; privileged: number | boolean }>(
-    'SELECT name, privileged FROM platform_identities WHERE id = ? AND platform_id = ?',
-    r.identity_id,
-    r.platform_id,
-  );
+  const found = look ? look.identities.get(r.identity_id) : undefined;
+  const i = look
+    ? found && found.platform_id === r.platform_id
+      ? found
+      : undefined
+    : db().get<{ name: string; privileged: number | boolean }>(
+        'SELECT name, privileged FROM platform_identities WHERE id = ? AND platform_id = ?',
+        r.identity_id,
+        r.platform_id,
+      );
   return i ? { name: i.name, privileged: Number(i.privileged) === 1 || i.privileged === true } : null;
 }
 
-export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(), now = Date.now(), settings = reminderSettings()): Credential {
+const belongsOf = (r: CredentialRow, look?: Lookups): CredentialBelongsTo | null => {
+  const key = `${r.belongs_kind ?? ''}\n${r.belongs_id ?? ''}`;
+  if (look?.belongs.has(key)) return look.belongs.get(key)!;
+  const b = toBelongsTo(r.belongs_kind ?? null, r.belongs_id ?? null);
+  look?.belongs.set(key, b);
+  return b;
+};
+
+export function toCredential(
+  r: CredentialRow,
+  u: AuthUser | null = currentUser(),
+  now = Date.now(),
+  settings = reminderSettings(),
+  look?: Lookups,
+): Credential {
   const dues = computeDues(r, now, settings.dueSoonDays);
-  const pname = platformName(r.platform_id, u);
-  const identity = identityOf(r, pname !== null);
+  const pname = platformName(r.platform_id, u, look);
+  const identity = identityOf(r, pname !== null, look);
   const usedBy = parseJson<{ text?: string; links?: CredentialLink[]; urls?: CredentialUrl[] }>(r.used_by, {});
   const next = dues.map((d) => d.dueAt).sort()[0] ?? null;
   return {
     id: r.id,
     name: r.name,
     type: r.type,
-    belongsTo: toBelongsTo(r.belongs_kind ?? null, r.belongs_id ?? null),
+    belongsTo: belongsOf(r, look),
     platformId: r.platform_id,
     platformName: pname,
     identityId: r.identity_id ?? null,
@@ -340,7 +400,7 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     platformText: r.platform_text,
     environment: r.environment,
     description: r.description,
-    usedBy: { text: usedBy.text ?? '', links: (usedBy.links ?? []).map(resolveLink), urls: usedBy.urls ?? [] },
+    usedBy: { text: usedBy.text ?? '', links: (usedBy.links ?? []).map((l) => resolveLink(l, look)), urls: usedBy.urls ?? [] },
     roles: parseJson<CredentialRole[]>(r.roles ?? '[]', []),
     owners: parseJson(r.owners, []),
     ownerSubjects: parseJson(r.owner_subjects, []),
@@ -631,9 +691,10 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
   const needle = f.q?.trim().toLowerCase();
   const owner = f.owner?.trim().toLowerCase();
   const role = f.role?.trim().toLowerCase();
-  return rows
-    .filter((r) => credentialPermissions(u, r).includes('view'))
-    .map((r) => toCredential(r, u, now, settings))
+  const visible = rows.filter((r) => credentialPermissions(u, r).includes('view'));
+  const look = lookupsFor(visible);
+  return visible
+    .map((r) => toCredential(r, u, now, settings, look))
     .filter(
       (c) =>
         !needle ||

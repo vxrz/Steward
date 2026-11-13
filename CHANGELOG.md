@@ -24,6 +24,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **Outbound access**: the policy choice is labelled for screen readers and stacks on phones, and the warning of _Any host (labs)_ is shown once.
 - **Git sync sources on GitHub without a token say that GitHub allows 60 calls an hour** and recommend a fine-grained token with repository access _Public repositories (read-only)_ and no permissions; the example library's hint names `api.github.com`, the host Steward really calls, instead of `github.com`.
 - **The public API's run, task and dataset lists and the MCP tools read the reader's process rights in one statement** ([docs/API.md](docs/API.md)): before, they read each process on its own, so these lists slowed down with every process – on PostgreSQL each statement is a round trip. The web app, the public API and MCP now share one check of which processes and runs a reader may see.
+- **Faster start page, scorecard and lists with many items**: availability objectives with a monitor as source, the credentials register and its start page tile, the access check findings tile, the user and team lists read their items in a fixed number of database statements instead of a few per item – on PostgreSQL each statement is a round trip. New indexes find a user's teams (read on every request), a day's record status changes (daily summary) and a day's AI token use (budget check of every AI call).
 
 ### Fixed
 
@@ -51,6 +52,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Security
 
 - **Browsers no longer fill the saved Steward password into secret fields that go to other hosts**: a platform's credential fields (new platform, setup wizard) and a Git sync source's access token now ask the browser for a new password instead of offering the one saved for Steward, which could have been stored as the platform's secret or sent to the Git host.
+- **Rate limits and sign-in counters count an IPv6 client by its /64 network everywhere** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits)): the public API's and the MCP endpoint's limits for requests without a valid token and the failed sign-in and step-up counters per address took each IPv6 address on its own, so a client could sidestep them by changing addresses within its network. The per-token limiters keep a bounded number of counters.
+- **The Kafka OAuth token request connects to the address that was checked** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#which-rule-checks-which-call)): a token URL whose name was rebound between the outbound check and the connection could have received the client secret.
+- **Cross-Origin-Resource-Policy: same-origin on every answer** ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#network-tls-and-reverse-proxy)): other sites cannot embed Steward's answers.
+- **Deleting a team no longer opens the items it alone owns to everyone** ([docs/TEAMS.md](docs/TEAMS.md)): the owning-team rows were removed with the team, so a process, platform, service or other item whose only owning team was deleted became the whole instance's – without a preview or a step-up. Now such a deletion is refused (`TEAM_OWNS_RESOURCES`) until the administrator names the team the items move to (a step-up when that team has members, each item audited as an access change); a team that shares ownership with other teams is just removed from them.
 
 ## [0.19.0] - 2026-11-12
 

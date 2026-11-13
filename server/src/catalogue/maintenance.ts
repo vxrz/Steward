@@ -853,14 +853,20 @@ function activeNow(now: number): Active[] {
   return list;
 }
 
-const monitorPlatformCache = new Map<string, { version: number; platforms: string[] }>();
+/**
+ * The platforms a monitor checks, by its version. Within CACHE_MS of the last look the cached list is used without asking
+ * the database again – like the windows themselves: listings (objectives on the start page and the scorecard) ask for
+ * every monitor, and a statement each made them grow with the number of objectives (review 0.20.0).
+ */
+const monitorPlatformCache = new Map<string, { version: number; platforms: string[]; at: number }>();
 function monitorPlatforms(monitorId: string): string[] {
+  const now = Date.now();
+  const c = monitorPlatformCache.get(monitorId);
+  if (c && Math.abs(now - c.at) < CACHE_MS) return c.platforms;
   const m = db().get<{ version: number; definition: string }>('SELECT version, definition FROM monitors WHERE id = ?', monitorId);
   if (!m) return [];
-  const c = monitorPlatformCache.get(monitorId);
-  if (c && c.version === Number(m.version)) return c.platforms;
-  const platforms = platformsOfDefinition(m.definition);
-  monitorPlatformCache.set(monitorId, { version: Number(m.version), platforms });
+  const platforms = c && c.version === Number(m.version) ? c.platforms : platformsOfDefinition(m.definition);
+  monitorPlatformCache.set(monitorId, { version: Number(m.version), platforms, at: now });
   return platforms;
 }
 

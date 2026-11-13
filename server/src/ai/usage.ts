@@ -80,9 +80,11 @@ function used(scope: AiBudgetScope, scopeId: string, period: 'day' | 'month', ke
   const col = scopeColumn[scope];
   // a process's calls and those of its sub-process runs (ids that differ only in case would count for each other: never less)
   const where = !col ? '' : scope === 'process' ? ` AND (${col} = ? OR lower(parent_process_ids) LIKE ? ESCAPE '\\')` : ` AND ${col} = ?`;
+  // a day also by its month: the index on (month, day) then finds it – the day alone read the whole usage log on every
+  // call's budget check (review 0.20.0)
   const r = db().get<{ n: number | null }>(
-    `SELECT SUM(input_tokens + output_tokens) AS n FROM ai_usage WHERE ${period} = ? AND ${COUNTED_SQL}${where}`,
-    key,
+    `SELECT SUM(input_tokens + output_tokens) AS n FROM ai_usage WHERE ${period === 'day' ? 'month = ? AND day = ?' : 'month = ?'} AND ${COUNTED_SQL}${where}`,
+    ...(period === 'day' ? [key.slice(0, 7), key] : [key]),
     ...(!col ? [] : scope === 'process' ? [scopeId, `%,${likeEscape(scopeId.toLowerCase())},%`] : [scopeId]),
   );
   return Number(r?.n ?? 0);
