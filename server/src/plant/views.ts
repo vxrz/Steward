@@ -1,4 +1,5 @@
 import {
+  PLANT_HIDDEN,
   kpiInputProfiles,
   PLANT_VIEW_LIMITS,
   worstLive,
@@ -42,6 +43,7 @@ import { assetInputPoints, assignmentChecks, deliveries, inputGaps, matchedProfi
 import { collectedPoints, isCollected } from './potential.js';
 import { ihVerifiedPoints } from './ih-core.js';
 import { assetModel, isOrExtends } from './resolve.js';
+import { HiddenRefs, catalogueScope, presentKpis, presentProfiles, requireEntry, type CatalogueScope } from './catalogue-access.js';
 import { collectionRows, collectionValuesOf, collectorKey } from './collections-model.js';
 import type { PlantCollectionValues } from '@sm/shared';
 
@@ -321,7 +323,7 @@ function cellOf(
   if (!a || !a.profileId || !profile) return { state: 'cannot', ...(details ? { gaps: [{ code: 'kpi_no_profile', params: { kpi: def.name } }] } : {}) };
   // a KPI of another profile: no need to look at every data point (the common case on a large site)
   if (!details && plan.named.some((i) => matchedProfile(i, profile) === null)) return { state: 'cannot' };
-  const gaps = inputGaps(def, a, profile);
+  const gaps = inputGaps(def, a, profile, ctx.profiles);
   if (!gaps.length) {
     // 0.12.0: KPI potential – collected already, or the device delivers and a collection is missing; a unit that differs
     // is shown (the asset still could have the KPI: its job converts, or the input's unit is corrected)
@@ -395,17 +397,19 @@ export interface CoverageFilter {
   kpi?: string;
 }
 
-export function coverage(f: CoverageFilter): PlantCoverage {
+export function coverage(f: CoverageFilter, scope: CatalogueScope = catalogueScope()): PlantCoverage {
   requirePlant();
   // a site the caller may not see reads like one that does not exist
   if (f.site) visibleSite(f.site);
   const v = visible();
-  const profiles = allProfiles();
-  const kpiMap = allKpis();
-  let defs = [...kpiMap.values()].sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1));
+  // 0.21.0 (#293): every cell is computed on the whole catalogue; KPI definitions the caller may not see are no columns
+  // (counted: hiddenKpis), profiles they may not see are not named (rows, checks, the profile filter's options)
+  const profiles = presentProfiles(allProfiles(), scope);
+  const kpiMap = presentKpis(allKpis(), scope);
+  let defs = [...kpiMap.values()].filter((k) => scope.kpi(k.id)).sort((a, b) => a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1));
   if (f.kpi) {
     const k = kpiMap.get(f.kpi);
-    if (!k) throw kpiNotFound(f.kpi);
+    if (!k || !scope.kpi(f.kpi)) throw kpiNotFound(f.kpi);
     defs = [k];
   }
   const plans = defs.map(planOf);
@@ -414,10 +418,10 @@ export function coverage(f: CoverageFilter): PlantCoverage {
   let assets = v.assets;
   if (f.site) assets = assets.filter((a) => a.site_id === f.site);
   if (f.area) assets = assets.filter((a) => a.area_id === f.area);
-  // a profile filter includes the profiles that extend it (0.11.0)
+  // a profile filter includes the profiles that extend it (0.11.0); one the caller may not see matches nothing, as an unknown one
   if (f.profile) {
     const wanted = f.profile;
-    assets = assets.filter((a) => isOrExtends(profiles.get(assignments.get(a.id)?.profileId ?? ''), wanted));
+    assets = scope.profile(wanted) ? assets.filter((a) => isOrExtends(profiles.get(assignments.get(a.id)?.profileId ?? ''), wanted)) : [];
   }
   const siteName = (id: string) => v.sites.get(id)?.name ?? '';
   assets = [...assets].sort((a, b) => siteName(a.site_id).localeCompare(siteName(b.site_id)) || (a.site_id < b.site_id ? -1 : a.site_id > b.site_id ? 1 : 0));
@@ -464,7 +468,11 @@ export function coverage(f: CoverageFilter): PlantCoverage {
     rows.push({
       asset: briefOf(asset, site),
       area: area ? { id: area.id, name: area.name, names: names(area.names) } : null,
-      profile: a?.profileId ? { id: a.profileId, name: profile?.name ?? a.profileId } : null,
+      profile: a?.profileId
+        ? scope.profile(a.profileId)
+          ? { id: a.profileId, name: profile?.name ?? a.profileId }
+          : { id: new HiddenRefs(scope.profile, [a.profileId]).ref(a.profileId), name: PLANT_HIDDEN, hidden: true }
+        : null,
       cells,
     });
   }
@@ -484,8 +492,12 @@ export function coverage(f: CoverageFilter): PlantCoverage {
           .filter((n) => n.level === 'area')
           .map((n) => ({ siteId: s.id, id: n.id, name: n.name, names: names(n.names) })),
       ),
-      profiles: [...profiles.values()].sort((a, b) => a.name.localeCompare(b.name)).map((p) => ({ id: p.id, name: p.name })),
+      profiles: [...profiles.values()]
+        .filter((p) => scope.profile(p.id))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((p) => ({ id: p.id, name: p.name })),
     },
+    ...(scope.hiddenKpis().size ? { hiddenKpis: scope.hiddenKpis().size } : {}),
   };
 }
 
@@ -610,16 +622,23 @@ function addResults(
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-export function assetFlow(assetId: string): PlantFlowGraph {
+export function assetFlow(assetId: string, scope: CatalogueScope = catalogueScope()): PlantFlowGraph {
   const { row } = visibleAsset(assetId);
   const r = assignmentRowOf(assetId);
   const a = r ? assignmentValuesOf(r) : null;
   const g = new GraphBuilder();
   const monitors = assetMonitors(new Set([assetId]));
   const profile = resolvedProfile(a?.profileId) ?? undefined;
-  const kpis = allKpis();
+  // 0.21.0: the flow runs on the whole model; a profile or KPI definition the caller may not see is not named (part 4)
+  const kpis = presentKpis(allKpis(), scope);
+  const kpiRefs = new HiddenRefs(scope.kpi, (a?.kpis ?? []).map((k) => k.kpi));
   const checks = a
-    ? assignmentChecks({ kind: 'asset', id: row.id, name: row.name, siteId: row.site_id }, a, new Map(profile ? [[profile.id, profile]] : []), kpis)
+    ? assignmentChecks(
+        { kind: 'asset', id: row.id, name: row.name, siteId: row.site_id },
+        a,
+        presentProfiles(new Map(profile ? [[profile.id, profile]] : []), scope),
+        kpis,
+      )
     : [];
   const root = g.node({
     id: 'asset',
@@ -729,12 +748,14 @@ export function assetFlow(assetId: string): PlantFlowGraph {
   for (const k of a.kpis) {
     const def = kpis.get(k.kpi);
     const jobChecks = checks.filter((c) => c.job === k.job);
+    const hidden = kpiRefs.hides(k.kpi);
     const kId = g.node({
       id: `kpi:${k.job}`,
       kind: 'kpi',
-      label: def?.name ?? k.kpi,
+      label: hidden ? '' : (def?.name ?? k.kpi),
       detail: k.job,
-      path: def ? `/plant/kpis/${encodeURIComponent(def.id)}` : null,
+      ...(hidden ? { hidden: true } : {}),
+      path: def && !hidden ? `/plant/kpis/${encodeURIComponent(def.id)}` : null,
       inactive: !k.active,
       checks: jobChecks,
     });
@@ -768,19 +789,23 @@ export function assetFlow(assetId: string): PlantFlowGraph {
 
 // ---------- 3. the lineage of a data point ----------
 
-export function pointLineage(profileId: string, pointId: string): PlantFlowGraph {
+export function pointLineage(profileId: string, pointId: string, scope: CatalogueScope = catalogueScope()): PlantFlowGraph {
   requirePlant();
   if (!profileRowOf(profileId)) throw profileNotFound(profileId);
-  const profiles = allProfiles();
-  const profile = profiles.get(profileId)!;
+  requireEntry(scope, 'device_profile', profileId, profileNotFound);
+  const whole = allProfiles();
+  const profiles = presentProfiles(whole, scope);
+  const profile = whole.get(profileId)!;
   const found = pointsOf(profile).find((x) => x.point.id === pointId);
   if (!found) throw pointNotFound(pointId);
   const v = visible();
   const assignments = allAssignments();
-  const kpis = allKpis();
+  // KPI definitions the caller may not see still count (their instances read it), unnamed and without a page
+  const kpis = presentKpis(allKpis(), scope);
+  const kpiRefs = new HiddenRefs(scope.kpi);
   const readers = new Set([...kpis.values()].filter((k) => namedInputPoints(k, profile).includes(pointId)).map((k) => k.id));
   // assets of this profile and of the profiles that extend it, unless theirs drops the data point (0.11.0)
-  const theirs = (assetId: string) => profiles.get(assignments.get(assetId)?.profileId ?? '');
+  const theirs = (assetId: string) => whole.get(assignments.get(assetId)?.profileId ?? '');
   const holders = v.assets.filter((x) => {
     const p = theirs(x.id);
     return isOrExtends(p, profileId) && pointsOf(p!).some((y) => y.point.id === pointId);
@@ -859,7 +884,16 @@ export function pointLineage(profileId: string, pointId: string): PlantFlowGraph
     for (const k of a.kpis.filter((x) => readers.has(x.kpi))) {
       const def = kpis.get(k.kpi)!;
       const failing = checks.filter((c) => c.job === k.job);
-      const kId = g.node({ id: `kpi:${def.id}`, kind: 'kpi', label: def.name, detail: '', path: `/plant/kpis/${encodeURIComponent(def.id)}`, inactive: true });
+      const hidden = !scope.kpi(def.id);
+      const kId = g.node({
+        id: `kpi:${kpiRefs.ref(def.id)}`,
+        kind: 'kpi',
+        label: hidden ? '' : def.name,
+        detail: '',
+        ...(hidden ? { hidden: true } : {}),
+        path: hidden ? null : `/plant/kpis/${encodeURIComponent(def.id)}`,
+        inactive: true,
+      });
       const kn = g.nodes.get(kId)!;
       if (k.active) kn.inactive = false;
       kn.checks.push(...failing);

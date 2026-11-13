@@ -118,6 +118,17 @@ export function catalogueEntryAccess(u: AuthUser | null, kind: PlantCatalogueKin
   return { permissions: normalise(rights), reasons };
 }
 
+/**
+ * Whether `u` may see one entry – the cheap question (link labels, notification recipients): an entry of the whole
+ * instance needs no decision, only lookups in the request's indexes.
+ */
+export function seesEntry(u: AuthUser | null, kind: PlantCatalogueKind, id: string): boolean {
+  if (!u) return true;
+  if (!usesModule(u, 'plant')) return false;
+  if (openEntry(kind, id) && worksInSteward(u)) return true;
+  return catalogueEntryAccess(u, kind, id).permissions.length > 0;
+}
+
 export const profileAccess = (u: AuthUser | null, id: string): CatalogueDecision => catalogueEntryAccess(u, 'device_profile', id);
 export const kpiAccess = (u: AuthUser | null, id: string): CatalogueDecision => catalogueEntryAccess(u, 'kpi_definition', id);
 
