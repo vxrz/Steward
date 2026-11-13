@@ -219,10 +219,17 @@ describe('demo services', () => {
       expect(allocations.find((a) => a.value === 'lkc-demo1')).toMatchObject({ rule: 'measured', measured: { readAt: expect.any(String) } });
       // 0.25.0 (ADR 0037): the edge – a Databus topic → the bridge application on the edge device → a Confluent topic
       const machines = list.items.find((x) => x.key === 'machine-measurements')!;
-      const bridge = ((await s.api('GET', `/data-products/${machines.id}/steps`)) as { name: string; runsOn: { name: string } | null }[]).find(
-        (x) => x.name === 'Databus to Confluent',
-      );
+      const bridge = (
+        (await s.api('GET', `/data-products/${machines.id}/steps`)) as {
+          name: string;
+          kind: string;
+          runner: { technology?: string };
+          runsOn: { name: string } | null;
+        }[]
+      ).find((x) => x.name === 'Databus to Confluent');
       expect(bridge?.runsOn).toMatchObject({ name: 'ied-line-01.example', environment: 'prod' });
+      // a bridge of the technology Industrial Edge (ADR 0037 parts 0 and 3)
+      expect(bridge).toMatchObject({ kind: 'bridge', runner: { technology: 'industrial-edge' } });
       const databus = (await s.api('GET', '/data-elements?kind=mqtt.topic')).items[0];
       expect(databus).toMatchObject({ qualifiedName: 'ie/d/line-1/opcua/state' });
       const edge = ((await s.api('GET', '/systems')) as { id: string; name: string; iemDeviceId: string | null }[]).find(

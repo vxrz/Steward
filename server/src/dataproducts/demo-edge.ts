@@ -15,7 +15,8 @@ import { createStep } from './steps.js';
  *     service there that the catalogue does not record – the Industrial Edge suggestions offer them;
  *   - the elements: the Databus topic `ie/d/line-1/opcua/state` (mqtt.topic, broker ie-databus:1883) and the Confluent
  *     topic `plant.line1.state.v1`, both in prod, in the draft product "Machine measurements";
- *   - the step "Databus to Confluent" (replicate): runner Edge Stream Bridge @ ied-line-01.example (prod);
+ *   - the step "Databus to Confluent" (a bridge, technology Industrial Edge): runner Edge Stream Bridge @
+ *     ied-line-01.example (prod);
  *   - in the plant registry (when it is on, plant/demo-edge.ts): the edge device as an asset whose device is the
  *     system, and the OPC UA collection of milling centre 1 that writes the Databus topic (the element's plant sink).
  *
@@ -77,11 +78,11 @@ export function seedEdgeDemo(): void {
   addMembers(product, 'Machine measurements', { elementIds: [topic], role: 'internal' });
   createStep(product, 'Machine measurements', {
     name: 'Databus to Confluent',
-    kind: 'replicate',
+    kind: 'bridge',
     description: 'The bridge application on the edge device subscribes to the Databus topic and produces each message to Confluent.',
     inputs: [databus],
     outputs: [topic],
-    runner: { kind: 'application', id: bridge, runsOn: { systemId: system, environment: 'prod' } },
+    runner: { kind: 'application', id: bridge, runsOn: { systemId: system, environment: 'prod' }, technology: 'industrial-edge' },
     schedule: 'continuous',
   });
 }
