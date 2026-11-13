@@ -66,6 +66,15 @@ export function dataObjectsSemanticModel(u: AuthUser, version: OssieVersion = DE
   const keys = new Map(rows.map((o) => [norm(o.key), o.key]));
   const attrsOf = new Map(rows.map((o) => [o.key, parseJson<Attribute[]>(o.attributes, []).filter((a) => a && typeof a.name === 'string' && a.name.trim())]));
   const pkOf = new Map(rows.map((o) => [o.key, primaryKeyOf(o.key, attrsOf.get(o.key)!)]));
+  // dataset names are unique in a model (relationships name them): keys that differ only in . - _ get a suffix
+  const nameOf = new Map<string, string>();
+  const taken = new Set<string>();
+  for (const o of rows) {
+    let n = datasetName(o.key);
+    while (taken.has(n.toLowerCase())) n = `${n}_`;
+    taken.add(n.toLowerCase());
+    nameOf.set(o.key, n);
+  }
   const base = config.publicUrl ? config.publicUrl.replace(/\/$/, '') : '';
   const datasets = rows.map((o) => {
     const attributes = attrsOf.get(o.key)!;
@@ -73,7 +82,7 @@ export function dataObjectsSemanticModel(u: AuthUser, version: OssieVersion = DE
     const synonyms = [...new Set([o.name, ...parseJson<string[]>(o.synonyms, [])].filter(Boolean))];
     const definition = (o.definition ?? '').trim();
     return {
-      name: datasetName(o.key),
+      name: nameOf.get(o.key)!,
       source: `steward.data_objects.${o.key}`,
       ...(pk ? { primary_key: [pk] } : {}),
       description: `${o.name}${definition ? ` – ${definition.slice(0, 2000)}` : ''}`,
@@ -106,13 +115,13 @@ export function dataObjectsSemanticModel(u: AuthUser, version: OssieVersion = DE
       if (!target) continue;
       const to = pkOf.get(target) ?? attrsOf.get(target)!.find((x) => norm(x.name) === norm(a.name))?.name;
       if (!to) continue;
-      let name = `${datasetName(o.key)}_${datasetName(a.name)}_to_${datasetName(target)}`;
+      let name = `${nameOf.get(o.key)!}_${datasetName(a.name)}_to_${nameOf.get(target)!}`;
       while (names.has(name)) name = `${name}_`;
       names.add(name);
       relationships.push({
         name,
-        from: datasetName(o.key),
-        to: datasetName(target),
+        from: nameOf.get(o.key)!,
+        to: nameOf.get(target)!,
         from_columns: [a.name],
         to_columns: [to],
         ai_context: { instructions: `The ${o.name} refers to a ${rows.find((x) => x.key === target)!.name} by ${a.name}` },

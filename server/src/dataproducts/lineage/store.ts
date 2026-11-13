@@ -108,7 +108,11 @@ const datasetKey = (ns: string, name: string) => `${normaliseOlNamespace(ns)}\n$
  * The elements of these OpenLineage datasets (by the namespace and name discovery gave them – names compared without
  * case, as Snowflake keeps unquoted names upper case): dataset key → element ids. One statement per chunk of names.
  */
-export function elementsOfDatasets(datasets: readonly Dataset[], aliases: readonly DataLineageNamespaceAlias[]): Map<string, string[]> {
+export function elementsOfDatasets(
+  datasets: readonly Dataset[],
+  aliases: readonly DataLineageNamespaceAlias[],
+  info: { ignoredNamespaces: number } = { ignoredNamespaces: 0 },
+): Map<string, string[]> {
   const out = new Map<string, string[]>();
   if (!datasets.length) return out;
   const wanted = new Map<string, Dataset>();
@@ -124,7 +128,9 @@ export function elementsOfDatasets(datasets: readonly Dataset[], aliases: readon
     names.add(n.toUpperCase());
     names.add(n.toLowerCase());
   }
-  const nsList = [...namespaces].slice(0, 200);
+  // beyond the limit the datasets stay unmatched – said, not silent (the caller warns)
+  const nsList = [...namespaces].slice(0, LL.namespacesPerEvent);
+  info.ignoredNamespaces += Math.max(0, namespaces.size - nsList.length);
   for (const part of chunks([...names], 400))
     for (const r of db().all<{ id: string; ol_namespace: string; ol_name: string }>(
       `SELECT id, ol_namespace, ol_name FROM dp_elements WHERE ol_namespace IN (${marks(nsList.length)}) AND ol_name IN (${marks(part.length)}) ORDER BY id`,

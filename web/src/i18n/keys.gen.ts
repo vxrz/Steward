@@ -8469,6 +8469,7 @@ export interface Resources {
     'codes.DATA_LINEAGE_API_TOKEN': string;
     'codes.DATA_LINEAGE_PUSH_SESSION': string;
     'codes.DATA_LINEAGE_RATE': string;
+    'codes.DATA_LINEAGE_DBT_RATE': string;
     'codes.DATA_LINEAGE_PUSH_TYPE': string;
     'codes.DATA_LINEAGE_EVENT_INVALID': string;
     'codes.DATA_LINEAGE_DBT_INVALID': string;

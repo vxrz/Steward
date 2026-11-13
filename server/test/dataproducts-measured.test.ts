@@ -175,10 +175,27 @@ describe('Snowflake warehouses', () => {
       expect(x.sql).toMatch(/^\/\* steward:costs-measure-(warehouses|tags) \*\/ SELECT /);
       expect(x.sql).toMatch(/FROM SNOWFLAKE\.ACCOUNT_USAGE\.(WAREHOUSE_METERING_HISTORY|QUERY_ATTRIBUTION_HISTORY) /);
       expect(x.sql).not.toMatch(/TRANSFORM_WH|BI_WH/);
+      // the month in UTC, not in the session's time zone (START_TIME is TIMESTAMP_LTZ)
+      expect(x.sql).toContain("TO_VARCHAR(CONVERT_TIMEZONE('UTC', START_TIME), 'YYYY-MM') AS MONTH");
     }
     const al = ((await s.api('GET', `/data-products/cost-allocations?platformId=${snowflake}`)) as any[]).find((x) => x.value === 'MEAS-ACCT');
     expect(al.measured.readAt).toBeTruthy();
     expect(al.measured.error).toBeNull();
+  });
+
+  it('reads as the person who set an allocation of the measure last – not the first by name', async () => {
+    const { db } = await import('../src/db.js');
+    const row = db().get<{ id: string; updated_at: string; updated_by: string }>(
+      "SELECT id, updated_at, updated_by FROM dp_cost_allocations WHERE platform_id = ? AND match_value = 'MEAS-ACCT'",
+      snowflake,
+    )!;
+    // an earlier setter who is gone (first by name); the later one may still read
+    db().run('UPDATE dp_cost_allocations SET updated_by = ?, updated_at = ? WHERE id = ?', 'aaa-former-manager', '2020-01-01T00:00:00.000Z', row.id);
+    try {
+      expect((await read()).failed).toBe(0);
+    } finally {
+      db().run('UPDATE dp_cost_allocations SET updated_by = ?, updated_at = ? WHERE id = ?', row.updated_by, row.updated_at, row.id);
+    }
   });
 
   it('without a price: each product’s share of the measured credits – never above the line, the rest not attributed', async () => {

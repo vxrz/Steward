@@ -404,10 +404,12 @@ export async function decideRequest(id: string, body: unknown): Promise<DataAcce
   // an approval widens access: confirmed like every grant (API tokens cannot)
   requireAccessGrant(u);
   const approval: DataAccessApproval = { by: u.username, at: now, comment: input.comment };
-  const last = !r.four_eyes || approvals.length >= 1;
+  // four eyes as the product is rated now: a rating raised to high since the request was made asks for two people too
+  const fourEyes = !!Number(r.four_eyes) || needsFourEyes(p.id);
+  const last = !fourEyes || approvals.length >= 1;
   if (!last) {
     db().tx(() => {
-      db().run('UPDATE dp_access_requests SET approvals = ?, updated_at = ? WHERE id = ?', json([...approvals, approval]), now, r.id);
+      db().run('UPDATE dp_access_requests SET approvals = ?, four_eyes = 1, updated_at = ? WHERE id = ?', json([...approvals, approval]), now, r.id);
       audit({
         action: 'dataproduct.access_approved',
         entityType: 'data_product',

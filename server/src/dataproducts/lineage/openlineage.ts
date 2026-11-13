@@ -105,6 +105,8 @@ export function toolOf(integration: string | undefined, producer: string): strin
 export interface OlApplied {
   events: number;
   proposals: { created: number; changed: number; skipped: number };
+  /** What was not read as sent (namespaces beyond the limit of an event) – in the push's answer and its audit entry */
+  warnings: string[];
 }
 
 /**
@@ -112,13 +114,14 @@ export interface OlApplied {
  * last run kept. A fixed number of statements per event whatever the number of its datasets. Call inside a transaction.
  */
 export function applyOlEvents(sourceId: string, aliases: readonly DataLineageNamespaceAlias[], events: readonly OlEvent[]): OlApplied {
-  const out: OlApplied = { events: 0, proposals: { created: 0, changed: 0, skipped: 0 } };
+  const out: OlApplied = { events: 0, proposals: { created: 0, changed: 0, skipped: 0 }, warnings: [] };
+  const info = { ignoredNamespaces: 0 };
   for (const e of events) {
     out.events++;
     if (e.type === 'dataset') continue;
     const ev = e.event;
     const all: Dataset[] = [...ev.inputs, ...ev.outputs];
-    const matched = elementsOfDatasets(all, aliases);
+    const matched = elementsOfDatasets(all, aliases, info);
     const side = (ds: readonly Dataset[]) => {
       const ids: string[] = [];
       const unmatched: string[] = [];
@@ -151,5 +154,9 @@ export function applyOlEvents(sourceId: string, aliases: readonly DataLineageNam
     else if (w.created) out.proposals.created++;
     else if (w.changed) out.proposals.changed++;
   }
+  if (info.ignoredNamespaces)
+    out.warnings.push(
+      `${info.ignoredNamespaces} dataset namespace(s) beyond ${LL.namespacesPerEvent} per event were not matched – their datasets stay unmatched`,
+    );
   return out;
 }

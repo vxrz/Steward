@@ -306,6 +306,20 @@ describe('the OpenLineage push', () => {
       await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
     }
   });
+  it('says so when an event names more namespaces than it matches – in the answer and the audit entry', async () => {
+    const { DATA_LINEAGE_LIMITS } = await import('@sm/shared');
+    const n = DATA_LINEAGE_LIMITS.namespacesPerEvent + 50;
+    const inputs = Array.from({ length: n }, (_, i) => ({ namespace: `kafka://invented-broker-${i}.example:9092`, name: `topic-${i}` }));
+    const r = await push(src, token, runEvent({ job: 'many_namespaces', runId: '0190c3d4-3333-7000-8000-000000000001', inputs }));
+    expect(r.status).toBe(200);
+    expect(r.body.warnings).toEqual([expect.stringMatching(/^50 dataset namespace\(s\) beyond 200 per event were not matched/)]);
+    const { db } = await import('../src/db.js');
+    const a = db().get<{ details: string }>(
+      "SELECT details FROM audit_log WHERE action = 'datalineage.pushed' AND entity_id = ? ORDER BY seq DESC LIMIT 1",
+      src,
+    )!;
+    expect(JSON.parse(a.details).warnings).toEqual(r.body.warnings);
+  });
 });
 
 describe('the inbox of proposed steps', () => {
@@ -600,6 +614,24 @@ describe('dbt', () => {
     expect(await dana('POST', `/data-products/lineage-sources/${src}/dbt/run-results`, runResults())).toMatchObject({ file: 'runResults', by: 'dana' });
     expect((await fail(olivia('POST', `/data-products/lineage-sources/${src}/dbt/run-results`, runResults()))).status).toBe(403);
     expect((await dana('GET', `/data-products/lineage-sources/${src}`)).lastImport).toMatchObject({ file: 'runResults', by: 'dana' });
+  });
+
+  it('takes few dbt files a minute per source, pushed and uploaded together – whatever the token’s own limit', async () => {
+    const { resetLineagePushState } = await import('../src/dataproducts/lineage/push.js');
+    const { DATA_LINEAGE_LIMITS } = await import('@sm/shared');
+    resetLineagePushState();
+    // refused bodies count too: the slot is taken before the body is read
+    for (let i = 0; i < DATA_LINEAGE_LIMITS.dbtFilesPerMinute; i++)
+      expect((await push(src, token, {}, { path: i % 2 ? '/dbt/manifest' : '/dbt/run-results' })).status).toBe(400);
+    const r = await push(src, token, {}, { path: '/dbt/manifest' });
+    expect(r).toMatchObject({ status: 429, body: { code: 'DATA_LINEAGE_DBT_RATE', params: { max: DATA_LINEAGE_LIMITS.dbtFilesPerMinute } } });
+    expect(await fail(dana('POST', `/data-products/lineage-sources/${src}/dbt/run-results`, runResults()))).toMatchObject({
+      status: 429,
+      code: 'DATA_LINEAGE_DBT_RATE',
+    });
+    // OpenLineage events are not dbt files: the token's own limit applies to them
+    expect((await push(src, token, runEvent({ job: 'x' }))).body).toMatchObject({ code: 'DATA_LINEAGE_SOURCE_KIND' });
+    resetLineagePushState();
   });
 
   it('forgets the dbt results that came through the source when it is deleted, and keeps those of other sources', async () => {

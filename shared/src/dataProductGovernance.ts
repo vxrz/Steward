@@ -355,6 +355,25 @@ export const dataPortReviewApprovalInput = z
   .object({ approve: z.boolean(), comment: z.string().trim().max(DATA_GOVERNANCE_LIMITS.comment).default('') })
   .strict();
 
+/**
+ * What a port access review froze of an entry (0.24.0), shown in the reader's language – entries frozen before carry
+ * `detail` text instead (facts null). Each key is there only where it applies.
+ */
+export interface DataPortReviewFacts {
+  /** registered: the registration's purpose, end date (YYYY-MM-DD), platform identities and the names it was seen as */
+  purpose?: string;
+  until?: string | null;
+  identities?: string[];
+  seenAs?: string[];
+  /** actual: the platform (null: one the reader may not see), the objects read, reads in the window and the last one (ISO 8601) */
+  platform?: string | null;
+  objects?: string[];
+  reads?: number | null;
+  lastSeen?: string | null;
+  /** grant: the subject's type as the access check reads it (user, role, technical …) */
+  subjectType?: string;
+}
+
 export interface DataPortReviewItem {
   id: string;
   seq: number;
@@ -364,7 +383,9 @@ export interface DataPortReviewItem {
   label: string;
   /** What was found: seen, silent, unknown (registrations); notRegistered (actual); the rights (grants) */
   finding: string;
+  /** Entries frozen before 0.24.0's release review: the facts as text (English); newer entries: empty – see facts */
   detail: string;
+  facts: DataPortReviewFacts | null;
   decision: 'keep' | 'remove' | null;
   comment: string;
   decidedBy: string | null;
