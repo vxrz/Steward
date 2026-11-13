@@ -80,7 +80,8 @@
     "deprecated": "Consumes a deprecated or retired port",
     "neighbour": "Outside the filters, connected to a match",
     "plant": "A plant registry data collection that writes to an element",
-    "proposed": "Proposed by a tool, not documented yet (dotted) – Data → Discovery decides"
+    "proposed": "Proposed by a tool, not documented yet (dotted) – Data → Discovery decides",
+    "bridge": "A bridge: moves data between technologies (long dashes) – change data capture, a sink connector, a flow"
   },
   "table": {
     "filter": "Filter the table",
@@ -172,7 +173,8 @@
     "count_other": "{{count}} steps",
     "deprecated": "Deprecated",
     "deprecatedPort": "{{name}} (deprecated)",
-    "proposed": "Proposed"
+    "proposed": "Proposed",
+    "bridge": "Bridge"
   },
   "health": {
     "up": "Up",

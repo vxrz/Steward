@@ -54,7 +54,9 @@
     "domain": "A domain you may not see",
     "platform": "A platform you may not see",
     "product": "A product you may not see",
-    "contract": "A contract you may not see"
+    "contract": "A contract you may not see",
+    "checks_one": "{{count}} check you may not see",
+    "checks_other": "{{count}} checks you may not see"
   },
   "environment": {
     "label": "Environment",
@@ -688,7 +690,11 @@
     "evidence": {
       "noEvidenceYet": "Steward has no evidence for this yet.",
       "documented": {
-        "has": "{{done}} of {{of}}: description, owner, domain, type, data objects"
+        "has": "{{done}} of {{of}}: description, owner, domain, type, data objects",
+        "genericParts_one": "{{count}} generic part (no discovery yet)",
+        "genericParts_other": "{{count}} generic parts (no discovery yet)",
+        "technologyNotInList_one": "{{count}} generic part with a technology not in the list",
+        "technologyNotInList_other": "{{count}} generic parts with a technology not in the list"
       },
       "rated": {
         "dimensions": "{{rated}} of {{of}} dimensions rated",
@@ -1428,5 +1434,112 @@
     "days_other": "{{count}} days",
     "hours_one": "{{count}} hour",
     "hours_other": "{{count}} hours"
+  },
+  "generic": {
+    "section": "Generic part",
+    "hint": "A part of a technology Steward does not discover yet: its technology, its OpenLineage namespace – with the qualified name its identity – and properties. It takes part in products, ports, steps, lineage, checks, costs and the scorecard; Convert to … makes it a specific kind later.",
+    "technology": "Technology",
+    "technologyHint": "From the technology list, or a value of your own",
+    "technologyRequired": "Name the technology",
+    "notInList": "not in the list",
+    "notInListHint": "Not in the technology list – kept as typed. An administrator can add it under Settings → Catalogue → Data products.",
+    "namespace": "OpenLineage namespace",
+    "namespaceHint": "Where it lives, such as mqtt://broker.example:1883 – with the qualified name its OpenLineage dataset",
+    "namespaceHintPattern": "Where it lives, such as {{pattern}} – with the qualified name its OpenLineage dataset",
+    "namespaceRequired": "Name the namespace",
+    "namespaceNoSpaces": "A namespace has no spaces",
+    "properties": "Properties",
+    "propertiesHint": "Key: value, like tags – a flow id, a route id, a retention",
+    "propertyKey": "Key",
+    "propertyValue": "Value",
+    "propertyKeyNumbered": "Key of property {{n}}",
+    "propertyValueNumbered": "Value of property {{n}}",
+    "addProperty": "Add property",
+    "removeProperty": "Remove property",
+    "removePropertyNamed": "Remove property {{key}}",
+    "convert": "Convert to …",
+    "convertTitle": "Convert {{name}}",
+    "convertHint": "The generic part becomes an element of the kind you choose – the same element: its products, ports and contracts, steps and lineage, checks, costs and history stay. Discovery looks after it from then on. If another element is that one already, the conversion is refused.",
+    "convertKind": "Kind",
+    "convertName": "Qualified name there",
+    "convertNameHint": "As the platform names it, such as SHOP.RAW.ORDERS or orders.v1",
+    "convertSubmit": "Convert",
+    "converted": "Converted to {{kind}}",
+    "notConverted": "The element was not converted",
+    "runnerTechnology": "Technology",
+    "runnerTechnologyHint": "What runs it, from the technology list or your own (optional)",
+    "runnerTechnologyBridgeHint": "What the bridge is – Debezium, Node-RED, Apache Camel …"
+  },
+  "openLineage": {
+    "export": "Export as OpenLineage",
+    "exportStep": "Export as OpenLineage",
+    "exportStepNamed": "Export {{name}} as OpenLineage"
+  },
+  "connectorStep": {
+    "open": "Create step from connector",
+    "title": "Create step from connector",
+    "help": "A Kafka Connect or Confluent connector becomes a bridge step: the connector as its runner, its inputs and outputs as its configuration names them, matched to the catalogue. Steward reads only the connector readout – nothing is sent to the platform.",
+    "platform": "Platform",
+    "connector": "Connector",
+    "chooseConnector": "Choose a connector",
+    "noPlatforms": "There is no Kafka Connect or Confluent Cloud platform you may see.",
+    "noConnectors": "The platform has no connector – read it again on its page",
+    "types": {
+      "source": "source",
+      "sink": "sink",
+      "unknown": "unknown"
+    },
+    "families": {
+      "debezium": "Change data capture (Debezium): tables → topics",
+      "snowflakeSink": "Snowflake sink: topics → tables",
+      "s3Sink": "S3 sink: topics → files",
+      "other": "Connector: its topics"
+    },
+    "noElements": "No element of the catalogue",
+    "unmatched": "Not in the catalogue: {{names}}",
+    "noOutputs": "No element of the catalogue is written by this connector – a step needs an output. Discover or enter it first.",
+    "create": "Create step"
+  },
+  "technologies": {
+    "title": "Technologies",
+    "hint": "The technologies of generic parts and bridges: built-in ones and those administrators add. Pictures, filters and the scorecard use them; a value typed that is not here shows as not in the list.",
+    "add": "Add technology",
+    "newTitle": "New technology",
+    "editTitle": "Change {{name}}",
+    "name": "Name",
+    "key": "Key",
+    "keyHint": "Lower case letters, digits, “.”, “_” and “-”; kept once saved",
+    "keyInvalid": "Lower case letters, digits, “.”, “_” and “-”, starting with a letter or digit",
+    "keyTaken": "There is a technology with this key already",
+    "role": "Role",
+    "roles": {
+      "part": "Part",
+      "bridge": "Bridge",
+      "both": "Part and bridge"
+    },
+    "icon": "Icon",
+    "icons": {
+      "database": "Database",
+      "table": "Table",
+      "topic": "Topic or stream",
+      "file": "Files",
+      "api": "API",
+      "bridge": "Bridge",
+      "flow": "Flow",
+      "edge": "Edge device",
+      "cloud": "Cloud",
+      "sensor": "Sensor or machine",
+      "other": "Other"
+    },
+    "pattern": "OpenLineage namespace pattern",
+    "patternHint": "How its namespace looks, such as kafka://{host}:{port} – a hint in the forms (optional)",
+    "origin": "Origin",
+    "builtIn": "built in",
+    "own": "added",
+    "edit": "Change",
+    "editNamed": "Change {{name}}",
+    "delete": "Remove",
+    "deleteNamed": "Remove {{name}}",
+    "deleteConfirm": "Remove the technology {{name}} from the list? Elements and steps that name it keep the value – it shows as not in the list."
   }
 }

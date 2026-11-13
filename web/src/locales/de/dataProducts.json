@@ -54,7 +54,9 @@
     "domain": "Eine Domäne, die Sie nicht sehen dürfen",
     "platform": "Eine Plattform, die Sie nicht sehen dürfen",
     "product": "Ein Produkt, das Sie nicht sehen dürfen",
-    "contract": "Ein Vertrag, den Sie nicht sehen dürfen"
+    "contract": "Ein Vertrag, den Sie nicht sehen dürfen",
+    "checks_one": "{{count}} Prüfung, die Sie nicht sehen dürfen",
+    "checks_other": "{{count}} Prüfungen, die Sie nicht sehen dürfen"
   },
   "environment": {
     "label": "Umgebung",
@@ -704,7 +706,11 @@
     "evidence": {
       "noEvidenceYet": "Steward hat dafür noch keinen Nachweis.",
       "documented": {
-        "has": "{{done}} von {{of}}: Beschreibung, Verantwortliche, Domäne, Typ, Datenobjekte"
+        "has": "{{done}} von {{of}}: Beschreibung, Verantwortliche, Domäne, Typ, Datenobjekte",
+        "genericParts_one": "{{count}} generischer Bestandteil (noch ohne Erkennung)",
+        "genericParts_other": "{{count}} generische Bestandteile (noch ohne Erkennung)",
+        "technologyNotInList_one": "{{count}} generischer Bestandteil mit einer Technologie, die nicht in der Liste steht",
+        "technologyNotInList_other": "{{count}} generische Bestandteile mit einer Technologie, die nicht in der Liste steht"
       },
       "rated": {
         "dimensions": "{{rated}} von {{of}} Dimensionen eingestuft",
@@ -1428,5 +1434,112 @@
     "days_other": "{{count}} Tage",
     "hours_one": "{{count}} Stunde",
     "hours_other": "{{count}} Stunden"
+  },
+  "generic": {
+    "section": "Generischer Bestandteil",
+    "hint": "Ein Bestandteil einer Technologie, die Steward noch nicht erkennt: seine Technologie, sein OpenLineage-Namensraum – mit dem qualifizierten Namen seine Identität – und Eigenschaften. Er nimmt an Datenprodukten, Ports, Schritten, Lineage, Prüfungen, Kosten und der Bewertung teil; „Umwandeln in …“ macht ihn später zu einer bestimmten Art.",
+    "technology": "Technologie",
+    "technologyHint": "Aus der Technologieliste oder ein eigener Wert",
+    "technologyRequired": "Nennen Sie die Technologie",
+    "notInList": "nicht in der Liste",
+    "notInListHint": "Nicht in der Technologieliste – wird wie eingegeben gespeichert. Ein Administrator kann sie unter Einstellungen → Katalog → Datenprodukte aufnehmen.",
+    "namespace": "OpenLineage-Namensraum",
+    "namespaceHint": "Wo er liegt, etwa mqtt://broker.example:1883 – mit dem qualifizierten Namen sein OpenLineage-Datensatz",
+    "namespaceHintPattern": "Wo er liegt, etwa {{pattern}} – mit dem qualifizierten Namen sein OpenLineage-Datensatz",
+    "namespaceRequired": "Nennen Sie den Namensraum",
+    "namespaceNoSpaces": "Ein Namensraum enthält keine Leerzeichen",
+    "properties": "Eigenschaften",
+    "propertiesHint": "Schlüssel: Wert, wie Tags – eine Flow-ID, eine Routen-ID, eine Aufbewahrung",
+    "propertyKey": "Schlüssel",
+    "propertyValue": "Wert",
+    "propertyKeyNumbered": "Schlüssel der Eigenschaft {{n}}",
+    "propertyValueNumbered": "Wert der Eigenschaft {{n}}",
+    "addProperty": "Eigenschaft hinzufügen",
+    "removeProperty": "Eigenschaft entfernen",
+    "removePropertyNamed": "Eigenschaft {{key}} entfernen",
+    "convert": "Umwandeln in …",
+    "convertTitle": "{{name}} umwandeln",
+    "convertHint": "Der generische Bestandteil wird zu einem Element der gewählten Art – demselben Element: Seine Datenprodukte, Ports und Verträge, Schritte und Lineage, Prüfungen, Kosten und Historie bleiben. Die Erkennung betreut es von da an. Ist ein anderes Element bereits dieses, wird die Umwandlung abgelehnt.",
+    "convertKind": "Art",
+    "convertName": "Qualifizierter Name dort",
+    "convertNameHint": "Wie die Plattform ihn nennt, etwa SHOP.RAW.ORDERS oder orders.v1",
+    "convertSubmit": "Umwandeln",
+    "converted": "Umgewandelt in {{kind}}",
+    "notConverted": "Das Element wurde nicht umgewandelt",
+    "runnerTechnology": "Technologie",
+    "runnerTechnologyHint": "Was ihn ausführt, aus der Technologieliste oder eigen (optional)",
+    "runnerTechnologyBridgeHint": "Was die Brücke ist – Debezium, Node-RED, Apache Camel …"
+  },
+  "openLineage": {
+    "export": "Als OpenLineage exportieren",
+    "exportStep": "Als OpenLineage exportieren",
+    "exportStepNamed": "{{name}} als OpenLineage exportieren"
+  },
+  "connectorStep": {
+    "open": "Schritt aus Connector anlegen",
+    "title": "Schritt aus Connector anlegen",
+    "help": "Ein Kafka-Connect- oder Confluent-Connector wird zu einem Brückenschritt: der Connector als Ausführender, seine Ein- und Ausgaben, wie seine Konfiguration sie nennt, den Elementen des Katalogs zugeordnet. Steward liest nur den gespeicherten Stand der Connectoren – an die Plattform wird nichts gesendet.",
+    "platform": "Plattform",
+    "connector": "Connector",
+    "chooseConnector": "Wählen Sie einen Connector",
+    "noPlatforms": "Es gibt keine Kafka-Connect- oder Confluent-Cloud-Plattform, die Sie sehen dürfen.",
+    "noConnectors": "Die Plattform hat keinen Connector – lesen Sie sie auf ihrer Seite erneut",
+    "types": {
+      "source": "Quelle",
+      "sink": "Senke",
+      "unknown": "unbekannt"
+    },
+    "families": {
+      "debezium": "Change Data Capture (Debezium): Tabellen → Topics",
+      "snowflakeSink": "Snowflake-Senke: Topics → Tabellen",
+      "s3Sink": "S3-Senke: Topics → Dateien",
+      "other": "Connector: seine Topics"
+    },
+    "noElements": "Kein Element des Katalogs",
+    "unmatched": "Nicht im Katalog: {{names}}",
+    "noOutputs": "Dieser Connector schreibt kein Element des Katalogs – ein Schritt braucht eine Ausgabe. Lassen Sie es zuerst erkennen oder erfassen Sie es.",
+    "create": "Schritt anlegen"
+  },
+  "technologies": {
+    "title": "Technologien",
+    "hint": "Die Technologien generischer Bestandteile und Brücken: mitgelieferte und von Administratoren hinzugefügte. Bilder, Filter und die Bewertung verwenden sie; ein eingegebener Wert, der hier fehlt, erscheint als nicht in der Liste.",
+    "add": "Technologie hinzufügen",
+    "newTitle": "Neue Technologie",
+    "editTitle": "{{name}} ändern",
+    "name": "Name",
+    "key": "Schlüssel",
+    "keyHint": "Kleinbuchstaben, Ziffern, „.“, „_“ und „-“; nach dem Speichern fest",
+    "keyInvalid": "Kleinbuchstaben, Ziffern, „.“, „_“ und „-“, beginnend mit einem Buchstaben oder einer Ziffer",
+    "keyTaken": "Es gibt bereits eine Technologie mit diesem Schlüssel",
+    "role": "Rolle",
+    "roles": {
+      "part": "Bestandteil",
+      "bridge": "Brücke",
+      "both": "Bestandteil und Brücke"
+    },
+    "icon": "Symbol",
+    "icons": {
+      "database": "Datenbank",
+      "table": "Tabelle",
+      "topic": "Topic oder Datenstrom",
+      "file": "Dateien",
+      "api": "API",
+      "bridge": "Brücke",
+      "flow": "Ablauf",
+      "edge": "Edge-Gerät",
+      "cloud": "Cloud",
+      "sensor": "Sensor oder Maschine",
+      "other": "Sonstiges"
+    },
+    "pattern": "Muster des OpenLineage-Namensraums",
+    "patternHint": "Wie sein Namensraum aussieht, etwa kafka://{host}:{port} – ein Hinweis in den Formularen (optional)",
+    "origin": "Herkunft",
+    "builtIn": "mitgeliefert",
+    "own": "hinzugefügt",
+    "edit": "Ändern",
+    "editNamed": "{{name}} ändern",
+    "delete": "Entfernen",
+    "deleteNamed": "{{name}} entfernen",
+    "deleteConfirm": "Die Technologie {{name}} aus der Liste entfernen? Elemente und Schritte, die sie nennen, behalten den Wert – er erscheint dann als nicht in der Liste."
   }
 }

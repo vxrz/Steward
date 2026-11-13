@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { IconPackages } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { DATA_DISCOVERY_LIMITS, DEFAULT_DATA_LAYERS, DEFAULT_REGULATORY_FLAGS } from '@sm/shared';
+import { TechnologiesSettings } from './TechnologiesSettings';
 
 /**
  * Settings → Catalogue → Data products (ADR 0036 parts 2, 4 and 9): the layers elements are drawn in, the regulatory
@@ -51,6 +52,8 @@ export function DataProductsSettingsCard() {
           </Text>
           {list(DEFAULT_REGULATORY_FLAGS)}
         </div>
+        {/* 0.25.0 (ADR 0037): the technology list of parts and bridges */}
+        <TechnologiesSettings />
         <div>
           <Text size="sm" fw={500}>
             {t('settings.defaults')}

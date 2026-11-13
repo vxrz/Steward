@@ -35,6 +35,7 @@ export const transferUrls = {
   all: (format: 'yaml' | 'json', domain?: string) => apiUrl(`/data-products/export?format=${format}${domain ? `&domain=${enc(domain)}` : ''}`),
   product: (id: string, format: 'yaml' | 'json') => apiUrl(`/data-products/${enc(id)}/export?format=${format}`),
   odps: (id: string) => apiUrl(`/data-products/${enc(id)}/odps`),
+  openLineage: (id: string) => apiUrl(`/data-products/${enc(id)}/openlineage`),
   schema: () => apiUrl('/data-products/schema'),
   /** The data objects the reader may see as an Apache Ossie semantic model (phase 2) */
   ossie: (format: 'yaml' | 'json', version: '0.1.1' | '0.2.0.dev0' = '0.1.1') => apiUrl(`/data-objects/semantic-model?format=${format}&version=${version}`),
@@ -112,6 +113,10 @@ export function ProductTransferItems({ id }: { id: string }) {
       </Menu.Item>
       <Menu.Item component="a" href={transferUrls.odps(id)} leftSection={<IconDownload size={14} />} data-testid="product-export-odps">
         {t('transfer.odps')}
+      </Menu.Item>
+      {/* 0.25.0 (ADR 0037 part 5): the static lineage as OpenLineage events (JSON Lines) */}
+      <Menu.Item component="a" href={transferUrls.openLineage(id)} leftSection={<IconDownload size={14} />} data-testid="product-export-openlineage">
+        {t('openLineage.export')}
       </Menu.Item>
     </>
   );
