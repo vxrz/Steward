@@ -140,7 +140,8 @@ export async function validateFile(file: string): Promise<FileResult> {
   // products – checked against its format (docs/data-products/data-products-1.schema.json); names of platforms and
   // contracts are checked by the import against the instance
   const DATA_PRODUCT_KEYS = ['domains', 'domain', 'data_objects', 'data_object', 'elements', 'data_products', 'data_product'];
-  if (obj && typeof obj === 'object' && 'version' in obj && DATA_PRODUCT_KEYS.some((k) => k in obj)) {
+  // (an ODCS contract has a version and a domain too: it names its kind, a data products file does not)
+  if (obj && typeof obj === 'object' && typeof obj.version === 'number' && !('kind' in obj) && DATA_PRODUCT_KEYS.some((k) => k in obj)) {
     const { dataProductsFileSchema, issueMessages } = await import('../dataproducts/format.js');
     const r = dataProductsFileSchema.safeParse(raw);
     if (!r.success)
