@@ -724,7 +724,7 @@ export function collapsePipeline(
   for (const [k, members] of [...groups].filter(([, m]) => m.length > 1).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))) {
     if (total <= max) break;
     const first = members[0]!;
-    const node = collapsedNode(`collapsed:${k.replace(/\u0000/g, ':')}`, members, first.hidden ? '' : first.parentName!, first.hidden ? 'hidden' : 'parent', {
+    const node = collapsedNode(`collapsed:${k.split('\u0000').join(':')}`, members, first.hidden ? '' : first.parentName!, first.hidden ? 'hidden' : 'parent', {
       column: first.column,
       ...(first.outside ? { outside: true } : {}),
       ...(first.role ? { role: first.role } : {}),
