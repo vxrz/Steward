@@ -336,6 +336,30 @@ describe('access requests', () => {
     const all = await olivia('GET', '/data-products/access-requests?scope=all');
     expect(all.items.every((x: { product: { id: string } }) => x.product.id !== hidden)).toBe(true);
   });
+
+  it('starts the platform team’s process as the approver, and two approvals at once register one consumer', async () => {
+    const processId = ((await s.api('GET', '/processes')) as { id: string }[])[0]!.id;
+    await s.api('PUT', `/data-products/${product}/access-settings`, { processId });
+    try {
+      const r = await olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, {
+        environment: 'prod',
+        consumer: { kind: 'text', text: 'Invented twice approved' },
+        purpose: 'Race',
+      });
+      const out = await Promise.allSettled([
+        dana('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }),
+        s.api('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }),
+      ]);
+      expect(out.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+      const consumers = (await dana('GET', `/data-products/${product}/ports/${port}/consumers`)) as { text: string }[];
+      expect(consumers.filter((c) => c.text === 'Invented twice approved')).toHaveLength(1);
+      const done = await dana('GET', `/data-products/access-requests/${r.id}`);
+      expect(done.status).toBe('approved');
+      expect(done.runId ?? done.decisionComment).toBeTruthy();
+    } finally {
+      await s.api('PUT', `/data-products/${product}/access-settings`, { processId: null });
+    }
+  });
 });
 
 describe('endorsement', () => {
