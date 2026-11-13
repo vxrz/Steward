@@ -2,10 +2,10 @@ import { Anchor, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { EdgeSuggestion, EdgeSuggestions } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../../api';
-import { fmtRelative } from '../../format';
+import { fmtNumber, fmtRelative } from '../../format';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
@@ -18,16 +18,28 @@ export function EdgeSuggestionsSection({ canRestore }: { canRestore: boolean }) 
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['systems', 'edge-suggestions'], queryFn: () => get<EdgeSuggestions>('/systems/edge-suggestions') });
   const [busy, setBusy] = useState<string | null>(null);
+  const box = useRef<HTMLDivElement>(null);
   const e = q.data;
   if (!e?.readout) return null;
+  // the card goes with its buttons: the focus moves to the next suggestion's first button, or to the section's
+  // heading when it was the last one (WCAG 2.4.3)
+  const keepFocus = (index: number) => {
+    const cards = box.current?.querySelectorAll<HTMLElement>('[data-testid="edge-suggestion"]') ?? [];
+    const next = cards[Math.min(index, cards.length - 1)]?.querySelector<HTMLElement>('button');
+    (next ?? document.querySelector<HTMLElement>('[data-testid="edge-suggestions-toggle"]'))?.focus();
+  };
   const act = async (s: EdgeSuggestion, what: 'confirm' | 'dismiss') => {
     setBusy(s.key);
+    const index = e.suggestions.findIndex((x) => x.key === s.key);
     try {
       await post(`/systems/edge-suggestions/${what}`, { key: s.key });
       notifyOk(t(what === 'confirm' ? 'edgeSuggestions.confirmed' : 'edgeSuggestions.dismissedOne'));
-      void qc.invalidateQueries({ queryKey: ['systems'] });
-      void qc.invalidateQueries({ queryKey: ['system'] });
-      void qc.invalidateQueries({ queryKey: ['application'] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['systems'] }),
+        qc.invalidateQueries({ queryKey: ['system'] }),
+        qc.invalidateQueries({ queryKey: ['application'] }),
+      ]);
+      requestAnimationFrame(() => keepFocus(index));
     } catch (err) {
       notifyError(err);
     } finally {
@@ -37,7 +49,9 @@ export function EdgeSuggestionsSection({ canRestore }: { canRestore: boolean }) 
   const restore = async () => {
     try {
       await post('/systems/edge-suggestions/restore', {});
-      void qc.invalidateQueries({ queryKey: ['systems', 'edge-suggestions'] });
+      notifyOk(t('edgeSuggestions.restored'));
+      await qc.invalidateQueries({ queryKey: ['systems', 'edge-suggestions'] });
+      requestAnimationFrame(() => keepFocus(0));
     } catch (err) {
       notifyError(err);
     }
@@ -63,13 +77,18 @@ export function EdgeSuggestionsSection({ canRestore }: { canRestore: boolean }) 
     <CollapsibleSection
       id="edge-suggestions"
       title={t('edgeSuggestions.title')}
-      description={t('edgeSuggestions.help', { title: e.readout.title, when: fmtRelative(e.readout.updatedAt), devices: e.readout.devices })}
+      description={t('edgeSuggestions.help', {
+        title: e.readout.title,
+        when: fmtRelative(e.readout.updatedAt),
+        count: e.readout.devices,
+        devices: fmtNumber(e.readout.devices),
+      })}
       count={e.suggestions.length}
       defaultOpen={e.suggestions.length > 0}
       testId="edge-suggestions"
       collapseOnPhone
     >
-      <Stack gap="xs" mb="md">
+      <Stack gap="xs" mb="md" ref={box}>
         {e.suggestions.length === 0 && (
           <Text size="sm" c="dimmed">
             {t('edgeSuggestions.none')}

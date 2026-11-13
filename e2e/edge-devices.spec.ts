@@ -40,10 +40,15 @@ test.describe('edge devices', () => {
     const databus = inbox.getByTestId('edge-suggestion').filter({ hasText: `IE Databus 2.1.0 runs on ${SYSTEM}` });
     await expect(databus).toBeVisible();
     await expectAccessible(page, 'systems with Industrial Edge suggestions');
+    // the readout's device count is a plural, formatted
+    await expect(inbox).toContainText(/\(\d+ devices?, /);
     await databus.getByRole('button', { name: 'Dismiss' }).click();
     await expect(page.getByText('Dismissed', { exact: true })).toBeVisible();
     await expect(databus).toHaveCount(0);
+    // the card went with its buttons: the focus is on the next suggestion's first button, not lost
+    await expect(inbox.getByTestId('edge-suggestion').locator('button:focus')).toHaveCount(1);
     await inbox.getByRole('button', { name: 'Suggest dismissed ones again' }).click();
+    await expect(page.getByText('The dismissed suggestions are suggested again')).toBeVisible();
     await expect(databus).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await expectNoHorizontalScroll(page);

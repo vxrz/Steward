@@ -1063,7 +1063,8 @@ export interface Resources {
     'firewall.create': string;
     'firewall.linkedFrom': string;
     'edgeSuggestions.title': string;
-    'edgeSuggestions.help': string;
+    'edgeSuggestions.help_one': string;
+    'edgeSuggestions.help_other': string;
     'edgeSuggestions.none': string;
     'edgeSuggestions.createSystem': string;
     'edgeSuggestions.linkSystem': string;
@@ -1081,6 +1082,7 @@ export interface Resources {
     'edgeSuggestions.dismissedCount_one': string;
     'edgeSuggestions.dismissedCount_other': string;
     'edgeSuggestions.restore': string;
+    'edgeSuggestions.restored': string;
     'edgeSuggestions.hidden_one': string;
     'edgeSuggestions.hidden_other': string;
   };
