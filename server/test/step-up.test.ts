@@ -512,6 +512,21 @@ describe('after the security review', () => {
     });
   });
 
+  it('M2c: a list sent back to a deprecated access-list route keeps the end dates of the shares', async () => {
+    const asks = asksOf(await unconfirmed());
+    await teamProcess(async (id) => {
+      const end = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+      await s.api('PUT', `/access/process/${id}/shares`, { shares: [{ subject: 'user:vera', level: 'view', expiresAt: end }] });
+      const { acl } = await s.api('GET', `/processes/${id}`);
+      expect(acl).toEqual([{ subject: 'user:vera', permissions: ['view'] }]);
+      // a list cannot say when a share ends: sending back what a GET answered asks nothing and lets nothing last longer
+      expect(await asks('PUT', `/processes/${id}/access`, { acl })).toBe(200);
+      const shares = (await s.api('GET', `/access/process/${id}/shares`)).shares;
+      expect(shares).toMatchObject([{ subject: 'user:vera', level: 'view' }]);
+      expect(String(shares[0].expiresAt).slice(0, 10)).toBe(end);
+    });
+  });
+
   it('L1: the audit log and credential register exports, the audit anchoring and turning the four-eyes rule off need a step-up', async () => {
     await s.api('PUT', '/settings', { findingDismissFourEyes: true });
     const c = await unconfirmed();

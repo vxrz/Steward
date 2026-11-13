@@ -170,11 +170,21 @@ export function aclChanged(kind: AclKind): void {
 // ---------- the deprecated routes ----------
 
 /** What a deprecated route's body asks for: the shares and the scope (a non-empty list restricts; identities never). */
-export function aliasTarget(kind: AclKind, aclInput: unknown): { shares: ShareWrite[]; restricted: boolean | undefined } {
+export function aliasTarget(kind: AclKind, aclInput: unknown, id?: string): { shares: ShareWrite[]; restricted: boolean | undefined } {
   const acl = cleanAcl(aclInput, KIND[kind].perms);
   // (a site's entries without rights were dropped before they counted, as setSiteAccess did)
   const listed = kind === 'site' ? acl.filter((e) => e.permissions.length) : acl;
-  return { shares: aclToShares(kind, acl), restricted: kind === 'platform_identity' ? undefined : listed.length > 0 };
+  // a list cannot say when a share ends: a subject that has a share keeps its end date (sending back the list a GET
+  // answered never makes a share last longer)
+  const ends = new Map(
+    id === undefined
+      ? []
+      : sharesOf(kind, id)
+          .filter((s) => shareActive(s))
+          .map((s) => [s.subject, s.expiresAt]),
+  );
+  const shares = aclToShares(kind, acl).map((s) => ({ ...s, expiresAt: ends.get(s.subject) ?? null }));
+  return { shares, restricted: kind === 'platform_identity' ? undefined : listed.length > 0 };
 }
 
 /** The rights each role has on an item of the kind while it is not Restricted (identities: none, ADR 0009). */
@@ -260,7 +270,7 @@ export function aliasWidens(kind: AclKind, id: string, aclInput: unknown, owner?
  */
 export function writeAlias(c: { kind: AliasKind; id: string; aclInput: unknown; held: HeldShare | 'all'; label: string }): void {
   if (!managesShares(c.held)) throw new HttpError(403, 'Only who manages this item may change its access', 'FORBIDDEN', { context: 'right_manage' });
-  const t = aliasTarget(c.kind, c.aclInput);
+  const t = aliasTarget(c.kind, c.aclInput, c.id);
   // the widening is decided as the access list decided it (the role defaults an emptied list gives back count)
   const widens = aliasWidens(c.kind, c.id, c.aclInput);
   db().tx(() => {
