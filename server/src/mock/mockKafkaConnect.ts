@@ -9,13 +9,24 @@ import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
  *                   RUNNING, writes shop.public.orders and shop.public.customers on Kafka (demo)
  *   orders-archive  Debezium JDBC sink of the topic orders into a warehouse, RUNNING – task 1 FAILED (its trace names
  *                   the connection URL with a password, which Steward must never show)
+ *   orders-snowflake-sink  the Snowflake Kafka connector (0.25.0): orders.v1 and shop.public.orders into SHOP.RAW.ORDERS_RAW
+ *                   of Snowflake (demo) – the Debezium → Kafka → Snowflake bridge of the data products demo; its
+ *                   configuration holds a made-up private key and passphrase (never kept: ADR 0037's allow-list)
  *
  * The configurations hold made-up credentials on purpose: Steward removes them from every answer.
  */
 
 export const DEMO_KAFKA_CONNECT = { username: 'connect-reader', password: 'demo-connect-secret' };
 /** The made-up secrets in the demo configurations – tests check that none of them leaves Steward. */
-export const DEMO_CONNECT_SECRETS = ['demo-cdc-password', 'demo-archive-password', 'demo-registry-password', 'Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRg'];
+export const DEMO_CONNECT_SECRETS = [
+  'demo-cdc-password',
+  'demo-archive-password',
+  'demo-registry-password',
+  'Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRg',
+  // 0.25.0: the Snowflake sink's key pair (made up)
+  'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDdemoKey',
+  'demo-snowflake-passphrase',
+];
 
 const WORKERS = ['connect-1.demo.invalid:8083', 'connect-2.demo.invalid:8083'];
 
@@ -96,6 +107,30 @@ function seed(): Record<string, Connector> {
         { state: 'FAILED', worker: WORKERS[0]!, trace: ARCHIVE_TRACE },
       ],
       topics: ['orders'],
+    },
+    'orders-snowflake-sink': {
+      type: 'sink',
+      config: {
+        name: 'orders-snowflake-sink',
+        'connector.class': 'com.snowflake.kafka.connector.SnowflakeSinkConnector',
+        'tasks.max': '1',
+        topics: 'orders.v1,shop.public.orders',
+        'snowflake.url.name': 'demo12345.snowflakecomputing.invalid:443',
+        'snowflake.user.name': 'KAFKA_CONNECTOR',
+        'snowflake.private.key': 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDdemoKey',
+        'snowflake.private.key.passphrase': 'demo-snowflake-passphrase',
+        'snowflake.role.name': 'KAFKA_CONNECTOR_ROLE',
+        'snowflake.database.name': 'SHOP',
+        'snowflake.schema.name': 'RAW',
+        'snowflake.topic2table.map': 'orders.v1:ORDERS_RAW,shop.public.orders:ORDERS_RAW',
+        'buffer.count.records': '10000',
+        'key.converter': 'org.apache.kafka.connect.storage.StringConverter',
+        'value.converter': 'com.snowflake.kafka.connector.records.SnowflakeJsonConverter',
+      },
+      state: 'RUNNING',
+      worker: WORKERS[1]!,
+      tasks: [{ state: 'RUNNING', worker: WORKERS[1]! }],
+      topics: ['orders.v1', 'shop.public.orders'],
     },
   };
 }

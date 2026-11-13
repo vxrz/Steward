@@ -152,7 +152,10 @@ describe('Kafka Connect platforms', () => {
     expect(v).toMatchObject({ platformId: connectId, kafkaPlatform: { id: kafkaId, name: 'Kafka (demo)' }, kafkaPlatformMissing: false, canRead: true });
     expect(v.readout).toMatchObject({ error: null, worker: { version: '3.9.0', commit: 'a1b2c3d4e5f60718', kafkaClusterId: 'demo-cluster-0001' } });
     expect(v.readout.plugins).toHaveLength(5);
-    const [archive, cdc] = v.connectors;
+    // 0.25.0: the demo's Snowflake sink (orders-snowflake-sink) is the third connector
+    expect(v.connectors.map((c: any) => c.name)).toEqual(['orders-archive', 'orders-snowflake-sink', 'shop-cdc']);
+    const archive = v.connectors.find((c: any) => c.name === 'orders-archive');
+    const cdc = v.connectors.find((c: any) => c.name === 'shop-cdc');
     expect(cdc).toMatchObject({
       name: 'shop-cdc',
       type: 'source',
@@ -278,11 +281,11 @@ describe('Kafka Connect platforms', () => {
     await s.api('PUT', `/platforms/${connectId}/secrets`, { password: 'wrong-password' });
     const bad = await s.api('POST', `/platforms/${connectId}/kafka-connect/read`, {});
     expect(bad.readout.error).toMatch(/HTTP 401.*check the sign-in/);
-    expect(bad.connectors).toHaveLength(2);
+    expect(bad.connectors).toHaveLength(3);
     await s.api('PUT', `/platforms/${connectId}/secrets`, { password: mock.DEMO_KAFKA_CONNECT.password });
     mock.removeConnector('shop-cdc');
     const fewer = await s.api('POST', `/platforms/${connectId}/kafka-connect/read`, {});
-    expect(fewer.connectors.map((c: any) => c.name)).toEqual(['orders-archive']);
+    expect(fewer.connectors.map((c: any) => c.name)).toEqual(['orders-archive', 'orders-snowflake-sink']);
     mock.resetKafkaConnect();
     await s.api('POST', `/platforms/${connectId}/kafka-connect/read`, {});
     const audit = await s.api('GET', `/audit?entityType=platform&entityId=${connectId}&limit=50`);
@@ -326,7 +329,7 @@ describe('monitor check kafka-connect', () => {
     };
     let st = await statuses();
     expect(st.all[0]).toBe('down');
-    expect(st.all[1]).toMatch(/^Kafka Connect: 2\/2 connectors running – orders-archive task 1 FAILED/);
+    expect(st.all[1]).toMatch(/^Kafka Connect: 3\/3 connectors running – orders-archive task 1 FAILED/);
     expect(st.archive[0]).toBe('degraded');
     expect(st.archive[1]).toMatch(/^Kafka Connect: orders-archive RUNNING \(1\/2 tasks\) – orders-archive task 1 FAILED for \d+ minutes \(alarm after 10\)$/);
     expect(st.lag).toEqual(['degraded', expect.stringContaining('orders-archive lag 135 (at most 100)')]);
