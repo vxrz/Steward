@@ -78,7 +78,10 @@ test.describe('module roles (own server)', () => {
     await page.keyboard.type(USERS.vera.username);
     await page.getByRole('option', { name: `(${USERS.vera.username})` }).click();
     await page.keyboard.press('Escape');
-    await dialog.getByTestId(`module-role-user:${USERS.vera.username}`).click();
+    // each row's role field is named after its person (not only "Module role")
+    const roleField = dialog.getByTestId(`module-role-user:${USERS.vera.username}`);
+    await expect(roleField).toHaveAccessibleName(/^Module role of .*vera/i);
+    await roleField.click();
     await page.getByRole('option', { name: /^Manager/ }).click();
     const changes = dialog.getByTestId('module-access-role-changes');
     await expect(changes).toContainText('1 person’s module role changes');

@@ -9115,6 +9115,7 @@ export interface Resources {
     'access.rolesTitle': string;
     'access.rolesIntro': string;
     'access.roleColumn': string;
+    'access.roleFor': string;
     'access.roleDefault': string;
     'access.roleDefaultHint': string;
     'access.everyoneRolesHint': string;

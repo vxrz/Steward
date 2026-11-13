@@ -238,6 +238,7 @@
     "rolesTitle": "Modulrollen",
     "rolesIntro": "{{name}} hat Modulrollen: Leser, Mitwirkender und Verwalter. Kernrollen geben standardmäßig eine (ein Designer ist Verwalter, ein Operator Mitwirkender, ein Betrachter Leser); eine hier vergebene Rolle kommt hinzu – die höchste zählt. Die Rolle eines Teams gilt für seine Mitglieder im ganzen Modul.",
     "roleColumn": "Modulrolle",
+    "roleFor": "Modulrolle von {{name}}",
     "roleDefault": "Aus den Kernrollen",
     "roleDefaultHint": "Nutzt es mit der Rolle, die die Kernrollen geben",
     "everyoneRolesHint": "Für alle geöffnet, bleiben nur Einträge mit einer Modulrolle erhalten.",
