@@ -454,4 +454,35 @@ describe('at volume', () => {
     expect(perElement(small.apply, large.apply), JSON.stringify({ small, large })).toBeLessThanOrEqual(6);
     expect(perElement(small.preview, large.preview), JSON.stringify({ small, large })).toBeLessThanOrEqual(5);
   }, 120_000);
+
+  it('exports with a number of statements that does not grow with the products', async () => {
+    const app = ((await s.api('GET', '/applications')) as { id: string }[])[0]!.id;
+    const add = async (from: number, to: number) => {
+      for (let i = from; i < to; i++) {
+        const p = await dana('POST', '/data-products', { key: `volume-${i}`, name: `Volume ${i}` });
+        const raw = (await dana('POST', '/data-elements', { kind: 'other', qualifiedName: `volume.raw.${i}` })).id;
+        const out = (await dana('POST', '/data-elements', { kind: 'other', qualifiedName: `volume.out.${i}` })).id;
+        const port = await dana('POST', `/data-products/${p.id}/ports`, { direction: 'output', name: 'out', version: 'v1' });
+        await dana('PUT', `/data-products/${p.id}/ports/${port.id}/bindings/prod`, { elementIds: [out] });
+        await dana('POST', `/data-products/${p.id}/ports/${port.id}/consumers`, { kind: 'application', refId: app, purpose: 'Reports' });
+        await dana('POST', `/data-products/${p.id}/steps`, { name: 'Load', inputs: [raw], outputs: [out], runner: { kind: 'application', id: app } });
+      }
+    };
+    const measure = async () => {
+      await dana('GET', '/data-products/export?format=json');
+      return counted.get('/api/data-products/export')!;
+    };
+    await add(0, 5);
+    const few = await measure();
+    await add(5, 25);
+    const many = await measure();
+    const body = await dana('GET', '/data-products/export?format=json');
+    const doc = typeof body === 'string' ? JSON.parse(body) : body;
+    expect(doc.data_products.find((p: { key: string }) => p.key === 'volume-24')).toMatchObject({
+      ports: [{ consumers: [{ kind: 'application' }] }],
+      steps: [{ name: 'Load', runner: { kind: 'application' } }],
+    });
+    // four times the products, the same statements (the IN lists are chunked by 500)
+    expect(many, JSON.stringify({ few, many })).toBeLessThanOrEqual(few + 5);
+  }, 120_000);
 });

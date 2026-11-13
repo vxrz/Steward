@@ -34,7 +34,7 @@ export const chunks = <T>(xs: readonly T[], n = CHUNK): T[][] => {
 export const marks = (n: number): string => Array.from({ length: n }, () => '?').join(', ');
 
 /** Rows of `sql` (which ends with `IN (`…`)` filled by `ids`), read in chunks. */
-function inChunks<T>(sql: (marks: string) => string, ids: readonly string[], ...before: unknown[]): T[] {
+export function inChunks<T>(sql: (marks: string) => string, ids: readonly string[], ...before: unknown[]): T[] {
   const uniq = [...new Set(ids)];
   if (!uniq.length) return [];
   return chunks(uniq).flatMap((part) => db().all<T>(sql(marks(part.length)), ...before, ...part));

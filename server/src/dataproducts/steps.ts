@@ -46,11 +46,11 @@ function canEditStep(u: AuthUser | null, outputs: readonly string[]): boolean {
   return outputs.every((id) => elementAccess(u, teams.get(id) ?? []).permissions.includes('edit'));
 }
 
-/** The runner as `u` may see it (an item they may not see: hidden, its id not handed out – process ids carry names). */
-function runnerOf(u: AuthUser | null, raw: string | null, visibleElements: Map<string, boolean>): { runner: DataStepRunner | null; hidden: boolean } {
-  const r = parseJson<DataStepRunner | null>(raw, null);
-  if (!r) return { runner: null, hidden: false };
-  if (r.kind === 'tool') return { runner: r, hidden: false };
+/** Whether `u` may see a runner that is an item of Steward (memoised per kind and id: a pipeline names few runners). */
+function runnerSeen(u: AuthUser | null, r: Exclude<DataStepRunner, { kind: 'tool' }>, seenCache?: Map<string, boolean>): boolean {
+  const key = `${r.kind}:${r.kind === 'connector' ? r.platformId : r.id}`;
+  const hit = seenCache?.get(key);
+  if (hit !== undefined) return hit;
   const platformSeen = (id: string) => {
     const p = db().get<{ id: string; acl: string }>('SELECT id, acl FROM platforms WHERE id = ?', id);
     return !!p && platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions.length > 0;
@@ -58,24 +58,40 @@ function runnerOf(u: AuthUser | null, raw: string | null, visibleElements: Map<s
   let seen = false;
   if (r.kind === 'connector') seen = platformSeen(r.platformId);
   else if (r.kind === 'platform') seen = platformSeen(r.id);
-  else if (r.kind === 'element')
-    seen = !!visibleElements.get(r.id) || (elementsByIds([r.id]).has(r.id) && elementAccess(u, elementTeamIds([r.id]).get(r.id) ?? []).permissions.length > 0);
+  else if (r.kind === 'element') seen = elementsByIds([r.id]).has(r.id) && elementAccess(u, elementTeamIds([r.id]).get(r.id) ?? []).permissions.length > 0;
   else if (r.kind === 'process') seen = !!db().get('SELECT 1 FROM processes WHERE id = ?', r.id) && permissionsFor(r.id).includes('view');
   else if (r.kind === 'application') {
     const a = db().get<{ id: string; owners: string }>('SELECT id, owners FROM applications WHERE id = ?', r.id);
     seen = !!a && canViewCatalogue(u, { kind: 'application', id: a.id, owners: parseJson<string[]>(a.owners, []) });
   }
+  seenCache?.set(key, seen);
+  return seen;
+}
+
+/** The runner as `u` may see it (an item they may not see: hidden, its id not handed out – process ids carry names). */
+function runnerOf(
+  u: AuthUser | null,
+  raw: string | null,
+  visibleElements: Map<string, boolean>,
+  seenCache?: Map<string, boolean>,
+): { runner: DataStepRunner | null; hidden: boolean } {
+  const r = parseJson<DataStepRunner | null>(raw, null);
+  if (!r) return { runner: null, hidden: false };
+  if (r.kind === 'tool') return { runner: r, hidden: false };
+  const seen = (r.kind === 'element' && !!visibleElements.get(r.id)) || runnerSeen(u, r, seenCache);
   return seen ? { runner: r, hidden: false } : { runner: null, hidden: true };
 }
 
-/** The steps as `u` sees them: element ids they may see (or that are members of `productId`, decision 15), the rest counted. */
-function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[], productId: string | null): DataStep[] {
-  const ids = [...new Set(ends.map((e) => e.element_id))];
-  const teams = elementTeamIds(ids);
-  const members = new Set(productId ? membersOf([productId]).map((m) => m.element_id) : []);
-  const visible = new Map(ids.map((id) => [id, members.has(id) || elementAccess(u, teams.get(id) ?? []).permissions.length > 0]));
-  const by = new Map<string, StepElementRow[]>();
-  for (const e of ends) by.set(e.step_id, [...(by.get(e.step_id) ?? []), e]);
+/** What the views of many steps share: the elements' owning teams, the products of the outputs, the runners seen. */
+interface StepContext {
+  teams: Map<string, string[]>;
+  productsOf: Map<string, string[]>;
+  editable: Set<string>;
+  runners: Map<string, boolean>;
+}
+
+function stepContext(u: AuthUser | null, ends: StepElementRow[]): StepContext {
+  const teams = elementTeamIds([...new Set(ends.map((e) => e.element_id))]);
   // which steps `u` may change: by the products of their outputs (read once for all steps)
   const outputs = [...new Set(ends.filter((e) => e.direction === 'out').map((e) => e.element_id))];
   const ms = membershipsOfElements(outputs);
@@ -83,6 +99,19 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
   const editable = new Set([...prods.values()].filter((p) => productAccess(u, p).permissions.includes('edit')).map((p) => p.id));
   const productsOf = new Map<string, string[]>();
   for (const m of ms) productsOf.set(m.element_id, [...(productsOf.get(m.element_id) ?? []), m.product_id]);
+  return { teams, productsOf, editable, runners: new Map() };
+}
+
+/**
+ * The steps as `u` sees them: element ids they may see (or that are members of the product, `members`, decision 15),
+ * the rest counted. `ctx`: shared by the products of an export (read once for all their steps).
+ */
+function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[], members: ReadonlySet<string>, ctx = stepContext(u, ends)): DataStep[] {
+  const { teams, productsOf, editable } = ctx;
+  const ids = [...new Set(ends.map((e) => e.element_id))];
+  const visible = new Map(ids.map((id) => [id, members.has(id) || elementAccess(u, teams.get(id) ?? []).permissions.length > 0]));
+  const by = new Map<string, StepElementRow[]>();
+  for (const e of ends) by.set(e.step_id, [...(by.get(e.step_id) ?? []), e]);
   return steps.map((s) => {
     const mine = by.get(s.id) ?? [];
     const ins = mine.filter((e) => e.direction === 'in').map((e) => e.element_id);
@@ -91,7 +120,7 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
     const canEdit = inProducts.length
       ? inProducts.some((p) => editable.has(p))
       : outs.length > 0 && outs.every((o) => elementAccess(u, teams.get(o) ?? []).permissions.includes('edit'));
-    const { runner, hidden } = runnerOf(u, s.runner, visible);
+    const { runner, hidden } = runnerOf(u, s.runner, visible, ctx.runners);
     return {
       id: s.id,
       name: s.name,
@@ -115,11 +144,48 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
   });
 }
 
+const membersSet = (productId: string) => new Set(membersOf([productId]).map((m) => m.element_id));
+
 /** The pipeline of a product: the steps that read or write its members. */
 export function productSteps(productId: string): DataStep[] {
-  const members = membersOf([productId]).map((m) => m.element_id);
-  const { steps, ends } = stepsOfElements(members);
-  return stepViews(me(), steps, ends, productId);
+  const members = membersSet(productId);
+  const { steps, ends } = stepsOfElements([...members]);
+  return stepViews(me(), steps, ends, members);
+}
+
+/**
+ * The pipelines of many products at once (an export): their members, steps, ends, owning teams and runners read once
+ * for all of them – a fixed number of statements however many products there are.
+ */
+export function productsSteps(productIds: readonly string[]): Map<string, DataStep[]> {
+  const u = me();
+  const members = new Map<string, Set<string>>(productIds.map((id) => [id, new Set()]));
+  for (const m of membersOf(productIds)) members.get(m.product_id)?.add(m.element_id);
+  const { steps, ends } = stepsOfElements([...new Set([...members.values()].flatMap((x) => [...x]))]);
+  const ctx = stepContext(u, ends);
+  const endsOf = new Map<string, StepElementRow[]>();
+  const stepsOf = new Map<string, string[]>();
+  for (const e of ends) {
+    endsOf.set(e.step_id, [...(endsOf.get(e.step_id) ?? []), e]);
+    stepsOf.set(e.element_id, [...(stepsOf.get(e.element_id) ?? []), e.step_id]);
+  }
+  const order = new Map(steps.map((s, i) => [s.id, i]));
+  const out = new Map<string, DataStep[]>();
+  for (const [id, mine] of members) {
+    const ids = new Set([...mine].flatMap((e) => stepsOf.get(e) ?? []));
+    const own = [...ids].sort((a, b) => order.get(a)! - order.get(b)!).map((x) => steps[order.get(x)!]!);
+    out.set(
+      id,
+      stepViews(
+        u,
+        own,
+        own.flatMap((x) => endsOf.get(x.id) ?? []),
+        mine,
+        ctx,
+      ),
+    );
+  }
+  return out;
 }
 
 /** Checks a step's ends: every element exists and is one the editor may see (or a member of the product), never both in and out. */
@@ -183,7 +249,7 @@ export function createStep(productId: string, productName: string, body: unknown
     });
   });
   const { steps, ends } = stepsWithEnds([id]);
-  return stepViews(me(), steps, ends, productId)[0]!;
+  return stepViews(me(), steps, ends, membersSet(productId))[0]!;
 }
 
 /** A step of this product's pipeline that the caller may change. */
@@ -245,7 +311,7 @@ export function updateStep(productId: string, productName: string, stepId: strin
     });
   });
   const r = stepsWithEnds([row.id]);
-  return stepViews(me(), r.steps, r.ends, productId)[0]!;
+  return stepViews(me(), r.steps, r.ends, membersSet(productId))[0]!;
 }
 
 export function deleteStep(productId: string, productName: string, stepId: string): void {
