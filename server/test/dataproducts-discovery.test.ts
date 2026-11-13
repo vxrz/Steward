@@ -384,7 +384,13 @@ describe('Snowflake (account usage)', () => {
       description: 'Written by people',
       layer: 'curated',
       olName: 'CRM.CORE.PEOPLE',
+      // the name shown follows the rename while it is the default short name; a name people gave stays
+      displayName: 'PEOPLE',
     });
+    await dana('PUT', `/data-elements/${contacts.id}`, { displayName: 'Customer contacts' });
+    sf.renameSnowflakeObject('CRM.CORE.PEOPLE', 'PERSONS');
+    expect(await job.runSource(src.id, { trigger: 'schedule' })).toMatchObject({ renamed: 1 });
+    expect(await dana('GET', `/data-elements/${contacts.id}`)).toMatchObject({ qualifiedName: 'CRM.CORE.PERSONS', displayName: 'Customer contacts' });
     const audit = await s.api('GET', '/audit?action=datadiscovery.run');
     expect(JSON.stringify(audit)).toContain('CRM.CORE.PEOPLE');
     sf.resetSnowflakeCatalogue();
