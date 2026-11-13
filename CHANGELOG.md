@@ -6,6 +6,16 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Edge devices in the plant registry** ([docs/PLANT.md](docs/PLANT.md#edge-devices), [ADR 0037](docs/adr/0037-data-products-connectors-files-edge.md) part 3): a device of an asset can be the Steward system it is. The asset shows _Apps on this device_ and _Collects data from_ (the collections whose collector runs there, by the asset they read), the system's page names its plant devices, and the OT network diagram stands the system and its applications on the device's VLAN. The host name stays on the device. Migration `plant-032-device-system`.
+- **Industrial Edge devices in the catalogue** ([docs/APPLICATIONS.md](docs/APPLICATIONS.md#industrial-edge-devices)): a system names its Industrial Edge Management device id and shows the device's status – online within its report interval, firmware – from the Industrial Edge examples' dataset. The new example _Installations readout_ (#55) feeds _Industrial Edge suggestions_ under _Catalogue → Systems_ (_Device … has no system – create it?_), which a person confirms or dismisses; nothing is recorded on its own. Migration `catalogue-015-edge-devices`.
+- **Edge applications in data products** ([docs/DATA-PRODUCTS.md](docs/DATA-PRODUCTS.md#edge-applications)): the element kind `mqtt.topic` for MQTT brokers and the Industrial Edge Databus (OpenLineage `mqtt://host:port`), _Create element from this sink_ on a plant collection's MQTT sink, and _Runs on_ – an application or connector runner names the system it runs on (_Edge Stream Bridge @ ied-line-01.example_). The demo bridges a Databus topic to Confluent through an edge device.
+
+### Changed
+
+- **Industrial Edge examples #50 and #51** publish the report interval of each device (_Report interval (min)_) and the grace (`graceMinutes`), so the catalogue applies their online rule when it is read ([examples/README.md](examples/README.md)).
+
 ## [0.24.0] - 2026-11-13
 
 Steward 0.24.0 brings **data products, phase 2** ([ADR 0036](docs/adr/0036-data-products-module.md#phases)): lineage from tools – OpenLineage events, dbt manifests and run results, Snowflake's access history – proposed to the people who document, never written on their own; quality results from dbt tests, Snowflake data metric functions and contract tests, mapped to the ISO/IEC 25012 dimensions; the scorecard over time and in reports; who really reads a product beside the consumers who registered; access requests with four eyes for the most confidential products and sealed port access reviews; promotion between environments, endorsement and maturity 5; personal data in fields and the records of processing (GDPR Art. 30); costs by measured use and estimates for products; ODPS import, a _replace_ import mode, Git sync, the Ossie export of data objects and proposals from assistants. A release review of security, standards, performance, UI, UX and accessibility (WCAG 2.2) was fixed before the release. Migrations are additive (`dataproducts-005a-lineage`, `dataproducts-005b-quality-scorecard-history`, `dataproducts-005c-governance`, `dataproducts-005d-measured-use-origins`, `dataproducts-005e-port-review-facts`).
