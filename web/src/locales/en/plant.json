@@ -422,7 +422,9 @@
     "fieldAdd": "Add field",
     "fieldRemove": "Remove field {{name}}",
     "save": "Save",
-    "saved": "Plant registry settings saved"
+    "saved": "Plant registry settings saved",
+    "managerTitle": "Registry settings",
+    "managerHint": "As a manager of the plant registry you change its content: the enterprise’s name, the names of the record types, own fields and review intervals. Switching the module, who uses it and the map stay with administrators."
   },
   "profiles": {
     "title": "Device profiles",

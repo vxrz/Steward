@@ -10,6 +10,8 @@ import { codeText, errorText } from '../../i18n/errors';
 import { listFormat } from '../../format';
 import { TableScroll } from '../TableScroll';
 import { useModuleUseText } from '../modules/moduleUse';
+// Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
+import { BRAND } from '../../../../shared/src/brand';
 
 const OUTCOME_COLOR: Record<SsoSignInPreview['outcome'], string> = { signIn: 'blue', relink: 'blue', link: 'teal', create: 'green', refuse: 'red' };
 
@@ -158,7 +160,7 @@ function Claims({ claims }: { claims: SsoClaimEntry[] }) {
 }
 
 function Preview({ preview: p }: { preview: SsoSignInPreview }) {
-  const { t } = useTranslation(['users', 'common']);
+  const { t } = useTranslation(['users', 'common', 'modules']);
   const moduleUse = useModuleUseText();
   const none = t('provider.test.none');
   // note codes come from the server (users:provider.test.notes.<code>)
@@ -227,6 +229,17 @@ function Preview({ preview: p }: { preview: SsoSignInPreview }) {
     ],
     [t('provider.test.roles'), p.roles.length ? p.roles.map((r) => t(`common:roles.${r}`)).join(', ') : none],
     [t('provider.test.teams'), p.teams.length ? p.teams.join(', ') : none],
+    // module roles the mappings give (0.23.0, ADR 0034 part 6), synchronised at each sign-in
+    ...(p.moduleRoles?.length
+      ? [
+          [
+            t('provider.test.moduleRoles'),
+            p.moduleRoles
+              .map((r) => t('modules:moduleRole', { module: t(`modules:items.${r.module}.name`, { brand: BRAND.name }), role: t(`modules:roleNames.${r.role}`) }))
+              .join(', '),
+          ] as [string, ReactNode],
+        ]
+      : []),
     // the modules restricted to selected teams and users: an SSO group reaches one through its team (ADR 0034)
     ...(p.modules?.length
       ? [

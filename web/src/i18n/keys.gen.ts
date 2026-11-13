@@ -90,6 +90,9 @@ export interface Resources {
     'owning.reason.shareRole': string;
     'owning.reason.until': string;
     'owning.reason.implied': string;
+    'owning.reason.moduleRoleUser': string;
+    'owning.reason.moduleRoleTeam': string;
+    'owning.reason.moduleRoleSso': string;
     'owning.level.view': string;
     'owning.level.edit': string;
     'owning.level.manage': string;
@@ -6224,6 +6227,10 @@ export interface Resources {
     'codes.MODULE_NOT_SWITCHABLE': string;
     'codes.MODULE_NO_ACCESS': string;
     'codes.MODULE_NOT_RESTRICTABLE': string;
+    'codes.MODULE_ROLE_UNKNOWN': string;
+    'codes.MODULE_SETTING_ADMIN_ONLY': string;
+    'codes.MODULE_ONLY_USER': string;
+    'codes.FORBIDDEN_moduleSettings': string;
     'codes.REPORT_NO_SECTIONS': string;
     'codes.PLANT_MAP_OFF': string;
     'codes.PLANT_MAP_NO_TILE': string;
@@ -7602,8 +7609,33 @@ export interface Resources {
     'access.through.auditor': string;
     'access.through.user': string;
     'access.through.team': string;
+    'access.through.sso': string;
     'access.uses': string;
     'access.notUses': string;
+    'access.rolesTitle': string;
+    'access.rolesIntro': string;
+    'access.roleColumn': string;
+    'access.roleDefault': string;
+    'access.roleDefaultHint': string;
+    'access.everyoneRolesHint': string;
+    'access.ssoGrants': string;
+    'access.roleChanges_one': string;
+    'access.roleChanges_other': string;
+    'access.roleChange': string;
+    'access.noRole': string;
+    'access.roleThrough.coreRole': string;
+    'access.roleThrough.user': string;
+    'access.roleThrough.team': string;
+    'access.roleThrough.sso': string;
+    'access.role': string;
+    'access.usesWithRole': string;
+    'roleNames.viewer': string;
+    'roleNames.contributor': string;
+    'roleNames.manager': string;
+    'roleHint.viewer': string;
+    'roleHint.contributor': string;
+    'roleHint.manager': string;
+    moduleRole: string;
   };
   monitors: {
     'wall.back': string;
@@ -9347,6 +9379,8 @@ export interface Resources {
     'settings.fieldRemove': string;
     'settings.save': string;
     'settings.saved': string;
+    'settings.managerTitle': string;
+    'settings.managerHint': string;
     'profiles.title': string;
     'profiles.description': string;
     'profiles.new': string;
@@ -16948,6 +16982,7 @@ export interface Resources {
     'provider.test.notes.GROUPS_OVERAGE': string;
     'provider.test.notes.USERINFO_USED': string;
     'provider.test.modules': string;
+    'provider.test.moduleRoles': string;
     'provider.stripDomains': string;
     'provider.stripDomainsHint': string;
     'provider.stripDomainsPlaceholder': string;
@@ -16972,6 +17007,7 @@ export interface Resources {
     'provider.teamRoles': string;
     'provider.changedCount_one': string;
     'provider.changedCount_other': string;
+    'provider.moduleRoles': string;
     'profileValues.title': string;
     'profileValues.hint': string;
     'references.teamDelete': string;
@@ -17075,5 +17111,10 @@ export interface Resources {
     'privacy.confirmLabel': string;
     'privacy.submit': string;
     'privacy.done': string;
+    'moduleRoles.title': string;
+    'moduleRoles.hint': string;
+    'moduleRoles.none': string;
+    'moduleRoles.fromSso': string;
+    'moduleRoles.sso': string;
   };
 }

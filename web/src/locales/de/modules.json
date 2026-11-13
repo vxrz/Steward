@@ -226,9 +226,40 @@
       "admin": "als Administrator",
       "auditor": "als Auditor",
       "user": "namentlich auf seiner Liste",
-      "team": "über das Team {{team}}"
+      "team": "über das Team {{team}}",
+      "sso": "über das Single Sign-on"
     },
     "uses": "Nutzt {{name}} {{through}}",
-    "notUses": "Nutzt {{name}} nicht"
-  }
+    "notUses": "Nutzt {{name}} nicht",
+    "rolesTitle": "Modulrollen",
+    "rolesIntro": "{{name}} hat Modulrollen: Leser, Mitwirkender und Verwalter. Kernrollen geben standardmäßig eine (ein Designer ist Verwalter, ein Operator Mitwirkender, ein Betrachter Leser); eine hier vergebene Rolle kommt hinzu – die höchste zählt. Die Rolle eines Teams gilt für seine Mitglieder im ganzen Modul.",
+    "roleColumn": "Modulrolle",
+    "roleDefault": "Aus den Kernrollen",
+    "roleDefaultHint": "Nutzt es mit der Rolle, die die Kernrollen geben",
+    "everyoneRolesHint": "Für alle geöffnet, bleiben nur Einträge mit einer Modulrolle erhalten.",
+    "ssoGrants": "Aus dem Single Sign-on (bei jeder Anmeldung aktualisiert): {{grants}}",
+    "roleChanges_one": "Die Modulrolle von {{count}} Person ändert sich:",
+    "roleChanges_other": "Die Modulrollen von {{count}} Personen ändern sich:",
+    "roleChange": "{{person}}: {{before}} → {{after}}",
+    "noRole": "keine",
+    "roleThrough": {
+      "coreRole": "als {{role}}",
+      "user": "der Person vergeben",
+      "team": "über das Team {{team}}",
+      "sso": "über das Single Sign-on"
+    },
+    "role": "{{role}} ({{through}})",
+    "usesWithRole": "Nutzt {{name}} {{through}}; Modulrolle {{role}}"
+  },
+  "roleNames": {
+    "viewer": "Leser",
+    "contributor": "Mitwirkender",
+    "manager": "Verwalter"
+  },
+  "roleHint": {
+    "viewer": "Sieht die Einträge des Moduls",
+    "contributor": "Sieht sie und schlägt Änderungen vor",
+    "manager": "Ändert und verwaltet sie"
+  },
+  "moduleRole": "{{module}}: {{role}}"
 }
