@@ -122,8 +122,11 @@ test.describe('the pictures of data products', () => {
     const zoom = () => graph.locator('.react-flow__viewport').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).a);
     expect(await zoom()).toBeGreaterThanOrEqual(0.85);
     await expect(page.getByTestId('graph-pan-hint')).toBeVisible();
-    const last = graph.locator('.react-flow__node[tabindex="0"]').last();
-    await last.focus();
+    const parts = graph.locator('.react-flow__node[tabindex="0"]');
+    const last = parts.last();
+    await parts.nth((await parts.count()) - 2).focus();
+    await page.keyboard.press('Tab');
+    await expect(last).toBeFocused();
     const frame = (await graph.boundingBox())!;
     await expect.poll(async () => (await last.boundingBox())!.x + (await last.boundingBox())!.width).toBeLessThanOrEqual(frame.x + frame.width);
     await page.getByTestId('graph-fit').click();
