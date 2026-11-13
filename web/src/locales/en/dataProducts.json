@@ -901,8 +901,7 @@
       "mqtt": "The topic, e.g. ie/d/j/simatic/v1/s7c1/dp/r/line1/default."
     },
     "apiHint": "Name the operations that serve data (GET /customers); commands stay with the application.",
-    "broker": "Broker",
-    "brokerHint": "Its host and port (host:port) when no MQTT broker platform is chosen – the Industrial Edge Databus of an edge device is ie-databus:1883. It gives the OpenLineage namespace mqtt://host:port.",
+    "mqttNamespaceHint": "Its broker as mqtt://host:port (host:port is enough) when no MQTT broker platform is chosen – the Industrial Edge Databus of an edge device is mqtt://ie-databus:1883. With the topic its OpenLineage dataset.",
     "apiUrl": "Description or endpoint",
     "operations": "Operations",
     "operationsHint": "E.g. GET /orders/{id} – Enter after each.",

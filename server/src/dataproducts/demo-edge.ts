@@ -63,7 +63,7 @@ export function seedEdgeDemo(): void {
     environment: 'prod',
     layer: 'source',
     description: 'Machine state of milling line 1 on the Databus of the edge device (published by the OPC UA connector).',
-    flags: [{ name: 'broker', value: IE_DATABUS_BROKER }],
+    namespace: `mqtt://${IE_DATABUS_BROKER}`,
   });
   const topic = insertElement({
     platformId: confluent,

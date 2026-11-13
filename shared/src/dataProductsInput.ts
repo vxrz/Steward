@@ -295,7 +295,10 @@ export const dataElementInput = z
       .array(z.object({ name: z.string().trim().min(1).max(60), value: flagValue }).strict())
       .max(L.flags)
       .default([]),
-    /** 0.25.0, generic kinds (ADR 0037 part 0): the technology, the OpenLineage namespace and key: value properties */
+    /**
+     * 0.25.0, generic kinds (ADR 0037 part 0): the technology, the OpenLineage namespace and key: value properties; the
+     * namespace also names the broker of an `mqtt.topic` without a broker platform (`mqtt://host:port` or `host[:port]`)
+     */
     technology: dataTechnologyValue().nullable().default(null),
     namespace: dataNamespaceValue().nullable().default(null),
     properties: dataElementPropertiesInput().default([]),

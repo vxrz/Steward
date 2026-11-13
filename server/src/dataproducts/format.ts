@@ -228,7 +228,9 @@ export const elementFileSchema = elementRefSchema
       .describe('Generic parts: the technology – a key or name of the technology list (node-red, Apache Camel) or a value of your own'),
     namespace: dataNamespaceValue()
       .optional()
-      .describe('Generic parts: the OpenLineage namespace (mqtt://broker.example:1883); with the qualified name its dataset'),
+      .describe(
+        'Generic parts: the OpenLineage namespace (mqtt://broker.example:1883); with the qualified name its dataset. An mqtt.topic without a broker platform: its broker (mqtt://ie-databus:1883)',
+      ),
     properties: dataElementPropertiesInput()
       .optional()
       .describe('Generic parts: key: value properties (a flow id, a route id, a retention) as a list of { key, value }'),

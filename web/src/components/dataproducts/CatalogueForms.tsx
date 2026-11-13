@@ -26,6 +26,7 @@ import {
   DATA_ELEMENT_KINDS,
   DATA_ELEMENT_KIND_DEFS,
   DATA_PRODUCT_LIMITS as L,
+  DATA_TECHNOLOGY_LIMITS as TL,
   DEFAULT_DATA_LAYERS,
   elementKindFits,
   isGenericElementKind,
@@ -70,8 +71,6 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   const [layer, setLayer] = useState(e?.layer ?? '');
   const [description, setDescription] = useState(e?.description ?? '');
   const [typeLabel, setTypeLabel] = useState(e?.typeLabel ?? '');
-  // 0.25.0: the broker of an MQTT topic without a broker platform (the Databus of an edge device: ie-databus:1883)
-  const [broker, setBroker] = useState('');
   const [applicationId, setApplicationId] = useState<string | null>(e?.applicationId ?? null);
   const [apiUrl, setApiUrl] = useState(e?.apiRef?.url ?? '');
   const [operations, setOperations] = useState<string[]>(e?.apiRef?.operations ?? []);
@@ -84,14 +83,22 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   const fitting = (platforms.data ?? []).filter((p) => elementKindFits(kind, p.kind));
   const isApi = kind.startsWith('api.');
   const generic = isGenericElementKind(kind);
+  // 0.25.0: an MQTT topic without a broker platform names its broker in the namespace field (the Databus: mqtt://ie-databus:1883)
+  const brokerField = kind === 'mqtt.topic' && !platformId;
   const v = useFieldErrors({
     name: !qualifiedName.trim() && t('common:validation.required'),
     platform: def.platformRequired && !platformId && t('elements.platformRequired'),
     apiUrl: !!apiUrl.trim() && !isHttpUrl(apiUrl) && t('common:validation.url'),
     technology: generic && !technology.trim() && t('generic.technologyRequired'),
-    namespace: generic && (!namespace.trim() ? t('generic.namespaceRequired') : /\s/.test(namespace.trim()) && t('generic.namespaceNoSpaces')),
+    namespace:
+      (generic && (!namespace.trim() ? t('generic.namespaceRequired') : /\s/.test(namespace.trim()) && t('generic.namespaceNoSpaces'))) ||
+      (brokerField && /\s/.test(namespace.trim()) && t('generic.namespaceNoSpaces')),
   });
-  const genericBody = generic ? { technology: technology.trim(), namespace: namespace.trim(), properties: cleanProperties(properties) } : {};
+  const genericBody = generic
+    ? { technology: technology.trim(), namespace: namespace.trim(), properties: cleanProperties(properties) }
+    : brokerField && namespace.trim()
+      ? { namespace: namespace.trim() }
+      : {};
   const save = () =>
     run(async () => {
       const apiRef =
@@ -123,7 +130,6 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           applicationId,
           apiRef,
           ...genericBody,
-          ...(kind === 'mqtt.topic' && !platformId && broker.trim() ? { flags: [{ name: 'broker', value: broker.trim() }] } : {}),
         };
         onSaved(await post<DataElement>('/data-elements', body));
       }
@@ -217,16 +223,17 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
               errors={{ technology: v.error('technology'), namespace: v.error('namespace') }}
             />
           )}
-          {kind === 'mqtt.topic' && !platformId && !e && (
+          {brokerField && (
             <TextInput
-              label={t('elements.broker')}
-              description={t('elements.brokerHint')}
-              maxLength={300}
-              value={broker}
-              onChange={(x) => setBroker(x.currentTarget.value)}
+              label={t('generic.namespace')}
+              description={t('elements.mqttNamespaceHint')}
+              maxLength={TL.namespace}
+              value={namespace}
+              onChange={(x) => setNamespace(x.currentTarget.value)}
+              error={v.error('namespace') || undefined}
               className="mono"
-              placeholder="ie-databus:1883"
-              data-testid="element-broker"
+              placeholder="mqtt://ie-databus:1883"
+              data-testid="element-namespace"
             />
           )}
           {kind === 'other' && (

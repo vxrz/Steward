@@ -1166,6 +1166,8 @@
     "DATA_ELEMENT_GENERIC_technology": "A generic part names its technology – choose one from the list or type it.",
     "DATA_ELEMENT_GENERIC_namespace": "A generic part names its OpenLineage namespace, such as mqtt://broker.example:1883.",
     "DATA_ELEMENT_GENERIC_notGeneric": "An element of the kind {{kind}} has no technology, namespace or properties – only generic parts do.",
+    "DATA_ELEMENT_GENERIC_broker": "The namespace of an MQTT topic names its broker, such as mqtt://ie-databus:1883 or host:port.",
+    "DATA_ELEMENT_GENERIC_brokerPlatform": "An MQTT topic on a broker platform takes its namespace from the platform – leave the namespace empty.",
     "DATA_ELEMENT_CONVERT": "This element cannot be converted.",
     "DATA_ELEMENT_CONVERT_notGeneric": "Only generic parts are converted – this element is of the kind {{kind}} already.",
     "DATA_ELEMENT_CONVERT_kind": "A {{from}} element cannot become a {{to}} element – choose a kind of the same role.",

@@ -320,9 +320,10 @@ export function elementEntry(s: Snapshot, r: ElementRow): ElementFile | null {
         ? { ...(api.url ? { url: api.url } : {}), ...(api.operations?.length ? { operations: api.operations } : {}) }
         : null,
     flags: parseJson<Record<string, string | number | boolean>>(r.flags, {}),
-    // 0.25.0: a generic part's technology, namespace and properties
+    // 0.25.0: a generic part's technology, namespace and properties; the namespace of an MQTT topic without a broker
+    // platform (its broker)
     ...(r.technology ? { technology: r.technology } : {}),
-    ...(r.kind.startsWith('generic.') && r.ol_namespace ? { namespace: r.ol_namespace } : {}),
+    ...((r.kind.startsWith('generic.') || (r.kind === 'mqtt.topic' && !r.platform_id)) && r.ol_namespace ? { namespace: r.ol_namespace } : {}),
     ...(parseJson<{ key: string; value: string }[]>(r.properties, []).length
       ? { properties: parseJson<{ key: string; value: string }[]>(r.properties, []) }
       : {}),

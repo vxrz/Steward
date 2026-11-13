@@ -344,18 +344,36 @@ function checkPlatform(kind: ElementRow['kind'], platformId: string | null, know
 
 /**
  * 0.25.0 (ADR 0037 part 3): the OpenLineage dataset of an `mqtt.topic` element – `mqtt://host:port` of its MQTT broker
- * platform (the variable url), else of the broker the element names (the flag `broker`: `host[:port]`, the Databus is
- * `ie-databus:1883`); null without a broker. Other kinds: entered elements have none (discovery gives it).
+ * platform (the variable url), else of the broker its namespace names (the generic parts' namespace field, people's
+ * to change: `mqtt://host:port` or `host[:port]`, the Databus is `mqtt://ie-databus:1883`); null without a broker.
+ * Other kinds: entered elements have none (discovery gives it).
  */
-function enteredDataset(kind: string, platformId: string, flags: Record<string, unknown>, qualifiedName: string): { namespace: string; name: string } | null {
+function enteredDataset(kind: string, platformId: string, namespace: string | null, qualifiedName: string): { namespace: string; name: string } | null {
   if (kind !== 'mqtt.topic') return null;
   let broker: string | null = null;
   if (platformId) {
     const cfg = db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', platformId);
     broker = mqttBroker(mqttUrl(parseJson<{ variables?: Record<string, unknown> }>(cfg?.config, {}).variables?.url)?.href ?? null);
-  }
-  broker ??= mqttBroker(typeof flags.broker === 'string' ? flags.broker : null);
+  } else broker = mqttBroker(namespace);
   return broker ? openLineageDataset('mqtt.topic', broker, qualifiedName.trim()) : null;
+}
+
+/**
+ * 0.25.0: the namespace of an `mqtt.topic` names its broker – only without a broker platform (whose url gives it), and
+ * only a broker address.
+ */
+function checkMqttNamespace(platformId: string, namespace: string | null | undefined): void {
+  if (!namespace) return;
+  if (platformId)
+    throw new HttpError(400, 'An MQTT topic on a broker platform takes its namespace from the platform', 'DATA_ELEMENT_GENERIC', {
+      context: 'brokerPlatform',
+      kind: 'mqtt.topic',
+    });
+  if (!mqttBroker(namespace))
+    throw new HttpError(400, 'The namespace of an MQTT topic names its broker – mqtt://host:port', 'DATA_ELEMENT_GENERIC', {
+      context: 'broker',
+      kind: 'mqtt.topic',
+    });
 }
 
 /** A parent: an element the caller may see, on the same platform and in the same environment, of a kind that may contain it. */
@@ -418,6 +436,10 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
     if (!input.technology) throw genericProblem('technology', input.kind);
     if (!input.namespace) throw genericProblem('namespace', input.kind);
     refuseGenericIdentity(input.kind, input.environment, input.namespace, norm);
+  } else if (input.kind === 'mqtt.topic') {
+    // 0.25.0: an MQTT topic without a broker platform names its broker in the namespace field
+    if (input.technology || input.properties.length) throw genericProblem('notGeneric', input.kind);
+    checkMqttNamespace(platformId, input.namespace);
   } else if (input.technology || input.namespace || input.properties.length) throw genericProblem('notGeneric', input.kind);
   refuseExisting(platformId, input.kind, input.environment, norm);
   checkParent(input.kind, platformId, input.environment, input.parentId, null);
@@ -426,7 +448,7 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
   const id = newId(DATA_PRODUCT_ID_PREFIX.element);
   const now = nowIso();
   const flags = Object.fromEntries(input.flags.map((f) => [f.name, f.value]));
-  const ol = enteredDataset(input.kind, platformId, flags, input.qualifiedName);
+  const ol = enteredDataset(input.kind, platformId, input.namespace, input.qualifiedName);
   db().tx(() => {
     db().run(
       `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, layer, description, type_label, source,
@@ -500,7 +522,9 @@ export function updateElement(id: string, body: unknown): DataElement {
   const norm = elementNameNorm(qualifiedName);
   // 0.25.0: a generic part's technology, namespace and properties are people's fields; other kinds have none
   const generic = isGenericElementKind(r.kind);
-  if (!generic && (input.technology || input.namespace || input.properties?.length)) throw genericProblem('notGeneric', r.kind);
+  const mqtt = r.kind === 'mqtt.topic';
+  if (!generic && (input.technology || (input.namespace && !mqtt) || input.properties?.length)) throw genericProblem('notGeneric', r.kind);
+  if (mqtt) checkMqttNamespace(r.platform_id, input.namespace);
   if (generic && input.technology !== undefined && !input.technology) throw genericProblem('technology', r.kind);
   if (generic && input.namespace !== undefined && !input.namespace) throw genericProblem('namespace', r.kind);
   const namespace = generic ? (input.namespace ?? r.ol_namespace ?? '') : null;
@@ -517,8 +541,8 @@ export function updateElement(id: string, body: unknown): DataElement {
       });
   }
   const pick = <K extends keyof typeof input>(k: K, cur: unknown) => (input[k] === undefined ? cur : input[k]);
-  // 0.25.0: an entered mqtt.topic follows its name in OpenLineage
-  const ol = r.source !== 'discovered' ? enteredDataset(r.kind, r.platform_id, parseJson(r.flags, {}), qualifiedName) : null;
+  // 0.25.0: an entered mqtt.topic follows its broker and name in OpenLineage
+  const ol = r.source !== 'discovered' ? enteredDataset(r.kind, r.platform_id, input.namespace ?? r.ol_namespace, qualifiedName) : null;
   db().tx(() => {
     db().run(
       `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, environment = ?, display_name = ?, layer = ?, description = ?, type_label = ?, application_id = ?,

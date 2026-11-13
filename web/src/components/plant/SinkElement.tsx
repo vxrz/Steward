@@ -69,7 +69,8 @@ function SinkElementModal({ assetId, collectionId, sink, onClose }: { assetId: s
         environment: environment.trim(),
         description: sink.description,
         plantSink: { assetId, collectionId, sinkId: sink.id },
-        ...(!platformId && broker.trim() ? { flags: [{ name: 'broker', value: broker.trim() }] } : {}),
+        // the broker in the namespace field of the element (host:port is enough: mqtt://host:port)
+        ...(!platformId && broker.trim() ? { namespace: broker.trim() } : {}),
       };
       setMade(await post<DataElement>('/data-elements', body));
     } catch (e) {

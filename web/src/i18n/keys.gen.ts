@@ -5960,8 +5960,7 @@ export interface Resources {
     'elements.nameHints.other': string;
     'elements.nameHints.mqtt': string;
     'elements.apiHint': string;
-    'elements.broker': string;
-    'elements.brokerHint': string;
+    'elements.mqttNamespaceHint': string;
     'elements.apiUrl': string;
     'elements.operations': string;
     'elements.operationsHint': string;
@@ -8746,6 +8745,8 @@ export interface Resources {
     'codes.DATA_ELEMENT_GENERIC_technology': string;
     'codes.DATA_ELEMENT_GENERIC_namespace': string;
     'codes.DATA_ELEMENT_GENERIC_notGeneric': string;
+    'codes.DATA_ELEMENT_GENERIC_broker': string;
+    'codes.DATA_ELEMENT_GENERIC_brokerPlatform': string;
     'codes.DATA_ELEMENT_CONVERT': string;
     'codes.DATA_ELEMENT_CONVERT_notGeneric': string;
     'codes.DATA_ELEMENT_CONVERT_kind': string;
