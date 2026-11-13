@@ -1006,7 +1006,8 @@
   },
   "edgeSuggestions": {
     "title": "Industrial-Edge-Vorschläge",
-    "help": "Was der Abruf „{{title}}“ ({{devices}} Geräte, {{when}}) über laufende Anwendungen sagt, verglichen mit dem Katalog. Nichts ändert sich, bevor Sie einen Vorschlag bestätigen.",
+    "help_one": "Was der Abruf „{{title}}“ ({{devices}} Gerät, {{when}}) über laufende Anwendungen sagt, verglichen mit dem Katalog. Nichts ändert sich, bevor Sie einen Vorschlag bestätigen.",
+    "help_other": "Was der Abruf „{{title}}“ ({{devices}} Geräte, {{when}}) über laufende Anwendungen sagt, verglichen mit dem Katalog. Nichts ändert sich, bevor Sie einen Vorschlag bestätigen.",
     "none": "Der Katalog stimmt mit dem Abruf überein.",
     "createSystem": "Gerät {{device}} hat kein System – anlegen?",
     "linkSystem": "Gerät {{device}} scheint das System {{system}} zu sein – dort seine Geräte-ID eintragen?",
@@ -1024,6 +1025,7 @@
     "dismissedCount_one": "{{count}} verworfen",
     "dismissedCount_other": "{{count}} verworfen",
     "restore": "Verworfene wieder vorschlagen",
+    "restored": "Die verworfenen Vorschläge werden wieder vorgeschlagen",
     "hidden_one": "{{count}} Gerät oder Anwendung ist in Einträgen erfasst, die Sie nicht sehen dürfen.",
     "hidden_other": "{{count}} Geräte oder Anwendungen sind in Einträgen erfasst, die Sie nicht sehen dürfen."
   }

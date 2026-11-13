@@ -447,13 +447,18 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   );
 }
 
-/** A background import's progress (0.25.0): the elements written so far, then the rest, or taking back after a failure. */
+/**
+ * A background import's progress (0.25.0): the elements written so far, then the rest, or taking back after a failure.
+ * The live region says only the phase (a change of it is announced once); the count is the bar's value text, read when
+ * asked for, not every second.
+ */
 function JobProgress({ job }: { job: DataProductImportJob }) {
   const { t } = useTranslation('dataProducts');
   const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
-  const text =
+  const count = t('transfer.jobCount', { done: fmtNumber(job.done), total: fmtNumber(job.total) });
+  const phase =
     job.phase === 'elements'
-      ? t('transfer.jobElements', { done: fmtNumber(job.done), total: fmtNumber(job.total) })
+      ? t('transfer.jobElements')
       : job.phase === 'entries'
         ? t('transfer.jobEntries')
         : job.phase === 'undo'
@@ -461,17 +466,31 @@ function JobProgress({ job }: { job: DataProductImportJob }) {
           : job.state === 'succeeded'
             ? t('transfer.jobSucceeded')
             : t('transfer.jobFailed');
+  const value = job.phase === 'elements' ? pct : 100;
   return (
     <Stack gap={4} data-testid="import-job">
-      <Text size="sm" id="import-job-label" aria-live="polite">
-        {text}
+      <Text size="sm" id="import-job-label" aria-live="polite" data-testid="import-job-phase">
+        {phase}
       </Text>
-      <Progress
-        value={job.phase === 'elements' ? pct : 100}
-        animated={job.state === 'running'}
-        color={job.state === 'failed' || job.phase === 'undo' ? 'red' : undefined}
-        aria-labelledby="import-job-label"
-      />
+      {job.phase === 'elements' && (
+        <Text size="xs" c="dimmed" data-testid="import-job-count">
+          {count}
+        </Text>
+      )}
+      <Progress.Root>
+        <Progress.Section
+          value={value}
+          animated={job.state === 'running'}
+          color={job.state === 'failed' || job.phase === 'undo' ? 'red' : undefined}
+          withAria={false}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={value}
+          aria-valuetext={job.phase === 'elements' ? count : phase}
+          aria-labelledby="import-job-label"
+        />
+      </Progress.Root>
     </Stack>
   );
 }

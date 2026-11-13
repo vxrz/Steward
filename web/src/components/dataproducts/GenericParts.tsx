@@ -149,7 +149,7 @@ export function GenericPartFields({
           onChange={(e) => onNamespace(e.currentTarget.value)}
           error={errors.namespace || undefined}
           placeholder={pattern ?? undefined}
-          className="mono"
+          classNames={{ input: 'mono' }}
           data-testid="element-namespace"
         />
         <Stack gap={6}>
@@ -338,7 +338,7 @@ export function ConvertElementModal({ e, onClose, onConverted }: { e: DataElemen
             value={qualifiedName}
             onChange={(x) => setQualifiedName(x.currentTarget.value)}
             error={v.error('name')}
-            className="mono"
+            classNames={{ input: 'mono' }}
             data-testid="convert-name"
           />
           <FormButtons busy={busy} submit={t('generic.convertSubmit')} testId="convert-save" />

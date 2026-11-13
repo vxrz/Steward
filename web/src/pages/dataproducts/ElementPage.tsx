@@ -118,8 +118,9 @@ export function DataElementPage() {
         .join(' · ')}
       actions={
         <>
-          {/* 0.25.0 (ADR 0037 part 6): the Kafka peek of a topic element, masked by its bound contracts */}
-          {e.kind === 'kafka.topic' && e.platformId && <PeekButton elementId={e.id} name={e.qualifiedName} />}
+          {/* 0.25.0 (ADR 0037 part 6): the Kafka peek of a topic element, masked by its bound contracts – only for who may
+              peek (the platform allows it, the reader manages it) */}
+          {e.mayPeek && <PeekButton elementId={e.id} name={e.qualifiedName} />}
           {contractsOn && DRAFTABLE.has(e.kind) && (
             <Button size="xs" variant="default" leftSection={<IconContract size={14} />} onClick={() => setDrafting(true)} data-testid="element-draft-contract">
               {t('elements.draftContract')}

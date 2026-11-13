@@ -1006,7 +1006,8 @@
   },
   "edgeSuggestions": {
     "title": "Industrial Edge suggestions",
-    "help": "What the readout “{{title}}” ({{devices}} devices, {{when}}) says runs where, compared with the catalogue. Nothing is changed until you confirm a suggestion.",
+    "help_one": "What the readout “{{title}}” ({{devices}} device, {{when}}) says runs where, compared with the catalogue. Nothing is changed until you confirm a suggestion.",
+    "help_other": "What the readout “{{title}}” ({{devices}} devices, {{when}}) says runs where, compared with the catalogue. Nothing is changed until you confirm a suggestion.",
     "none": "The catalogue matches the readout.",
     "createSystem": "Device {{device}} has no system – create it?",
     "linkSystem": "Device {{device}} looks like the system {{system}} – record its device id there?",
@@ -1024,6 +1025,7 @@
     "dismissedCount_one": "{{count}} dismissed",
     "dismissedCount_other": "{{count}} dismissed",
     "restore": "Suggest dismissed ones again",
+    "restored": "The dismissed suggestions are suggested again",
     "hidden_one": "{{count}} device or application is recorded in items you may not see.",
     "hidden_other": "{{count}} devices or applications are recorded in items you may not see."
   }

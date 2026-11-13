@@ -934,7 +934,7 @@
     "openApplication": "Anwendung öffnen",
     "discoveredHint": "Erkannt: Name, Art und Umgebung kommen von der Plattform. Sie ändern Beschreibung, Schicht und Verknüpfungen – ein neuer Lesevorgang behält sie.",
     "partOf": "Gehört zu",
-    "objects": "Datenobjekte, die es umsetzt",
+    "objects": "Objekte",
     "noObjects": "Es setzt noch kein Datenobjekt um.",
     "linkObject": "Datenobjekt verknüpfen",
     "object": "Datenobjekt",
@@ -953,7 +953,6 @@
     "retentionDays_one": "{{count}} Tag",
     "retentionDays_other": "{{count}} Tage",
     "schemaVersion": "Schemafassung",
-    "objects": "Objekte",
     "fileFormat": "Format",
     "partitionKeys": "Partitioniert nach",
     "prefixes": "Ordner eine Ebene tiefer",
@@ -1286,7 +1285,8 @@
     },
     "preview": "Vorschau",
     "run": "Importieren",
-    "jobElements": "Import im Hintergrund: {{done}} von {{total}} Elementen geschrieben",
+    "jobElements": "Import im Hintergrund: Die Elemente werden geschrieben …",
+    "jobCount": "{{done}} von {{total}} Elementen geschrieben",
     "jobEntries": "Die Produkte, Datenobjekte und Domänen werden geschrieben …",
     "jobUndo": "Der Import ist fehlgeschlagen – was er geschrieben hat, wird zurückgenommen …",
     "jobSucceeded": "Importiert",
@@ -1530,6 +1530,16 @@
     },
     "noElements": "Kein Element des Katalogs",
     "unmatched": "Nicht im Katalog: {{names}}",
+    "reasons": {
+      "tablePattern_one": "{{n}} Eintrag der Tabellenliste übersprungen: ein Muster, kein Tabellenname – Steward rät nicht, welche Tabellen es trifft",
+      "tablePattern_other": "{{n}} Einträge der Tabellenliste übersprungen: Muster, keine Tabellennamen – Steward rät nicht, welche Tabellen sie treffen",
+      "routePattern_one": "{{n}} Topic übersprungen: Das Muster einer Routing-Transformation ließ sich nicht rechtzeitig anwenden – Steward rät nicht, wohin es geht",
+      "routePattern_other": "{{n}} Topics übersprungen: Das Muster einer Routing-Transformation ließ sich nicht rechtzeitig anwenden – Steward rät nicht, wohin sie gehen",
+      "noDatabaseHost_one": "{{n}} Tabelle nicht zugeordnet: Die Konfiguration des Connectors nennt keinen Datenbank-Host (die verwalteten Connectors von Confluent speichern keinen) – sie wird genannt, nicht dem Katalog zugeordnet",
+      "noDatabaseHost_other": "{{n}} Tabellen nicht zugeordnet: Die Konfiguration des Connectors nennt keinen Datenbank-Host (die verwalteten Connectors von Confluent speichern keinen) – sie werden genannt, nicht dem Katalog zugeordnet",
+      "sqlServerDatabases_one": "{{n}} Topic übersprungen: eine SQL-Server-Quelle mehrerer Datenbanken – Steward rät ihre Namen nicht",
+      "sqlServerDatabases_other": "{{n}} Topics übersprungen: eine SQL-Server-Quelle mehrerer Datenbanken – Steward rät ihre Namen nicht"
+    },
     "noOutputs": "Dieser Connector schreibt kein Element des Katalogs – ein Schritt braucht eine Ausgabe. Lassen Sie es zuerst erkennen oder erfassen Sie es.",
     "create": "Schritt anlegen"
   },
@@ -1573,7 +1583,9 @@
     "editNamed": "{{name}} ändern",
     "delete": "Entfernen",
     "deleteNamed": "{{name}} entfernen",
-    "deleteConfirm": "Die Technologie {{name}} aus der Liste entfernen? Elemente und Schritte, die sie nennen, behalten den Wert – er erscheint dann als nicht in der Liste."
+    "deleteConfirm": "Die Technologie {{name}} aus der Liste entfernen? Elemente und Schritte, die sie nennen, behalten den Wert – er erscheint dann als nicht in der Liste.",
+    "saved": "Technologie {{name}} gespeichert",
+    "deleted": "Technologie {{name}} entfernt"
   },
   "fileFormats": {
     "parquet": "Parquet",

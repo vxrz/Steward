@@ -40,10 +40,15 @@ test.describe('edge devices', () => {
     const databus = inbox.getByTestId('edge-suggestion').filter({ hasText: `IE Databus 2.1.0 runs on ${SYSTEM}` });
     await expect(databus).toBeVisible();
     await expectAccessible(page, 'systems with Industrial Edge suggestions');
+    // the readout's device count is a plural, formatted
+    await expect(inbox).toContainText(/\(\d+ devices?, /);
     await databus.getByRole('button', { name: 'Dismiss' }).click();
     await expect(page.getByText('Dismissed', { exact: true })).toBeVisible();
     await expect(databus).toHaveCount(0);
+    // the card went with its buttons: the focus is on the next suggestion's first button, not lost
+    await expect(inbox.getByTestId('edge-suggestion').locator('button:focus')).toHaveCount(1);
     await inbox.getByRole('button', { name: 'Suggest dismissed ones again' }).click();
+    await expect(page.getByText('The dismissed suggestions are suggested again')).toBeVisible();
     await expect(databus).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
     await expectNoHorizontalScroll(page);
@@ -60,7 +65,7 @@ test.describe('edge devices', () => {
     await expectAccessible(page, 'edge system');
   });
 
-  test('the edge asset: apps on this device, collects data from; the Databus sink makes an element', async ({ page }) => {
+  test('the edge asset: apps on this device, collects data from; the Databus sink makes an element', async ({ page, apiAs }) => {
     await page.goto('/plant/assets/rvs-edge-01');
     const edge = page.getByTestId('asset-edge');
     await expect(edge.getByRole('link', { name: SYSTEM })).toBeVisible();
@@ -81,9 +86,38 @@ test.describe('edge devices', () => {
     const dialog = page.getByRole('dialog', { name: 'Element from the sink Databus' });
     await expect(dialog.getByRole('textbox', { name: 'Topic' })).toHaveValue('ie/d/line-1/opcua/state');
     await expect(dialog.getByRole('textbox', { name: 'Broker (host:port)' })).toHaveValue('ie-databus:1883');
+    // the topic is set in monospace, its label is not
+    await expect(dialog.getByRole('textbox', { name: 'Topic' })).toHaveCSS('font-family', /mono/i);
+    await expect(dialog.locator('label').filter({ hasText: 'Topic' })).not.toHaveCSS('font-family', /mono/i);
     await expectAccessible(page, 'create element from a sink');
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    // Esc closes this dialog only: the collection stays open and the button has the focus again
+    await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Machine state to the Databus' })).toBeVisible();
+    await expect(button).toBeFocused();
+    await button.click();
+    // made: the form goes, the focus moves to the link to the new element (removed again afterwards)
+    await dialog.getByRole('textbox', { name: 'Topic' }).fill(`ie/d/line-1/opcua/state-e2e-${Date.now().toString(36)}`);
+    await dialog.getByTestId('sink-element-create').click();
+    const open = dialog.getByRole('link', { name: 'Open the element' });
+    await expect(open).toBeFocused();
+    const href = (await open.getAttribute('href')) ?? '';
+    const elementId = decodeURIComponent(href.split('/data-elements/')[1] ?? '');
+    expect(elementId).not.toBe('');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await expect(dialog).toBeHidden();
+    const del = await (await apiAs('admin')).delete(`/api/data-elements/${encodeURIComponent(elementId)}`);
+    expect(del.ok(), await del.text()).toBe(true);
+
+    // the sink's own editor is a form dialog inside the collection's: Esc closes it only, the focus is back on its button
+    const edit = page.getByTestId('sink-edit-databus');
+    await edit.click();
+    const editor = page.getByRole('dialog', { name: 'Sink Databus' });
+    await expect(editor).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Machine state to the Databus' })).toBeVisible();
+    await expect(edit).toBeFocused();
   });
 
   test('the bridge step runs on the edge device, in the table and the picture', async ({ page }) => {

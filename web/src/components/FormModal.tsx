@@ -6,6 +6,22 @@ import { confirmDanger } from './confirm';
 const GuardedClose = createContext<(() => void) | null>(null);
 
 /**
+ * Dialogs opened inside a dialog: Mantine closes every open modal on Esc, so a dialog with one open inside it lets Esc
+ * pass while it is open – Esc closes the inner one only, and the focus goes back into the outer one (WCAG 2.4.3).
+ * A {@link FormModal} registers itself with the dialog around it; a plain `Modal` that opens form dialogs inside it
+ * takes part with {@link useChildDialogs} and {@link ChildDialogsProvider}.
+ */
+const ChildDialogs = createContext<((delta: 1 | -1) => void) | null>(null);
+export const ChildDialogsProvider = ChildDialogs.Provider;
+
+/** Whether a dialog is open inside this one, and the registration its children use (the provider's value). */
+export function useChildDialogs(): [boolean, (delta: 1 | -1) => void] {
+  const [open, setOpen] = useState(0);
+  const register = useCallback((delta: 1 | -1) => setOpen((n) => n + delta), []);
+  return [open > 0, register];
+}
+
+/**
  * A dialog with a form, mounted while it is open (`{open && <XModal onClose=… />}`):
  * - it gives the focus back to the control that opened it when it closes – Mantine does that only in the exit
  *   transition of a modal that stays mounted (WCAG 2.4.3);
@@ -28,6 +44,14 @@ export function FormModal({
   const [asking, setAsking] = useState(false);
   const asked = useRef(false);
   const changed = dirty ?? touched;
+  // inside another dialog: it lets Esc pass while this one is open; a dialog opened inside this one does the same here
+  const parent = useContext(ChildDialogs);
+  useEffect(() => {
+    if (!parent) return;
+    parent(1);
+    return () => parent(-1);
+  }, [parent]);
+  const [childOpen, registerChild] = useChildDialogs();
 
   useEffect(
     () => () => {
@@ -60,11 +84,13 @@ export function FormModal({
   };
 
   return (
-    <Modal opened onClose={close} closeOnEscape={closeOnEscape && !asking} closeOnClickOutside={closeOnClickOutside && !changed} {...props}>
+    <Modal opened onClose={close} closeOnEscape={closeOnEscape && !asking && !childOpen} closeOnClickOutside={closeOnClickOutside && !changed} {...props}>
       <GuardedClose.Provider value={close}>
-        <Box display="contents" onInput={touch} onChange={touch} onClick={onClick} onKeyDown={onKeyDown}>
-          {children}
-        </Box>
+        <ChildDialogs.Provider value={registerChild}>
+          <Box display="contents" onInput={touch} onChange={touch} onClick={onClick} onKeyDown={onKeyDown}>
+            {children}
+          </Box>
+        </ChildDialogs.Provider>
       </GuardedClose.Provider>
     </Modal>
   );

@@ -17,6 +17,7 @@ import { useMe } from '../../../auth';
 import { QueryState } from '../../../components/common';
 import { confirmDialog } from '../../../components/confirm';
 import { FormModal } from '../../../components/FormModal';
+import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { UnifiedDiff } from '../../../components/editor/VersionDiff';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate, fmtDay } from '../../../format';
@@ -25,6 +26,12 @@ import { CardTable, Section, useSortedEnvironments } from '../parts';
 import { semKeys, useSemanticModel, useSemanticValid, useSemanticVersion } from './api';
 
 const enc = encodeURIComponent;
+
+/** A person as the app names them elsewhere: the display name, not the username. */
+function usePerson(): (username: string) => string {
+  const label = useSubjectLabel();
+  return (username) => label(`user:${username}`);
+}
 
 /**
  * The _Semantic model_ tab of a product (ADR 0037 part 4): Steward's governed copy of the product's Apache Ossie model –
@@ -37,6 +44,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
   const q = useSemanticModel(p.id);
   const qc = useQueryClient();
   const { username } = useMe();
+  const person = usePerson();
   const [shown, setShown] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [signing, setSigning] = useState<DataSemanticVersionSummary | null>(null);
@@ -66,11 +74,11 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
             <>
               <Text size="sm" data-testid="semantic-valid-today">
                 {v.validToday?.signOff
-                  ? t('validToday', { version: v.validToday.version, by: v.validToday.signOff.by, date: fmtDay(v.validToday.signOff.at) })
+                  ? t('validToday', { version: v.validToday.version, by: person(v.validToday.signOff.by), date: fmtDay(v.validToday.signOff.at) })
                   : t('noValid')}
               </Text>
               <Text size="sm" c="dimmed" data-testid="semantic-current">
-                {t('current', { version: v.current.version, by: v.current.createdBy, date: fmtDate(v.current.createdAt) })}
+                {t('current', { version: v.current.version, by: person(v.current.createdBy), date: fmtDate(v.current.createdAt) })}
               </Text>
             </>
           ) : (
@@ -91,7 +99,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
             rowTestId={(x) => `semantic-version-${x.version}`}
             columns={[
               { key: 'version', header: t('version'), nowrap: true, cell: (x) => t('versionN', { n: x.version }) },
-              { key: 'saved', header: t('saved'), cell: (x) => `${fmtDate(x.createdAt)} · ${x.createdBy}` },
+              { key: 'saved', header: t('saved'), cell: (x) => `${fmtDate(x.createdAt)} · ${person(x.createdBy)}` },
               { key: 'origin', header: t('origin'), nowrap: true, cell: (x) => t(`origins.${x.origin}`) },
               { key: 'lint', header: t('lint'), nowrap: true, cell: (x) => t('lintCount', { count: x.lintFindings }) },
               {
@@ -105,12 +113,20 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
                           {t('validBadge')}
                         </Badge>
                       )}
-                      <Text size="sm">{t('signedOff', { by: x.signOff.by, date: fmtDay(x.signOff.validFrom) })}</Text>
+                      <Text size="sm">{t('signedOff', { by: person(x.signOff.by), date: fmtDay(x.signOff.validFrom) })}</Text>
                     </Group>
                   ) : (
-                    <Text size="sm" c="dimmed">
-                      {t('notSignedOff')}
-                    </Text>
+                    <Stack gap={0}>
+                      <Text size="sm" c="dimmed">
+                        {t('notSignedOff')}
+                      </Text>
+                      {/* who may sign off but saved this version learns why the button is missing (four eyes) */}
+                      {v.maySignOff && own(x) && (
+                        <Text size="xs" c="dimmed" data-testid="semantic-own-version">
+                          {t('ownVersion')}
+                        </Text>
+                      )}
+                    </Stack>
                   ),
               },
               { key: 'note', header: t('note'), cell: (x) => x.note || '–' },
@@ -183,6 +199,7 @@ function ValidOn({ productId }: { productId: string }) {
   const [date, setDate] = useState('');
   const [asked, setAsked] = useState('');
   const q = useSemanticValid(productId, asked);
+  const person = usePerson();
   const a = q.data;
   return (
     <Paper withBorder p="md" data-testid="semantic-valid-on">
@@ -203,12 +220,12 @@ function ValidOn({ productId }: { productId: string }) {
         <Stack gap={2} mt="sm" data-testid="semantic-valid-answer">
           <Text size="sm">
             {a.valid?.signOff
-              ? t('validOn.valid', { version: a.valid.version, by: a.valid.signOff.by, from: fmtDay(a.valid.signOff.validFrom) })
+              ? t('validOn.valid', { version: a.valid.version, by: person(a.valid.signOff.by), from: fmtDay(a.valid.signOff.validFrom) })
               : t('validOn.none', { date: fmtDay(a.date) })}
           </Text>
           {a.latest && (
             <Text size="sm" c="dimmed">
-              {t('validOn.latest', { version: a.latest.version, by: a.latest.createdBy, date: fmtDate(a.latest.createdAt) })}
+              {t('validOn.latest', { version: a.latest.version, by: person(a.latest.createdBy), date: fmtDate(a.latest.createdAt) })}
             </Text>
           )}
         </Stack>
@@ -263,17 +280,24 @@ function VersionPanel({ productId, n }: { productId: string; n: number }) {
           <Text fw={600} size="sm">
             {t('driftTitle')}
           </Text>
-          {v.drift.findings.length ? (
+          {!v.drift.checked ? (
+            // a document that does not parse: drift was not checked – neither "no drift" nor "0 datasets"
+            <Text size="sm" c="dimmed" data-testid="semantic-drift-unchecked">
+              {t('driftUnchecked')}
+            </Text>
+          ) : v.drift.findings.length ? (
             <Findings findings={v.drift.findings} more={v.drift.more} testId="semantic-drift" />
           ) : (
             <Text size="sm" c="dimmed" data-testid="semantic-drift-none">
               {t('driftNone')}
             </Text>
           )}
-          <Text size="xs" c="dimmed">
-            {t('driftChecked', { count: v.drift.datasetsChecked })}
-            {v.drift.hiddenContracts > 0 && ` ${t('driftHidden', { count: v.drift.hiddenContracts })}`}
-          </Text>
+          {v.drift.checked && (
+            <Text size="xs" c="dimmed">
+              {t('driftChecked', { count: v.drift.datasetsChecked })}
+              {v.drift.hiddenContracts > 0 && ` ${t('driftHidden', { count: v.drift.hiddenContracts })}`}
+            </Text>
+          )}
         </div>
         <div>
           <Text fw={600} size="sm">
@@ -378,6 +402,8 @@ function VersionForm({ p, current, onClose, onSaved }: { p: DataProduct; current
   const [environment, setEnvironment] = useState<string | null>(envs[0] ?? null);
   const [revision, setRevision] = useState<OssieRevision>('0.1.1');
   const [drafted, setDrafted] = useState<number | null>(null);
+  // an empty document is not saved: the field says so after a try (it said nothing before)
+  const [tried, setTried] = useState(false);
   const [busy, run] = useBusy();
   const text = document ?? latest.data?.document ?? '';
   const startFrom = () =>
@@ -408,6 +434,7 @@ function VersionForm({ p, current, onClose, onSaved }: { p: DataProduct; current
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
+          setTried(true);
           if (text.trim()) void save();
         }}
       >
@@ -461,6 +488,7 @@ function VersionForm({ p, current, onClose, onSaved }: { p: DataProduct; current
             minRows={12}
             maxRows={28}
             required
+            error={tried && !text.trim() ? t('common:validation.required') : undefined}
             styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 } }}
             data-testid="semantic-document-input"
           />

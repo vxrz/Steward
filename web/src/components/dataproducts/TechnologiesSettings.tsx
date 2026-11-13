@@ -12,7 +12,7 @@ import {
   type DataTechnologyIcon,
   type DataTechnologyRole,
 } from '@sm/shared';
-import { del, notifyError, put } from '../../api';
+import { del, notifyError, notifyOk, put } from '../../api';
 import { useMe } from '../../auth';
 import { DataTable } from '../DataTable';
 import { FormModal } from '../FormModal';
@@ -43,6 +43,7 @@ export function TechnologiesSettings() {
     try {
       await del(`/data-products/technologies/${enc(x.key)}`);
       changed();
+      notifyOk(t('technologies.deleted', { name: x.name }));
     } catch (e) {
       notifyError(e);
     }
@@ -121,9 +122,10 @@ export function TechnologiesSettings() {
           tech={editing.tech}
           keys={(list.data ?? []).map((x) => x.key)}
           onClose={() => setEditing(null)}
-          onSaved={() => {
+          onSaved={(name) => {
             changed();
             setEditing(null);
+            notifyOk(t('technologies.saved', { name }));
           }}
         />
       )}
@@ -166,7 +168,7 @@ function RowActions({ x, onEdit, onRemove }: { x: DataTechnology; onEdit: () => 
   );
 }
 
-function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnology; keys: string[]; onClose: () => void; onSaved: () => void }) {
+function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnology; keys: string[]; onClose: () => void; onSaved: (name: string) => void }) {
   const { t } = useTranslation(['dataProducts', 'common']);
   const [key, setKey] = useState(tech?.key ?? '');
   const [name, setName] = useState(tech?.name ?? '');
@@ -181,7 +183,7 @@ function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnolog
   const save = () =>
     run(async () => {
       await put(`/data-products/technologies/${enc(tech?.key ?? key.trim())}`, { name: name.trim(), role, icon, olNamespacePattern: pattern.trim() || null });
-      onSaved();
+      onSaved(name.trim());
     }, t('form.notSaved'));
   return (
     <FormModal onClose={onClose} title={tech ? t('technologies.editTitle', { name: tech.name }) : t('technologies.newTitle')}>
@@ -213,7 +215,7 @@ function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnolog
               onChange={(e) => setKey(e.currentTarget.value)}
               error={v.error('key')}
               disabled={!!tech}
-              className="mono"
+              classNames={{ input: 'mono' }}
               data-testid="technology-key"
             />
             <Select
@@ -247,7 +249,7 @@ function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnolog
             maxLength={TL.pattern}
             value={pattern}
             onChange={(e) => setPattern(e.currentTarget.value)}
-            className="mono"
+            classNames={{ input: 'mono' }}
             data-testid="technology-pattern"
           />
           <FormButtons busy={busy} testId="technology-save" />

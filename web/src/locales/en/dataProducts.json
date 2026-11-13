@@ -918,7 +918,7 @@
     "openApplication": "Open the application",
     "discoveredHint": "Discovered: its name, kind and environment come from the platform. You change the description, layer and links – a new read keeps them.",
     "partOf": "Part of",
-    "objects": "Data objects it implements",
+    "objects": "Objects",
     "noObjects": "It implements no data object yet.",
     "linkObject": "Link a data object",
     "object": "Data object",
@@ -937,7 +937,6 @@
     "retentionDays_one": "{{count}} day",
     "retentionDays_other": "{{count}} days",
     "schemaVersion": "Schema version",
-    "objects": "Objects",
     "fileFormat": "Format",
     "partitionKeys": "Partitioned by",
     "prefixes": "Folders one level down",
@@ -1286,7 +1285,8 @@
     },
     "preview": "Preview",
     "run": "Import",
-    "jobElements": "Importing in the background: {{done}} of {{total}} elements written",
+    "jobElements": "Importing in the background: writing the elements …",
+    "jobCount": "{{done}} of {{total}} elements written",
     "jobEntries": "Writing the products, data objects and domains …",
     "jobUndo": "The import failed – taking back what it wrote …",
     "jobSucceeded": "Imported",
@@ -1530,6 +1530,16 @@
     },
     "noElements": "No element of the catalogue",
     "unmatched": "Not in the catalogue: {{names}}",
+    "reasons": {
+      "tablePattern_one": "{{n}} entry of the table list skipped: a pattern, not a table name – Steward does not guess which tables it matches",
+      "tablePattern_other": "{{n}} entries of the table list skipped: patterns, not table names – Steward does not guess which tables they match",
+      "routePattern_one": "{{n}} topic skipped: a routing transform's pattern could not be applied in time – Steward does not guess where it goes",
+      "routePattern_other": "{{n}} topics skipped: a routing transform's pattern could not be applied in time – Steward does not guess where they go",
+      "noDatabaseHost_one": "{{n}} table not matched: the connector's configuration names no database host (Confluent's managed connectors keep none) – it is named, not matched to the catalogue",
+      "noDatabaseHost_other": "{{n}} tables not matched: the connector's configuration names no database host (Confluent's managed connectors keep none) – they are named, not matched to the catalogue",
+      "sqlServerDatabases_one": "{{n}} topic skipped: a SQL Server source of several databases – Steward does not guess their names",
+      "sqlServerDatabases_other": "{{n}} topics skipped: a SQL Server source of several databases – Steward does not guess their names"
+    },
     "noOutputs": "No element of the catalogue is written by this connector – a step needs an output. Discover or enter it first.",
     "create": "Create step"
   },
@@ -1573,7 +1583,9 @@
     "editNamed": "Change {{name}}",
     "delete": "Remove",
     "deleteNamed": "Remove {{name}}",
-    "deleteConfirm": "Remove the technology {{name}} from the list? Elements and steps that name it keep the value – it shows as not in the list."
+    "deleteConfirm": "Remove the technology {{name}} from the list? Elements and steps that name it keep the value – it shows as not in the list.",
+    "saved": "Technology {{name}} saved",
+    "deleted": "Technology {{name}} removed"
   },
   "fileFormats": {
     "parquet": "Parquet",

@@ -86,6 +86,9 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await page.goto(`/data-products/${s.product}/semantic-model`);
     await expect(page.getByTestId('semantic-none')).toBeVisible();
     await page.getByTestId('semantic-new').click();
+    // an empty document is not saved, and the field says why
+    await page.getByTestId('semantic-save').click();
+    await expect(page.getByRole('dialog').getByText('Required', { exact: true })).toBeVisible();
     await page.getByTestId('semantic-start-from').click();
     await expect(page.getByTestId('semantic-drafted')).toContainText('1 dataset');
     expect(await page.getByTestId('semantic-document-input').inputValue()).toContain(`source: ${s.token}.SALES.ORDERS`);
@@ -94,12 +97,19 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await page.getByTestId('semantic-note').fill('From the contract');
     await page.getByTestId('semantic-save').click();
     await expect(page.getByTestId('semantic-version-1')).toBeVisible();
+    // people by their display names, as elsewhere in the app
+    await expect(page.getByTestId('semantic-version-1')).toContainText('Dana Designer');
+    await expect(page.getByTestId('semantic-current')).toContainText('saved by Dana Designer');
     // the draft has neither lint findings nor drift
     await expect(page.getByTestId('semantic-lint-none')).toBeVisible();
     await expect(page.getByTestId('semantic-drift-none')).toBeVisible();
     await expect(page.getByTestId('semantic-document')).toContainText('customer_email');
     // who saved it does not sign it off
     await expect(page.getByTestId('semantic-version-1').getByRole('button', { name: 'Sign off version 1' })).toHaveCount(0);
+    // … and is told why
+    await expect(page.getByTestId('semantic-version-1').getByTestId('semantic-own-version')).toHaveText(
+      'You saved or proposed this version: a second person signs it off.',
+    );
     await settle(page);
     await expectAccessible(page, 'semantic model tab');
 
@@ -110,12 +120,12 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(adam.getByTestId('semantic-document').last()).toContainText('customer_email');
     await adam.getByTestId('semantic-signoff-note').fill('Matches the contract');
     await adam.getByTestId('semantic-signoff-save').click();
-    await expect(adam.getByTestId('semantic-valid-today')).toContainText('Valid today: version 1, signed off by adam');
+    await expect(adam.getByTestId('semantic-valid-today')).toContainText('Valid today: version 1, signed off by Adam Approver');
     // which model was valid on a day
     const today = new Date().toISOString().slice(0, 10);
     await adam.getByTestId('semantic-valid-date').fill(today);
     await adam.getByTestId('semantic-valid-check').click();
-    await expect(adam.getByTestId('semantic-valid-answer')).toContainText('Version 1 – signed off by adam');
+    await expect(adam.getByTestId('semantic-valid-answer')).toContainText('Version 1 – signed off by Adam Approver');
     await adam.getByTestId('semantic-valid-date').fill('2020-01-01');
     await adam.getByTestId('semantic-valid-check').click();
     await expect(adam.getByTestId('semantic-valid-answer')).toContainText('No version was signed off and valid on');
@@ -153,12 +163,23 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(modal.getByTestId('port-preview-recordings')).toContainText('No recorded responses are linked.');
     await settle(page);
     await expectAccessible(page, 'port preview');
+    // Esc in the dialog opened inside closes that one only; the focus is back on its button
+    await modal.getByTestId('port-recording-link').click();
+    await expect(page.getByRole('dialog', { name: 'Link a recorded response' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Link a recorded response' })).toBeHidden();
+    await expect(modal).toBeVisible();
+    await expect(modal.getByTestId('port-recording-link')).toBeFocused();
   });
 
-  test('the peek of a topic element: masked, for the platform’s manager', async ({ loginAs, apiAs }) => {
+  test('the peek of a topic element: masked, for the platform’s manager', async ({ page: dana, loginAs, apiAs }) => {
     const admin = await apiAs('admin');
     const found = await json<{ items: { id: string }[] }>(await admin.get('/api/data-elements?prefix=orders.v1&kind=kafka.topic&environment=prod'));
     test.skip(!found.items.length, 'the data products demo is not loaded');
+    // who does not manage the platform gets no eye
+    await dana.goto(`/data-elements/${found.items[0]!.id}`);
+    await expect(dana.getByTestId('element-readout')).toBeVisible();
+    await expect(dana.getByTestId('element-peek')).toHaveCount(0);
     const page = await loginAs('admin');
     await page.goto(`/data-elements/${found.items[0]!.id}`);
     await page.getByTestId('element-peek').click();
@@ -191,6 +212,18 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(table).toContainText('https://wiki.example/measures');
     await expect(page.getByTestId('ropa-truncated')).toHaveCount(0);
     await expectAccessible(page, 'records of processing with transfers');
+  });
+
+  test('a version that does not parse: drift not checked, said so', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const broken = await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-broken`, name: `Broken model ${s.token}`, owners: ['user:dana'] });
+    await post(admin, `/api/data-products/${broken.id}/semantic-model/versions`, { document: 'version: 0.1.1\nsemantic_model: [1\n' });
+    await page.goto(`/data-products/${broken.id}/semantic-model`);
+    const version = page.getByTestId('semantic-version');
+    await expect(version.getByTestId('semantic-drift-unchecked')).toHaveText('Not checked: the document does not parse (see the lint below).');
+    await expect(version.getByTestId('semantic-drift-none')).toHaveCount(0);
+    await expect(version).not.toContainText('Columns known for');
+    await expect(version.getByTestId('semantic-lint')).toContainText('The document does not parse');
   });
 
   test('semantic model and records of processing on a phone @mobile', async ({ page, apiAs }) => {

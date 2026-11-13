@@ -7,7 +7,7 @@ import type { DataPort, DataPortRecordingPreview, PeekedMessage, PlatformRecordi
 import { del, get, notifyError, post } from '../../../api';
 import { QueryState } from '../../../components/common';
 import { confirmDanger } from '../../../components/confirm';
-import { FormModal } from '../../../components/FormModal';
+import { ChildDialogsProvider, FormModal, useChildDialogs } from '../../../components/FormModal';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate } from '../../../format';
 import { dpKeys, usePlatforms } from '../api';
@@ -47,6 +47,8 @@ function PortPreviewModal({ productId, port, environment, onClose }: { productId
   const q = usePortPreview(productId, port.id, environment);
   const qc = useQueryClient();
   const [linking, setLinking] = useState(false);
+  // Esc in the dialog that links a recorded response closes that one only
+  const [childOpen, registerChild] = useChildDialogs();
   const v = q.data;
   const unlink = async (r: DataPortRecordingPreview) => {
     const name = `${r.method} ${r.path}`;
@@ -59,163 +61,171 @@ function PortPreviewModal({ productId, port, environment, onClose }: { productId
     }
   };
   return (
-    <Modal opened onClose={onClose} size="xl" title={t('preview.title', { name: `${port.name}${port.version ? ` ${port.version}` : ''}` })}>
-      <Stack gap="md" data-testid="port-preview-modal">
-        <Text size="sm" c="dimmed">
-          {t('preview.help')}
-        </Text>
-        {!v ? (
-          <QueryState query={q} />
-        ) : (
-          <>
-            <Stack gap="xs" data-testid="port-preview-examples">
-              {v.examples ? (
-                <>
-                  <Text fw={600} size="sm">
-                    {t('preview.examples', { contract: v.examples.contract.name, version: v.examples.version })}
-                  </Text>
-                  {v.examples.objects.every((o) => !o.properties.length) && (
-                    <Text size="sm" c="dimmed">
-                      {t('preview.noExamples')}
+    <Modal
+      opened
+      onClose={onClose}
+      closeOnEscape={!childOpen}
+      size="xl"
+      title={t('preview.title', { name: `${port.name}${port.version ? ` ${port.version}` : ''}` })}
+    >
+      <ChildDialogsProvider value={registerChild}>
+        <Stack gap="md" data-testid="port-preview-modal">
+          <Text size="sm" c="dimmed">
+            {t('preview.help')}
+          </Text>
+          {!v ? (
+            <QueryState query={q} />
+          ) : (
+            <>
+              <Stack gap="xs" data-testid="port-preview-examples">
+                {v.examples ? (
+                  <>
+                    <Text fw={600} size="sm">
+                      {t('preview.examples', { contract: v.examples.contract.name, version: v.examples.version })}
                     </Text>
-                  )}
-                  {v.examples.objects
-                    .filter((o) => o.properties.length)
-                    .map((o) => (
-                      <CardTable
-                        key={o.name}
-                        rows={o.properties}
-                        rowKey={(x) => x.name}
-                        ariaLabel={t('preview.object', { name: o.name })}
-                        columns={[
-                          {
-                            key: 'name',
-                            header: t('preview.property'),
-                            cell: (x) => (
-                              <Group gap={4} wrap="wrap">
-                                <Text size="sm" className="mono">
-                                  {x.name}
-                                </Text>
-                                {x.personal && (
-                                  <Badge size="xs" color="orange" variant="light" tt="none">
-                                    {t('preview.personal')}
-                                  </Badge>
-                                )}
-                              </Group>
-                            ),
-                          },
-                          { key: 'type', header: t('preview.type'), nowrap: true, cell: (x) => x.logicalType ?? '–' },
-                          {
-                            key: 'values',
-                            header: t('preview.values'),
-                            cell: (x) => (
-                              <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                                {x.examples.join(' · ')}
-                              </Text>
-                            ),
-                          },
-                        ]}
-                      />
-                    ))}
-                  {v.examples.more > 0 && (
-                    <Text size="sm" c="dimmed">
-                      {t('preview.moreExamples', { count: v.examples.more })}
-                    </Text>
-                  )}
-                </>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  {v.hiddenContract ? t('preview.hiddenContract') : t('preview.noContract', { environment: v.environment || environment || '–' })}
-                </Text>
-              )}
-            </Stack>
-            <Stack gap="xs" data-testid="port-preview-recordings">
-              <Group justify="space-between" gap="xs" wrap="wrap">
-                <Text fw={600} size="sm">
-                  {t('preview.recordings')}
-                </Text>
-                {v.mayLink && (
-                  <Button
-                    size="compact-sm"
-                    variant="default"
-                    leftSection={<IconLink size={14} />}
-                    onClick={() => setLinking(true)}
-                    data-testid="port-recording-link"
-                  >
-                    {t('preview.link')}
-                  </Button>
-                )}
-              </Group>
-              {v.recordings.length > 0 && (
-                <Text size="xs" c="dimmed">
-                  {t('preview.masked')}
-                </Text>
-              )}
-              {v.recordings.map((r) => (
-                <Paper key={r.recordingId} withBorder p="xs" data-testid="port-recording">
-                  <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
-                    <Stack gap={2} style={{ minWidth: 0 }}>
-                      <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                        {r.method} {r.path} → {r.status} · {r.platform.name}
+                    {v.examples.objects.every((o) => !o.properties.length) && (
+                      <Text size="sm" c="dimmed">
+                        {t('preview.noExamples')}
                       </Text>
-                      <Text size="xs" c="dimmed">
-                        {[r.note, t('preview.added', { by: r.addedBy, date: fmtDate(r.addedAt) })].filter(Boolean).join(' · ')}
-                      </Text>
-                    </Stack>
-                    {v.mayLink && (
-                      <Tooltip label={t('preview.unlinkNamed', { name: `${r.method} ${r.path}` })}>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          aria-label={t('preview.unlinkNamed', { name: `${r.method} ${r.path}` })}
-                          onClick={() => void unlink(r)}
-                        >
-                          <IconLinkOff size={16} />
-                        </ActionIcon>
-                      </Tooltip>
                     )}
-                  </Group>
-                  <Box
-                    component="pre"
-                    className="mono"
-                    tabIndex={0}
-                    style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 12, margin: 0, maxHeight: 280, overflow: 'auto' }}
-                  >
-                    {r.body}
-                    {r.truncated ? ` … (${t('preview.truncated')})` : ''}
-                  </Box>
-                </Paper>
-              ))}
-              {!v.recordings.length && (
-                <Text size="sm" c="dimmed">
-                  {t('preview.noRecordings')}
-                </Text>
-              )}
-              {v.hiddenRecordings > 0 && (
-                <Text size="sm" c="dimmed" fs="italic">
-                  {t('preview.hiddenRecordings', { count: v.hiddenRecordings })}
-                </Text>
-              )}
-            </Stack>
-          </>
+                    {v.examples.objects
+                      .filter((o) => o.properties.length)
+                      .map((o) => (
+                        <CardTable
+                          key={o.name}
+                          rows={o.properties}
+                          rowKey={(x) => x.name}
+                          ariaLabel={t('preview.object', { name: o.name })}
+                          columns={[
+                            {
+                              key: 'name',
+                              header: t('preview.property'),
+                              cell: (x) => (
+                                <Group gap={4} wrap="wrap">
+                                  <Text size="sm" className="mono">
+                                    {x.name}
+                                  </Text>
+                                  {x.personal && (
+                                    <Badge size="xs" color="orange" variant="light" tt="none">
+                                      {t('preview.personal')}
+                                    </Badge>
+                                  )}
+                                </Group>
+                              ),
+                            },
+                            { key: 'type', header: t('preview.type'), nowrap: true, cell: (x) => x.logicalType ?? '–' },
+                            {
+                              key: 'values',
+                              header: t('preview.values'),
+                              cell: (x) => (
+                                <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                                  {x.examples.join(' · ')}
+                                </Text>
+                              ),
+                            },
+                          ]}
+                        />
+                      ))}
+                    {v.examples.more > 0 && (
+                      <Text size="sm" c="dimmed">
+                        {t('preview.moreExamples', { count: v.examples.more })}
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {v.hiddenContract ? t('preview.hiddenContract') : t('preview.noContract', { environment: v.environment || environment || '–' })}
+                  </Text>
+                )}
+              </Stack>
+              <Stack gap="xs" data-testid="port-preview-recordings">
+                <Group justify="space-between" gap="xs" wrap="wrap">
+                  <Text fw={600} size="sm">
+                    {t('preview.recordings')}
+                  </Text>
+                  {v.mayLink && (
+                    <Button
+                      size="compact-sm"
+                      variant="default"
+                      leftSection={<IconLink size={14} />}
+                      onClick={() => setLinking(true)}
+                      data-testid="port-recording-link"
+                    >
+                      {t('preview.link')}
+                    </Button>
+                  )}
+                </Group>
+                {v.recordings.length > 0 && (
+                  <Text size="xs" c="dimmed">
+                    {t('preview.masked')}
+                  </Text>
+                )}
+                {v.recordings.map((r) => (
+                  <Paper key={r.recordingId} withBorder p="xs" data-testid="port-recording">
+                    <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
+                      <Stack gap={2} style={{ minWidth: 0 }}>
+                        <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                          {r.method} {r.path} → {r.status} · {r.platform.name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {[r.note, t('preview.added', { by: r.addedBy, date: fmtDate(r.addedAt) })].filter(Boolean).join(' · ')}
+                        </Text>
+                      </Stack>
+                      {v.mayLink && (
+                        <Tooltip label={t('preview.unlinkNamed', { name: `${r.method} ${r.path}` })}>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            aria-label={t('preview.unlinkNamed', { name: `${r.method} ${r.path}` })}
+                            onClick={() => void unlink(r)}
+                          >
+                            <IconLinkOff size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                    </Group>
+                    <Box
+                      component="pre"
+                      className="mono"
+                      tabIndex={0}
+                      style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 12, margin: 0, maxHeight: 280, overflow: 'auto' }}
+                    >
+                      {r.body}
+                      {r.truncated ? ` … (${t('preview.truncated')})` : ''}
+                    </Box>
+                  </Paper>
+                ))}
+                {!v.recordings.length && (
+                  <Text size="sm" c="dimmed">
+                    {t('preview.noRecordings')}
+                  </Text>
+                )}
+                {v.hiddenRecordings > 0 && (
+                  <Text size="sm" c="dimmed" fs="italic">
+                    {t('preview.hiddenRecordings', { count: v.hiddenRecordings })}
+                  </Text>
+                )}
+              </Stack>
+            </>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:close')}
+            </Button>
+          </Group>
+        </Stack>
+        {linking && (
+          <LinkRecordingForm
+            productId={productId}
+            portId={port.id}
+            onClose={() => setLinking(false)}
+            onSaved={() => {
+              setLinking(false);
+              void qc.invalidateQueries({ queryKey: dpKeys.all });
+            }}
+          />
         )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:close')}
-          </Button>
-        </Group>
-      </Stack>
-      {linking && (
-        <LinkRecordingForm
-          productId={productId}
-          portId={port.id}
-          onClose={() => setLinking(false)}
-          onSaved={() => {
-            setLinking(false);
-            void qc.invalidateQueries({ queryKey: dpKeys.all });
-          }}
-        />
-      )}
+      </ChildDialogsProvider>
     </Modal>
   );
 }

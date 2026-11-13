@@ -499,6 +499,7 @@ export const dataProductTools: ToolDef[] = [
             first: v.lint.findings.slice(0, 10).map((f) => `${f.path || '/'}: ${f.message}`),
           },
           drift: {
+            checked: v.drift.checked,
             findings: v.drift.findings.length + v.drift.more,
             first: v.drift.findings.slice(0, 20).map((f) => f.message),
             hiddenContracts: v.drift.hiddenContracts,

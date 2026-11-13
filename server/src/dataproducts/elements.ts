@@ -1,4 +1,5 @@
 import {
+  KAFKA_KIND,
   DATA_ELEMENT_KIND_DEFS,
   DATA_PRODUCT_ID_PREFIX,
   convertTargets,
@@ -70,20 +71,27 @@ const MAX_CHAR = String.fromCodePoint(0x10ffff);
 // ---------- platforms as a reader sees them ----------
 
 /** Names of these platforms where `u` may see them (bulk: one statement). */
-export function platformNames(u: AuthUser | null, ids: readonly string[]): Map<string, { name: string | null; kind: string }> {
+export function platformNames(u: AuthUser | null, ids: readonly string[]): Map<string, { name: string | null; kind: string; peek: boolean }> {
   const uniq = [...new Set(ids.filter(Boolean))];
-  const out = new Map<string, { name: string | null; kind: string }>();
+  const out = new Map<string, { name: string | null; kind: string; peek: boolean }>();
   for (const part of chunks(uniq))
-    for (const p of db().all<{ id: string; name: string; kind: string; acl: string }>(
-      `SELECT id, name, kind, acl FROM platforms WHERE id IN (${marks(part.length)})`,
+    for (const p of db().all<{ id: string; name: string; kind: string; acl: string; config: string }>(
+      `SELECT id, name, kind, acl, config FROM platforms WHERE id IN (${marks(part.length)})`,
       ...part,
-    ))
+    )) {
+      const perms = platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions;
       out.set(p.id, {
-        name: platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions.length ? p.name : null,
+        name: perms.length ? p.name : null,
         kind: p.kind,
+        // 0.25.0: the peek's rules (kafka/service peekTopic) – a Kafka platform that allows it, for who manages it
+        peek: p.kind === KAFKA_KIND && perms.includes('manage') && peekOn(p.config),
       });
+    }
   return out;
 }
+
+/** Whether a Kafka platform's configuration allows the peek (its variable `peek = on`). */
+const peekOn = (config: string): boolean => String(parseJson<{ variables?: Record<string, unknown> }>(config, {}).variables?.peek ?? 'off') === 'on';
 
 /** The elements of these rows as a product shows them (decision 15: also those the reader may not see otherwise). */
 export function elementsOnProduct(u: AuthUser | null, rows: ElementRow[]): Map<string, DataElementOnProduct> {
@@ -109,6 +117,7 @@ export function elementsOnProduct(u: AuthUser | null, rows: ElementRow[]): Map<s
           platformHidden: !!r.platform_id && !p?.name,
           missingSince: r.missing_since,
           visible: elementAccess(u, teams.get(r.id) ?? []).permissions.length > 0,
+          mayPeek: r.kind === 'kafka.topic' && !!p?.peek,
         },
       ];
     }),
@@ -317,6 +326,7 @@ export function getElement(id: string): DataElement {
     apiRef: parseJson(r.api_ref, null),
     flags: parseJson(r.flags, {}),
     properties: parseJson<DataElementProperty[]>(r.properties, []),
+    mayPeek: r.kind === 'kafka.topic' && !!(r.platform_id && platforms.get(r.platform_id)?.peek),
     owningTeams: teamNames,
     permissions: perms,
     productRefs: productRefs.sort((a, b) => (a.product.name ?? '').localeCompare(b.product.name ?? '')),

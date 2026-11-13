@@ -69,7 +69,16 @@ export const accessKey = (kind: OwnedKind, id: string) => ['access-shares', kind
  * and who loses what, a widening asks for the step-up (the API helper asks and retries). One component for every
  * kind that is switched to shares.
  */
-export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
+export function SharesPanel({
+  kind,
+  id,
+  onOwningTeams,
+}: {
+  kind: OwnedKind;
+  id: string;
+  /** Who may set the owning teams: the way to their field (the panel above), from a scope of the whole instance */
+  onOwningTeams?: () => void;
+}) {
   const { t } = useTranslation(['access', 'common']);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: accessKey(kind, id), queryFn: () => get<ResourceAccessView>(`/access/${kind}/${id}/shares`) });
@@ -187,6 +196,11 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
         ? t('shares.scope.teams', { teams: v.owningTeams.map((x) => x.name).join(', ') })
         : t(`shares.scope.${v.scope}`);
 
+  // teams named as owner that are no owning team (the owner field never scopes an item) – named with the scope it keeps
+  const teamOwners = v.implied.filter((x) => x.as === 'owner' && x.subject.startsWith('team:') && !x.owningTeam).map((x) => subjectName(x.subject));
+  const scopeShort =
+    v.scope === 'teams' ? t('shares.scopeShort.teams', { teams: v.owningTeams.map((x) => x.name).join(', ') }) : t(`shares.scopeShort.${v.scope}`);
+
   return (
     <Paper withBorder p="md" mb="md" data-testid="shares-panel">
       <Stack gap="sm">
@@ -199,6 +213,20 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
         <Text size="sm" data-testid="shares-scope">
           {scopeText}
         </Text>
+        {v.kind !== 'platform_identity' && v.scope === 'instance' && (
+          // the owner field does not scope an item (a team as owner looked like one): administrators get the way to the
+          // owning teams, everyone else learns who sets them
+          <Group gap="xs" wrap="wrap" data-testid="shares-scope-teams">
+            <Text size="sm" c="dimmed">
+              {onOwningTeams ? t('shares.scopeToTeams') : t('shares.scopeToTeamsAdmin')}
+            </Text>
+            {onOwningTeams && (
+              <Button size="compact-sm" variant="light" onClick={onOwningTeams}>
+                {t('shares.setOwningTeams')}
+              </Button>
+            )}
+          </Group>
+        )}
         {v.canRestrict && v.scope !== 'teams' && (
           <Switch
             label={t('shares.restricted')}
@@ -225,9 +253,16 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                 )}
               </Group>
             ))}
-            <Text size="xs" c="dimmed">
-              {t('shares.impliedHint')}
+            {/* the owner field gives these shares – it does not scope the item (owning teams do) */}
+            <Text size="sm" c="dimmed" data-testid="shares-implied-hint">
+              {v.implied.every((x) => x.as === 'responsible') ? t('shares.impliedHintResponsible') : t('shares.impliedHint')}
             </Text>
+            {teamOwners.length > 0 && (
+              // a team named as owner that is no owning team: it has this share, and the scope stays as it is
+              <Text size="sm" data-testid="shares-team-owner-hint">
+                {t('shares.teamOwnerHint', { count: teamOwners.length, names: teamOwners.join(', '), scope: scopeShort })}
+              </Text>
+            )}
           </Stack>
         )}
 

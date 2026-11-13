@@ -698,6 +698,8 @@ export interface DataElementOnProduct {
   missingSince: string | null;
   /** The reader may open the element's own page */
   visible: boolean;
+  /** 0.25.0: a Kafka topic the reader may peek at – its platform allows it and the reader manages the platform */
+  mayPeek: boolean;
 }
 
 export interface DataProductMember {
@@ -853,6 +855,8 @@ export interface DataElement extends DataElementSummary {
   flags: Record<string, string | number | boolean>;
   /** 0.25.0: generic kinds – key: value properties entered by people (a flow id, a route id, a retention) */
   properties: { key: string; value: string }[];
+  /** 0.25.0: a Kafka topic the reader may peek at – its platform allows it and the reader manages the platform */
+  mayPeek: boolean;
   owningTeams: OwningTeamRef[];
   permissions: DataProductPermission[];
   /** Products it is part of, with its role there */

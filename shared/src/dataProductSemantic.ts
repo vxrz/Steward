@@ -101,6 +101,8 @@ export interface DataSemanticVersion extends DataSemanticVersionSummary {
   /** Against the revision the document names (0.1.1 when it names none Steward knows) */
   lint: DataSemanticFindings & { revision: OssieRevision };
   drift: DataSemanticFindings & {
+    /** 0.25.0: false when the document does not parse – drift was not checked (no findings, no datasets) */
+    checked: boolean;
     /** Bound contracts the reader may not see: their columns and personal fields were not used */
     hiddenContracts: number;
     /** Datasets whose columns Steward knows (a bound contract or a schema snapshot) */

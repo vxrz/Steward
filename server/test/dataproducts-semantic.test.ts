@@ -164,7 +164,13 @@ describe('semantic models', () => {
         'metricUnknownDataset:nowhere',
       ]),
     );
-    expect(v.drift).toMatchObject({ hiddenContracts: 0, datasetsChecked: 1 });
+    expect(v.drift).toMatchObject({ checked: true, hiddenContracts: 0, datasetsChecked: 1 });
+    // a document that does not parse: drift not checked – no "no drift", no datasets
+    const broken = (await dana('POST', '/data-products', { key: 'sem-broken', name: 'Semantic broken', owners: ['user:dana'] })).id;
+    await dana('POST', `/data-products/${broken}/semantic-model/versions`, { document: 'version: 0.1.1\nsemantic_model: [1\n' });
+    const b = await dana('GET', `/data-products/${broken}/semantic-model/versions/1`);
+    expect(b.drift).toMatchObject({ checked: false, findings: [], more: 0, datasetsChecked: 0 });
+    expect(b.lint.findings.some((f: { kind: string }) => f.kind === 'parse')).toBe(true);
     // a contract the reader may not see is not used – counted
     const { db } = await import('../src/db.js');
     db().run(
@@ -555,6 +561,19 @@ schema:
       '      - { name: ordered_at, logicalType: timestamp }\n      - name: loyalty\n        logicalType: string\n        customProperties: [{ property: personalData, value: true }]',
     );
     await dana('POST', `/data-contracts/${contract}/versions`, { yaml });
+    // the reads say who may peek: the platform's manager on a topic – not dana, not a table
+    expect((await s.api('GET', `/data-elements/${topic}`)).mayPeek).toBe(true);
+    expect((await dana('GET', `/data-elements/${topic}`)).mayPeek).toBe(false);
+    expect((await s.api('GET', `/data-elements/${table}`)).mayPeek).toBe(false);
+    const peekable = async (c: Client) =>
+      Object.fromEntries(
+        ((await c('GET', `/data-products/${product}/members`)) as { items: { elementId: string; element: { mayPeek: boolean } }[] }).items.map((m) => [
+          m.elementId,
+          m.element.mayPeek,
+        ]),
+      );
+    expect(await peekable(s.api)).toMatchObject({ [topic]: true, [table]: false });
+    expect((await peekable(dana))[topic]).toBe(false);
     const r = await s.api('POST', `/data-elements/${topic}/peek`, { count: 5 });
     expect(r.messages).toHaveLength(1);
     const value = JSON.parse(r.messages[0].value);

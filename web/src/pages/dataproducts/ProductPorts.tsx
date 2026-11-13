@@ -65,11 +65,9 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
       ),
     [members.data],
   );
-  // 0.25.0 (ADR 0037 part 6): the bound Kafka topics offer the peek
-  const topics = useMemo(
-    () => new Set(pagesOf(members.data).flatMap((m) => (m.element.kind === 'kafka.topic' && m.element.visible ? [m.elementId] : []))),
-    [members.data],
-  );
+  // 0.25.0 (ADR 0037 part 6): the bound Kafka topics offer the peek – to who may peek (the platform allows it, the
+  // reader manages it)
+  const topics = useMemo(() => new Set(pagesOf(members.data).flatMap((m) => (m.element.mayPeek && m.element.visible ? [m.elementId] : []))), [members.data]);
   const done = () => {
     invalidate();
     setEditing(null);

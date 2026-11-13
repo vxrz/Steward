@@ -143,6 +143,15 @@ export interface Resources {
     'shares.outside': string;
     'shares.outsideRestricted': string;
     'shares.impliedHint': string;
+    'shares.impliedHintResponsible': string;
+    'shares.scopeToTeams': string;
+    'shares.scopeToTeamsAdmin': string;
+    'shares.teamOwnerHint_one': string;
+    'shares.teamOwnerHint_other': string;
+    'shares.scopeShort.instance': string;
+    'shares.scopeShort.teams': string;
+    'shares.scopeShort.restricted': string;
+    'shares.setOwningTeams': string;
     'shares.notYours': string;
     'shares.empty': string;
     'shares.unknown': string;
@@ -1060,7 +1069,8 @@ export interface Resources {
     'firewall.create': string;
     'firewall.linkedFrom': string;
     'edgeSuggestions.title': string;
-    'edgeSuggestions.help': string;
+    'edgeSuggestions.help_one': string;
+    'edgeSuggestions.help_other': string;
     'edgeSuggestions.none': string;
     'edgeSuggestions.createSystem': string;
     'edgeSuggestions.linkSystem': string;
@@ -1078,6 +1088,7 @@ export interface Resources {
     'edgeSuggestions.dismissedCount_one': string;
     'edgeSuggestions.dismissedCount_other': string;
     'edgeSuggestions.restore': string;
+    'edgeSuggestions.restored': string;
     'edgeSuggestions.hidden_one': string;
     'edgeSuggestions.hidden_other': string;
   };
@@ -4905,6 +4916,7 @@ export interface Resources {
     lintNone: string;
     driftTitle: string;
     driftNone: string;
+    driftUnchecked: string;
     driftHidden_one: string;
     driftHidden_other: string;
     driftChecked_one: string;
@@ -6297,6 +6309,7 @@ export interface Resources {
     'transfer.preview': string;
     'transfer.run': string;
     'transfer.jobElements': string;
+    'transfer.jobCount': string;
     'transfer.jobEntries': string;
     'transfer.jobUndo': string;
     'transfer.jobSucceeded': string;
@@ -6498,6 +6511,14 @@ export interface Resources {
     'connectorStep.families.other': string;
     'connectorStep.noElements': string;
     'connectorStep.unmatched': string;
+    'connectorStep.reasons.tablePattern_one': string;
+    'connectorStep.reasons.tablePattern_other': string;
+    'connectorStep.reasons.routePattern_one': string;
+    'connectorStep.reasons.routePattern_other': string;
+    'connectorStep.reasons.noDatabaseHost_one': string;
+    'connectorStep.reasons.noDatabaseHost_other': string;
+    'connectorStep.reasons.sqlServerDatabases_one': string;
+    'connectorStep.reasons.sqlServerDatabases_other': string;
     'connectorStep.noOutputs': string;
     'connectorStep.create': string;
     'technologies.title': string;
@@ -6536,6 +6557,8 @@ export interface Resources {
     'technologies.delete': string;
     'technologies.deleteNamed': string;
     'technologies.deleteConfirm': string;
+    'technologies.saved': string;
+    'technologies.deleted': string;
     'fileFormats.parquet': string;
     'fileFormats.csv': string;
     'fileFormats.json': string;

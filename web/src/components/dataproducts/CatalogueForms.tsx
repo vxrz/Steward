@@ -194,7 +194,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
             onChange={(x) => setQualifiedName(x.currentTarget.value)}
             error={v.error('name')}
             disabled={discovered}
-            className="mono"
+            classNames={{ input: 'mono' }}
             data-autofocus
             data-testid="element-name"
           />
@@ -233,7 +233,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
               value={namespace}
               onChange={(x) => setNamespace(x.currentTarget.value)}
               error={v.error('namespace') || undefined}
-              className="mono"
+              classNames={{ input: 'mono' }}
               placeholder="mqtt://ie-databus:1883"
               data-testid="element-namespace"
             />
