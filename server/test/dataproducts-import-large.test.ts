@@ -185,6 +185,28 @@ describe('large imports', () => {
     });
   }, 600_000);
 
+  it('a job ends succeeded in the transaction of its entries: never products without the elements it took back', async () => {
+    const { db } = await import('../src/db.js');
+    const { vi } = await import('vitest');
+    // the job's end fails (as a server that stops right after the entries were written): nothing of the import may stay
+    const d = db();
+    const run = d.run.bind(d);
+    const spy = vi.spyOn(d, 'run').mockImplementation((sql: string, ...params: unknown[]) => {
+      if (sql.includes("SET state = 'succeeded'")) throw new Error('invented failure at the end of the job');
+      return run(sql, ...params);
+    });
+    try {
+      const r = await dana('POST', '/data-products/import', { files: [{ name: 'end.json', content: bigFile('END', 1_200, 1, 10) }], mode: 'update' });
+      expect(r.job.state).toBe('running');
+      const job = await until(r.job.id);
+      expect(job).toMatchObject({ state: 'failed', undone: { removed: 1_200, kept: 0 } });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(db().get("SELECT 1 FROM dp_products WHERE key = 'invented-end-0'")).toBeUndefined();
+    expect(await elementCount('END')).toBe(0);
+  }, 600_000);
+
   it('a job a stopped server left running is taken back by the next run of the job', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();

@@ -176,7 +176,7 @@ async function runJob(id: string, u: AuthUser, planned: Parameters<typeof commit
       ),
   };
   try {
-    const result = await commitPlannedStepwise(planned, journal, {
+    await commitPlannedStepwise(planned, journal, {
       batchMs: BATCH_MS,
       job: id,
       batch: (done, total, ms) => {
@@ -185,10 +185,16 @@ async function runJob(id: string, u: AuthUser, planned: Parameters<typeof commit
       },
       beforeRest: () => db().run("UPDATE dp_import_jobs SET phase = 'entries' WHERE id = ?", id),
       rest: (ms) => (lastJobTimes.restMs = Math.round(ms)),
-    });
-    db().tx(() => {
-      db().run("UPDATE dp_import_jobs SET state = 'succeeded', phase = 'done', result = ?, finished_at = ? WHERE id = ?", JSON.stringify(result), nowIso(), id);
-      db().run('DELETE FROM dp_import_job_elements WHERE job_id = ?', id);
+      // in the entries' transaction: a server that stops right after it finds the job succeeded, never half taken back
+      committing: (result) => {
+        db().run(
+          "UPDATE dp_import_jobs SET state = 'succeeded', phase = 'done', result = ?, finished_at = ? WHERE id = ?",
+          JSON.stringify(result),
+          nowIso(),
+          id,
+        );
+        db().run('DELETE FROM dp_import_job_elements WHERE job_id = ?', id);
+      },
     });
   } catch (e) {
     if (!(e instanceof HttpError)) logger.warn({ err: e, job: id }, 'a background import of data products failed');
