@@ -79,11 +79,22 @@ test.describe('governance of data products', () => {
   test('who reads, a request for access, a port review, promotion and endorsement', async ({ page, loginAs }) => {
     test.setTimeout(240_000);
     // who really reads: read now (the demo account's ACCESS_HISTORY)
+    // the read's answer is shown at once, not after the page's queries are read again: under load that re-read (seven
+    // requests, the port's view last) took longer than this test waited. Here the view's re-read is held back for
+    // longer than the expectation waits – the answer must not need it.
+    let views = 0;
+    await page.route(/\/actual\?environment=/, async (r) => {
+      if (views++ > 0) await new Promise((ok) => setTimeout(ok, 12_000));
+      await r.continue().catch(() => undefined);
+    });
     await page.goto(`/data-products/${s.product}/ports`);
     const port = page.getByTestId('port-orders');
     await port.getByTestId('port-actual-toggle').click();
+    // the port's view is there (the toggle says what it found) before Read now is pressed
+    await expect(port.getByTestId('port-actual-toggle')).toContainText(' seen, ');
     await port.getByTestId('actual-read-now').click();
     await expect(port.getByTestId('actual-read-ok')).toBeVisible();
+    await page.unroute(/\/actual\?environment=/);
     await settle(page);
     // with WCAG 2.2: the toggle of a port's readers is a target of at least 24 px
     await expectAccessible(page, 'actual consumers');

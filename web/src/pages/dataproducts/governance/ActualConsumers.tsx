@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ActionIcon, Alert, Badge, Button, Collapse, Group, Stack, TagsInput, Text } from '@mantine/core';
 import { IconChevronDown, IconEye, IconEyeOff, IconHelpCircle, IconPencil, IconRefresh, IconUserQuestion } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +7,7 @@ import {
   DATA_GOVERNANCE_LIMITS,
   DATA_IDENTITY_RE,
   type DataActualRead,
+  type DataActualView,
   type DataDeclaredConsumer,
   type DataDeclaredState,
   type DataPort,
@@ -17,7 +19,7 @@ import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate, fmtDay, fmtNumber } from '../../../format';
 import { CardTable, HiddenCount } from '../parts';
-import { useActual, useInvalidateGovernance } from './api';
+import { govKeys, useActual, useInvalidateGovernance } from './api';
 
 const enc = encodeURIComponent;
 
@@ -70,9 +72,14 @@ export function ActualConsumers({ p, port, environment }: { p: DataProduct; port
   const subject = useSubjectLabel();
   const canEdit = p.permissions.includes('edit');
   const v = q.data;
+  const qc = useQueryClient();
+  // the answer of the read is the port's new view: shown at once. It used to wait for the re-read of every data products
+  // query on the page (product, health, scorecard, members, …) – seven requests behind the browser's six connections,
+  // the view last – which under load took longer than a person (or a test) waits. The rest is read again after.
   const read = () =>
     run(async () => {
-      await post(`/data-products/${enc(p.id)}/ports/${enc(port.id)}/actual/read`, { environment });
+      const view = await post<DataActualView>(`/data-products/${enc(p.id)}/ports/${enc(port.id)}/actual/read`, { environment });
+      qc.setQueryData(govKeys.actual(p.id, port.id, environment), view);
       invalidate();
     });
   const who = (d: DataDeclaredConsumer) => (d.label === null ? t('actual.hiddenConsumer') : d.subject ? subject(d.subject) : d.label);
