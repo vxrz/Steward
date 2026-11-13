@@ -32,6 +32,9 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   dashboard: [],
   // identities keep their own `use` right, managed on the platform's Access tab (ADR 0033 part 1)
   platform_identity: [],
+  // 0.21.0 (ADR 0035): price books and calculators – the levels only
+  cost_price_book: [],
+  cost_calculator: [],
 };
 
 /** Kinds of the plant registry: the only ones a plant viewer (role `plant`) may be given a share on (ADR 0033 security notes). */
