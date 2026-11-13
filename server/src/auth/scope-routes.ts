@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   OWNED_KINDS,
+  PLANT_SHARE_KINDS,
   SUPPLIER_CONTACT_CHOICES,
   boundedRecord,
   moduleOfItemKind,
@@ -21,6 +22,7 @@ import { dashboardAccess } from '../dashboards/service.js';
 import { canCreateTickets, ticketAccess } from '../tickets/service.js';
 import { siteAccess } from '../plant/access.js';
 import { plantEnabled } from '../plant/settings.js';
+import { catalogueEntryAccess } from '../plant/catalogue-access.js';
 import { moduleUseOf } from '../modules/access.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
@@ -99,6 +101,9 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   // price books and calculators (0.21.0, ADR 0035): their own rules (costs/price-books.ts, costs/calculators.ts)
   if (kind === 'cost_price_book') return db().get<ResourceRow>('SELECT id, name FROM cost_price_books WHERE id = ?', id);
   if (kind === 'cost_calculator') return db().get<ResourceRow>('SELECT id, name FROM cost_calculators WHERE id = ?', id);
+  // the plant catalogues (0.21.0, #293): only while the module is on
+  if (kind === 'device_profile') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_profiles WHERE id = ?', id) : undefined;
+  if (kind === 'kpi_definition') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_kpis WHERE id = ?', id) : undefined;
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -139,6 +144,7 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
     const c = calculatorRights({ id: r.id }, u);
     return { permissions: [...(c.view ? ['view'] : []), ...(c.edit ? ['edit'] : [])], reasons: [] };
   }
+  if (kind === 'device_profile' || kind === 'kpi_definition') return catalogueEntryAccess(u, kind, r.id);
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
@@ -167,6 +173,8 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   supplier: ['Supplier not found', 'SUPPLIER_NOT_FOUND'],
   cost_price_book: ['Price book not found', 'COST_PRICE_BOOK_NOT_FOUND'],
   cost_calculator: ['Calculator not found', 'COST_CALCULATOR_NOT_FOUND'],
+  device_profile: ['Device profile not found', 'PLANT_PROFILE_NOT_FOUND'],
+  kpi_definition: ['KPI definition not found', 'PLANT_KPI_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 
@@ -280,10 +288,10 @@ function nextTeams(before: OwningTeam[], b: BulkInput, known: Map<string, string
 }
 
 export async function scopeRoutes(app: FastifyInstance): Promise<void> {
-  // a plant viewer (#218) sees the owning teams of sites only (the site page shows them)
+  // a plant viewer (#218) sees the owning teams of the plant registry's kinds only (sites, device profiles, KPI definitions)
   app.get('/owning-teams/:kind/:id', { config: { access: ACCESS.plantViewer } }, async (req) => {
     const { kind, id } = params(req);
-    if (kind !== 'site' && plantOnly(me())) throw notFound(kind, id);
+    if (!PLANT_SHARE_KINDS.includes(kind) && plantOnly(me())) throw notFound(kind, id);
     const r = visible(kind, id);
     return { teams: owningTeams(kind, r.id), canChange: isAdmin(me()) };
   });
@@ -460,7 +468,7 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/access/explain', async (req): Promise<AccessExplanation> => {
-    const q = z.object({ kind: kindParam, id: z.string().max(64), user: z.string().max(64).optional() }).parse(req.query);
+    const q = z.object({ kind: kindParam, id: z.string().max(100), user: z.string().max(64).optional() }).parse(req.query);
     const caller = me();
     const r = visible(q.kind, q.id);
     let who = caller;

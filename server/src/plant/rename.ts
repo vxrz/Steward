@@ -350,6 +350,10 @@ const REFERENCES_ALL: RefSpec[] = [
   pair('item_links', 'to_kind', 'device-profile', 'to_id', 'profile', 'link'),
   pair('copied_from', 'kind', 'device-profile', 'id', 'profile', 'copy'),
   pair('copied_from', 'kind', 'device-profile', 'source_id', 'profile', 'copy'),
+  // 0.21.0 (#293): its owning teams, shares and Restricted scope
+  pair('resource_teams', 'kind', 'device_profile', 'resource_id', 'profile', 'owning_team'),
+  pair('resource_shares', 'kind', 'device_profile', 'resource_id', 'profile', 'share'),
+  pair('resource_restrictions', 'kind', 'device_profile', 'resource_id', 'profile', 'share'),
   {
     table: 'plant_id_aliases',
     column: 'scope[interface, data_point]',
@@ -503,6 +507,9 @@ const REFERENCES_ALL: RefSpec[] = [
   json<{ kpi: string }[]>('plant_assignments', 'kpis', 'kpi', 'kpi', 'assignment', ['asset_id'], inObjects('kpi')),
   pair('copied_from', 'kind', 'kpi-definition', 'id', 'kpi', 'copy'),
   pair('copied_from', 'kind', 'kpi-definition', 'source_id', 'kpi', 'copy'),
+  pair('resource_teams', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'owning_team'),
+  pair('resource_shares', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'share'),
+  pair('resource_restrictions', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'share'),
   // ---- the OT network of a site
   col('plant_vlans', 'id', 'vlan', 'vlan', 'site_id'),
   json<string[]>('plant_zones', 'vlans', '[]', 'vlan', 'zone', ['site_id', 'id'], inList, bySite),

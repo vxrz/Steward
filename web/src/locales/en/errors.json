@@ -926,6 +926,7 @@
     "PLANT_NODE_NOT_FOUND": "This part of the hierarchy does not exist (any more).",
     "PLANT_BUILDING_NOT_FOUND": "This building does not exist (any more).",
     "PLANT_ID_TAKEN": "The id {{id}} is taken already – choose another one.",
+    "PLANT_ID_UNAVAILABLE": "The id {{id}} cannot be used – choose another one.",
     "PLANT_ID_ALIAS": "The id {{id}} is still an old id of another entry and leads there. An administrator can remove that old id under Settings → Modules → Plant registry.",
     "PLANT_ID_FORMAT": "The new id {{id}} does not follow the rules of its kind – see the hint below the field.",
     "PLANT_ID_SAME": "The entry has the id {{id}} already.",

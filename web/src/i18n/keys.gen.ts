@@ -48,6 +48,8 @@ export interface Resources {
     'owning.hintNone.supplier': string;
     'owning.hintNone.cost_price_book': string;
     'owning.hintNone.cost_calculator': string;
+    'owning.hintNone.device_profile': string;
+    'owning.hintNone.kpi_definition': string;
     'owning.hintOwned.process': string;
     'owning.hintOwned.platform': string;
     'owning.hintOwned.service': string;
@@ -64,6 +66,8 @@ export interface Resources {
     'owning.hintOwned.supplier': string;
     'owning.hintOwned.cost_price_book': string;
     'owning.hintOwned.cost_calculator': string;
+    'owning.hintOwned.device_profile': string;
+    'owning.hintOwned.kpi_definition': string;
     'owning.saved': string;
     'owning.notSaved': string;
     'owning.why': string;
@@ -120,6 +124,8 @@ export interface Resources {
     'owning.bulk.kinds.supplier': string;
     'owning.bulk.kinds.cost_price_book': string;
     'owning.bulk.kinds.cost_calculator': string;
+    'owning.bulk.kinds.device_profile': string;
+    'owning.bulk.kinds.kpi_definition': string;
     'owning.moduleNotUsed': string;
     restrictedSite: string;
     defaultsSite: string;
@@ -10517,6 +10523,8 @@ export interface Resources {
     'what.link_other': string;
     'what.owning_team_one': string;
     'what.owning_team_other': string;
+    'what.share_one': string;
+    'what.share_other': string;
     'what.credential_one': string;
     'what.credential_other': string;
     'what.import_one': string;

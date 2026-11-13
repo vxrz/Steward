@@ -49,7 +49,9 @@
       "platform_identity": "No owning team: only administrators and the access list below may use this identity.",
       "supplier": "This supplier belongs to the whole instance: everybody signed in sees it; designers, administrators and its owners change it.",
       "cost_price_book": "No owning team: the costs managers (administrators and designers) maintain this price book; a list book is read by everyone using Costs.",
-      "cost_calculator": "No owning team: the costs managers (administrators and designers) maintain this calculator; everyone using Costs reads it."
+      "cost_calculator": "No owning team: the costs managers (administrators and designers) maintain this calculator; everyone using Costs reads it.",
+      "device_profile": "This device profile belongs to the whole instance: everyone who sees the plant registry sees it; designers and administrators change it. Owning teams keep it to their members – assets that have it still show the data they deliver.",
+      "kpi_definition": "This KPI definition belongs to the whole instance: everyone who sees the plant registry sees it; designers and administrators change it."
     },
     "hintOwned": {
       "process": "Members of these teams have their roles in the team on this process. Everyone else sees it only through the access list below; administrators always, auditors may view.",
@@ -67,7 +69,9 @@
       "platform_identity": "Members of these teams who design or operate may use this identity; everyone else only what its access list gives.",
       "supplier": "Only members of these teams see this supplier (designers among them change it), besides its owners, administrators and auditors.",
       "cost_price_book": "Designers of these teams maintain this price book; a contracted book is read only by the teams’ members, administrators and auditors.",
-      "cost_calculator": "Designers of these teams maintain this calculator; everyone using Costs reads it."
+      "cost_calculator": "Designers of these teams maintain this calculator; everyone using Costs reads it.",
+      "device_profile": "Only members of these teams see this device profile (designers among them manage it), besides administrators and auditors. Others see the interfaces and data points it gives an asset they may see, without its name.",
+      "kpi_definition": "Only members of these teams see this KPI definition (designers among them manage it), besides administrators and auditors. Its KPI instances on assets others may see keep working, without its name."
     },
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
@@ -132,7 +136,9 @@
         "platform_identity": "Platform identities",
         "supplier": "Supplier",
         "cost_price_book": "Price books",
-        "cost_calculator": "Calculators"
+        "cost_calculator": "Calculators",
+        "device_profile": "Device profiles",
+        "kpi_definition": "KPI definitions"
       }
     },
     "moduleNotUsed": "without the module, the rights below do not apply"

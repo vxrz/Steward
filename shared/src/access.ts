@@ -35,10 +35,13 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   // 0.21.0 (ADR 0035): price books and calculators – the levels only
   cost_price_book: [],
   cost_calculator: [],
+  // 0.21.0 (#293): the plant catalogues – proposing changes beside the level, as on sites
+  device_profile: ['propose'],
+  kpi_definition: ['propose'],
 };
 
 /** Kinds of the plant registry: the only ones a plant viewer (role `plant`) may be given a share on (ADR 0033 security notes). */
-export const PLANT_SHARE_KINDS: readonly OwnedKind[] = ['site'];
+export const PLANT_SHARE_KINDS: readonly OwnedKind[] = ['site', 'device_profile', 'kpi_definition'];
 
 /** At most this many shares per resource. */
 export const SHARE_LIMIT = 100;

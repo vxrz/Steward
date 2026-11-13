@@ -398,6 +398,10 @@ export const OWNED_KINDS = [
   'cost_price_book',
   /** A cost calculator (0.21.0, ADR 0035) */
   'cost_calculator',
+  /** A device profile of the plant registry (0.21.0, #293, ADR 0033 part 3): no owning team unless a team restricts it */
+  'device_profile',
+  /** A KPI definition of the plant registry (0.21.0, #293) */
+  'kpi_definition',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 
