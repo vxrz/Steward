@@ -206,7 +206,7 @@ export function listCalculators(): CostCalculatorSummary[] {
   );
   return rows.map((r) => {
     const text = defs.get(r.id) ?? r.draft;
-    let def: CostCalculatorDefinition | null = null;
+    let def: CostCalculatorDefinition | null;
     try {
       def = text ? definitionOf(text) : null;
     } catch {

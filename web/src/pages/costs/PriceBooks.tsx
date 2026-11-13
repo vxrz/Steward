@@ -50,7 +50,7 @@ import { OwningTeams } from '../../components/OwningTeams';
 import { confirmDialog } from '../../components/confirm';
 import { estimateKeys } from '../../components/costs/Estimates';
 import { fmtChange } from '../../components/costs/common';
-import { fmtDay } from '../../format';
+import { fmtDay, localToday } from '../../format';
 import { platformKeys } from '../../queryKeys';
 import '../../components/dashboard/viz.css';
 
@@ -1004,7 +1004,7 @@ function FxRates() {
   const { t } = useTranslation('costs');
   const qc = useQueryClient();
   const q = useQuery({ queryKey: estimateKeys.fx, queryFn: () => get<CostFxRate[]>('/costs/fx-rates') });
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(localToday());
   const [base, setBase] = useState('USD');
   const [quote, setQuote] = useState('EUR');
   const [rate, setRate] = useState('');

@@ -296,7 +296,7 @@ describe('price books', () => {
 
   it('“Mark as checked” and the reminder “Prices to review” once per book and due date', async () => {
     const { db } = await import('../src/db.js');
-    const { checkPriceReviews } = await import('../src/costs/price-books.js');
+    const { checkPriceReviews } = await import('../src/costs/price-reviews.js');
     const b = await dana('POST', '/costs/price-books', { name: 'Old prices', kind: 'list', provider: 'Invented Old AG', currency: 'EUR', reviewDays: 30 });
     await dana('PUT', `/costs/price-books/${b.id}/entries`, { entries: [{ sku: 'x', name: 'X', unit: 'h', price: '1', currency: 'EUR' }] });
     db().run('UPDATE cost_price_books SET created_at = ? WHERE id = ?', new Date(Date.now() - 40 * 86_400_000).toISOString(), b.id);

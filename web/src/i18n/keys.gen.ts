@@ -6612,7 +6612,6 @@ export interface Resources {
     'codes.COST_PRICE_ENTRIES': string;
     'codes.COST_PRICE_IMPORT': string;
     'codes.COST_PRICE_UNIT_MISMATCH': string;
-    'codes.COST_PRICE_MISSING': string;
     'codes.COST_CALCULATOR_NOT_FOUND': string;
     'codes.COST_CALCULATOR_DEFINITION': string;
     'codes.COST_CALCULATOR_FORMULA': string;

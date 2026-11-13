@@ -4,7 +4,7 @@ import { runCostJob } from './sources.js';
 import { publishCommitmentsDataset } from './commitments.js';
 import { checkBookingReminders } from './booking-reminders.js';
 import { checkVolumeNotices } from './volume-notices.js';
-import { checkPriceReviews } from './price-books.js';
+import { checkPriceReviews } from './price-reviews.js';
 
 /**
  * The job "costs" (#226): the sources that are due, the links of every line once a day, the 80 % and 100 % notices of
