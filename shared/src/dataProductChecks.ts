@@ -18,7 +18,7 @@ import type { MonitorStatus } from './monitors.js';
  * health types themselves (`ElementHealth`, `ProductHealth`) are in dataProducts.ts.
  */
 
-export const DATA_ELEMENT_CHECK_MODES = ['freshness', 'schema'] as const;
+export const DATA_ELEMENT_CHECK_MODES = ['freshness', 'schema', 'volume', 'quality'] as const;
 export type DataElementCheckMode = (typeof DATA_ELEMENT_CHECK_MODES)[number];
 
 /** Element kinds whose freshness the `data-element` check reads (metadata only; decision 13). */
@@ -36,9 +36,35 @@ const FRESHNESS_KINDS: readonly DataElementKind[] = [
 /** Element kinds whose columns or fields the `data-element` check compares with a contract. */
 const SCHEMA_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.view', 'snowflake.dynamicTable', 'kafka.topic', 'sql.table', 'sql.view'];
 
+/**
+ * Element kinds whose volume the `data-element` check reads (phase 2): Snowflake `ROW_COUNT` and `BYTES` from the same
+ * metadata as freshness, a Kafka topic's end offsets (messages added per window).
+ */
+const VOLUME_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.dynamicTable', 'kafka.topic'];
+
+/**
+ * Element kinds whose quality the `data-element` check judges (phase 2): Snowflake Data Metric Function results, and
+ * the quality results Steward has recorded for the element (dbt tests, contract tests, DMF results).
+ */
+const QUALITY_KINDS: readonly DataElementKind[] = [
+  'snowflake.table',
+  'snowflake.view',
+  'snowflake.dynamicTable',
+  'kafka.topic',
+  'sql.table',
+  'sql.view',
+];
+
+const KINDS_OF: Record<DataElementCheckMode, readonly DataElementKind[]> = {
+  freshness: FRESHNESS_KINDS,
+  schema: SCHEMA_KINDS,
+  volume: VOLUME_KINDS,
+  quality: QUALITY_KINDS,
+};
+
 /** The modes of the `data-element` check an element of this kind supports (none: link a check of your own instead). */
 export function elementCheckModes(kind: DataElementKind): DataElementCheckMode[] {
-  return DATA_ELEMENT_CHECK_MODES.filter((m) => (m === 'freshness' ? FRESHNESS_KINDS : SCHEMA_KINDS).includes(kind));
+  return DATA_ELEMENT_CHECK_MODES.filter((m) => KINDS_OF[m].includes(kind));
 }
 
 // ---------- checks linked to an element ----------

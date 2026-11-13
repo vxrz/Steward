@@ -20,7 +20,7 @@ import { addCheckLink, checkLinksOf, elementRow, elementTeamIds, membershipsOfEl
 
 /** What a check says it watches, as candidates: (platform, kind family, name) or an element id. */
 function watched(c: CheckDef): { element?: string; platform?: string; family?: 'snowflake' | 'kafka'; name?: string; purpose: DataCheckPurpose } | null {
-  if (c.type === 'data-element') return { element: c.element, purpose: c.mode === 'schema' ? 'schema' : 'freshness' };
+  if (c.type === 'data-element') return { element: c.element, purpose: c.mode === 'freshness' ? 'freshness' : c.mode };
   if (c.type === 'snowflake' && c.mode === 'freshness')
     return { platform: c.platform, family: 'snowflake', name: c.object.toLowerCase(), purpose: 'freshness' };
   if (c.type === 'snowflake' && c.mode === 'tasks') return { platform: c.platform, family: 'snowflake', name: c.object.toLowerCase(), purpose: 'quality' };

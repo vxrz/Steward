@@ -32,11 +32,13 @@ export function elementFor(u: AuthUser | null, id: string, job = false): Element
  * Saving or trying a check (as the editor): the element exists and they may see it, the mode fits its kind, and they
  * may use its platform. A hidden element answers like a missing one; so does its platform.
  */
-export function requireUsableElement(check: string, c: Pick<Check, 'element' | 'mode'>, u: AuthUser | null): ElementRow {
+export function requireUsableElement(check: string, c: Pick<Check, 'element' | 'mode' | 'qualitySource'>, u: AuthUser | null): ElementRow {
   const el = elementFor(u, c.element, true);
   if (!el) throw new HttpError(400, `Check "${check}": data element "${c.element}" not found`, 'DATA_ELEMENT_NOT_FOUND', { id: c.element });
   if (!elementCheckModes(el.kind).includes(c.mode))
     throw new HttpError(400, `Check "${check}": ${c.mode} is not read for a ${el.kind}`, 'DATA_ELEMENT_CHECK_MODE', { mode: c.mode, kind: el.kind });
+  // the quality results Steward recorded are read from its own database: no platform is read
+  if (storedResults(c)) return el;
   if (!el.platform_id)
     throw new HttpError(400, `Check "${check}": the element has no platform to read`, 'DATA_ELEMENT_CHECK_MODE', {
       mode: c.mode,
@@ -61,6 +63,11 @@ export async function dataElementCheck(c: Check, ctx: { owner: string; now: () =
     return { status: 'unknown', message: `The ${c.mode} of a ${el.kind} is not read – link a check of your own` };
   if (!el.platform_id) return { status: 'unknown', message: `${el.qualified_name} has no platform to read` };
   if (ctx.recorded) return { status: 'unknown', message: `A test run does not read ${el.qualified_name} – try the check in the editor instead` };
+  // 0.24.0: the quality results Steward recorded (dbt, contract tests, DMF) – no platform read
+  if (storedResults(c)) {
+    const { storedQuality } = await import('./quality.js');
+    return storedQuality(c, el, ctx.now());
+  }
   // the owner's use right on the element's platform, checked again at least once a minute (monitors/platforms.ts)
   const { platform, secrets } = platformFor(ctx.owner, el.platform_id);
   const now = ctx.now();
@@ -73,6 +80,18 @@ export async function dataElementCheck(c: Check, ctx: { owner: string; now: () =
       }
       return await kafkaFreshness(c, el, platform, secrets, now);
     }
+    // 0.24.0 (phase 2): volume by metadata, Data Metric Function results
+    if (c.mode === 'volume' || c.mode === 'quality') {
+      if (el.kind.startsWith('snowflake.')) {
+        if (platform.kind !== 'snowflake') return { status: 'unknown', message: `"${platform.name}" is not a Snowflake platform` };
+        const { SnowflakeClient } = await import('../../snowflake/client.js');
+        const sf = new SnowflakeClient(platform, secrets);
+        if (c.mode === 'volume') return await (await import('./volume.js')).snowflakeVolume(c, el, sf, now);
+        return await (await import('./quality.js')).snowflakeDmf(c, el, sf);
+      }
+      if (c.mode === 'volume') return await (await import('./volume.js')).kafkaVolume(c, el, platform, secrets, now);
+      return { status: 'unknown', message: `Data Metric Function results are read for Snowflake tables only – use the recorded quality results for ${el.qualified_name}` };
+    }
     const actual = await runAs(owner, () => readActualSchema(el, platform, secrets, { schemaVersion: c.schemaVersion }));
     const bindings = bindingsOf(outputPortIdsOf(el.id));
     return runAs(owner, () => judgeSchema(c, el, actual, boundContracts(el, bindings)));
@@ -83,6 +102,9 @@ export async function dataElementCheck(c: Check, ctx: { owner: string; now: () =
     return { status: 'unknown', message: `${el.qualified_name} could not be read: ${msg}`.slice(0, 1000) };
   }
 }
+
+/** The quality mode on Steward's recorded results (the default source): no platform read. */
+const storedResults = (c: Pick<Check, 'mode' | 'qualitySource'>): boolean => c.mode === 'quality' && (c.qualitySource ?? 'results') === 'results';
 
 /** The output ports whose bindings expose the element. */
 function outputPortIdsOf(elementId: string): string[] {

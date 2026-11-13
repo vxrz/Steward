@@ -650,8 +650,13 @@ export interface DataObjectives {
   freshnessMinutes?: number | null;
   /** Share of time up or degraded over 30 days, in percent */
   availabilityPct?: number | null;
-  /** Phase 2: volume and quality */
+  /** Completeness in words (text) */
   completeness?: string | null;
+  /**
+   * 0.24.0: share of the completeness quality results (not-null and row-count tests, DMF null counts, volume checks) of
+   * the port's elements that passed over 30 days, in percent
+   */
+  completenessPct?: number | null;
   updateSchedule?: string | null;
   retention?: string | null;
 }

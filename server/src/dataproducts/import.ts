@@ -695,6 +695,7 @@ function objectivesInput(o: PortFile['objectives'] | undefined): DataObjectives 
     ...(o.freshness_minutes !== undefined ? { freshnessMinutes: o.freshness_minutes } : {}),
     ...(o.availability_pct !== undefined ? { availabilityPct: o.availability_pct } : {}),
     ...(o.completeness !== undefined ? { completeness: o.completeness } : {}),
+    ...(o.completeness_pct !== undefined ? { completenessPct: o.completeness_pct } : {}),
     ...(o.update_schedule !== undefined ? { updateSchedule: o.update_schedule } : {}),
     ...(o.retention !== undefined ? { retention: o.retention } : {}),
   };

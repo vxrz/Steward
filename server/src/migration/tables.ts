@@ -96,6 +96,7 @@ export const NOT_MOVED: Record<string, string> = {
   dp_discovery_runs: 'the run history of the discovery sources (not moved, as the sources)',
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
+  dp_volume_readings: 'the readings before of the data-element volume checks (0.24.0): read again on the target',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -456,6 +457,7 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_check_links.created_by',
   'dp_cost_matches.created_by',
   'dp_cost_allocations.updated_by',
+  'dp_quality_results.recorded_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */

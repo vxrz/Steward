@@ -388,4 +388,48 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.24.0 (ADR 0036 phase 2, package B): quality results of elements (dbt tests, Data Metric Function results,
+    // contract tests, the data-element check's volume and quality modes) – at most one row per element, source, name
+    // and hour, kept 400 days; volume readings of the data-element check (the reading before); daily scorecard
+    // snapshots per product and environment (kept 400 days)
+    name: 'dataproducts-005b-quality-scorecard-history',
+    sql: `
+      CREATE TABLE dp_quality_results (
+        id TEXT PRIMARY KEY,
+        element_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        name TEXT NOT NULL,
+        dimension TEXT,
+        status TEXT NOT NULL,
+        value REAL,
+        message TEXT NOT NULL DEFAULT '',
+        run_ref TEXT,
+        bucket TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        recorded_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX dp_quality_results_key ON dp_quality_results(element_id, source, name, bucket);
+      CREATE INDEX dp_quality_results_element ON dp_quality_results(element_id, observed_at);
+      CREATE INDEX dp_quality_results_observed ON dp_quality_results(observed_at);
+      CREATE TABLE dp_volume_readings (
+        element_id TEXT NOT NULL,
+        measure TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        value REAL NOT NULL,
+        PRIMARY KEY (element_id, measure, read_at)
+      );
+      CREATE TABLE dp_scorecard_snapshots (
+        product_id TEXT NOT NULL,
+        environment TEXT NOT NULL DEFAULT '',
+        day TEXT NOT NULL,
+        maturity INTEGER NOT NULL,
+        states TEXT NOT NULL DEFAULT '{}',
+        taken_at TEXT NOT NULL,
+        PRIMARY KEY (product_id, environment, day)
+      );
+      CREATE INDEX dp_scorecard_snapshots_day ON dp_scorecard_snapshots(day);
+    `,
+  },
 ];
