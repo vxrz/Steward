@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
@@ -155,7 +156,10 @@ test.describe('the pictures of data products', () => {
     let download = page.waitForEvent('download');
     await page.getByTestId('view-export').click();
     await page.getByTestId('export-svg').click();
-    expect((await download).suggestedFilename()).toMatch(/^pipeline-of-orders-.*\.svg$/);
+    const svg = await download;
+    expect(svg.suggestedFilename()).toMatch(/^pipeline-of-orders-.*\.svg$/);
+    // the date in the UI's format, as everywhere else in the app
+    expect(fs.readFileSync((await svg.path())!, 'utf8')).toMatch(/documented as of \d{1,2} [A-Z][a-z]{2,3} \d{4}/);
     download = page.waitForEvent('download');
     await page.getByTestId('view-export').click();
     await page.getByTestId('export-png').click();

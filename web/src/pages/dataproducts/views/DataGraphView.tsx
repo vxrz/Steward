@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { IconArrowsMaximize, IconEyeOff, IconInfoCircle, IconSearch } from '@tabler/icons-react';
 import { DATA_HEALTH_ORDER, reachable, type DataGraph, type DataGraphEdge, type DataGraphNode } from '@sm/shared';
 import { TableScroll } from '../../../components/TableScroll';
+import { fmtDay } from '../../../format';
 import { LegendItem, LineMark, ViewToolbar } from '../../plant/views/common';
 import { useMotion, useViewMode } from '../../plant/views/prefs';
 import { DataGraphCanvas, KIND_ICON, iconKey } from './DataGraphCanvas';
@@ -110,7 +111,7 @@ export function DataGraphView({
     [graph],
   );
   const exportSvg = () => ({
-    ...graphSvg(drawn, layout, { title, subtitle: t('export.subtitle', { date: new Date().toLocaleDateString() }), text, header: headerText }),
+    ...graphSvg(drawn, layout, { title, subtitle: t('export.subtitle', { date: fmtDay(new Date()) }), text, header: headerText }),
     title,
   });
   const notes: ReactNode[] = [];
