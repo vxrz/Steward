@@ -430,4 +430,44 @@ describe('security review 0.21.0', () => {
     expect(own.changedInSteward?.flags.find((f: { path: string }) => f.path === 'profileId')).toMatchObject({ lastImport: C80, file: C80 });
     await s.api('PUT', '/plant/assets/rvs-mill-01/assignment', { ...a.assignment, profileId: C80 });
   });
+
+  it('only who may change every profile a change set changes reviews, returns or rejects it', async () => {
+    const d = await db();
+    const id = 'cs-review-021';
+    const now = new Date().toISOString();
+    d.run(
+      `INSERT INTO plant_change_sets (id, title, state, source, sites, catalogue, authors, created_by, created_at, updated_by, updated_at)
+       VALUES (?, 'Invented profile change', 'proposed', 'draft', '[]', 1, '["tom"]', 'tom', ?, 'tom', ?)`,
+      id,
+      now,
+      now,
+    );
+    d.run(
+      "INSERT INTO plant_change_ops (change_set_id, seq, op, kind, entry_id, origin, author, updated_at) VALUES (?, 1, 'set', 'profile', ?, 'draft', 'tom', ?)",
+      id,
+      C80,
+      now,
+    );
+    const { rightsProblem } = await import('../src/plant/changesets/core.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const users = await import('../src/auth/users.js');
+    const as = (name: string) => users.toAuthUser(users.findUserByName(name)!);
+    const row = { id, sites: '[]', catalogue: 1 };
+    // Dana – an instance designer who may see the team's profile (a View share), not change it
+    d.run(
+      "INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, created_by, created_at) VALUES ('device_profile', ?, 'user:dana', 'view', '[]', NULL, 'admin', ?) ON CONFLICT DO NOTHING",
+      C80,
+      now,
+    );
+    try {
+      expect(runAs(as('dana'), () => rightsProblem(row, as('dana')))).toMatchObject({ code: 'FORBIDDEN' });
+      expect(runAs(as('tom'), () => rightsProblem(row, as('tom')))).toBeNull();
+      expect((await dana('GET', '/plant/change-sets?box=review')).items.map((x: { id: string }) => x.id)).not.toContain(id);
+      expect(await status(dana('POST', `/plant/change-sets/${id}/reject`, { comment: 'No' }))).toMatchObject({ status: 409 });
+    } finally {
+      d.run("DELETE FROM resource_shares WHERE kind = 'device_profile' AND resource_id = ? AND subject = 'user:dana'", C80);
+      d.run('DELETE FROM plant_change_ops WHERE change_set_id = ?', id);
+      d.run('DELETE FROM plant_change_sets WHERE id = ?', id);
+    }
+  });
 });
