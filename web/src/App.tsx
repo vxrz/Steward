@@ -139,6 +139,7 @@ const PlantSitePage = page(() => import('./pages/PlantSite'), 'PlantSitePage');
 const PlantAssetsPage = page(() => import('./pages/PlantAssets'), 'PlantAssetsPage');
 const PlantAssetPage = page(() => import('./pages/PlantAsset'), 'PlantAssetPage');
 const PlantImportPage = page(() => import('./pages/PlantImport'), 'PlantImportPage');
+const PlantManagerSettingsPage = page(() => import('./pages/PlantManagerSettings'), 'PlantManagerSettingsPage');
 const PlantProfilesPage = page(() => import('./pages/PlantProfiles'), 'PlantProfilesPage');
 const PlantProfilePage = page(() => import('./pages/PlantProfile'), 'PlantProfilePage');
 const PlantDataPointPage = page(() => import('./pages/PlantDataPoint'), 'PlantDataPointPage');
@@ -389,6 +390,7 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/assets/:assetId" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/assets/:assetId/:tab" element={<PlantAssetPage />} />}
                     {caps.plant && <Route path="/plant/import" element={<PlantImportPage />} />}
+                    {caps.plant && caps.moduleSettings?.includes('plant') && <Route path="/plant/settings" element={<PlantManagerSettingsPage />} />}
                     {caps.plant && <Route path="/plant/profiles" element={<PlantProfilesPage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId/:tab" element={<PlantProfilePage />} />}
@@ -894,6 +896,15 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="plant">
                           <PlantImportPage />
+                        </ModuleGate>
+                      }
+                    />
+                    {/* 0.23.0 (ADR 0034 decision 11): the content settings for the plant registry's managers */}
+                    <Route
+                      path="/plant/settings"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantManagerSettingsPage />
                         </ModuleGate>
                       }
                     />

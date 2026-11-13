@@ -1,6 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { STEP_UP_ACTIONS, type AuthStatus, type Me, type ModuleId, BRAND, isSsoErrorCode, SSO_REFERENCE, type SsoErrorCode } from '@sm/shared';
+import {
+  STEP_UP_ACTIONS,
+  type AuthStatus,
+  type Me,
+  type ModuleId,
+  type ModuleRole,
+  BRAND,
+  modulesWithRoles,
+  isSsoErrorCode,
+  SSO_REFERENCE,
+  type SsoErrorCode,
+} from '@sm/shared';
 import { config } from '../config.js';
 import { vault, publicKeyPem } from '../vault.js';
 import { audit, flushPendingAudit } from '../audit.js';
@@ -13,7 +24,7 @@ import { HttpError } from '../util.js';
 import { browserAvailable } from '../engine/browser.js';
 import { startUnlocked, stopUnlocked } from '../bootstrap.js';
 import { seedExamplesSource } from '../sync/service.js';
-import { currentUser, runAs } from '../auth/context.js';
+import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import { checkPasswordPolicy } from '../auth/passwords.js';
 import * as sso from '../auth/sso.js';
@@ -37,11 +48,12 @@ import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
-import { ACCESS, isStatusViewer, me } from '../auth/access.js';
+import { convertDeprecatedRoles } from '../modules/user-roles.js';
+import { ACCESS, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
-import { moduleUseStates } from '../modules/access.js';
+import { moduleRole, moduleSettingsOf, moduleUseStates } from '../modules/access.js';
 import { plantManagesSome } from '../plant/access.js';
-import { plantOnly } from '../auth/policy.js';
+import { plantOnly, statusOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
 import { params } from './params.js';
 
@@ -66,6 +78,8 @@ async function onUnlocked(): Promise<void> {
   migrateMonitorWindows();
   // suppliers (0.17, ADR 0029): free-text vendors become unconfirmed suppliers, once per text
   migrateVendorTexts();
+  // module roles (0.23.0, ADR 0034 part 5): the former role "plant" becomes the plant registry's contributor grant, once
+  convertDeprecatedRoles();
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();
@@ -93,6 +107,16 @@ export async function unlockFromEnv(): Promise<void> {
   }
 }
 
+/** The person's module role per module that declares roles and that they use (Capabilities.moduleRoles). */
+function moduleRolesFor(u: AuthUser): Partial<Record<ModuleId, ModuleRole>> {
+  const out: Partial<Record<ModuleId, ModuleRole>> = {};
+  for (const id of modulesWithRoles()) {
+    const r = moduleRole(id, u);
+    if (r) out[id] = r;
+  }
+  return out;
+}
+
 function meInfo(): Me | null {
   const u = currentUser();
   if (!u) return null;
@@ -101,7 +125,7 @@ function meInfo(): Me | null {
   // what the sidebar shows besides the capabilities (pages that are of no use to the user are left out)
   // the plant registry module (#218): its area and link kinds while it is on and theirs (never for status viewers)
   const use = moduleUseStates(u);
-  const usesPlant = plantEnabled() && use.plant === 'on' && !isStatusViewer(u.roles);
+  const usesPlant = plantEnabled() && use.plant === 'on' && !statusOnly(u);
   const nav = {
     viewAutomation: viewsAutomation(u),
     viewCredentials: credentials.mayReadSomeCredential(u),
@@ -112,6 +136,9 @@ function meInfo(): Me | null {
     // (0.21.0, ADR 0034) what the person does not use, the same way; moduleAccess says which of the two it is
     modules: Object.fromEntries(Object.entries(use).map(([id, st]) => [id, st === 'on'])) as Record<ModuleId, boolean>,
     moduleAccess: use,
+    // module roles (0.23.0, ADR 0034): per module that declares roles and that the person uses; whose settings they change
+    moduleRoles: moduleRolesFor(u),
+    moduleSettings: moduleSettingsOf(u),
   };
   return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }

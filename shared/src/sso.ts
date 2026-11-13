@@ -1,6 +1,6 @@
 import type { ErrorParams } from './errors.js';
 import type { Role, SsoProvider, SsoProviderInput } from './api.js';
-import type { ModuleUse } from './modules.js';
+import type { ModuleId, ModuleRole, ModuleUse } from './modules.js';
 
 /**
  * Single sign-on (OpenID Connect): how claims become an account. Vendor-neutral – the presets only pre-fill the
@@ -408,6 +408,11 @@ export interface SsoSignInPreview {
    * roles and teams – an SSO group reaches a module through the team it is mapped to. Only in a test sign-in.
    */
   modules?: ModuleUse[];
+  /**
+   * The module roles the mappings give (0.23.0, ADR 0034 part 6) – the deprecated role "plant" among them as the plant
+   * registry's contributor – synchronised at each sign-in like roles. Missing: none.
+   */
+  moduleRoles?: { module: ModuleId; role: ModuleRole }[];
   /** Things to know (code + params, translated by the web app: users:provider.test.notes.<code>) */
   notes: { code: string; params?: ErrorParams }[];
 }

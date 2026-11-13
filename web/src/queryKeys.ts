@@ -116,6 +116,8 @@ export const plantKeys = {
   all: ['plant'] as const,
   config: ['plant', 'config'] as const,
   settings: ['plant', 'settings'] as const,
+  /** The content settings for the plant registry's managers (0.23.0, ADR 0034 decision 11) */
+  managerSettings: ['plant', 'settings', 'manager'] as const,
   sites: ['plant', 'sites'] as const,
   site: (id: string | null | undefined) => ['plant', 'site', id] as const,
   hierarchy: ['plant', 'hierarchy'] as const,

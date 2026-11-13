@@ -103,7 +103,10 @@
       "shareTeam": "Shared with team {{name}} – {{level}}",
       "shareRole": "Shared with everyone with the role {{name}} – {{level}}",
       "until": "{{text}} (until {{date}})",
-      "implied": "{{as}} ({{subject}}): {{level}} (implied)"
+      "implied": "{{as}} ({{subject}}): {{level}} (implied)",
+      "moduleRoleUser": "Module role {{role}}: {{rights}}",
+      "moduleRoleTeam": "Module role {{role}} of team {{team}}: {{rights}}",
+      "moduleRoleSso": "Module role {{role}} from single sign-on: {{rights}}"
     },
     "level": {
       "view": "View",

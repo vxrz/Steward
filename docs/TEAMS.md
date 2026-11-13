@@ -153,6 +153,10 @@ Who may use a restricted module ([MODULES.md](MODULES.md#who-may-use-a-module), 
 
 When the group leaves the token, the next sign-in removes the team membership and with it the module. A deleted team stays on a module's list as an entry that matches nobody, so deleting a team never opens a restricted module. A team that owns items of a module but is not on its list is named in the preview: its members keep their rights on those items but cannot open them.
 
+### Module roles of a team
+
+Since 0.23.0 a team can be given a **module role** – viewer, contributor or manager – in a module that declares them (the plant registry, Costs, data products; [MODULES.md](MODULES.md#module-roles)): _Settings → Modules → <module> → Who may use it_, the role beside the team. It applies to the team's members **across the whole module**, like an instance role – _Invented plant engineering_ as managers of the plant registry manage every site without owning teams or an access list, and the sites their team owns; owning teams, access lists and shares of other items still decide there. The highest of a person's module roles counts (their core roles' default, their own, their teams', single sign-on's). Giving a team a role or a higher one asks for the step-up (`access.grant`) and is an access change in the audit log; leaving the team ends it at once. A single sign-on group reaches a team's module role through the team it is mapped to, or a mapping gives the module role directly ([SSO.md](SSO.md#groups-and-roles)). A deleted team's module role matches nobody, and a new team with its name does not inherit it.
+
 ## Upgrade and migration
 
 - The upgrade only adds columns (`team_members.roles`, `team_members.new_resources`) and tables (`resource_teams`, `team_settings`). No owning team is set and every team starts with the defaults above, so every installation keeps its visibility.

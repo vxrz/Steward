@@ -115,7 +115,7 @@ export function OwningTeams({ kind, id, mt, restricted }: { kind: OwnedKind; id:
 }
 
 function ExplainModal({ kind, id, onClose }: { kind: OwnedKind; id: string; onClose: () => void }) {
-  const { t } = useTranslation(['access', 'common']);
+  const { t } = useTranslation(['access', 'common', 'modules']);
   const { username, isAdmin, caps } = useMe();
   // others' rights: administrators and auditors (the server checks it as well)
   const mayAskForOthers = isAdmin || caps.viewAudit;
@@ -171,7 +171,7 @@ function ExplainModal({ kind, id, onClose }: { kind: OwnedKind; id: string; onCl
   );
 }
 
-function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['t'], r: AccessReason): string {
+function reasonText(t: ReturnType<typeof useTranslation<['access', 'common', 'modules']>>['t'], r: AccessReason): string {
   const rights = r.permissions.map((p) => t(`common:permissions.${p}`, { defaultValue: p })).join(', ');
   const role = r.role ? t(`common:roles.${r.role}`, { defaultValue: r.role }) : '';
   switch (r.source) {
@@ -185,6 +185,13 @@ function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['
       return t('owning.reason.instanceRole', { role, rights });
     case 'teamRole':
       return t('owning.reason.teamRole', { role, team: r.team, rights });
+    case 'moduleRole': {
+      // ADR 0034 part 4: "Module role manager (team Plant engineering): view, propose, manage"
+      const moduleRole = t(`modules:roleNames.${r.moduleRole ?? 'viewer'}`);
+      if (r.sso) return t('owning.reason.moduleRoleSso', { role: moduleRole, rights });
+      const team = r.subject?.toLowerCase().startsWith('team:') ? r.subject.slice(5) : null;
+      return team ? t('owning.reason.moduleRoleTeam', { role: moduleRole, team, rights }) : t('owning.reason.moduleRoleUser', { role: moduleRole, rights });
+    }
     case 'named':
       return r.as === 'responsible'
         ? t('owning.reason.namedResponsible', { subject: r.subject, rights })

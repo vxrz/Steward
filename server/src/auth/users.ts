@@ -6,7 +6,10 @@ import {
   SSO_SYNCED_FIELDS,
   isLocale,
   type Locale,
+  type ModuleId,
+  type ModuleRole,
   type Role,
+  splitDeprecatedRoles as splitRoles,
   type SsoSyncRules,
   type Team,
   type UserInfo,
@@ -35,6 +38,22 @@ import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 import { forgetStaleTeamGrants, rewriteTeamReferences } from './subjects.js';
 import { revokeOAuthGrants } from '../mcp/oauth-grants.js';
 import { clientAddress } from '../rateLimits.js';
+import type { UserModuleRolesInput } from '../modules/user-roles.js';
+
+/**
+ * Module roles of a person (0.23.0, ADR 0034): set by modules/user-roles.ts, which registers here – users.ts imports
+ * nothing of the module layer. Without it (never in a running server) the deprecated role "plant" stays a role, which
+ * the policy still reads as the plant registry's contributor.
+ */
+type ModuleRoleHook = (username: string, next: UserModuleRolesInput, via: 'userForm' | 'roleAlias', opts?: { raiseOnly?: boolean }) => void;
+let moduleRoleHook: ModuleRoleHook | null = null;
+export const setModuleRoleHook = (fn: ModuleRoleHook): void => {
+  moduleRoleHook = fn;
+};
+const setUserModuleRoles: ModuleRoleHook = (...args) => moduleRoleHook?.(...args);
+/** The deprecated roles split off – only while the module layer can store what they stand for. */
+const splitDeprecatedRoles = (roles: Role[]): { roles: Role[]; moduleRoles: { module: ModuleId; role: ModuleRole }[] } =>
+  moduleRoleHook ? splitRoles(roles) : { roles, moduleRoles: [] };
 
 interface UserRow {
   id: string;
@@ -210,6 +229,8 @@ export function createUser(input: {
   noPassword?: boolean;
   /** With noPassword: the single sign-on provider (id) that may claim the account – no other provider can */
   provider?: string;
+  /** Module roles of the person (0.23.0, ADR 0034): a widening asks for the step-up access.grant */
+  moduleRoles?: UserModuleRolesInput;
 }): {
   user: UserInfo;
   temporaryPassword?: string;
@@ -230,7 +251,8 @@ export function createUser(input: {
   }
   const id = newId('usr_');
   const ts = nowIso();
-  const roles = cleanRoles(input.roles);
+  // the deprecated role "plant" (ADR 0034 part 5): stored as the plant registry's contributor grant, not as a role
+  const { roles, moduleRoles: alias } = splitDeprecatedRoles(cleanRoles(input.roles));
   db().tx(() => {
     db().run(
       `INSERT INTO users (id, username, display_name, first_name, last_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source)
@@ -255,6 +277,8 @@ export function createUser(input: {
       summary: `User "${username}" created (${roles.join(', ') || 'no roles'})${input.noPassword ? ` without a password (single sign-on${input.provider ? ` via ${input.provider}` : ''})` : ''}`,
       details: { roles, ...(input.noPassword ? { password: false, provider: input.provider ?? null } : {}) },
     });
+    if (alias.length) setUserModuleRoles(username, alias, 'roleAlias', { raiseOnly: true });
+    if (input.moduleRoles?.length) setUserModuleRoles(username, input.moduleRoles, 'userForm');
   });
   return { user: getUser(id), temporaryPassword: temp };
 }
@@ -272,11 +296,22 @@ export function requireNotPseudonymised(u: UserInfo, what: string): void {
 
 export function updateUser(
   id: string,
-  patch: { displayName?: string; firstName?: string; lastName?: string; email?: string; roles?: Role[]; active?: boolean },
+  patch: {
+    displayName?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    roles?: Role[];
+    active?: boolean;
+    /** Module roles of the person (0.23.0, ADR 0034): a widening asks for the step-up access.grant */
+    moduleRoles?: UserModuleRolesInput;
+  },
 ): UserInfo {
   const before = getUser(id);
   requireNotPseudonymised(before, 'changing the account');
-  const roles = patch.roles ? cleanRoles(patch.roles) : before.roles;
+  // the deprecated role "plant" (ADR 0034 part 5): the plant registry's contributor grant instead of a role
+  const split = patch.roles ? splitDeprecatedRoles(cleanRoles(patch.roles)) : { roles: before.roles, moduleRoles: [] };
+  const roles = split.roles;
   if (before.roles.includes('admin') && (!roles.includes('admin') || patch.active === false)) ensureAnotherAdmin(id);
   const firstName = cleanName(patch.firstName);
   const lastName = cleanName(patch.lastName);
@@ -332,6 +367,8 @@ export function updateUser(
       summary: `User "${before.username}" updated${changes.length ? `: ${changes.join('; ')}` : ''}`,
       details: { roles, active: patch.active },
     });
+    if (split.moduleRoles.length) setUserModuleRoles(before.username, split.moduleRoles, 'roleAlias', { raiseOnly: true });
+    if (patch.moduleRoles?.length) setUserModuleRoles(before.username, patch.moduleRoles, 'userForm');
   });
   return getUser(id);
 }

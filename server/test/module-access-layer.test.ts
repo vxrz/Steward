@@ -111,8 +111,9 @@ describe('person access reviews', () => {
     try {
       const again = await s.api('GET', `/compliance/person-reviews/${r.id}`);
       expect(again.modules).toEqual([
-        { module: 'costs', enabled: true, restricted: true, uses: true, through: [{ source: 'user' }] },
-        expect.objectContaining({ module: 'plant', restricted: true, uses: false, through: [] }),
+        // the costs module declares the manager role (0.23.0): vera, a viewer, has none
+        { module: 'costs', enabled: true, restricted: true, uses: true, through: [{ source: 'user' }], role: null, roleThrough: [] },
+        expect.objectContaining({ module: 'plant', restricted: true, uses: false, through: [], role: null }),
       ]);
     } finally {
       await open('costs');
@@ -126,7 +127,16 @@ describe('person access reviews', () => {
     await restrict('plant', ['team:invented plant engineering']);
     try {
       expect(restrictedModuleUses({ id: '', username: 'new-person', roles: ['viewer'], teams: ['Invented plant engineering'] })).toEqual([
-        { module: 'plant', enabled: expect.any(Boolean), restricted: true, uses: true, through: [{ source: 'team', team: 'invented plant engineering' }] },
+        {
+          module: 'plant',
+          enabled: expect.any(Boolean),
+          restricted: true,
+          uses: true,
+          through: [{ source: 'team', team: 'invented plant engineering' }],
+          // a viewer's core role gives the plant registry's viewer role (0.23.0)
+          role: 'viewer',
+          roleThrough: [{ source: 'coreRole', role: 'viewer', coreRole: 'viewer' }],
+        },
       ]);
       expect(restrictedModuleUses({ id: '', username: 'new-person', roles: ['viewer'], teams: [] })[0]).toMatchObject({ uses: false });
     } finally {

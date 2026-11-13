@@ -4,6 +4,7 @@ import {
   moduleDef,
   moduleOfRoute,
   moduleRestrictable,
+  moduleRolesOf,
   type ModuleAccessMode,
   type ModuleId,
   type ModuleStates,
@@ -124,6 +125,7 @@ export function modulesView(): ModulesView {
     settingsArea: m.id === 'plant' || m.id === 'plantMap' ? 'modules' : null,
     restrictable: moduleRestrictable(m.id),
     accessMode: moduleAccessMode(m.id),
+    roles: moduleRolesOf(m.id),
   }));
   return { modules, updatedAt: s.updatedAt, updatedBy: s.updatedBy };
 }

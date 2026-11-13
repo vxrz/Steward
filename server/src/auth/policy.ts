@@ -29,13 +29,33 @@ import {
   type Role,
   type ShareAction,
   type ShareLevel,
+  type ModuleId,
+  DEPRECATED_ROLES,
   SHARE_LEVELS,
+  accessModule,
+  moduleOfRoute,
+  moduleRoleFromCore,
+  moduleRoleRights,
+  modulesWithRoles,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, parseJson } from '../util.js';
 import { currentStore, type AuthUser } from './context.js';
 import { isAdmin, matches, subjectsOf, DEFAULT_PLATFORM, DEFAULT_PROCESS } from './permissions.js';
+
+/** A status viewer: role "status" and no other (#26) – auth/access.ts has the same; repeated so this module imports no route layer. */
+const isStatusViewer = (roles: readonly string[]): boolean => roles.length > 0 && roles.every((r) => r === 'status');
 import { isRestricted, sharesFor } from './share-store.js';
+import { formerRolesOf, grantedModuleRoles, modulesGrantingRoles } from '../modules/grants.js';
+
+/**
+ * The instance roles a person has for the rules outside a module's own kinds: their roles and the former role "plant"
+ * when the plant registry's contributor role or more is granted to them (ADR 0034 part 5, modules/grants.ts).
+ */
+export const policyRoles = (u: AuthUser): Role[] => {
+  const former = formerRolesOf(u);
+  return former.length ? [...u.roles, ...former] : u.roles;
+};
 
 export interface OwningTeam {
   id: string;
@@ -178,7 +198,7 @@ export function teamRoles(u: AuthUser, teams: OwningTeam[]): { team: string; rol
   const out: { team: string; roles: Role[] }[] = [];
   for (const t of teams) {
     const m = mine.get(t.id);
-    if (m) out.push({ team: t.name, roles: [...new Set([...u.roles, ...m.roles])] });
+    if (m) out.push({ team: t.name, roles: [...new Set([...policyRoles(u), ...m.roles])] });
   }
   return out;
 }
@@ -202,13 +222,78 @@ export function memberships(u: AuthUser): Map<string, { name: string; roles: Rol
 }
 
 /**
- * A plant viewer (#218): the instance role "plant" and no other role that works in Steward – none in the instance
- * (the status viewer's role adds nothing but the status pages) and none in a team. They see the plant registry only:
- * app.ts refuses every other route, the public API and the MCP endpoint answer only for the registry.
+ * A module-only user (ADR 0034 part 1, 0.23.0): no core role that works in Steward – none in the instance but the status
+ * viewer's role (which adds only the status pages) and the deprecated role "plant", none in a team – and a module role,
+ * granted (to them, a team they are in, through single sign-on) or given by the deprecated role "plant". They reach
+ * only those modules' routes, their profile and /api/v1/me: app.ts refuses every other route (PLANT_VIEWER_ONLY for
+ * the plant registry's users, MODULE_ONLY_USER for others), the public API and MCP likewise.
+ *
+ * The cheap questions first: someone with a working core role costs no statement.
+ */
+export function moduleOnlyModules(u: AuthUser | null): ModuleId[] {
+  if (!u || u.roles.some((r) => r !== 'status' && !DEPRECATED_ROLES.includes(r))) return [];
+  if ([...memberships(u).values()].some((m) => m.roles.length > 0)) return [];
+  const out = new Set<ModuleId>(modulesGrantingRoles(u));
+  for (const id of modulesWithRoles()) if (moduleRoleFromCore(id, u.roles)) out.add(id);
+  return [...out].sort();
+}
+
+export const moduleOnly = (u: AuthUser | null): boolean => moduleOnlyModules(u).length > 0;
+
+/**
+ * A status viewer (#26) whom nothing else lets in: the role "status" only, and no module role either – the former
+ * "plant" and "status" pair is a module-only user who also reaches the status pages.
+ */
+export const statusOnly = (u: AuthUser | null): boolean => !!u && isStatusViewer(u.roles) && !moduleOnly(u);
+
+/**
+ * Whether a module-only user (`only`: their modules) may reach a route (app.ts): the routes of their modules, the
+ * routes every plant viewer reaches (their profile, sign-in; for the plant registry's users all of /api/plant/…), and
+ * the status pages when they have the status role.
+ */
+export function moduleOnlyReaches(
+  only: readonly ModuleId[],
+  url: string,
+  access: { statusViewer: boolean; plantViewer: boolean },
+  u: Pick<AuthUser, 'roles'>,
+): boolean {
+  if (access.statusViewer && u.roles.includes('status')) return true;
+  if (access.plantViewer && (only.includes('plant') || !url.startsWith('/api/plant/'))) return true;
+  const m = moduleOfRoute(url);
+  return !!m && only.includes(accessModule(m));
+}
+
+/** The refusal of a route a module-only user may not reach: the plant registry keeps its code (#218). */
+export const moduleOnlyRefusal = (only: readonly ModuleId[]): { error: string; code: string } =>
+  only.includes('plant')
+    ? { error: 'Plant viewers only see the plant registry', code: 'PLANT_VIEWER_ONLY' }
+    : { error: 'You only use some modules of Steward – this is not one of them', code: 'MODULE_ONLY_USER' };
+
+/**
+ * A plant viewer (#218): since 0.23.0 a module-only user of the plant registry – a plant module role granted to them,
+ * their team or through single sign-on (or the deprecated role "plant"), and no other working role. They see the
+ * plant registry only: app.ts refuses every other route, the public API and the MCP endpoint answer only for the registry.
  */
 export function plantOnly(u: AuthUser | null): boolean {
-  if (!u || !u.roles.includes('plant') || !u.roles.every((r) => r === 'plant' || r === 'status')) return false;
-  return [...memberships(u).values()].every((m) => !m.roles.length);
+  return moduleOnlyModules(u).includes('plant');
+}
+
+/**
+ * The module roles granted to `u` in module `id` as reasons (ADR 0034 part 4): each counts like an instance role – on
+ * items of the whole instance (no owning team, no access list, not Restricted), and on items of an owning team they
+ * are a member of. Its rights are the module's declaration for `kind`.
+ */
+function moduleRoleReasons(u: AuthUser, m: { id: ModuleId; kind: string }, all: readonly string[]): AccessReason[] {
+  return grantedModuleRoles(u, m.id).map((r) => {
+    const rights = new Set(moduleRoleRights(m.id, r.role, m.kind));
+    return {
+      source: 'moduleRole' as const,
+      moduleRole: r.role,
+      ...(r.source === 'team' ? { subject: `team:${r.team}` } : r.source === 'user' ? { subject: `user:${u.username.toLowerCase()}` } : {}),
+      ...(r.source === 'sso' ? { sso: true } : {}),
+      permissions: all.filter((p) => rights.has(p)),
+    };
+  });
 }
 
 interface Decision<P extends string> {
@@ -274,9 +359,11 @@ export function decide<P extends string>(
   auditorView?: P,
   /**
    * instanceDefaults false (identities, ADR 0009): instance roles alone give nothing – only owning teams and the access
-   * list. shares: the kind's share model (ADR 0033) – its shares add rights, and Restricted keeps instance roles out
+   * list. shares: the kind's share model (ADR 0033) – its shares add rights, and Restricted keeps instance roles out.
+   * module: the kind belongs to a module that declares roles (ADR 0034) – its granted module roles count like instance
+   * roles (`defaults` are then the module's `fromCoreRoles`, coreRoleDefaults)
    */
-  opts: { instanceDefaults?: boolean; shares?: ShareModel<P> } = {},
+  opts: { instanceDefaults?: boolean; shares?: ShareModel<P>; module?: { id: ModuleId; kind: string } } = {},
 ): Decision<P> {
   if (!u) return { permissions: [], reasons: [] };
   if (isAdmin(u)) return { permissions: [...all], reasons: [{ source: 'admin', role: 'admin', permissions: [...all] }] };
@@ -289,16 +376,22 @@ export function decide<P extends string>(
     // the whole instance's resource: as before team scopes
     // Restricted (ADR 0033): only the shares, as a non-empty access list
     const restricted = !!opts.shares && isRestricted(r.kind, r.id);
-    if (!r.acl.length && !restricted && opts.instanceDefaults !== false)
+    if (!r.acl.length && !restricted && opts.instanceDefaults !== false) {
       for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...(defaults[role] ?? [])] });
+      if (opts.module) for (const reason of moduleRoleReasons(u, opts.module, all)) add(reason);
+    }
   } else {
     // members of an owning team: their instance roles and their roles in that team
     const mine = memberships(u);
+    let member = false;
     for (const t of teams) {
       const m = mine.get(t.id);
       if (!m) continue;
+      member = true;
       for (const role of new Set([...u.roles, ...m.roles])) add({ source: 'teamRole', role, team: t.name, permissions: [...(defaults[role] ?? [])] });
     }
+    // module roles are module-wide like instance roles: inside an owning team's item only for its members
+    if (member && opts.module) for (const reason of moduleRoleReasons(u, opts.module, all)) add(reason);
   }
   // access list entries: the only rights on an unowned resource that has a list, an exception on an owned one
   for (const e of r.acl) if (matches(u, e.subject)) add({ source: 'accessList', subject: e.subject, permissions: [...e.permissions] });
@@ -510,14 +603,14 @@ export function catalogueAccess(u: AuthUser | null, r: { kind: CatalogueKind; id
     // Restricted (ADR 0033): instance roles give nothing, auditors still see it
     if (shared && isRestricted(r.kind, r.id)) {
       if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
-    } else for (const role of u.roles) reasons.push({ source: 'instanceRole', role, permissions: byRole(role) });
+    } else for (const role of policyRoles(u)) reasons.push({ source: 'instanceRole', role, permissions: byRole(role) });
   } else {
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
     const mine = memberships(u);
     for (const t of teams) {
       const m = mine.get(t.id);
       if (!m) continue;
-      for (const role of new Set([...u.roles, ...m.roles])) reasons.push({ source: 'teamRole', role, team: t.name, permissions: byRole(role) });
+      for (const role of new Set([...policyRoles(u), ...m.roles])) reasons.push({ source: 'teamRole', role, team: t.name, permissions: byRole(role) });
     }
   }
   if (shared) reasons.push(...shareReasons(u, r, CATALOGUE_SHARE_MODEL));
@@ -602,7 +695,7 @@ export function teamScoped<P extends string>(
     });
   const teams = owningTeams(r.kind, r.id);
   if (!teams.length) {
-    for (const role of u.roles) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });
+    for (const role of policyRoles(u)) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });
     return { permissions: o.unscoped(), reasons };
   }
   if (o.auditor && u.roles.includes('auditor')) add({ source: 'auditor', role: 'auditor', permissions: [...o.auditor] });

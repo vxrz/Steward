@@ -12,6 +12,7 @@ import type { AuthUser } from './context.js';
 import { aliasSubjects, sameIdentity } from './aliases.js';
 import { fourEyesRequired } from './assurance-policy.js';
 import { memberships, platformAccess, processAccess } from './policy.js';
+import { formerRolesOf } from '../modules/grants.js';
 
 /**
  * Access model
@@ -50,6 +51,8 @@ export function subjectsOf(u: AuthUser): Set<string> {
     ...u.roles.map((r) => `role:${r}`),
     // former names from an imported migration package (aliases.ts)
     ...aliasSubjects(u),
+    // the former role "plant": whoever is granted the plant registry's contributor role or more (ADR 0034 part 5)
+    ...formerRolesOf(u).map((r) => `role:${r}`),
   ]);
 }
 

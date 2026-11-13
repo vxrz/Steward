@@ -18,7 +18,7 @@ import { HttpError, nowIso } from '../util.js';
 import { currentActor, type AuthUser } from './context.js';
 import { assertKnownSubjects } from './subjects.js';
 import { findUserByName, toAuthUser } from './users.js';
-import { heldShare, managesShares, memberships, owningTeams, plantOnly, type HeldShare, type OwningTeam, type ShareModel } from './policy.js';
+import { heldShare, managesShares, memberships, moduleOnly, owningTeams, plantOnly, type HeldShare, type OwningTeam, type ShareModel } from './policy.js';
 import { subjectUsesModule } from '../modules/access.js';
 import { isRestricted, shareActive, sharesChanged, sharesOf, toShare, type ShareRow } from './share-store.js';
 import { ACCESS_AUDIT, auditAccessChange, gainedRights, requireAccessGrant, type Gain } from './access-change.js';
@@ -161,7 +161,8 @@ function assertSuitable(kind: OwnedKind, subject: string): void {
   const info = findUserByName(name);
   if (!info) return; // a former name (alias): assertKnownSubjects decided
   const u = toAuthUser(info);
-  if (statusOnly(u) || (!plantKind && plantOnly(u))) throw unsuitable();
+  // a status viewer who is also a plant registry user (the former "plant" and "status" pair, ADR 0034) is a plant viewer
+  if ((statusOnly(u) && !moduleOnly(u)) || (!plantKind && plantOnly(u))) throw unsuitable();
 }
 
 /** An end date as stored (ISO): a day means its end (UTC); null: none. */

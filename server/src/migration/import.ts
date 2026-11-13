@@ -68,6 +68,7 @@ import { importedDefaults } from '../teams/settings.js';
 import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
+import { convertDeprecatedRoles } from '../modules/user-roles.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -1379,6 +1380,8 @@ function copyIntoTarget(
   migrateMonitorWindows();
   // a package of a version before 0.17: free-text vendors become unconfirmed suppliers (ADR 0029)
   migrateVendorTexts();
+  // a package of a version before 0.23.0: its role "plant" becomes the plant registry's contributor grant (ADR 0034)
+  convertDeprecatedRoles();
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },

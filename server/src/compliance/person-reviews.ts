@@ -17,7 +17,7 @@ import { type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { fourEyesRequired, noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
-import { restrictedModuleUses } from '../modules/access.js';
+import { moduleUsesForReview } from '../modules/access.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { canCreateChecks, canReadCheck, identitiesOf, readsEverything, same, visiblePlatformName } from './access.js';
 import { readCheckSource } from './reconciliation.js';
@@ -208,12 +208,13 @@ function toReview(u: AuthUser, r: ReviewRow): PersonReview {
 
 /**
  * The module layer of a Steward user's review (ADR 0034 part 7): the restricted modules and whether they use each,
- * through which team – read now, like Settings → Modules shows it; nothing while every module is open to everyone.
+ * through which team, and the module roles granted to them (0.23.0) – read now, like Settings → Modules shows it;
+ * nothing while every module is open to everyone and no module role is granted to them.
  */
 function personModules(username: string | null): Pick<PersonReview, 'modules'> {
   const person = username ? findUserByName(username) : undefined;
   if (!person) return {};
-  const modules = restrictedModuleUses(toAuthUser(person));
+  const modules = moduleUsesForReview(toAuthUser(person));
   return modules.length ? { modules } : {};
 }
 

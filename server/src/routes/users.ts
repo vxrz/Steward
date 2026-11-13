@@ -19,37 +19,59 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
 import { params } from './params.js';
+import { modulePolicy } from '../modules/grants.js';
+import { moduleRolesOfUser, userModuleRolesBody } from '../modules/user-roles.js';
+
+/** The administrators' user lists with each person's own module roles (0.23.0, ADR 0034): one read of the module policy. */
+function withModuleRoles(list: UserInfo[]): UserInfo[] {
+  const policy = modulePolicy();
+  return list.map((u) => ({ ...u, moduleRoles: moduleRolesOfUser(u.username, policy) }));
+}
 
 /** Users, teams and team settings (mounted under /api). */
 export async function userRoutes(app: FastifyInstance): Promise<void> {
   // ---------- users & teams ----------
   app.get('/users', { config: { access: ACCESS.admin } }, async () => {
     requireCapability(me(), 'manageUsers', 'manage users');
-    return users.listUsers();
+    return withModuleRoles(users.listUsers());
   });
-  app.post('/users', { config: { access: ACCESS.adminSession, stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } }, async (req) => {
-    requireCapability(me(), 'manageUsers', 'manage users');
-    const b = z
-      .object({
-        username: z.string().max(64),
-        displayName: z.string().max(100).optional(),
-        firstName: z.string().max(100).optional(),
-        lastName: z.string().max(100).optional(),
-        email: z.string().max(254).optional(),
-        roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
-        password: z.string().max(1024).optional(),
-        /** A single sign-on account: no password, claimed at the first sign-in through this provider only */
-        provider: z.string().max(100).optional(),
-      })
-      .parse(req.body);
-    const { provider, ...input } = b;
-    // single sign-on only: new accounts get no password and are linked by their user name at the first sign-in
-    if (provider || passwordLoginMode() === 'none') {
-      if (b.password) users.requirePasswordLogin('setting a password');
-      return users.createUser({ ...input, password: undefined, noPassword: true, provider: claimingProvider(provider).id });
-    }
-    return users.createUser({ ...input, mustChangePassword: true });
-  });
+  app.post(
+    '/users',
+    { config: { access: ACCESS.adminSession, stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } },
+    async (req, reply) => {
+      requireCapability(me(), 'manageUsers', 'manage users');
+      const b = z
+        .object({
+          username: z.string().max(64),
+          displayName: z.string().max(100).optional(),
+          firstName: z.string().max(100).optional(),
+          lastName: z.string().max(100).optional(),
+          email: z.string().max(254).optional(),
+          roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
+          password: z.string().max(1024).optional(),
+          /** A single sign-on account: no password, claimed at the first sign-in through this provider only */
+          provider: z.string().max(100).optional(),
+          /** Module roles (0.23.0, ADR 0034): a widening asks for the step-up access.grant */
+          moduleRoles: userModuleRolesBody.optional(),
+        })
+        .parse(req.body);
+      const { provider, ...input } = b;
+      deprecatedRole(reply, b.roles);
+      // single sign-on only: new accounts get no password and are linked by their user name at the first sign-in
+      if (provider || passwordLoginMode() === 'none') {
+        if (b.password) users.requirePasswordLogin('setting a password');
+        const made = users.createUser({ ...input, password: undefined, noPassword: true, provider: claimingProvider(provider).id });
+        return { ...made, user: withModuleRoles([made.user])[0]! };
+      }
+      const made = users.createUser({ ...input, mustChangePassword: true });
+      return { ...made, user: withModuleRoles([made.user])[0]! };
+    },
+  );
+  /** The deprecated role "plant" (ADR 0034 part 5): accepted for one release and turned into a module role – said in a header. */
+  function deprecatedRole(reply: FastifyReply, roles: readonly string[] | undefined): void {
+    if (roles?.includes('plant'))
+      void reply.header('deprecation', 'true').header('warning', '299 - "The role plant is deprecated: use the module role contributor of the plant registry"');
+  }
   /**
    * The provider that may claim a new account without a password: the one chosen, or the only enabled one. With several
    * enabled providers the choice is required – otherwise any of them could hand the account (and its roles) to whoever
@@ -69,7 +91,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   app.put(
     '/users/:id',
     { config: { access: ACCESS.adminSession, stepUp: { action: 'changeAccount', who: 'manageUsers', when: changesAccess } } },
-    async (req) => {
+    async (req, reply) => {
       requireCapability(me(), 'manageUsers', 'manage users');
       const b = z
         .object({
@@ -81,18 +103,22 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
           active: z.boolean().optional(),
           /** Bind a local account to a single sign-on provider (removes its password) */
           provider: z.string().max(100).optional(),
+          /** Module roles (0.23.0, ADR 0034): a widening asks for the step-up access.grant */
+          moduleRoles: userModuleRolesBody.optional(),
         })
         .parse(req.body);
       const { provider, ...patch } = b;
       const id = params(req).id!;
+      deprecatedRole(reply, b.roles);
       // one transaction: a binding is not kept when the rest of the change is refused
-      return db().tx(() => {
+      const user = db().tx(() => {
         if (provider) {
           const p = claimingProvider(provider);
           users.bindToProvider(id, p.id, p.displayName);
         }
         return Object.keys(patch).length || !provider ? users.updateUser(id, patch) : users.getUser(id);
       });
+      return withModuleRoles([user])[0]!;
     },
   );
   // a temporary password lets the administrator sign in as that person
