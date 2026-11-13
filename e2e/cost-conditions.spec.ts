@@ -176,6 +176,8 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await page.goto(`/costs/estimates/${f.viaProvider}`);
   await expect(page.getByTestId('estimate-result')).toContainText('Customer price of');
   await expect(page.getByTestId('line-breakdown').first()).toContainText('Discount 10 %');
+  // a subtracted amount with a real minus sign (U+2212), not a hyphen
+  await expect(page.getByTestId('line-breakdown').first()).toContainText('Discount 10 %: \u2212');
   await expectAccessible(page, 'estimate through a provider');
   if (mobile) await expectNoHorizontalScroll(page);
 

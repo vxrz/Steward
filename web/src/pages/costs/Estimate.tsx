@@ -42,7 +42,7 @@ import { QueryState } from '../../components/common';
 import { DetailPage } from '../../components/page/DetailPage';
 import { DataTable, type DataColumn } from '../../components/DataTable';
 import { confirmDialog } from '../../components/confirm';
-import { fmtMoney, fmtMonth, planPath } from '../../components/costs/common';
+import { fmtMoney, fmtMoneySigned, fmtMonth, planPath } from '../../components/costs/common';
 import { estimateKeys, RangeBar, RangeText } from '../../components/costs/Estimates';
 import { fmtDecimal, numberFormat } from '../../format';
 import '../../components/dashboard/viz.css';
@@ -778,17 +778,17 @@ function Breakdown({ l, currency }: { l: CostEstimateLine; currency: string }) {
   return (
     <Stack gap={0} data-testid="line-breakdown">
       <Text size="xs" c="dimmed">
-        {t('estimates.breakdown.base', { amount: fmtMoney(b.baseAmount.expected, currency), book: `${b.base.name} v${b.base.version}` })}
+        {t('estimates.breakdown.base', { amount: fmtMoneySigned(b.baseAmount.expected, currency), book: `${b.base.name} v${b.base.version}` })}
       </Text>
       <Text size="xs" c="dimmed">
-        {t('estimates.breakdown.discount', { percent: fmtDecimal(b.discountPct), amount: fmtMoney(b.discount.expected, currency) })}
+        {t('estimates.breakdown.discount', { percent: fmtDecimal(b.discountPct), amount: fmtMoneySigned(b.discount.expected, currency) })}
       </Text>
       <Text size="xs" c="dimmed">
-        {t('estimates.breakdown.markup', { percent: fmtDecimal(b.markupPct), amount: fmtMoney(b.markup.expected, currency) })}
+        {t('estimates.breakdown.markup', { percent: fmtDecimal(b.markupPct), amount: fmtMoneySigned(b.markup.expected, currency) })}
       </Text>
       {Number(b.fee.expected) !== 0 && (
         <Text size="xs" c="dimmed">
-          {t('estimates.breakdown.fee', { amount: fmtMoney(b.fee.expected, currency) })}
+          {t('estimates.breakdown.fee', { amount: fmtMoneySigned(b.fee.expected, currency) })}
         </Text>
       )}
     </Stack>
