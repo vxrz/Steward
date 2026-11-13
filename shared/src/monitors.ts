@@ -74,6 +74,7 @@ export const CHECK_TYPES = [
   'db-schema',
   'cost',
   'data-contract',
+  'data-element',
   'dependency-track',
   'version-behind',
   'entra',
@@ -601,6 +602,32 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** Status of a failed test or an error finding (default down) */
     failAs: z.enum(['down', 'degraded']).default('down'),
     /** Status of a test with warnings or a warning finding (default degraded) */
+    warningAs: z.enum(['degraded', 'up']).default('degraded'),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('data-element'),
+    /** An element of the data products catalogue (its id; ADR 0036 part 10) – its platform is the element's */
+    element: z.string().trim().min(1).max(100),
+    /**
+     * freshness: how old the element's data is by metadata – Snowflake LAST_ALTERED, the last successful refresh of a
+     * dynamic table or run of a task, Kafka's newest message (optionally a consumer group's lag); schema: its columns or
+     * fields against the ODCS contract its output port is bound to (missing fields and other types fail, nullability
+     * and extra columns warn)
+     */
+    mode: z.enum(['freshness', 'schema']).default('freshness'),
+    /** freshness: failAs when older than this (default 1440) */
+    maxAgeMinutes: z.number().int().min(1).max(525600).optional(),
+    /** A schema, database or topic bundle: any (default) – the newest table or topic counts; every – the oldest does */
+    each: z.enum(['any', 'every']).default('any'),
+    /** Kafka freshness: a consumer group whose lag is judged (degraded above maxLag) */
+    group: z.string().trim().max(255).optional(),
+    maxLag: z.number().int().min(0).optional(),
+    /** Kafka schema: the subject version compared (default: the latest) */
+    schemaVersion: z.number().int().min(1).optional(),
+    /** Status when the data is too old, or a missing field or another type (default down) */
+    failAs: z.enum(['down', 'degraded']).default('down'),
+    /** Status of a warning: nullability differs, extra columns, a failed last run of a task (default degraded) */
     warningAs: z.enum(['degraded', 'up']).default('degraded'),
   }),
   z.object({

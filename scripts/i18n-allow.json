@@ -216,7 +216,13 @@
       "Credits",
       "Tokens",
       "Definition (YAML)",
-      "{{value}} % ad hoc: {{reason}}"
+      "{{value}} % ad hoc: {{reason}}",
+      "Pipeline",
+      "Ports",
+      "Element",
+      "Snowpipe",
+      "OpenAPI",
+      "AsyncAPI"
     ]
   }
 }

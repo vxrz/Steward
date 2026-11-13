@@ -23,6 +23,8 @@ import { plantEnabled, plantSettings, updatePlantSettings } from '../plant/setti
  *
  * Stored as one internal setting (modules.settings) that names the modules an administrator switched **off**: a
  * module missing there is on, so a new or upgraded installation has everything, and a module added later starts on.
+ * A module declared `defaultOn: false` (the data products, ADR 0036) is the other way round: it is on only while the
+ * setting names it under `on`.
  * The plant registry keeps its own switch (plant.settings, ADR 0007) and the map of sites its tile source
  * (plant.map, ADR 0015) – both off until an administrator turns them on.
  *
@@ -34,14 +36,16 @@ const KEY = 'modules.settings';
 
 interface Stored {
   off: ModuleId[];
+  /** Modules that are off by default (defaultOn false, own switch here) and an administrator switched on */
+  on?: ModuleId[];
   updatedAt: string | null;
   updatedBy: string | null;
 }
 
 function stored(): Stored {
   const s = readSetting<Partial<Stored>>(KEY, {});
-  const off = Array.isArray(s.off) ? s.off.filter((id): id is ModuleId => MODULES.some((m) => m.id === id)) : [];
-  return { off, updatedAt: s.updatedAt ?? null, updatedBy: s.updatedBy ?? null };
+  const known = (xs: unknown): ModuleId[] => (Array.isArray(xs) ? xs.filter((id): id is ModuleId => MODULES.some((m) => m.id === id)) : []);
+  return { off: known(s.off), on: known(s.on), updatedAt: s.updatedAt ?? null, updatedBy: s.updatedBy ?? null };
 }
 
 /** The map of sites is on while a tile source is chosen (plant.map, plant/map.ts; read here without loading the map). */
@@ -50,16 +54,20 @@ function mapSourceOn(): boolean {
   return !!source && source !== 'off' && (MAP_SOURCES as readonly string[]).includes(source);
 }
 
-function ownSwitch(id: ModuleId, off: readonly ModuleId[]): boolean {
+/** Off by default with its switch in modules.settings: on only while `on` names it. */
+const optIn = (id: ModuleId): boolean => !moduleDef(id).defaultOn && id !== 'plant' && id !== 'plantMap';
+
+function ownSwitch(id: ModuleId, s: Pick<Stored, 'off' | 'on'>): boolean {
   if (id === 'plant') return plantEnabled();
   if (id === 'plantMap') return mapSourceOn();
-  return !off.includes(id);
+  if (optIn(id)) return !!s.on?.includes(id);
+  return !s.off.includes(id);
 }
 
 /** Whether a module is on (and the module it requires, too). */
 export function moduleEnabled(id: ModuleId): boolean {
-  const off = stored().off;
-  for (let m: ModuleId | undefined = id; m; m = moduleDef(m).requires) if (!ownSwitch(m, off)) return false;
+  const s = stored();
+  for (let m: ModuleId | undefined = id; m; m = moduleDef(m).requires) if (!ownSwitch(m, s)) return false;
   return true;
 }
 
@@ -123,7 +131,7 @@ export function modulesView(): ModulesView {
 /** Whether switching `id` to `enabled` changes anything (the step-up of PUT /api/settings/modules/:id asks only then). */
 export function switchChanges(id: ModuleId, enabled: boolean): boolean {
   if (id === 'plant') return plantEnabled() !== enabled;
-  return !stored().off.includes(id) !== enabled;
+  return ownSwitch(id, stored()) !== enabled;
 }
 
 /** Switches a module on or off (administrators; the route asks for a step-up). Audited; the data stays. */
@@ -138,8 +146,10 @@ export function switchModule(id: ModuleId, enabled: boolean, onPlantEnabled?: ()
     updatePlantSettings({ enabled, enterprise: p.enterprise, labels: p.labels, fields: p.fields }, onPlantEnabled);
   } else {
     const s = stored();
-    const off = enabled ? s.off.filter((x) => x !== id) : [...s.off, id];
-    writeSetting(KEY, { off, updatedAt: nowIso(), updatedBy: u.username } satisfies Stored);
+    const next: Pick<Stored, 'off' | 'on'> = optIn(id)
+      ? { off: s.off, on: enabled ? [...(s.on ?? []), id] : (s.on ?? []).filter((x) => x !== id) }
+      : { off: enabled ? s.off.filter((x) => x !== id) : [...s.off, id], on: s.on ?? [] };
+    writeSetting(KEY, { ...next, updatedAt: nowIso(), updatedBy: u.username } satisfies Stored);
     audit({
       action: enabled ? 'module.enabled' : 'module.disabled',
       entityType: 'settings',

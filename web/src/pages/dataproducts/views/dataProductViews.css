@@ -1,0 +1,85 @@
+/* The data products pictures (ADR 0036 part 13): built on the plant views' styles (views.css) – the node, edge, area
+   and animation classes – with what is their own: neighbours outside the product greyed, the selection and search
+   matches, step nodes, column headers, product areas. Nothing here relies on colour alone: every state has a word. */
+
+.dpv-node {
+  height: 92px;
+}
+/* the kind stays on one line beside the health badge (long German words: "Snowflake-Tabelle") */
+.dpv-node .pv-node-kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dpv-pan-hint {
+  max-width: min(26rem, calc(100% - 24px));
+  padding: 4px 8px;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-xs);
+}
+.dpv-node[data-outside='true'] {
+  background: var(--mantine-color-default-hover);
+  border-style: dashed;
+  border-left-style: solid;
+}
+.dpv-node[data-hidden='true'] {
+  border-style: dashed;
+}
+.dpv-node[data-selected='true'],
+.dpv-step[data-selected='true'] {
+  box-shadow: 0 0 0 3px var(--pv-hl);
+}
+.dpv-node[data-match='true'],
+.dpv-step[data-match='true'] {
+  outline: 2px dashed var(--pv-hl);
+  outline-offset: 3px;
+}
+.dpv-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+  transition: opacity 180ms ease;
+}
+.dpv-step[data-dim='true'] {
+  opacity: 0.28;
+}
+.dpv-step[data-hl='true'] {
+  border-color: var(--pv-hl);
+}
+.dpv-area {
+  border: 1.5px solid var(--mantine-color-default-border);
+  background: color-mix(in srgb, var(--mantine-color-blue-light) 40%, var(--mantine-color-body));
+}
+.dpv-area[data-kind='domain'] {
+  background: color-mix(in srgb, var(--mantine-color-gray-light) 50%, var(--mantine-color-body));
+}
+.dpv-col-header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+  text-align: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  pointer-events: none;
+}
+.dpv-graph .react-flow__node-header,
+.dpv-graph .react-flow__node-area {
+  pointer-events: none;
+}
+.dpv-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--mantine-color-default-border);
+}

@@ -1,0 +1,246 @@
+import { useState } from 'react';
+import { Alert, Anchor, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Table, Text } from '@mantine/core';
+import { IconDownload, IconFileExport, IconFileImport, IconFileUpload } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
+import { DATA_PRODUCT_IMPORT_MODES, type DataProductImportMode, type DataProductImportPreview, type DataProductImportResult } from '@sm/shared';
+import { apiUrl, notifyOk, post } from '../../api';
+import { FormModal, FormModalCancel } from '../FormModal';
+import { TableScroll } from '../TableScroll';
+import { Breakable } from '../../pages/dataproducts/parts';
+import { useBusy } from './form';
+
+/**
+ * Import and export of the data products module on the pages (ADR 0036 part 15, docs/DATA-PRODUCTS.md "File format,
+ * import and export"): downloads of Steward's file format (YAML or JSON) and of ODPS, and the import dialog – files,
+ * mode, a preview of what it adds, changes and skips, then the import with the preview's fingerprint (a change in
+ * between is refused). Imports are made in a signed-in session; owners named from outside the owning teams ask for
+ * the confirmation (step-up) as on the forms.
+ */
+
+const MAX_BYTES = 8 * 1024 * 1024;
+const enc = encodeURIComponent;
+
+/** Download addresses of the module's files. */
+export const transferUrls = {
+  all: (format: 'yaml' | 'json', domain?: string) => apiUrl(`/data-products/export?format=${format}${domain ? `&domain=${enc(domain)}` : ''}`),
+  product: (id: string, format: 'yaml' | 'json') => apiUrl(`/data-products/${enc(id)}/export?format=${format}`),
+  odps: (id: string) => apiUrl(`/data-products/${enc(id)}/odps`),
+  schema: () => apiUrl('/data-products/schema'),
+};
+
+/** The products list's _Import and export_ menu: everything the reader may see (or the filtered domain), and Import. */
+export function TransferMenu({ domain, canImport, onImport }: { domain?: string; canImport: boolean; onImport: () => void }) {
+  const { t } = useTranslation('dataProducts');
+  return (
+    <Menu position="bottom-end" withinPortal shadow="md">
+      <Menu.Target>
+        <Button size="xs" variant="default" leftSection={<IconFileExport size={14} />} data-testid="products-transfer">
+          {t('transfer.menu')}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{domain ? t('transfer.exportDomain') : t('transfer.exportAll')}</Menu.Label>
+        <Menu.Item component="a" href={transferUrls.all('yaml', domain)} leftSection={<IconDownload size={14} />} data-testid="products-export-yaml">
+          {t('transfer.yaml')}
+        </Menu.Item>
+        <Menu.Item component="a" href={transferUrls.all('json', domain)} leftSection={<IconDownload size={14} />} data-testid="products-export-json">
+          {t('transfer.json')}
+        </Menu.Item>
+        {canImport && (
+          <>
+            <Menu.Divider />
+            <Menu.Item leftSection={<IconFileImport size={14} />} onClick={onImport} data-testid="products-import">
+              {t('transfer.import')}
+            </Menu.Item>
+          </>
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+/** The product page's menu entries: the product as YAML or JSON, and as ODPS. */
+export function ProductTransferItems({ id }: { id: string }) {
+  const { t } = useTranslation('dataProducts');
+  return (
+    <>
+      <Menu.Divider />
+      <Menu.Label>{t('transfer.exportProduct')}</Menu.Label>
+      <Menu.Item component="a" href={transferUrls.product(id, 'yaml')} leftSection={<IconDownload size={14} />} data-testid="product-export-yaml">
+        {t('transfer.yaml')}
+      </Menu.Item>
+      <Menu.Item component="a" href={transferUrls.product(id, 'json')} leftSection={<IconDownload size={14} />} data-testid="product-export-json">
+        {t('transfer.json')}
+      </Menu.Item>
+      <Menu.Item component="a" href={transferUrls.odps(id)} leftSection={<IconDownload size={14} />} data-testid="product-export-odps">
+        {t('transfer.odps')}
+      </Menu.Item>
+    </>
+  );
+}
+
+const show = (v: unknown): string => {
+  if (v === null || v === undefined || v === '') return '–';
+  const s = typeof v === 'string' ? v : JSON.stringify(v);
+  return s.length > 120 ? `${s.slice(0, 119)}…` : s;
+};
+
+const ACTION_COLOR = { add: 'green', change: 'blue', unchanged: 'gray', skip: 'orange' } as const;
+
+/** Import files of Steward's format: choose, preview, import. */
+export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation(['dataProducts', 'common']);
+  const [files, setFiles] = useState<File[]>([]);
+  const [mode, setMode] = useState<DataProductImportMode>('add');
+  const [preview, setPreview] = useState<DataProductImportPreview | null>(null);
+  const [busy, run] = useBusy();
+  const tooLarge = files.reduce((n, f) => n + f.size, 0) > MAX_BYTES;
+  const body = async () => ({ mode, files: await Promise.all(files.map(async (f) => ({ name: f.name, content: await f.text() }))) });
+  const check = () =>
+    run(async () => {
+      setPreview(await post<DataProductImportPreview>('/data-products/import/preview', await body()));
+    }, t('transfer.previewFailed'));
+  const apply = () =>
+    run(async () => {
+      const r = await post<DataProductImportResult>('/data-products/import', { ...(await body()), fingerprint: preview?.fingerprint });
+      notifyOk(t('transfer.done', { add: r.counts.add, change: r.counts.change, unchanged: r.counts.unchanged, skip: r.counts.skip }));
+      onDone();
+    }, t('transfer.failed'));
+  const changed = (next: () => void) => {
+    next();
+    setPreview(null);
+  };
+  const shown = preview?.changes.filter((c) => c.action !== 'unchanged') ?? [];
+  return (
+    <FormModal title={t('transfer.importTitle')} onClose={onClose} size="xl" dirty={files.length > 0}>
+      <Stack gap="sm">
+        <Text size="sm">
+          {t('transfer.importIntro')}{' '}
+          <Anchor href={transferUrls.schema()} target="_blank" size="sm">
+            {t('transfer.schema')}
+          </Anchor>
+        </Text>
+        <FileInput
+          label={t('transfer.files')}
+          description={t('transfer.filesHint')}
+          multiple
+          clearable
+          clearButtonProps={{ 'aria-label': t('transfer.clearFiles') }}
+          accept=".yaml,.yml,.json,application/yaml,application/json"
+          leftSection={<IconFileUpload size={16} />}
+          value={files}
+          onChange={(v) => changed(() => setFiles(v ?? []))}
+          error={tooLarge ? t('transfer.tooLarge') : undefined}
+          data-testid="import-files"
+        />
+        <div>
+          <Text size="sm" fw={500} mb={4} id="import-mode-label">
+            {t('transfer.mode')}
+          </Text>
+          <SegmentedControl
+            aria-labelledby="import-mode-label"
+            size="xs"
+            value={mode}
+            onChange={(v) => changed(() => setMode(v as DataProductImportMode))}
+            data={DATA_PRODUCT_IMPORT_MODES.map((m) => ({ value: m, label: t(`transfer.modes.${m}`) }))}
+            data-testid="import-mode"
+          />
+          <Text size="xs" c="dimmed" mt={4}>
+            {t(`transfer.modeHints.${mode}`)}
+          </Text>
+        </div>
+        {preview && (
+          <Stack gap="xs" data-testid="import-preview">
+            <Group gap="xs">
+              {(['add', 'change', 'unchanged', 'skip'] as const).map((a) => (
+                <Badge key={a} color={ACTION_COLOR[a]} variant="light" tt="none" data-testid={`import-count-${a}`}>
+                  {t(`transfer.counts.${a}`, { count: preview.counts[a] })}
+                </Badge>
+              ))}
+            </Group>
+            {preview.problems.length > 0 && (
+              <Alert color="red" variant="light" title={t('transfer.problems', { count: preview.problems.length })} data-testid="import-problems">
+                <List size="sm" spacing={2}>
+                  {preview.problems.map((p, i) => (
+                    <List.Item key={i} style={{ overflowWrap: 'anywhere' }}>
+                      {[p.file, p.path].filter(Boolean).join(' · ')}: {p.message}
+                    </List.Item>
+                  ))}
+                </List>
+              </Alert>
+            )}
+            {preview.warnings.length > 0 && (
+              <Alert color="yellow" variant="light" title={t('transfer.warnings')}>
+                <List size="sm" spacing={2}>
+                  {preview.warnings.map((w) => (
+                    <List.Item key={w}>{w}</List.Item>
+                  ))}
+                </List>
+              </Alert>
+            )}
+            {shown.length > 0 && (
+              <TableScroll style={{ maxHeight: 360 }}>
+                <Table fz="sm" striped aria-label={t('transfer.changes')}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th scope="col">{t('transfer.what')}</Table.Th>
+                      <Table.Th scope="col">{t('transfer.key')}</Table.Th>
+                      <Table.Th scope="col">{t('transfer.action')}</Table.Th>
+                      <Table.Th scope="col">{t('transfer.detail')}</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {shown.map((c, i) => (
+                      <Table.Tr key={i}>
+                        <Table.Td>{t(`transfer.kinds.${c.kind}`)}</Table.Td>
+                        <Table.Td className="mono" style={{ overflowWrap: 'break-word' }}>
+                          <Breakable text={c.key} />
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light" tt="none">
+                            {t(`transfer.actions.${c.action}`)}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td style={{ overflowWrap: 'break-word' }}>
+                          {c.action === 'skip'
+                            ? (c.reason ?? '')
+                            : c.fields.map((f) => (
+                                <Text key={f.field} size="xs">
+                                  <span className="mono">{f.field}</span>: {show(f.before)} → {show(f.after)}
+                                </Text>
+                              ))}
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </TableScroll>
+            )}
+          </Stack>
+        )}
+        <Group justify="flex-end" mt="sm">
+          <FormModalCancel />
+          <Button
+            variant={preview ? 'default' : 'filled'}
+            onClick={() => void check()}
+            loading={busy && !preview}
+            disabled={!files.length || tooLarge}
+            data-testid="import-preview-run"
+          >
+            {t('transfer.preview')}
+          </Button>
+          {preview && (
+            <Button
+              onClick={() => void apply()}
+              loading={busy}
+              disabled={preview.problems.length > 0 || preview.counts.add + preview.counts.change === 0}
+              data-testid="import-run"
+            >
+              {t('transfer.run')}
+            </Button>
+          )}
+        </Group>
+      </Stack>
+    </FormModal>
+  );
+}

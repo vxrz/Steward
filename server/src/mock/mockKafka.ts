@@ -1,5 +1,6 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { KafkaReader, RawMessage } from '../kafka/client.js';
+import { DISCOVERY_TOPIC_CONFIGS, type KafkaReader, type RawMessage } from '../kafka/client.js';
 
 /**
  * A simulated Kafka cluster and Schema Registry for demo mode and tests (#112). The cluster is reached through the
@@ -11,6 +12,10 @@ import type { KafkaReader, RawMessage } from '../kafka/client.js';
  *   shop-events   compacted, 1 partition, retention -1
  *   shop.public.orders, shop.public.customers   written by the Debezium connector shop-cdc of Kafka Connect (demo,
  *                 mockKafkaConnect.ts); the sink connector orders-archive reads orders as group connect-orders-archive
+ *
+ * Every topic has a topic id (a new one when it is created again). For data products discovery (ADR 0036) tests add
+ * many topics at once (addKafkaTopics), remove or recreate one, and read which reader calls were made (kafkaCalls –
+ * discovery lists and describes topics, never peeks or reads groups).
  */
 
 export const DEMO_KAFKA = { username: 'DEMOKEY', password: 'demo-kafka-secret', registryKey: 'SRKEY', registrySecret: 'demo-registry-secret' };
@@ -18,6 +23,8 @@ export const DEMO_KAFKA = { username: 'DEMOKEY', password: 'demo-kafka-secret', 
 const MIN = 60_000;
 
 interface Topic {
+  /** the topic id (base64url of 16 bytes, as Kafka shows it) */
+  id?: string;
   partitions: number;
   replication: number;
   configs: Record<string, string>;
@@ -101,10 +108,29 @@ function seed() {
     // the sink connector orders-archive (Kafka Connect, #223): one of its two tasks failed
     'connect-orders-archive': { state: 'Stable', committed: { orders: [4150, 4100, 4210] } },
   };
+  for (const [name, t] of Object.entries(topics)) t.id = topicId(name, 0);
   return { topics, groups };
 }
 
+/** A stable topic id per name and generation (a topic created again gets a new one). */
+function topicId(name: string, generation: number): string {
+  return crypto.createHash('sha256').update(`${name}#${generation}`).digest().subarray(0, 16).toString('base64url');
+}
+let generation = 0;
+
 let data = seed();
+
+/** Reader calls since the last reset (method and topic or count), for the metadata-only test of discovery. */
+let calls: string[] = [];
+export function kafkaCalls(): string[] {
+  return [...calls];
+}
+export function resetKafkaCalls(): void {
+  calls = [];
+}
+const record = (what: string) => {
+  if (calls.length < 10_000) calls.push(what);
+};
 
 /** For tests and the demo: new messages on a topic (the newest now), a group's commits, the state of a group. */
 export function produceKafka(topic: string, n = 1): void {
@@ -120,6 +146,7 @@ export function commitKafka(group: string, topic: string, committed: number[]): 
 /** For tests and the demo: a new (empty) topic – "Add topics by prefix" offers it (v0.4.0). */
 export function addKafkaTopic(name: string, partitions = 1): void {
   data.topics[name] ??= {
+    id: topicId(name, ++generation),
     partitions,
     replication: 3,
     configs: { 'cleanup.policy': 'delete', 'retention.ms': '604800000' },
@@ -128,32 +155,62 @@ export function addKafkaTopic(name: string, partitions = 1): void {
     messages: [],
   };
 }
+/** For tests (data products discovery at scale): `count` empty topics `<prefix>0` … */
+export function addKafkaTopics(prefix: string, count: number, partitions = 3): void {
+  for (let i = 0; i < count; i++) addKafkaTopic(`${prefix}${i}`, partitions);
+}
+/** For tests: a topic deleted from the cluster. */
+export function removeKafkaTopic(name: string): void {
+  delete data.topics[name];
+}
+/** For tests: a topic deleted and created again under the same name – it gets a new topic id. */
+export function recreateKafkaTopic(name: string): void {
+  const t = data.topics[name];
+  if (t) t.id = topicId(name, ++generation);
+}
 export function resetKafka(): void {
   data = seed();
   schemas = seedSchemas();
+  calls = [];
+  registryPaths = [];
 }
 
 export function demoKafkaReader(): KafkaReader {
   return {
     async listTopics() {
+      record('listTopics');
       return Object.keys(data.topics);
     },
     async topic(name) {
+      record(`topic ${name}`);
       const t = data.topics[name];
       return t ? { name, partitions: t.partitions, replicationFactor: t.replication, configs: { ...t.configs } } : null;
     },
+    async describeTopics(names) {
+      record(`describeTopics ${names.length}`);
+      return names.flatMap((name) => {
+        const t = data.topics[name];
+        if (!t) return [];
+        const configs = Object.fromEntries(Object.entries(t.configs).filter(([k]) => (DISCOVERY_TOPIC_CONFIGS as readonly string[]).includes(k)));
+        return [{ name, id: t.id ?? null, partitions: t.partitions, replicationFactor: t.replication, configs }];
+      });
+    },
     async ends(topic) {
+      record(`ends ${topic}`);
       return (data.topics[topic]?.ends ?? []).map((end, partition) => ({ partition, end }));
     },
     async newest(topic) {
+      record(`newest ${topic}`);
       return data.topics[topic]?.newest ?? null;
     },
     async groups(topic, only) {
+      record(`groups ${topic}`);
       return Object.entries(data.groups)
         .filter(([g, x]) => x.committed[topic] && (!only?.length || only.includes(g)))
         .map(([group, x]) => ({ group, state: x.state, committed: new Map(x.committed[topic]!.map((o, p) => [p, o])) }));
     },
     async peek(topic, count): Promise<RawMessage[]> {
+      record(`peek ${topic}`);
       return (data.topics[topic]?.messages ?? [])
         .slice(-count)
         .reverse()
@@ -212,7 +269,17 @@ export function registerSchema(subject: string, schema: string, schemaType = 'AV
   return version;
 }
 
+/** Schema Registry paths asked since the last reset (the metadata-only test of discovery). */
+let registryPaths: string[] = [];
+export function registryCalls(): string[] {
+  return [...registryPaths];
+}
+export function resetRegistryCalls(): void {
+  registryPaths = [];
+}
+
 function authorized(req: FastifyRequest, reply: FastifyReply): boolean {
+  if (registryPaths.length < 10_000) registryPaths.push(`${req.method} ${req.url.split('?')[0]}`);
   if (req.headers.authorization !== `Basic ${Buffer.from(`${DEMO_KAFKA.registryKey}:${DEMO_KAFKA.registrySecret}`).toString('base64')}`) {
     void reply.code(401).send({ error_code: 401, message: 'Unauthorized' });
     return false;

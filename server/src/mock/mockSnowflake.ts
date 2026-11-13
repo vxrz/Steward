@@ -4,6 +4,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
+import { dataElementAnswer } from './mockDataElements.js';
 
 /**
  * A demo Snowflake account (#115) under /mock/snowflake: the SQL API (POST /api/v2/statements) answering the
@@ -15,6 +16,14 @@ import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
  * ROLE (from the same grants as GRANTS_TO_ROLES / GRANTS_TO_USERS), and SELECTs from ACCOUNT_USAGE.USERS,
  * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list. The
  * cost estimate and the waste check (0.21.0) are answered from mockSnowflakeUsage.ts, with SHOW WAREHOUSES.
+ * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list.
+ *
+ * Data products discovery (ADR 0036 part 5, tags steward:dp-…) reads a catalogue of its own (CATALOGUE below): the
+ * databases SHOP, SHOP_DEV and CRM with tables, views, a secure view, dynamic tables, streams, tasks, stages and pipes,
+ * each with a TABLE_ID – from <db>.INFORMATION_SCHEMA (SCHEMATA, TABLES, VIEWS), from ACCOUNT_USAGE (DATABASES,
+ * SCHEMATA, TABLES, VIEWS) and from SHOW … IN DATABASE / IN SCHEMA. Large results come in partitions (GET
+ * /api/v2/statements/{handle}?partition=n), as the SQL API sends them. Tests add many objects (addSnowflakeBulk),
+ * rename or drop one, and read every statement sent (snowflakeStatements) for the metadata-only allow-list.
  */
 
 export const DEMO_SNOWFLAKE = { account: 'DEMO12345', user: 'STEWARD_READER', role: 'STEWARD_READ', warehouse: 'STEWARD_WH' };
@@ -393,6 +402,368 @@ function untagged(sql: string, arg: (i: number) => string): { names: string[]; r
   return { error: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 60)})` };
 }
 
+// ---------- data products discovery (ADR 0036 part 5) ----------
+
+/** One object of the discovery catalogue (database, schema and name upper case, as unquoted identifiers are stored). */
+export interface SnowflakeCatalogueObject {
+  database: string;
+  schema: string;
+  name: string;
+  /** TABLES.TABLE_TYPE, or what SHOW lists */
+  type: 'BASE TABLE' | 'VIEW' | 'MATERIALIZED VIEW' | 'EXTERNAL TABLE' | 'DYNAMIC TABLE' | 'STREAM' | 'TASK' | 'STAGE' | 'PIPE';
+  id: number;
+  rows?: number | null;
+  bytes?: number | null;
+  /** hours since the last change */
+  alteredHours?: number;
+  secure?: boolean;
+  transient?: boolean;
+  /** stream: its table; task: its schedule; stage: EXTERNAL or INTERNAL */
+  detail?: string;
+}
+
+const SEEDED_DATABASES = ['SHOP', 'SHOP_DEV', 'CRM', 'PRD_SDC_OPQ_PBI_DEV'];
+
+function seedCatalogue(): SnowflakeCatalogueObject[] {
+  let id = 1000;
+  const o = (database: string, schema: string, name: string, type: SnowflakeCatalogueObject['type'], more: Partial<SnowflakeCatalogueObject> = {}) => ({
+    database,
+    schema,
+    name,
+    type,
+    id: ++id,
+    rows: type === 'BASE TABLE' || type === 'DYNAMIC TABLE' ? 1000 + id : null,
+    bytes: type === 'BASE TABLE' || type === 'DYNAMIC TABLE' ? 64_000 + id * 10 : null,
+    alteredHours: 2,
+    ...more,
+  });
+  const out: SnowflakeCatalogueObject[] = TABLES.map((t) =>
+    o(t.catalog, t.schema, t.name, t.type as SnowflakeCatalogueObject['type'], { rows: t.rows, bytes: t.bytes, alteredHours: t.altered / H }),
+  );
+  // the pipeline of the demo's Orders product, in dev and prod (the environment rule SHOP_DEV → dev)
+  for (const db of ['SHOP', 'SHOP_DEV'])
+    out.push(
+      o(db, 'RAW', 'ORDERS_RAW', 'BASE TABLE', { transient: true }),
+      o(db, 'RAW', 'ORDERS_RAW_CHANGES', 'STREAM', { detail: `${db}.RAW.ORDERS_RAW` }),
+      o(db, 'RAW', 'LANDING', 'STAGE', { detail: 'EXTERNAL' }),
+      o(db, 'RAW', 'ORDERS_PIPE', 'PIPE'),
+      o(db, 'STAGED', 'ORDERS', 'BASE TABLE'),
+      o(db, 'STAGED', 'LOAD_ORDERS', 'TASK', { detail: 'USING CRON 0 * * * * UTC' }),
+      o(db, 'CURATED', 'ORDERS', 'DYNAMIC TABLE'),
+      o(db, 'CURATED', 'CUSTOMERS', 'BASE TABLE'),
+      o(db, 'MART', 'DAILY_SALES', 'VIEW', { secure: true }),
+      o(db, 'MART', 'ORDERS_BY_REGION', 'MATERIALIZED VIEW'),
+    );
+  return out;
+}
+
+let catalogue = seedCatalogue();
+let bulk: SnowflakeCatalogueObject[] = [];
+let catalogueDatabases = [...SEEDED_DATABASES];
+let nextObjectId = 900_000;
+/** SCHEMA_IDs and DATABASE_IDs (key `#DB`), unique in the account (an object keeps its id while it exists) */
+const schemaIds = new Map<string, number>();
+const schemaId = (qualified: string): number => {
+  let id = schemaIds.get(qualified);
+  if (id === undefined) schemaIds.set(qualified, (id = 100 + schemaIds.size));
+  return id;
+};
+
+/** Every object of the discovery catalogue (the seeded ones and the bulk ones). */
+const objects = (): SnowflakeCatalogueObject[] => (bulk.length ? [...catalogue, ...bulk] : catalogue);
+
+/** For tests: the seeded catalogue again, without bulk objects. */
+export function resetSnowflakeCatalogue(): void {
+  catalogue = seedCatalogue();
+  bulk = [];
+  catalogueDatabases = [...SEEDED_DATABASES];
+  statements = [];
+}
+
+/** TABLE_IDs of bulk objects: never used twice in a process (a dropped table's id is not given to another) */
+let bulkId = 2_000_000;
+
+/** For tests at scale: a database with `schemas` × `tablesPerSchema` tables (TABLE_IDs from 2,000,000). */
+export function addSnowflakeBulk(database: string, schemas: number, tablesPerSchema: number): void {
+  if (!catalogueDatabases.includes(database)) catalogueDatabases.push(database);
+  for (let s = 0; s < schemas; s++)
+    for (let t = 0; t < tablesPerSchema; t++)
+      bulk.push({ database, schema: `S${s}`, name: `T${t}`, type: 'BASE TABLE', id: ++bulkId, rows: t, bytes: t * 100, alteredHours: 1 });
+}
+
+/** For tests: an object renamed in Snowflake (ALTER … RENAME: the same TABLE_ID under a new name). */
+export function renameSnowflakeObject(qualified: string, newName: string): void {
+  const x = objects().find((o) => `${o.database}.${o.schema}.${o.name}` === qualified);
+  if (x) x.name = newName;
+}
+
+/** For tests: an object dropped in Snowflake. */
+export function dropSnowflakeObject(qualified: string): void {
+  catalogue = catalogue.filter((o) => `${o.database}.${o.schema}.${o.name}` !== qualified);
+  bulk = bulk.filter((o) => `${o.database}.${o.schema}.${o.name}` !== qualified);
+}
+
+/** For tests: a new object (a new TABLE_ID). */
+export function addSnowflakeObject(x: Omit<SnowflakeCatalogueObject, 'id'>): void {
+  catalogue.push({ ...x, id: ++nextObjectId });
+}
+
+/** Statements sent since the last reset, with their bindings (the metadata-only allow-list of discovery). */
+let statements: { sql: string; bindings: string[] }[] = [];
+export function snowflakeStatements(): { sql: string; bindings: string[] }[] {
+  return [...statements];
+}
+export function resetSnowflakeStatements(): void {
+  statements = [];
+}
+
+/** Snowflake's ORDER BY on names without a collation: by code points (and quick for a large catalogue). */
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+const TABLE_KINDS = new Set(['BASE TABLE', 'VIEW', 'MATERIALIZED VIEW', 'EXTERNAL TABLE']);
+
+/** The scope of a discovery statement from its bindings: databases (`DB`) and schemas (`DB.SCHEMA`); '' is nothing. */
+function scopeOf(bindings: string[]): (o: { database: string; schema: string }) => boolean {
+  const dbs = new Set(bindings.filter((b) => b && !b.includes('.')));
+  const schemas = new Set(bindings.filter((b) => b.includes('.') && b.split('.').length === 2));
+  return (o) => dbs.has(o.database) || schemas.has(`${o.database}.${o.schema}`);
+}
+
+/**
+ * Answers of the discovery statements (tags dp-…), as rows by column name; an unknown database is the SQL API's
+ * "does not exist or not authorized". `arg(1)` of the information schema statements is `<DB>.INFORMATION_SCHEMA.<VIEW>`.
+ */
+function discoveryAnswer(tag: string, sql: string, args: string[]): { names: string[]; rows: Cell[][] } | { error: string } {
+  const inInfoSchema = (): { database: string; rest: string[] } | { error: string } => {
+    const [database] = (args[0] ?? '').split('.');
+    if (!database || !catalogueDatabases.includes(database))
+      return { error: `SQL compilation error:\nDatabase '${database ?? ''}' does not exist or not authorized.` };
+    return { database, rest: args.slice(1) };
+  };
+  const limit = Number(/LIMIT (\d+)/.exec(sql)?.[1] ?? 1_000_000);
+  const ts = (h: number | undefined) => iso((h ?? 1) * H);
+  const n = (v: number | null | undefined) => (v === null || v === undefined ? null : String(v));
+  switch (tag) {
+    case 'dp-schemata': {
+      const s = inInfoSchema();
+      if ('error' in s) return s;
+      const names = [
+        ...new Set(
+          objects()
+            .filter((o) => o.database === s.database)
+            .map((o) => o.schema),
+        ),
+      ]
+        .filter((x) => !s.rest.length || s.rest.includes(x))
+        .sort();
+      return { names: ['SCHEMA_NAME', 'LAST_ALTERED'], rows: names.slice(0, limit).map((x) => [x, ts(24)]) };
+    }
+    case 'dp-secure-views': {
+      const s = inInfoSchema();
+      if ('error' in s) return s;
+      return {
+        names: ['TABLE_SCHEMA', 'TABLE_NAME'],
+        rows: objects()
+          .filter((o) => o.database === s.database && o.secure && (!s.rest.length || s.rest.includes(o.schema)))
+          .slice(0, limit)
+          .map((o) => [o.schema, o.name]),
+      };
+    }
+    case 'dp-tables': {
+      const s = inInfoSchema();
+      if ('error' in s) return s;
+      return {
+        names: ['TABLE_SCHEMA', 'TABLE_NAME', 'TABLE_TYPE', 'IS_TRANSIENT', 'ROW_COUNT', 'BYTES', 'LAST_ALTERED'],
+        rows: objects()
+          .filter((o) => o.database === s.database && (TABLE_KINDS.has(o.type) || o.type === 'DYNAMIC TABLE') && (!s.rest.length || s.rest.includes(o.schema)))
+          .sort((a, b) => cmp(a.schema, b.schema) || cmp(a.name, b.name))
+          .slice(0, limit)
+          .map((o) => [
+            o.schema,
+            o.name,
+            o.type === 'DYNAMIC TABLE' ? 'BASE TABLE' : o.type,
+            o.transient ? 'YES' : 'NO',
+            n(o.rows),
+            n(o.bytes),
+            ts(o.alteredHours),
+          ]),
+      };
+    }
+    case 'dp-au-databases':
+      return {
+        names: ['DATABASE_ID', 'DATABASE_NAME'],
+        rows: catalogueDatabases.flatMap((d) => (args.includes(d) ? [[String(schemaId(`#${d}`)), d]] : [])),
+      };
+    case 'dp-au-schemata': {
+      const inScope = scopeOf(args);
+      const seen = new Map<string, Cell[]>();
+      for (const o of objects()) {
+        const k = `${o.database}.${o.schema}`;
+        if (inScope(o) && !seen.has(k)) seen.set(k, [String(schemaId(k)), o.database, o.schema]);
+      }
+      return { names: ['SCHEMA_ID', 'CATALOG_NAME', 'SCHEMA_NAME'], rows: [...seen.values()].slice(0, limit) };
+    }
+    case 'dp-au-secure-views': {
+      const inScope = scopeOf(args);
+      return {
+        names: ['TABLE_CATALOG', 'TABLE_SCHEMA', 'TABLE_NAME'],
+        rows: objects()
+          .filter((o) => o.secure && inScope(o))
+          .slice(0, limit)
+          .map((o) => [o.database, o.schema, o.name]),
+      };
+    }
+    case 'dp-au-tables': {
+      const inScope = scopeOf(args);
+      return {
+        names: ['TABLE_ID', 'TABLE_CATALOG', 'TABLE_SCHEMA', 'TABLE_NAME', 'TABLE_TYPE', 'IS_TRANSIENT', 'ROW_COUNT', 'BYTES', 'LAST_ALTERED'],
+        rows: objects()
+          .filter((o) => (TABLE_KINDS.has(o.type) || o.type === 'DYNAMIC TABLE') && inScope(o))
+          .sort((a, b) => cmp(a.database, b.database) || cmp(a.schema, b.schema) || cmp(a.name, b.name))
+          .slice(0, limit)
+          .map((o) => [
+            String(o.id),
+            o.database,
+            o.schema,
+            o.name,
+            o.type === 'DYNAMIC TABLE' ? 'BASE TABLE' : o.type,
+            o.transient ? 'YES' : 'NO',
+            n(o.rows),
+            n(o.bytes),
+            ts(o.alteredHours),
+          ]),
+      };
+    }
+    case 'dp-show': {
+      // SHOW <WHAT> IN DATABASE "DB" | IN SCHEMA "DB"."S" – quoted identifiers, as discovery sends them
+      const m = /SHOW (DYNAMIC TABLES|STREAMS|TASKS|STAGES|PIPES) IN (DATABASE|SCHEMA) "([A-Z0-9_$]+)"(?:\."([A-Z0-9_$]+)")?$/.exec(
+        sql.replace(/^\/\*[^*]*\*\/\s*/, '').trim(),
+      );
+      if (!m) return { error: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 80)})` };
+      const [, what, , database, schema] = m;
+      if (!catalogueDatabases.includes(database!)) return { error: `SQL compilation error:\nDatabase '${database}' does not exist or not authorized.` };
+      const types: Record<string, SnowflakeCatalogueObject['type']> = {
+        'DYNAMIC TABLES': 'DYNAMIC TABLE',
+        STREAMS: 'STREAM',
+        TASKS: 'TASK',
+        STAGES: 'STAGE',
+        PIPES: 'PIPE',
+      };
+      const type = types[what!]!;
+      const of = objects().filter((o) => o.type === type && o.database === database && (!schema || o.schema === schema));
+      const created = epoch(30 * DAY);
+      switch (type) {
+        case 'DYNAMIC TABLE':
+          return {
+            names: [
+              'created_on',
+              'name',
+              'database_name',
+              'schema_name',
+              'rows',
+              'bytes',
+              'owner',
+              'target_lag',
+              'refresh_mode',
+              'warehouse',
+              'scheduling_state',
+              'text',
+            ],
+            rows: of.map((o) => [
+              created,
+              o.name,
+              o.database,
+              o.schema,
+              n(o.rows),
+              n(o.bytes),
+              'TRANSFORMER',
+              '1 hour',
+              'INCREMENTAL',
+              'TRANSFORM_WH',
+              'RUNNING',
+              `create or replace dynamic table ${o.name} as select * from secret_source`,
+            ]),
+          };
+        case 'STREAM':
+          return {
+            names: ['created_on', 'name', 'database_name', 'schema_name', 'owner', 'table_name', 'source_type', 'type', 'stale', 'mode'],
+            rows: of.map((o) => [created, o.name, o.database, o.schema, 'LOADER', o.detail ?? null, 'Table', 'DELTA', 'false', 'APPEND_ONLY']),
+          };
+        case 'TASK':
+          return {
+            names: ['created_on', 'name', 'id', 'database_name', 'schema_name', 'owner', 'warehouse', 'schedule', 'state', 'definition'],
+            rows: of.map((o) => [
+              created,
+              o.name,
+              `01b2c3d4-0000-0000-0000-${String(o.id).padStart(12, '0')}`,
+              o.database,
+              o.schema,
+              'LOADER',
+              'TRANSFORM_WH',
+              o.detail ?? null,
+              'started',
+              'insert into staged.orders select * from raw.orders_raw',
+            ]),
+          };
+        case 'STAGE':
+          return {
+            names: ['created_on', 'name', 'database_name', 'schema_name', 'url', 'has_credentials', 'owner', 'region', 'type', 'cloud'],
+            rows: of.map((o) => [
+              created,
+              o.name,
+              o.database,
+              o.schema,
+              's3://invented-landing.example/orders/',
+              'true',
+              'LOADER',
+              'eu-central-1',
+              o.detail ?? 'INTERNAL',
+              'AWS',
+            ]),
+          };
+        case 'PIPE':
+          return {
+            names: ['created_on', 'name', 'database_name', 'schema_name', 'definition', 'owner', 'notification_channel'],
+            rows: of.map((o) => [
+              created,
+              o.name,
+              o.database,
+              o.schema,
+              'copy into raw.orders_raw from @landing',
+              'LOADER',
+              'arn:aws:sqs:eu-central-1:000000000000:invented',
+            ]),
+          };
+        default:
+          return { names: [], rows: [] };
+      }
+    }
+    default:
+      return { error: `SQL compilation error: the demo does not know this statement (${sql.slice(0, 60)})` };
+  }
+}
+
+/** Rows per partition of a large result (the SQL API cuts by size; the demo by rows). */
+const PARTITION_ROWS = 2_000;
+/** Partitions of large results not fetched yet, by statement handle (the newest few). */
+const partitions = new Map<string, Cell[][][]>();
+
+const resultInPartitions = (reply: FastifyReply, names: string[], rows: Cell[][]) => {
+  if (rows.length <= PARTITION_ROWS) return result(reply, names, rows);
+  const parts: Cell[][][] = [];
+  for (let i = 0; i < rows.length; i += PARTITION_ROWS) parts.push(rows.slice(i, i + PARTITION_ROWS));
+  const handle = crypto.randomUUID();
+  partitions.set(handle, parts);
+  while (partitions.size > 20) partitions.delete(partitions.keys().next().value!);
+  return reply.send({
+    code: '090001',
+    statementHandle: handle,
+    message: 'Statement executed successfully.',
+    resultSetMetaData: { numRows: rows.length, rowType: names.map((name) => ({ name })), partitionInfo: parts.map((p) => ({ rowCount: p.length })) },
+    data: parts[0],
+  });
+};
+
 // ---------- costs (#226) ----------
 
 /** For tests: whether the organisation's usage views can be read (false: a reseller contract, no ORGANIZATION_USAGE). */
@@ -421,6 +792,16 @@ function dailyUsage(from: string): { day: string; service: string; credits: numb
 }
 
 export async function mockSnowflake(app: FastifyInstance): Promise<void> {
+  // the further partitions of a large result
+  app.get('/snowflake/api/v2/statements/:handle', async (req, reply) => {
+    const bad = authProblem(req);
+    if (bad) return reply.code(401).send({ code: '390144', message: bad });
+    const parts = partitions.get((req.params as { handle: string }).handle);
+    const i = Number((req.query as { partition?: string }).partition ?? 0);
+    if (!parts || !Number.isInteger(i) || !parts[i]) return reply.code(404).send({ code: '000709', message: 'Statement not found' });
+    if (i === parts.length - 1) partitions.delete((req.params as { handle: string }).handle);
+    return reply.send({ data: parts[i] });
+  });
   app.post('/snowflake/api/v2/statements', async (req, reply) => {
     const bad = authProblem(req);
     if (bad) return reply.code(401).send({ code: '390144', message: bad });
@@ -428,6 +809,17 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
     const sql = String(body.statement ?? '');
     const arg = (i: number) => body.bindings?.[String(i)]?.value ?? '';
     const tag = /^\/\* steward:([a-z-]+) \*\//.exec(sql)?.[1];
+    const bindings = Object.keys(body.bindings ?? {})
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => body.bindings![k]!.value);
+    if (statements.length < 50_000) statements.push({ sql, bindings });
+    if (tag?.startsWith('dp-')) {
+      // the data products checks (ADR 0036 part 10, mockDataElements.ts) first, then discovery (part 5): both tag dp-…
+      const check = dataElementAnswer(tag, sql, arg, TABLES);
+      if (check) return result(reply, check.names, check.rows);
+      const r = discoveryAnswer(tag, sql, bindings);
+      return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : resultInPartitions(reply, r.names, r.rows);
+    }
     switch (tag) {
       case 'whoami':
         return result(

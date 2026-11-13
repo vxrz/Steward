@@ -66,6 +66,7 @@ import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
 import { requireVisibleContract } from '../datacontracts/check.js';
+import { requireUsableElement } from '../dataproducts/checks/element.js';
 import { checkUptimes, monitorOffHours, monitorUptime, statusPointsOf, uptimeRange, type StatusPoint } from './stats.js';
 import type { ActiveMaintenance } from './maintenance-hook.js';
 import { coerceParams, renderTemplate } from './templates.js';
@@ -665,6 +666,8 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     if (c.type === 'cost') requireVisibleCostScope(c.name, c);
     // the contract of a data contract check (#221): one the editor may not see answers like a missing one
     if (c.type === 'data-contract') requireVisibleContract(c.name, c.contract);
+    // the element of a data element check (ADR 0036): one the editor may not see answers like a missing one; its platform's use right
+    if (c.type === 'data-element') requireUsableElement(c.name, c, currentUser());
     if (c.type === 'monitor') {
       const sub = monitorRow(c.monitor);
       if (!sub || !permissionsOfRow(sub).includes('view'))

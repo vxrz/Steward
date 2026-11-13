@@ -1,0 +1,234 @@
+{
+  "nav": {
+    "products": "Datenprodukte",
+    "elements": "Elemente"
+  },
+  "pipeline": {
+    "title": "Pipeline von {{name}}",
+    "titlePlain": "Pipeline",
+    "help": "Die Elemente des Produkts nach Rolle und Schicht, die Schritte dazwischen und die Elemente außerhalb, die seine Schritte lesen oder schreiben. Der Zustand stammt aus verknüpften Prüfungen.",
+    "elements": "Elemente"
+  },
+  "map": {
+    "title": "Produktkarte",
+    "help": "Datenprodukte in ihren Domänen und wie sie voneinander abhängen: vom Ausgabeport eines Produkts zu den Produkten, deren Eingabeports ihn nutzen.",
+    "products": "Produkte",
+    "neighbour": "Hängt von einem Treffer ab oder beliefert ihn",
+    "matches": "Passt zu den Filtern"
+  },
+  "lineage": {
+    "title": "Datenherkunft von {{name}}",
+    "titlePlain": "Datenherkunft",
+    "help": "Woher die Daten dieses Elements kommen und wohin sie gehen, über Produkte hinweg.",
+    "elements": "Elemente",
+    "this": "Dieses Element"
+  },
+  "filters": {
+    "environment": "Umgebung",
+    "domain": "Domäne",
+    "type": "Typ",
+    "lifecycle": "Lebenszyklus",
+    "depth": "Schritte auf- und abwärts",
+    "steps_one": "{{count}} Schritt",
+    "steps_other": "{{count}} Schritte"
+  },
+  "toolbar": {
+    "fit": "An Bildschirm anpassen"
+  },
+  "search": {
+    "label": "Im Bild suchen",
+    "placeholder": "Suchen und auswählen …",
+    "nothing": "Nichts gefunden"
+  },
+  "empty": "Hier gibt es noch nichts zu zeigen.",
+  "graph": {
+    "label": "Bild: {{title}}",
+    "nodeHelp": "Tab wechselt zum nächsten Teil, Enter öffnet seine Seite, die Leertaste wählt ihn aus und hebt hervor, womit er verbunden ist.",
+    "edgeHelp": "Ein Weg, den die Daten nehmen.",
+    "controls": "Zoomen",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "fitView": "Alles zeigen",
+    "panHint": "Ein Teil des Bilds liegt außerhalb des Rahmens: Ziehen Sie es, um es zu verschieben; mit Tab erreichen Sie jeden Teil, „An Bildschirm anpassen“ zeigt alles."
+  },
+  "export": {
+    "subtitle": "Datenprodukte · dokumentiert am {{date}}"
+  },
+  "notes": {
+    "truncated_one": "{{count}} Element ist nicht enthalten: Ein Bild umfasst höchstens 2.000.",
+    "truncated_other": "{{count}} Elemente sind nicht enthalten: Ein Bild umfasst höchstens 2.000.",
+    "lineageTruncated": "An der Grenze von 200 Elementen ausgelassen: {{upstream}} aufwärts, {{downstream}} abwärts.",
+    "collapsed": "Das Bild fasst Elemente zusammen, damit es lesbar bleibt; die Tabelle führt jedes einzeln auf.",
+    "hidden": "Enthält Elemente ({{elements}}) und Produkte ({{products}}), die Sie nicht sehen dürfen: ohne Namen gezeichnet."
+  },
+  "selection": {
+    "hint": "Wählen Sie einen Teil aus (Klick oder Leertaste), um alles auf- und abwärts davon hervorzuheben.",
+    "connected_one": "Mit {{count}} anderen Teil verbunden",
+    "connected_other": "Mit {{count}} anderen Teilen verbunden",
+    "only": "Nur Verbundenes zeigen",
+    "open": "Öffnen",
+    "clear": "Auswahl aufheben"
+  },
+  "legend": {
+    "healthTitle": "Zustand:",
+    "health": "nur aus Prüfungen, die mit einem Element verknüpft sind, oder aus dem Monitor eines Produkts. Ohne sie steht dort „Keine Daten“ – nie OK.",
+    "flowMoving": "Der Weg der Daten – die bewegten Striche zeigen die Richtung",
+    "flowStatic": "Der Weg der Daten – der Pfeil zeigt die Richtung",
+    "hidden": "Etwas, das Sie nicht sehen dürfen: ohne Namen",
+    "outside": "Außerhalb des Produkts (gestrichelt, grau)",
+    "step": "Ein Schritt mit vielen Ein- und Ausgängen",
+    "deprecated": "Nutzt einen abgekündigten oder außer Betrieb genommenen Port",
+    "neighbour": "Außerhalb der Filter, mit einem Treffer verbunden",
+    "plant": "Eine Datenerfassung der Anlagendokumentation, die in ein Element schreibt"
+  },
+  "table": {
+    "filter": "Tabelle filtern",
+    "count_one": "{{count}} Eintrag",
+    "count_other": "{{count}} Einträge",
+    "kind": "Art",
+    "name": "Name",
+    "health": "Zustand",
+    "more_one": "{{count}} weiteren zeigen",
+    "more_other": "{{count}} weitere zeigen",
+    "place": "Wo",
+    "ports": "Ports",
+    "alsoIn": "Auch in",
+    "steps": "Schritte",
+    "step": "Schritt",
+    "runner": "Läuft auf",
+    "from": "Von",
+    "to": "Nach",
+    "domain": "Domäne",
+    "type": "Typ",
+    "lifecycle": "Lebenszyklus",
+    "takesFrom": "Bezieht von",
+    "givesTo": "Liefert an",
+    "inFilter": "Gezeigt, weil",
+    "dependencies": "Abhängigkeiten",
+    "distance": "Abstand",
+    "product": "Produkt"
+  },
+  "columns": {
+    "upstream": "Vorgelagert",
+    "input": "Eingaben",
+    "output": "Ausgaben",
+    "downstream": "Nachgelagert",
+    "noLayer": "Ohne Schicht"
+  },
+  "kinds": {
+    "element": "Element",
+    "step": "Schritt",
+    "stepOf": "Schritt · {{kind}}",
+    "products": "Produkte",
+    "elements": "Elemente",
+    "product": "Datenprodukt",
+    "domain": "Domäne",
+    "plant": "Datenerfassung (Anlage)"
+  },
+  "collapsed": {
+    "parent_one": "{{count}} Element von {{name}}",
+    "parent_other": "{{count}} Elemente von {{name}}",
+    "column_one": "{{count}} Element",
+    "column_other": "{{count}} Elemente",
+    "domain_one": "{{count}} Produkt in {{name}}",
+    "domain_other": "{{count}} Produkte in {{name}}",
+    "noDomain_one": "{{count}} Produkt ohne Domäne",
+    "noDomain_other": "{{count}} Produkte ohne Domäne",
+    "hidden_one": "{{count}}, das Sie nicht sehen dürfen",
+    "hidden_other": "{{count}}, die Sie nicht sehen dürfen"
+  },
+  "hidden": {
+    "element": "Ein Element, das Sie nicht sehen dürfen",
+    "product": "Ein Produkt, das Sie nicht sehen dürfen",
+    "step": "Ein Schritt, den Sie nicht sehen dürfen",
+    "plant": "Eine Datenerfassung, die Sie nicht sehen dürfen"
+  },
+  "node": {
+    "missing": "Fehlt",
+    "hiddenProducts_one": "{{count}} Produkt, das Sie nicht sehen dürfen",
+    "hiddenProducts_other": "{{count}} Produkte, die Sie nicht sehen dürfen"
+  },
+  "aria": {
+    "health": "Zustand: {{status}}",
+    "checks_one": "{{count}} verknüpfte Prüfung",
+    "checks_other": "{{count}} verknüpfte Prüfungen",
+    "role": "Rolle: {{role}}.",
+    "layer": "Schicht: {{layer}}.",
+    "inProducts": "Teil von {{names}}.",
+    "outside": "Außerhalb des Produkts.",
+    "outsideFilter": "Außerhalb der Filter.",
+    "upstream_one": "{{count}} Schritt aufwärts",
+    "upstream_other": "{{count}} Schritte aufwärts",
+    "downstream_one": "{{count}} Schritt abwärts",
+    "downstream_other": "{{count}} Schritte abwärts",
+    "opens": "Enter öffnet seine Seite."
+  },
+  "edge": {
+    "from": "Von {{from}} nach {{to}}",
+    "more_one": "{{names}} und {{count}} weiterer",
+    "more_other": "{{names}} und {{count}} weitere",
+    "count_one": "{{count}} Schritt",
+    "count_other": "{{count}} Schritte",
+    "deprecated": "Abgekündigt",
+    "deprecatedPort": "{{name}} (abgekündigt)"
+  },
+  "health": {
+    "up": "OK",
+    "degraded": "Beeinträchtigt",
+    "down": "Ausgefallen",
+    "unknown": "Unbekannt",
+    "blocked": "Blockiert",
+    "maintenance": "Wartung",
+    "off": "Aus",
+    "noData": "Keine Daten"
+  },
+  "roles": {
+    "input": "Eingabe",
+    "internal": "Intern",
+    "output": "Ausgabe"
+  },
+  "lifecycle": {
+    "proposed": "Vorgeschlagen",
+    "draft": "Entwurf",
+    "active": "Aktiv",
+    "deprecated": "Abgekündigt",
+    "retired": "Außer Betrieb"
+  },
+  "types": {
+    "sourceAligned": "Quellenorientiert",
+    "aggregate": "Aggregiert",
+    "consumerAligned": "Verbraucherorientiert"
+  },
+  "stepKinds": {
+    "ingest": "Aufnehmen",
+    "stage": "Bereitstellen",
+    "transform": "Umwandeln",
+    "curate": "Aufbereiten",
+    "publish": "Veröffentlichen",
+    "replicate": "Replizieren",
+    "other": "Sonstiges"
+  },
+  "elementKinds": {
+    "snowflake.database": "Snowflake-Datenbank",
+    "snowflake.schema": "Snowflake-Schema",
+    "snowflake.table": "Snowflake-Tabelle",
+    "snowflake.view": "Snowflake-Sicht",
+    "snowflake.dynamicTable": "Dynamische Tabelle",
+    "snowflake.stream": "Snowflake-Stream",
+    "snowflake.task": "Snowflake-Task",
+    "snowflake.stage": "Snowflake-Stage",
+    "snowflake.pipe": "Snowpipe",
+    "kafka.topic": "Kafka-Topic",
+    "kafka.topicBundle": "Topic-Bündel",
+    "sql.schema": "SQL-Schema",
+    "sql.table": "SQL-Tabelle",
+    "sql.view": "SQL-Sicht",
+    "api.openapi": "OpenAPI",
+    "api.asyncapi": "AsyncAPI",
+    "api.graphql": "GraphQL-API",
+    "api.endpoint": "API-Endpunkt",
+    "files.path": "Dateipfad",
+    "insightsHub.aspect": "Insights-Hub-Aspekt",
+    "other": "Sonstiges"
+  }
+}

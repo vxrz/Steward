@@ -1,0 +1,368 @@
+import AxeBuilder from '@axe-core/playwright';
+import type { APIRequestContext, Page } from '@playwright/test';
+import { test, expect } from './support/fixtures';
+import { authFile } from './support/env';
+import { animationsDone, expectAccessible, settle } from './support/axe';
+import { expectNoHorizontalScroll, json } from './support/helpers';
+
+/**
+ * The pages of the data products module (ADR 0036 part 13, WP5): a designer creates a product, adds elements from the
+ * catalogue with the server-side search, binds an output port to a data contract and deprecates the product (which
+ * needs a sunset date); a viewer sees what the team scope allows – a team's product is neither listed nor opened,
+ * and an element's other product is counted, not named; phones get cards and no sideways scroll; axe on each page.
+ * The data is seeded through the API; the demo's products (_Load demo data_ with the service half) show the list's
+ * maturity, import and export and the Access tab with the shares.
+ */
+
+interface Seed {
+  token: string;
+  raw: string;
+  curated: string;
+  shared: string;
+  contract: string;
+  publicProduct: string;
+  secretProduct: string;
+}
+
+let seeded: Promise<Seed> | null = null;
+
+async function post<T = { id: string }>(api: APIRequestContext, url: string, data: unknown): Promise<T> {
+  return json<T>(await api.post(url, { data }));
+}
+
+async function seed(admin: APIRequestContext): Promise<Seed> {
+  const on = await admin.put('/api/settings/modules/dataProducts', { data: { enabled: true } });
+  expect(on.ok(), await on.text()).toBe(true);
+  const token = `WPF${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+  const key = token.toLowerCase();
+  const platforms = await json<{ id: string; kind: string }[]>(await admin.get('/api/platforms'));
+  const snowflake = platforms.find((p) => p.kind === 'snowflake')!.id;
+  const el = async (name: string, layer: string) =>
+    (await post(admin, '/api/data-elements', { platformId: snowflake, kind: 'snowflake.table', qualifiedName: name, environment: 'prod', layer })).id;
+  const raw = await el(`${token}.RAW.ORDERS`, 'raw');
+  const curated = await el(`${token}.CURATED.ORDERS`, 'curated');
+  const shared = await el(`${token}.CRM.CUSTOMERS`, 'source');
+  const yaml = [
+    'apiVersion: v3.0.2',
+    'kind: DataContract',
+    `id: ${key}-orders`,
+    `name: Orders contract ${token}`,
+    'version: 1.0.0',
+    'status: active',
+    'schema:',
+    '  - name: orders',
+    '    physicalType: table',
+    '    properties:',
+    '      - name: id',
+    '        logicalType: integer',
+    '        required: true',
+    '',
+  ].join('\n');
+  const contract = (await post<{ id: string }>(admin, '/api/data-contracts', { yaml, links: [] })).id;
+  // a product everyone sees and a team's product a viewer outside the team may not see, both reading CRM.CUSTOMERS
+  const publicProduct = (await post(admin, '/api/data-products', { key: `${key}-customer`, name: `Customer 360 ${token}` })).id;
+  const secretProduct = (await post(admin, '/api/data-products', { key: `${key}-secret`, name: `Secret CRM ${token}` })).id;
+  await post(admin, `/api/data-products/${publicProduct}/members`, { elementIds: [shared], role: 'input' });
+  await post(admin, `/api/data-products/${secretProduct}/members`, { elementIds: [shared], role: 'input' });
+  const team = (await post(admin, '/api/teams', { name: `Data team ${token}`, members: ['dana'] })).id;
+  // the team takes no new items of its members: dana's items in the other specs stay the whole instance's
+  expect((await admin.put(`/api/teams/${team}/settings`, { data: { newResources: 'never' } })).ok()).toBe(true);
+  expect((await admin.put(`/api/owning-teams/data_product/${secretProduct}`, { data: { teamIds: [team] } })).ok()).toBe(true);
+  return { token, raw, curated, shared, contract, publicProduct, secretProduct };
+}
+
+/** Picks an option of a Mantine Select by its test id (the list page behind a dialog has selects with the same labels). */
+async function choose(page: Page, testId: string, option: string) {
+  await page.getByTestId(testId).click();
+  await animationsDone(page);
+  await page.getByRole('option', { name: option }).click();
+}
+
+/** A Mantine MultiSelect that searches on the server: type, wait for the option, pick it. */
+async function pickElement(page: Page, testId: string, search: string, option: string) {
+  const input = page.getByTestId(testId);
+  await input.click();
+  await input.fill(search);
+  const found = page.getByRole('option', { name: option });
+  await expect(found).toBeVisible({ timeout: 30_000 });
+  await found.click();
+  // a MultiSelect stays open for the next pick: Tab leaves it (and closes it)
+  await input.press('Tab');
+}
+
+test.describe('the data products pages', () => {
+  test.use({ storageState: authFile('dana') });
+  let s: Seed;
+  test.beforeEach(async ({ apiAs }) => {
+    seeded ??= (async () => seed(await apiAs('admin')))();
+    s = await seeded;
+  });
+
+  test('a designer creates a product, adds elements, binds a port to a contract and deprecates it', async ({ page }) => {
+    await page.goto('/data-products');
+    await expect(page.getByRole('heading', { level: 1, name: 'Data products' })).toBeVisible();
+    // Data in the sidebar, with the data contracts beside the module's pages
+    const data = page.locator('[data-group="data"]');
+    await expect(data.getByRole('link', { name: 'Data products' })).toBeVisible();
+    await expect(data.getByRole('link', { name: 'Data contracts' })).toBeVisible();
+    await expect(page.locator('[data-group="catalogue"]').getByRole('link', { name: 'Data contracts' })).toHaveCount(0);
+    await expectAccessible(page, 'data products list');
+
+    // create
+    await page.getByTestId('product-new').click();
+    await page.getByTestId('product-name').fill(`Orders ${s.token}`);
+    await expect(page.getByTestId('product-key')).toHaveValue(`orders-${s.token.toLowerCase()}`);
+    await choose(page, 'product-type', 'Source-aligned');
+    await page.getByTestId('product-save').click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(`Orders ${s.token}`);
+    await expect(page.getByTestId('product-objects')).toBeVisible();
+    await settle(page);
+    await expectAccessible(page, 'data product overview');
+
+    // add elements: the picker searches the catalogue on the server
+    await page.getByTestId('product-tab-elements').click();
+    await page.getByTestId('member-add').click();
+    await pickElement(page, 'member-picker', `${s.token}.RAW`, `${s.token}.RAW.ORDERS`);
+    await pickElement(page, 'member-picker', `${s.token}.CURATED`, `${s.token}.CURATED.ORDERS`);
+    await page.getByTestId('member-save').click();
+    const members = page.getByTestId('member-table');
+    await expect(members.getByRole('link', { name: `${s.token}.RAW.ORDERS` })).toBeVisible();
+    await expect(members.getByRole('link', { name: `${s.token}.CURATED.ORDERS` })).toBeVisible();
+    await expect(members).toContainText('No data');
+    await expectAccessible(page, 'data product elements');
+
+    // an output port, bound in prod to the curated table under the contract
+    await page.getByTestId('product-tab-ports').click();
+    await page.getByTestId('port-add-output').click();
+    await page.getByTestId('port-name').fill('orders');
+    await page.getByTestId('port-version').fill('v1');
+    await page.getByTestId('port-save').click();
+    const port = page.getByTestId('port-orders');
+    await expect(port).toContainText('Not bound in prod');
+    await port.getByTestId('port-bind').click();
+    await pickElement(page, 'binding-elements', `${s.token}.CURATED`, `${s.token}.CURATED.ORDERS`);
+    await choose(page, 'binding-contract', `Orders contract ${s.token} (${s.token.toLowerCase()}-orders)`);
+    await page.getByTestId('binding-save').click();
+    await expect(port.getByTestId('binding-contract-line')).toContainText(`Orders contract ${s.token}`);
+    await expect(port.getByTestId('port-binding')).toContainText(`${s.token}.CURATED.ORDERS`);
+    await settle(page);
+    await expectAccessible(page, 'data product ports');
+
+    // deprecating needs a sunset date: asked before the server is
+    await page.getByTestId('product-lifecycle').click();
+    await choose(page, 'lifecycle-to', 'Deprecated');
+    await page.getByTestId('lifecycle-save').click();
+    await expect(page.getByText('Deprecating needs a sunset date')).toBeVisible();
+    await page.getByTestId('lifecycle-sunset').fill('2027-03-31');
+    await page.getByTestId('lifecycle-save').click();
+    await expect(page.getByRole('heading', { level: 1 }).locator('[data-lifecycle="deprecated"]')).toBeVisible();
+
+    // the health tab proposes a monitor before anything is made
+    await page.getByTestId('product-tab-health').click();
+    await page.getByTestId('monitor-propose').click();
+    await expect(page.getByTestId('monitor-proposal')).toBeVisible();
+    await expect(page.getByTestId('monitor-apply')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+
+    // the list finds it by its lifecycle; the costs and the scorecard tabs answer
+    await page.getByTestId('product-tab-costs').click();
+    await expect(page.getByTestId('cost-matches')).toBeVisible();
+    await page.goto('/data-products?lifecycle=deprecated');
+    await expect(page.getByTestId('product-table').getByRole('link', { name: `Orders ${s.token}` })).toBeVisible();
+  });
+
+  test('the catalogue, an element, data objects, domains and discovery', async ({ page }) => {
+    await page.goto(`/data-elements?prefix=${s.token}.`);
+    const table = page.getByTestId('element-table');
+    await expect(table.getByRole('link', { name: `${s.token}.CRM.CUSTOMERS` })).toBeVisible();
+    await expectAccessible(page, 'element catalogue');
+    await table.getByRole('link', { name: `${s.token}.CRM.CUSTOMERS` }).click();
+    // dana sees both products of the shared table
+    await expect(page.getByTestId('element-products')).toContainText(`Customer 360 ${s.token}`);
+    await expect(page.getByTestId('element-products')).toContainText(`Secret CRM ${s.token}`);
+    await expectAccessible(page, 'element page');
+    await page.getByTestId('element-tab-checks').click();
+    await expect(page.getByTestId('element-checks')).toContainText('No data');
+    await page.goto('/data-objects');
+    await expect(page.getByRole('heading', { level: 1, name: 'Data objects' })).toBeVisible();
+    await expectAccessible(page, 'data objects');
+    await page.goto('/data-domains');
+    await expect(page.getByRole('heading', { level: 1, name: 'Domains' })).toBeVisible();
+    await expectAccessible(page, 'domains');
+    await page.goto('/data-products/discovery');
+    await expect(page.getByRole('heading', { level: 1, name: 'Discovery' })).toBeVisible();
+    await expectAccessible(page, 'discovery');
+  });
+
+  test('the demo products, import and export, and the Access tab with the shares', async ({ page }) => {
+    // the demo's Orders: maturity and last month's costs in the list (one bulk read)
+    await page.goto('/data-products?q=orders');
+    const table = page.getByTestId('product-table');
+    const orders = table.getByRole('link', { name: 'Orders', exact: true });
+    await expect(orders).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Maturity' })).toBeVisible();
+    await expect(table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) })).toContainText('Maturity');
+    // fewer columns at first, the rest a choice remembered for the person; the rating on one line
+    await expect(table.getByRole('columnheader', { name: 'Value' })).toHaveCount(0);
+    const ordersRow = table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) });
+    expect((await ordersRow.getByText(/^C: /).boundingBox())!.y).toBe((await ordersRow.getByText(/^A: /).boundingBox())!.y);
+    await page.getByTestId('product-columns').click();
+    await page.getByTestId('product-column-value').check();
+    await page.keyboard.press('Escape');
+    await expect(table.getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('product-table').getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await page.getByTestId('product-columns').click();
+    await page.getByTestId('product-column-value').uncheck();
+    await page.keyboard.press('Escape');
+    // export: everything as YAML from the list, the product as YAML, JSON or ODPS from its menu
+    await page.getByTestId('products-transfer').click();
+    await expect(page.getByTestId('products-export-yaml')).toHaveAttribute('href', /\/api\/data-products\/export\?format=yaml/);
+    await page.keyboard.press('Escape');
+    await orders.click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Orders');
+    await page.getByTestId('detail-actions').click();
+    await expect(page.getByTestId('product-export-odps')).toHaveAttribute('href', /\/api\/data-products\/dpr_[^/]+\/odps/);
+    const download = page.waitForEvent('download');
+    await page.getByTestId('product-export-yaml').click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/\.yaml$/);
+    // the Access tab: dana owns the demo product – owning teams, Restricted and the shares, her own implied
+    const id = page.url().split('/data-products/')[1]!.split(/[/?]/)[0]!;
+    await page.goto(`/data-products/${id}/access`);
+    await expect(page.getByTestId('access-tab')).toBeVisible();
+    await expect(page.getByTestId('shares-panel')).toBeVisible();
+    await expect(page.getByTestId('shares-implied')).toContainText('Dana Designer');
+    await settle(page);
+    await expectAccessible(page, 'data product access');
+    // the scorecard folds what has no evidence yet, counted, and opens it on request
+    await page.goto(`/data-products/${id}`);
+    const fold = page.getByTestId('scorecard-fold-iso25012');
+    await expect(fold).toHaveText(/^Show \d+ more with no evidence yet$/);
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('product-scorecard').locator('[data-state="noEvidence"]')).toHaveCount(0);
+    await fold.click();
+    await expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('product-scorecard').locator('[data-state="noEvidence"]').first()).toBeVisible();
+    // the costs per month by name in the UI language, and the consumers counted in the singular where it is one
+    await page.goto(`/data-products/${id}/costs`);
+    const months = page.getByRole('table', { name: 'Costs per month' }).getByRole('button');
+    await expect(months.first()).toHaveText(/^[A-Z][a-z]{2,3} \d{4}$/);
+    // amounts with the currency's minor units, as in the costs module
+    await expect(page.getByRole('table', { name: 'Costs per month' }).locator('tbody tr').first()).toContainText(/US\$[\d,]+\.\d{2}/);
+    await expect(page.getByTestId('cost-lines').getByRole('heading')).toHaveText(/^Costs in [A-Z][a-z]+ \d{4}$/);
+    await page.goto(`/data-products/${id}/ports`);
+    await expect(page.getByText(/^\d+ registered, 1 consuming product$/).first()).toBeVisible();
+    // WCAG 2.2 target size: the elements a step reads and writes, one under the other, far enough apart
+    await page.goto(`/data-products/${id}/pipeline`);
+    await expect(page.getByRole('table', { name: 'Steps' })).toBeVisible();
+    expect((await new AxeBuilder({ page }).withRules(['target-size']).analyze()).violations).toEqual([]);
+
+    // import: a file of the format, previewed before anything is written
+    await page.goto('/data-products');
+    await page.getByTestId('products-transfer').click();
+    await page.getByTestId('products-import').click();
+    const dialog = page.getByRole('dialog', { name: 'Import data products' });
+    const key = `imported-${s.token.toLowerCase()}`;
+    const yaml = [
+      'version: 1',
+      'data_products:',
+      `  - key: ${key}`,
+      `    name: Imported ${s.token}`,
+      '    domain: sales',
+      '    members:',
+      `      - element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: ${s.token}.RAW.ORDERS, environment: prod }`,
+      '        role: internal',
+      '',
+    ].join('\n');
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'imported.yaml', mimeType: 'application/yaml', buffer: Buffer.from(yaml) });
+    await dialog.getByTestId('import-preview-run').click();
+    await expect(dialog.getByTestId('import-count-add')).toHaveText('1 to add');
+    await expect(dialog.getByTestId('import-preview')).toContainText(key);
+    await expectAccessible(page, 'import preview');
+    await dialog.getByTestId('import-run').click();
+    await expect(dialog).toBeHidden();
+    await page.goto(`/data-products?q=${key}`);
+    await expect(page.getByTestId('product-table').getByRole('link', { name: `Imported ${s.token}` })).toBeVisible();
+  });
+
+  test('the health filter asks the server: the list is paged and counted after it', async ({ page }) => {
+    const asked = page.waitForRequest((r) => r.url().includes('/api/data-products?') && r.url().includes('health=noData'));
+    await page.goto(`/data-products?q=${s.token}&health=noData`);
+    await asked;
+    await expect(page.getByTestId('product-table').getByRole('link', { name: `Customer 360 ${s.token}` })).toBeVisible();
+    await expect(page.getByTestId('list-footer')).toBeVisible();
+    await page.goto(`/data-products?q=${s.token}&health=down`);
+    await expect(page.getByTestId('products-no-match')).toBeVisible();
+  });
+
+  test('a dialog opened from a menu gives the focus back to the menu’s button', async ({ page }) => {
+    await page.goto('/data-products');
+    await expect(page.getByTestId('product-table')).toBeVisible();
+    const menu = page.getByTestId('products-transfer');
+    await menu.click();
+    await page.getByTestId('products-import').click();
+    const dialog = page.getByRole('dialog', { name: 'Import data products' });
+    await expect(dialog).toBeVisible();
+    // the menu has closed: the item that opened the dialog is gone
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(menu).toBeFocused();
+  });
+
+  test('team scope: a viewer neither sees a team’s product nor its name on a shared element', async ({ loginAs }) => {
+    const vera = await loginAs('vera');
+    await vera.goto(`/data-products?q=${s.token}`);
+    const list = vera.getByTestId('product-table');
+    await expect(list.getByRole('link', { name: `Customer 360 ${s.token}` })).toBeVisible();
+    await expect(vera.getByText(`Secret CRM ${s.token}`)).toHaveCount(0);
+    // no button a viewer could not use
+    await expect(vera.getByTestId('product-new')).toHaveCount(0);
+    await vera.goto(`/data-products/${s.secretProduct}`);
+    await expect(vera.getByTestId('detail-not-found')).toBeVisible();
+    await expect(vera.getByText(`Secret CRM ${s.token}`)).toHaveCount(0);
+    // the shared table counts the other product without naming it
+    await vera.goto(`/data-elements/${s.shared}`);
+    const products = vera.getByTestId('element-products');
+    await expect(products).toContainText(`Customer 360 ${s.token}`);
+    await expect(products).toContainText('1 you may not see');
+    await expect(products).not.toContainText('Secret CRM');
+    await expectAccessible(vera, 'element page as a viewer');
+  });
+
+  test('data products on a phone @mobile', async ({ page }) => {
+    await page.goto(`/data-products?q=${s.token}`);
+    await expect(page.getByTestId('product-card').first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'data products on a phone');
+    await page.goto(`/data-products/${s.publicProduct}`);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(`Customer 360 ${s.token}`);
+    await expectNoHorizontalScroll(page);
+    await page.getByTestId('product-tab-elements').click();
+    await expect(page.getByTestId('member-card').first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'product elements on a phone');
+    await page.goto(`/data-elements?prefix=${s.token}.`);
+    await expect(page.getByTestId('element-card').first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await page.goto(`/data-elements/${s.shared}`);
+    await expect(page.getByTestId('element-products')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    // the small tables of the demo product are cards on a phone
+    await page.goto('/data-products?q=orders');
+    await page.getByTestId('product-card').getByRole('link', { name: 'Orders', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Orders');
+    const base = new URL(page.url()).pathname;
+    for (const [tab, row] of [
+      ['costs', 'cost-match'],
+      ['pipeline', 'step-Ingest orders'],
+    ] as const) {
+      await page.goto(`${base}/${tab}`);
+      const first = page.getByTestId(row).first();
+      await expect(first).toBeVisible();
+      expect(await first.evaluate((e) => e.tagName)).not.toBe('TR');
+      await expectNoHorizontalScroll(page);
+    }
+  });
+});

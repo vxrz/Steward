@@ -4,6 +4,7 @@ import { CheckmkFields } from './CheckmkFields';
 import { ConfluentFields } from './ConfluentFields';
 import { CostCheckFields } from '../../costs/CostCheckFields';
 import { DataContractFields } from './DataContractFields';
+import { DataElementFields } from './DataElementFields';
 import { DatabaseFields } from './DatabaseFields';
 import { DbSchemaFields } from './DbSchemaFields';
 import { DependencyTrackFields } from './DependencyTrackFields';
@@ -55,6 +56,7 @@ export const CHECK_FIELDS: { [T in CheckType]: ComponentType<CheckFieldsProps<T>
   'db-schema': DbSchemaFields,
   cost: CostCheckFields,
   'data-contract': DataContractFields,
+  'data-element': DataElementFields,
   'dependency-track': DependencyTrackFields,
   'version-behind': VersionBehindFields,
   entra: EntraFields,

@@ -68,6 +68,10 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'cost.booking_due',
     // contract volumes (ADR 0032): to the payer's owners, like the cost budget
     'cost.volume',
+    // data products (ADR 0036 part 17): in the app and by e-mail by default
+    'dataproduct.deprecated',
+    'dataproduct.elements_missing',
+    'dataproduct.discovery_failed',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

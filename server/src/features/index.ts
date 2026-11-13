@@ -44,6 +44,7 @@ import dtrack from './dtrack.js';
 import dbschema from './dbschema.js';
 import costs from './costs.js';
 import datacontracts from './datacontracts.js';
+import dataproducts from './dataproducts.js';
 import migration from './migration.js';
 import onboarding from './onboarding.js';
 import duplicate from './duplicate.js';
@@ -100,6 +101,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   dbschema,
   costs,
   datacontracts,
+  dataproducts,
   migration,
   onboarding,
   duplicate,

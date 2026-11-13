@@ -103,10 +103,10 @@ function ScaleInvalidAlert() {
   );
 }
 
-export function RatingBadges({ rating, size = 'xs' }: { rating: ApplicationRating; size?: 'xs' | 'sm' }) {
+export function RatingBadges({ rating, size = 'xs', nowrap = false }: { rating: ApplicationRating; size?: 'xs' | 'sm'; nowrap?: boolean }) {
   if (useCiaScale().data?.storedInvalid) return <ScaleInvalidBadge size={size} />;
   return (
-    <Group gap={4} wrap="wrap">
+    <Group gap={4} wrap={nowrap ? 'nowrap' : 'wrap'}>
       {CIA_DIMENSIONS.map((d) => (
         <LevelBadge key={d} dimension={d} level={rating[d]?.level} stale={rating[d]?.needsRerating} short size={size} />
       ))}

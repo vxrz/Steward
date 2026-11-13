@@ -402,6 +402,11 @@ export const OWNED_KINDS = [
   'device_profile',
   /** A KPI definition of the plant registry (0.21.0, #293) */
   'kpi_definition',
+  /** The data products module (0.22.0, ADR 0036): products, data objects, elements of the catalogue, domains */
+  'data_product',
+  'data_object',
+  'data_element',
+  'data_domain',
 ] as const;
 export type OwnedKind = (typeof OWNED_KINDS)[number];
 

@@ -274,7 +274,10 @@ describe('example library', () => {
       const keys = Object.keys(stats).map(Number);
       expect(keys).toHaveLength(2);
       expect(Date.now() - Math.max(...keys)).toBeLessThan(3 * 60000);
-      expect(JSON.parse(stats[String(Math.max(...keys))])).toMatchObject({ DeviceId: 'dev-001', SystemInfo: { CpuPercentage: expect.any(String) } });
+      expect(JSON.parse(stats[String(Math.max(...keys))])).toMatchObject({
+        DeviceId: 'dev-001',
+        SystemInfo: { CpuPercentage: expect.any(String), Period: '60 minutes' },
+      });
       expect((await get('/devices/dev-009/statistics')).status).toBe(404);
       expect((await get('/devices/dev-005/statistics')).body).toEqual({ data: {} });
       expect((await get('/applications')).body.data.every((a: any) => !('versionNumber' in a) && !('appVersions' in a))).toBe(true);
@@ -298,6 +301,8 @@ describe('example library', () => {
       expect(by['edge-line-1']).toMatchObject({ State: 'online', Onboarding: 'ACTIVE', 'Offline (h)': '–', _status: 'good' });
       expect(by['edge-line-1']['Last seen']).toMatch(/^\d{4}-\d\d-\d\d \d\d:\d\d$/);
       expect(by['edge-test-bench']).toMatchObject({ State: 'offline', 'Offline (h)': 10, _status: 'critical', _statusText: 'offline for 10 h' });
+      // reports once an hour (SystemInfo.Period "60 minutes"): a report 50 minutes old is online, also without grace
+      expect(by['edge-press-hall']).toMatchObject({ State: 'online', 'Offline (h)': '–', _status: 'good' });
       expect(by['edge-qa']).toMatchObject({ State: 'unknown', 'Last seen': '–', _status: 'unknown', _statusText: 'no statistics reported' });
       expect(by['edge-lab']).toMatchObject({ State: 'not onboarded', Onboarding: 'PENDING', _status: 'unknown', _statusText: 'not onboarded yet (PENDING)' });
       expect(d.metrics).toMatchObject({ total: 9, online: 4, offline: 3, unknown: 1, pending: 1 });
@@ -306,6 +311,8 @@ describe('example library', () => {
       // a wider window: the device that stopped reporting 10 hours ago counts as online
       await run('iem-device-status', { inputs: { onlineWithinMinutes: 720 } });
       expect(rowsBy(await s.api('GET', '/datasets/iem.device-status'))['edge-test-bench']).toMatchObject({ State: 'online', _status: 'good' });
+      await run('iem-device-status', { inputs: { onlineWithinMinutes: 0 } });
+      expect(rowsBy(await s.api('GET', '/datasets/iem.device-status'))['edge-press-hall']).toMatchObject({ State: 'online' });
       await run('iem-device-status');
     });
 

@@ -60,6 +60,8 @@ const API_ONLY: Record<string, string> = {
   'GET /api/docs': 'Swagger UI of the public API (linked from the URL /api/public-api returns)',
   'GET /api/costs/calculators/:calculatorId/versions/:n':
     'a published version of a cost calculator, for scripts and reviews (0.21.0); the editor shows the current one',
+  // the data products module (ADR 0036): the web app reads a domain with the list
+  'GET /api/data-domains/:id': 'one domain, for scripts; the web app reads the list',
   'POST /api/mcp': 'MCP endpoint (docs/MCP.md)',
   'GET /api/mcp': 'MCP endpoint: answers 405',
   'PUT /api/mcp': 'MCP endpoint: answers 405',

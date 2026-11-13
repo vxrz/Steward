@@ -47,7 +47,13 @@
     "plantImport": "Importieren",
     "plantChanges": "Änderungen",
     "costs": "Kosten",
-    "dataContracts": "Datenverträge"
+    "dataContracts": "Datenverträge",
+    "dataProducts": "Datenprodukte",
+    "dataElements": "Elemente",
+    "dataObjects": "Datenobjekte",
+    "dataDomains": "Domänen",
+    "dataMap": "Produktkarte",
+    "dataDiscovery": "Erkennung"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
@@ -163,7 +169,8 @@
     "compliance": "Compliance",
     "admin": "Administration",
     "plant": "Werk",
-    "registers": "Register"
+    "registers": "Register",
+    "data": "Daten"
   },
   "mainNavigation": "Hauptnavigation",
   "skipToContent": "Zum Inhalt springen",

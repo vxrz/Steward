@@ -81,6 +81,7 @@ import { PlantSettingsCard } from '../components/plant/PlantSettingsCard';
 import { PlantHistorySettingsGate } from '../components/plant/PlantHistorySettingsCard';
 import { ModulesCard } from '../components/settings/ModulesCard';
 import { IfModule } from '../components/modules/ModuleOff';
+import { DataProductsSettingsCard } from '../components/dataproducts/SettingsCard';
 import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
 
 /**
@@ -345,6 +346,9 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
             </Card>
           </IfModule>
           <EnvironmentsCard />
+          <IfModule module="dataProducts">
+            <DataProductsSettingsCard />
+          </IfModule>
         </>
       );
     case 'modules':

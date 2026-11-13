@@ -39,6 +39,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0033](0033-one-access-model.md)                       | One access model: owning teams and shares               | Accepted, built in 0.21.0 (phase 1)                                    |
 | [0034](0034-module-access.md)                          | Who may use a module: module access and roles           | Accepted, built in 0.21.0 (phase 1)                                    |
 | [0035](0035-price-books-and-calculators.md)            | Price books, cost drivers and calculators               | Accepted, built in 0.21.0 (phase 1)                                    |
-| [0036](0036-data-products-module.md)                   | Data products: data objects, elements, ports, pipelines | Accepted                                                               |
+| [0036](0036-data-products-module.md)                   | Data products: data objects, elements, ports, pipelines | Accepted, built in 0.22.0 (phase 1)                                    |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.
