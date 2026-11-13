@@ -90,6 +90,7 @@ export * from './datacontracts.js';
 export * from './dataProducts.js';
 export * from './dataProductsInput.js';
 export * from './dataProductChecks.js';
+export * from './dataProductGraph.js';
 export * from './libraries.js';
 export * from './modules.js';
 export * from './platformKinds.js';

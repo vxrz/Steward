@@ -75,7 +75,6 @@ const API_ONLY: Record<string, string> = {
   'DELETE /api/data-objects/:id/elements/:elementId': 'data products API, pages to come (ADR 0036 WP5)',
   'GET /api/data-products': 'data products API, pages to come (ADR 0036 WP5)',
   'POST /api/data-products': 'data products API, pages to come (ADR 0036 WP5)',
-  'GET /api/data-products/:id': 'data products API, pages to come (ADR 0036 WP5)',
   'PUT /api/data-products/:id': 'data products API, pages to come (ADR 0036 WP5)',
   'DELETE /api/data-products/:id': 'data products API, pages to come (ADR 0036 WP5)',
   'PUT /api/data-products/:id/rating': 'data products API, pages to come (ADR 0036 WP5)',

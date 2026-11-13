@@ -1,6 +1,7 @@
 import { DATA_PRODUCT_MIGRATIONS } from '../migrations/dataproducts.js';
 import { dataProductRoutes } from '../dataproducts/routes.js';
 import { dataProductHealthRoutes } from '../dataproducts/health-routes.js';
+import { dataProductViewRoutes } from '../dataproducts/views-routes.js';
 import { DATA_PRODUCT_LINK_KIND_RESOLVERS } from '../dataproducts/links.js';
 import { defineFeature } from './define.js';
 
@@ -11,7 +12,8 @@ import { defineFeature } from './define.js';
 export default defineFeature({
   name: 'dataproducts',
   module: 'dataProducts',
-  routes: [dataProductRoutes, dataProductHealthRoutes],
+  // checks and health (WP3); the pictures (WP6): the pipeline of a product, the product map, the lineage of an element
+  routes: [dataProductRoutes, dataProductHealthRoutes, dataProductViewRoutes],
   // ADR 0036 part 17: documents, records and ticket references link products and data objects
   linkKinds: [...DATA_PRODUCT_LINK_KIND_RESOLVERS],
   migrations: [DATA_PRODUCT_MIGRATIONS],
