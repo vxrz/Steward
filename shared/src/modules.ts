@@ -336,7 +336,7 @@ export const MODULES: readonly ModuleDef[] = [
     maturity: 'preview',
     defaultOn: false,
     switchable: true,
-    nav: [],
+    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery'],
     pages: ['/data-products', '/data-elements', '/data-objects', '/data-domains'],
     routes: [
       '/api/data-products',

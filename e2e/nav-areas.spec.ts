@@ -18,7 +18,7 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
   await expect(nav.locator('[data-areas="ready"]')).toHaveCount(1);
   const out: Record<string, string[]> = {};
   out.Home = await nav.getByRole('link', { name: 'Home', exact: true }).allInnerTexts();
-  for (const name of ['Operate', 'Automate', 'Catalogue', 'Registers', 'Compliance', 'Admin']) {
+  for (const name of ['Operate', 'Automate', 'Catalogue', 'Data', 'Registers', 'Compliance', 'Admin']) {
     const group = nav.getByRole('group', { name, exact: true });
     if (!(await group.count())) continue;
     const toggle = group.getByRole('button', { name, exact: true });
@@ -35,6 +35,8 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
 // AI requests show while the MCP server is on or with requests to read: other specs switch it on, so it is left out here
 const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'Maintenance'];
 const CATALOGUE = ['Services', 'Applications', 'Systems', 'Suppliers', 'Platforms', 'Data contracts'];
+// the data products module (ADR 0036, off by default; specs switch it on): Data, with the data contracts beside it
+const DATA = ['Data products', 'Elements', 'Data objects', 'Domains', 'Product map', 'Discovery', 'Data contracts'];
 const REGISTERS = ['Documents', 'Credentials', 'Ticket references', 'Duties'];
 // corrective actions (ADR 0029): the roles of the register, and Olivia through the demo actions of her team; the
 // statement of applicability: everyone who can sign in
@@ -108,7 +110,10 @@ for (const [user, expected] of Object.entries(EXPECTED) as [UserKey, Record<stri
     test(`the sidebar of ${user} holds the pages the role can use`, async ({ page }) => {
       await page.goto('/');
       await settle(page);
-      expect(await areas(page)).toEqual(expected);
+      const got = await areas(page);
+      // while the data products module is on, Data holds the data contracts instead of Catalogue
+      const want = got.Data ? { ...expected, Catalogue: without(expected.Catalogue!, 'Data contracts'), Data: DATA } : expected;
+      expect(got).toEqual(want);
       if (user === 'vera') await expect(sidebar(page).getByRole('link', { name: 'AI requests' })).toHaveCount(0);
     });
   });

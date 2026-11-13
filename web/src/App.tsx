@@ -104,7 +104,16 @@ const EstimatePage = page(() => import('./pages/costs/Estimate'), 'EstimatePage'
 const DataContractsPage = page(() => import('./pages/DataContracts'), 'DataContractsPage');
 const DataContractNewPage = page(() => import('./pages/DataContractNew'), 'DataContractNewPage');
 const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 'DataContractDetailPage');
-// the pictures of the data products module (ADR 0036 WP6); the module's other pages follow (WP5)
+// the data products module (ADR 0036): its pages (WP5) and pictures (WP6)
+const DataProductsPage = page(() => import('./pages/dataproducts'), 'DataProductsPage');
+const DataProductPage = page(() => import('./pages/dataproducts'), 'DataProductPage');
+const DataElementsPage = page(() => import('./pages/dataproducts'), 'DataElementsPage');
+const DataElementPage = page(() => import('./pages/dataproducts'), 'DataElementPage');
+const DataObjectsPage = page(() => import('./pages/dataproducts'), 'DataObjectsPage');
+const DataObjectPage = page(() => import('./pages/dataproducts'), 'DataObjectPage');
+const DataDomainsPage = page(() => import('./pages/dataproducts'), 'DataDomainsPage');
+const DataDiscoveryPage = page(() => import('./pages/dataproducts'), 'DataDiscoveryPage');
+const DataDiscoverySourcePage = page(() => import('./pages/dataproducts'), 'DataDiscoverySourcePage');
 const DataProductMapPage = page(() => import('./pages/dataproducts/views/pages'), 'DataProductMapPage');
 const DataPipelinePage = page(() => import('./pages/dataproducts/views/pages'), 'DataPipelinePage');
 const DataLineagePage = page(() => import('./pages/dataproducts/views/pages'), 'DataLineagePage');
@@ -493,6 +502,102 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="dataContracts">
                           <DataContractDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataProductsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/discovery"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataDiscoveryPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/discovery/:id"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataDiscoverySourcePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/:id"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataProductPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/:id/:tab"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataProductPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-elements"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataElementsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-elements/:id"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataElementPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-elements/:id/:tab"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataElementPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-objects"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataObjectsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-objects/:id"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataObjectPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-objects/:id/:tab"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataObjectPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-domains"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataDomainsPage />
                         </ModuleGate>
                       }
                     />
