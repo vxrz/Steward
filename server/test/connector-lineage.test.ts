@@ -244,6 +244,23 @@ describe('lineage from connectors', () => {
     expect(m.matchEnds(cdc)).toMatchObject({ inputs: [], unmatchedInputs: ["public.orders (no database host in the connector's configuration)"] });
   });
 
+  it('skips the topics of a SQL Server source of several databases, with the reason – the table list does not say the database', async () => {
+    const m = await import('../src/dataproducts/connector-lineage.js');
+    const base = { platformId: 'p', platformKind: 'kafka-connect', key: 'c', name: 'c', state: 'RUNNING', topics: [] as string[], kafkaPlatformId: 'k' };
+    const several = m.connectorDraft(
+      {
+        ...base,
+        type: 'source',
+        class: 'io.debezium.connector.sqlserver.SqlServerConnector',
+        config: { 'topic.prefix': 'erp', 'table.include.list': 'dbo.orders,dbo.lines' },
+        topics: ['erp.sales.dbo.orders', 'erp.billing.dbo.lines'],
+        debezium: { dbms: 'sqlserver', host: 'erp.invented.example', port: 1433, databases: ['sales', 'billing'] },
+      },
+      ['dbp'],
+    );
+    expect(several).toMatchObject({ inputs: [], outputs: [], skipped: 2, reasons: [{ reason: 'sqlServerDatabases', ends: 'skipped', count: 2 }] });
+  });
+
   it('proposes table → topic → table and topic → files as proposals, never applied on their own', async () => {
     const page = (await dana('GET', '/data-products/lineage-proposals?origin=connector&status=open')).items as {
       id: string;
