@@ -273,6 +273,67 @@ describe('ports, consumers and the lifecycle', () => {
     });
   });
 
+  it('keeps a contract the editor may not see when they save the binding; a deleted contract is none', async () => {
+    const contract = ((await s.api('GET', '/data-contracts')) as { id: string; key: string }[]).find((c) => c.key === 'shop-orders')!;
+    await dana('PUT', `/data-products/${orders}/ports/${output}/bindings/prod`, {
+      elementIds: [topic],
+      contractId: contract.id,
+      contractServer: 'production',
+      objectives: { freshnessMinutes: 30 },
+    });
+    const team = (await s.api('POST', '/teams', { name: 'Contract keepers', members: ['adam'] })).id as string;
+    await s.api('PUT', `/owning-teams/contract/${contract.id}`, { teamIds: [team] });
+    const { db } = await import('../src/db.js');
+    const stored = () => db().get<{ contract_id: string | null }>('SELECT contract_id FROM dp_port_bindings WHERE port_id = ?', output)!.contract_id;
+    try {
+      const seen = await dana('GET', `/data-products/${orders}`);
+      const b = seen.ports.find((p: { id: string }) => p.id === output).bindings[0];
+      // counted, never named: not even the contract's server
+      expect(b).toMatchObject({ contractId: null, contract: { hidden: true }, contractServer: null });
+      // her form has no contract: saving the binding's objectives leaves the contract as it was
+      await dana('PUT', `/data-products/${orders}/ports/${output}/bindings/prod`, {
+        elementIds: [topic],
+        contractId: null,
+        objectives: { freshnessMinutes: 30 },
+      });
+      expect(stored()).toBe(contract.id);
+      expect(db().get<{ contract_server: string }>('SELECT contract_server FROM dp_port_bindings WHERE port_id = ?', output)!.contract_server).toBe(
+        'production',
+      );
+    } finally {
+      await s.api('PUT', `/owning-teams/contract/${contract.id}`, { teamIds: [] });
+    }
+    expect((await dana('GET', `/data-products/${orders}`)).ports.find((p: { id: string }) => p.id === output).bindings[0].contract).toMatchObject({
+      key: 'shop-orders',
+    });
+    // a binding whose contract is gone names none (not "one you may not see")
+    db().run("UPDATE dp_port_bindings SET contract_id = 'dct_gone' WHERE port_id = ?", output);
+    try {
+      const b = (await dana('GET', `/data-products/${orders}`)).ports.find((p: { id: string }) => p.id === output).bindings[0];
+      expect(b).toMatchObject({ contractId: null, contract: null });
+    } finally {
+      db().run('UPDATE dp_port_bindings SET contract_id = ? WHERE port_id = ?', contract.id, output);
+    }
+  });
+
+  it('unbinds a data contract that is deleted', async () => {
+    const yaml = 'apiVersion: v3.0.2\nkind: DataContract\nid: orders-to-delete\nname: Orders to delete\nversion: 1.0.0\nstatus: draft\n';
+    const c = await s.api('POST', '/data-contracts', { yaml });
+    await dana('PUT', `/data-products/${orders}/ports/${output}/bindings/test`, { elementIds: [], contractId: c.id, contractVersion: 1 });
+    const { db } = await import('../src/db.js');
+    const binding = () =>
+      db().get<{ contract_id: string | null; contract_version: number | null }>(
+        "SELECT contract_id, contract_version FROM dp_port_bindings WHERE port_id = ? AND environment = 'test'",
+        output,
+      )!;
+    expect(binding().contract_id).toBe(c.id);
+    await s.api('DELETE', `/data-contracts/${c.id}`);
+    expect(binding()).toEqual({ contract_id: null, contract_version: null });
+    await dana('DELETE', `/data-products/${orders}/ports/${output}/bindings/test`);
+    await dana('DELETE', `/data-products/${orders}/environments/test`);
+    expect((await dana('GET', `/data-products/${orders}`)).environments).toEqual(['prod']);
+  });
+
   it('consumes another product’s output port through an input port, and counts consumers', async () => {
     const mart = (await dana('GET', '/data-products?q=sales')).items[0];
     const input = await dana('POST', `/data-products/${mart.id}/ports`, { direction: 'input', name: 'orders', source: { kind: 'port', portId: output } });
@@ -607,6 +668,21 @@ describe('shares (ADR 0033)', () => {
     const view = await s.api('GET', `/access/data_product/${r.id}/shares`);
     expect(view).toMatchObject({ restricted: true });
     expect(JSON.stringify(await s.api('GET', `/audit?entityId=${r.id}`))).toContain('access.share_added');
+  });
+
+  it('go with a deleted product: no share or Restricted mark is left for the share job to remind of', async () => {
+    const { db } = await import('../src/db.js');
+    const p = await s.api('POST', '/data-products', { key: 'shared-then-deleted', name: 'Shared then deleted' });
+    await s.api('PUT', `/access/data_product/${p.id}/scope`, { restricted: true });
+    const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    await s.api('PUT', `/access/data_product/${p.id}/shares`, { shares: [{ subject: 'user:olivia', level: 'view', expiresAt: soon }] });
+    const left = (table: string) =>
+      Number(db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE kind = 'data_product' AND resource_id = ?`, p.id)!.n);
+    expect(left('resource_shares')).toBe(1);
+    expect(left('resource_restrictions')).toBe(1);
+    await s.api('DELETE', `/data-products/${p.id}`);
+    expect(left('resource_shares')).toBe(0);
+    expect(left('resource_restrictions')).toBe(0);
   });
 });
 

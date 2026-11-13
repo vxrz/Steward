@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
@@ -117,7 +118,27 @@ test.describe('the pictures of data products', () => {
     await expect(graph).toHaveAttribute('data-animated', 'true');
     await expect(page.getByTestId('graph-legend')).toContainText('never OK');
     await expectAccessible(page, 'pipeline picture');
+    // readable at first: never below 85 %; what lies beyond the frame is said, and the keyboard reaches it
+    const zoom = () => graph.locator('.react-flow__viewport').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).a);
+    expect(await zoom()).toBeGreaterThanOrEqual(0.85);
+    await expect(page.getByTestId('graph-pan-hint')).toBeVisible();
+    const parts = graph.locator('.react-flow__node[tabindex="0"]');
+    const last = parts.last();
+    await parts.nth((await parts.count()) - 2).focus();
+    await page.keyboard.press('Tab');
+    await expect(last).toBeFocused();
+    const frame = (await graph.boundingBox())!;
+    await expect.poll(async () => (await last.boundingBox())!.x + (await last.boundingBox())!.width).toBeLessThanOrEqual(frame.x + frame.width);
+    await page.getByTestId('graph-fit').click();
+    await expect(page.getByTestId('graph-pan-hint')).toHaveCount(0);
 
+    // the keyboard goes through the parts as the data flows: column by column, top to bottom
+    const order = await graph.locator('.react-flow__node[tabindex="0"]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+    expect(order.length).toBeGreaterThan(3);
+    for (let i = 1; i < order.length; i++) {
+      const [a, b] = [order[i - 1]!, order[i]!];
+      expect(Math.round(a.x) < Math.round(b.x) || (Math.round(a.x) === Math.round(b.x) && a.y <= b.y), `part ${i} after part ${i - 1}`).toBe(true);
+    }
     // a focusable, named node; Space selects it and highlights its way end to end
     const node = graph.locator(`.react-flow__node[data-id="${s.staged}"]`);
     await expect(node).toHaveAttribute('aria-label', /Snowflake table: ORDERS, .*STAGED\.ORDERS\. Role: Internal\. .*Health: No data.*Enter opens its page/);
@@ -148,7 +169,10 @@ test.describe('the pictures of data products', () => {
     let download = page.waitForEvent('download');
     await page.getByTestId('view-export').click();
     await page.getByTestId('export-svg').click();
-    expect((await download).suggestedFilename()).toMatch(/^pipeline-of-orders-.*\.svg$/);
+    const svg = await download;
+    expect(svg.suggestedFilename()).toMatch(/^pipeline-of-orders-.*\.svg$/);
+    // the date in the UI's format, as everywhere else in the app
+    expect(fs.readFileSync((await svg.path())!, 'utf8')).toMatch(/documented as of \d{1,2} [A-Z][a-z]{2,3} \d{4}/);
     download = page.waitForEvent('download');
     await page.getByTestId('view-export').click();
     await page.getByTestId('export-png').click();
@@ -200,6 +224,9 @@ test.describe('the pictures of data products', () => {
     await expect(graph.locator('[data-testid^="graph-area-domain:"]', { hasText: `Sales ${s.token}` })).toBeVisible();
     await expect(graph.getByTestId(`graph-edge-${s.orders}>${s.mart}`)).toBeAttached();
     await expectAccessible(page, 'product map');
+    // the filters say what they are, as on the lists
+    for (const name of ['Domain', 'Type', 'Lifecycle', 'Environment'])
+      await expect(page.getByTestId('map-filters').getByText(name, { exact: true })).toBeVisible();
     // a filter is part of the address; what matches is drawn, its neighbours greyed
     await page.getByTestId('map-type').click();
     await page.getByRole('option', { name: 'Consumer-aligned' }).click();

@@ -471,7 +471,7 @@ function ObjectElements({ o }: { o: DataObject }) {
   return (
     <Section title={t('objects.elements')} testId="object-elements">
       {rows.length ? (
-        <Stack gap={4}>
+        <Stack gap={8}>
           {rows.map((e) => (
             <Group key={e.id} gap="xs" wrap="wrap">
               <Anchor component={Link} to={`/data-elements/${enc(e.id)}`} size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>

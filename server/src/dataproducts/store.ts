@@ -34,7 +34,7 @@ export const chunks = <T>(xs: readonly T[], n = CHUNK): T[][] => {
 export const marks = (n: number): string => Array.from({ length: n }, () => '?').join(', ');
 
 /** Rows of `sql` (which ends with `IN (`…`)` filled by `ids`), read in chunks. */
-function inChunks<T>(sql: (marks: string) => string, ids: readonly string[], ...before: unknown[]): T[] {
+export function inChunks<T>(sql: (marks: string) => string, ids: readonly string[], ...before: unknown[]): T[] {
   const uniq = [...new Set(ids)];
   if (!uniq.length) return [];
   return chunks(uniq).flatMap((part) => db().all<T>(sql(marks(part.length)), ...before, ...part));
@@ -634,9 +634,19 @@ export function upsertDiscovered(
   const keyOf = (kind: string, env: string, norm: string) => `${kind}\u0000${env}\u0000${norm}`;
   type Known = Pick<
     ElementRow,
-    'id' | 'kind' | 'environment' | 'name_norm' | 'qualified_name' | 'external_id' | 'tech_hash' | 'missing_since' | 'parent_id' | 'discovery_source_id'
+    | 'id'
+    | 'kind'
+    | 'environment'
+    | 'name_norm'
+    | 'qualified_name'
+    | 'display_name'
+    | 'external_id'
+    | 'tech_hash'
+    | 'missing_since'
+    | 'parent_id'
+    | 'discovery_source_id'
   >;
-  const cols = 'id, kind, environment, name_norm, qualified_name, external_id, tech_hash, missing_since, parent_id, discovery_source_id';
+  const cols = 'id, kind, environment, name_norm, qualified_name, display_name, external_id, tech_hash, missing_since, parent_id, discovery_source_id';
   d.tx(() => {
     // what exists: by name (the batch and its parents) and by external id (renames)
     const names = new Set<string>();
@@ -694,11 +704,17 @@ export function upsertDiscovered(
         const prev = byExternal.get(`${e.kind}\u0000${e.environment}\u0000${e.externalId}`);
         // a known id under a new name: renamed, not replaced (people's fields and memberships stay)
         if (prev && prev.name_norm !== norm && !known.has(keyOf(e.kind, e.environment, norm))) {
+          // the name shown follows while it is the default (the old short name); one people gave stays
+          const displayName =
+            prev.display_name === elementShortName(prev.qualified_name)
+              ? (e.displayName ?? elementShortName(e.qualifiedName)).slice(0, DATA_PRODUCT_LIMITS.name)
+              : prev.display_name;
           d.run(
-            `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, parent_id = ?, flags = ?, ol_namespace = ?, ol_name = ?, tech_hash = ?, missing_since = NULL,
-               revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+            `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, display_name = ?, parent_id = ?, flags = ?, ol_namespace = ?, ol_name = ?, tech_hash = ?,
+               missing_since = NULL, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
             qualified,
             norm,
+            displayName,
             parentId,
             JSON.stringify(e.flags ?? {}),
             olNamespace,
@@ -711,7 +727,7 @@ export function upsertDiscovered(
           result.renames.push({ id: prev.id, from: prev.qualified_name, to: qualified });
           result.renamed++;
           known.delete(keyOf(prev.kind, prev.environment, prev.name_norm));
-          row = { ...prev, name_norm: norm, qualified_name: qualified, tech_hash: hash, missing_since: null, parent_id: parentId };
+          row = { ...prev, name_norm: norm, qualified_name: qualified, display_name: displayName, tech_hash: hash, missing_since: null, parent_id: parentId };
           known.set(keyOf(e.kind, e.environment, norm), row);
         }
       } else if (row) {
@@ -780,6 +796,7 @@ export function upsertDiscovered(
           environment: e.environment,
           name_norm: norm,
           qualified_name: qualified,
+          display_name: (e.displayName ?? elementShortName(e.qualifiedName)).slice(0, DATA_PRODUCT_LIMITS.name),
           external_id: e.externalId ?? null,
           tech_hash: hash,
           missing_since: null,

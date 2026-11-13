@@ -6,6 +6,7 @@ import { DATA_PRODUCT_IMPORT_MODES, type DataProductImportMode, type DataProduct
 import { apiUrl, notifyOk, post } from '../../api';
 import { FormModal, FormModalCancel } from '../FormModal';
 import { TableScroll } from '../TableScroll';
+import { Breakable } from '../../pages/dataproducts/parts';
 import { useBusy } from './form';
 
 /**
@@ -192,15 +193,15 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
                     {shown.map((c, i) => (
                       <Table.Tr key={i}>
                         <Table.Td>{t(`transfer.kinds.${c.kind}`)}</Table.Td>
-                        <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                          {c.key}
+                        <Table.Td className="mono" style={{ overflowWrap: 'break-word' }}>
+                          <Breakable text={c.key} />
                         </Table.Td>
                         <Table.Td>
                           <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light" tt="none">
                             {t(`transfer.actions.${c.action}`)}
                           </Badge>
                         </Table.Td>
-                        <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                        <Table.Td style={{ overflowWrap: 'break-word' }}>
                           {c.action === 'skip'
                             ? (c.reason ?? '')
                             : c.fields.map((f) => (

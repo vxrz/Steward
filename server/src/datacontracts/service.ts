@@ -829,6 +829,8 @@ export function deleteContract(id: string): void {
   db().tx(() => {
     for (const t of ['data_contract_versions', 'data_contract_links', 'data_contract_runs']) db().run(`DELETE FROM ${t} WHERE contract_id = ?`, id);
     db().run('DELETE FROM data_contracts WHERE id = ?', id);
+    // the output ports of data products bound to it are held to no contract from now on (ADR 0036)
+    db().run('UPDATE dp_port_bindings SET contract_id = NULL, contract_version = NULL, contract_server = NULL WHERE contract_id = ?', id);
     forgetOwningTeams('contract', id);
     // the change record rule outlives the contract: a new one with this ODCS id (an import) starts with it
     if (row.require_change_record) {

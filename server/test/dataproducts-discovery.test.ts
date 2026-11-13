@@ -309,6 +309,35 @@ describe('Snowflake (information schema)', () => {
     expect((await dana('GET', `/data-products/discovery-sources/${id}/runs`))[0].status).toBe('succeeded');
   });
 
+  it('refuses a change to a source while it reads, as a deletion', async () => {
+    const { runAs } = await import('../src/auth/context.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    const sources = await import('../src/dataproducts/discovery/sources.js');
+    const src = await dana('GET', `/data-products/discovery-sources/${id}`);
+    const body = {
+      name: src.name,
+      platformId: src.platformId,
+      scope: src.scope,
+      includePrefixes: src.includePrefixes,
+      excludePrefixes: src.excludePrefixes,
+      environmentRules: src.environmentRules,
+      mode: src.mode,
+      identityId: src.identityId,
+      elementTeamIds: src.elementTeamIds,
+      intervalMinutes: src.intervalMinutes,
+      enabled: src.enabled,
+    };
+    const asDana = <T>(f: () => T) => runAs(toAuthUser(findUserByName('dana')!), f);
+    const { done } = job.startRun(id, { trigger: 'manual' });
+    try {
+      expect(() => asDana(() => sources.updateSource(id, body))).toThrow(/is reading/);
+      expect(() => asDana(() => sources.deleteSource(id))).toThrow(/is reading/);
+    } finally {
+      await done;
+    }
+    expect((await dana('PUT', `/data-products/discovery-sources/${id}`, body)).name).toBe(src.name);
+  });
+
   it('fails a run the outbound policy blocks, and keeps what it found', async () => {
     const settings = await s.api('GET', '/settings');
     try {
@@ -330,6 +359,15 @@ describe('Snowflake (information schema)', () => {
 });
 
 describe('Snowflake (account usage)', () => {
+  it('names OpenLineage datasets as Snowflake reports them (a quoted name keeps its case)', async () => {
+    const { openLineageDataset } = await import('@sm/shared');
+    expect(openLineageDataset('snowflake.table', 'Invented-Acct', 'SHOP.SALES.ORDERS')).toEqual({
+      namespace: 'snowflake://invented-acct',
+      name: 'SHOP.SALES.ORDERS',
+    });
+    expect(openLineageDataset('snowflake.view', 'invented-acct', 'SHOP.SALES.monthlyRevenue')!.name).toBe('SHOP.SALES.monthlyRevenue');
+  });
+
   it('reads the scope in one statement per view and keeps an element renamed by its TABLE_ID', async () => {
     const src = await dana('POST', '/data-products/discovery-sources', {
       name: 'CRM by account usage',
@@ -355,7 +393,13 @@ describe('Snowflake (account usage)', () => {
       description: 'Written by people',
       layer: 'curated',
       olName: 'CRM.CORE.PEOPLE',
+      // the name shown follows the rename while it is the default short name; a name people gave stays
+      displayName: 'PEOPLE',
     });
+    await dana('PUT', `/data-elements/${contacts.id}`, { displayName: 'Customer contacts' });
+    sf.renameSnowflakeObject('CRM.CORE.PEOPLE', 'PERSONS');
+    expect(await job.runSource(src.id, { trigger: 'schedule' })).toMatchObject({ renamed: 1 });
+    expect(await dana('GET', `/data-elements/${contacts.id}`)).toMatchObject({ qualifiedName: 'CRM.CORE.PERSONS', displayName: 'Customer contacts' });
     const audit = await s.api('GET', '/audit?action=datadiscovery.run');
     expect(JSON.stringify(audit)).toContain('CRM.CORE.PEOPLE');
     sf.resetSnowflakeCatalogue();
@@ -431,6 +475,18 @@ describe('Kafka and the Schema Registry', () => {
 });
 
 describe('SQL schema snapshots', () => {
+  it('name their OpenLineage datasets by the naming conventions of each dialect', async () => {
+    const { sqlOpenLineage } = await import('../src/dataproducts/discovery/dbschema.js');
+    const { openLineageDataset } = await import('@sm/shared');
+    const of = (dialect: string, port?: number) => {
+      const ol = sqlOpenLineage({ config: { database: { dialect, host: 'DB.example', port, database: 'shop' } } } as never)!;
+      return openLineageDataset('sql.table', ol.address, `${ol.prefix}sales.orders`);
+    };
+    expect(of('postgresql')).toEqual({ namespace: 'postgres://db.example:5432', name: 'shop.sales.orders' });
+    expect(of('mysql', 3307)).toEqual({ namespace: 'mysql://db.example:3307', name: 'sales.orders' });
+    expect(of('sqlserver')).toEqual({ namespace: 'mssql://db.example:1433', name: 'shop.sales.orders' });
+  });
+
   it('reads the latest snapshot of a database platform – no connection of its own', async () => {
     const src = await dana('POST', '/data-products/discovery-sources', { name: 'Shop database', platformId: database, enabled: false });
     const none = await job.runSource(src.id, { trigger: 'schedule' });

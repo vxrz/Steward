@@ -5,8 +5,10 @@ import { Link } from 'react-router-dom';
 import { IconArrowsMaximize, IconEyeOff, IconInfoCircle, IconSearch } from '@tabler/icons-react';
 import { DATA_HEALTH_ORDER, reachable, type DataGraph, type DataGraphEdge, type DataGraphNode } from '@sm/shared';
 import { TableScroll } from '../../../components/TableScroll';
+import { fmtDay } from '../../../format';
 import { LegendItem, LineMark, ViewToolbar } from '../../plant/views/common';
 import { useMotion, useViewMode } from '../../plant/views/prefs';
+import { Breakable } from '../parts';
 import { DataGraphCanvas, KIND_ICON, iconKey } from './DataGraphCanvas';
 import { graphSvg } from './graphExport';
 import type { GraphLayout } from './graphLayout';
@@ -42,6 +44,8 @@ export interface DataGraphViewProps {
   waysTable?: ReactNode;
   /** Filters and the environment switch, beside the picture/table switch */
   filters?: ReactNode;
+  /** Filters with visible labels, in a row of their own below the toolbar (as on the lists) */
+  filterBar?: ReactNode;
   /** More entries of the legend */
   legend?: ReactNode;
   headerText?: (index: number) => string;
@@ -62,6 +66,7 @@ export function DataGraphView({
   columns,
   waysTable,
   filters,
+  filterBar,
   legend,
   headerText,
   nodesTitle,
@@ -110,7 +115,7 @@ export function DataGraphView({
     [graph],
   );
   const exportSvg = () => ({
-    ...graphSvg(drawn, layout, { title, subtitle: t('export.subtitle', { date: new Date().toLocaleDateString() }), text, header: headerText }),
+    ...graphSvg(drawn, layout, { title, subtitle: t('export.subtitle', { date: fmtDay(new Date()) }), text, header: headerText }),
     title,
   });
   const notes: ReactNode[] = [];
@@ -127,6 +132,7 @@ export function DataGraphView({
       <ViewToolbar mode={mode} onMode={setMode} onExport={drawn.nodes.length ? exportSvg : null}>
         {filters}
       </ViewToolbar>
+      {filterBar}
       {notes.length > 0 && (
         <Alert variant="light" color="gray" icon={<IconInfoCircle size={16} />} p="xs" data-testid="graph-notes">
           <Stack gap={2}>
@@ -323,11 +329,11 @@ function NodeTable({ graph, columns, narrow, text, title }: { graph: DataGraph; 
   );
   const name = (n: DataGraphNode) =>
     n.path ? (
-      <Anchor component={Link} to={n.path} size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
+      <Anchor component={Link} to={n.path} size="sm" fw={500} style={{ overflowWrap: 'break-word' }}>
         {text.label(n)}
       </Anchor>
     ) : (
-      <Text size="sm" fw={500} fs={n.hidden ? 'italic' : undefined} style={{ overflowWrap: 'anywhere' }}>
+      <Text size="sm" fw={500} fs={n.hidden ? 'italic' : undefined} style={{ overflowWrap: 'break-word' }}>
         {text.label(n)}
       </Text>
     );
@@ -424,8 +430,8 @@ function NodeTable({ graph, columns, narrow, text, title }: { graph: DataGraph; 
                     <Stack gap={0}>
                       {name(n)}
                       {n.detail && !n.hidden && (
-                        <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                          {n.detail}
+                        <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'break-word' }}>
+                          <Breakable text={n.detail} />
                         </Text>
                       )}
                     </Stack>

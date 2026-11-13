@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -6,6 +6,7 @@ import {
   EdgeLabelRenderer,
   Handle,
   MarkerType,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -107,7 +108,9 @@ const Part = memo(function Part({ data }: NodeProps<PartNode>) {
       <Group gap={6} justify="space-between" wrap="nowrap" h={20}>
         <Group gap={5} wrap="nowrap" style={{ minWidth: 0 }}>
           <I size={15} stroke={1.7} aria-hidden style={{ flexShrink: 0 }} />
-          <span className="pv-node-kind">{text.kind(n)}</span>
+          <span className="pv-node-kind" title={text.kind(n)}>
+            {text.kind(n)}
+          </span>
         </Group>
         {n.health && H && (compact ? <H size={14} aria-hidden style={{ color: healthVar(n.health) }} /> : <HealthBadge status={n.health} size="xs" />)}
       </Group>
@@ -287,8 +290,8 @@ export function DataGraphCanvas(props: DataGraphCanvasProps) {
   );
 }
 
-/** Below this zoom the picture opens at it (the rest is a drag away), so names stay readable. */
-const READABLE_ZOOM = 0.6;
+/** Below this zoom the picture opens at it, from its upstream side (the rest is a drag, a scroll or a Tab away), so names stay readable. */
+const READABLE_ZOOM = 0.85;
 
 function Canvas({
   nodes: graphNodes,
@@ -361,7 +364,9 @@ function Canvas({
           height: s.height,
           ariaLabel: text.aria(n),
         };
-      }) as (PartNode | StepNode)[];
+      })
+      // the order in the page is the order of the keyboard: upstream to downstream, top to bottom in a column
+      .sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y) as (PartNode | StepNode)[];
     return [...areas, ...headers, ...parts];
   }, [graphNodes, layout, highlight, selected, matches, byId, text, headerText]);
   const edges: WayEdge[] = useMemo(
@@ -400,9 +405,12 @@ function Canvas({
       onSelect(selected === id ? null : id);
     } else if (ev.key === 'Escape') onSelect(null);
   };
+  // the picture is larger than the frame at a readable size: say how to reach the rest
+  const [clipped, setClipped] = useState(false);
   const fit = () => {
     if (!fw || !fh) return;
     const zoom = Math.min((fw - 32) / layout.width, (fh - 32) / layout.height, 1);
+    setClipped(zoom < READABLE_ZOOM);
     if (zoom >= READABLE_ZOOM) void rf.fitView({ padding: 0.06, maxZoom: 1 });
     else void rf.setViewport({ x: 16, y: Math.max(8, (fh - layout.height * READABLE_ZOOM) / 2), zoom: READABLE_ZOOM });
   };
@@ -413,6 +421,7 @@ function Canvas({
       first.current = false;
       return;
     }
+    setClipped(false);
     void rf.fitView({ padding: 0.04, minZoom: 0.05, duration: animate ? 300 : 0 });
   }, [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only when asked
   useEffect(() => {
@@ -463,6 +472,11 @@ function Canvas({
         >
           <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
           <Controls showInteractive={false} />
+          {clipped && (
+            <Panel position="top-right" className="dpv-pan-hint" data-testid="graph-pan-hint">
+              {t('graph.panHint')}
+            </Panel>
+          )}
         </ReactFlow>
       )}
     </div>
