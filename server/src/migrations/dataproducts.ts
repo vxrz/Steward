@@ -694,4 +694,33 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE dp_port_review_items ADD COLUMN facts TEXT;
     `,
   },
+  {
+    // 0.25.0, package C: large imports as background jobs – the job with its progress and result, and its journal of
+    // the elements it added (before: null) or changed (before: their fields), to take them back when it fails
+    name: 'dataproducts-006c-import-jobs',
+    sql: `
+      CREATE TABLE dp_import_jobs (
+        id TEXT PRIMARY KEY,
+        state TEXT NOT NULL,
+        phase TEXT NOT NULL,
+        done INTEGER NOT NULL DEFAULT 0,
+        total INTEGER NOT NULL DEFAULT 0,
+        mode TEXT NOT NULL,
+        origin TEXT,
+        result TEXT,
+        error TEXT,
+        undone TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        finished_at TEXT
+      );
+      CREATE INDEX dp_import_jobs_state ON dp_import_jobs(state, created_at);
+      CREATE TABLE dp_import_job_elements (
+        job_id TEXT NOT NULL,
+        element_id TEXT NOT NULL,
+        before TEXT,
+        PRIMARY KEY (job_id, element_id)
+      );
+    `,
+  },
 ];

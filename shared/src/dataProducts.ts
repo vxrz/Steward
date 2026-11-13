@@ -32,6 +32,8 @@ export const DATA_PRODUCT_ID_PREFIX = {
   run: 'dpn_',
   costMatch: 'dpm_',
   allocation: 'dpa_',
+  /** 0.25.0: a background import */
+  importJob: 'dpj_',
 } as const;
 
 /** The owned kinds of the module (resource_teams.kind, OWNED_KINDS): owning teams decide who sees and changes them. */

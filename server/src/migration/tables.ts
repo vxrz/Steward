@@ -97,6 +97,8 @@ export const NOT_MOVED: Record<string, string> = {
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
   dp_volume_readings: 'the readings before of the data-element volume checks (0.24.0): read again on the target',
+  dp_import_jobs: 'the background imports of the source (0.25.0): bookkeeping of finished or interrupted jobs',
+  dp_import_job_elements: 'the journal of the background imports of the source (0.25.0), only needed while a job runs',
   cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
   // lineage from tools (0.24.0, ADR 0036 phase 2): the push addresses and tokens are this instance's
   dp_lineage_sources: 'lineage sources (OpenLineage, dbt) are push addresses of this instance: set them up again on the target and point the tools there',

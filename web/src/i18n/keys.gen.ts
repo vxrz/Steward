@@ -6068,6 +6068,13 @@ export interface Resources {
     'transfer.modeHints.replace': string;
     'transfer.preview': string;
     'transfer.run': string;
+    'transfer.jobElements': string;
+    'transfer.jobEntries': string;
+    'transfer.jobUndo': string;
+    'transfer.jobSucceeded': string;
+    'transfer.jobFailed': string;
+    'transfer.jobUndone_one': string;
+    'transfer.jobUndone_other': string;
     'transfer.previewFailed': string;
     'transfer.failed': string;
     'transfer.done': string;
@@ -8387,6 +8394,10 @@ export interface Resources {
     'codes.DATA_PRODUCT_IMPORT_SECRET': string;
     'codes.DATA_PRODUCT_IMPORT_TOO_LARGE': string;
     'codes.DATA_PRODUCT_IMPORT_CHANGED': string;
+    'codes.DATA_PRODUCT_IMPORT_RUNNING': string;
+    'codes.DATA_PRODUCT_IMPORT_JOB_NOT_FOUND': string;
+    'codes.DATA_PRODUCT_IMPORT_FAILED': string;
+    'codes.DATA_PRODUCT_IMPORT_FAILED_interrupted': string;
     'codes.DATA_PRODUCT_LIMIT_domains': string;
     'codes.DATA_PRODUCT_LIMIT_objects': string;
     'codes.DATA_PRODUCT_LIMIT_products': string;

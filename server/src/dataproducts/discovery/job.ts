@@ -372,6 +372,13 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
 export async function runDataProductsJob(now = Date.now()): Promise<{ read: number; failed: number } | null> {
   // links to monitors deleted since the last run (no secrets needed)
   pruneCheckLinks();
+  // 0.25.0: background imports a stopped server left running are taken back
+  try {
+    const { recoverInterrupted } = await import('../import-jobs.js');
+    await recoverInterrupted();
+  } catch (err) {
+    logger.warn({ err }, 'an interrupted import of data products could not be taken back');
+  }
   if (!vault().unlocked) return null;
   closeInterrupted();
   const due = db().all<{ id: string }>(

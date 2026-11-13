@@ -7,7 +7,8 @@ import { LINK_PARAM } from '../auth/cookies.js';
 import { dataProductsJsonSchema } from './format.js';
 import { exportFile } from './export.js';
 import { odpsFile } from './odps.js';
-import { applyImport, importOrigins, importRemovals, previewImport } from './import.js';
+import { importOrigins, importRemovals, previewImport } from './import.js';
+import { getImportJob, startImport } from './import-jobs.js';
 import YAML from 'yaml';
 import { me } from '../auth/access.js';
 import { dataObjectsSemanticModel } from './ossie.js';
@@ -25,6 +26,7 @@ import { dataObjectsSemanticModel } from './ossie.js';
  *   GET  /api/data-objects/semantic-model            the data objects as an Apache Ossie model (?version, format; phase 2)
  *   GET  /api/data-products/import-origins           earlier imports' origins with entries the caller may see (phase 2)
  *   POST /api/data-products/import/preview           what an import would add, change and skip
+ *   GET  /api/data-products/import/jobs/:id          a background import's progress and result (0.25.0)
  *   POST /api/data-products/import                   the import (add only, add and update, or replace an earlier import –
  *                                                    removing more than one entry or item asks for the step-up
  *                                                    dataproduct.bulkChange); ODPS documents among the files are read too
@@ -91,6 +93,12 @@ export async function dataProductTransferRoutes(app: FastifyInstance): Promise<v
   app.post(
     '/data-products/import',
     { ...imports, config: { ...imports.config, stepUp: { action: 'changeDataProductsInBulk', when: (req: FastifyRequest) => removalsOf(req) > 1 } } },
-    async (req) => applyImport(req.body),
+    // 0.25.0: a large import runs in the background – 202 with the job (import-jobs.ts)
+    async (req, reply) => {
+      const r = startImport(req.body);
+      if (r.status === 202) return reply.code(202).send({ job: r.job });
+      return r.result;
+    },
   );
+  app.get('/data-products/import/jobs/:id', { config: { access: ACCESS.session } }, async (req) => getImportJob(idOf(req)));
 }

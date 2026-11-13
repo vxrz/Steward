@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Autocomplete, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Autocomplete, Badge, Button, FileInput, Group, List, Menu, Progress, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconDownload, IconFileExport, IconFileImport, IconFileUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import {
   DATA_PRODUCT_IMPORT_MODES,
   DATA_PRODUCT_IMPORT_ORIGIN_RE,
   type DataProductImportChange,
+  type DataProductImportJob,
   type DataProductImportMode,
   type DataProductImportOrigin,
   type DataProductImportPreview,
@@ -18,6 +19,8 @@ import { fmtRelative } from '../../format';
 import { FormModal, FormModalCancel } from '../FormModal';
 import { Breakable, CardTable } from '../../pages/dataproducts/parts';
 import { useBusy } from './form';
+import { codeText } from '../../i18n/errors';
+import { fmtNumber } from '../../format';
 
 /**
  * Import and export of the data products module on the pages (ADR 0036 part 15, docs/DATA-PRODUCTS.md "File format,
@@ -181,6 +184,8 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   const [mode, setMode] = useState<DataProductImportMode>('add');
   const [origin, setOrigin] = useState('');
   const [preview, setPreview] = useState<DataProductImportPreview | null>(null);
+  // 0.25.0: a large import runs in the background – its progress, read every second until it ends
+  const [job, setJob] = useState<DataProductImportJob | null>(null);
   const [busy, run] = useBusy();
   const tooLarge = files.reduce((n, f) => n + f.size, 0) > MAX_BYTES;
   const originError =
@@ -239,7 +244,27 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   };
   const applyNow = () =>
     run(async () => {
-      const r = await post<DataProductImportResult>('/data-products/import', { ...(await body()), fingerprint: preview?.fingerprint });
+      const sent = await post<DataProductImportResult | { job: DataProductImportJob }>('/data-products/import', {
+        ...(await body()),
+        fingerprint: preview?.fingerprint,
+      });
+      let r: DataProductImportResult;
+      if ('job' in sent) {
+        let j = sent.job;
+        setJob(j);
+        while (j.state === 'running') {
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+          j = await get<DataProductImportJob>(`/data-products/import/jobs/${enc(j.id)}`);
+          setJob(j);
+        }
+        if (j.state === 'failed' || !j.result) {
+          const e = j.error;
+          throw new Error(
+            `${(e && codeText(e.code ?? undefined, e.params ?? undefined, e.message)) ?? e?.message ?? ''} ${t('transfer.jobUndone', { count: j.undone?.removed ?? 0 })}`.trim(),
+          );
+        }
+        r = j.result;
+      } else r = sent;
       notifyOk(
         t(r.counts.remove !== undefined ? 'transfer.doneReplace' : 'transfer.done', {
           add: r.counts.add,
@@ -386,6 +411,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
             )}
           </Stack>
         )}
+        {job && <JobProgress job={job} />}
         <Group justify="flex-end" mt="sm">
           <FormModalCancel />
           <Button
@@ -413,5 +439,34 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
         </Group>
       </Stack>
     </FormModal>
+  );
+}
+
+/** A background import's progress (0.25.0): the elements written so far, then the rest, or taking back after a failure. */
+function JobProgress({ job }: { job: DataProductImportJob }) {
+  const { t } = useTranslation('dataProducts');
+  const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
+  const text =
+    job.phase === 'elements'
+      ? t('transfer.jobElements', { done: fmtNumber(job.done), total: fmtNumber(job.total) })
+      : job.phase === 'entries'
+        ? t('transfer.jobEntries')
+        : job.phase === 'undo'
+          ? t('transfer.jobUndo')
+          : job.state === 'succeeded'
+            ? t('transfer.jobSucceeded')
+            : t('transfer.jobFailed');
+  return (
+    <Stack gap={4} data-testid="import-job">
+      <Text size="sm" id="import-job-label" aria-live="polite">
+        {text}
+      </Text>
+      <Progress
+        value={job.phase === 'elements' ? pct : 100}
+        animated={job.state === 'running'}
+        color={job.state === 'failed' || job.phase === 'undo' ? 'red' : undefined}
+        aria-labelledby="import-job-label"
+      />
+    </Stack>
   );
 }
