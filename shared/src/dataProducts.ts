@@ -811,6 +811,9 @@ export interface DiscoveredElement {
   externalId?: string | null;
   flags?: Record<string, string | number | boolean>;
   readout?: Omit<DataElementReadout, 'readAt'> | null;
+  /** The OpenLineage dataset (openLineageDataset; phase 2 matches run events by it) */
+  olNamespace?: string | null;
+  olName?: string | null;
 }
 
 export interface DiscoveryUpsertResult {
@@ -863,6 +866,15 @@ export interface DataDiscoverySource {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  /** The platform's name and kind (the reader sees the platform, or the source is not listed) */
+  platformName?: string;
+  platformKind?: string;
+  /** What the reader may do: view; manage (change, delete, Read now) */
+  permissions?: ('view' | 'manage')[];
+  /** A run is going on now */
+  running?: boolean;
+  /** The newest run */
+  lastRun?: DataDiscoveryRun | null;
 }
 
 export interface DataDiscoveryRun {
@@ -879,8 +891,74 @@ export interface DataDiscoveryRun {
   removed: number;
   unchanged: number;
   truncated: boolean;
+  /**
+   * Why the run failed or stopped early, or what it could not read (a Schema Registry), in English; the web app shows
+   * errors:codes.<errorCode> with errorParams when there is a code
+   */
   error: string | null;
+  errorCode?: string | null;
+  errorParams?: Record<string, string | number | boolean | null> | null;
   actor: string;
+}
+
+/** Limits and defaults of discovery (ADR 0036 parts 5 and 19, _Performance_). */
+export const DATA_DISCOVERY_LIMITS = {
+  /** How often a source is read (minutes): at most hourly, daily by default, at least weekly */
+  intervalMinutes: { min: 60, default: 1_440, max: 10_080 },
+  /** Entries of a scope (Snowflake databases or schemas, Kafka prefixes, SQL schemas) */
+  scope: 50,
+  /** Include and exclude prefixes each */
+  prefixes: 100,
+  environmentRules: 20,
+  elementTeams: 20,
+  /**
+   * Elements written per transaction, with a yield to the event loop between batches: 250 keep one batch well below
+   * 100 ms on PostgreSQL (each statement is a hop to the database), so the event loop's lag stays below 200 ms
+   */
+  batch: 250,
+  /** A run stops after this long and says truncated */
+  timeBudgetMs: 10 * 60_000,
+  /** The Snowflake SQL API's statement timeout (seconds) */
+  statementTimeoutSeconds: 120,
+  /** Missing elements in no product are removed after this many days */
+  missingDays: 30,
+  /** Schema Registry subjects whose latest version one run reads (the others keep their last readout) */
+  registrySubjects: 2_000,
+  /** Topics described per Kafka request */
+  topicsPerRequest: 200,
+} as const;
+
+/** The scope entry that is a whole Snowflake database or a schema (`DB`, `DB.SCHEMA`; unquoted identifiers). */
+export const SNOWFLAKE_DISCOVERY_SCOPE_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}(\.[A-Za-z_][A-Za-z0-9_$]{0,254})?$/;
+
+/**
+ * The environment of a discovered element by the source's rules (part 4): the first rule whose prefix starts, or whose
+ * suffix ends, the element's root name (the Snowflake database, the SQL schema, the Kafka topic) – compared without
+ * case; plain comparisons, no patterns. No rule matches: `fallback` (the platform's environment).
+ */
+export function environmentByRules(rootName: string, rules: readonly DataEnvironmentRule[], fallback: string): string {
+  const n = rootName.trim().toLowerCase();
+  for (const r of rules) {
+    const v = r.value.trim().toLowerCase();
+    if (!v) continue;
+    if (r.match === 'prefix' ? n.startsWith(v) : n.endsWith(v)) return r.environment;
+  }
+  return fallback;
+}
+
+/**
+ * Whether a source keeps an element by its include and exclude prefixes (plain comparisons without case, no patterns):
+ * excluded when an exclude prefix starts its qualified name; with include prefixes, kept when one starts its name – or,
+ * for a container (a database, a schema), when the container leads to one (`SHOP` and `SHOP.SALES` for `SHOP.SALES.`).
+ */
+export function discoveryKeeps(qualifiedName: string, include: readonly string[], exclude: readonly string[], container = false): boolean {
+  const n = qualifiedName.trim().toLowerCase();
+  if (exclude.some((x) => x && n.startsWith(x.trim().toLowerCase()))) return false;
+  if (!include.length) return true;
+  return include.some((raw) => {
+    const x = raw.trim().toLowerCase();
+    return !x || n.startsWith(x) || (container && (x.startsWith(`${n}.`) || x === n));
+  });
 }
 
 // ---------- steps and lineage (part 9) ----------
@@ -994,6 +1072,86 @@ export interface ProductCost {
   amountsHidden: boolean;
 }
 
+/**
+ * A cost match (part 11): the lines of a platform a product claims in one environment – by resource id, sub-account,
+ * service name, tag value or the application the lines are mapped to. On an element, the products it is a member of
+ * inherit it (in the element's environment).
+ */
+export interface DataCostMatch {
+  id: string;
+  /** The product the match is on; null: on an element */
+  productId: string | null;
+  elementId: string | null;
+  /** The element of an inherited match as the product shows it (decision 15); null for a product's own match */
+  element: { id: string; qualifiedName: string; visible: boolean } | null;
+  environment: string;
+  /** null: a platform the reader may not see – its value is not shown either (platformHidden) */
+  platformId: string | null;
+  platformName: string | null;
+  platformHidden: boolean;
+  kind: DataCostMatchKind;
+  value: string | null;
+  /** The tag's key (kind tag) */
+  tagKey: string;
+  /** Other products that match the same lines (counted, never named) */
+  sharedWith: number;
+  canDelete: boolean;
+  createdAt: string;
+  createdBy: string;
+}
+
+/** A line of a product's costs in a month: what it takes of the platform's lines of one match, with the rule. */
+export interface DataProductCostLine extends ProductCostLine {
+  platformName: string;
+  match: { kind: DataCostMatchKind; value: string; tagKey: string };
+  /** The products the line is split between, this one included (others counted, never named) */
+  products: number;
+}
+
+/** The Costs tab of a product (GET /api/data-products/:id/costs): per month in one environment, value beside it. */
+export interface DataProductCosts {
+  productId: string;
+  /** The environment shown (production first by default); null: the product has none */
+  environment: string | null;
+  environments: string[];
+  /** Oldest month first */
+  months: (Omit<ProductCost, 'lines'> & { lines: DataProductCostLine[] })[];
+  /** Its own matches and those inherited from its elements, in the environment */
+  matches: DataCostMatch[];
+  /** The product's value beside its costs – never netted, no ratio (decision 30) */
+  value: { statement: string; tier: DataValueTier | null; amount: number | null; currency: string | null };
+  /** Some month is incomplete: a platform whose amounts the reader may not see takes part */
+  incomplete: boolean;
+  amountsHidden: boolean;
+  canEditMatches: boolean;
+}
+
+/**
+ * How a platform's lines of one match key are split between the products that match them (part 11): equal, or by a
+ * weight in percent per product – never more than 100 % of a line; the rest is not attributed. Set by who may manage
+ * the platform; weights are shown to who sees the platform's amounts.
+ */
+export interface DataCostAllocation {
+  platformId: string;
+  platformName: string;
+  kind: DataCostMatchKind;
+  value: string;
+  tagKey: string;
+  rule: DataCostAllocationRule;
+  /** Products matching the key that the reader may see, with their weight (null: weights not shown) */
+  products: { product: DataRef & { hidden?: false }; environments: string[]; weightPct: number | null }[];
+  /** Products matching it that the reader may not see (counted, never named) */
+  hiddenProducts: number;
+  /** Weight of the hidden products together (null: weights not shown) */
+  hiddenWeightPct: number | null;
+  /** What no product takes (weight rule; null: weights not shown) */
+  notAttributedPct: number | null;
+  weightsShown: boolean;
+  canEdit: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 // ---------- scorecard and maturity (part 13; WP4) ----------
 
 export const DATA_SCORECARD_PARTS = [
@@ -1039,6 +1197,17 @@ export interface DataScorecardPart {
   state: DataScorecardState;
   /** What the state rests on (i18n keys with values, rendered by the web app) */
   evidence: { key: string; values?: Record<string, string | number> }[];
+}
+
+/** The scorecard of a product in one environment (GET /api/data-products/:id/scorecard): computed on read. */
+export interface DataProductScorecard {
+  productId: string;
+  /** The environment shown (production first by default); null: the product has none */
+  environment: string | null;
+  environments: string[];
+  /** The parts (group part), then the ISO/IEC 25012 dimensions (group iso25012) */
+  parts: DataScorecardPart[];
+  maturity: DataMaturityLevel;
 }
 
 /** Maturity levels: 0 not yet documented, 1 documented, 2 observed, 3 contracted, 4 reliable, 5 endorsed (phase 2). */

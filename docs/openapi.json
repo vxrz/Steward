@@ -40707,8 +40707,11 @@
           "scorecard": {
             "type": "object",
             "properties": {
-              "available": {
-                "type": "boolean"
+              "environment": {
+                "type": [
+                  "null",
+                  "string"
+                ]
               },
               "maturity": {
                 "anyOf": [
@@ -40718,7 +40721,8 @@
                   {
                     "type": "null"
                   }
-                ]
+                ],
+                "description": "Computed from the scorecard, never typed: 0 not yet documented … 4 reliable"
               },
               "parts": {
                 "type": "array",
@@ -40728,12 +40732,27 @@
                     "id": {
                       "type": "string"
                     },
+                    "group": {
+                      "type": "string",
+                      "enum": [
+                        "part",
+                        "iso25012"
+                      ]
+                    },
                     "state": {
-                      "type": "string"
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "partial",
+                        "notMet",
+                        "noEvidence",
+                        "notApplicable"
+                      ]
                     }
                   },
                   "required": [
                     "id",
+                    "group",
                     "state"
                   ],
                   "additionalProperties": false
@@ -40741,12 +40760,12 @@
               }
             },
             "required": [
-              "available",
+              "environment",
               "maturity",
               "parts"
             ],
             "additionalProperties": false,
-            "description": "The scorecard summary (available: false until the scorecard is computed)"
+            "description": "The scorecard in the default environment, summed up: each part and ISO/IEC 25012 dimension with its state"
           }
         },
         "required": [

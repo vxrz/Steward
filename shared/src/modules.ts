@@ -219,7 +219,7 @@ export const MODULES: readonly ModuleDef[] = [
   },
   {
     // ADR 0036: off by default (it brings discovery jobs and a large catalogue); restrictable once module access
-    // (ADR 0034) is built. The job "dataProducts" is added by its package.
+    // (ADR 0034) is built. The job data-products discovers elements (dataproducts/discovery/job.ts)
     id: 'dataProducts',
     name: 'Data products',
     maturity: 'preview',
@@ -236,7 +236,7 @@ export const MODULES: readonly ModuleDef[] = [
       '/api/v1/data-elements',
       '/api/v1/data-objects',
     ],
-    jobs: [],
+    jobs: ['data-products'],
   },
 ];
 

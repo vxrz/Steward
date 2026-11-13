@@ -358,6 +358,15 @@ describe('the registry of reference columns', () => {
     approval_posts: 'runs and MCP requests',
     teams_conversations: 'a conversation kind',
     teams_cards: 'runs and MCP requests',
+    // data products (ADR 0036, 0.22.0): kinds of the module's own things, never a plant entry
+    dp_ratings: 'a product or a data object',
+    dp_elements: 'an element kind (table, view, topic, API …)',
+    dp_ports: 'the source of an input port: another product’s port, an element or text',
+    dp_consumers: 'a team, user, application, service, product or text',
+    dp_steps: 'a step kind (copy, transform, stream …)',
+    dp_cost_matches: 'how cost lines are matched (resource, sub-account, service, tag, application)',
+    dp_cost_allocations: 'how cost lines are matched',
+    dp_notices: 'a notice kind',
   };
 
   it('classifies every column of the plant tables and every polymorphic reference elsewhere', async () => {

@@ -89,6 +89,8 @@ export const dataElementStatements: { sql: string; bindings: string[] }[] = [];
 
 const unquote = (s: string) => s.replaceAll('"', '');
 
+const CHECK_TAGS = new Set(['dp-dynamic-refresh', 'dp-task-runs', 'dp-table-fresh', 'dp-project-fresh', 'dp-columns']);
+
 /**
  * The answer to a `dp-…` statement, or null for another tag. `tables` are the demo account's tables (catalog, schema,
  * name, type, hours since LAST_ALTERED).
@@ -99,7 +101,8 @@ export function dataElementAnswer(
   arg: (i: number) => string,
   tables: readonly { catalog: string; schema: string; name: string; type: string; altered: number }[],
 ): { names: string[]; rows: Cell[][] } | null {
-  if (!tag.startsWith('dp-')) return null;
+  // the checks' statements only (discovery's dp-… tags are answered by mockSnowflake.ts)
+  if (!CHECK_TAGS.has(tag)) return null;
   if (dataElementStatements.length < 1000) dataElementStatements.push({ sql, bindings: [1, 2, 3, 4].map(arg).filter(Boolean) });
   // the database of a table function: TABLE(<db>.INFORMATION_SCHEMA.…)
   const db = unquote(/TABLE\(\s*("?[A-Za-z0-9_$-]+"?)\.INFORMATION_SCHEMA/.exec(sql)?.[1] ?? '');

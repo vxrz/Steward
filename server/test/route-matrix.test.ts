@@ -421,6 +421,15 @@ const EXPECT: Record<string, Access> = {
   'POST /api/data-products/:id/steps': DESIGN,
   'PUT /api/data-products/:id/steps/:stepId': DESIGN,
   'DELETE /api/data-products/:id/steps/:stepId': DESIGN,
+  // discovery sources (ADR 0036 part 5): listed to everyone (filtered: platforms they have a right on); seen by whoever
+  // may use the platform; set up and read now by the module's managers and the platform's managers who may use it
+  'GET /api/data-products/discovery-sources': ALL,
+  'POST /api/data-products/discovery-sources': DESIGN,
+  'GET /api/data-products/discovery-sources/:id': USE,
+  'PUT /api/data-products/discovery-sources/:id': DESIGN,
+  'DELETE /api/data-products/discovery-sources/:id': DESIGN,
+  'POST /api/data-products/discovery-sources/:id/run': DESIGN,
+  'GET /api/data-products/discovery-sources/:id/runs': USE,
   'GET /api/data-elements': ALL,
   'POST /api/data-elements': DESIGN,
   'GET /api/data-elements/:id': ALL,
@@ -438,6 +447,17 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/map': ALL,
   'GET /api/data-products/:id/views/pipeline': ALL,
   'GET /api/data-elements/:id/lineage': ALL,
+  // data products' costs and scorecard (ADR 0036 WP4): matches follow the product's or element's edit right; allocations
+  // only who manages the platform (the administrator in the fixtures)
+  'GET /api/data-products/:id/costs': ALL,
+  'POST /api/data-products/:id/costs/matches': DESIGN,
+  'DELETE /api/data-products/:id/costs/matches/:matchId': DESIGN,
+  'GET /api/data-elements/:id/cost-matches': ALL,
+  'POST /api/data-elements/:id/cost-matches': DESIGN,
+  'DELETE /api/data-elements/:id/cost-matches/:matchId': DESIGN,
+  'GET /api/data-products/cost-allocations': ALL,
+  'PUT /api/data-products/cost-allocations': ADMIN,
+  'GET /api/data-products/:id/scorecard': ALL,
   // import and export, ODPS (WP7): exports read like the products they hold; the preview shows anyone what an import
   // would do (refusals are its problems); importing changes – session-only (ADR 0036 security notes)
   'GET /api/data-products/schema': ALL,
@@ -1462,8 +1482,14 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
-  // data products (ADR 0036): retiring a product is a decision of a person in the app
+  // data products (ADR 0036): retiring a product is a decision of a person in the app; discovery sources run as a person
   'POST /api/data-products/:id/lifecycle',
+  'POST /api/data-products/discovery-sources',
+  'PUT /api/data-products/discovery-sources/:id',
+  'DELETE /api/data-products/discovery-sources/:id',
+  'POST /api/data-products/discovery-sources/:id/run',
+  // splitting a platform's costs between data products (ADR 0036 WP4)
+  'PUT /api/data-products/cost-allocations',
   // imports of data products files: a person decides, in a session (ADR 0036 security notes)
   'POST /api/data-products/import/preview',
   'POST /api/data-products/import',
@@ -2125,12 +2151,14 @@ function fill(url: string): string {
       .replace(/:processId/g, fx.process!)
       // a test run of the demo's data contract (#221)
       .replace(/^\/api\/data-contracts\/:id\/runs\/:runId/, `/api/data-contracts/${fx.contract}/runs/${fx.contractRun}`)
-      // data products (ADR 0036): the fixtures' product, its port, consumer, step and member element
+      // data products (ADR 0036): the fixtures' discovery source; the product, its port, consumer, step and member element
+      .replace(/^\/api\/data-products\/discovery-sources\/:id/, `/api/data-products/discovery-sources/${fx.discoverySource}`)
       .replace(/^\/api\/data-products\/:id\/steps\/:stepId/, `/api/data-products/${fx.dataProduct}/steps/${fx.dataStep}`)
       .replace(/:productId/g, fx.dataProduct!)
       .replace(/:objectId/g, fx.dataObject!)
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
+      .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
       .replace(/:environment/g, 'prod')
       .replace(/:runId/g, fx.run!)
@@ -2914,6 +2942,10 @@ beforeAll(async () => {
   await a('PUT', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/bindings/prod`, { elementIds: [curated] });
   fx.dataConsumer = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/consumers`, { kind: 'text', text: 'Matrix consumer' })).id;
   fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
+  // a discovery source of the demo Snowflake account, never read (disabled)
+  fx.discoverySource = (
+    await a('POST', '/data-products/discovery-sources', { name: 'Matrix discovery', platformId: snowflake, scope: ['SHOP'], enabled: false })
+  ).id;
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;
