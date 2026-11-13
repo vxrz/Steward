@@ -389,6 +389,13 @@ describe('the registry of reference columns', () => {
     dp_cost_matches: 'how cost lines are matched (resource, sub-account, service, tag, application)',
     dp_cost_allocations: 'how cost lines are matched',
     dp_notices: 'a notice kind',
+    // 0.24.0 (phase 2)
+    dp_lineage_sources: 'a lineage source kind (OpenLineage, dbt)',
+    dp_lineage_proposals: 'a step kind (copy, transform, stream …)',
+    dp_actual_consumers: 'what read a port (a Snowflake user or role, a Kafka consumer group)',
+    dp_access_requests: 'a team, user, application, service, product or text',
+    dp_port_review_items: 'a review entry: a registration, an actual consumer or a grant',
+    dp_import_origins: 'a data products entry kind (domain, data object, element, product)',
   };
 
   it('classifies every column of the plant tables and every polymorphic reference elsewhere', async () => {
