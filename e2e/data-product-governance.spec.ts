@@ -101,7 +101,12 @@ test.describe('governance of data products', () => {
     await olivia.goto('/data-products/access-requests');
     await olivia.getByTestId('requests-scope').getByText('Mine').click();
     await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
-    await expect(olivia.getByTestId('requests-table').getByTestId('request-status-pending')).toBeVisible();
+    // the row of this request: other tests of the file request access as Olivia too
+    const requestRow = olivia
+      .getByTestId('requests-table')
+      .getByRole('row')
+      .filter({ hasText: `Governed orders ${s.token}` });
+    await expect(requestRow.getByTestId('request-status-pending')).toBeVisible();
     // the status filter: none refused
     await olivia.getByTestId('requests-status').click();
     await olivia.getByRole('option', { name: 'Refused' }).click();
