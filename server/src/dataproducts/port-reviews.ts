@@ -79,8 +79,13 @@ const reviewState = (message: string, context: string, extra: Record<string, str
   new HttpError(409, message, 'DATA_PORT_REVIEW_STATE', { context, ...extra });
 
 const mayDecide = (u: AuthUser, r: ReviewRow, p: ProductRow) => r.status === 'open' && decidesFor(u, p);
-const mayApprove = (u: AuthUser, r: ReviewRow, p: ProductRow) =>
-  r.status === 'submitted' && (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) && !samePerson(r.submitted_by, u);
+/** Whether `u` decided an entry of the review (four eyes: who decided or submitted never approves). */
+const decidedAny = (u: AuthUser, items: readonly Pick<ItemRow, 'decided_by'>[]) => items.some((i) => !!i.decided_by && samePerson(i.decided_by, u));
+const mayApprove = (u: AuthUser, r: ReviewRow, p: ProductRow, items: readonly Pick<ItemRow, 'decided_by'>[]) =>
+  r.status === 'submitted' &&
+  (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) &&
+  !samePerson(r.submitted_by, u) &&
+  !decidedAny(u, items);
 
 function summary(r: ReviewRow, port: PortRow | undefined, counts: { items: number; removals: number }): DataPortReviewSummary {
   return {
@@ -199,7 +204,7 @@ export function getReview(id: string): DataPortReview {
     check: parseJson<DataPortReview['check']>(r.check_info, null),
     entries: items.map(itemView),
     mayDecide: mayDecide(u, r, p),
-    mayApprove: mayApprove(u, r, p),
+    mayApprove: mayApprove(u, r, p, items),
   };
 }
 
@@ -445,8 +450,9 @@ export function approveReview(id: string, body: unknown): DataPortReview {
   const { r, p } = visibleReview(id, u);
   const input = dataPortReviewApprovalInput.parse(body);
   if (r.status !== 'submitted') throw reviewState('The review is not submitted', 'notSubmitted');
-  if (samePerson(r.submitted_by, u)) throw reviewState('A second person approves', 'secondPerson');
-  if (!mayApprove(u, r, p)) forbid('approve this access review', 'dataProducts');
+  const items = db().all<ItemRow>('SELECT * FROM dp_port_review_items WHERE review_id = ?', r.id);
+  if (samePerson(r.submitted_by, u) || decidedAny(u, items)) throw reviewState('A second person approves – not who decided or submitted the review', 'secondPerson');
+  if (!mayApprove(u, r, p, items)) forbid('approve this access review', 'dataProducts');
   if (!input.approve && !input.comment) throw reviewState('Say why it goes back', 'comment');
   db().tx(() => {
     if (input.approve) seal(r, p, u.username, input.comment);

@@ -766,7 +766,7 @@
     "PERSON_REVIEW_ITEM": "Right {{id}} is not part of this review.",
     "PERSON_REVIEW_COMMENT": "Give a reason.",
     "PERSON_REVIEW_UNDECIDED": "{{count}} right(s) are not decided yet.",
-    "PERSON_REVIEW_APPROVE": "An approver or administrator other than the reviewer – and not the person reviewed – approves a submitted review.",
+    "PERSON_REVIEW_APPROVE": "An approver or administrator other than the reviewer – not the person reviewed, nor who decided a right – approves a submitted review.",
     "PERSON_REVIEW_NOT_APPROVED": "Removals are checked after approval.",
     "PERSON_REVIEW_TOO_LARGE": "More than {{max}} rights – narrow the checks.",
     "ACCESS_CHECK_AWS_SOURCE": "The AWS source needs an AWS account platform.",

@@ -155,7 +155,7 @@ What was found is **frozen**: one line per account and right, and a subject with
 
 1. The reviewer decides each right: **keep** or **remove**. A removal needs a reason. Nobody decides about their own access (matched by the Steward user and by their user name and e-mail address).
 2. **Submit**: with every right decided. Without four-eyes the review is sealed at once.
-3. With four-eyes, an **approver or administrator** who is not the reviewer and not the person reviewed **approves** (sealed) or **sends it back** with a comment (it is open again).
+3. With four-eyes, an **approver or administrator** who is not the reviewer, not the person reviewed and decided none of its rights **approves** (sealed) or **sends it back** with a comment (it is open again).
 4. Sealed: the SHA-256 over the review and all decisions (`sealHash`, canonical JSON) is stored and recorded in the audit log. _Verify_ recomputes it – a change in the database shows up.
 5. **Check removals** (reviewer, approver, administrator): Steward reads the platforms again, marks each right to remove as _removed_ or _still there_, and closes the review when every one of them is gone. Kept rights are not checked again. Each check is in the audit log.
 

@@ -152,6 +152,17 @@ describe('port access reviews', () => {
     const card = await dana('GET', `/data-products/${product}/scorecard`);
     const conf = card.parts.find((x: { id: string }) => x.id === 'confidentiality');
     expect(conf.evidence.map((e: { key: string }) => e.key)).toContain('evidence.confidentiality.accessReviewed');
+    // four eyes: who decided an entry never approves, even when someone else submitted
+    const next = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
+    await s.api('PUT', `/data-products/port-reviews/${next.id}/decisions`, {
+      decisions: next.entries.map((e: { id: string }) => ({ itemId: e.id, decision: 'keep' })),
+    });
+    expect(await dana('POST', `/data-products/port-reviews/${next.id}/submit`)).toMatchObject({ status: 'submitted' });
+    expect(await s.api('GET', `/data-products/port-reviews/${next.id}`)).toMatchObject({ mayApprove: false });
+    expect(await fail(s.api('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true }))).toMatchObject({
+      params: { context: 'secondPerson' },
+    });
+    expect(await adam('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true })).toMatchObject({ status: 'approved' });
   });
 });
 

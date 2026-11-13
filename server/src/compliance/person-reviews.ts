@@ -112,9 +112,14 @@ function isThePerson(u: AuthUser, r: Pick<ReviewRow, 'person_user' | 'identifier
 
 const mayRead = (u: AuthUser, r: ReviewRow) => readsEverything(u) || same(r.created_by, u.username) || hasRole(u, ['approver']);
 const mayDecide = (u: AuthUser, r: ReviewRow) => r.status === 'open' && (same(r.created_by, u.username) || isAdmin(u)) && !isThePerson(u, r);
-// the reviewer never approves (by identity: former names and a linked single sign-on identity count, auth/assurance.ts)
-const mayApprove = (u: AuthUser, r: ReviewRow) =>
-  r.status === 'submitted' && (hasRole(u, ['approver']) || isAdmin(u)) && !samePerson(r.submitted_by, u) && !isThePerson(u, r);
+// the reviewer never approves (by identity: former names and a linked single sign-on identity count, auth/assurance.ts),
+// nor who decided a right of the review (four eyes: an administrator who decided, a reviewer who submitted)
+const mayApprove = (u: AuthUser, r: ReviewRow, items: readonly Pick<ItemRow, 'decided_by'>[]) =>
+  r.status === 'submitted' &&
+  (hasRole(u, ['approver']) || isAdmin(u)) &&
+  !samePerson(r.submitted_by, u) &&
+  !isThePerson(u, r) &&
+  !items.some((i) => !!i.decided_by && samePerson(i.decided_by, u));
 /** Whether the review needs a second person: its own switch, or the assurance policy for every review (personReview.decide). */
 const needsSecondPerson = (r: Pick<ReviewRow, 'four_eyes'>) => fourEyesRequired('personReview.decide', !!r.four_eyes);
 
@@ -200,7 +205,7 @@ function toReview(u: AuthUser, r: ReviewRow): PersonReview {
     sealHash: r.seal_hash,
     counts: countsOf(items),
     canDecide: mayDecide(u, r),
-    canApprove: mayApprove(u, r),
+    canApprove: mayApprove(u, r, items),
     canRecheck: mayRecheck(u, r),
     ...personModules(r.person_user),
   };
@@ -452,12 +457,12 @@ export function submit(id: string): PersonReview {
 /** The second person approves (sealed) or sends the review back to the reviewer. */
 export function approve(id: string, input: { approve: boolean; comment: string }): PersonReview {
   const { u, r } = readable(id);
-  if (!mayApprove(u, r))
+  if (!mayApprove(u, r, itemsOf(id)))
     throw new HttpError(
       403,
       r.status !== 'submitted'
         ? 'The review is not waiting for approval'
-        : 'An approver or administrator other than the reviewer – and not the person reviewed – approves',
+        : 'An approver or administrator other than the reviewer – not the person reviewed, nor who decided a right – approves',
       'PERSON_REVIEW_APPROVE',
     );
   noteFourEyes('personReview.decide', [r.submitted_by, r.created_by], u, { itemRequires: !!r.four_eyes });

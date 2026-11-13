@@ -766,7 +766,7 @@
     "PERSON_REVIEW_ITEM": "Recht {{id}} gehört nicht zu dieser Prüfung.",
     "PERSON_REVIEW_COMMENT": "Geben Sie eine Begründung an.",
     "PERSON_REVIEW_UNDECIDED": "{{count}} Recht(e) sind noch nicht entschieden.",
-    "PERSON_REVIEW_APPROVE": "Eine eingereichte Prüfung gibt ein Freigeber oder Administrator frei, der sie nicht selbst geprüft hat und nicht die geprüfte Person ist.",
+    "PERSON_REVIEW_APPROVE": "Eine eingereichte Prüfung gibt ein Freigeber oder Administrator frei, der sie nicht selbst geprüft, keines ihrer Rechte entschieden hat und nicht die geprüfte Person ist.",
     "PERSON_REVIEW_NOT_APPROVED": "Entzüge werden nach der Freigabe nachgeprüft.",
     "PERSON_REVIEW_TOO_LARGE": "Mehr als {{max}} Rechte – grenzen Sie die Abgleiche ein.",
     "ACCESS_CHECK_AWS_SOURCE": "Die Quelle AWS braucht eine AWS-Konto-Plattform.",
