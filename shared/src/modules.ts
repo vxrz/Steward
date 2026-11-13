@@ -384,6 +384,9 @@ export const MODULES: readonly ModuleDef[] = [
         'get_data_product_costs',
         'list_data_objects',
         'get_data_object',
+        // 0.24.0 (phase 2): the format and the proposals of assistants (applied by a person)
+        'get_data_products_format',
+        'propose_data_product_changes',
       ],
       // owning-team kinds and link kinds: a link from a core item to one is counted, not named, for who does not use it
       itemKinds: ['data_product', 'data_object', 'data_element', 'data_domain', 'data-product', 'data-object'],
