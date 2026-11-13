@@ -835,11 +835,13 @@
     },
     "kinds": {
       "list": "Listenpreise",
-      "contracted": "Vertragspreise"
+      "contracted": "Vertragspreise",
+      "derived": "Abgeleitete Preise"
     },
     "kindHelp": {
       "list": "Veröffentlichte Preise: Alle, die Kosten verwenden, lesen sie.",
-      "contracted": "Die Preise eines Vertrags: Nur wer den Vertrag (oder die Beträge der Plattform) sehen darf, liest sie; alle anderen erhalten Listenpreise."
+      "contracted": "Die Preise eines Vertrags: Nur wer den Vertrag (oder die Beträge der Plattform) sehen darf, liest sie; alle anderen erhalten Listenpreise.",
+      "derived": "Die Kundenpreise eines Anbieters: ein Basisbuch × die Bedingungen und die Gebühr des Anbieters. Versionen folgen der Basis; wer die Bedingungen nicht sieht, sieht nur die Kundenpreise."
     },
     "platform": "Plattform",
     "platformHint": "Die Plattform, deren Vertrag diese Preise sind: Wer sie verwaltet, pflegt das Buch; wer ihre Beträge sieht, liest es",
@@ -878,7 +880,8 @@
       "manual": "Von Hand",
       "csv": "CSV-Datei",
       "migration": "Aktualisierung",
-      "source": "Aus der Quelle"
+      "source": "Aus der Quelle",
+      "derived": "Abgeleitet"
     },
     "drivers": {
       "gbWritten": "Geschriebene GB",
@@ -997,7 +1000,16 @@
       "text": "1 {{base}} = {{rate}} {{quote}}",
       "add": "Kurs festlegen",
       "remove": "Kurs entfernen"
-    }
+    },
+    "baseBook": "Basisbuch",
+    "baseHint": "Das Buch, aus dessen Preisen es berechnet wird (Sie müssen es sehen)",
+    "supplier": "Lieferant",
+    "supplierHint": "Der Anbieter; bei einem abgeleiteten Buch: wer die Gebühr berechnet",
+    "contract": "Vertrag",
+    "contractHint": "Der Vertrag, dessen Preise es sind – bei einem abgeleiteten Buch: der Vertrag der Kunden mit dem Anbieter, dessen Konditionen seine Bedingungen sind. Keiner: eine Preisliste mit eigenen Bedingungen",
+    "basedOn": "Beruht auf {{name}} (v{{version}})",
+    "derivedNoEdit": "Die Preise eines abgeleiteten Buchs folgen seinem Basisbuch und seinen Bedingungen – sie werden nicht von Hand geschrieben.",
+    "versions_cause": "{{cause}} (Basis v{{version}})"
   },
   "calculators": {
     "title": "Rechner",
@@ -1198,6 +1210,119 @@
     "history": {
       "title": "Frühere Ergebnisse",
       "line": "{{at}} von {{by}}: {{monthly}} je Monat, {{oneOff}} einmalig"
+    },
+    "foundBy": {
+      "list": "Listenpreis von {{book}} (v{{version}})",
+      "contracted": "Vertragliche Preise: {{book}} (v{{version}})",
+      "derived": "Kundenpreis von {{book}} (v{{version}})",
+      "negotiated": "Verhandelter Preis des Vertrags {{contract}}",
+      "percentOff": "Listenpreis von {{book}} (v{{version}}) – {{percent}} % Nachlass laut Vertrag {{contract}}",
+      "commitment": "Listenpreis von {{book}} (v{{version}}) – {{percent}} % Nachlass laut Mindestabnahme des Vertrags {{contract}}",
+      "inherited": "aus seinem Rahmenvertrag",
+      "ignored": "der Prozentsatz des Vertrags gilt nicht zusätzlich"
+    },
+    "breakdown": {
+      "base": "Basis: {{amount}} ({{book}})",
+      "discount": "Nachlass {{percent}} %: {{amount}}",
+      "markup": "Aufschlag {{percent}} %: {{amount}}",
+      "fee": "Gebühr je Einheit: {{amount}}"
+    },
+    "contracts": {
+      "label": "Vertrag für {{provider}}",
+      "default": "Standard (ein Vertrag, dessen Preise Sie sehen)",
+      "none": "Kein Vertrag – Buchpreise wie sie sind"
+    }
+  },
+  "conditions": {
+    "title": "Preise",
+    "help": "Was dieser Vertrag auf die Listenpreise des Anbieters gewährt, und die Bedingungen abgeleiteter Preisbücher, die ihn nennen. Nur wer den Vertrag mit seinen Beträgen sieht, sieht diesen Abschnitt; Schätzungen zeigen allen anderen den Listenpreis.",
+    "edit": "Preise bearbeiten",
+    "editTitle": "Preise von „{{title}}“",
+    "terms": "Bedingungen",
+    "editTerms": "Bedingungen bearbeiten",
+    "editTermsTitle": "Bedingungen von „{{name}}“",
+    "termsHelp": "Die eigenen Bedingungen der Preisliste: ein Nachlass auf die Basis, ein Aufschlag, Gebühren je Einheit und eine feste Gebühr. Wer das Buch liest, sieht nur seine Kundenpreise.",
+    "termsOnContract": "Seine Bedingungen sind die Konditionen des Vertrags {{title}}.",
+    "termsHidden": "Nur Kundenpreise: Die Bedingungen dieses Buchs sieht, wer seinen Vertrag und sein Basisbuch sieht.",
+    "none": "Keine Konditionen – Schätzungen verwenden den Listenpreis.",
+    "inherited": "Keine eigenen Konditionen: Es gelten die des Rahmenvertrags „{{title}}“.",
+    "books": "Preisbücher dieses Vertrags",
+    "saved": "Preise gespeichert",
+    "save": "Speichern",
+    "add": "Kondition hinzufügen",
+    "remove": "Kondition {{n}} entfernen",
+    "dialogHelp": "Die genaueste Kondition gilt: ein Artikel vor einem Dienst, einer Kategorie oder Bezugsgröße, einem Buch, dem ganzen Anbieter. Zwei derselben Art für denselben Bereich dürfen sich zeitlich nicht überschneiden.",
+    "provider": "Anbieter (wie ihn die Bücher nennen)",
+    "on": "Für",
+    "percent": "Prozent",
+    "price": "Preis je Block",
+    "amountPerMonth": "Betrag je Monat",
+    "currency": "Währung",
+    "block": "Block (Einheiten)",
+    "unit": "Je Einheit",
+    "unitHint": "Eine Einheit wie GBy, h oder {credit}",
+    "schedule": "Volumenplan",
+    "noSchedules": "Dieser Vertrag hat noch keinen Volumenplan – fügen Sie einen unter Zahlungen hinzu.",
+    "bands": "Stufen",
+    "bandsHint": "Zugesagter Betrag je Jahr und Prozentsatz: 0:0;100000:15;500000:25",
+    "validFrom": "Gültig ab",
+    "validTo": "Gültig bis",
+    "datePlaceholder": "JJJJ-MM-TT",
+    "note": "Notiz",
+    "validRange": "{{from}} – {{to}}",
+    "validTerm": "Die Laufzeit des Vertrags",
+    "flag": {
+      "contractedBook": "Gilt nicht zusätzlich: Ein vertragliches Preisbuch dieses Vertrags enthält den Nachlass bereits."
+    },
+    "groups": {
+      "list": "Auf Listenpreise",
+      "derived": "Bedingungen eines abgeleiteten Buchs"
+    },
+    "columns": {
+      "kind": "Art",
+      "what": "Kondition",
+      "valid": "Gültig"
+    },
+    "kinds": {
+      "percentOff": "Prozent auf den Listenpreis",
+      "negotiatedPrice": "Verhandelter Stückpreis",
+      "commitment": "Mindestabnahme",
+      "baseDiscount": "Nachlass auf die Basis",
+      "markup": "Aufschlag",
+      "feePerUnit": "Gebühr je Einheit",
+      "fixedFee": "Feste Gebühr"
+    },
+    "scopes": {
+      "provider": "Der ganze Anbieter",
+      "book": "Ein Buch",
+      "category": "Eine Kategorie",
+      "service": "Ein Dienst",
+      "driver": "Eine Bezugsgröße",
+      "item": "Ein Artikel"
+    },
+    "targets": {
+      "book": "Buch-ID",
+      "category": "Kategorie",
+      "service": "Dienst",
+      "driver": "Bezugsgröße",
+      "item": "Artikel (SKU)"
+    },
+    "scopeText": {
+      "provider": "{{provider}}",
+      "book": "Buch {{target}} von {{provider}}",
+      "category": "Kategorie {{target}} von {{provider}}",
+      "service": "Dienst {{target}} von {{provider}}",
+      "driver": "Bezugsgröße {{target}} von {{provider}}",
+      "item": "Artikel {{target}} von {{provider}}"
+    },
+    "value": {
+      "percentOff": "{{percent}} % Nachlass",
+      "baseDiscount": "{{percent}} % der Basis weitergegeben",
+      "markup": "{{percent}} % Aufschlag",
+      "negotiatedPrice": "{{price}} {{currency}} je {{block}}",
+      "feePerUnit": "{{price}} {{currency}} je {{block}} {{unit}}",
+      "fixedFee": "{{price}} {{currency}} im Monat",
+      "commitment": "nach dem zugesagten Volumen: {{bands}}"
     }
   }
 }

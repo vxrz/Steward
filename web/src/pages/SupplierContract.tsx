@@ -19,6 +19,7 @@ import { ContractModal } from '../components/suppliers/ContractForm';
 import { ContractPlatforms, ContractServices } from '../components/suppliers/ContractServices';
 import { SupplierContacts } from '../components/suppliers/ScopedContacts';
 import { ContractPayments } from '../components/costs/ContractPayments';
+import { ContractPrices } from '../components/costs/ContractPrices';
 import { planPath } from '../components/costs/common';
 import { useSubjectLabel } from '../components/SubjectsInput';
 
@@ -196,6 +197,8 @@ export function SupplierContractPage() {
                 <ContractPayments contractId={c.id} contractTitle={c.title} />
               </Stack>
             )}
+            {/* the contract's Prices (ADR 0035 part 3): only for who sees it with its amounts */}
+            {costsOn && <ContractPrices contractId={c.id} />}
             <Stack gap="xs">
               <Text fw={600}>{t('contacts.title')}</Text>
               <SupplierContacts s={sup.data} contacts={d.contacts} contractId={c.id} onSaved={() => refresh()} />

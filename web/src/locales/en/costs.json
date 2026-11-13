@@ -835,11 +835,13 @@
     },
     "kinds": {
       "list": "List prices",
-      "contracted": "Contracted prices"
+      "contracted": "Contracted prices",
+      "derived": "Derived prices"
     },
     "kindHelp": {
       "list": "Published prices: everyone using Costs reads them.",
-      "contracted": "The prices of one contract: only who may see the contract (or the platform’s amounts) reads them; others get list prices."
+      "contracted": "The prices of one contract: only who may see the contract (or the platform’s amounts) reads them; others get list prices.",
+      "derived": "A provider's customer prices: a base book × the provider's terms and fee. Versions follow the base; who does not see the terms sees the customer prices only."
     },
     "platform": "Platform",
     "platformHint": "The platform whose contract these prices are: who manages it maintains the book, who sees its amounts reads it",
@@ -878,7 +880,8 @@
       "manual": "By hand",
       "csv": "CSV file",
       "migration": "Upgrade",
-      "source": "Source read"
+      "source": "Source read",
+      "derived": "Derived"
     },
     "drivers": {
       "gbWritten": "GB written",
@@ -997,7 +1000,16 @@
       "text": "1 {{base}} = {{rate}} {{quote}}",
       "add": "Set rate",
       "remove": "Remove rate"
-    }
+    },
+    "baseBook": "Base book",
+    "baseHint": "The book whose prices it is computed from (you must see it)",
+    "supplier": "Supplier",
+    "supplierHint": "The provider; for a derived book: who charges the fee",
+    "contract": "Contract",
+    "contractHint": "The contract these prices are – for a derived book: the customers' contract with the provider, whose conditions are its terms. None: a rate card with its own terms",
+    "basedOn": "Based on {{name}} (v{{version}})",
+    "derivedNoEdit": "The prices of a derived book follow its base book and terms – they are not written by hand.",
+    "versions_cause": "{{cause}} (base v{{version}})"
   },
   "calculators": {
     "title": "Calculators",
@@ -1198,6 +1210,119 @@
     "history": {
       "title": "Earlier results",
       "line": "{{at}} by {{by}}: {{monthly}} a month, {{oneOff}} one-off"
+    },
+    "foundBy": {
+      "list": "List price of {{book}} (v{{version}})",
+      "contracted": "Contracted prices: {{book}} (v{{version}})",
+      "derived": "Customer price of {{book}} (v{{version}})",
+      "negotiated": "Negotiated price of contract {{contract}}",
+      "percentOff": "List price of {{book}} (v{{version}}) – {{percent}} % off by contract {{contract}}",
+      "commitment": "List price of {{book}} (v{{version}}) – {{percent}} % off by the commitment of contract {{contract}}",
+      "inherited": "from its master agreement",
+      "ignored": "the contract's percentage does not apply on top"
+    },
+    "breakdown": {
+      "base": "Base: {{amount}} ({{book}})",
+      "discount": "Discount {{percent}} %: {{amount}}",
+      "markup": "Markup {{percent}} %: {{amount}}",
+      "fee": "Fee per unit: {{amount}}"
+    },
+    "contracts": {
+      "label": "Contract for {{provider}}",
+      "default": "Default (a contract whose prices you see)",
+      "none": "No contract – book prices as they are"
+    }
+  },
+  "conditions": {
+    "title": "Prices",
+    "help": "What this contract grants on the provider's list prices, and the terms of derived books that name it. Only who sees the contract with its amounts sees this section; estimates show everyone else the list price.",
+    "edit": "Edit prices",
+    "editTitle": "Prices of “{{title}}”",
+    "terms": "Terms",
+    "editTerms": "Edit terms",
+    "editTermsTitle": "Terms of “{{name}}”",
+    "termsHelp": "The rate card's own terms: a discount on the base, a markup, fees per unit and a fixed fee. Who reads the book sees its customer prices only.",
+    "termsOnContract": "Its terms are the conditions of the contract {{title}}.",
+    "termsHidden": "Customer prices only: the terms of this book are seen by who sees its contract and its base book.",
+    "none": "No conditions – estimates use the list price.",
+    "inherited": "No conditions of its own: those of the master agreement “{{title}}” apply.",
+    "books": "Price books of this contract",
+    "saved": "Prices saved",
+    "save": "Save",
+    "add": "Add condition",
+    "remove": "Remove condition {{n}}",
+    "dialogHelp": "The most specific condition wins: an item before a service, a category or driver, a book, the whole provider. Two of the same kind for the same scope must not overlap in time.",
+    "provider": "Provider (as the books name it)",
+    "on": "For",
+    "percent": "Percent",
+    "price": "Price per block",
+    "amountPerMonth": "Amount per month",
+    "currency": "Currency",
+    "block": "Block (units)",
+    "unit": "Per unit",
+    "unitHint": "A unit such as GBy, h or {credit}",
+    "schedule": "Volume schedule",
+    "noSchedules": "This contract has no volume schedule yet – add one under Payments.",
+    "bands": "Bands",
+    "bandsHint": "Committed amount per year and percentage: 0:0;100000:15;500000:25",
+    "validFrom": "Valid from",
+    "validTo": "Valid to",
+    "datePlaceholder": "YYYY-MM-DD",
+    "note": "Note",
+    "validRange": "{{from}} – {{to}}",
+    "validTerm": "The contract's term",
+    "flag": {
+      "contractedBook": "Does not apply on top: a contracted book of this contract already includes the discount."
+    },
+    "groups": {
+      "list": "On list prices",
+      "derived": "Terms of a derived book"
+    },
+    "columns": {
+      "kind": "Kind",
+      "what": "Condition",
+      "valid": "Valid"
+    },
+    "kinds": {
+      "percentOff": "Percent off list",
+      "negotiatedPrice": "Negotiated unit price",
+      "commitment": "Commitment",
+      "baseDiscount": "Discount on the base",
+      "markup": "Markup",
+      "feePerUnit": "Fee per unit",
+      "fixedFee": "Fixed fee"
+    },
+    "scopes": {
+      "provider": "The whole provider",
+      "book": "One book",
+      "category": "A category",
+      "service": "A service",
+      "driver": "A driver",
+      "item": "One item"
+    },
+    "targets": {
+      "book": "Book id",
+      "category": "Category",
+      "service": "Service",
+      "driver": "Driver",
+      "item": "Item (SKU)"
+    },
+    "scopeText": {
+      "provider": "{{provider}}",
+      "book": "book {{target}} of {{provider}}",
+      "category": "category {{target}} of {{provider}}",
+      "service": "service {{target}} of {{provider}}",
+      "driver": "driver {{target}} of {{provider}}",
+      "item": "item {{target}} of {{provider}}"
+    },
+    "value": {
+      "percentOff": "{{percent}} % off",
+      "baseDiscount": "{{percent}} % of the base passed on",
+      "markup": "{{percent}} % markup",
+      "negotiatedPrice": "{{price}} {{currency}} per {{block}}",
+      "feePerUnit": "{{price}} {{currency}} per {{block}} {{unit}}",
+      "fixedFee": "{{price}} {{currency}} a month",
+      "commitment": "by the committed volume: {{bands}}"
     }
   }
 }

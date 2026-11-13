@@ -25,11 +25,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconArrowLeft, IconBook, IconCheck, IconFileImport, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import {
+  COST_DERIVATION_KINDS,
   COST_DRIVER_SUGGESTIONS,
   COST_PRICE_CHARGES,
   COST_PRICE_CSV_FIELDS,
   ISO_4217_CODES,
+  type CostConditionInput,
   type CostFxRate,
+  type CostPriceBookKind,
   type CostPriceBook,
   type CostPriceBookDetail,
   type CostPriceCsvField,
@@ -52,6 +55,9 @@ import { estimateKeys } from '../../components/costs/Estimates';
 import { fmtChange } from '../../components/costs/common';
 import { fmtDay, localToday } from '../../format';
 import { platformKeys } from '../../queryKeys';
+import { AccessTab } from '../../components/access/AccessTab';
+import { ConditionsDialog, conditionText } from '../../components/costs/ContractPrices';
+import { useSupplierOptions } from '../../components/suppliers/SupplierPicker';
 import '../../components/dashboard/viz.css';
 
 /**
@@ -147,7 +153,7 @@ export function PriceBooksPage() {
 function KindBadge({ book }: { book: Pick<CostPriceBook, 'kind' | 'platform'> }) {
   const { t } = useTranslation('costs');
   return (
-    <Badge size="xs" variant="light" color={book.kind === 'list' ? 'blue' : 'grape'}>
+    <Badge size="xs" variant="light" color={book.kind === 'list' ? 'blue' : book.kind === 'derived' ? 'teal' : 'grape'}>
       {t(`prices.kinds.${book.kind}`)}
       {book.platform ? ` · ${book.platform.name}` : ''}
     </Badge>
@@ -175,23 +181,35 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
   const qc = useQueryClient();
   const navigate = useNavigate();
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
+  const books = useQuery({ queryKey: estimateKeys.books, queryFn: () => get<CostPriceBook[]>('/costs/price-books') });
+  const suppliers = useSupplierOptions();
   const [name, setName] = useState(book?.name ?? '');
-  const [kind, setKind] = useState<'list' | 'contracted'>(book?.kind ?? 'list');
+  const [kind, setKind] = useState<CostPriceBookKind>(book?.kind ?? 'list');
   const [provider, setProvider] = useState(book?.provider ?? '');
   const [currency, setCurrency] = useState(book?.currency ?? 'USD');
   const [platformId, setPlatformId] = useState<string | null>(book?.platform?.id ?? null);
+  const [baseBookId, setBaseBookId] = useState<string | null>(book?.base?.id ?? null);
+  const [supplierId, setSupplierId] = useState<string | null>(book?.supplier?.id ?? null);
+  const [contractId, setContractId] = useState<string | null>(book?.supplierContract?.id ?? null);
   const [reviewDays, setReviewDays] = useState<number>(book?.reviewDays ?? 90);
   const [description, setDescription] = useState(book?.description ?? '');
   const [busy, setBusy] = useState(false);
+  const bases = (books.data ?? []).filter((b) => b.id !== book?.id);
+  const contracts = (suppliers.data ?? []).find((x) => x.id === supplierId)?.contracts ?? [];
   const save = async () => {
     setBusy(true);
     try {
+      const base = kind === 'derived' ? bases.find((b) => b.id === baseBookId) : undefined;
       const body = {
         name: name.trim(),
         kind,
-        provider: provider.trim(),
+        // a derived book prices the items of its base: its provider
+        provider: base ? base.provider : provider.trim(),
         currency,
-        platformId: kind === 'contracted' ? platformId : null,
+        platformId: kind !== 'list' ? platformId : null,
+        supplierId: kind !== 'list' ? supplierId : null,
+        supplierContractId: kind !== 'list' ? contractId : null,
+        baseBookId: kind === 'derived' ? baseBookId : null,
         reviewDays,
         description,
       };
@@ -226,25 +244,68 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
           />
           <SegmentedControl
             value={kind}
-            onChange={(v) => setKind(v as 'list' | 'contracted')}
-            disabled={!!book?.platform}
+            onChange={(v) => setKind(v as CostPriceBookKind)}
+            disabled={!!book?.platform || book?.kind === 'derived'}
             data={[
               { value: 'list', label: t('prices.kinds.list') },
               { value: 'contracted', label: t('prices.kinds.contracted') },
+              // a book stays derived or not (its prices come from elsewhere)
+              { value: 'derived', label: t('prices.kinds.derived'), disabled: !!book && book.kind !== 'derived' },
             ]}
+            data-testid="book-kind"
           />
           <Text size="xs" c="dimmed">
             {t(`prices.kindHelp.${kind}`)}
           </Text>
-          <TextInput
-            label={t('prices.columns.provider')}
-            value={provider}
-            onChange={(e) => setProvider(e.currentTarget.value)}
-            required
-            data-testid="book-provider"
-          />
+          {kind === 'derived' ? (
+            <Select
+              label={t('prices.baseBook')}
+              description={t('prices.baseHint')}
+              searchable
+              required
+              data={bases.map((b) => ({ value: b.id, label: `${b.name} (${b.provider}, ${t(`prices.kinds.${b.kind}`)})` }))}
+              value={baseBookId}
+              onChange={setBaseBookId}
+              data-testid="book-base"
+            />
+          ) : (
+            <TextInput
+              label={t('prices.columns.provider')}
+              value={provider}
+              onChange={(e) => setProvider(e.currentTarget.value)}
+              required
+              data-testid="book-provider"
+            />
+          )}
           <Select label={t('prices.columns.currency')} searchable data={CURRENCIES} value={currency} onChange={(v) => v && setCurrency(v)} />
-          {kind === 'contracted' && (
+          {kind !== 'list' && (
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <Select
+                label={t('prices.supplier')}
+                description={t('prices.supplierHint')}
+                searchable
+                clearable
+                data={(suppliers.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+                value={supplierId}
+                onChange={(v) => {
+                  setSupplierId(v);
+                  setContractId(null);
+                }}
+                data-testid="book-supplier"
+              />
+              <Select
+                label={t('prices.contract')}
+                description={t('prices.contractHint')}
+                clearable
+                disabled={!supplierId}
+                data={contracts.map((c) => ({ value: c.id, label: c.reference ? `${c.title} (${c.reference})` : c.title }))}
+                value={contractId}
+                onChange={setContractId}
+                data-testid="book-contract"
+              />
+            </SimpleGrid>
+          )}
+          {kind !== 'list' && (
             <Select
               label={t('prices.platform')}
               description={t('prices.platformHint')}
@@ -261,7 +322,7 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
             <Button variant="default" onClick={onClose}>
               {t('estimates.cancel')}
             </Button>
-            <Button type="submit" loading={busy} disabled={!name.trim() || !provider.trim()} data-testid="book-save">
+            <Button type="submit" loading={busy} disabled={!name.trim() || (kind === 'derived' ? !baseBookId : !provider.trim())} data-testid="book-save">
               {t('prices.save')}
             </Button>
           </Group>
@@ -369,7 +430,7 @@ export function PriceBookPage() {
       cell: (e) => (e.validFrom || e.validTo ? `${e.validFrom ?? '…'} – ${e.validTo ?? '…'}` : '–'),
       nowrap: true,
     },
-    ...(b.canEdit
+    ...(b.canEdit && b.kind !== 'derived'
       ? [
           {
             key: 'actions',
@@ -410,7 +471,7 @@ export function PriceBookPage() {
       }
       description={b.description || t('prices.bookHelp', { provider: b.provider, currency: b.currency })}
       actions={
-        b.canEdit ? (
+        b.canEdit && b.kind !== 'derived' ? (
           <Group gap="xs">
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setEntry('new')} data-testid="entry-add">
               {t('prices.item.add')}
@@ -436,7 +497,7 @@ export function PriceBookPage() {
       }
     >
       <Stack gap="lg" data-testid="price-book-page">
-        <CheckedText book={b} />
+        {b.kind === 'derived' ? <DerivedInfo book={b} onSaved={refresh} /> : <CheckedText book={b} />}
         <Group gap="xs" align="flex-end">
           <TextInput
             label={t('prices.searchItems')}
@@ -494,12 +555,83 @@ export function PriceBookPage() {
         )}
         <Versions book={b} onOpen={setVersion} />
         {version !== null && <VersionDiff bookId={id} n={version} onClose={() => setVersion(null)} />}
-        {!b.platform && <OwningTeams kind="cost_price_book" id={b.id} />}
+        {/* shares (ADR 0033): a list or derived book – a rate card published to other teams; a contracted book follows its contract */}
+        {b.kind === 'contracted' ? !b.platform && <OwningTeams kind="cost_price_book" id={b.id} /> : <AccessTab kind="cost_price_book" id={b.id} />}
       </Stack>
       {editing && <BookDialog book={b} onClose={() => setEditing(false)} />}
       {entry && <EntryDialog book={b} entry={entry === 'new' ? null : entry} onClose={() => setEntry(null)} onSaved={refresh} />}
       {importing && <ImportDialog book={b} onClose={() => setImporting(false)} onSaved={refresh} />}
     </DetailPage>
+  );
+}
+
+/** A derived book: its base, where its terms are, and – for who sees them – the terms (a rate card's editable). */
+function DerivedInfo({ book, onSaved }: { book: CostPriceBookDetail; onSaved: () => void }) {
+  const { t } = useTranslation('costs');
+  const [editing, setEditing] = useState(false);
+  const save = async (conditions: CostConditionInput[]) => {
+    await put(`/costs/price-books/${encodeURIComponent(book.id)}/terms`, { conditions });
+    notifyOk(t('conditions.saved'));
+    onSaved();
+  };
+  return (
+    <Paper withBorder p="sm" data-testid="derived-info">
+      <Stack gap={4}>
+        <Text size="sm">{t('prices.derivedNoEdit')}</Text>
+        {book.base && (
+          <Text size="sm">
+            <Anchor component={Link} to={bookPath(book.base.id)} size="sm">
+              {t('prices.basedOn', { name: book.base.name, version: book.base.version })}
+            </Anchor>
+          </Text>
+        )}
+        {!book.termsVisible ? (
+          <Text size="xs" c="dimmed" data-testid="terms-hidden">
+            {t('conditions.termsHidden')}
+          </Text>
+        ) : book.termsOn === 'contract' && book.supplier && book.supplierContract ? (
+          <Text size="xs">
+            <Anchor
+              component={Link}
+              to={`/suppliers/${encodeURIComponent(book.supplier.id)}/contracts/${encodeURIComponent(book.supplierContract.id)}`}
+              size="xs"
+            >
+              {t('conditions.termsOnContract', { title: book.supplierContract.title })}
+            </Anchor>
+          </Text>
+        ) : (
+          <Text size="xs" c="dimmed">
+            {t('conditions.termsHelp')}
+          </Text>
+        )}
+        {book.termsVisible && (book.terms ?? []).length > 0 && (
+          <Stack gap={2} data-testid="derived-terms">
+            {(book.terms ?? []).map((c) => (
+              <Text key={c.id} size="sm">
+                {t(`conditions.kinds.${c.kind}`)}: {conditionText(t, c)}
+              </Text>
+            ))}
+          </Stack>
+        )}
+        {book.termsVisible && book.termsOn === 'book' && book.canEdit && (
+          <Group>
+            <Button size="xs" variant="default" leftSection={<IconPencil size={14} />} onClick={() => setEditing(true)} data-testid="terms-edit">
+              {t('conditions.editTerms')}
+            </Button>
+          </Group>
+        )}
+      </Stack>
+      {editing && (
+        <ConditionsDialog
+          title={t('conditions.editTermsTitle', { name: book.name })}
+          initial={book.terms ?? []}
+          kinds={COST_DERIVATION_KINDS}
+          provider={book.provider}
+          onSave={save}
+          onClose={() => setEditing(false)}
+        />
+      )}
+    </Paper>
   );
 }
 
@@ -539,7 +671,14 @@ function Versions({ book, onOpen }: { book: CostPriceBookDetail; onOpen: (n: num
                     {v.createdBy}
                   </Text>
                 </Table.Td>
-                <Table.Td>{t(`prices.sources.${v.source}`)}</Table.Td>
+                <Table.Td>
+                  {t(`prices.sources.${v.source}`)}
+                  {v.derivation && (
+                    <Text size="xs" c="dimmed">
+                      {t('prices.versions_cause', { cause: v.derivation.cause, version: v.derivation.baseVersion })}
+                    </Text>
+                  )}
+                </Table.Td>
                 <Table.Td>
                   <DiffCounts diff={v.diff} />
                 </Table.Td>
