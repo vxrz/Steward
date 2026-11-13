@@ -76,6 +76,19 @@ import type { NamedMigration } from '../db.js';
  *   cost_estimate_results: the results that were current before (at most 20 per estimate).
  *   cost_estimate_books: the book versions an estimate's current or pending result used (versions in use are kept).
  *   cost_plan_lines: `estimate_id` and `estimate_basis` (the twelve month amounts a line was made from).
+ *
+ * 0.23.0 (ADR 0035 phase 2, contract conditions and derived books):
+ * costs-008-contract-conditions:
+ *   supplier_contract_conditions: the conditions of a supplier contract (its "Prices" section) – kind (percent off list,
+ *     negotiated unit price, commitment; and the terms of a derived book: discount on the base, markup, fee per unit,
+ *     fixed fee), the provider and scope it is for, the value (percentage, price with block, currency and tiers, the
+ *     unit of a fee, the bands of a commitment and the volume schedule it reads), validity, a note, who and when.
+ *   cost_price_book_versions: `derivation` – for a version of a derived book: the base version it was computed from,
+ *     the terms used and the cause (a new base version, changed terms).
+ *   cost_price_books: indexes on `base_book_id` (derived books follow their base) and `supplier_contract_id`.
+ *   cost_estimates: `contracts` – per provider the contract whose conditions apply (chosen; default: see pricing.ts).
+ *   cost_estimate_contracts: the contracts whose conditions an estimate's current or pending result used (a changed
+ *     condition recalculates them).
  */
 export const COSTS_MIGRATIONS: NamedMigration[] = [
   {
@@ -518,6 +531,50 @@ export const COSTS_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE cost_plan_lines ADD COLUMN estimate_id TEXT;
       ALTER TABLE cost_plan_lines ADD COLUMN estimate_basis TEXT;
       CREATE INDEX cost_plan_lines_estimate ON cost_plan_lines(estimate_id);
+    `,
+  },
+  {
+    name: 'costs-008-contract-conditions',
+    sql: `
+      CREATE TABLE supplier_contract_conditions (
+        id TEXT PRIMARY KEY,
+        contract_id TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        kind TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        scope_on TEXT NOT NULL DEFAULT 'provider',
+        target TEXT NOT NULL DEFAULT '',
+        price_id TEXT NOT NULL DEFAULT '',
+        percent TEXT,
+        price TEXT,
+        block INTEGER NOT NULL DEFAULT 1,
+        currency TEXT,
+        tiers TEXT,
+        tier_mode TEXT NOT NULL DEFAULT 'graduated',
+        unit TEXT,
+        bands TEXT,
+        schedule_id TEXT,
+        valid_from TEXT,
+        valid_to TEXT,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX supplier_contract_conditions_contract ON supplier_contract_conditions(contract_id, position);
+
+      ALTER TABLE cost_price_book_versions ADD COLUMN derivation TEXT;
+      CREATE INDEX cost_price_books_base ON cost_price_books(base_book_id);
+      CREATE INDEX cost_price_books_contract ON cost_price_books(supplier_contract_id);
+
+      ALTER TABLE cost_estimates ADD COLUMN contracts TEXT NOT NULL DEFAULT '[]';
+      CREATE TABLE cost_estimate_contracts (
+        estimate_id TEXT NOT NULL,
+        contract_id TEXT NOT NULL,
+        PRIMARY KEY (estimate_id, contract_id)
+      );
+      CREATE INDEX cost_estimate_contracts_contract ON cost_estimate_contracts(contract_id);
     `,
   },
 ];

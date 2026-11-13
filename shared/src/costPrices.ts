@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { COST_LIMITS, isoCurrencyCode } from './costs.js';
 import { isCalendarDate } from './costPlans.js';
+import type { CostCondition } from './costConditions.js';
 
 /**
  * Price books, cost drivers and units (0.21.0, ADR 0035 parts 1 and 2, docs/PRICE-BOOKS.md): items priced per unit of a
@@ -364,10 +365,11 @@ export const COST_UNIT_SUGGESTIONS = [
 
 // ---------- price book entries ----------
 
-export const COST_PRICE_BOOK_KINDS = ['list', 'contracted'] as const;
+/** list: published prices; contracted: the prices of one contract; derived (0.23.0): a base book × a provider's terms and fee */
+export const COST_PRICE_BOOK_KINDS = ['list', 'contracted', 'derived'] as const;
 export type CostPriceBookKind = (typeof COST_PRICE_BOOK_KINDS)[number];
-/** How a version came to be: by hand, a CSV import, the migration of the Snowflake fallback's price, a source read (phase 2) */
-export const COST_PRICE_VERSION_SOURCES = ['manual', 'csv', 'migration', 'source'] as const;
+/** How a version came to be: by hand, a CSV import, the migration of the Snowflake fallback's price, a source read, a derivation (0.23.0) */
+export const COST_PRICE_VERSION_SOURCES = ['manual', 'csv', 'migration', 'source', 'derived'] as const;
 export type CostPriceVersionSource = (typeof COST_PRICE_VERSION_SOURCES)[number];
 export const COST_PRICE_CHARGES = ['usage', 'recurring', 'oneOff'] as const;
 export type CostPriceCharge = (typeof COST_PRICE_CHARGES)[number];
@@ -660,6 +662,8 @@ export const costPriceBookInput = z
     supplierId: z.string().trim().min(1).max(100).nullable().default(null),
     supplierContractId: z.string().trim().min(1).max(100).nullable().default(null),
     reviewDays: z.number().int().min(1).max(COST_PRICE_LIMITS.reviewDaysMax).default(90),
+    /** A derived book (0.23.0): the book its customer prices are computed from (list, contracted or derived – two levels at most) */
+    baseBookId: z.string().trim().min(1).max(100).nullable().default(null),
   })
   .strict();
 export type CostPriceBookInput = z.input<typeof costPriceBookInput>;
@@ -785,6 +789,8 @@ export interface CostPriceVersion {
   createdBy: string;
   /** Used by an estimate (kept beyond the fifty versions per book) */
   inUse: boolean;
+  /** A derived book's version: the base version and why it was written (only for who sees the terms) */
+  derivation: { baseVersion: number; cause: string } | null;
 }
 
 export interface CostPriceBook {
@@ -797,7 +803,13 @@ export interface CostPriceBook {
   platform: { id: string; name: string } | null;
   supplier: { id: string; name: string } | null;
   supplierContract: { id: string; title: string } | null;
-  source: 'manual' | 'csv';
+  source: 'manual' | 'csv' | 'derived';
+  /** A derived book's base (null when the reader may not see it – the customer prices only) */
+  base: { id: string; name: string; version: number } | null;
+  /** A derived book: its terms are a contract's conditions (`contract`) or the book's own (a rate card, `book`) */
+  termsOn: 'contract' | 'book' | null;
+  /** The reader sees the terms of the derived book (and its base): the breakdown of its prices */
+  termsVisible: boolean;
   reviewDays: number;
   checkedAt: string | null;
   checkedBy: string | null;
@@ -814,6 +826,8 @@ export interface CostPriceBook {
 }
 
 export interface CostPriceBookDetail extends CostPriceBook {
+  /** A derived book's terms – a rate card's own, or its contract's (read-only here) – only for who sees them (0.23.0) */
+  terms: CostCondition[] | null;
   items: CostPriceEntry[];
   /** More items than listed (the page asks for the next ones) */
   more: boolean;

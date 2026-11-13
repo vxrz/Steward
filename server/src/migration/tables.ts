@@ -227,6 +227,9 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_estimates.created_by',
   'cost_estimates.updated_by',
   'cost_estimate_results.replaced_by',
+  // contract conditions (0.23.0, ADR 0035 phase 2): who made and changed one
+  'supplier_contract_conditions.created_by',
+  'supplier_contract_conditions.updated_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',

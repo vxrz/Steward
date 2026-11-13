@@ -496,14 +496,18 @@ const PriceDiffCounts = z.object({ added: z.number().int(), removed: z.number().
 export const PriceBook = z.object({
   id: z.string(),
   name: z.string(),
-  kind: z.enum(COST_PRICE_BOOK_KINDS).describe('list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)'),
+  kind: z
+    .enum(COST_PRICE_BOOK_KINDS)
+    .describe(
+      "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only); derived: a provider's customer prices computed from a base book with its terms and fee (the customer prices only – base, discount and fee are never part of this API)",
+    ),
   provider: z.string(),
   currency: z.string(),
   description: z.string(),
   platform: z.object({ id: z.string(), name: z.string() }).nullable(),
   supplier: z.object({ id: z.string(), name: z.string() }).nullable(),
   supplierContract: z.object({ id: z.string(), title: z.string() }).nullable(),
-  source: z.enum(['manual', 'csv']),
+  source: z.enum(['manual', 'csv', 'derived']),
   reviewDays: z.number().int(),
   checkedAt: ts().nullable(),
   checkedBy: z.string().nullable(),
@@ -518,7 +522,7 @@ export const PriceBookDetail = PriceBook.extend({
   versions: z.array(
     z.object({
       number: z.number().int(),
-      source: z.enum(['manual', 'csv', 'migration', 'source']),
+      source: z.enum(['manual', 'csv', 'migration', 'source', 'derived']),
       entries: z.number().int(),
       note: z.string(),
       sha256: z.string(),
@@ -582,6 +586,31 @@ const EstimateLine = z.object({
   fixedMoved: z.object({ was: z.string(), now: z.string() }).nullable(),
   amount: range('Per month (usage, recurring) or once (one-off); null without a price').nullable(),
   priceHidden: z.boolean().describe('Priced with rates the token owner may not see – shown at list price (or left out)'),
+  foundBy: z
+    .object({
+      kind: z.enum(['list', 'contracted', 'derived', 'negotiated', 'percentOff', 'commitment']),
+      percent: z.string().nullable().describe('The percentage off the list price (percentOff, commitment)'),
+      contract: z
+        .object({ id: z.string(), title: z.string(), reference: z.string(), inherited: z.boolean() })
+        .nullable()
+        .describe('The contract whose conditions applied (only for who sees them)'),
+      conditionIgnored: z.boolean().describe('A percentage of the contract was left out: the contracted book already includes the discount'),
+    })
+    .nullable()
+    .describe('How the price was found, as far as the token owner may see it'),
+  breakdown: z
+    .object({
+      base: z.object({ id: z.string(), name: z.string(), version: z.number().int() }),
+      baseAmount: CostRange,
+      discount: CostRange,
+      markup: CostRange,
+      fee: CostRange,
+      discountPct: z.string(),
+      markupPct: z.string(),
+      feePerBlock: z.string(),
+    })
+    .nullable()
+    .describe("Priced from a derived book: base, discount, markup and fee – only for who sees the provider's terms and the base book"),
   missing: z.enum(['noBook', 'noItem', 'unit', 'ambiguous']).nullable(),
 });
 
@@ -603,6 +632,9 @@ const EstimateResult = z.object({
   books: z.array(
     z.object({ id: z.string(), name: z.string(), kind: z.enum(COST_PRICE_BOOK_KINDS), version: z.number().int(), provider: z.string(), hidden: z.boolean() }),
   ),
+  contracts: z
+    .array(z.object({ id: z.string(), title: z.string(), reference: z.string(), provider: z.string() }))
+    .describe('The contracts whose conditions priced it – those whose conditions the token owner sees'),
   rates: z.array(z.object({ from: z.string(), to: z.string(), rate: z.string(), date: z.string() })),
   missing: z.number().int(),
   atListPrice: z.boolean(),
