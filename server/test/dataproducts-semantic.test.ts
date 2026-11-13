@@ -517,6 +517,34 @@ schema:
     }
   });
 
+  it('a link goes with its recorded response and with its platform; only live links count toward the limit', async () => {
+    const { db } = await import('../src/db.js');
+    const links = (portId: string) => Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_port_recordings WHERE port_id = ?', portId)!.n);
+    const p2 = (await dana('POST', `/data-products/${product}/ports`, { direction: 'output', name: 'links', type: 'api', version: 'v1' })).id as string;
+    // links left by an older version (their recording gone): they count for nothing
+    const now = new Date().toISOString();
+    for (let i = 0; i < 20; i++)
+      db().run(
+        "INSERT INTO dp_port_recordings (port_id, recording_id, platform_id, note, added_by, added_at) VALUES (?, ?, 'gone', '', 'dana', ?)",
+        p2,
+        `gone-${i}`,
+        now,
+      );
+    const pf = await s.api('POST', '/platforms', { name: 'Invented recordings platform', kind: 'rest', baseUrl: 'https://recordings.invented.example' });
+    const recA = await s.api('POST', `/platforms/${pf.id}/recordings`, { method: 'GET', path: '/a', status: 200, body: { a: 1 } });
+    const recB = await s.api('POST', `/platforms/${pf.id}/recordings`, { method: 'GET', path: '/b', status: 200, body: { b: 1 } });
+    await s.api('POST', `/data-products/${product}/ports/${p2}/recordings`, { recordingId: recA.id });
+    await s.api('POST', `/data-products/${product}/ports/${p2}/recordings`, { recordingId: recB.id });
+    db().run("DELETE FROM dp_port_recordings WHERE port_id = ? AND platform_id = 'gone'", p2);
+    expect(links(p2)).toBe(2);
+    // the recorded response removed: its link too
+    await s.api('DELETE', `/platforms/${pf.id}/recordings/${recA.id}`);
+    expect(links(p2)).toBe(1);
+    // the platform removed: the links of its recordings too
+    await s.api('DELETE', `/platforms/${pf.id}`);
+    expect(links(p2)).toBe(0);
+  });
+
   it('peeks at a topic element: managers of the platform, masked by the bound contract, audited without values', async () => {
     const { addKafkaMessages, addKafkaTopic } = await import('../src/mock/mockKafka.js');
     addKafkaTopic('sem.orders.v1', 1);

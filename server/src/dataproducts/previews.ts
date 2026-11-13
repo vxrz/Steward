@@ -216,7 +216,11 @@ export async function linkPortRecording(productId: string, portId: string, body:
   );
   if (!r || !platformPermissions(u, { id: r.platform_id }).includes('use'))
     throw recordingInvalid(`Recorded response ${input.recordingId} not found`, 'notFound');
-  const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_port_recordings WHERE port_id = ?', port.id)?.n ?? 0);
+  // the live links only (a link whose recording is gone counts for nothing)
+  const n = Number(
+    db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_port_recordings l JOIN platform_recordings r ON r.id = l.recording_id WHERE l.port_id = ?', port.id)
+      ?.n ?? 0,
+  );
   if (db().get('SELECT 1 FROM dp_port_recordings WHERE port_id = ? AND recording_id = ?', port.id, r.id))
     throw recordingInvalid('The recorded response is linked already', 'linked');
   if (n >= L.recordingsPerPort) throw recordingInvalid(`At most ${L.recordingsPerPort} recorded responses per port`, 'tooMany');

@@ -608,6 +608,8 @@ export function deletePlatform(id: string): void {
     for (const i of db().all<{ id: string }>('SELECT id FROM platform_identities WHERE platform_id = ?', id)) forgetShares('platform_identity', i.id);
     db().run('DELETE FROM platform_identities WHERE platform_id = ?', id);
     db().run('DELETE FROM platforms WHERE id = ?', id);
+    // 0.25.0: the links of its recorded responses to data product ports (their previews)
+    db().run('DELETE FROM dp_port_recordings WHERE platform_id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('platform', id);
     forgetShares('platform', id);
