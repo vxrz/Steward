@@ -1469,6 +1469,8 @@ function removeListItems(run: Run): void {
       if (!ref || wantMembers.has(elementKey(ref))) continue;
       step(run, e.file, entry, `remove member ${ref.qualified_name}`, () => el.removeMember(pid, name, m.element_id));
     }
+    // the product changed (its revision: Git sync tells changes in Steward by it)
+    if (!run.failed.has(entry)) svc.touchProduct(pid);
   }
 }
 

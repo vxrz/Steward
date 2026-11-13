@@ -17,7 +17,7 @@ import { HttpError, parseJson, sha256 } from '../util.js';
 import { ToolError, defineTool, type ToolDef } from '../mcp/tooling.js';
 import { registerReviewKind, saveProposal, type Row } from '../mcp/requests.js';
 import { canManageModule, domainAccess, objectAccess, productAccess, usesModule } from './access.js';
-import { DATA_PRODUCT_FORMAT_VERSION, SCHEMA_ID, dataProductsJsonSchema } from './format.js';
+import { DATA_PRODUCT_FORMAT_VERSION, SCHEMA_ID, dataProductsFileSchema, dataProductsJsonSchema, issueMessages } from './format.js';
 import { applyImport, credentialPlaces, previewImport } from './import.js';
 import type { DomainRow, ObjectRow, ProductRow } from './store.js';
 
@@ -281,9 +281,10 @@ export const dataProductProposalTools: ToolDef[] = [
         throw new ToolError(`${what} is too large (at most ${L.partBytes / 1024} KB) – split it into parts: the first with more: true, the next ones with the returned proposalId`);
       if (!a.proposalId && (!a.title || !a.rationale)) throw new ToolError('Give `title` and `rationale` (with the first part of a proposal in parts)');
       const more = a.more === true;
-      // each part is a file of the import by itself: its format problems are told now
-      const own = previewImport({ files: [{ name: 'part.json', content: text }], mode: 'update' });
-      const formatProblems = own.problems.filter((x) => x.path === '(document)' || x.path === 'version' || !x.code);
+      // each part is a document of the format by itself: its format problems are told now (names it refers to may be in
+      // another part – they are checked with the last one)
+      const own = dataProductsFileSchema.safeParse(doc);
+      const formatProblems = own.success ? [] : issueMessages(own.error.issues);
       if (formatProblems.length && (more || a.proposalId))
         throw new ToolError(
           `${what} is no document of the format – it was not kept. Fix it and send it again:\n${formatProblems

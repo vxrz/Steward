@@ -1206,7 +1206,7 @@
     "odps": "ODPS v1.0.0 (YAML)",
     "import": "Dateien importieren…",
     "importTitle": "Datenprodukte importieren",
-    "importIntro": "Dateien im Steward-Format – Domänen, Datenobjekte, Elemente und Produkte, als YAML oder JSON. Prüfen Sie zuerst die Vorschau; geschrieben wird erst beim Import.",
+    "importIntro": "Dateien im Format von Steward – Domänen, Datenobjekte, Elemente und Produkte, YAML oder JSON – sowie ODPS-v1-Dokumente (Open Data Product Standard), die als Produkte des Formats gelesen werden. Prüfen Sie zuerst die Vorschau; geschrieben wird erst beim Import.",
     "schema": "Dateiformat (JSON Schema)",
     "files": "Dateien",
     "filesHint": "Höchstens 500 Dateien und zusammen 8 MB.",
@@ -1215,11 +1215,13 @@
     "mode": "Modus",
     "modes": {
       "add": "Nur hinzufügen",
-      "update": "Hinzufügen und aktualisieren"
+      "update": "Hinzufügen und aktualisieren",
+      "replace": "Früheren Import ersetzen"
     },
     "modeHints": {
       "add": "Vorhandene Einträge bleiben, wie sie sind.",
-      "update": "Vorhandene Einträge übernehmen, was in den Dateien steht; was eine Datei auslässt, behält den Wert in Steward. Entfernt wird nichts."
+      "update": "Vorhandene Einträge übernehmen, was in den Dateien steht; was eine Datei auslässt, behält den Wert in Steward. Entfernt wird nichts.",
+      "replace": "Wie Hinzufügen und aktualisieren; zudem sind die Dateien der ganze frühere Import dieser Herkunft: Seine Einträge, die die Dateien nicht mehr enthalten, werden entfernt, ebenso Elemente, Ports, Schritte und Konsumenten der Produkte, die die Dateien auslassen. Was Sie nicht sehen dürfen, wird nie entfernt."
     },
     "preview": "Vorschau",
     "run": "Importieren",
@@ -1234,7 +1236,13 @@
       "unchanged_one": "{{count}} unverändert",
       "unchanged_other": "{{count}} unverändert",
       "skip_one": "{{count}} übersprungen",
-      "skip_other": "{{count}} übersprungen"
+      "skip_other": "{{count}} übersprungen",
+      "remove_one": "{{count}} zu entfernen",
+      "remove_other": "{{count}} zu entfernen",
+      "removedItems_one": "{{count}} Listeneintrag zu entfernen",
+      "removedItems_other": "{{count}} Listeneinträge zu entfernen",
+      "keptHidden_one": "{{count}} bleibt: für Sie nicht sichtbar",
+      "keptHidden_other": "{{count}} bleiben: für Sie nicht sichtbar"
     },
     "problems_one": "{{count}} Problem verhindert den Import",
     "problems_other": "{{count}} Probleme verhindern den Import",
@@ -1254,7 +1262,16 @@
       "add": "Hinzufügen",
       "change": "Ändern",
       "unchanged": "Unverändert",
-      "skip": "Überspringen"
-    }
+      "skip": "Überspringen",
+      "remove": "Entfernen"
+    },
+    "origin": "Herkunft",
+    "originHint": "Ein Name, unter dem der Import seine Einträge führt (zum Beispiel shop-catalogue) – ein späterer Import, der ihn ersetzt, nennt dieselbe Herkunft. Optional, außer zum Ersetzen.",
+    "originRequired": "Zum Ersetzen braucht es die Herkunft des früheren Imports.",
+    "originInvalid": "Buchstaben, Ziffern und . _ - : / – höchstens 100.",
+    "doneReplace": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{unchanged}} unverändert, {{remove}} entfernt, {{items}} Listeneinträge entfernt",
+    "odpsRead_one": "{{count}} ODPS-Dokument als Datenprodukt gelesen.",
+    "odpsRead_other": "{{count}} ODPS-Dokumente als Datenprodukte gelesen.",
+    "stepUp": "Der Import entfernt mehr als einen Eintrag oder Listeneintrag: Beim Import bestätigen Sie, dass Sie es sind."
   }
 }
