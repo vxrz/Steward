@@ -1685,6 +1685,7 @@ const SESSION_ONLY = [
   // 0.25.0 (ADR 0037): signing off a semantic model is a person's approval; the peek reads messages (KAFKA.md)
   'POST /api/data-products/:id/semantic-model/versions/:n/sign-off',
   'POST /api/data-elements/:id/peek',
+  'POST /api/platforms/:id/kafka/peek',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',

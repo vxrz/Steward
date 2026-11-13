@@ -16,6 +16,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 - **Records of processing** counted its limit of 5,000 data objects before the team filter, so a reader could get a short or empty list; the limit now counts only what the reader may see, and a list cut there says so in the view, the CSV and the PDF.
 
+### Security
+
+- **The Kafka peek is a signed-in person's action only** ([docs/KAFKA.md](docs/KAFKA.md#peek)): `POST /api/platforms/{id}/kafka/peek` refuses API tokens (`SESSION_REQUIRED`), also those of a platform's managers – message content is read only by a person in the app, audited, as for the peek on data product elements.
+
 ## [0.24.0] - 2026-11-13
 
 Steward 0.24.0 brings **data products, phase 2** ([ADR 0036](docs/adr/0036-data-products-module.md#phases)): lineage from tools – OpenLineage events, dbt manifests and run results, Snowflake's access history – proposed to the people who document, never written on their own; quality results from dbt tests, Snowflake data metric functions and contract tests, mapped to the ISO/IEC 25012 dimensions; the scorecard over time and in reports; who really reads a product beside the consumers who registered; access requests with four eyes for the most confidential products and sealed port access reviews; promotion between environments, endorsement and maturity 5; personal data in fields and the records of processing (GDPR Art. 30); costs by measured use and estimates for products; ODPS import, a _replace_ import mode, Git sync, the Ossie export of data objects and proposals from assistants. A release review of security, standards, performance, UI, UX and accessibility (WCAG 2.2) was fixed before the release. Migrations are additive (`dataproducts-005a-lineage`, `dataproducts-005b-quality-scorecard-history`, `dataproducts-005c-governance`, `dataproducts-005d-measured-use-origins`, `dataproducts-005e-port-review-facts`).
