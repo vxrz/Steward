@@ -161,7 +161,8 @@ export function portViews(u: AuthUser | null, productId: string, known?: Readonl
           environment: b.environment,
           contractId: b.contract_id && contracts.get(b.contract_id)?.id ? b.contract_id : null,
           contractVersion: b.contract_version === null ? null : Number(b.contract_version),
-          contractServer: b.contract_server,
+          // a contract the reader may not see is counted, never named: neither is its server
+          contractServer: b.contract_id && contracts.get(b.contract_id)?.hidden ? null : b.contract_server,
           // a contract that is gone (deleted since) is none; one the reader may not see is counted, never named
           contract: b.contract_id ? (contracts.get(b.contract_id) ?? null) : null,
           objectives: objectives(b.objectives),

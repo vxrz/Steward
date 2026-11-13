@@ -275,6 +275,12 @@ describe('ports, consumers and the lifecycle', () => {
 
   it('keeps a contract the editor may not see when they save the binding; a deleted contract is none', async () => {
     const contract = ((await s.api('GET', '/data-contracts')) as { id: string; key: string }[]).find((c) => c.key === 'shop-orders')!;
+    await dana('PUT', `/data-products/${orders}/ports/${output}/bindings/prod`, {
+      elementIds: [topic],
+      contractId: contract.id,
+      contractServer: 'production',
+      objectives: { freshnessMinutes: 30 },
+    });
     const team = (await s.api('POST', '/teams', { name: 'Contract keepers', members: ['adam'] })).id as string;
     await s.api('PUT', `/owning-teams/contract/${contract.id}`, { teamIds: [team] });
     const { db } = await import('../src/db.js');
@@ -282,7 +288,8 @@ describe('ports, consumers and the lifecycle', () => {
     try {
       const seen = await dana('GET', `/data-products/${orders}`);
       const b = seen.ports.find((p: { id: string }) => p.id === output).bindings[0];
-      expect(b).toMatchObject({ contractId: null, contract: { hidden: true } });
+      // counted, never named: not even the contract's server
+      expect(b).toMatchObject({ contractId: null, contract: { hidden: true }, contractServer: null });
       // her form has no contract: saving the binding's objectives leaves the contract as it was
       await dana('PUT', `/data-products/${orders}/ports/${output}/bindings/prod`, {
         elementIds: [topic],
@@ -290,6 +297,9 @@ describe('ports, consumers and the lifecycle', () => {
         objectives: { freshnessMinutes: 30 },
       });
       expect(stored()).toBe(contract.id);
+      expect(db().get<{ contract_server: string }>('SELECT contract_server FROM dp_port_bindings WHERE port_id = ?', output)!.contract_server).toBe(
+        'production',
+      );
     } finally {
       await s.api('PUT', `/owning-teams/contract/${contract.id}`, { teamIds: [] });
     }
