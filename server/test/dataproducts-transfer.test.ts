@@ -130,7 +130,7 @@ const DOC = () => ({
             },
           ],
           consumers: [
-            { kind: 'team', subject: 'team:finance', purpose: 'Monthly close' },
+            { kind: 'team', subject: 'team:finance', purpose: 'Monthly close', identities: ['role:FINANCE'] },
             { kind: 'text', text: 'Controlling', purpose: 'Reports', since: '2026-01-01' },
           ],
         },
@@ -217,6 +217,11 @@ describe('import', () => {
       expect(p.counts, `${url}: ${JSON.stringify(p.changes)}`).toMatchObject({ add: 0, change: 0, skip: 0 });
       expect(p.counts.unchanged).toBeGreaterThanOrEqual(8);
     }
+    // the platform identities a registration names go out with it (0.24.0)
+    const exported = YAML.parse((await dana('GET', `/data-products/${productId}/export`)) as string);
+    const finance = exported.data_products[0].ports[0].consumers.find((c: { kind: string }) => c.kind === 'team');
+    expect(finance.identities).toEqual(['role:FINANCE']);
+    expect(exported.data_products[0].ports[0].consumers.find((c: { kind: string }) => c.kind === 'text').identities).toBeUndefined();
     // the pages download through links: their link key (?_sk=) is not a parameter of the export
     expect((await dana('GET', `/data-products/${productId}/export?format=yaml&_sk=link`)) as string).toMatch(/^# Steward data products, format 1/);
     expect(String(await dana('GET', `/data-products/${productId}/odps?_sk=link`))).toContain('kind: DataProduct');
@@ -231,11 +236,17 @@ describe('import', () => {
     p0.description = 'Every order of the shop, since 2020.';
     p0.ports[0]!.bindings![0]!.objectives = { availability_pct: 99.9 };
     p0.ports[0]!.consumers!.push({ kind: 'text', text: 'Sales planning', purpose: 'Forecasts', since: '2026-02-01' });
+    (p0.ports[0]!.consumers![0] as { identities?: string[] }).identities = ['role:FINANCE', 'user:SVC_CLOSE'];
     const p = await preview(dana, [file({ version: 1, data_products: [p0] })]);
     expect(p.counts).toMatchObject({ change: 1, add: 0 });
     const fields = p.changes[0].fields.map((f: { field: string }) => f.field);
     expect(fields).toEqual(
-      expect.arrayContaining(['description', 'ports[output orders v2].bindings[prod].objectives', 'ports[output orders v2].consumers[text:sales planning]']),
+      expect.arrayContaining([
+        'description',
+        'ports[output orders v2].bindings[prod].objectives',
+        'ports[output orders v2].consumers[text:sales planning]',
+        'ports[output orders v2].consumers[team:team:finance].identities',
+      ]),
     );
     const skipped = await preview(dana, [file({ version: 1, data_products: [p0] })], 'add');
     expect(skipped.counts).toMatchObject({ skip: 1, change: 0 });
@@ -243,6 +254,8 @@ describe('import', () => {
     const got = await dana('GET', `/data-products/${productId}`);
     expect(got.description).toBe('Every order of the shop, since 2020.');
     expect(got.ports.find((x: { direction: string }) => x.direction === 'output').consumers.registered).toBe(3);
+    const again = YAML.parse((await dana('GET', `/data-products/${productId}/export`)) as string);
+    expect(again.data_products[0].ports[0].consumers.find((c: { kind: string }) => c.kind === 'team').identities).toEqual(['role:FINANCE', 'user:SVC_CLOSE']);
     // a key the file leaves out keeps Steward's value
     await importFiles(dana, [file({ version: 1, data_product: { key: 'orders', name: 'Orders' } })]);
     expect((await dana('GET', `/data-products/${productId}`)).description).toBe('Every order of the shop, since 2020.');

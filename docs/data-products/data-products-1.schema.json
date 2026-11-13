@@ -1458,6 +1458,16 @@
             "pattern": "^(user|team):.+$",
             "description": "A person or a team: user:<name> or team:<name>"
           }
+        },
+        "identities": {
+          "description": "The platform identities the registration names (user:, role:, group:), matched to who really reads the port (0.24.0)",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^(user|role|group):[^\\s:][^\\n\\r]{0,254}$"
+          }
         }
       },
       "required": [

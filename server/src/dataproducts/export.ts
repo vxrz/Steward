@@ -9,6 +9,7 @@ import { canViewCatalogue } from '../records/access.js';
 import { parseJson } from '../util.js';
 import { domainAccess, elementAccess, elementScopeSql, objectAccess, productAccess } from './access.js';
 import { domainNotFound } from './common.js';
+import { identitiesOf } from './consumers-actual.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import { productSteps } from './steps.js';
 import { ratingsByItem } from './ratings.js';
@@ -300,7 +301,7 @@ function runnerFile(s: Snapshot, raw: DataStepRunner | null): RunnerFile | null 
   return name ? { kind: raw.kind, name } : undefined;
 }
 
-function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number]): ConsumerFile | null {
+function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number], identities: readonly string[] = []): ConsumerFile | null {
   const kind = c.consumer_kind as ConsumerFile['kind'];
   const base = {
     purpose: c.purpose,
@@ -308,6 +309,8 @@ function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number]): C
     end_date: c.end_date,
     agreement: parseJson<ConsumerFile['agreement']>(c.agreement, null),
     contacts: strings(c.contacts),
+    // the platform identities of the registration (0.24.0): only when it names some
+    ...(identities.length ? { identities: [...identities] } : {}),
   };
   if (kind === 'team' || kind === 'user') {
     const subject = strings(c.consumer_subjects)[0];
@@ -338,6 +341,7 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string): 
   const bindings = bindingsOf(portIds).filter((b) => environment === undefined || b.environment === environment);
   const declared = portObjectsOf(portIds);
   const consumers = consumersOf(portIds);
+  const identities = consumers.length ? identitiesOf(consumers.map((c) => c.id)) : new Map<string, string[]>();
   const steps = productSteps(p.id);
   s.elements([...members.map((m) => m.element_id), ...bindings.flatMap((b) => b.elementIds), ...steps.flatMap((x) => [...x.inputs, ...x.outputs])]);
   const sourcePorts = new Map<string, PortRow>();
@@ -401,7 +405,7 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string): 
         x.direction === 'output'
           ? consumers
               .filter((c) => c.port_id === x.id)
-              .map((c) => consumerFile(s, c))
+              .map((c) => consumerFile(s, c, identities.get(c.id)))
               .filter((c): c is ConsumerFile => !!c)
           : [],
     };

@@ -31,6 +31,7 @@ import { domainAccess, elementAccess, objectAccess, productAccess } from './acce
 import * as svc from './service.js';
 import * as el from './elements.js';
 import * as ports from './ports.js';
+import { writeIdentities } from './consumers-actual.js';
 import * as steps from './steps.js';
 import { ratingsByItem } from './ratings.js';
 import {
@@ -1343,8 +1344,11 @@ function writeProducts(run: Run): void {
           if (!pr) throw new HttpError(404, `Port ${portIdentity(x)} not found`, 'DATA_PORT_NOT_FOUND', { id: portIdentity(x) });
           const body = consumerBody(r, c);
           const existing = oc ? consumersOf([pr.id]).find((row) => consumerIdentityOfRow(run.r, row) === consumerIdentity(c)) : undefined;
-          if (existing) ports.updateConsumer(productOf(e), nameOf(e), pr.id, existing.id, body);
-          else ports.addConsumer(productOf(e), nameOf(e), pr.id, body);
+          const id = existing
+            ? (ports.updateConsumer(productOf(e), nameOf(e), pr.id, existing.id, body), existing.id)
+            : ports.addConsumer(productOf(e), nameOf(e), pr.id, body).id;
+          // the platform identities it names (0.24.0); a file that leaves them out keeps them
+          if (c.identities) db().tx(() => writeIdentities(id, c.identities!));
         });
       }
     }
