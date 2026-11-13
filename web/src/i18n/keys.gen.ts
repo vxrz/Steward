@@ -6193,6 +6193,12 @@ export interface Resources {
     'codes.DATA_CONSUMER_NOT_FOUND': string;
     'codes.DATA_PRODUCT_KEY_TAKEN': string;
     'codes.DATA_PRODUCT_LIMIT': string;
+    'codes.DATA_PRODUCT_IMPORT_INVALID': string;
+    'codes.DATA_PRODUCT_IMPORT_INVALID_ambiguous': string;
+    'codes.DATA_PRODUCT_IMPORT_INVALID_unknown': string;
+    'codes.DATA_PRODUCT_IMPORT_SECRET': string;
+    'codes.DATA_PRODUCT_IMPORT_TOO_LARGE': string;
+    'codes.DATA_PRODUCT_IMPORT_CHANGED': string;
     'codes.DATA_PRODUCT_LIMIT_domains': string;
     'codes.DATA_PRODUCT_LIMIT_objects': string;
     'codes.DATA_PRODUCT_LIMIT_products': string;

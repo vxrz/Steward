@@ -1,0 +1,1591 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vxrz/Steward/blob/main/docs/data-products/data-products-1.schema.json",
+  "title": "Steward data products, format 1",
+  "description": "Data domains, data objects (the business data: definition, rating, classification, personal data), the element catalogue (tables, views, topics, APIs, paths on platforms, per environment) and data products with their ports (bindings per environment, ODCS contracts, objectives, consumers), members and steps. Exported and imported by Steward; ODPS v1.0.0 is the exchange format of a single product. See docs/DATA-PRODUCTS.md.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1,
+      "description": "The format of the file"
+    },
+    "domains": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DataDomain"
+      }
+    },
+    "domain": {
+      "$ref": "#/$defs/DataDomain"
+    },
+    "data_objects": {
+      "maxItems": 5000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DataObject"
+      }
+    },
+    "data_object": {
+      "$ref": "#/$defs/DataObject"
+    },
+    "elements": {
+      "maxItems": 20000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DataElement"
+      }
+    },
+    "data_products": {
+      "maxItems": 2000,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DataProduct"
+      }
+    },
+    "data_product": {
+      "$ref": "#/$defs/DataProduct"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "DataDomain": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+          "description": "Unique key of the domain"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+              "description": "The parent domain (a sub-domain belongs to a top-level domain)"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "colour": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "gray",
+                "green",
+                "teal",
+                "cyan",
+                "blue",
+                "indigo",
+                "violet",
+                "grape",
+                "pink",
+                "yellow",
+                "orange",
+                "red"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owners": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^(user|team):.+$",
+            "description": "A person or a team: user:<name> or team:<name>"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "DataObject": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+          "description": "Unique key of the data object (customer, order)"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "definition": {
+          "description": "What the data is (Markdown): the business glossary of the module",
+          "type": "string",
+          "maxLength": 20000
+        },
+        "synonyms": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+              "description": "Its domain"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ]
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "public",
+                "internal",
+                "confidential",
+                "strictly_confidential"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "personal_data": {
+          "type": "string",
+          "enum": [
+            "none",
+            "personal",
+            "special"
+          ]
+        },
+        "categories": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "special_categories": {
+          "maxItems": 9,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "racialEthnicOrigin",
+              "politicalOpinions",
+              "religiousBeliefs",
+              "tradeUnionMembership",
+              "genetic",
+              "biometric",
+              "health",
+              "sexLifeOrientation",
+              "criminalConvictions"
+            ]
+          }
+        },
+        "subjects": {
+          "description": "Data subjects: customers, employees …",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "legal_basis": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "consent",
+                "contract",
+                "legalObligation",
+                "vitalInterests",
+                "publicTask",
+                "legitimateInterests"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legal_note": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "purposes": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "retention": {
+          "description": "An ISO 8601 duration (P10Y) or text",
+          "type": "string",
+          "maxLength": 200
+        },
+        "deletion_rule": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "regulatory_flags": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "attributes": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "personal": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "owner": {
+          "description": "The data owner: a user name",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stewards": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^(user|team):.+$",
+            "description": "A person or a team: user:<name> or team:<name>"
+          }
+        },
+        "custodians": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^(user|team):.+$",
+            "description": "A person or a team: user:<name> or team:<name>"
+          }
+        },
+        "external_refs": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalRef"
+          },
+          "description": "Links: a wiki page, a catalogue entry (a DataHub URN as a URL), a repository"
+        },
+        "rating": {
+          "type": "object",
+          "properties": {
+            "confidentiality": {
+              "description": "A level with its justification (null: not rated)",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatingLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "integrity": {
+              "description": "A level with its justification (null: not rated)",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatingLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "availability": {
+              "description": "A level with its justification (null: not rated)",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatingLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "elements": {
+          "description": "Elements that implement it (added; links the file does not name stay)",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "element": {
+                "$ref": "#/$defs/ElementRef"
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "element"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ExternalRef": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2000,
+          "pattern": "^https?:\\/\\/\\S+$"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false,
+      "description": "A link with a label"
+    },
+    "RatingLevel": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,31}$"
+        },
+        "justification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "level",
+        "justification"
+      ],
+      "additionalProperties": false,
+      "description": "A level of the instance’s CIA scale with its justification"
+    },
+    "ElementRef": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "description": "The platform by its name (a platform you may see; left out: no platform, where the kind allows it)",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platform_id": {
+          "description": "The platform by its id, instead of its name",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "snowflake.database",
+            "snowflake.schema",
+            "snowflake.table",
+            "snowflake.view",
+            "snowflake.dynamicTable",
+            "snowflake.stream",
+            "snowflake.task",
+            "snowflake.stage",
+            "snowflake.pipe",
+            "kafka.topic",
+            "kafka.topicBundle",
+            "sql.schema",
+            "sql.table",
+            "sql.view",
+            "api.openapi",
+            "api.asyncapi",
+            "api.graphql",
+            "api.endpoint",
+            "files.path",
+            "insightsHub.aspect",
+            "other"
+          ]
+        },
+        "qualified_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "SHOP.SALES.ORDERS, orders.v1, public.orders, a path"
+        },
+        "environment": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "An environment of Settings → Environments (empty: none)"
+        }
+      },
+      "required": [
+        "kind",
+        "qualified_name"
+      ],
+      "additionalProperties": false,
+      "description": "An element of the catalogue: platform, kind, qualified name and environment"
+    },
+    "DataElement": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "description": "The platform by its name (a platform you may see; left out: no platform, where the kind allows it)",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platform_id": {
+          "description": "The platform by its id, instead of its name",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "snowflake.database",
+            "snowflake.schema",
+            "snowflake.table",
+            "snowflake.view",
+            "snowflake.dynamicTable",
+            "snowflake.stream",
+            "snowflake.task",
+            "snowflake.stage",
+            "snowflake.pipe",
+            "kafka.topic",
+            "kafka.topicBundle",
+            "sql.schema",
+            "sql.table",
+            "sql.view",
+            "api.openapi",
+            "api.asyncapi",
+            "api.graphql",
+            "api.endpoint",
+            "files.path",
+            "insightsHub.aspect",
+            "other"
+          ]
+        },
+        "qualified_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "SHOP.SALES.ORDERS, orders.v1, public.orders, a path"
+        },
+        "environment": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "An environment of Settings → Environments (empty: none)"
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "parent": {
+          "description": "The qualified name of its parent (same platform and environment)",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "layer": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "type_label": {
+          "description": "A free type label (Power BI dataset, Excel extract)",
+          "type": "string",
+          "maxLength": 200
+        },
+        "api_ref": {
+          "description": "An API element: the address of its description and the operations that serve data",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^https?:\\/\\/\\S+$"
+                },
+                "operations": {
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flags": {
+          "description": "Flags of a new element (secure, materialized …); an import does not change those of an existing one",
+          "maxProperties": 30,
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "qualified_name"
+      ],
+      "additionalProperties": false
+    },
+    "DataProduct": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+          "description": "Unique key of the product (ODPS id)"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "purpose": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "sourceAligned",
+                "aggregate",
+                "consumerAligned"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+              "description": "Its domain or sub-domain"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owners": {
+          "description": "The product owners",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^(user|team):.+$",
+            "description": "A person or a team: user:<name> or team:<name>"
+          }
+        },
+        "support": {
+          "type": "object",
+          "properties": {
+            "channel": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "url": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "pattern": "^https?:\\/\\/\\S+$"
+                },
+                {
+                  "type": "string",
+                  "const": ""
+                }
+              ]
+            },
+            "hours": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "criticality": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 1
+                },
+                {
+                  "type": "number",
+                  "const": 2
+                },
+                {
+                  "type": "number",
+                  "const": 3
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "value_statement": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "value_tier": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value_amount": {
+          "description": "A yearly amount in value_currency (shown beside costs, never netted)",
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value_currency": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "successor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+              "description": "The product that follows a deprecated one"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tags": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "external_refs": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalRef"
+          },
+          "description": "Links: a wiki page, a catalogue entry (a DataHub URN as a URL), a repository"
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ]
+        },
+        "sunset_date": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rating": {
+          "type": "object",
+          "properties": {
+            "confidentiality": {
+              "description": "A level with its justification (null: not rated)",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatingLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "integrity": {
+              "description": "A level with its justification (null: not rated)",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatingLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "availability": {
+              "description": "A level with its justification (null: not rated)",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RatingLevel"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "classification": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "internal",
+                    "confidential",
+                    "strictly_confidential"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reasons": {
+              "description": "Why the product is below the data objects it exposes (the distribution effect)",
+              "type": "object",
+              "properties": {
+                "confidentiality": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "integrity": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "availability": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "classification": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "environments": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "environment": {
+                "type": "string",
+                "maxLength": 60,
+                "description": "An environment of Settings → Environments (empty: none)"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "available",
+                  "withdrawn"
+                ]
+              }
+            },
+            "required": [
+              "environment"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "members": {
+          "description": "Its elements with their role (input, internal, output)",
+          "maxItems": 5000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "element": {
+                "$ref": "#/$defs/ElementRef"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "internal",
+                  "output"
+                ]
+              },
+              "include_descendants": {
+                "type": "boolean"
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "element"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ports": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Port"
+          }
+        },
+        "steps": {
+          "description": "Steps documented with this product: each writes at least one of its elements",
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Step"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Port": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": [
+            "input",
+            "output"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "version": {
+          "description": "Two versions are two ports",
+          "type": "string",
+          "maxLength": 60
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "table",
+            "topic",
+            "api",
+            "file",
+            "other"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ]
+        },
+        "sunset_date": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "successor": {
+          "description": "The port of this product that follows a deprecated one",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "version": {
+                  "type": "string",
+                  "maxLength": 60
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "objectives": {
+          "$ref": "#/$defs/Objectives"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PortSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_objects": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+            "description": "A data object"
+          }
+        },
+        "bindings": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PortBinding"
+          }
+        },
+        "consumers": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PortConsumer"
+          }
+        }
+      },
+      "required": [
+        "direction",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Objectives": {
+      "type": "object",
+      "properties": {
+        "freshness_minutes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 527040
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "availability_pct": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completeness": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "update_schedule": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retention": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention"
+    },
+    "PortSource": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$",
+          "description": "Another product’s key"
+        },
+        "port": {
+          "description": "Its output port’s name",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "version": {
+          "description": "Its output port’s version",
+          "type": "string",
+          "maxLength": 60
+        },
+        "element": {
+          "$ref": "#/$defs/ElementRef"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false,
+      "description": "Input ports: another product's output port (product, port, version), an element of a source system, or a text"
+    },
+    "PortBinding": {
+      "type": "object",
+      "properties": {
+        "environment": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "An environment of Settings → Environments (empty: none)"
+        },
+        "elements": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ElementRef"
+          }
+        },
+        "contract": {
+          "description": "Output ports: the data contract by its ODCS id",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contract_version": {
+          "description": "The version it is held to (null: the current one)",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contract_server": {
+          "description": "The ODCS server of the contract for this environment",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "objectives": {
+          "$ref": "#/$defs/Objectives"
+        }
+      },
+      "required": [
+        "environment"
+      ],
+      "additionalProperties": false
+    },
+    "PortConsumer": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "team",
+            "user",
+            "application",
+            "service",
+            "product",
+            "text"
+          ]
+        },
+        "subject": {
+          "description": "kind team or user: team:<name> or user:<name>",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^(user|team):.+$"
+        },
+        "ref": {
+          "description": "kind application or service: its name; kind product: its key",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "text": {
+          "description": "kind text: who it is",
+          "type": "string",
+          "maxLength": 200
+        },
+        "purpose": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "since": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agreement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "record",
+                    "contract",
+                    "ticket",
+                    "url"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contacts": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^(user|team):.+$",
+            "description": "A person or a team: user:<name> or team:<name>"
+          }
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Step": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ingest",
+            "stage",
+            "transform",
+            "curate",
+            "publish",
+            "replicate",
+            "other"
+          ]
+        },
+        "runner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepRunner"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schedule": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "notes": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "rename",
+                  "scale",
+                  "unit",
+                  "aggregate",
+                  "filter",
+                  "enrich",
+                  "compute",
+                  "format",
+                  "other"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "inputs": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ElementRef"
+          }
+        },
+        "outputs": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ElementRef"
+          }
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "StepRunner": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "application",
+            "platform",
+            "process",
+            "element",
+            "connector",
+            "tool"
+          ]
+        },
+        "name": {
+          "description": "application, platform, process: its name; connector: the connector’s name",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "platform": {
+          "description": "connector: the platform it runs on",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "element": {
+          "description": "element: a Snowflake task, pipe or dynamic table",
+          "$ref": "#/$defs/ElementRef"
+        },
+        "tool": {
+          "description": "tool: Airflow, dbt, Fivetran, Kafka Connect …",
+          "type": "string",
+          "maxLength": 200
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

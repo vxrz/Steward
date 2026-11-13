@@ -458,6 +458,14 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/cost-allocations': ALL,
   'PUT /api/data-products/cost-allocations': ADMIN,
   'GET /api/data-products/:id/scorecard': ALL,
+  // import and export, ODPS (WP7): exports read like the products they hold; the preview shows anyone what an import
+  // would do (refusals are its problems); importing changes – session-only (ADR 0036 security notes)
+  'GET /api/data-products/schema': ALL,
+  'GET /api/data-products/export': ALL,
+  'GET /api/data-products/:id/export': ALL,
+  'GET /api/data-products/:id/odps': ALL,
+  'POST /api/data-products/import/preview': ALL,
+  'POST /api/data-products/import': DESIGN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1063,6 +1071,15 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
   // the plant registry (#218): who may see the site (every role that works in Steward, without an access list)
+  // data products (0.22.0, ADR 0036): read with the token owner's rights, like the internal API
+  'GET /api/v1/data-products': ALL,
+  'GET /api/v1/data-products/:productId': ALL,
+  'GET /api/v1/data-products/:productId/odps': ALL,
+  'GET /api/v1/data-products/:productId/lineage': ALL,
+  'GET /api/v1/data-elements': ALL,
+  'GET /api/v1/data-elements/:elementId': ALL,
+  'GET /api/v1/data-objects': ALL,
+  'GET /api/v1/data-objects/:objectId': ALL,
   'GET /api/v1/plant/sites': PLANT,
   'GET /api/v1/plant/sites/:siteId': PLANT,
   'GET /api/v1/plant/assets': PLANT,
@@ -1473,6 +1490,9 @@ const SESSION_ONLY = [
   'POST /api/data-products/discovery-sources/:id/run',
   // splitting a platform's costs between data products (ADR 0036 WP4)
   'PUT /api/data-products/cost-allocations',
+  // imports of data products files: a person decides, in a session (ADR 0036 security notes)
+  'POST /api/data-products/import/preview',
+  'POST /api/data-products/import',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2134,6 +2154,8 @@ function fill(url: string): string {
       // data products (ADR 0036): the fixtures' discovery source; the product, its port, consumer, step and member element
       .replace(/^\/api\/data-products\/discovery-sources\/:id/, `/api/data-products/discovery-sources/${fx.discoverySource}`)
       .replace(/^\/api\/data-products\/:id\/steps\/:stepId/, `/api/data-products/${fx.dataProduct}/steps/${fx.dataStep}`)
+      .replace(/:productId/g, fx.dataProduct!)
+      .replace(/:objectId/g, fx.dataObject!)
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
       .replace(/:matchId/g, 'dpm_none')

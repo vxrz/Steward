@@ -5,6 +5,9 @@ import { dataProductViewRoutes } from '../dataproducts/views-routes.js';
 import { discoveryRoutes } from '../dataproducts/discovery/routes.js';
 import { dataProductCostRoutes } from '../dataproducts/costs-routes.js';
 import { DATA_PRODUCT_LINK_KIND_RESOLVERS } from '../dataproducts/links.js';
+import { dataProductTransferRoutes } from '../dataproducts/transfer-routes.js';
+import { dataProductApiRoutes } from '../dataproducts/api-v1.js';
+import { dataProductTools } from '../dataproducts/mcp.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /**
@@ -16,8 +19,12 @@ export default defineFeature({
   name: 'dataproducts',
   module: 'dataProducts',
   // the discovery sources first: /data-products/discovery-sources is not a product id; checks and health (WP3); the
-  // pictures (WP6): the pipeline of a product, the product map, the lineage of an element; costs and scorecard (WP4)
-  routes: [discoveryRoutes, dataProductRoutes, dataProductHealthRoutes, dataProductViewRoutes, dataProductCostRoutes],
+  // pictures (WP6): the pipeline of a product, the product map, the lineage of an element; costs and scorecard (WP4);
+  // import and export, ODPS (WP7)
+  routes: [discoveryRoutes, dataProductRoutes, dataProductHealthRoutes, dataProductViewRoutes, dataProductCostRoutes, dataProductTransferRoutes],
+  // the public API (read-only) and the MCP read tools (WP7, ADR 0036 parts 14 and 19); not listed while the module is off
+  apiV1: [dataProductApiRoutes],
+  mcpTools: dataProductTools,
   // ADR 0036 part 17: documents, records and ticket references link products and data objects
   linkKinds: [...DATA_PRODUCT_LINK_KIND_RESOLVERS],
   migrations: [DATA_PRODUCT_MIGRATIONS],

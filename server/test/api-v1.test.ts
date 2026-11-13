@@ -99,6 +99,20 @@ beforeAll(async () => {
       fileName: name,
     });
   await s.api('POST', '/demo/setup', {});
+  // the data products module on (0.22.0, ADR 0036): a product with a port, members, a step and a data object
+  await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
+  {
+    const sf = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'snowflake').name;
+    const ref = (q: string) => ({ platform: sf, kind: 'snowflake.table', qualified_name: q, environment: 'prod' });
+    const doc = [
+      'version: 1',
+      'data_objects: [{ key: api-order, name: API order, classification: internal }]',
+      `elements: [${JSON.stringify(ref('API.RAW.ORDERS'))}, ${JSON.stringify(ref('API.CURATED.ORDERS'))}]`,
+      'data_products:',
+      `  - { key: api-orders, name: API orders, members: [{ element: ${JSON.stringify(ref('API.RAW.ORDERS'))} }], ports: [{ direction: output, name: orders, data_objects: [api-order], bindings: [{ environment: prod, elements: [${JSON.stringify(ref('API.CURATED.ORDERS'))}] }] }], steps: [{ name: curate, inputs: [${JSON.stringify(ref('API.RAW.ORDERS'))}], outputs: [${JSON.stringify(ref('API.CURATED.ORDERS'))}] }] }`,
+    ].join('\n');
+    await s.api('POST', '/data-products/import', { files: [{ name: 'api.yaml', content: doc }], mode: 'add' });
+  }
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
   hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
@@ -608,6 +622,14 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/plant/change-sets/{changeSetId}', `/plant/change-sets/${x.id}`);
     await listAll('/plant/change-sets/{changeSetId}/operations', `/plant/change-sets/${x.id}/operations`);
   }
+  // data products (0.22.0, ADR 0036): products with their ODPS document and lineage, the element catalogue, data objects
+  for (const x of await listAll('/data-products', '/data-products')) {
+    await get('/data-products/{productId}', `/data-products/${x.id}`);
+    await get('/data-products/{productId}/odps', `/data-products/${x.id}/odps`);
+    await get('/data-products/{productId}/lineage', `/data-products/${x.id}/lineage`);
+  }
+  for (const x of (await listAll('/data-elements', '/data-elements')).slice(0, 5)) await get('/data-elements/{elementId}', `/data-elements/${x.id}`);
+  for (const x of await listAll('/data-objects', '/data-objects')) await get('/data-objects/{objectId}', `/data-objects/${x.id}`);
   // database schemas (#222): the demo database platform (read) and a system (a tbls import)
   for (const [kind, ids] of [
     ['platforms', (await listAll('/platforms', '/platforms?kind=database')).map((x) => x.id)],
