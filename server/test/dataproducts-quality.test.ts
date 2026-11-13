@@ -297,11 +297,13 @@ describe('scorecard history', () => {
     const one = (await dana('POST', '/data-products', { key: 'dp-q-one', name: 'Invented one' })).id;
     const p1 = (await dana('POST', `/data-products/${one}/ports`, { direction: 'output', name: 'o', type: 'table' })).id;
     await dana('PUT', `/data-products/${one}/ports/${p1}/bindings/prod`, { elementIds: [orders] });
+    // the same product before and after (another product could differ in how the reader reaches it: shares, Restricted)
     const a = `/api/data-products/${one}/scorecard?environment=prod`;
-    const b = `/api/data-products/${product}/scorecard?environment=prod`;
     await dana('GET', a.slice(4));
-    await dana('GET', b.slice(4));
-    expect(counted.get(b)).toBe(counted.get(a));
+    const first = counted.get(a);
+    await dana('PUT', `/data-products/${one}/ports/${p1}/bindings/prod`, { elementIds: [orders, customers] });
+    await dana('GET', a.slice(4));
+    expect(counted.get(a)).toBe(first);
   });
 });
 

@@ -258,7 +258,8 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
     for (const [name, url] of reads) after.push(record(`${name} (grown)`, await measure(url)).statements);
     expect(after).toEqual(before);
     // the product page: at most 25 beyond what every request costs (ADR 0036)
-    expect(report['product page (grown)']!.statements - (await overhead())).toBeLessThanOrEqual(25);
+    // (0.24.0: one more – the Restricted scopes, read once per request by the shares of 0.23.0, ADR 0033)
+    expect(report['product page (grown)']!.statements - (await overhead())).toBeLessThanOrEqual(26);
   }, 300_000);
 
   it('a page of the list costs about the same for 50 and 100 rows: one statement per kind of fact, never per row', async () => {
@@ -286,8 +287,9 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
 
   it('the map and lineage four steps deep stay within their statements and time; the map does not grow with the products', async () => {
     const lineage = record('lineage, 4 steps', await measure(`/data-elements/${ids.chainEnd[Math.floor(V.products / 2)]}/lineage?depth=4`));
-    // one statement per depth level and direction, beside the reads of what the levels found
-    expect(lineage.statements).toBeLessThanOrEqual(40);
+    // one statement per depth level and direction, beside the reads of what the levels found (0.24.0: and the open
+    // proposals of the lineage sources around them – three statements, whatever the depth)
+    expect(lineage.statements).toBeLessThanOrEqual(42);
     const map = record('product map', await measure('/data-products/map'));
     expect(map.statements).toBeLessThanOrEqual(MAP_STATEMENTS);
     await seedProducts(V.products, 50, new Date().toISOString());
