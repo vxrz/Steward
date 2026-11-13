@@ -31,6 +31,16 @@ test('MCP server: turn it on, create an MCP token with its client configuration,
   await expect(card.getByText('"type": "http"')).toBeVisible();
   await expect(card.getByText('Bearer ${input:steward-mcp-token}')).toBeVisible();
   await expect(card.getByRole('button', { name: 'Copy: HTTP' })).toBeVisible();
+  // Claude Code: the shell fills in the token, so it is not in the shell's history
+  await expect(
+    card.getByText(`claude mcp add --transport http steward ${baseURL()}/api/mcp --header "Authorization: Bearer $STEWARD_MCP_TOKEN"`),
+  ).toBeVisible();
+  // Mistral Vibe CLI: TOML, the token from an environment variable
+  await card.getByText('Mistral Vibe', { exact: true }).click();
+  const vibe = card.getByText('[[mcp_servers]]');
+  await expect(vibe).toContainText('transport = "streamable-http"');
+  await expect(vibe).toContainText(`url = "${baseURL()}/api/mcp"`);
+  await expect(vibe).toContainText('api_key_env = "STEWARD_MCP_TOKEN"');
   await expectAccessible(page, 'settings with the MCP card');
 
   // a token with scope "MCP client" shows the configuration with the real token, once

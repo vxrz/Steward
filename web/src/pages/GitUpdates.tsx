@@ -16,6 +16,7 @@ import { AutomateTabs } from '../components/page/LinkTabs';
 import { DetailHeader } from '../components/page/DetailPage';
 import { SummaryView, summarize, UnifiedDiff } from '../components/editor/VersionDiff';
 import { fmtDate, fmtRelative } from '../format';
+import { confirmDanger } from '../components/confirm';
 
 const FILTERS: Record<'open' | 'invalid' | 'decided', SyncUpdateStatus[]> = {
   open: ['pending'],
@@ -133,7 +134,10 @@ export function GitUpdatesPage() {
       </Group>
       <QueryState query={list} />
       {list.data?.length === 0 && (
-        <EmptyState icon={IconBrandGit} title={t('updates.empty')}>
+        <EmptyState
+          icon={IconBrandGit}
+          title={filter === 'open' ? t('updates.empty') : filter === 'invalid' ? t('updates.emptyInvalid') : t('updates.emptyDecided')}
+        >
           {t('updates.emptyHint')}
         </EmptyState>
       )}
@@ -193,6 +197,8 @@ export function GitUpdateDetailPage() {
   const kindLabel = u.kind ? t(`form.kind.${u.kind}`) : t('updates.invalid');
   const name = u.entityName ?? u.path.split('/').pop()!;
   const decide = async (what: 'accept' | 'reject', force = false) => {
+    // accepting a conflict overwrites what was changed in Steward: asked once more
+    if (force && !(await confirmDanger({ action: 'confirm', message: t('detail.acceptAnywayConfirm'), confirmLabel: t('detail.acceptAnyway') }))) return;
     setBusy(true);
     try {
       const platforms = what === 'accept' && u.platforms?.length ? chosenPlatforms(u.platforms, platformChoices) : undefined;

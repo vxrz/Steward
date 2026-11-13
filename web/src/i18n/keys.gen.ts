@@ -5290,8 +5290,12 @@ export interface Resources {
     'codes.GIT_REPO_PATH_INVALID': string;
     'codes.GIT_TOO_LARGE': string;
     'codes.GIT_ACCESS_DENIED': string;
+    'codes.GIT_ACCESS_DENIED_noToken': string;
     'codes.GIT_NOT_FOUND': string;
     'codes.GIT_RATE_LIMITED': string;
+    'codes.GIT_RATE_LIMITED_retry': string;
+    'codes.GIT_RATE_LIMITED_noToken': string;
+    'codes.GIT_RATE_LIMITED_retryNoToken': string;
     'codes.GIT_HTTP_ERROR': string;
     'codes.GIT_BLOCKED': string;
     'codes.OUTBOUND_REDIRECT_BLOCKED': string;
@@ -6370,8 +6374,12 @@ export interface Resources {
     'sources.disabled': string;
     'sources.manageLink': string;
     'sources.settingsCard': string;
+    'sources.enabledList': string;
+    'sources.noneEnabled': string;
     'sources.builtIn': string;
     'sources.builtInHint': string;
+    'sources.githubLimitHint': string;
+    'sources.failedNothingStaged': string;
     'sources.refTag': string;
     'sources.newestSeen': string;
     'sources.noReleaseSeen': string;
@@ -6399,6 +6407,7 @@ export interface Resources {
     'form.kind.recordType': string;
     'form.token': string;
     'form.tokenHint': string;
+    'form.tokenHintGithub': string;
     'form.tokenKeep': string;
     'form.tokenRemove': string;
     'form.interval': string;
@@ -6438,6 +6447,8 @@ export interface Resources {
     'updates.description': string;
     'updates.empty': string;
     'updates.emptyHint': string;
+    'updates.emptyInvalid': string;
+    'updates.emptyDecided': string;
     'updates.filter': string;
     'updates.filters.open': string;
     'updates.filters.invalid': string;
@@ -6478,6 +6489,7 @@ export interface Resources {
     'detail.comment': string;
     'detail.accept': string;
     'detail.acceptAnyway': string;
+    'detail.acceptAnywayConfirm': string;
     'detail.reject': string;
     'detail.accepted': string;
     'detail.acceptedVersion': string;
@@ -6803,6 +6815,10 @@ export interface Resources {
     'config.stdioHint': string;
     'config.stdioSource': string;
     'config.httpHint': string;
+    'config.vibe': string;
+    'config.vibeHint': string;
+    'config.claudeCode': string;
+    'config.claudeCodeHint': string;
     'gateway.intro': string;
     'gateway.serverOff': string;
     'gateway.enable': string;

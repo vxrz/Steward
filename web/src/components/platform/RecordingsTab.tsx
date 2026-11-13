@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Modal, NumberInput, Paper, Select, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { ActionIcon, Badge, Button, Group, NumberInput, Paper, Select, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { FormModal, FormModalCancel } from '../FormModal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconEdit, IconPlus, IconPlayerRecord, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -232,7 +233,7 @@ export function RecordingModal({
   };
 
   return (
-    <Modal opened onClose={onClose} size="lg" title={recording ? t('recordings.editTitle') : t('recordings.addTitle', { name: platform.name })}>
+    <FormModal onClose={onClose} size="lg" title={recording ? t('recordings.editTitle') : t('recordings.addTitle', { name: platform.name })}>
       <Stack gap="sm">
         <Hint>{t('recordings.redactionHint')}</Hint>
         <Group align="flex-end" wrap="nowrap" gap="xs">
@@ -291,14 +292,12 @@ export function RecordingModal({
         />
         <TextInput label={t('recordings.note')} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => void save()} loading={busy} disabled={!path.trim()}>
             {t('common:save')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

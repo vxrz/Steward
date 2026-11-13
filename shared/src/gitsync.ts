@@ -1,3 +1,4 @@
+import type { ErrorParams } from './errors.js';
 import type { MonitorPlatformReference } from './monitors.js';
 /**
  * Git sync: pull processes, dashboards, monitors and record types from a Git repository
@@ -113,6 +114,9 @@ export interface SyncSource extends SyncSourceSettings {
   builtIn: boolean;
   lastStatus: 'ok' | 'error' | null;
   lastError: string | null;
+  /** The error code of the last failed fetch and its details, for a translated text (0.20.0; null before) */
+  lastErrorCode: string | null;
+  lastErrorParams: ErrorParams | null;
   lastVerified: boolean | null;
   pendingCount: number;
   /** Library mode: the newest release a fetch saw on the Git host (staged or not) */

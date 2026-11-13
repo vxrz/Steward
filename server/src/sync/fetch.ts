@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { SYNC_LIMITS, SYNC_RETENTION_DAYS, type SyncFetchResult, type SyncKind } from '@sm/shared';
+import { SYNC_LIMITS, SYNC_RETENTION_DAYS, type ErrorParams, type SyncFetchResult, type SyncKind } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -8,6 +8,7 @@ import { runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { gitApi, gitBlobSha, objectFormatOf, resolveRepo, type CommitCheck, type GitApi, type TreeEntry } from './providers.js';
+import { withKnownBlobs } from './blobCache.js';
 import { requireSource, resolveRefName, sourceToken, type SourceRow } from './service.js';
 import { findLocal, localById, localHash, minVersionOf, newerThan, parseFile, sameAsLocal, type ParsedItem } from './items.js';
 import { fetchLibrary } from '../libraries/gitfetch.js';
@@ -89,13 +90,21 @@ export const isFetching = (id: string) => running.has(id);
 
 function finish(
   r: SourceRow,
-  patch: { status: 'ok' | 'error'; error?: string | null; commit?: string | null; ref?: string | null; verified?: boolean | null },
+  patch: {
+    status: 'ok' | 'error';
+    error?: string | null;
+    errorDetail?: { code: string; params?: ErrorParams } | null;
+    commit?: string | null;
+    ref?: string | null;
+    verified?: boolean | null;
+  },
 ) {
   db().run(
-    'UPDATE sync_sources SET last_fetch_at = ?, last_status = ?, last_error = ?, last_commit = COALESCE(?, last_commit), last_ref = COALESCE(?, last_ref), last_verified = ? WHERE id = ?',
+    'UPDATE sync_sources SET last_fetch_at = ?, last_status = ?, last_error = ?, last_error_detail = ?, last_commit = COALESCE(?, last_commit), last_ref = COALESCE(?, last_ref), last_verified = ? WHERE id = ?',
     nowIso(),
     patch.status,
     patch.error ?? null,
+    patch.errorDetail ? JSON.stringify(patch.errorDetail) : null,
     patch.commit ?? null,
     patch.commit ? (patch.ref ?? null) : null,
     patch.verified === undefined || patch.verified === null ? null : patch.verified ? 1 : 0,
@@ -121,7 +130,7 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
   if (pruned.deleted || pruned.blanked) logger.info({ ...pruned }, 'git sync: old superseded/rejected updates pruned');
   try {
     const ref = resolveRepo(r.provider, r.repo_url, r.api_url);
-    const api = gitApi(ref, sourceToken(r));
+    const api = withKnownBlobs(gitApi(ref, sourceToken(r)));
     if (r.mode === 'library') {
       // a library source (ADR 0014): the newest version tag, verified and staged as a release for review
       await fetchLibrary(r, api, result, actor ?? (trigger === 'manual' ? 'admin' : 'git-sync'));
@@ -179,110 +188,65 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
     }
     result.files = files.length;
     const kinds = parseJson<SyncKind[]>(r.kinds, []);
-    let total = 0;
+    // 1. read: everything that needs the Git host (or the validators) first, nothing written – a fetch that stops
+    //    midway (rate limit, network, a file that does not match its object id) stages nothing
+    const plans = await planFiles(r, api, files, kinds);
+    // 2. stage: one transaction, so the staged updates and the source's state change together
     const staged: { path: string; kind: SyncKind | null; action: string; status: string; conflict?: boolean }[] = [];
     const autoAccept: string[] = [];
-    for (const f of files.sort((a, b) => a.path.localeCompare(b.path))) {
-      const item = db().get<ItemRow>('SELECT * FROM sync_items WHERE source_id = ? AND path = ?', id, f.path);
-      // the same blob as last applied: nothing to download
-      if (item && db().get('SELECT 1 FROM sync_items WHERE source_id = ? AND path = ? AND blob_sha = ?', id, f.path, f.sha)) {
-        result.unchanged++;
-        continue;
-      }
-      const latest = db().get<UpdateRow & { blob_sha: string; action: string; kind: SyncKind | null; identity: string | null }>(
-        'SELECT id, status, content_hash, blob_sha, min_version, action, kind, identity FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-        id,
-        f.path,
-      );
-      // An invalid file is looked at again: this installation may accept it now (a newer Steward, platforms chosen
-      // when accepting instead of failing on a name). Only a file still waiting for a newer Steward is skipped.
-      const stillWaiting = latest?.status === 'invalid' && !!latest.min_version && newerThan(latest.min_version, config.version);
-      // a "new" item that was created in Steward after the fetch (e.g. from the same template) is looked at again
-      const appeared =
-        latest?.status === 'pending' && latest.action === 'create' && !!latest.kind && !!latest.identity && !!findLocal(latest.kind, latest.identity);
-      if (latest && latest.blob_sha === f.sha && ((['pending', 'rejected'].includes(latest.status) && !appeared) || stillWaiting)) {
-        result.unchanged++;
-        continue;
-      }
-      if (f.size !== undefined && f.size > SYNC_LIMITS.maxFileBytes) {
-        if (latest?.status === 'invalid' && latest.blob_sha === f.sha) {
+    db().tx(() => {
+      for (const p of plans) {
+        const { f } = p;
+        if (p.step === 'unchanged') {
           result.unchanged++;
           continue;
         }
-        stageInvalid(r, f, head, null, null, [`The file is ${f.size} bytes – larger than the limit of ${SYNC_LIMITS.maxFileBytes}`], f.sha);
-        result.invalid++;
-        staged.push({ path: f.path, kind: null, action: 'invalid', status: 'invalid' });
-        continue;
-      }
-      const content = await api.blob(f.sha, SYNC_LIMITS.maxFileBytes);
-      total += content.length;
-      if (total > SYNC_LIMITS.maxTotalBytes)
-        throw new HttpError(
-          413,
-          `The definition files are larger than ${SYNC_LIMITS.maxTotalBytes} bytes together – point the source at a smaller folder`,
-          'GIT_TOO_LARGE',
-          { limit: SYNC_LIMITS.maxTotalBytes },
-        );
-      if (gitBlobSha(content, objectFormatOf(f.sha)) !== f.sha)
-        throw new HttpError(502, `File ${f.path}: the content does not match its Git object id`, 'GIT_BAD_RESPONSE');
-      const text = content.toString('utf8');
-      const minVersion = minVersionOf(f.path, text);
-      if (minVersion && newerThan(minVersion, config.version)) {
-        const errors = [`Needs Steward ${minVersion} or newer – this installation runs ${config.version}. It is staged after the upgrade.`];
-        stageInvalid(r, f, head, null, null, errors, gitBlobKey(f.sha), minVersion);
-        result.invalid++;
-        staged.push({ path: f.path, kind: null, action: 'invalid', status: 'invalid' });
-        continue;
-      }
-      const parsed = await parseFile(f.path, text, kinds);
-      if (!parsed.ok) {
-        if (latest?.status === 'invalid' && latest.content_hash === parsed.hash) {
-          result.unchanged++;
+        if (p.step === 'invalid') {
+          stageInvalid(r, f, head, p.kind, p.identity, p.errors, p.hash, p.minVersion);
+          result.invalid++;
+          staged.push({ path: f.path, kind: p.kind, action: 'invalid', status: 'invalid' });
           continue;
         }
-        stageInvalid(r, f, head, parsed.kind, parsed.identity, parsed.errors, parsed.hash);
-        result.invalid++;
-        staged.push({ path: f.path, kind: parsed.kind, action: 'invalid', status: 'invalid' });
-        continue;
+        const outcome = stage(r, f, head, p.item, p.mapped);
+        if (outcome === 'unchanged') result.unchanged++;
+        else if (outcome === 'error') result.invalid++;
+        else {
+          result.staged++;
+          staged.push({ path: f.path, kind: p.item.kind, action: outcome.action, status: 'pending', ...(outcome.conflict ? { conflict: true } : {}) });
+          if (r.auto_accept_new && outcome.action === 'create' && !outcome.conflict) autoAccept.push(outcome.id);
+        }
       }
-      const outcome = stage(r, f, head, parsed.item, item);
-      if (outcome === 'unchanged') result.unchanged++;
-      else if (outcome === 'error') result.invalid++;
-      else {
-        result.staged++;
-        staged.push({ path: f.path, kind: parsed.item.kind, action: outcome.action, status: 'pending', ...(outcome.conflict ? { conflict: true } : {}) });
-        if (r.auto_accept_new && outcome.action === 'create' && !outcome.conflict) autoAccept.push(outcome.id);
-      }
-    }
-    finish(r, { status: 'ok', commit: head.sha, ref: name, verified: head.verified });
-    audit({
-      actor: actor ?? (trigger === 'manual' ? undefined : 'git-sync'),
-      action: 'sync.fetched',
-      entityType: 'sync_source',
-      entityId: id,
-      summary:
-        `Git sync "${r.name}"${via}: fetched ${refLabel(r, name)}@${head.sha.slice(0, 10)}${head.verified ? ' (signed)' : ''} – ` +
-        `${result.files} file(s), ${result.staged} staged for review, ${result.invalid} invalid, ${result.unchanged} unchanged`,
-      details: {
-        trigger,
-        refType: r.ref_type ?? 'branch',
-        ref: name,
-        commit: head.sha,
-        verified: head.verified,
-        files: result.files,
-        // one entry per fetch instead of one per file: the staged and invalid files, capped
-        staged: staged.slice(0, AUDIT_MAX_PATHS),
-        ...(staged.length > AUDIT_MAX_PATHS ? { stagedNotListed: staged.length - AUDIT_MAX_PATHS } : {}),
-        unchanged: result.unchanged,
-        ...(pruned.deleted || pruned.blanked ? { pruned } : {}),
-      },
+      finish(r, { status: 'ok', commit: head.sha, ref: name, verified: head.verified });
+      audit({
+        actor: actor ?? (trigger === 'manual' ? undefined : 'git-sync'),
+        action: 'sync.fetched',
+        entityType: 'sync_source',
+        entityId: id,
+        summary:
+          `Git sync "${r.name}"${via}: fetched ${refLabel(r, name)}@${head.sha.slice(0, 10)}${head.verified ? ' (signed)' : ''} – ` +
+          `${result.files} file(s), ${result.staged} staged for review, ${result.invalid} invalid, ${result.unchanged} unchanged`,
+        details: {
+          trigger,
+          refType: r.ref_type ?? 'branch',
+          ref: name,
+          commit: head.sha,
+          verified: head.verified,
+          files: result.files,
+          // one entry per fetch instead of one per file: the staged and invalid files, capped
+          staged: staged.slice(0, AUDIT_MAX_PATHS),
+          ...(staged.length > AUDIT_MAX_PATHS ? { stagedNotListed: staged.length - AUDIT_MAX_PATHS } : {}),
+          unchanged: result.unchanged,
+          ...(pruned.deleted || pruned.blanked ? { pruned } : {}),
+        },
+      });
     });
     if (autoAccept.length) result.autoAccepted = await autoAcceptNew(r, autoAccept);
     return result;
   } catch (e) {
     const msg = (e as Error).message.slice(0, 500);
     result.error = msg;
-    finish(r, { status: 'error', error: msg, verified: result.verified });
+    const code = e instanceof HttpError ? e.code : undefined;
+    finish(r, { status: 'error', error: msg, errorDetail: code ? { code, params: (e as HttpError).params } : null, verified: result.verified });
     audit({
       actor: actor ?? (trigger === 'manual' ? undefined : 'git-sync'),
       action: 'sync.fetch_failed',
@@ -295,6 +259,78 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
     if (trigger === 'manual') throw e;
     return result;
   }
+}
+
+type Plan =
+  | { step: 'unchanged'; f: TreeEntry }
+  | { step: 'invalid'; f: TreeEntry; kind: SyncKind | null; identity: string | null; errors: string[]; hash: string; minVersion: string | null }
+  | { step: 'stage'; f: TreeEntry; item: ParsedItem; mapped: ItemRow | undefined };
+
+/**
+ * What to do with each file – the part of a fetch that reads: the files that changed are downloaded (or taken from
+ * the contents Steward knows, blobCache.ts), checked against their object id and the limits, and validated. Writes
+ * nothing, so a fetch that fails here leaves no trace but its error.
+ */
+async function planFiles(r: SourceRow, api: GitApi, files: TreeEntry[], kinds: SyncKind[]): Promise<Plan[]> {
+  const plans: Plan[] = [];
+  let total = 0;
+  for (const f of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
+    const item = db().get<ItemRow>('SELECT * FROM sync_items WHERE source_id = ? AND path = ?', r.id, f.path);
+    // the same blob as last applied: nothing to download
+    if (item && db().get('SELECT 1 FROM sync_items WHERE source_id = ? AND path = ? AND blob_sha = ?', r.id, f.path, f.sha)) {
+      plans.push({ step: 'unchanged', f });
+      continue;
+    }
+    const latest = db().get<UpdateRow & { blob_sha: string; action: string; kind: SyncKind | null; identity: string | null }>(
+      'SELECT id, status, content_hash, blob_sha, min_version, action, kind, identity FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+      r.id,
+      f.path,
+    );
+    // An invalid file is looked at again: this installation may accept it now (a newer Steward, platforms chosen
+    // when accepting instead of failing on a name). Only a file still waiting for a newer Steward is skipped.
+    const stillWaiting = latest?.status === 'invalid' && !!latest.min_version && newerThan(latest.min_version, config.version);
+    // a "new" item that was created in Steward after the fetch (e.g. from the same template) is looked at again
+    const appeared =
+      latest?.status === 'pending' && latest.action === 'create' && !!latest.kind && !!latest.identity && !!findLocal(latest.kind, latest.identity);
+    if (latest && latest.blob_sha === f.sha && ((['pending', 'rejected'].includes(latest.status) && !appeared) || stillWaiting)) {
+      plans.push({ step: 'unchanged', f });
+      continue;
+    }
+    if (f.size !== undefined && f.size > SYNC_LIMITS.maxFileBytes) {
+      if (latest?.status === 'invalid' && latest.blob_sha === f.sha) plans.push({ step: 'unchanged', f });
+      else {
+        const errors = [`The file is ${f.size} bytes – larger than the limit of ${SYNC_LIMITS.maxFileBytes}`];
+        plans.push({ step: 'invalid', f, kind: null, identity: null, errors, hash: f.sha, minVersion: null });
+      }
+      continue;
+    }
+    const content = await api.blob(f.sha, SYNC_LIMITS.maxFileBytes);
+    total += content.length;
+    if (total > SYNC_LIMITS.maxTotalBytes)
+      throw new HttpError(
+        413,
+        `The definition files are larger than ${SYNC_LIMITS.maxTotalBytes} bytes together – point the source at a smaller folder`,
+        'GIT_TOO_LARGE',
+        { limit: SYNC_LIMITS.maxTotalBytes },
+      );
+    if (gitBlobSha(content, objectFormatOf(f.sha)) !== f.sha)
+      throw new HttpError(502, `File ${f.path}: the content does not match its Git object id`, 'GIT_BAD_RESPONSE');
+    const text = content.toString('utf8');
+    const minVersion = minVersionOf(f.path, text);
+    if (minVersion && newerThan(minVersion, config.version)) {
+      const errors = [`Needs Steward ${minVersion} or newer – this installation runs ${config.version}. It is staged after the upgrade.`];
+      plans.push({ step: 'invalid', f, kind: null, identity: null, errors, hash: gitBlobKey(f.sha), minVersion });
+      continue;
+    }
+    const parsed = await parseFile(f.path, text, kinds);
+    if (!parsed.ok) {
+      if (latest?.status === 'invalid' && latest.content_hash === parsed.hash) plans.push({ step: 'unchanged', f });
+      else plans.push({ step: 'invalid', f, kind: parsed.kind, identity: parsed.identity, errors: parsed.errors, hash: parsed.hash, minVersion: null });
+      continue;
+    }
+    plans.push({ step: 'stage', f, item: parsed.item, mapped: item });
+  }
+  return plans;
 }
 
 /**

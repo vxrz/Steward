@@ -8,6 +8,7 @@ import {
   SYNC_REF_TYPES,
   SYNC_SOURCE_MODES,
   SYNC_VERSION_PLACEHOLDER,
+  type ErrorParams,
   type SyncSourceMode,
   type SyncRefType,
   type SyncSource,
@@ -60,6 +61,8 @@ export interface SourceRow {
   last_commit: string | null;
   last_status: 'ok' | 'error' | null;
   last_error: string | null;
+  /** JSON { code, params } of the last failed fetch (0.20.0) */
+  last_error_detail?: string | null;
   last_verified: number | null;
   mode?: SyncSourceMode;
   allow_prereleases?: number;
@@ -182,12 +185,21 @@ export function toSource(r: SourceRow & { pending_count?: number }): SyncSource 
     lastCommit: r.last_commit,
     lastStatus: r.last_status,
     lastError: r.last_error,
+    ...lastErrorDetail(r),
     lastVerified: r.last_verified === null ? null : !!r.last_verified,
     pendingCount: Number(r.pending_count ?? 0),
     mode: r.mode ?? 'items',
     allowPrereleases: !!r.allow_prereleases,
     newestSeen: r.newest_seen ?? null,
   };
+}
+
+/** The code and details of the last failed fetch, for its translated text (null for an older row or an unknown error). */
+function lastErrorDetail(r: SourceRow): Pick<SyncSource, 'lastErrorCode' | 'lastErrorParams'> {
+  const d = r.last_status === 'error' ? parseJson<{ code?: unknown; params?: unknown } | null>(r.last_error_detail ?? null, null) : null;
+  const code = typeof d?.code === 'string' ? d.code : null;
+  const params = code && d?.params && typeof d.params === 'object' && !Array.isArray(d.params) ? (d.params as ErrorParams) : null;
+  return { lastErrorCode: code, lastErrorParams: params };
 }
 
 export function sourceRow(id: string): SourceRow | undefined {
