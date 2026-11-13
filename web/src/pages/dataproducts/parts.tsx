@@ -339,14 +339,20 @@ export function CardTable<T>({
       card={(r) => (
         <Paper withBorder p="sm" data-testid={rowTestId?.(r)}>
           <Stack gap={4}>
-            {first && <div style={{ minWidth: 0, overflowWrap: 'break-word' }}>{first.cell(r)}</div>}
+            {first && (
+              <Text size="sm" fw={500} component="div" style={{ minWidth: 0, overflowWrap: 'break-word' }}>
+                {first.cell(r)}
+              </Text>
+            )}
             {rest.map((c) =>
               !c.actions ? (
                 <Group key={c.key} gap={6} wrap="nowrap" align="flex-start">
                   <Text size="xs" c="dimmed" style={{ flexShrink: 0, width: '7.5rem' }}>
                     {c.header}
                   </Text>
-                  <div style={{ minWidth: 0, flex: 1, overflowWrap: 'break-word' }}>{c.cell(r)}</div>
+                  <Text size="sm" component="div" style={{ minWidth: 0, flex: 1, overflowWrap: 'break-word' }}>
+                    {c.cell(r)}
+                  </Text>
                 </Group>
               ) : (
                 <div key={c.key}>{c.cell(r)}</div>
