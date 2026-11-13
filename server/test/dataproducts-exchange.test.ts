@@ -431,6 +431,9 @@ describe('the Ossie export of data objects', () => {
               attributes: [{ name: 'warehouse_id', description: 'Key' }],
             },
             { key: 'ossie-hidden', name: 'Hidden object', attributes: [{ name: 'id' }] },
+            // keys that differ only in . - _ are different datasets
+            { key: 'ossie.item', name: 'Item (dotted)' },
+            { key: 'ossie-item', name: 'Item (dashed)' },
           ],
         }),
       ],
@@ -452,6 +455,8 @@ describe('the Ossie export of data objects', () => {
       const names = model.datasets.map((d: any) => d.name);
       expect(names).toEqual(expect.arrayContaining(['stock_item', 'warehouse']));
       expect(names).not.toContain('ossie_hidden');
+      expect(new Set(names).size).toBe(names.length);
+      expect(names).toEqual(expect.arrayContaining(['ossie_item', 'ossie_item_']));
       expect(JSON.stringify(doc)).not.toContain('Hidden object');
       const wh = model.datasets.find((d: any) => d.name === 'warehouse');
       expect(wh.primary_key).toEqual(['warehouse_id']);
