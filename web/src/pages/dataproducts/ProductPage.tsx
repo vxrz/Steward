@@ -256,7 +256,7 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
           <Section title={t('product.consumers')}>
             {outputs.length ? (
               <Stack gap={4}>
-                <Text size="sm">{t('product.consumerCounts', { registered: consumers.registered, derived: consumers.derived })}</Text>
+                <Text size="sm">{t('product.consumerCounts', { registered: consumers.registered, count: consumers.derived })}</Text>
                 <Anchor component={Link} to={`/data-products/${encodeURIComponent(p.id)}/ports`} size="sm">
                   {t('product.toPorts')}
                 </Anchor>

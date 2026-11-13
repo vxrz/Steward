@@ -10,7 +10,7 @@ import { TableScroll } from '../../components/TableScroll';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { BindingForm, ConsumerForm, PortForm } from '../../components/dataproducts/PortForms';
 import type { PickedElement } from '../../components/dataproducts/ElementPicker';
-import { fmtDay } from '../../format';
+import { capFirst, fmtDay } from '../../format';
 import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from './api';
 import { EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam } from './parts';
 
@@ -230,7 +230,7 @@ function PortCard({
         )}
         {port.lifecycle === 'deprecated' && port.sunsetDate && (
           <Text size="sm" c="orange">
-            {t('ports.sunset', { date: fmtDay(port.sunsetDate) })}
+            {capFirst(t('ports.sunset', { date: fmtDay(port.sunsetDate) }))}
           </Text>
         )}
         {src && (
@@ -376,7 +376,7 @@ function PortCard({
               aria-expanded={open}
               data-testid="port-consumers-toggle"
             >
-              {t('consumers.summary', { registered: port.consumers.registered, derived: port.consumers.derived })}
+              {t('consumers.summary', { registered: port.consumers.registered, count: port.consumers.derived })}
             </Button>
             <Collapse expanded={open}>{open && <Consumers p={p} port={port} canEdit={canEdit} onEdit={onConsumer} />}</Collapse>
           </div>

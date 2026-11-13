@@ -4571,7 +4571,8 @@ export interface Resources {
     'product.dataObjects': string;
     'product.noObjects': string;
     'product.consumers': string;
-    'product.consumerCounts': string;
+    'product.consumerCounts_one': string;
+    'product.consumerCounts_other': string;
     'product.toPorts': string;
     'product.noOutputPorts': string;
     'product.facts': string;
@@ -4726,7 +4727,8 @@ export interface Resources {
     'objectives.days_one': string;
     'objectives.days_other': string;
     'consumers.title': string;
-    'consumers.summary': string;
+    'consumers.summary_one': string;
+    'consumers.summary_other': string;
     'consumers.none': string;
     'consumers.derived_one': string;
     'consumers.derived_other': string;
