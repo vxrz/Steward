@@ -229,6 +229,90 @@ describe('a monitor check of a module the viewer does not use', () => {
   });
 });
 
+describe('a monitor notification about a check of a module the recipient does not use', () => {
+  it('names its status, not what it found', async () => {
+    const m = await s.api('POST', '/monitors', {
+      definition: {
+        name: 'Invented costs alerts (modules)',
+        checks: [{ id: 'cost', name: 'Costs not rising', type: 'cost', scope: 'service', target: svcId, period: 'month', maxIncreasePct: 20 }],
+        outputs: [{ id: 'notify', type: 'notification', subscribers: ['user:vera', 'user:dana'], holdSeconds: 0, include: 'checks' }],
+      },
+    });
+    const id = (m.monitor ?? m).id as string;
+    await s.api('PUT', `/owning-teams/monitor/${id}`, { teamIds: [] });
+    const { db } = await import('../src/db.js');
+    const { loadMonitor } = await import('../src/monitors/model.js');
+    const { dispatchOutputs } = await import('../src/monitors/outputs.js');
+    const monitor = loadMonitor(db().get('SELECT * FROM monitors WHERE id = ?', id)!);
+    const secret = 'Service "Invented secret service" rose by 40 %';
+    await restrict('costs', ['user:dana']);
+    try {
+      await dispatchOutputs({
+        monitor,
+        subjects: [
+          {
+            dependent: false,
+            event: {
+              subject: 'cost',
+              level: 'check',
+              status: 'down',
+              since: new Date().toISOString(),
+              message: secret,
+              causedBy: [],
+              ts: new Date().toISOString(),
+              monitor: { id, key: monitor.key, name: monitor.name, status: 'down' },
+              check: { id: 'cost', key: 'cost', name: 'Costs not rising', type: 'cost' },
+            },
+          },
+        ],
+        maintenance: false,
+        acknowledged: false,
+        now: Date.now(),
+      });
+      const body = async (c: Client) =>
+        ((await c('GET', '/notifications?limit=100')).items as { event: string; link: string; body: string }[]).find(
+          (n) => n.event === 'monitor.status' && n.link.startsWith(`/monitors/${id}`),
+        )?.body;
+      expect(await body(dana)).toContain('Invented secret service');
+      const forVera = await body(vera);
+      expect(forVera).toBeDefined();
+      expect(forVera).not.toContain('Invented secret service');
+      expect(forVera).toContain('A check of a module you do not use');
+      // the monitor's own event carries its root cause's message: the same for them
+      await dispatchOutputs({
+        monitor: { ...monitor, def: { ...monitor.def, outputs: [{ ...monitor.def.outputs[0]!, id: 'notify-monitor', include: 'monitor' }] } },
+        subjects: [
+          {
+            dependent: false,
+            event: {
+              subject: '',
+              level: 'monitor',
+              status: 'down',
+              since: new Date().toISOString(),
+              message: secret,
+              causedBy: [{ monitorId: id, monitorKey: monitor.key, monitorName: monitor.name, checkId: 'cost', checkName: 'Costs not rising' }],
+              ts: new Date().toISOString(),
+              monitor: { id, key: monitor.key, name: monitor.name, status: 'down' },
+            },
+          },
+        ],
+        maintenance: false,
+        acknowledged: false,
+        now: Date.now(),
+      });
+      const bodies = async (c: Client) =>
+        ((await c('GET', '/notifications?limit=100')).items as { event: string; link: string; body: string }[])
+          .filter((n) => n.event === 'monitor.status' && n.link === `/monitors/${id}`)
+          .map((n) => n.body);
+      expect((await bodies(dana)).join(' ')).toContain('Invented secret service');
+      expect(await bodies(vera)).toHaveLength(1);
+      expect((await bodies(vera)).join(' ')).not.toContain('Invented secret service');
+    } finally {
+      await open('costs');
+    }
+  });
+});
+
 describe('the assurance report and evidence packs', () => {
   it('hold who uses each restricted module and the changes of module access in the period', async () => {
     const from = new Date(Date.now() - 60_000).toISOString();
