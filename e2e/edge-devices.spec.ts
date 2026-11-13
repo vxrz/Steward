@@ -108,6 +108,16 @@ test.describe('edge devices', () => {
     await expect(dialog).toBeHidden();
     const del = await (await apiAs('admin')).delete(`/api/data-elements/${encodeURIComponent(elementId)}`);
     expect(del.ok(), await del.text()).toBe(true);
+
+    // the sink's own editor is a form dialog inside the collection's: Esc closes it only, the focus is back on its button
+    const edit = page.getByTestId('sink-edit-databus');
+    await edit.click();
+    const editor = page.getByRole('dialog', { name: 'Sink Databus' });
+    await expect(editor).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Machine state to the Databus' })).toBeVisible();
+    await expect(edit).toBeFocused();
   });
 
   test('the bridge step runs on the edge device, in the table and the picture', async ({ page }) => {
