@@ -110,7 +110,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   const m = JSON.parse(fs.readFileSync(path.join(fixture, 'manifest.json'), 'utf8')) as Manifest;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-upgrade-'));
   const sqlite: DatabaseTarget = { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') };
-  const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_${version.replace(/\W/g, '')}_${process.pid}`;
+  // dots become underscores, so that v0.2.10 and v0.21.0 get schemas of their own (not both "v0210")
+  const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_${version.replace(/\./g, '_').replace(/\W/g, '')}_${process.pid}`;
   const pg: DatabaseTarget | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
   let pending: string[] = [];
   /** The fixture's schema against today's migrations replayed to the fixture's version (SQLite) */
