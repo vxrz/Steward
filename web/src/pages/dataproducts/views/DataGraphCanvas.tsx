@@ -108,7 +108,9 @@ const Part = memo(function Part({ data }: NodeProps<PartNode>) {
       <Group gap={6} justify="space-between" wrap="nowrap" h={20}>
         <Group gap={5} wrap="nowrap" style={{ minWidth: 0 }}>
           <I size={15} stroke={1.7} aria-hidden style={{ flexShrink: 0 }} />
-          <span className="pv-node-kind">{text.kind(n)}</span>
+          <span className="pv-node-kind" title={text.kind(n)}>
+            {text.kind(n)}
+          </span>
         </Group>
         {n.health && H && (compact ? <H size={14} aria-hidden style={{ color: healthVar(n.health) }} /> : <HealthBadge status={n.health} size="xs" />)}
       </Group>
