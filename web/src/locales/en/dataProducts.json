@@ -135,7 +135,11 @@
     "healthFilterPage": "The health filter applies to the products loaded so far – load more to see the rest.",
     "emptyTitle": "No data products yet",
     "emptyText": "A data product bundles what a domain offers – its tables, topics and APIs – with owners, ports, a rating and health.",
-    "whoCanAct": "Designers and administrators add them."
+    "whoCanAct": "Designers and administrators add them.",
+    "maturity": "Maturity",
+    "costsLastMonth": "Costs last month",
+    "costsIncomplete": "Incomplete: a part you may not see is left out of the total.",
+    "costsHidden": "Not shown"
   },
   "product": {
     "newTitle": "New data product",
@@ -760,6 +764,10 @@
       "teams": {
         "who": "With owning teams",
         "what": "Only members of those teams (with their roles), auditors and administrators"
+      },
+      "shares": {
+        "who": "Shares",
+        "what": "View, Edit or Manage for a person, a team or a role – only for those who use the module; Restricted: only the shares, owners, auditors and administrators"
       }
     },
     "scopeHint": "What you may not see is neither listed nor counted nor named elsewhere – lineage and the map draw it without a name."
@@ -1187,5 +1195,66 @@
     "hiddenKept_one": "The weight of {{count}} product you may not see stays as it is.",
     "hiddenKept_other": "The weights of {{count}} products you may not see stay as they are.",
     "audit": "Who may manage the platform sets the split; it is in the audit log."
+  },
+  "transfer": {
+    "menu": "Import and export",
+    "exportAll": "Export everything you may see",
+    "exportDomain": "Export the filtered domain",
+    "exportProduct": "Export this product",
+    "yaml": "Steward format (YAML)",
+    "json": "Steward format (JSON)",
+    "odps": "ODPS v1.0.0 (YAML)",
+    "import": "Import files…",
+    "importTitle": "Import data products",
+    "importIntro": "Files of Steward's format – domains, data objects, elements and products, YAML or JSON. Check the preview first; nothing is written until you import.",
+    "schema": "File format (JSON Schema)",
+    "files": "Files",
+    "filesHint": "At most 500 files and 8 MB together.",
+    "clearFiles": "Remove the chosen files",
+    "tooLarge": "The files are larger than 8 MB together.",
+    "mode": "Mode",
+    "modes": {
+      "add": "Add only",
+      "update": "Add and update"
+    },
+    "modeHints": {
+      "add": "Entries that exist are left as they are.",
+      "update": "Entries that exist take what the files say; what a file leaves out keeps Steward's value. Nothing is removed."
+    },
+    "preview": "Preview",
+    "run": "Import",
+    "previewFailed": "The preview failed",
+    "failed": "The import failed",
+    "done": "Imported: {{add}} added, {{change}} changed, {{unchanged}} unchanged, {{skip}} skipped",
+    "counts": {
+      "add_one": "{{count}} to add",
+      "add_other": "{{count}} to add",
+      "change_one": "{{count}} to change",
+      "change_other": "{{count}} to change",
+      "unchanged_one": "{{count}} unchanged",
+      "unchanged_other": "{{count}} unchanged",
+      "skip_one": "{{count}} skipped",
+      "skip_other": "{{count}} skipped"
+    },
+    "problems_one": "{{count}} problem stops the import",
+    "problems_other": "{{count}} problems stop the import",
+    "warnings": "Good to know",
+    "changes": "What the import does",
+    "what": "Entry",
+    "key": "Key",
+    "action": "Action",
+    "detail": "Details",
+    "kinds": {
+      "domain": "Domain",
+      "dataObject": "Data object",
+      "element": "Element",
+      "dataProduct": "Data product"
+    },
+    "actions": {
+      "add": "Add",
+      "change": "Change",
+      "unchanged": "Unchanged",
+      "skip": "Skip"
+    }
   }
 }

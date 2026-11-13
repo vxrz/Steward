@@ -366,4 +366,22 @@ describe('reading a graph', () => {
     expect(worstHealth(['up', null])).toBe('up');
     expect(worstHealth([])).toBe(null);
   });
+
+  it("has one health order for the whole module: the monitors' ranking with No data last", async () => {
+    const { DATA_HEALTH_ORDER, HEALTH_STATUSES, MONITOR_STATUSES, worseHealth, worstStatus } = await import('@sm/shared');
+    expect(DATA_HEALTH_ORDER).toEqual(['down', 'degraded', 'unknown', 'blocked', 'maintenance', 'up', 'off', 'noData']);
+    // the list's sort and filter: the same order, best first
+    expect(HEALTH_STATUSES).toEqual([...DATA_HEALTH_ORDER].reverse());
+    // every pair agrees with the monitors' aggregation, and any status of a check says more than none
+    for (const a of MONITOR_STATUSES) {
+      expect(worseHealth(a, 'noData')).toBe(a);
+      expect(worseHealth('noData', a)).toBe(a);
+      for (const b of MONITOR_STATUSES) {
+        expect(worseHealth(a, b), `${a} ${b}`).toBe(worstStatus([a, b]));
+        expect(worstHealth([a, b]), `${a} ${b}`).toBe(worstStatus([a, b]));
+      }
+    }
+    expect(worstHealth(['up', 'off', 'noData'])).toBe('up');
+    expect(worstHealth(['noData'])).toBe('noData');
+  });
 });

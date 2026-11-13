@@ -1,0 +1,105 @@
+# The invented shop of the demo (docs/DATA-PRODUCTS.md): its domains, the data objects it holds and the elements a
+# discovery source cannot read – a Kafka topic bundle and an API. The tables and topics themselves are discovered from
+# "Snowflake (demo)" (databases SHOP and SHOP_DEV: SHOP_DEV is dev by its name) and "Kafka (demo)".
+# Imported together with shop-products.data-products.yaml (Data products → Import and export → Import files…).
+version: 1
+
+domains:
+  - key: sales
+    name: Sales
+    description: Orders, prices and the sales figures of the invented web shop.
+    colour: blue
+    owners: [user:dana]
+  - key: orders
+    name: Orders
+    parent: sales
+    description: Order intake, from the shop's events to curated orders.
+    owners: [user:dana]
+  - key: customer
+    name: Customer
+    description: Who buys – customer master data and what is derived from it.
+    colour: violet
+    owners: [user:dana]
+  - key: manufacturing
+    name: Manufacturing
+    description: Measurements of the machines of the invented plant.
+    colour: teal
+
+data_objects:
+  - key: customer
+    name: Customer
+    domain: customer
+    definition: |
+      A person or a company that has placed at least one order in the shop, with a customer number.
+      Prospects without an order are **not** customers (they are leads in the CRM).
+    synonyms: [Client, Buyer]
+    lifecycle: active
+    classification: confidential
+    personal_data: personal
+    categories: [contact data, address, order history]
+    subjects: [customers]
+    legal_basis: contract
+    purposes: [order fulfilment, invoicing]
+    retention: P10Y
+    deletion_rule: Ten years after the last invoice (commercial law), then deleted.
+    regulatory_flags: [GDPR]
+    attributes:
+      - { name: customer_number, description: Unique number of the customer }
+      - { name: name, personal: true }
+      - { name: email, personal: true }
+      - { name: country }
+    owner: dana
+    stewards: [team:service desk]
+    external_refs:
+      - { label: Glossary entry (invented), url: "https://wiki.example/glossary/customer" }
+    rating:
+      confidentiality: { level: very_high, justification: Personal data of every customer – a leak means notification duties and loss of trust }
+      integrity: { level: high, justification: Wrong addresses send orders to the wrong people }
+      availability: { level: normal, justification: The shop works for a day with yesterday's copy }
+    elements:
+      - element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.SALES.CUSTOMERS, environment: prod }
+      - element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.CUSTOMERS, environment: prod }
+  - key: order
+    name: Order
+    domain: orders
+    definition: A confirmed purchase of one customer – positions, prices, payment and delivery state.
+    synonyms: [Purchase order, Sales order]
+    lifecycle: active
+    classification: internal
+    personal_data: none
+    retention: P10Y
+    owner: dana
+    rating:
+      confidentiality: { level: normal, justification: Order figures without customer data }
+      integrity: { level: high, justification: Revenue and invoices are computed from it }
+      availability: { level: high, justification: Fulfilment stops without current orders }
+    elements:
+      - element: { platform: Kafka (demo), kind: kafka.topic, qualified_name: orders.v1, environment: prod }
+      - element: { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP.CURATED.ORDERS, environment: prod }
+  - key: machine-measurement
+    name: Machine measurement
+    domain: manufacturing
+    definition: A value a machine reports – temperature, energy, cycle time – with its time and unit.
+    lifecycle: draft
+    classification: internal
+    personal_data: none
+
+elements:
+  # a bundle: the shop's event topics (shop-events.web, shop-events.app …) as one element
+  - platform: Kafka (demo)
+    kind: kafka.topicBundle
+    qualified_name: shop-events.*
+    environment: prod
+    display_name: Shop events
+    layer: source
+    description: Clicks, carts and checkouts of the web shop and the app, one topic per channel.
+  # an API that serves the sales figures to other teams (no platform: described by its OpenAPI document)
+  - kind: api.openapi
+    qualified_name: sales-api/v1
+    environment: prod
+    display_name: Sales API v1
+    layer: mart
+    description: Daily sales per region, read by the finance tools.
+    api_ref:
+      url: "https://shop.example/api/sales/openapi.json"
+      operations: ["GET /daily-sales", "GET /daily-sales/{region}"]

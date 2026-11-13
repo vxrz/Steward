@@ -30,6 +30,7 @@ import { EnvironmentBadge, useEnvironmentList } from '../../components/catalogue
 import { TableScroll } from '../../components/TableScroll';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { LifecycleForm, ProductForm, RatingForm } from '../../components/dataproducts/ProductForm';
+import { ProductTransferItems } from '../../components/dataproducts/Transfer';
 import { fmtDay, fmtNumber } from '../../format';
 import { HealthBadge } from './views';
 import { dpKeys, pagesOf, useDomains, useInvalidateDataProducts, useProduct, useProductHealth, useProductList, useScorecard } from './api';
@@ -159,6 +160,7 @@ export function DataProductPage() {
           { label: t('product.pipelinePage'), icon: IconBinaryTree, to: `${base}/views/pipeline` },
           ...(canManage ? [{ label: t('common:delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'product-delete' }] : []),
         ],
+        extra: <ProductTransferItems id={p.id} />,
       }}
       tabs={<LinkTabs label={t('product.tabs.label')} active={tab ? `${base}/${tab}` : base} tabs={tabs} />}
     >

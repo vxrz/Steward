@@ -39,6 +39,7 @@ import {
   productRow,
   productsByIds,
   type ConsumerRow,
+  type ObjectRow,
   type PortRow,
 } from './store.js';
 
@@ -70,8 +71,12 @@ function contractRefs(u: AuthUser | null, ids: string[]): Map<string, DataRef> {
 
 const objectives = (s: string): DataObjectives => parseJson<DataObjectives>(s, {});
 
-/** The ports of a product with bindings, contracts, objects, consumer counts and sources (bulk: a fixed number of statements). */
-export function portViews(u: AuthUser | null, productId: string): DataPort[] {
+/**
+ * The ports of a product with bindings, contracts, objects, consumer counts and sources (bulk: a fixed number of
+ * statements), as `u` sees them. `known`: data object rows the caller read already (the product page's rating floor
+ * reads the exposed ones) – only the others are read here.
+ */
+export function portViews(u: AuthUser | null, productId: string, known?: ReadonlyMap<string, ObjectRow>): DataPort[] {
   const ports = portsOf([productId]);
   if (!ports.length) return [];
   const ids = ports.map((p) => p.id);
@@ -79,7 +84,9 @@ export function portViews(u: AuthUser | null, productId: string): DataPort[] {
   const declared = portObjectsOf(ids);
   const boundElements = [...new Set(bindings.flatMap((b) => b.elementIds))];
   const implemented = objectsOfElements(boundElements);
-  const objectRows = objectsByIds([...declared.map((d) => d.object_id), ...implemented.map((i) => i.object_id)]);
+  const wanted = [...new Set([...declared.map((d) => d.object_id), ...implemented.map((i) => i.object_id)])];
+  const objectRows = new Map([...wanted.flatMap((id) => (known?.has(id) ? [[id, known.get(id)!] as const] : []))]);
+  for (const [id, o] of objectsByIds(wanted.filter((id) => !known?.has(id)))) objectRows.set(id, o);
   const objectRef = (id: string): DataRef | null => {
     const o = objectRows.get(id);
     if (!o) return null;

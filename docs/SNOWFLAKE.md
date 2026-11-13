@@ -143,6 +143,14 @@ Streams are listed only to a role with `SELECT` on them, internal stages only wi
 
 **Statements.** Every statement starts with its tag (`/* steward:dp-tables */` …); the information schema views are named as a bound `IDENTIFIER(?)` (`SHOP.INFORMATION_SCHEMA.TABLES`), the database or schema of `SHOW` as a quoted identifier checked against the scope's rule (letters, digits, `_` and `$`), every other value is a binding. Results come partition by partition, at most 50,001 rows per statement, with a statement timeout of 120 s; a run stops after 10 minutes or 50,000 elements and then marks nothing missing. The tests check every statement discovery sends against this list and that none reads a table of the account.
 
+**Set it up:**
+
+1. A role with the grants above for the databases you want in the catalogue, for the platform's identity – mark the identity **read-only** ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#read-only-identities-and-the-operation-filter)); for _account usage_ mode also `IMPORTED PRIVILEGES` on `SNOWFLAKE`.
+2. With the module on, _Data → Discovery → New source_: the Snowflake platform, the **scope** (`SHOP`, `SHOP_DEV` – databases, or schemas as `SHOP.SALES`), include and exclude prefixes if you want only part of it, **environment rules** for databases named per environment (suffix `_DEV` → _dev_, prefix `SHOP` → _prod_ – the first that matches; else the platform's environment), the mode, the identity, how often (daily by default) and the owning teams of what it finds. You need to use the platform; the source runs as you.
+3. **Read now** and look at the run: added, changed, renamed, missing, and what it could not read. The elements are in _Data → Elements_ (prefix search `SHOP.CURATED.`); add them to products from there or from a product's _Elements_ tab.
+
+The demo's source _Shop warehouse (demo)_ is set up this way over `SHOP` and `SHOP_DEV` ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-demo)).
+
 ## Templates
 
 Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):

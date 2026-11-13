@@ -18,6 +18,7 @@ import type {
   DataProductMember,
   DataProductSummary,
   DataProductCosts,
+  DataProductListFacts,
   DataProductScorecard,
   DataStep,
   Platform,
@@ -38,6 +39,7 @@ export const dpKeys = {
   product: (id: string) => ['dataProducts', 'product', id] as const,
   productHealth: (id: string) => ['dataProducts', 'product', id, 'health'] as const,
   listHealth: (ids: string, environment: string) => ['dataProducts', 'health', ids, environment] as const,
+  listFacts: (ids: string, environment: string) => ['dataProducts', 'facts', ids, environment] as const,
   members: (id: string, q: string) => ['dataProducts', 'product', id, 'members', q] as const,
   steps: (id: string) => ['dataProducts', 'product', id, 'steps'] as const,
   consumers: (id: string, portId: string) => ['dataProducts', 'product', id, 'consumers', portId] as const,
@@ -107,6 +109,18 @@ export function useListHealth(ids: string[], environment: string) {
     enabled: ids.length > 0,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+  });
+}
+
+/** Maturity and last month's costs of a page of products, in one request (GET /data-products/facts). */
+export function useListFacts(ids: string[], environment: string) {
+  const key = ids.join(',');
+  return useQuery({
+    queryKey: dpKeys.listFacts(key, environment),
+    queryFn: () => get<DataProductListFacts[]>(`/data-products/facts?${qs({ ids: key, environment })}`),
+    enabled: ids.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
 }
 

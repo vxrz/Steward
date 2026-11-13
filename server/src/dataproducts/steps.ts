@@ -219,12 +219,15 @@ export function updateStep(productId: string, productName: string, stepId: strin
   const outputs = [...new Set([...input.outputs, ...hidden.filter((e) => e.direction === 'out').map((e) => e.element_id)])];
   if (inputs.length > L.stepEnds || outputs.length > L.stepEnds) throw limitReached('stepEnds', L.stepEnds);
   checkEnds(productId, { ...input, inputs, outputs }, new Set(hidden.map((e) => e.element_id)));
+  // a runner the editor may not see is not in their form: without a runner of their own it stays as it was
+  const keepRunner = !input.runner && row.runner !== null && runnerOf(me(), row.runner, new Map()).hidden;
+  const runner = input.runner ? json(input.runner) : keepRunner ? row.runner : null;
   db().tx(() => {
     db().run(
       `UPDATE dp_steps SET name = ?, step_kind = ?, runner = ?, schedule = ?, description = ?, notes = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
       input.name,
       input.kind,
-      input.runner ? json(input.runner) : null,
+      runner,
       input.schedule,
       input.description,
       json(input.notes),

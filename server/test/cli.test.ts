@@ -55,6 +55,23 @@ describe('validate CLI', () => {
     expect(out.files.map((f: { kind: string }) => f.kind).sort()).toEqual(['process', 'unreadable']);
   });
 
+  it('checks data products files against their format (0.22.0): the examples pass, an unknown key fails', () => {
+    const ok = validate('--json', path.join(ROOT, 'examples', 'data-products'));
+    expect(ok.code).toBe(0);
+    expect(JSON.parse(ok.stdout).files.map((f: { kind: string }) => f.kind)).toEqual(['data products', 'data products']);
+    // an ODCS contract has a version and a domain too – it stays a data contract
+    const contracts = validate('--json', path.join(ROOT, 'examples', 'data-contracts'));
+    expect(contracts.code).toBe(0);
+    expect(new Set(JSON.parse(contracts.stdout).files.map((f: { kind: string }) => f.kind))).toEqual(new Set(['data contract']));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-validate-dp-'));
+    fs.writeFileSync(path.join(dir, 'bad.yaml'), 'version: 1\ndata_products:\n  - key: Bad Key\n    name: x\n    colour: red\n');
+    const bad = validate('--json', dir);
+    expect(bad.code).toBe(1);
+    const out = JSON.parse(bad.stdout);
+    expect(out.files[0]).toMatchObject({ kind: 'data products', ok: false });
+    expect(out.files[0].errors.join(' ')).toContain('data_products[0]');
+  });
+
   it('accepts the example library without colours when piped', () => {
     const r = validate(path.join(ROOT, 'examples', 'processes'));
     expect(r.code).toBe(0);

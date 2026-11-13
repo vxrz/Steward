@@ -8,14 +8,19 @@ import {
 } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { isAdmin, matches } from '../auth/permissions.js';
-import { memberships, teamScoped } from '../auth/policy.js';
+import { memberships, owningTeams, shareReasons, teamScoped, type ShareModel } from '../auth/policy.js';
+import { isRestricted } from '../auth/share-store.js';
 import { parseJson } from '../util.js';
+import { usesModule as usesModuleAccess } from '../modules/access.js';
 
 /**
- * Who may do what in the data products module (ADR 0036 part 12). Until module access and module roles are built
- * (ADR 0034 – a parallel work package), the core roles decide through the module's role mapping (`fromCoreRoles`):
- * designer → manager, every other working role → viewer, administrators everything. That mapping is the seam: once the
- * module registry knows module roles and grants, `moduleRoleOf` asks it, and nothing else here changes.
+ * Who may do what in the data products module (ADR 0036 part 12). **Module access** (ADR 0034 phase 1) decides who
+ * uses the module at all: everyone signed in, or – restricted by an administrator – the selected teams and users
+ * (administrators and auditors always). Someone who does not use it has no module role and no right on any of its
+ * items, on every surface (its routes answer 404 MODULE_NO_ACCESS before this is asked; owning-team routes, link
+ * pickers, monitor checks and contract drafts ask this). Within it the core roles give the module role
+ * (`fromCoreRoles`): designer → manager, every other working role → viewer, administrators everything. Module roles
+ * granted per team (contributor among them) come with ADR 0034 phase 2: `moduleRoleOf` is the seam that will ask them.
  *
  * Per item (owned kinds data_product, data_object, data_element, data_domain): without owning teams every working
  * role sees it and managers (designers) change it; with owning teams their members do (with their instance and team
@@ -57,7 +62,7 @@ const RANK: Record<DataProductModuleRole, number> = { viewer: 1, contributor: 2,
 
 /** The person's module role in the instance (the highest of their instance and team roles; null: none). */
 export function moduleRoleOf(u: AuthUser | null): DataProductModuleRole | null {
-  if (!u) return null;
+  if (!u || !usesModuleAccess(u, 'dataProducts')) return null;
   let best: DataProductModuleRole | null = null;
   const consider = (r: Role) => {
     const m = FROM_CORE_ROLES[r];
@@ -68,7 +73,7 @@ export function moduleRoleOf(u: AuthUser | null): DataProductModuleRole | null {
   return best;
 }
 
-/** Whether the person uses the module at all (ADR 0034 module access – everyone signed in until it is built). */
+/** Whether the person uses the module at all (ADR 0034 module access, with a working role). */
 export const usesModule = (u: AuthUser | null): boolean => moduleRoleOf(u) !== null;
 
 /** Create products, data objects, elements and steps: the module's contributors and managers (designers), administrators. */
@@ -93,7 +98,24 @@ function normalise(d: ItemDecision): ItemDecision {
   return { permissions: ALL.filter((p) => has.has(p)), reasons: d.reasons };
 }
 
-function decideItem(u: AuthUser | null, kind: DataProductOwnedKind, id: string, personal: readonly DataProductPermission[], subject?: string): ItemDecision {
+/**
+ * How a share gives rights on a data product (ADR 0033 part 1; the levels only – the kind has no action rights yet):
+ * View sees it, Edit changes it, Manage also changes its owning teams, shares and lifecycle _retired_ and deletes it.
+ */
+export const DATA_PRODUCT_SHARES: ShareModel<DataProductPermission> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+};
+
+function decideItem(
+  u: AuthUser | null,
+  kind: DataProductOwnedKind,
+  id: string,
+  personal: readonly DataProductPermission[],
+  subject?: string,
+  shares?: ShareModel<DataProductPermission>,
+): ItemDecision {
+  // module access first: who does not use the module has no right on its items (named owners included)
+  if (u && !usesModuleAccess(u, 'dataProducts')) return { permissions: [], reasons: [] };
   const d = teamScoped<DataProductPermission>(
     u,
     { kind, id },
@@ -109,7 +131,17 @@ function decideItem(u: AuthUser | null, kind: DataProductOwnedKind, id: string, 
       },
     },
   );
-  return normalise(d);
+  if (!shares || !u || isAdmin(u)) return normalise(d);
+  // shares (ADR 0033, kinds switched to shares): they add a level; a Restricted item without owning teams gives the
+  // instance roles nothing – only its shares, its named owners, auditors (view) and administrators reach it
+  let reasons = d.reasons;
+  if (!owningTeams(kind, id).length && isRestricted(kind, id)) {
+    reasons = reasons.filter((r) => r.source !== 'instanceRole');
+    if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
+  }
+  reasons = [...reasons, ...shareReasons(u, { kind, id }, shares)];
+  const granted = new Set(reasons.flatMap((r) => r.permissions));
+  return normalise({ permissions: ALL.filter((p) => granted.has(p)), reasons });
 }
 
 const firstMatch = (u: AuthUser | null, subjects: readonly string[]): string | undefined => (u ? subjects.find((s) => matches(u, s)) : undefined);
@@ -118,7 +150,7 @@ const firstMatch = (u: AuthUser | null, subjects: readonly string[]): string | u
 export function productAccess(u: AuthUser | null, p: { id: string; owners: string | readonly string[] }): ItemDecision {
   const owners = typeof p.owners === 'string' ? parseJson<string[]>(p.owners, []) : p.owners;
   const owner = firstMatch(u, owners);
-  return decideItem(u, 'data_product', p.id, owner ? ALL : [], owner);
+  return decideItem(u, 'data_product', p.id, owner ? ALL : [], owner, DATA_PRODUCT_SHARES);
 }
 
 /** A domain: its owners and the module's managers. */
@@ -140,7 +172,7 @@ export function objectAccess(u: AuthUser | null, o: { id: string; owner: string 
  * Same rules as products, without named people.
  */
 export function elementAccess(u: AuthUser | null, teamIds: readonly string[]): ItemDecision {
-  if (!u) return { permissions: [], reasons: [] };
+  if (!u || !usesModuleAccess(u, 'dataProducts')) return { permissions: [], reasons: [] };
   if (isAdmin(u)) return { permissions: [...ALL], reasons: [{ source: 'admin', role: 'admin', permissions: [...ALL] }] };
   const reasons: AccessReason[] = [];
   const add = (r: AccessReason) => r.permissions.length && reasons.push(r);
@@ -163,7 +195,7 @@ export function elementAccess(u: AuthUser | null, teamIds: readonly string[]): I
  * database, so a page of 100 never reads the catalogue's owning teams into memory).
  */
 export function elementScopeSql(u: AuthUser | null, alias = 'e'): { sql: string; params: string[] } {
-  if (!u) return { sql: '1 = 0', params: [] };
+  if (!u || !usesModuleAccess(u, 'dataProducts')) return { sql: '1 = 0', params: [] };
   if (isAdmin(u) || u.roles.includes('auditor')) return { sql: '1 = 1', params: [] };
   const working = u.roles.some((r) => byRole(r).length > 0);
   const teams = [...memberships(u)].filter(([, m]) => working || m.roles.some((r) => byRole(r).length > 0)).map(([id]) => id);

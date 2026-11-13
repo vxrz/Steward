@@ -2,6 +2,7 @@ import {
   CIA_DIMENSIONS,
   ISO_25012_DIMENSIONS,
   maturityLevel,
+  worstHealth,
   type DataHealthStatus,
   type DataObjectives,
   type DataProductScorecard,
@@ -74,8 +75,8 @@ const ev = (key: string, values?: Record<string, string | number>): Evidence[num
 const share = (done: number, of: number, none: DataScorecardState = 'notMet'): DataScorecardState =>
   of === 0 ? none : done === of ? 'met' : done === 0 ? 'notMet' : 'partial';
 
-const WORST: readonly DataHealthStatus[] = ['down', 'degraded', 'blocked', 'unknown', 'maintenance', 'off', 'noData', 'up'];
-const worst = (xs: DataHealthStatus[]): DataHealthStatus => (xs.length ? [...xs].sort((a, b) => WORST.indexOf(a) - WORST.indexOf(b))[0]! : 'noData');
+/** The worst of the output elements' health, in the module's one order (DATA_HEALTH_ORDER: No data is the least). */
+const worst = (xs: DataHealthStatus[]): DataHealthStatus => worstHealth(xs) ?? 'noData';
 
 const healthState = (s: DataHealthStatus): DataScorecardState => (s === 'up' ? 'met' : s === 'degraded' ? 'partial' : s === 'down' ? 'notMet' : 'noEvidence');
 
@@ -173,6 +174,9 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   const writers = new Map<string, string[]>();
   for (const s of lineage.steps) for (const o of s.outputs) writers.set(o, [...(writers.get(o) ?? []), ...s.inputs]);
 
+  // the health of every output element, read once for all products (never per product)
+  const outputHealth = outputElementIds.length ? scorecardElementHealth(u, outputElementIds) : new Map<string, ElementHealth>();
+
   for (const p of products.values()) {
     const envs = sortEnvironments(envRows.filter((e) => e.product_id === p.id).map((e) => e.environment));
     const env = environment ?? envs[0] ?? null;
@@ -260,11 +264,10 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
     // healthy: the product's monitor in the environment, else its output elements' worst (the seam to WP3)
     const envRow = env ? envRows.find((e) => e.product_id === p.id && e.environment === env) : undefined;
     const monitorId = envRow?.monitor_id ?? null;
-    const elementHealth = env ? scorecardElementHealth(u, outElements) : new Map<string, ElementHealth>();
     const health: DataHealthStatus = monitorId
       ? (monitorStatus.get(monitorId) ?? 'unknown')
       : outElements.length
-        ? worst(outElements.map((e) => elementHealth.get(e)?.status ?? 'noData'))
+        ? worst(outElements.map((e) => outputHealth.get(e)?.status ?? 'noData'))
         : 'noData';
     part('healthy', healthState(health), [ev('healthy.status', { status: health, source: monitorId ? 'monitor' : outElements.length ? 'elements' : 'none' })]);
 
@@ -347,7 +350,7 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
 
     // ---------- ISO/IEC 25012 ----------
     const fresh = outElements.filter((e) => links.some((l) => l.element_id === e));
-    const freshStatus = fresh.map((e) => elementHealth.get(e)?.status ?? 'noData');
+    const freshStatus = fresh.map((e) => outputHealth.get(e)?.status ?? 'noData');
     const stale = freshStatus.filter((s) => s === 'down').length;
     const green = freshStatus.filter((s) => s === 'up').length;
     const isoState = new Map<Iso25012Dimension, [DataScorecardState, Evidence]>();

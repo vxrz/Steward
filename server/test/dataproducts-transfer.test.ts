@@ -217,6 +217,9 @@ describe('import', () => {
       expect(p.counts, `${url}: ${JSON.stringify(p.changes)}`).toMatchObject({ add: 0, change: 0, skip: 0 });
       expect(p.counts.unchanged).toBeGreaterThanOrEqual(8);
     }
+    // the pages download through links: their link key (?_sk=) is not a parameter of the export
+    expect((await dana('GET', `/data-products/${productId}/export?format=yaml&_sk=link`)) as string).toMatch(/^# Steward data products, format 1/);
+    expect(String(await dana('GET', `/data-products/${productId}/odps?_sk=link`))).toContain('kind: DataProduct');
     // the file holds no readouts, check states, costs or run-as users
     const text = (await dana('GET', '/data-products/export')) as string;
     expect(text).not.toMatch(/^\s*-?\s*(readout|run_as|read_at|row_count|status|cost\w*|secrets?|variables)\s*:/im);

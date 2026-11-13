@@ -31,7 +31,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
+import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
 import { forbid, me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, type OwningTeam } from '../auth/policy.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
@@ -70,8 +70,18 @@ import { onLifecycleChanged } from './notices.js';
 
 // ---------- environments ----------
 
+/** Settings → Environments, read once per request (sorting the environments of every product of a page in a loop). */
+const environmentsOfRequest = new WeakMap<object, CatalogueEnvironment[]>();
+function requestEnvironments(): CatalogueEnvironment[] {
+  const store = currentStore();
+  if (!store) return environmentList();
+  let list = environmentsOfRequest.get(store);
+  if (!list) environmentsOfRequest.set(store, (list = environmentList()));
+  return list;
+}
+
 /** Production first, then the order of Settings → Environments, unlisted ones after, by name. */
-export function sortEnvironments(names: Iterable<string>, list: CatalogueEnvironment[] = environmentList()): string[] {
+export function sortEnvironments(names: Iterable<string>, list: CatalogueEnvironment[] = requestEnvironments()): string[] {
   return [...new Set(names)].sort(
     (a, b) =>
       Number(isProductionEnvironment(list, b)) - Number(isProductionEnvironment(list, a)) ||
@@ -735,7 +745,7 @@ export function getProduct(id: string): DataProduct {
   const data = summaryData(u, [{ row: p, perms }]);
   const summary = data.items[0];
   const { list, envRows } = data;
-  const ports = portViews(u, p.id);
+  const ports = portViews(u, p.id, data.objects);
   const counts: Record<DataMemberRole, number> = { input: 0, internal: 0, output: 0 };
   for (const r of db().all<{ role: DataMemberRole; n: number }>('SELECT role, COUNT(*) AS n FROM dp_members WHERE product_id = ? GROUP BY role', p.id))
     counts[r.role] = Number(r.n);

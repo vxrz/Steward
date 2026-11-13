@@ -135,7 +135,11 @@
     "healthFilterPage": "Der Zustandsfilter gilt für die bisher geladenen Produkte – laden Sie mehr, um den Rest zu sehen.",
     "emptyTitle": "Noch keine Datenprodukte",
     "emptyText": "Ein Datenprodukt bündelt, was eine Domäne anbietet – ihre Tabellen, Topics und APIs – mit Verantwortlichen, Ports, Einstufung und Zustand.",
-    "whoCanAct": "Designer und Administratoren legen sie an."
+    "whoCanAct": "Designer und Administratoren legen sie an.",
+    "maturity": "Reife",
+    "costsLastMonth": "Kosten Vormonat",
+    "costsIncomplete": "Unvollständig: Ein Teil, den Sie nicht sehen dürfen, fehlt in der Summe.",
+    "costsHidden": "Nicht angezeigt"
   },
   "product": {
     "newTitle": "Neues Datenprodukt",
@@ -775,6 +779,10 @@
       "teams": {
         "who": "Mit zuständigen Teams",
         "what": "Nur Mitglieder dieser Teams (mit ihren Rollen), Prüfer und Administratoren"
+      },
+      "shares": {
+        "who": "Freigaben",
+        "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Verantwortliche, Prüfer und Administratoren"
       }
     },
     "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Lineage und Karte zeigen es ohne Namen."
@@ -1187,5 +1195,66 @@
     "environments": "Umgebungen",
     "domains": "Domänen",
     "discovery": "Erkennungsquellen"
+  },
+  "transfer": {
+    "menu": "Import und Export",
+    "exportAll": "Alles exportieren, was Sie sehen dürfen",
+    "exportDomain": "Die gefilterte Domäne exportieren",
+    "exportProduct": "Dieses Produkt exportieren",
+    "yaml": "Steward-Format (YAML)",
+    "json": "Steward-Format (JSON)",
+    "odps": "ODPS v1.0.0 (YAML)",
+    "import": "Dateien importieren…",
+    "importTitle": "Datenprodukte importieren",
+    "importIntro": "Dateien im Steward-Format – Domänen, Datenobjekte, Elemente und Produkte, als YAML oder JSON. Prüfen Sie zuerst die Vorschau; geschrieben wird erst beim Import.",
+    "schema": "Dateiformat (JSON Schema)",
+    "files": "Dateien",
+    "filesHint": "Höchstens 500 Dateien und zusammen 8 MB.",
+    "clearFiles": "Gewählte Dateien entfernen",
+    "tooLarge": "Die Dateien sind zusammen größer als 8 MB.",
+    "mode": "Modus",
+    "modes": {
+      "add": "Nur hinzufügen",
+      "update": "Hinzufügen und aktualisieren"
+    },
+    "modeHints": {
+      "add": "Vorhandene Einträge bleiben, wie sie sind.",
+      "update": "Vorhandene Einträge übernehmen, was in den Dateien steht; was eine Datei auslässt, behält den Wert in Steward. Entfernt wird nichts."
+    },
+    "preview": "Vorschau",
+    "run": "Importieren",
+    "previewFailed": "Die Vorschau ist fehlgeschlagen",
+    "failed": "Der Import ist fehlgeschlagen",
+    "done": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{unchanged}} unverändert, {{skip}} übersprungen",
+    "counts": {
+      "add_one": "{{count}} hinzuzufügen",
+      "add_other": "{{count}} hinzuzufügen",
+      "change_one": "{{count}} zu ändern",
+      "change_other": "{{count}} zu ändern",
+      "unchanged_one": "{{count}} unverändert",
+      "unchanged_other": "{{count}} unverändert",
+      "skip_one": "{{count}} übersprungen",
+      "skip_other": "{{count}} übersprungen"
+    },
+    "problems_one": "{{count}} Problem verhindert den Import",
+    "problems_other": "{{count}} Probleme verhindern den Import",
+    "warnings": "Gut zu wissen",
+    "changes": "Was der Import tut",
+    "what": "Eintrag",
+    "key": "Schlüssel",
+    "action": "Aktion",
+    "detail": "Details",
+    "kinds": {
+      "domain": "Domäne",
+      "dataObject": "Datenobjekt",
+      "element": "Element",
+      "dataProduct": "Datenprodukt"
+    },
+    "actions": {
+      "add": "Hinzufügen",
+      "change": "Ändern",
+      "unchanged": "Unverändert",
+      "skip": "Überspringen"
+    }
   }
 }

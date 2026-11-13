@@ -7,7 +7,7 @@ import { DATA_PRODUCT_LIFECYCLES, type AuditEntry, type Backlink, type DataProdu
 import { get } from '../../api';
 import { useMe } from '../../auth';
 import { ErrorState, QueryState } from '../../components/common';
-import { OwningTeams } from '../../components/OwningTeams';
+import { AccessTab } from '../../components/access/AccessTab';
 import { TableScroll } from '../../components/TableScroll';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { fmtDate, fmtDay } from '../../format';
@@ -16,15 +16,16 @@ import { Section } from './parts';
 
 /**
  * Who may see and change a product (ADR 0036 part 12): its owning teams – the scope – with the explanation of anyone's
- * rights, and the product owners (responsibility; named from outside the teams they see and change it). Shares and
- * module roles follow with ADR 0033 and 0034.
+ * rights, Restricted and its shares (the Access tab of ADR 0033), and the product owners (responsibility; named from
+ * outside the teams they see and change it). Module roles granted per team follow with ADR 0034 phase 2.
  */
 export function ProductAccessTab({ p }: { p: DataProduct }) {
   const { t } = useTranslation('dataProducts');
   const subject = useSubjectLabel();
   return (
     <Stack gap="md" maw={880}>
-      <OwningTeams kind="data_product" id={p.id} />
+      {/* ADR 0033: owning teams with Why do I have access?, Restricted and the shares (View, Edit, Manage) */}
+      <AccessTab kind="data_product" id={p.id} />
       <Section title={t('access.owners')}>
         <Text size="sm">{p.owners.length ? p.owners.map(subject).join(', ') : t('product.noOwner')}</Text>
         <Text size="xs" c="dimmed" mt="xs">
@@ -41,7 +42,7 @@ export function ProductAccessTab({ p }: { p: DataProduct }) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {(['everyone', 'designers', 'owners', 'teams'] as const).map((k) => (
+              {(['everyone', 'designers', 'owners', 'teams', 'shares'] as const).map((k) => (
                 <Table.Tr key={k}>
                   <Table.Td>{t(`access.rows.${k}.who`)}</Table.Td>
                   <Table.Td>{t(`access.rows.${k}.what`)}</Table.Td>

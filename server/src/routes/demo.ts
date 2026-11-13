@@ -839,6 +839,12 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
     } catch (err) {
       logger.warn({ err: (err as Error).message }, 'demo price books not added');
     }
+    // ---- data products (0.22.0, ADR 0036): discovery over the simulated Snowflake and Kafka, the example products ----
+    try {
+      await (await import('../dataproducts/demo.js')).seedDataProductsDemo(currentActor());
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'demo data products not loaded');
+    }
   }
   // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----
   try {

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import {
   DATA_CHECK_PURPOSES,
+  DATA_HEALTH_ORDER,
   DATA_PRODUCT_LIMITS,
+  type DataHealthStatus,
   type DataCheckLinkOrigin,
   type DataCheckPurpose,
   type DataElementKind,
@@ -159,5 +161,5 @@ export const dataHealthQuery = z
   })
   .strict();
 
-/** Rank of a health status for sorting and filtering: no data first, then as monitors rank them. */
-export const HEALTH_STATUSES: readonly (MonitorStatus | 'noData')[] = ['noData', 'off', 'up', 'maintenance', 'blocked', 'unknown', 'degraded', 'down'];
+/** Health statuses best first, for sorting and filtering: the module's one order (DATA_HEALTH_ORDER) reversed. */
+export const HEALTH_STATUSES: readonly DataHealthStatus[] = [...DATA_HEALTH_ORDER].reverse();
