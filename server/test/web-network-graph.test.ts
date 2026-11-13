@@ -33,10 +33,12 @@ const words: NetworkWords = {
     segment: 'Segment',
     restricted: 'Restricted',
     level: 'Level',
+    apps: 'Apps on this device',
   },
   yes: 'yes',
   hidden: 'Not visible',
   noVlan: 'No VLAN',
+  hiddenApps: (n) => `and ${n} you may not see`,
 };
 
 const ref = (id: string, label: string): PlantItemRef => ({ kind: 'system', id, label, path: `/systems/${id}`, visible: true });
@@ -150,5 +152,29 @@ describe('the OT network diagram', () => {
     expect(g.edges.map((e) => `${e.from}>${e.to}`).sort()).toEqual(
       ['asset:a0>col:job:bfc', 'asset:a1>col:application:app_influx', 'col:job:bfc>col:application:app_influx', 'col:job:bfc>col:platform:pf_ih'].sort(),
     );
+  });
+
+  it('0.25.0: an edge device’s system stands on the device’s VLAN with its collector; the asset names the apps on it', () => {
+    const n = site([{ collector: { kind: 'job', ref: 'modbus', host: 'sys_edge' }, collectorHost: ref('sys_edge', 'ied-line-01.example') }]);
+    n.vlans = [{ id: 'cell', name: 'Cell', vid: 110, subnets: [], segment: null, deviceCount: 1 }] as unknown as PlantSiteNetwork['vlans'];
+    n.devices = [
+      { id: 'edge', assetId: 'a0', hostname: 'ied-line-01', vlan: 'cell', address: '', state: 'active', live: notWatched, system: 'sys_edge' },
+    ] as unknown as PlantSiteNetwork['devices'];
+    const g = networkGraph(
+      n,
+      {
+        hosts: [{ id: 'sys_edge', vlans: ['cell'], zones: [] }],
+        applications: [],
+        platforms: [],
+        edgeDevices: [{ asset: 'a0', device: 'edge', system: 'sys_edge', apps: ['Invented Modbus client', 'Invented Databus'], hiddenApps: 1 }],
+      },
+      words,
+    );
+    expect(g.nodes.find((x) => x.id === 'asset:a0')?.info).toContainEqual({
+      label: 'Apps on this device (ied-line-01)',
+      value: 'Invented Modbus client, Invented Databus and 1 you may not see',
+    });
+    expect(g.nodes.find((x) => x.id === 'col:job:modbus')?.parent).toBe('vlan:cell');
+    expect(g.nodes.find((x) => x.id === 'asset:a0')?.parent).toBe('vlan:cell');
   });
 });

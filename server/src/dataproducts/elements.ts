@@ -13,6 +13,9 @@ import {
   elementNameNorm,
   elementShortName,
   isGenericElementKind,
+  mqttBroker,
+  mqttUrl,
+  openLineageDataset,
   type AclEntry,
   type DataElement,
   type DataElementListQuery,
@@ -339,6 +342,22 @@ function checkPlatform(kind: ElementRow['kind'], platformId: string | null, know
     throw new HttpError(400, `A ${kind} element cannot live on a ${p.kind} platform`, 'DATA_ELEMENT_PLATFORM', { kind, platformKind: p.kind });
 }
 
+/**
+ * 0.25.0 (ADR 0037 part 3): the OpenLineage dataset of an `mqtt.topic` element – `mqtt://host:port` of its MQTT broker
+ * platform (the variable url), else of the broker the element names (the flag `broker`: `host[:port]`, the Databus is
+ * `ie-databus:1883`); null without a broker. Other kinds: entered elements have none (discovery gives it).
+ */
+function enteredDataset(kind: string, platformId: string, flags: Record<string, unknown>, qualifiedName: string): { namespace: string; name: string } | null {
+  if (kind !== 'mqtt.topic') return null;
+  let broker: string | null = null;
+  if (platformId) {
+    const cfg = db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', platformId);
+    broker = mqttBroker(mqttUrl(parseJson<{ variables?: Record<string, unknown> }>(cfg?.config, {}).variables?.url)?.href ?? null);
+  }
+  broker ??= mqttBroker(typeof flags.broker === 'string' ? flags.broker : null);
+  return broker ? openLineageDataset('mqtt.topic', broker, qualifiedName.trim()) : null;
+}
+
 /** A parent: an element the caller may see, on the same platform and in the same environment, of a kind that may contain it. */
 function checkParent(kind: ElementRow['kind'], platformId: string, environment: string, parentId: string | null, self: string | null): void {
   if (!parentId) return;
@@ -406,6 +425,8 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
   if (room <= 0) throw limitReached('elements', L.elements);
   const id = newId(DATA_PRODUCT_ID_PREFIX.element);
   const now = nowIso();
+  const flags = Object.fromEntries(input.flags.map((f) => [f.name, f.value]));
+  const ol = enteredDataset(input.kind, platformId, flags, input.qualifiedName);
   db().tx(() => {
     db().run(
       `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, layer, description, type_label, source,
@@ -427,11 +448,11 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
       input.componentId,
       input.plantSink ? json(input.plantSink) : null,
       input.apiRef ? json(input.apiRef) : null,
-      json(Object.fromEntries(input.flags.map((f) => [f.name, f.value]))),
+      json(flags),
       generic ? storedTechnology(input.technology) : null,
       storedProperties(generic ? input.properties : []),
-      generic ? input.namespace : null,
-      generic ? input.qualifiedName : null,
+      generic ? input.namespace : (ol?.namespace ?? null),
+      generic ? input.qualifiedName : (ol?.name ?? null),
       now,
       u.username,
       now,
@@ -496,6 +517,8 @@ export function updateElement(id: string, body: unknown): DataElement {
       });
   }
   const pick = <K extends keyof typeof input>(k: K, cur: unknown) => (input[k] === undefined ? cur : input[k]);
+  // 0.25.0: an entered mqtt.topic follows its name in OpenLineage
+  const ol = r.source !== 'discovered' ? enteredDataset(r.kind, r.platform_id, parseJson(r.flags, {}), qualifiedName) : null;
   db().tx(() => {
     db().run(
       `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, environment = ?, display_name = ?, layer = ?, description = ?, type_label = ?, application_id = ?,
@@ -514,9 +537,9 @@ export function updateElement(id: string, body: unknown): DataElement {
       input.apiRef === undefined ? r.api_ref : input.apiRef ? json(input.apiRef) : null,
       generic && input.technology !== undefined ? storedTechnology(input.technology) : r.technology,
       generic && input.properties !== undefined ? storedProperties(input.properties) : r.properties,
-      generic ? namespace : r.ol_namespace,
-      // a generic part's OpenLineage name is its qualified name
-      generic ? qualifiedName : r.ol_name,
+      // a generic part's OpenLineage name is its qualified name; an entered mqtt.topic follows its broker and name
+      generic ? namespace : ol ? ol.namespace : r.ol_namespace,
+      generic ? qualifiedName : ol ? ol.name : r.ol_name,
       nowIso(),
       actorName(),
       r.id,

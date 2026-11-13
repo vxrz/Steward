@@ -466,7 +466,7 @@ class Resolver {
   }
 
   /** An application, service or process by name, among those the person may see. */
-  named(kind: 'application' | 'service' | 'process' | 'platform', name: string): string {
+  named(kind: 'application' | 'service' | 'process' | 'platform' | 'system', name: string): string {
     const n = name.trim().toLowerCase();
     const ids =
       kind === 'platform'
@@ -477,7 +477,9 @@ class Resolver {
               .filter((r) => r.name.trim().toLowerCase() === n && permissionsFor(r.id).includes('view'))
               .map((r) => r.id)
           : db()
-              .all<{ id: string; name: string; owners: string }>(`SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'}`)
+              .all<{ id: string; name: string; owners: string }>(
+                `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : kind === 'system' ? 'systems' : 'services'}`,
+              )
               .filter((r) => r.name.trim().toLowerCase() === n && canViewCatalogue(this.s.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }))
               .map((r) => r.id);
     if (ids.length > 1) throw new HttpError(409, `${ids.length} ${kind}s are named "${name}"`, 'DATA_PRODUCT_IMPORT_INVALID', { context: 'ambiguous', name });
@@ -1249,12 +1251,14 @@ function runnerInput(r: Resolver, x: RunnerFile | null | undefined, rowRunner: s
   if (!x) return null;
   const tech = x.technology ? { technology: x.technology } : {};
   if (x.kind === 'tool') return { kind: 'tool', tool: x.tool ?? '', text: x.text ?? '', ...tech };
-  if (x.kind === 'connector') return { kind: 'connector', platformId: r.named('platform', x.platform ?? ''), name: x.name ?? '', ...tech };
+  // 0.25.0: the system it runs on, by name
+  const runsOn = x.runs_on ? { runsOn: { systemId: r.named('system', x.runs_on.system), environment: x.runs_on.environment ?? '' } } : {};
+  if (x.kind === 'connector') return { kind: 'connector', platformId: r.named('platform', x.platform ?? ''), name: x.name ?? '', ...runsOn, ...tech };
   if (x.kind === 'element') {
     if (!x.element) throw new HttpError(400, 'The runner names no element', 'DATA_STEP_INVALID', { context: 'runner' });
     return { kind: 'element', id: r.elementId(x.element), ...tech };
   }
-  return { kind: x.kind, id: r.named(x.kind, x.name ?? ''), ...tech };
+  return { kind: x.kind, id: r.named(x.kind, x.name ?? ''), ...(x.kind === 'application' ? runsOn : {}), ...tech };
 }
 
 function consumerBody(r: Resolver, c: ConsumerFile) {

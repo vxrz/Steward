@@ -817,4 +817,13 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE plant_zones ADD COLUMN platforms TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    // 0.25.0 (ADR 0037 part 3): a device of an asset may be the Steward system it is (an edge device is equipment in the
+    // plant and a host in the catalogue). The device keeps its host name; the system shows it read through.
+    name: 'plant-032-device-system',
+    sql: `
+      ALTER TABLE plant_devices ADD COLUMN system_id TEXT;
+      CREATE INDEX plant_devices_system ON plant_devices(system_id);
+    `,
+  },
 ];

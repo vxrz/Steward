@@ -226,6 +226,11 @@ export interface PlantHostPlacement {
   applications: { id: string; system: string }[];
   /** 0.20: a platform and the zones that list it */
   platforms: { id: string; zones: string[] }[];
+  /**
+   * 0.25.0 (ADR 0037): the devices of this site's assets that are systems (the reader may see): the system stands on
+   * the device's VLAN, with its asset; the applications that run on it by name (those the reader may not see counted)
+   */
+  edgeDevices: { asset: string; device: string; system: string; apps: string[]; hiddenApps: number }[];
 }
 
 // ---------- 4. KPI coverage ----------

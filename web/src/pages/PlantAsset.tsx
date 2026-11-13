@@ -20,6 +20,7 @@ import { AssetFormModal } from '../components/plant/forms';
 import { MoveAssetModal } from '../components/plant/MoveTo';
 import { AssetDataSection } from '../components/plant/AssetData';
 import { AssetNetworkSection } from '../components/plant/AssetNetwork';
+import { AssetEdgeSection } from '../components/plant/EdgeDevice';
 import { AssetAdvisoriesSection } from '../components/plant/advisories/AssetAdvisories';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
@@ -231,6 +232,7 @@ export function PlantAssetPage() {
             </Stack>
             <AssetDataSection assetId={a.id} />
             <AssetNetworkSection assetId={a.id} />
+            <AssetEdgeSection assetId={a.id} />
             <AssetAdvisoriesSection assetId={a.id} />
             <PlantDocumentsPanel kind="asset" id={a.id} />
             {/* 0.14: maintenance planned for it, and planning one (the plant viewer reads no maintenance windows) */}

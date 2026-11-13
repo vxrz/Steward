@@ -249,6 +249,15 @@ export function withHiddenItems(kind: 'system' | 'platform', input: string[], be
 }
 const itemExists = (kind: 'system' | 'platform', id: string) => !!db().get(`SELECT 1 FROM ${kind === 'system' ? 'systems' : 'platforms'} WHERE id = ?`, id);
 
+/**
+ * 0.25.0: the system a device's save sends – the one of `before` the caller may not see stays when the save sends none
+ * (they cannot name or remove it; naming another replaces it), as a zone keeps its hidden systems.
+ */
+export function withHiddenSystem(input: string | null, before: string | null | undefined): string | null {
+  if (input || !before) return input;
+  return !resolveTarget('system', before) && itemExists('system', before) ? before : input;
+}
+
 /** A zone's own values with the hidden systems and platforms of `before` kept (0.20). */
 export const zoneWithHidden = (v: PlantZoneValues, before: PlantZoneValues | null): PlantZoneValues => ({
   ...v,
@@ -308,7 +317,20 @@ function deviceView(r: DeviceRow, assetName: string, vlans: Map<string, PlantVla
     if (!subnet) hints.push('address_outside');
     else if (subnet.ranges.some((x) => x.type === 'blocked' && addressBetween(v.address, x.start, x.end))) hints.push('address_blocked');
   }
-  return { ...v, checks: checksForReader(v.checks, ctx), ...source(r), assetId: r.asset_id, assetName, live: liveOf(v.checks, ctx), hints };
+  // 0.25.0: the system the device is, as the reader may see it (one they may not see is not named, nor its id)
+  const systemRef = v.system ? itemRef('system', v.system) : null;
+  return {
+    ...v,
+    system: systemRef?.visible ? v.system : null,
+    systemRef: systemRef?.visible ? systemRef : null,
+    systemHidden: !!systemRef && !systemRef.visible,
+    checks: checksForReader(v.checks, ctx),
+    ...source(r),
+    assetId: r.asset_id,
+    assetName,
+    live: liveOf(v.checks, ctx),
+    hints,
+  };
 }
 
 function addressBetween(a: string, start: string, end: string): boolean {
@@ -905,7 +927,7 @@ export function updateDevice(assetId: string, deviceId: string, input: z.infer<t
   if (!cur) throw notFound('device', deviceId);
   const before = deviceValuesOf(cur);
   const hidden = withHiddenChecks(input.checks, before.checks);
-  const v: PlantDeviceValues = { id: deviceId, ...input, checks: hidden.checks };
+  const v: PlantDeviceValues = { id: deviceId, ...input, system: withHiddenSystem(input.system, before.system), checks: hidden.checks };
   invalid([...hidden.problems, ...deviceProblems(v, siteVlans(a.site_id)), ...refProblems(v, before)]);
   const changes = changedKeys(before, v);
   if (!changes.length) return assetNetwork(assetId);

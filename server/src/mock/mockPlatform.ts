@@ -221,12 +221,15 @@ function seed() {
     { applicationId: 'app-2', title: 'IE Databus', versions: ['2.1.0', '1.9.0'] },
     { applicationId: 'app-3', title: 'OPC UA Connector', versions: ['1.9.0', '1.12.2', '1.10.0'] },
     { applicationId: 'app-4', title: 'Flow Creator', versions: ['1.17.0'] },
+    // 0.25.0 (ADR 0037): an invented app that sends Databus topics on to Kafka – the bridge of the edge demo
+    { applicationId: 'app-5', title: 'Edge Stream Bridge', versions: ['0.9.0', '1.0.1'] },
   ];
   const installed: Record<string, { applicationId: string; version: string }[]> = {
     'dev-001': [
       { applicationId: 'app-1', version: '1.8.0' },
       { applicationId: 'app-2', version: '2.1.0' },
       { applicationId: 'app-3', version: '1.12.2' },
+      { applicationId: 'app-5', version: '1.0.1' },
     ],
     'dev-002': [
       { applicationId: 'app-1', version: '1.7.1' },

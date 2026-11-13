@@ -223,6 +223,8 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // 0.25.0 (ADR 0037 part 3): who dismissed a suggestion of the Industrial Edge installations readout
+  'edge_suggestion_dismissals.dismissed_by',
   // who shared a resource and who made it Restricted (0.21.0, ADR 0033)
   'resource_shares.created_by',
   'resource_restrictions.created_by',

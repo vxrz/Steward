@@ -71,7 +71,7 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
       )}
     </Stack>
   );
-  const runner = (s: DataStep) => {
+  const runnerText = (s: DataStep) => {
     if (s.runnerHidden) return t('steps.runnerYouMayNotSee');
     const r = s.runner;
     if (!r) return '–';
@@ -80,6 +80,13 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
     if (r.kind === 'element') return names.get(r.id)?.label ?? t('steps.runnerKinds.element');
     return t(`steps.runnerKinds.${r.kind}`);
   };
+  // 0.25.0 (ADR 0037): where an application or connector runs – "… @ ied-line-01.example (prod)"
+  const runner = (s: DataStep) =>
+    s.runsOn
+      ? t('steps.runsOnText', { runner: runnerText(s), system: s.runsOn.environment ? `${s.runsOn.name} (${s.runsOn.environment})` : s.runsOn.name })
+      : s.runsOnHidden
+        ? t('steps.runsOnHiddenText', { runner: runnerText(s) })
+        : runnerText(s);
   const rows = steps.data ?? [];
   const environment = params.get('environment');
   return (

@@ -111,6 +111,7 @@ steps:
                 'version': $version,
                 'fwCompliant': $version ? $norm($version) >= $norm($inputs.minFirmware) : null,
                 'lastSeen': $last,
+                'interval': $interval,
                 'state': $not($exists($last)) ? 'unknown' : ($online ? 'online' : 'offline'),
                 'offlineHours': $exists($last) and $not($online) ? $round($minutes / 60, 1)
               }
@@ -136,6 +137,7 @@ steps:
       - { label: Firmware, value: "firmware ? firmware : '–'" }
       - { label: Compliant, value: "fwCompliant = true ? 'yes' : (fwCompliant = false ? 'no' : 'unknown')" }
       - { label: Last seen, value: "$exists(lastSeen) ? $fromMillis(lastSeen, '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
+      - { label: Report interval (min), value: "$exists(interval) ? interval : '–'" }
       - { label: Offline (h), value: "$exists(offlineHours) ? offlineHours : '–'" }
       - { label: Device type, value: "deviceType ? deviceType : '–'" }
     status: >-
@@ -149,6 +151,7 @@ steps:
         : (state = 'unknown' ? 'no statistics reported'
         : (fwCompliant = true ? 'online' : 'online, firmware version not reported'))))
     metrics:
+      graceMinutes: "$inputs.onlineWithinMinutes"
       total: "$count(vars.fleet)"
       online: "$count(vars.fleet[state = 'online'])"
       offline: "$count(vars.fleet[state = 'offline'])"

@@ -44,6 +44,8 @@ import { InsightsHubPanel } from './InsightsHubMapping';
  * versions, download and comparison. Everything is documentation: Steward runs no step and no code.
  */
 
+import { SinkElementButton } from './SinkElement';
+
 const base = (assetId: string) => `/plant/assets/${encodeURIComponent(assetId)}`;
 const ITEM_KINDS = new Set(['system', 'platform', 'application']);
 
@@ -221,6 +223,8 @@ export function CollectionFlowView({
               </Table>
             </div>
             <Downstream sink={s} />
+            {/* 0.25.0 (ADR 0037): an MQTT or Databus topic becomes an element of the data products catalogue */}
+            <SinkElementButton assetId={assetId} collectionId={collection.id} sink={collection.sinks.find((x) => x.id === s.id) ?? s} />
             {/* 0.14: a sink whose target is an Insights Hub platform maps each item to an asset, aspect and variable */}
             {s.kind === 'platform' && s.ref && <InsightsHubPanel assetId={assetId} collectionId={collection.id} sinkId={s.id} stamp={collection.updatedAt} />}
           </Stack>

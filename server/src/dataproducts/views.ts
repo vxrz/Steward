@@ -156,11 +156,24 @@ function runnerTexts(
     const e = visibleElements.get(id) ?? extra.get(id);
     return e?.visible ? e.qualifiedName : null;
   };
+  // 0.25.0 (ADR 0037 part 3): "Modbus import client @ ied-line-01.example (prod)" – the system an application or connector
+  // runs on, when the reader may see it (read only when a runner names one)
+  const runsOnIds = [...new Set(parsed.flatMap((x) => (x.r && x.r.kind !== 'tool' && x.r.runsOn ? [x.r.runsOn.systemId] : [])))];
+  const systems = new Map(
+    inChunks<{ id: string; name: string; owners: string }>((m) => `SELECT id, name, owners FROM systems WHERE id IN (${m})`, runsOnIds)
+      .filter((x) => canViewCatalogue(u, { kind: 'system', id: x.id, owners: parseJson<string[]>(x.owners, []) }))
+      .map((x) => [x.id, x.name]),
+  );
+  const at = (text: string | null, r: DataStepRunner): string | null => {
+    const on = r.kind !== 'tool' && r.runsOn ? r.runsOn : null;
+    const sys = on ? systems.get(on.systemId) : undefined;
+    return text && sys ? `${text} @ ${sys}${on!.environment ? ` (${on!.environment})` : ''}` : text;
+  };
   const text = (r: DataStepRunner): string | null => {
     if (r.kind === 'tool') return [r.tool, r.text].filter(Boolean).join(' – ') || null;
-    if (r.kind === 'connector') return platforms.has(r.platformId) ? `${r.name} (${platforms.get(r.platformId)})` : null;
+    if (r.kind === 'connector') return at(platforms.has(r.platformId) ? `${r.name} (${platforms.get(r.platformId)})` : null, r);
     if (r.kind === 'platform') return platforms.get(r.id) ?? null;
-    if (r.kind === 'application') return apps.get(r.id) ?? null;
+    if (r.kind === 'application') return at(apps.get(r.id) ?? null, r);
     if (r.kind === 'process') return procs.get(r.id) ?? null;
     return elementName(r.id);
   };
@@ -168,7 +181,8 @@ function runnerTexts(
     parsed.map(({ id, r }) => {
       if (!r) return [id, null];
       const t = text(r);
-      // 0.25.0: a bridge's runner names its technology first – "Debezium · shop-cdc (Kafka Connect (demo))"
+      // 0.25.0: a bridge's runner names its technology first and the system it runs on last –
+      // "Debezium · shop-cdc (Kafka Connect (demo)) @ cdc-host.example (prod)"
       const tech = t && r.technology ? graphTechnology(r.technology).name : null;
       return [id, t && tech && !t.toLowerCase().startsWith(tech.toLowerCase()) ? `${tech} · ${t}` : t];
     }),

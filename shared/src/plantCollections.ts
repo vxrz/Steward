@@ -2,6 +2,7 @@ import type { PlantSource } from './plant.js';
 import type { PlantDirection, PlantProtocol } from './plantData.js';
 import type { PlantCollector, PlantItemRef } from './plantNetwork.js';
 import type { PlantSourceDocumentResult } from './plantDocs.js';
+import type { IemDeviceStatus } from './catalogue.js';
 
 /**
  * Plant registry, 0.11.0: data collections (docs/adr/0019-data-collections.md, docs/PLANT.md "Data collections").
@@ -619,3 +620,59 @@ export const PLANT_COLLECTION_LIMITS = {
   /** 0.12: versions of a collector's configuration kept per asset (the oldest go first) */
   sourceVersions: 50,
 } as const;
+
+// ---------- edge devices (0.25.0, ADR 0037 part 3) ----------
+
+/** A collection that collects data on an edge device: its collector runs on one of its systems, or is an application there. */
+export interface PlantCollectsFromEntry extends PlantCollectionBrief {
+  /** host: the collector names the system as its host; application: the collector is an application that runs there */
+  via: 'host' | 'application';
+}
+
+/**
+ * _Collects data from_ (docs/PLANT.md#edge-devices): the collections whose collector runs on a system – its host, or an
+ * application that runs on it – grouped by the asset they read (the source asset). Derived on read; collections of
+ * assets the reader may not see are counted, never named.
+ */
+export interface PlantCollectsFrom {
+  groups: { asset: { id: string; name: string; siteId: string; siteName: string }; collections: PlantCollectsFromEntry[] }[];
+  hidden: number;
+}
+
+/** An application that runs on an edge device's system (the asset's _Apps on this device_). */
+export interface PlantEdgeApp {
+  id: string;
+  name: string;
+  environment: string;
+  archived: boolean;
+}
+
+/** A device of an asset that is a Steward system, with the applications on it and its Industrial Edge status. */
+export interface PlantEdgeDevice {
+  deviceId: string;
+  hostname: string;
+  domain: string;
+  address: string;
+  system: { id: string; name: string; path: string | null } | null;
+  /** The system is one the reader may not see (nothing of it is shown) */
+  systemHidden: boolean;
+  apps: PlantEdgeApp[];
+  /** Applications on it the reader may not see: counted */
+  hiddenApps: number;
+  /** Its Industrial Edge status (a system that names an IEM device), as the reader may see the examples' dataset */
+  iem: IemDeviceStatus | null;
+}
+
+/** GET /api/plant/assets/:assetId/edge: the asset's devices that are systems, and what collects data on them. */
+export interface PlantAssetEdge {
+  devices: PlantEdgeDevice[];
+  collects: PlantCollectsFrom;
+}
+
+/** GET /api/plant/systems/:systemId/edge: the plant devices that are the system, and what collects data on it. */
+export interface PlantSystemEdge {
+  devices: { siteId: string; siteName: string; assetId: string; assetName: string; deviceId: string; hostname: string; domain: string; address: string }[];
+  /** Devices on sites the reader may not see: counted */
+  hiddenDevices: number;
+  collects: PlantCollectsFrom;
+}

@@ -238,7 +238,8 @@
     "generic.dataset": "Datenbestand (generisch)",
     "generic.stream": "Datenstrom (generisch)",
     "generic.files": "Dateien (generisch)",
-    "generic.endpoint": "Schnittstelle (generisch)"
+    "generic.endpoint": "Schnittstelle (generisch)",
+    "mqtt.topic": "MQTT-Topic"
   },
   "technology": {
     "notListed": "{{name}} (nicht in der Technologieliste)"

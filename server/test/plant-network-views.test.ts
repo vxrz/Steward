@@ -46,7 +46,7 @@ describe('host placement', () => {
     const content = fs.readFileSync(path.resolve(__dirname, '../../examples/plant/brightwater-ot-network.plant.yaml'), 'utf8');
     await s.api('POST', '/plant/import', { files: [{ name: 'brightwater-ot-network.plant.yaml', content }], mode: 'add' });
     // the example names no Steward system: nothing to place
-    expect(await s.api('GET', URL)).toEqual({ hosts: [], applications: [], platforms: [] });
+    expect(await s.api('GET', URL)).toEqual({ hosts: [], applications: [], platforms: [], edgeDevices: [] });
 
     // an edge server in the DMZ segment (created from VLAN 900), named by a data path of milling centre 1
     const made = (await s.api('POST', '/plant/sites/riverside/vlans/rvs-vlan-900/segment', { name: 'RVS OT DMZ' })).vlans.find(
@@ -64,9 +64,14 @@ describe('host placement', () => {
       destinations: [{ kind: 'system', ref: office.id }],
     });
     // the office archive is in no segment of the site: not placed
-    expect(await s.api('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'], zones: [] }], applications: [], platforms: [] });
+    expect(await s.api('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'], zones: [] }], applications: [], platforms: [], edgeDevices: [] });
     // the Plant viewer sees the same (names, no links)
-    expect(await users.pia!('GET', URL)).toEqual({ hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'], zones: [] }], applications: [], platforms: [] });
+    expect(await users.pia!('GET', URL)).toEqual({
+      hosts: [{ id: edge.id, vlans: ['rvs-vlan-900'], zones: [] }],
+      applications: [],
+      platforms: [],
+      edgeDevices: [],
+    });
 
     // the site's network answer still has everything the diagram draws
     const n = await s.api('GET', '/plant/sites/riverside/network');

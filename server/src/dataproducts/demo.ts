@@ -139,6 +139,13 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
     }
   }
 
+  // 0.25.0 (ADR 0037): the edge – a Databus topic → the bridge application on the edge device → a Confluent topic
+  try {
+    (await import('./demo-edge.js')).seedEdgeDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo edge device not loaded');
+  }
+
   // 6. a stage dropped in dev: the second run marks it missing
   dropSnowflakeObject('SHOP_DEV.RAW.LANDING');
   await runSource(sf.id, { trigger: 'manual', actor });

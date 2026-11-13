@@ -238,7 +238,8 @@
     "generic.dataset": "Dataset (generic)",
     "generic.stream": "Stream (generic)",
     "generic.files": "Files (generic)",
-    "generic.endpoint": "Endpoint (generic)"
+    "generic.endpoint": "Endpoint (generic)",
+    "mqtt.topic": "MQTT topic"
   },
   "technology": {
     "notListed": "{{name}} (not in the technology list)"

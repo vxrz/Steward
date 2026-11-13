@@ -324,6 +324,12 @@ const runnerSchema = z
     tool: text(L.short).optional().describe('tool: Airflow, dbt, Fivetran, Kafka Connect …'),
     text: text().optional(),
     technology: dataTechnologyValue().optional().describe('The technology of the runner – a bridge’s Debezium, Node-RED, Apache Camel (0.25.0)'),
+    runs_on: z
+      .object({ system: z.string().min(1).max(L.name).describe('The system’s name'), environment: text(L.short).optional() })
+      .strict()
+      .nullable()
+      .optional()
+      .describe('0.25.0, application and connector: the Steward system (and environment) it runs on'),
   })
   .strict()
   .meta({ id: 'StepRunner' });

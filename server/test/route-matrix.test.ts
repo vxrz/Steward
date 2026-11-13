@@ -1028,6 +1028,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,
+  // 0.25.0 (ADR 0037 part 3): Industrial Edge – a system's device status, the installations readout's suggestions
+  'GET /api/systems/:id/iem': ALL,
+  'GET /api/systems/edge-suggestions': ALL,
+  'POST /api/systems/edge-suggestions/confirm': DESIGN,
+  'POST /api/systems/edge-suggestions/dismiss': DESIGN,
+  'POST /api/systems/edge-suggestions/restore': DESIGN,
   'PUT /api/systems/:id': DESIGN,
   'DELETE /api/systems/:id': DESIGN,
   'POST /api/systems/:id/sbom/preview': DESIGN,
@@ -1566,6 +1572,9 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/plant/sites/:siteId/conduits/:conduitId': DESIGN,
   'DELETE /api/plant/sites/:siteId/conduits/:conduitId': DESIGN,
   'GET /api/plant/assets/:assetId/network': PLANT,
+  // 0.25.0 (ADR 0037 part 3): edge devices – Apps on this device, Collects data from
+  'GET /api/plant/assets/:assetId/edge': PLANT,
+  'GET /api/plant/systems/:systemId/edge': PLANT,
   'PUT /api/plant/assets/:assetId/checks': DESIGN,
   'POST /api/plant/assets/:assetId/devices': DESIGN,
   'PUT /api/plant/assets/:assetId/devices/:deviceId': DESIGN,
@@ -1624,6 +1633,10 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // 0.25.0 (ADR 0037 part 3): a person confirms or dismisses each Industrial Edge suggestion in the app
+  'POST /api/systems/edge-suggestions/confirm',
+  'POST /api/systems/edge-suggestions/dismiss',
+  'POST /api/systems/edge-suggestions/restore',
   // shares (ADR 0033 part 7): share lists name people and are read and changed in the app
   'GET /api/access/:kind/:id/shares',
   'PUT /api/access/:kind/:id/shares',

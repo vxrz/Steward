@@ -70,6 +70,8 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   const [layer, setLayer] = useState(e?.layer ?? '');
   const [description, setDescription] = useState(e?.description ?? '');
   const [typeLabel, setTypeLabel] = useState(e?.typeLabel ?? '');
+  // 0.25.0: the broker of an MQTT topic without a broker platform (the Databus of an edge device: ie-databus:1883)
+  const [broker, setBroker] = useState('');
   const [applicationId, setApplicationId] = useState<string | null>(e?.applicationId ?? null);
   const [apiUrl, setApiUrl] = useState(e?.apiRef?.url ?? '');
   const [operations, setOperations] = useState<string[]>(e?.apiRef?.operations ?? []);
@@ -121,6 +123,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           applicationId,
           apiRef,
           ...genericBody,
+          ...(kind === 'mqtt.topic' && !platformId && broker.trim() ? { flags: [{ name: 'broker', value: broker.trim() }] } : {}),
         };
         onSaved(await post<DataElement>('/data-elements', body));
       }
@@ -212,6 +215,18 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
               properties={properties}
               onProperties={setProperties}
               errors={{ technology: v.error('technology'), namespace: v.error('namespace') }}
+            />
+          )}
+          {kind === 'mqtt.topic' && !platformId && !e && (
+            <TextInput
+              label={t('elements.broker')}
+              description={t('elements.brokerHint')}
+              maxLength={300}
+              value={broker}
+              onChange={(x) => setBroker(x.currentTarget.value)}
+              className="mono"
+              placeholder="ie-databus:1883"
+              data-testid="element-broker"
             />
           )}
           {kind === 'other' && (

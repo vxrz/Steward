@@ -32,6 +32,7 @@ import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { plantOnly } from '../auth/policy.js';
 import { resolveTarget } from '../records/links.js';
+import { catalogueVisibleNow } from '../records/access.js';
 import { parseJson } from '../util.js';
 import { siteRights } from './access.js';
 import { requirePlant } from './settings.js';
@@ -946,7 +947,11 @@ export function hostPlacement(siteId: string): PlantHostPlacement {
     ))
       if (named.application.has(r.application_id) && resolveTarget('system', r.system_id))
         runsOn.set(r.application_id, [...(runsOn.get(r.application_id) ?? []), r.system_id]);
-  const wanted = new Set([...n.hosts.filter((h) => h.visible).map((h) => h.id), ...[...runsOn.values()].flat()]);
+  // 0.25.0 (ADR 0037): a device that is a system places that system on the device's VLAN, with its asset
+  const edge = n.devices.filter((d) => d.system);
+  const deviceVlans = new Map<string, string[]>();
+  for (const d of edge) if (d.vlan) deviceVlans.set(d.system!, [...new Set([...(deviceVlans.get(d.system!) ?? []), d.vlan])]);
+  const wanted = new Set([...n.hosts.filter((h) => h.visible).map((h) => h.id), ...[...runsOn.values()].flat(), ...edge.map((d) => d.system!)]);
   const vlansOfSegment = new Map<string, string[]>();
   for (const v of n.vlans) if (v.segmentId) vlansOfSegment.set(v.segmentId, [...(vlansOfSegment.get(v.segmentId) ?? []), v.id]);
   const segmentVisible = new Map<string, boolean>();
@@ -964,7 +969,14 @@ export function hostPlacement(siteId: string): PlantHostPlacement {
     }
   const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const hosts = [...wanted]
-    .map((id) => ({ id, vlans: n.vlans.filter((v) => onVlans.get(id)?.has(v.id)).map((v) => v.id), zones: zonesListing('systems', id) }))
+    .map((id) => {
+      const own = (deviceVlans.get(id) ?? []).filter((v) => n.vlans.some((x) => x.id === v));
+      return {
+        id,
+        vlans: [...own, ...n.vlans.filter((v) => onVlans.get(id)?.has(v.id) && !own.includes(v.id)).map((v) => v.id)],
+        zones: zonesListing('systems', id),
+      };
+    })
     .filter((h) => h.vlans.length || h.zones.length)
     .sort(byId);
   const placed = new Set(hosts.map((h) => h.id));
@@ -978,5 +990,31 @@ export function hostPlacement(siteId: string): PlantHostPlacement {
       .map((id) => ({ id, zones: zonesListing('platforms', id) }))
       .filter((x) => x.zones.length)
       .sort(byId),
+    edgeDevices: edgeApps(edge),
   };
+}
+
+/** The applications on the systems of edge devices, by name as the reader may see them (the others counted). */
+function edgeApps(devices: { assetId: string; id: string; system: string | null }[]): PlantHostPlacement['edgeDevices'] {
+  if (!devices.length) return [];
+  const ids = [...new Set(devices.map((d) => d.system!))];
+  const apps = new Map<string, { names: string[]; hidden: number }>();
+  for (const r of db().all<{ system_id: string; id: string; name: string; owners: string }>(
+    `SELECT DISTINCT l.system_id, a.id, a.name, a.owners FROM application_systems l JOIN applications a ON a.id = l.application_id
+      WHERE l.system_id IN (${ids.map(() => '?').join(',')}) ORDER BY a.name, a.id`,
+    ...ids,
+  )) {
+    const e = apps.get(r.system_id) ?? { names: [], hidden: 0 };
+    if (catalogueVisibleNow('application', { id: r.id, owners: r.owners })) {
+      if (!e.names.includes(r.name)) e.names.push(r.name);
+    } else e.hidden++;
+    apps.set(r.system_id, e);
+  }
+  return devices.map((d) => ({
+    asset: d.assetId,
+    device: d.id,
+    system: d.system!,
+    apps: apps.get(d.system!)?.names ?? [],
+    hiddenApps: apps.get(d.system!)?.hidden ?? 0,
+  }));
 }

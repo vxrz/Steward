@@ -496,7 +496,8 @@
             "generic.dataset",
             "generic.stream",
             "generic.files",
-            "generic.endpoint"
+            "generic.endpoint",
+            "mqtt.topic"
           ]
         },
         "qualified_name": {
@@ -567,7 +568,8 @@
             "generic.dataset",
             "generic.stream",
             "generic.files",
-            "generic.endpoint"
+            "generic.endpoint",
+            "mqtt.topic"
           ]
         },
         "qualified_name": {
@@ -1652,6 +1654,33 @@
           "description": "The technology of the runner – a bridge’s Debezium, Node-RED, Apache Camel (0.25.0)",
           "type": "string",
           "maxLength": 100
+        },
+        "runs_on": {
+          "description": "0.25.0, application and connector: the Steward system (and environment) it runs on",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "system": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "The system’s name"
+                },
+                "environment": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "system"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

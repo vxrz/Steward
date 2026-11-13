@@ -381,7 +381,7 @@ export function duplicateDeviceBody(assetId: string, deviceId: string, toAsset: 
   if (!to || !rights.get(to.site_id)?.includes('view')) throw notFound('asset', toAsset);
   const v: PlantDeviceValues = deviceValuesOf(row);
   const copy: Record<string, unknown> = { ...v, id };
-  for (const k of DEVICE_DUPLICATE_CLEARED) copy[k] = k === 'checks' ? [] : '';
+  for (const k of DEVICE_DUPLICATE_CLEARED) copy[k] = k === 'checks' ? [] : k === 'system' ? null : '';
   const sameSite = from.site_id === to.site_id && vlanRows(to.site_id).some((x) => x.id === v.vlan);
   copy.vlan = sameSite ? v.vlan : null;
   // its address type stays (how the copy gets an address of its own)

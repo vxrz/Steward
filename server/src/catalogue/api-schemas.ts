@@ -299,6 +299,7 @@ export const SystemEntry = z.object({
     .nullable()
     .describe('The Steward platform this system is; null when none or one the token owner may not see (then platformHidden)'),
   platformHidden: z.boolean(),
+  iemDeviceId: z.string().nullable().describe('0.25.0: its device id in Industrial Edge Management (an external reference)'),
   applicationCount: z.number().int().describe('Applications that run on the system'),
   environments: z.array(z.string()).describe('Environments of its "runs on" links, in list order'),
   eol: z.number().int().describe('Products of its stack past their end of life'),

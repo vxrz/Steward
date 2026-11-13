@@ -85,6 +85,8 @@ const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown>
   { process: 'ih-asset-attribute-optimization', cron: '10 6 * * *' },
   { process: 'iem-firmware-compliance', cron: '15 6 * * *' },
   { process: 'iem-app-version-compliance', cron: '20 6 * * *' },
+  // 0.25.0 (ADR 0037): what runs on which edge device – the Industrial Edge suggestions of the systems page
+  { process: 'iem-installations', cron: '22 6 * * *' },
   {
     process: 'ih-tenant-usage',
     cron: '25 6 * * *',

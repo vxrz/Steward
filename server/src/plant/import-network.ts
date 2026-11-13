@@ -21,7 +21,7 @@ import { db } from '../db.js';
 import type { AssetRow, SiteRow } from './model.js';
 import type { AssetNetworkFile, OtNetworkFile, PlantFile, StatusCheckFile } from './format.js';
 import { clean, pushWrite, type Origin, type Write } from './import-data.js';
-import { refProblems, withHiddenSites, zoneWithHidden } from './network.js';
+import { refProblems, withHiddenSites, withHiddenSystem, zoneWithHidden } from './network.js';
 import { checkVisible, liveContext, withStoredHiddenChecks } from './live.js';
 import { resolveTarget } from '../records/links.js';
 import {
@@ -217,6 +217,8 @@ function deviceFromFile(x: DeviceFile): Planned<PlantDeviceValues>['values'] {
   // a MAC in any usual spelling is stored in IEEE 802 notation; a wrong one is reported by the check below
   if (has(x, 'mac')) v.mac = str(x.mac) ? (macOf(str(x.mac)) ?? str(x.mac)) : '';
   if (has(x, 'vlan')) v.vlan = x.vlan ?? null;
+  // 0.25.0: the Steward system the device is; left out keeps it (an export leaves out one the exporter may not see)
+  if (has(x, 'system')) v.system = str(x.system) || null;
   if (has(x, 'address_type')) v.addressType = x.address_type ?? null;
   if (has(x, 'state')) v.state = x.state ?? 'active';
   if (has(x, 'flags')) v.flags = (x.flags ?? []).map((f) => f.trim());
@@ -483,6 +485,7 @@ const DEVICE_DEFAULTS = (id: string): PlantDeviceValues => ({
   id,
   hostname: '',
   domain: '',
+  system: null,
   purpose: '',
   mac: '',
   serial: '',
@@ -751,7 +754,7 @@ export function computeNetwork(c: NetContext): void {
     write: (asset, v, pos) => upsertDevice(asset, v, pos, c.meta),
     adopt: adoptSql('plant_devices', 'asset_id'),
     refs: true,
-    keep: (v, before) => ({ ...v, checks: withStoredHiddenChecks(v.checks, before?.checks) }),
+    keep: (v, before) => ({ ...v, system: withHiddenSystem(v.system, before?.system), checks: withStoredHiddenChecks(v.checks, before?.checks) }),
   });
   plannedRecords<PlantDataPathValues, DataPathRow>({
     planned: p.paths,
@@ -1124,6 +1127,8 @@ export function assetNetworksOut(assetIds: string[]): Record<string, unknown>[] 
             id: d.id,
             hostname: d.hostname,
             domain: d.domain,
+            // 0.25.0: as far as the exporter may see it (an import keeps the one left out)
+            system: d.system && resolveTarget('system', d.system) ? d.system : undefined,
             purpose: d.purpose,
             mac: d.mac,
             serial: d.serial,
