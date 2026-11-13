@@ -63,6 +63,7 @@ export * from './pvault.js';
 export * from './ai.js';
 export * from './plant.js';
 export * from './plantData.js';
+export * from './plantCatalogueAccess.js';
 export * from './plantModel.js';
 export * from './plantCollections.js';
 export * from './plantDocs.js';

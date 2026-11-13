@@ -1,3 +1,4 @@
+import { useShownParams } from './hidden';
 import type { ReactNode } from 'react';
 import {
   ActionIcon,
@@ -152,10 +153,12 @@ export function AssetBriefLink({ asset, withSite = true }: { asset: PlantAssetBr
 /** A check as a sentence in the UI language. */
 export function useCheckText() {
   const { t } = useTranslation('plant');
+  // 0.21.0: profiles and KPI definitions the reader may not see are named so ("a device profile you may not see")
+  const shown = useShownParams();
   // a unit that differs (0.12.0) says whether it converts by a factor (the context)
   return (c: PlantCheck) =>
     t(`checks.codes.${c.code}`, {
-      ...c.params,
+      ...shown(c.params),
       ...(c.code === 'kpi_unit_mismatch' && c.params.relation === 'convertible' ? { context: 'convertible' } : {}),
       defaultValue: c.message,
     });
@@ -270,7 +273,7 @@ export function DataPointTable({
   badge,
   menuFor,
 }: {
-  profileId: string;
+  profileId: string | null;
   protocol: PlantProtocol;
   points: PlantDataPoint[];
   label: string;
@@ -285,7 +288,20 @@ export function DataPointTable({
   const { t, i18n } = useTranslation('plant');
   const hint = useAddressHint();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
-  const to = (p: PlantDataPoint) => `/plant/profiles/${encodeURIComponent(profileId)}/points/${encodeURIComponent(p.id)}`;
+  // null: a profile the reader may not see (0.21.0) – its data points have no page for them
+  const to = (p: PlantDataPoint) => (profileId ? `/plant/profiles/${encodeURIComponent(profileId)}/points/${encodeURIComponent(p.id)}` : null);
+  const pointName = (p: PlantDataPoint, wrap?: boolean) => {
+    const path = to(p);
+    return path ? (
+      <Anchor component={Link} to={path} fw={500} size="sm" style={wrap ? { overflowWrap: 'anywhere' } : undefined}>
+        {p.name}
+      </Anchor>
+    ) : (
+      <Text fw={500} size="sm" style={wrap ? { overflowWrap: 'anywhere' } : undefined}>
+        {p.name}
+      </Text>
+    );
+  };
   const menu = (p: PlantDataPoint) =>
     canManage &&
     (menuFor ? menuFor(p) : <RowMenu label={t('data.pointActions', { name: p.name })} onEdit={() => onEdit(p)} onRemove={onRemove && (() => onRemove(p))} />);
@@ -302,9 +318,7 @@ export function DataPointTable({
           <Paper key={p.id} withBorder p="sm" role="listitem">
             <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
               <Stack gap={2} style={{ minWidth: 0 }}>
-                <Anchor component={Link} to={to(p)} fw={500} size="sm" style={{ overflowWrap: 'anywhere' }}>
-                  {p.name}
-                </Anchor>
+                {pointName(p, true)}
                 <Text size="xs" c="dimmed" className="mono code-wrap">
                   <Breakable text={p.id} />
                 </Text>
@@ -370,9 +384,7 @@ export function DataPointTable({
           {points.map((p) => (
             <Table.Tr key={p.id}>
               <Table.Td>
-                <Anchor component={Link} to={to(p)} fw={500} size="sm">
-                  {p.name}
-                </Anchor>
+                {pointName(p)}
                 <Text size="xs" c="dimmed" className="mono code-wrap">
                   <Breakable text={p.id} />
                 </Text>

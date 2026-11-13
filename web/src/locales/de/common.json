@@ -290,6 +290,7 @@
     "copiedFrom": "Kopiert von",
     "copiedAt": "am {{date}} von {{by}}",
     "copiedFromHidden": "Eine Kopie, angelegt am {{date}} von {{by}} (das Original gibt es nicht mehr oder Sie dürfen es nicht sehen).",
+    "plantScope": "Die Kopie gehört denselben zuständigen Teams wie das Original (und ist „Eingeschränkt“, wenn das Original es ist); mit wem das Original geteilt ist, wird nicht kopiert.",
     "systemNote": "Die Kopie hat die Attribute und den von Hand eingegebenen Stack und ist in denselben Segmenten, ohne die Adressen des Originals. Der CMDB-Eintrag, die Plattform und die Systeme in einem Segment werden nicht kopiert."
   },
   "sections": {

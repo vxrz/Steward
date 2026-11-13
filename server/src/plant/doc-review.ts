@@ -21,11 +21,12 @@ import { currentUser } from '../auth/context.js';
 import { plantOnly } from '../auth/policy.js';
 import { canReadRecordRow } from '../records/access.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageCatalogue, sitePermissions } from './access.js';
+import { sitePermissions } from './access.js';
 import { plantSettings } from './settings.js';
 import { getSite, visibleAsset, visibleSite } from './service.js';
 import { allAssignments, allKpis, allProfiles } from './data-model.js';
 import { inputGaps } from './checks.js';
+import { catalogueEntryAccess, catalogueScope } from './catalogue-access.js';
 import { collectedPoints, isCollected } from './potential.js';
 import { collectionLinkId } from './links.js';
 
@@ -108,10 +109,11 @@ function siteOfEntry(kind: PlantDocKind, id: string): string | null {
 }
 
 /** May the reader confirm on this entry's panel: who may propose changes on its site; on a device profile who manages the catalogues. */
-function mayConfirm(kind: PlantDocKind, siteId: string | null): boolean {
+function mayConfirm(kind: PlantDocKind, id: string, siteId: string | null): boolean {
   const u = currentUser();
   if (!u) return false;
-  if (kind === 'device-profile') return canManageCatalogue(u);
+  // 0.21.0 (#293): who may change this profile (its owning teams and shares)
+  if (kind === 'device-profile') return catalogueEntryAccess(u, 'device_profile', id).permissions.includes('edit');
   const s = siteId ? db().get<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites WHERE id = ?', siteId) : undefined;
   return !!s && sitePermissions(s, u).includes('propose');
 }
@@ -132,7 +134,7 @@ export function withConfirmations(d: PlantDocuments, now = Date.now()): PlantDoc
       const confirmation = conf.get(x.id) ?? null;
       return { ...x, confirmation, review: reviewOf(types[x.typeKey] ?? site, confirmation, changed.get(x.id) ?? nowIso(), now) };
     });
-  d.canConfirm = mayConfirm(d.kind, siteId);
+  d.canConfirm = mayConfirm(d.kind, d.id, siteId);
   if (d.kind === 'asset') {
     const confirmation = confirmationsOf('asset', [d.id]).get(d.id) ?? null;
     const created = db().get<{ created_at: string }>('SELECT created_at FROM plant_assets WHERE id = ?', d.id)?.created_at ?? nowIso();
@@ -248,7 +250,9 @@ export function documentationHealth(siteId: string, now = Date.now()): PlantDocH
   const hints = new Map<PlantDocHint, PlantDocHealthItem[]>(PLANT_DOC_HINTS.map((h) => [h, []]));
   const assignments = allAssignments();
   const profiles = allProfiles();
-  const kpis = [...allKpis().values()].filter((k) => k.inputs.some((i) => i.kind === 'data_point'));
+  // a KPI definition the reader may not see is not named here (0.21.0, #293)
+  const scope = catalogueScope();
+  const kpis = [...allKpis().values()].filter((k) => scope.kpi(k.id) && k.inputs.some((i) => i.kind === 'data_point'));
   const collected = collectedPoints(ids);
   for (const a of assets) {
     const as = assignments.get(a.id);

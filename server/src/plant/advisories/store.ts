@@ -1,3 +1,4 @@
+import { catalogueScope } from '../catalogue-access.js';
 import {
   ADVISORY_LIMITS as L,
   ADVISORY_SEVERITY_RANK,
@@ -830,9 +831,12 @@ export function getAdvisory(id: string): AdvisoryDetail {
     };
   });
   const profiles: AdvisoryProfileMatch[] = [];
+  // 0.21.0 (#293): only the device profiles the reader may see
+  const catalogue = catalogueScope();
   for (const p of db().all<{ id: string; name: string; manufacturer: string; model: string; version: string }>(
     "SELECT id, name, manufacturer, model, version FROM plant_profiles WHERE manufacturer <> '' AND model <> '' ORDER BY name, id",
   )) {
+    if (!catalogue.profile(p.id)) continue;
     const m = matchProfile(content, p);
     if (m) profiles.push({ ...p, ...m });
   }

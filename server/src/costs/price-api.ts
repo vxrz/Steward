@@ -161,7 +161,7 @@ export function priceApiRoutes(get: Get): void {
       tag: 'Costs',
       summary: 'List cost estimates',
       description:
-        'Estimates of services and platforms the token owner may see (ADR 0035, docs/COSTS.md#estimates): per month (usage and recurring) and one-off, low, expected and high where inputs are ranges, in the estimate’s currency; null where the token owner may not see amounts. Labelled estimates – not quotes.',
+        'Estimates of services and platforms the token owner may see (ADR 0035, docs/PRICE-BOOKS.md#estimates): per month (usage and recurring) and one-off, low, expected and high where inputs are ranges, in the estimate’s currency; null where the token owner may not see amounts. Labelled estimates – not quotes.',
       query: CostEstimatesQuery,
       paginated: true,
       response: {

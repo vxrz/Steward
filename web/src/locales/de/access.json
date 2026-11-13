@@ -49,7 +49,9 @@
       "platform_identity": "Kein zuständiges Team: Nur Administratoren und die Zugriffsliste unten dürfen diese Identität verwenden.",
       "supplier": "Dieser Lieferant gehört der ganzen Instanz: alle Angemeldeten sehen ihn; Designer, Administratoren und seine Eigentümer ändern ihn.",
       "cost_price_book": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen dieses Preisbuch; ein Listenpreisbuch lesen alle, die Kosten verwenden.",
-      "cost_calculator": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn."
+      "cost_calculator": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn.",
+      "device_profile": "Dieses Geräteprofil gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen es; Designer und Administratoren ändern es. Zuständige Teams beschränken es auf ihre Mitglieder – Anlagen mit diesem Profil zeigen weiterhin die Daten, die sie liefern.",
+      "kpi_definition": "Diese KPI-Definition gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen sie; Designer und Administratoren ändern sie."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
@@ -67,7 +69,9 @@
       "platform_identity": "Mitglieder dieser Teams mit der Rolle Designer oder Operator dürfen diese Identität verwenden; alle anderen nur, was ihre Zugriffsliste erlaubt.",
       "supplier": "Nur Mitglieder dieser Teams sehen diesen Lieferanten (Designer unter ihnen ändern ihn), außerdem seine Eigentümer, Administratoren und Auditoren.",
       "cost_price_book": "Designer dieser Teams pflegen dieses Preisbuch; ein vertragliches Buch lesen nur die Mitglieder der Teams, Administratoren und Auditoren.",
-      "cost_calculator": "Designer dieser Teams pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn."
+      "cost_calculator": "Designer dieser Teams pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn.",
+      "device_profile": "Nur Mitglieder dieser Teams sehen dieses Geräteprofil (Designer unter ihnen verwalten es), außerdem Administratoren und Auditoren. Andere sehen die Schnittstellen und Datenpunkte, die es einer für sie sichtbaren Anlage gibt, ohne seinen Namen.",
+      "kpi_definition": "Nur Mitglieder dieser Teams sehen diese KPI-Definition (Designer unter ihnen verwalten sie), außerdem Administratoren und Auditoren. Ihre KPI-Instanzen an Anlagen, die andere sehen, laufen weiter, ohne ihren Namen."
     },
     "hintRestricted": "Eingeschränkt: kein zuständiges Team, und Rollen in der Instanz geben darauf nichts – nur die Einträge unter „Geteilt mit“, seine Eigentümer, Administratoren und Prüfer erreichen ihn.",
     "saved": "Zuständige Teams gespeichert",
@@ -134,7 +138,9 @@
         "platform_identity": "Plattform-Identitäten",
         "supplier": "Lieferant",
         "cost_price_book": "Preisbücher",
-        "cost_calculator": "Rechner"
+        "cost_calculator": "Rechner",
+        "device_profile": "Geräteprofile",
+        "kpi_definition": "KPI-Definitionen"
       }
     },
     "moduleNotUsed": "ohne das Modul gelten die Rechte unten nicht"

@@ -6,7 +6,7 @@ import { isMonth } from './costPlans.js';
 import { COST_PRICE_LIMITS, parsePercent, parsePrice, parseQuantity, parseUnit, type CostPriceBookKind, type CostPriceCharge } from './costPrices.js';
 
 /**
- * Calculators and estimates (0.21.0, ADR 0035 parts 5 and 6, docs/COSTS.md#estimates): a calculator is a template of
+ * Calculators and estimates (0.21.0, ADR 0035 parts 5 and 6, docs/PRICE-BOOKS.md#estimates): a calculator is a template of
  * typed inputs, named intermediate values and lines that each name an item (provider and SKU) and a JSONata expression
  * for its quantity – never money. An estimate keeps its inputs (values or ranges low–expected–high), the calculator
  * version, lines by hand, ad-hoc adjustments and the result Steward priced exactly.

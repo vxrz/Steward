@@ -13,6 +13,8 @@ import { collectionRowOf, collectionRows, sinksOf } from './collections-model.js
 import { collectionNotFound } from './collections.js';
 import { collectionLinkId, seesProfiles } from './links.js';
 import { withConfirmations } from './doc-review.js';
+import { HiddenRefs, seesEntry } from './catalogue-access.js';
+import { PLANT_HIDDEN } from '@sm/shared';
 
 /**
  * The Documents panel of plant pages (0.12, docs/PLANT.md "Documents"): the records linked to a site, asset, device
@@ -54,9 +56,11 @@ function linkedRecordIds(kind: PlantDocKind, id: string): string[] {
   return [...new Set(ids)];
 }
 
-function group(kind: PlantDocKind, id: string, from: PlantDocGroup['from']): PlantDocGroup {
+function group(kind: PlantDocKind, id: string, from: PlantDocGroup['from'], counted = false): PlantDocGroup {
   const ids = linkedRecordIds(kind, id);
   if (!ids.length) return { from, documents: [], hidden: 0 };
+  // files follow the profile (0.21.0, #293): the documents of a profile the reader may not see are counted only
+  if (counted) return { from, documents: [], hidden: ids.length };
   const u = currentUser();
   const rows: RecRow[] = [];
   for (let i = 0; i < ids.length; i += 500) {
@@ -146,6 +150,22 @@ export function plantDocuments(kind: PlantDocKind, id: string): PlantDocuments {
   return withConfirmations(panel(kind, id, own));
 }
 
+/**
+ * The groups of profiles a page inherits documents from (an asset its profile chain, a derived profile its bases). A
+ * profile the reader may not see is not named – "1 document of a profile you may not see" (part 4).
+ */
+function profileGroups(chain: string[], profiles: Map<string, { name: string }>): PlantDocGroup[] {
+  const u = currentUser();
+  const refs = new HiddenRefs((p) => seesEntry(u, 'device_profile', p), chain);
+  return chain.map((p) => {
+    const hidden = refs.hides(p);
+    const from = hidden
+      ? { kind: 'device-profile' as const, id: refs.ref(p), label: PLANT_HIDDEN, path: null }
+      : { kind: 'device-profile' as const, id: p, label: profiles.get(p)?.name ?? p, path: `/plant/profiles/${encodeURIComponent(p)}` };
+    return group('device-profile', p, from, hidden);
+  });
+}
+
 function panel(kind: PlantDocKind, id: string, own: (label: string) => PlantDocuments): PlantDocuments {
   switch (kind) {
     case 'site': {
@@ -156,12 +176,8 @@ function panel(kind: PlantDocKind, id: string, own: (label: string) => PlantDocu
       const { row } = visibleAsset(id);
       const out = own(row.name);
       const profiles = allProfiles();
-      for (const p of chainOf(allAssignments().get(id)?.profileId)) {
-        const pr = profiles.get(p);
-        out.inherited.push(
-          group('device-profile', p, { kind: 'device-profile', id: p, label: pr?.name ?? p, path: `/plant/profiles/${encodeURIComponent(p)}` }),
-        );
-      }
+      const chain = chainOf(allAssignments().get(id)?.profileId);
+      out.inherited.push(...profileGroups(chain, profiles));
       for (const c of collectionRows(id)) {
         out.inherited.push(
           group('data-collection', `${id}/${c.id}`, { kind: 'data-collection', id: `${id}/${c.id}`, label: c.name, path: collectionPath(id, c.id) }),
@@ -173,14 +189,10 @@ function panel(kind: PlantDocKind, id: string, own: (label: string) => PlantDocu
     case 'device-profile': {
       if (!seesProfiles()) forbid('see device profiles');
       const r = profileRowOf(id);
-      if (!r) throw profileNotFound(id);
+      if (!r || !seesEntry(currentUser(), 'device_profile', id)) throw profileNotFound(id);
       const out = own(r.name);
-      const profiles = allProfiles();
       // the bases, nearest first (the chain starts with the profile itself)
-      for (const p of chainOf(id).slice(1))
-        out.inherited.push(
-          group('device-profile', p, { kind: 'device-profile', id: p, label: profiles.get(p)?.name ?? p, path: `/plant/profiles/${encodeURIComponent(p)}` }),
-        );
+      out.inherited.push(...profileGroups(chainOf(id).slice(1), allProfiles()));
       return withoutRepeats(out);
     }
     case 'data-collection':

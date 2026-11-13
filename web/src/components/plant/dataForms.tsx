@@ -1,3 +1,4 @@
+import { isPlantHidden } from '@sm/shared';
 import { useState } from 'react';
 import {
   Autocomplete,
@@ -785,7 +786,7 @@ export function usePointOptions(profileId: string | null | undefined): { value: 
   const q = useQuery({
     queryKey: plantKeys.profile(profileId),
     queryFn: () => get<PlantProfileDetail>(`/plant/profiles/${encodeURIComponent(profileId!)}`),
-    enabled: !!profileId,
+    enabled: !!profileId && !isPlantHidden(profileId),
   });
   return (q.data?.interfaces ?? []).flatMap((i) =>
     i.groups.flatMap((g) => g.dataPoints.map((d) => ({ value: d.id, label: `${d.name} (${d.id})`, unit: d.unit }))),
@@ -910,7 +911,11 @@ export function KpiInputModal({
           <MultiSelect
             label={t('plantModel:anyOf.profiles')}
             description={t('plantModel:anyOf.profilesHelp')}
-            data={profiles.map((p) => ({ value: p.id, label: p.name }))}
+            data={[
+              // 0.21.0 (#293): a profile the reader may not see stays as it is (its placeholder keeps it)
+              ...(input ? kpiInputProfiles(input).filter(isPlantHidden) : []).map((id) => ({ value: id, label: t('catalogueAccess.hiddenProfile') })),
+              ...profiles.map((p) => ({ value: p.id, label: p.name })),
+            ]}
             value={chosen}
             onChange={(x) => {
               // another first profile: other data points
@@ -923,7 +928,13 @@ export function KpiInputModal({
             data-testid="kpi-input-profiles"
           />
           <MultiSelect
-            label={first ? t('plantModel:anyOf.dataPoints', { profile: profiles.find((p) => p.id === first)?.name ?? first }) : t('kpi.dataPoints')}
+            label={
+              first
+                ? t('plantModel:anyOf.dataPoints', {
+                    profile: isPlantHidden(first) ? t('catalogueAccess.hiddenProfile') : (profiles.find((p) => p.id === first)?.name ?? first),
+                  })
+                : t('kpi.dataPoints')
+            }
             data={data}
             value={points}
             onChange={setPoints}
@@ -1338,7 +1349,11 @@ export function AssignmentFormModal({
       <Select
         label={t('assignment.profile')}
         description={profile !== profileId && profileId ? t('assignment.profileChangeHelp') : t('assignment.profileHelp')}
-        data={profiles.map((p) => ({ value: p.id, label: [p.name, [p.manufacturer, p.model].filter(Boolean).join(' ')].filter(Boolean).join(' – ') }))}
+        data={[
+          // 0.21.0 (#293): the asset's profile the reader may not see stays choosable as it is
+          ...(profileId && isPlantHidden(profileId) ? [{ value: profileId, label: t('catalogueAccess.keepsHidden') }] : []),
+          ...profiles.map((p) => ({ value: p.id, label: [p.name, [p.manufacturer, p.model].filter(Boolean).join(' ')].filter(Boolean).join(' – ') })),
+        ]}
         value={profile}
         onChange={setProfile}
         searchable

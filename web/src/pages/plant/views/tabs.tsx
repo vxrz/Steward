@@ -9,6 +9,7 @@ import {
   IconFileCheck,
   IconHistory,
   IconInfoCircle,
+  IconLock,
   IconRoute,
   IconSitemap,
   type Icon,
@@ -19,6 +20,7 @@ import { DetailHeader } from '../../../components/page/DetailPage';
 import { LinkTabs } from '../../../components/page/LinkTabs';
 import { AssetStatusBadge, NotInSourceBadge, PreviewBadge, useNameOf } from '../../../components/plant/common';
 import { EntryHistory } from '../../../components/plant/changes/EntryHistory';
+import { AccessTab } from '../../../components/access/AccessTab';
 
 /**
  * The tabs of a site and an asset (#230): the overview (the page as before) and the pictures of what the registry
@@ -185,11 +187,11 @@ export function PlantAssetTabPage({ asset, tab }: { asset: PlantAssetDetail; tab
   );
 }
 
-// ---------- device profiles and KPI definitions (0.13.0): the page and its history ----------
+// ---------- device profiles and KPI definitions (0.13.0): the page and its history; 0.21.0: its access ----------
 
-export const CATALOGUE_TABS = ['', 'history'] as const;
+export const CATALOGUE_TABS = ['', 'history', 'access'] as const;
 export type CatalogueTab = (typeof CATALOGUE_TABS)[number];
-const CATALOGUE_TAB_ICONS: Record<CatalogueTab, Icon> = { '': IconInfoCircle, history: IconHistory };
+const CATALOGUE_TAB_ICONS: Record<CatalogueTab, Icon> = { '': IconInfoCircle, history: IconHistory, access: IconLock };
 type CatalogueKind = 'profile' | 'kpi';
 const catalogueBase = (kind: CatalogueKind, id: string) => `/plant/${kind === 'profile' ? 'profiles' : 'kpis'}/${encodeURIComponent(id)}`;
 
@@ -233,6 +235,8 @@ export function CatalogueTabPage({ kind, entry, tab }: { kind: CatalogueKind; en
         tabs={<CatalogueTabs kind={kind} entry={{ id: entry.id, name: title }} active={known} />}
       />
       {known === 'history' && <EntryHistory kind={kind} id={entry.id} />}
+      {/* 0.21.0 (ADR 0033): owning teams, Restricted and who it is shared with – View, Edit, Manage and proposing */}
+      {known === 'access' && <AccessTab kind={kind === 'profile' ? 'device_profile' : 'kpi_definition'} id={entry.id} />}
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { HiddenCount } from '../components/plant/hidden';
 import { useState } from 'react';
 import { Anchor, Button, Group, Paper, Select, SimpleGrid, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
@@ -257,6 +258,8 @@ export function PlantProfilesPage() {
           defaultSort={{ key: 'name', dir: 'asc' }}
         />
       )}
+      {/* 0.21.0 (#293): entries of other teams are counted, not named */}
+      <HiddenCount kind="profiles" />
       {extracting && (
         <ExtractBaseModal profiles={all} preselect={[...sel.ids].filter((id) => !all.find((x) => x.id === id)?.extends)} onClose={() => setExtracting(false)} />
       )}

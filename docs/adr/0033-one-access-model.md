@@ -1,6 +1,6 @@
 # 0033. One access model: owning teams and shares on every resource
 
-- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); nothing is built yet
+- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); built in 0.21.0 (phase 1: shares, the _Access_ tab, owners as implied Edit, _Restricted_; services, applications, systems, suppliers, device profiles and KPI definitions) – phase 2 to come
 - **Date:** 2026-11-12
 - **Since:** 0.21.0 at the earliest (phase 1, see _Phases_)
 

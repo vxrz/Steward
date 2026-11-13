@@ -59,6 +59,8 @@ export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => h
  * with these rights: applying runs as the person who applies, with their own rights.
  */
 let proposerElevation = 0;
+/** Whether a proposer's dry run is under way (the catalogues elevate like sites: plant/catalogue-access.ts). */
+export const proposing = (): boolean => proposerElevation > 0;
 export function asProposer<T>(fn: () => T): T {
   if (!db().inTransaction) throw new Error('asProposer runs only inside a transaction that is rolled back (dryRun)');
   proposerElevation++;
@@ -84,8 +86,9 @@ export function plantProposesSome(u: AuthUser | null = currentUser()): boolean {
 }
 
 /**
- * Who manages the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site: whoever
- * may add sites (designers and administrators). Everyone who sees the plant registry sees them.
+ * Who adds entries to the catalogues of part 2 (#219) – device profiles and KPI definitions, which belong to no site:
+ * whoever may add sites (designers and administrators). Since 0.21.0 (#293) the rights on one entry follow its owning
+ * teams and shares (plant/catalogue-access.ts); an entry without them is managed by these people, as before.
  */
 export const canManageCatalogue = (u: AuthUser | null = currentUser()): boolean => canCreateSites(u);
 

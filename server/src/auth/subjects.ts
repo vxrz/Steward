@@ -4,6 +4,9 @@ import { columns } from '../cli/db-copy.js';
 import { USER_REFS } from '../migration/tables.js';
 import { mapValue, type NameMaps } from '../migration/refs.js';
 import { aliasTarget, teamAliasTarget } from './aliases.js';
+import { audit } from '../audit.js';
+import { currentStore } from './context.js';
+import { sharesChanged } from './share-store.js';
 
 /**
  * Users and teams named as owners, responsibles, recipients and in access lists (#143): only ones that exist; where a
@@ -122,4 +125,52 @@ export function rewriteTeamReferences(from: string, to: string | null): number {
     }
   }
   return changed;
+}
+
+/**
+ * A team takes a name – created with it, or renamed to it – that a deleted team had (ADR 0033, 0034; security review
+ * 0.21.0): the deleted team's shares and module grants stay as entries that match nobody, and would match the new
+ * team's members – a widening nobody granted or confirmed. They are removed first, each audited as an access change;
+ * nobody loses anything, as they matched nobody. While another team has the name (a different `teamId`), they are not
+ * stale and stay. Inside the caller's transaction. Returns the number removed.
+ */
+export function forgetStaleTeamGrants(name: string, teamId: string): number {
+  const n = lower(name);
+  if (db().get('SELECT 1 FROM teams WHERE lower(name) = ? AND id <> ?', n, teamId)) return 0;
+  const subject = `team:${n}`;
+  let removed = 0;
+  const shares = db().all<{ kind: string; resource_id: string; subject: string; level: string; actions: string; expires_at: string | null }>(
+    'SELECT kind, resource_id, subject, level, actions, expires_at FROM resource_shares WHERE lower(subject) = ? ORDER BY kind, resource_id',
+    subject,
+  );
+  for (const r of shares) {
+    removed += db().run('DELETE FROM resource_shares WHERE kind = ? AND resource_id = ? AND subject = ?', r.kind, r.resource_id, r.subject).changes;
+    audit({
+      action: 'access.share_removed',
+      entityType: r.kind,
+      entityId: r.resource_id,
+      summary: `Share of ${r.kind} ${r.resource_id} with ${r.subject} removed: it was a deleted team's, and a new team takes the name "${name}"`,
+      details: { subject: r.subject, before: { level: r.level, actions: r.actions, expiresAt: r.expires_at }, reason: 'teamNameReused' },
+    });
+  }
+  const grants = db().all<{ module_id: string; subject: string }>(
+    'SELECT module_id, subject FROM module_grants WHERE lower(subject) = ? ORDER BY module_id',
+    subject,
+  );
+  for (const g of grants) {
+    removed += db().run('DELETE FROM module_grants WHERE module_id = ? AND subject = ?', g.module_id, g.subject).changes;
+    audit({
+      action: 'access.module_access_changed',
+      entityType: 'settings',
+      entityId: `module:${g.module_id}`,
+      summary: `Who uses the module "${g.module_id}": ${g.subject} removed – it was a deleted team's, and a new team takes the name "${name}"`,
+      details: { module: g.module_id, granted: [], removed: [g.subject], reason: 'teamNameReused' },
+    });
+  }
+  if (removed) {
+    sharesChanged();
+    const store = currentStore();
+    if (store) store.moduleAccess = undefined;
+  }
+  return removed;
 }

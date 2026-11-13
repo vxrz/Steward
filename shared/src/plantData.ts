@@ -1,4 +1,5 @@
 import type { AssetStatus, PlantPlace, PlantSource, PlantStamp, Translations } from './plant.js';
+import type { PlantCataloguePermission } from './plantCatalogueAccess.js';
 import type { PlantAssignmentAdditions, PlantInterfaceOverride, PlantModelOrigin, PlantProfilePointOverride, PlantResolvedProfile } from './plantModel.js';
 
 /**
@@ -599,22 +600,30 @@ export interface PlantProfileDetail extends PlantProfileSummary, PlantStamp {
   interfaces: PlantInterface[];
   /** The profile's own part, as stored and edited (0.11.0) */
   own: PlantProfileValues;
-  /** The bases, nearest first (empty: no base) */
-  bases: { id: string; name: string; exists: boolean }[];
+  /**
+   * The bases, nearest first (empty: no base). 0.21.0: a base the reader may not see has a placeholder id (`~hidden-1`),
+   * the name `~hidden` and `hidden: true` – its items stay the profile's model ("Inherited from a base profile you may not see")
+   */
+  bases: { id: string; name: string; exists: boolean; hidden?: boolean }[];
   /** The effective model of the base (what this profile inherits), for editing overrides; null without a base */
   base: Pick<PlantResolvedProfile, 'id' | 'name' | 'interfaces'> | null;
   origins: PlantResolvedProfile['origins'];
   notPresent: PlantResolvedProfile['notPresent'];
   unusedOverrides: PlantResolvedProfile['unusedOverrides'];
-  /** Profiles that extend this one directly */
+  /** Profiles that extend this one directly (that the reader may see) */
   extendedBy: { id: string; name: string }[];
+  /** 0.21.0: profiles that extend this one directly that the reader may not see (counted, not named) */
+  extendedByHidden?: number;
   /** Assets with this profile (that the reader may see) */
   assets: PlantAssetBrief[];
   /** KPI definitions that read data points of this profile */
   kpis: { id: string; name: string; names: Translations; dataPoints: string[] }[];
+  /** May change it (0.21.0: the Edit right on this profile) */
   canManage: boolean;
-  /** 0.13.0: may keep drafts of changes to it (propose on some site) */
+  /** 0.13.0: may keep drafts of changes to it (0.21.0: the propose right on this profile) */
   canPropose?: boolean;
+  /** 0.21.0 (#293): the reader's rights on it – view, propose, edit, manage (shares, delete) */
+  permissions?: PlantCataloguePermission[];
 }
 
 /** GET /api/plant/profiles/:id/points/:pointId: a data point and who delivers it. */
@@ -713,13 +722,22 @@ export interface PlantAssignmentView extends PlantSource {
   asset: PlantAssetBrief;
   /** Null: the asset has no assignment yet */
   assignment: PlantAssignmentValues | null;
-  /** The assigned profile, resolved (null: none, or it does not exist any more) */
+  /**
+   * The assigned profile, resolved (null: none, or it does not exist any more). 0.21.0: a profile the reader may not see
+   * comes without name, maker, bases or own part (id `~hidden-1`, name `~hidden`) – its interfaces are the asset's model
+   */
   profile: PlantProfileValues | null;
+  /** 0.21.0 (#293): the assigned profile is one the reader may not see ("model of this asset") */
+  profileHidden?: boolean;
   /** The asset's model: the profile's interfaces with the asset's additions (0.11.0) */
   model: PlantInterface[];
   /** Interfaces and data points of the model that the asset adds itself */
   added: { interfaces: string[]; points: string[] };
-  kpis: (PlantKpiInstance & { definition: { id: string; name: string; names: Translations; category: string } | null; results: PlantResultLink[] })[];
+  /** 0.21.0: a definition the reader may not see has `hidden: true`, a placeholder id and the name `~hidden` */
+  kpis: (PlantKpiInstance & {
+    definition: { id: string; name: string; names: Translations; category: string; hidden?: boolean } | null;
+    results: PlantResultLink[];
+  })[];
   checks: PlantCheck[];
   /** KPI definitions this asset can have: every data point input is delivered */
   possibleKpis: {
@@ -895,9 +913,12 @@ export interface PlantKpiDetail extends PlantKpiSummary, PlantStamp, PlantKpiVal
    * input) and the inputs it delivers in another unit
    */
   candidateInfo?: Record<string, { collected: boolean; units: PlantUnitMismatch[]; via?: PlantAssetRef }>;
+  /** May change it (0.21.0: the Edit right on this definition) */
   canManage: boolean;
-  /** 0.13.0: may keep drafts of changes to it (propose on some site) */
+  /** 0.13.0: may keep drafts of changes to it (0.21.0: the propose right on this definition) */
   canPropose?: boolean;
+  /** 0.21.0 (#293): the reader's rights on it */
+  permissions?: PlantCataloguePermission[];
 }
 
 // ---------- checks ----------
@@ -959,7 +980,7 @@ export interface PlantCheck {
   params: Record<string, string | number>;
 }
 
-/** GET /api/plant/explore/points?q=: data points across the profiles. */
+/** GET /api/plant/explore/points?q=: data points across the profiles the reader may see. */
 export interface PlantPointHit {
   profile: { id: string; name: string };
   interface: { id: string; name: string; protocol: PlantProtocol };
@@ -967,6 +988,12 @@ export interface PlantPointHit {
   point: Pick<PlantDataPoint, 'id' | 'name' | 'dataType' | 'unit' | 'address'>;
   /** Assets (that the reader may see) that deliver it */
   deliveredBy: number;
+}
+
+/** The point search (0.21.0): the hits, and how many profiles the reader may not see have a match (counted). */
+export interface PlantPointExplore {
+  hits: PlantPointHit[];
+  hiddenProfiles: number;
 }
 
 export const PLANT_DATA_LIMITS = {

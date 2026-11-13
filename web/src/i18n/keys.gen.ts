@@ -48,6 +48,8 @@ export interface Resources {
     'owning.hintNone.supplier': string;
     'owning.hintNone.cost_price_book': string;
     'owning.hintNone.cost_calculator': string;
+    'owning.hintNone.device_profile': string;
+    'owning.hintNone.kpi_definition': string;
     'owning.hintOwned.process': string;
     'owning.hintOwned.platform': string;
     'owning.hintOwned.service': string;
@@ -64,6 +66,8 @@ export interface Resources {
     'owning.hintOwned.supplier': string;
     'owning.hintOwned.cost_price_book': string;
     'owning.hintOwned.cost_calculator': string;
+    'owning.hintOwned.device_profile': string;
+    'owning.hintOwned.kpi_definition': string;
     'owning.hintRestricted': string;
     'owning.saved': string;
     'owning.notSaved': string;
@@ -122,6 +126,8 @@ export interface Resources {
     'owning.bulk.kinds.supplier': string;
     'owning.bulk.kinds.cost_price_book': string;
     'owning.bulk.kinds.cost_calculator': string;
+    'owning.bulk.kinds.device_profile': string;
+    'owning.bulk.kinds.kpi_definition': string;
     'owning.moduleNotUsed': string;
     restrictedSite: string;
     defaultsSite: string;
@@ -1715,6 +1721,7 @@ export interface Resources {
     'duplicate.copiedFrom': string;
     'duplicate.copiedAt': string;
     'duplicate.copiedFromHidden': string;
+    'duplicate.plantScope': string;
     'duplicate.systemNote': string;
     'sections.expandAll': string;
     'sections.collapseAll': string;
@@ -6350,6 +6357,8 @@ export interface Resources {
     'codes.PLANT_NODE_NOT_FOUND': string;
     'codes.PLANT_BUILDING_NOT_FOUND': string;
     'codes.PLANT_ID_TAKEN': string;
+    'codes.PLANT_COPY_NOT_VISIBLE': string;
+    'codes.PLANT_ID_UNAVAILABLE': string;
     'codes.PLANT_ID_ALIAS': string;
     'codes.PLANT_ID_FORMAT': string;
     'codes.PLANT_ID_SAME': string;
@@ -9937,6 +9946,27 @@ export interface Resources {
     'duplicateDevice.done': string;
     selectedDevices_one: string;
     selectedDevices_other: string;
+    'catalogueAccess.hiddenProfile': string;
+    'catalogueAccess.hiddenKpi': string;
+    'catalogueAccess.hiddenBase': string;
+    'catalogueAccess.inheritedFromHidden': string;
+    'catalogueAccess.modelOfAsset': string;
+    'catalogueAccess.modelOfAssetHint': string;
+    'catalogueAccess.modelPoints': string;
+    'catalogueAccess.modelPointsHelp': string;
+    'catalogueAccess.baseHidden': string;
+    'catalogueAccess.baseHiddenHint': string;
+    'catalogueAccess.keepsHidden': string;
+    'catalogueAccess.profilesHidden_one': string;
+    'catalogueAccess.profilesHidden_other': string;
+    'catalogueAccess.kpisHidden_one': string;
+    'catalogueAccess.kpisHidden_other': string;
+    'catalogueAccess.extendedByHidden_one': string;
+    'catalogueAccess.extendedByHidden_other': string;
+    'catalogueAccess.exploreHidden_one': string;
+    'catalogueAccess.exploreHidden_other': string;
+    'catalogueAccess.coverageHidden_one': string;
+    'catalogueAccess.coverageHidden_other': string;
   };
   plantAdvisories: {
     title: string;
@@ -10686,6 +10716,8 @@ export interface Resources {
     'what.link_other': string;
     'what.owning_team_one': string;
     'what.owning_team_other': string;
+    'what.share_one': string;
+    'what.share_other': string;
     'what.credential_one': string;
     'what.credential_other': string;
     'what.import_one': string;
@@ -11198,6 +11230,7 @@ export interface Resources {
     'extract.problems.no_points': string;
     'extract.problems.base_taken': string;
     'extract.problems.rules': string;
+    'extract.problems.hidden': string;
     'extract.interfaces': string;
     'extract.interfacesHelp': string;
     'extract.interfaceId': string;
@@ -11599,8 +11632,10 @@ export interface Resources {
     'tabs.kpiLabel': string;
     'tabs.profile.overview': string;
     'tabs.profile.history': string;
+    'tabs.profile.access': string;
     'tabs.kpi.overview': string;
     'tabs.kpi.history': string;
+    'tabs.kpi.access': string;
     'toolbar.mode': string;
     'toolbar.picture': string;
     'toolbar.table': string;

@@ -7,6 +7,7 @@ import { assetInput, createAsset, getAsset, visibleAsset } from './service.js';
 import { canManageCatalogue } from './access.js';
 import { createKpi, createProfile, getKpi, getProfile, kpiInput, profileInput } from './catalogue.js';
 import { assignmentRowOf, assignmentValuesOf, upsertAssignment } from './data-model.js';
+import { copyCatalogueScope } from './catalogue-shares.js';
 
 /**
  * Duplicating an asset (0.4.0 duplicate module): the same kind of machine in another place. The copy takes the
@@ -80,7 +81,11 @@ export const assetDuplicator: Duplicator<PlantAssetDetail> = {
   paths: (id) => ({ path: `/plant/assets/${encodeURIComponent(id)}`, editPath: `/plant/assets/${encodeURIComponent(id)}?edit=1` }),
 };
 
-/** Duplicating a device profile (#219): the next firmware generation or a variant of a device, to adapt. */
+/**
+ * Duplicating a device profile (#219): the next firmware generation or a variant of a device, to adapt. 0.21.0: the
+ * copy belongs where the original does – its owning teams, Restricted when it is (never the whole instance's when the
+ * original was not); shares are not copied. A base the caller may not see stays the copy's base by its placeholder.
+ */
 export const profileDuplicator: Duplicator<PlantProfileDetail> = {
   kind: 'device-profile',
   entityType: 'device_profile',
@@ -112,18 +117,31 @@ export const profileDuplicator: Duplicator<PlantProfileDetail> = {
         interfaceOverrides: p.own.interfaceOverrides,
         pointOverrides: p.own.pointOverrides,
       }),
+      { copyOf: p.id },
     );
+    const scope = copyCatalogueScope({ kind: 'device_profile', from: p, to: made, as: 'copy' });
     return {
       id: made.id,
       name: made.name,
       key: made.id,
-      details: { interfaces: made.interfaceCount, dataPoints: made.dataPointCount, assignments: 'not copied' },
+      details: {
+        interfaces: made.interfaceCount,
+        dataPoints: made.dataPointCount,
+        assignments: 'not copied',
+        owningTeams: scope.teams,
+        restricted: scope.restricted,
+        shares: 'not copied',
+      },
     };
   },
   paths: (id) => ({ path: `/plant/profiles/${encodeURIComponent(id)}`, editPath: `/plant/profiles/${encodeURIComponent(id)}?edit=1` }),
 };
 
-/** Duplicating a KPI definition (#219): a new version (v2) or a variant for other inputs. */
+/**
+ * Duplicating a KPI definition (#219): a new version (v2) or a variant for other inputs. 0.21.0: in the original's owning
+ * teams (and Restricted when it is), without its shares; an input reading a profile the caller may not see keeps it by
+ * its placeholder.
+ */
 export const kpiDuplicator: Duplicator<PlantKpiDetail> = {
   kind: 'kpi-definition',
   entityType: 'kpi_definition',
@@ -165,8 +183,15 @@ export const kpiDuplicator: Duplicator<PlantKpiDetail> = {
         computation: k.computation,
         notes: k.notes,
       }),
+      { copyOf: k.id },
     );
-    return { id: made.id, name: made.name, key: made.id, details: { translations: 'not copied', instances: 'not copied' } };
+    const scope = copyCatalogueScope({ kind: 'kpi_definition', from: k, to: made, as: 'copy' });
+    return {
+      id: made.id,
+      name: made.name,
+      key: made.id,
+      details: { translations: 'not copied', instances: 'not copied', owningTeams: scope.teams, restricted: scope.restricted, shares: 'not copied' },
+    };
   },
   paths: (id) => ({ path: `/plant/kpis/${encodeURIComponent(id)}`, editPath: `/plant/kpis/${encodeURIComponent(id)}?edit=1` }),
 };

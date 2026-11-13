@@ -73,7 +73,7 @@ import {
   type DocRow,
   type EditionRow,
 } from './document-model.js';
-import { assignCreatorTeams, owningTeams } from '../auth/policy.js';
+import { assignCreatorTeams, owningTeams, setOwningTeams } from '../auth/policy.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, userSubject, type NamedGrant } from '../auth/named-grants.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { applyClose, firewallActionReason, planClose } from './firewall.js';
@@ -850,6 +850,14 @@ export function createRecord(input: CreateInput): RecordDetail {
     });
     // same checks as adding them later (visible targets only, no duplicates); any refusal rolls the record back
     for (const l of input.links ?? []) addLink('record', id, l, number);
+    // 0.21.0 (#293): files follow the profile – a document made on a device profile's page gets its owning teams
+    const profile = (input.links ?? []).flatMap((l) => ('kind' in l && l.kind === 'device-profile' ? [l.id] : []))[0];
+    const teams = profile
+      ? db()
+          .all<{ team_id: string }>("SELECT team_id FROM resource_teams WHERE kind = 'device_profile' AND resource_id = ?", profile)
+          .map((r) => r.team_id)
+      : [];
+    if (teams.length) setOwningTeams('record', id, teams);
   });
   return getRecord(id);
 }

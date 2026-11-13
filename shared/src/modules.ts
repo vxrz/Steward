@@ -184,7 +184,7 @@ export const MODULES: readonly ModuleDef[] = [
         'get_service_cost_plan',
         'get_platform_cost_plan',
         'list_cost_commitments',
-        // price books, calculators and estimates (0.21.0, ADR 0035)
+        // price books, calculators, estimates and the dry run (0.21.0, ADR 0035)
         'list_price_books',
         'get_price_book',
         'list_cost_calculators',
@@ -309,7 +309,7 @@ export const MODULES: readonly ModuleDef[] = [
         'get_plant_advisory',
       ],
       exportParts: ['plant'],
-      itemKinds: ['site', 'asset', 'conduit', 'device-profile', 'data-collection', 'data-sink'],
+      itemKinds: ['site', 'asset', 'conduit', 'device-profile', 'data-collection', 'data-sink', 'device_profile', 'kpi_definition'],
     },
   },
   {

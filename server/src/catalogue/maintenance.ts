@@ -24,6 +24,7 @@ import { platformPermissions } from '../auth/permissions.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { canCreateServices, canEditService, canReadRecordRow, canViewCatalogue, forbid, me } from '../records/access.js';
 import { catalogueTeams, owningTeams } from '../auth/policy.js';
+import { isRestricted } from '../auth/share-store.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { instanceTimeZone } from '../duties/periods.js';
 import { logger } from '../log.js';
@@ -166,9 +167,15 @@ export function nameOf(t: TargetRef, u: AuthUser | null): string | null {
   return r.name;
 }
 
-/** Whether the item belongs to owning teams (#131): then only those who may change it plan its maintenance. */
-const teamScopedTarget = (t: TargetRef): boolean =>
-  isPlantMaintenanceTarget(t.kind) || (t.kind === 'platform' || t.kind === 'monitor' ? owningTeams(t.kind, t.id) : catalogueTeams(t.kind, t.id)).length > 0;
+/**
+ * Whether the item belongs to owning teams (#131) or is Restricted (ADR 0033: instance roles give nothing on it): then
+ * only those who may change it plan its maintenance.
+ */
+const teamScopedTarget = (t: TargetRef): boolean => {
+  if (isPlantMaintenanceTarget(t.kind)) return true;
+  if (t.kind === 'platform' || t.kind === 'monitor') return owningTeams(t.kind, t.id).length > 0;
+  return catalogueTeams(t.kind, t.id).length > 0 || isRestricted(t.kind, t.id);
+};
 
 /**
  * May the user change this item (and so plan its maintenance)? For a platform the manage right; for a monitor the

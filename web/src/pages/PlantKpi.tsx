@@ -1,3 +1,4 @@
+import { isPlantHidden } from '@sm/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Anchor, Badge, Button, Code, Grid, Group, List, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -97,8 +98,13 @@ function KpiInputView({ input, profileNames }: { input: KpiInput; profileNames: 
   const { t } = useTranslation(['plant', 'plantModel']);
   const names = kpiInputProfiles(input);
   const first = names[0];
+  // 0.21.0 (#293): a profile the reader may not see is named so, with its data point ids (no link)
   const profileLink = (id: string) =>
-    profileNames[id] ? (
+    isPlantHidden(id) ? (
+      <Text key={id} size="sm" c="dimmed" span data-testid="kpi-input-hidden-profile">
+        {t('catalogueAccess.hiddenProfile')}
+      </Text>
+    ) : profileNames[id] ? (
       <Anchor key={id} component={Link} to={`/plant/profiles/${encodeURIComponent(id)}`} size="sm" fw={500} w="fit-content">
         {profileNames[id]}
       </Anchor>
@@ -124,7 +130,7 @@ function KpiInputView({ input, profileNames }: { input: KpiInput; profileNames: 
       <Group gap={4} wrap="wrap">
         {input.dataPoints.map((d) => {
           const unit = input.units?.[d] && <span data-testid={`kpi-input-unit-${d}`}> · {unitSymbol(input.units[d])}</span>;
-          return first && profileNames[first] ? (
+          return first && profileNames[first] && !isPlantHidden(first) ? (
             <Badge
               key={d}
               variant="default"
@@ -148,7 +154,7 @@ function KpiInputView({ input, profileNames }: { input: KpiInput; profileNames: 
       {Object.entries(input.mapping ?? {}).map(([p, m]) => (
         <Text key={p} size="xs" c="dimmed" data-testid={`kpi-input-mapping-${p}`}>
           {t('plantModel:anyOf.mappedIn', {
-            profile: profileNames[p] ?? p,
+            profile: isPlantHidden(p) ? t('catalogueAccess.hiddenProfile') : (profileNames[p] ?? p),
             list: Object.entries(m)
               .map(([from, to]) => `${from} → ${to}`)
               .join(', '),
