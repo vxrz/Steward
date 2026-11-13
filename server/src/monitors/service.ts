@@ -31,8 +31,8 @@ import {
   type TemplateParam,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { forgetShares, heldOn } from '../auth/shares.js';
-import { aclOf, aliasWidens, writeAlias } from '../auth/acl-shares.js';
+import { forgetShares } from '../auth/shares.js';
+import { aclOf, aliasWidens, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
 import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
 import { MONITOR_SHARE_KIND } from './shares.js';
 import { audit } from '../audit.js';
@@ -1190,7 +1190,7 @@ export function setAccess(idOrKey: string, input: { acl?: unknown; owner?: strin
   // a new owner has every right: a widening unless they had them all (decided before anything is written)
   const ownerWidens = aliasWidens('monitor', r.id, undefined, { before: r.owner, after: owner });
   db().tx(() => {
-    if (input.acl !== undefined) writeAlias({ kind: 'monitor', id: r.id, aclInput: input.acl, held: heldOn(MONITOR_SHARE_KIND, me(), r.id), label });
+    if (input.acl !== undefined) writeAlias({ kind: 'monitor', id: r.id, aclInput: input.acl, held: heldByAuthor(MONITOR_SHARE_KIND, r.id), label });
     if (owner.toLowerCase() !== r.owner.toLowerCase()) {
       if (ownerWidens) requireAccessGrant();
       db().run('UPDATE monitors SET owner = ?, updated_at = ? WHERE id = ?', owner, nowIso(), r.id);

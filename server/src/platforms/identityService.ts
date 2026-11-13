@@ -19,10 +19,9 @@ import {
   AUTH_TYPES,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { forgetShares, heldOn, sharesOf } from '../auth/shares.js';
-import { aliasWidens, sharesToAcl, writeAlias } from '../auth/acl-shares.js';
+import { forgetShares, sharesOf } from '../auth/shares.js';
+import { aliasWidens, sharesToAcl, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
 import { IDENTITY_SHARE_KIND } from './shares.js';
-import { me } from '../auth/access.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -516,7 +515,7 @@ export function setIdentityAccess(platformId: string, identityId: string, aclInp
     kind: 'platform_identity',
     id: r.id,
     aclInput,
-    held: heldOn(IDENTITY_SHARE_KIND, me(), r.id),
+    held: heldByAuthor(IDENTITY_SHARE_KIND, r.id),
     label: `identity "${r.name}" of platform "${p.name}"`,
   });
   return view(platformId, r.id);

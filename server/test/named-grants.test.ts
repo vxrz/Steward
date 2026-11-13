@@ -77,7 +77,7 @@ describe('credentials (ownerSubjects)', () => {
     // vic sees and changes it now, and is told why
     expect((await vic('GET', `/credentials/${id}`)).permissions).toEqual(['view', 'edit']);
     const why = await vic('GET', `/access/explain?kind=credential&id=${id}`);
-    expect(why.reasons).toEqual([expect.objectContaining({ source: 'named', as: 'owner', subject: 'user:vic' })]);
+    expect(why.reasons).toEqual([expect.objectContaining({ source: 'implied', as: 'owner', subject: 'user:vic', level: 'edit' })]);
   });
 
   it('need nothing for removing a subject or keeping one', async () => {
@@ -142,7 +142,7 @@ describe('ticket references (responsible)', () => {
     await tara('PUT', `/ticket-references/${id}`, body(['user:tara', 'user:vic']));
     expect((await granted(id))[0]).toMatchObject({ details: { field: 'responsible', granted: ['user:vic'] } });
     const why = await vic('GET', `/access/explain?kind=ticket&id=${id}`);
-    expect(why.reasons).toEqual([expect.objectContaining({ source: 'named', as: 'responsible', subject: 'user:vic' })]);
+    expect(why.reasons).toEqual([expect.objectContaining({ source: 'implied', as: 'responsible', subject: 'user:vic', level: 'edit' })]);
   });
 });
 

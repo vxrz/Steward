@@ -18,10 +18,9 @@ import { currentActor, currentUser } from '../auth/context.js';
 import { logger } from '../log.js';
 import { processPermissions } from '../auth/permissions.js';
 import { runOutcome, type ProcessPermission } from '@sm/shared';
-import { aclOf, aliasWidens, writeAlias } from '../auth/acl-shares.js';
-import { heldOn, isRestricted } from '../auth/shares.js';
+import { aclOf, aliasWidens, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
+import { isRestricted } from '../auth/shares.js';
 import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
-import { me } from '../auth/access.js';
 import { PROCESS_SHARE_KIND } from './shares.js';
 import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
@@ -125,7 +124,7 @@ export function setProcessAccess(id: string, input: { acl?: unknown; owner?: str
   // a new owner has every right: a widening unless they had them all (decided before anything is written)
   const ownerWidens = aliasWidens('process', id, undefined, { before: before.owner ?? null, after: owner ?? null });
   db().tx(() => {
-    if (input.acl !== undefined) writeAlias({ kind: 'process', id, aclInput: input.acl, held: heldOn(PROCESS_SHARE_KIND, me(), id), label });
+    if (input.acl !== undefined) writeAlias({ kind: 'process', id, aclInput: input.acl, held: heldByAuthor(PROCESS_SHARE_KIND, id), label });
     if ((owner ?? '').toLowerCase() !== (before.owner ?? '').toLowerCase()) {
       if (ownerWidens) requireAccessGrant();
       db().run('UPDATE processes SET owner = ?, updated_at = ? WHERE id = ?', owner, nowIso(), id);

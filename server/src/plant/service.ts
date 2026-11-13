@@ -1,6 +1,5 @@
 import type { z } from 'zod';
-import { aclOf, writeAlias } from '../auth/acl-shares.js';
-import { heldOn } from '../auth/shares.js';
+import { aclOf, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
 import { SITE_SHARE_KIND } from './site-shares.js';
 import {
   PLANT_LIMITS,
@@ -304,7 +303,7 @@ export function deleteSite(id: string): void {
  */
 export function setSiteAccess(id: string, acl: unknown): PlantSiteDetail {
   const row = manageableSite(id, 'change access to this site');
-  writeAlias({ kind: 'site', id, aclInput: acl, held: heldOn(SITE_SHARE_KIND, me(), id), label: `site "${row.name}"` });
+  writeAlias({ kind: 'site', id, aclInput: acl, held: heldByAuthor(SITE_SHARE_KIND, id), label: `site "${row.name}"` });
   return getSite(id);
 }
 

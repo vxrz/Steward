@@ -14,7 +14,7 @@ import type { FastifyReply } from 'fastify';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { HttpError } from '../util.js';
-import { currentStore } from './context.js';
+import { currentStore, currentUser } from './context.js';
 import { DEFAULT_PLATFORM, DEFAULT_PROCESS, cleanAcl } from './permissions.js';
 import { gainedRights } from './access-change.js';
 import { MONITOR_DEFAULTS } from '../monitors/model.js';
@@ -30,7 +30,7 @@ import {
   type ShareModel,
 } from './policy.js';
 import { isRestricted, sharesOf, shareActive, toShare, type ShareRow } from './share-store.js';
-import { setRestricted, setShares, type ShareWrite } from './shares.js';
+import { heldOn, setRestricted, setShares, type ShareKindDef, type ShareWrite } from './shares.js';
 
 /**
  * The access lists of processes, platforms, platform identities, monitors and plant sites, migrated to shares
@@ -261,6 +261,15 @@ export function writeAlias(c: { kind: AliasKind; id: string; aclInput: unknown; 
   aclChanged(c.kind);
 }
 type AliasKind = AclKind & OwnedKind;
+
+/**
+ * What the author of a deprecated route's change holds on the item: the signed-in person's share terms, or everything
+ * for Steward itself (no person – a job or an import planting a list).
+ */
+export const heldByAuthor = (def: ShareKindDef<string>, id: string): ReturnType<typeof heldOn> => {
+  const u = currentUser();
+  return u ? heldOn(def, u, id) : 'all';
+};
 
 /** Marks the answer of a deprecated access-list route: `Deprecation`, and the Access tab's route as its successor. */
 export function markDeprecated(reply: FastifyReply, kind: AliasKind, id: string): void {

@@ -17,9 +17,8 @@ import {
   type PlatformSpec,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { forgetShares, heldOn, isRestricted } from '../auth/shares.js';
-import { aclOf, writeAlias } from '../auth/acl-shares.js';
-import { me } from '../auth/access.js';
+import { forgetShares, isRestricted } from '../auth/shares.js';
+import { aclOf, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
 import { PLATFORM_SHARE_KIND } from './shares.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
@@ -574,7 +573,7 @@ export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
  */
 export function setPlatformAccess(id: string, aclInput: unknown): Platform {
   const before = getPlatform(id);
-  writeAlias({ kind: 'platform', id, aclInput, held: heldOn(PLATFORM_SHARE_KIND, me(), id), label: `platform "${before.name}"` });
+  writeAlias({ kind: 'platform', id, aclInput, held: heldByAuthor(PLATFORM_SHARE_KIND, id), label: `platform "${before.name}"` });
   return getPlatform(id);
 }
 
