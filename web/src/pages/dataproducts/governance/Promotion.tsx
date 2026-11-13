@@ -210,7 +210,9 @@ export function PromotionForm({ p, onClose }: { p: DataProduct; onClose: () => v
               {t('promotion.done')}
             </Alert>
           )}
-          {p.permissions.includes('edit') && !done && pv && pv.counts.found > 0 && <FormButtons busy={busy} submit={t('promotion.promote')} testId="promotion-save" />}
+          {p.permissions.includes('edit') && !done && pv && pv.counts.found > 0 && (
+            <FormButtons busy={busy} submit={t('promotion.promote')} testId="promotion-save" />
+          )}
           {(history.data ?? []).length > 0 && (
             <Stack gap={2}>
               <Text size="sm" fw={600}>

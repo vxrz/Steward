@@ -164,7 +164,13 @@ export function DataProductPage() {
           { label: t('product.rate'), icon: IconShieldHalf, onClick: () => setEditing('rating'), disabled: !canEdit, testId: 'product-rate' },
           { label: t('product.pipelinePage'), icon: IconBinaryTree, to: `${base}/views/pipeline` },
           // 0.24.0 (ADR 0036 part 4): promote bindings and members to the next environment, with a preview
-          { label: tg('promotion.menu'), icon: IconStairsUp, onClick: () => setEditing('promote'), disabled: p.environments.length < 2, testId: 'product-promote' },
+          {
+            label: tg('promotion.menu'),
+            icon: IconStairsUp,
+            onClick: () => setEditing('promote'),
+            disabled: p.environments.length < 2,
+            testId: 'product-promote',
+          },
           ...(canManage ? [{ label: t('common:delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'product-delete' }] : []),
         ],
         extra: <ProductTransferItems id={p.id} />,

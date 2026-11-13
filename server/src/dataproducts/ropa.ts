@@ -81,17 +81,27 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
   const elements = new Map<string, ElementBits>();
   const members: { product_id: string; element_id: string }[] = [];
   for (const part of chunks(elementIds)) {
-    for (const e of db().all<ElementBits>(`SELECT id, platform_id, application_id FROM dp_elements WHERE id IN (${marks(part.length)})`, ...part)) elements.set(e.id, e);
-    members.push(...db().all<{ product_id: string; element_id: string }>(`SELECT product_id, element_id FROM dp_members WHERE element_id IN (${marks(part.length)})`, ...part));
+    for (const e of db().all<ElementBits>(`SELECT id, platform_id, application_id FROM dp_elements WHERE id IN (${marks(part.length)})`, ...part))
+      elements.set(e.id, e);
+    members.push(
+      ...db().all<{ product_id: string; element_id: string }>(
+        `SELECT product_id, element_id FROM dp_members WHERE element_id IN (${marks(part.length)})`,
+        ...part,
+      ),
+    );
   }
   // output ports that declare the objects
   const declared: { port_id: string; object_id: string }[] = [];
   for (const part of chunks(objectIds))
-    declared.push(...db().all<{ port_id: string; object_id: string }>(`SELECT port_id, object_id FROM dp_port_objects WHERE object_id IN (${marks(part.length)})`, ...part));
+    declared.push(
+      ...db().all<{ port_id: string; object_id: string }>(`SELECT port_id, object_id FROM dp_port_objects WHERE object_id IN (${marks(part.length)})`, ...part),
+    );
   const declaredPorts = new Map<string, PortRow>();
   for (const part of chunks([...new Set(declared.map((d) => d.port_id))]))
     for (const p of db().all<PortRow>(`SELECT * FROM dp_ports WHERE id IN (${marks(part.length)})`, ...part)) declaredPorts.set(p.id, p);
-  const productIds = [...new Set([...members.map((m) => m.product_id), ...[...declaredPorts.values()].filter((p) => p.direction === 'output').map((p) => p.product_id)])];
+  const productIds = [
+    ...new Set([...members.map((m) => m.product_id), ...[...declaredPorts.values()].filter((p) => p.direction === 'output').map((p) => p.product_id)]),
+  ];
   const products = productsByIds(productIds);
   const visibleProducts = new Set([...products.values()].filter((p) => productAccess(u, p).permissions.length > 0).map((p) => p.id));
   // the output ports of the processing products, with their bindings, consumers and consuming products
@@ -110,7 +120,10 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
   const platforms = new Map<string, { name: string; visible: boolean }>();
   for (const part of chunks(platformIds))
     for (const p of db().all<{ id: string; name: string; acl: string }>(`SELECT id, name, acl FROM platforms WHERE id IN (${marks(part.length)})`, ...part))
-      platforms.set(p.id, { name: p.name, visible: platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions.length > 0 });
+      platforms.set(p.id, {
+        name: p.name,
+        visible: platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions.length > 0,
+      });
   const covering: { contract_id: string; platform_id: string }[] = [];
   for (const part of chunks(platformIds))
     covering.push(
@@ -119,9 +132,16 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
         ...part,
       ),
     );
-  const contracts = visibleContracts(covering.map((c) => c.contract_id), u);
+  const contracts = visibleContracts(
+    covering.map((c) => c.contract_id),
+    u,
+  );
   const answers = contractAnswers([...contracts.keys()]);
-  const domains = new Map(db().all<{ id: string; key: string; name: string; owners: string }>('SELECT id, key, name, owners FROM dp_domains').map((d) => [d.id, d]));
+  const domains = new Map(
+    db()
+      .all<{ id: string; key: string; name: string; owners: string }>('SELECT id, key, name, owners FROM dp_domains')
+      .map((d) => [d.id, d]),
+  );
 
   const items: DataRopaEntry[] = objects.map((o) => {
     const implementedBy = new Set(links.filter((l) => l.object_id === o.id).map((l) => l.element_id));

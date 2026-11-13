@@ -152,7 +152,14 @@ function dueOf(p: ProductRow, ports: PortRow[], today = nowIso().slice(0, 10)): 
     const port = outputs.find((x) => x.id === b.port_id)!;
     const lastAt = last.get(`${b.port_id}|${b.environment}`) ?? null;
     const dueDate = lastAt ? addMonths(lastAt.slice(0, 10), months) : today;
-    out.push({ portId: port.id, portName: `${port.name}${port.version ? ` ${port.version}` : ''}`, environment: b.environment, lastApprovedAt: lastAt, dueDate, overdue: dueDate < today });
+    out.push({
+      portId: port.id,
+      portName: `${port.name}${port.version ? ` ${port.version}` : ''}`,
+      environment: b.environment,
+      lastApprovedAt: lastAt,
+      dueDate,
+      overdue: dueDate < today,
+    });
   }
   return out.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.portName.localeCompare(b.portName));
 }
@@ -314,7 +321,11 @@ export function decideItems(id: string, body: unknown): DataPortReview {
     forbid('review the consumers of this data product', 'dataProducts');
   }
   const input = dataPortReviewDecisionsInput.parse(body);
-  const items = new Map(db().all<ItemRow>('SELECT * FROM dp_port_review_items WHERE review_id = ?', r.id).map((i) => [i.id, i]));
+  const items = new Map(
+    db()
+      .all<ItemRow>('SELECT * FROM dp_port_review_items WHERE review_id = ?', r.id)
+      .map((i) => [i.id, i]),
+  );
   for (const d of input.decisions) {
     if (!items.has(d.itemId)) throw new HttpError(400, `Entry ${d.itemId} is not part of this review`, 'DATA_PORT_REVIEW_STATE', { context: 'item' });
     if (d.decision === 'remove' && !d.comment) throw reviewState('Say why it is removed', 'comment');
@@ -350,7 +361,16 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
       approvedBy: r.approved_by,
       approvedAt: r.approved_at,
       check: parseJson(r.check_info, null),
-      items: items.map((i) => ({ seq: Number(i.seq), kind: i.kind, consumerId: i.consumer_id, label: i.label, finding: i.finding, decision: i.decision, comment: i.comment, decidedBy: i.decided_by })),
+      items: items.map((i) => ({
+        seq: Number(i.seq),
+        kind: i.kind,
+        consumerId: i.consumer_id,
+        label: i.label,
+        finding: i.finding,
+        decision: i.decision,
+        comment: i.comment,
+        decidedBy: i.decided_by,
+      })),
     }),
   );
 }
@@ -467,7 +487,9 @@ export function noticeReviewsDue(today = nowIso().slice(0, 10)): number {
           title: (l) => t(l, 'dataProductGovernance.reviewDue.title', { product: titleName(p.name), port: titleName(d.portName, 60) }),
           lines: (l) => [
             t(l, 'dataProductGovernance.reviewDue.body', { port: d.portName, product: p.name, environment: d.environment, date: d.dueDate }),
-            d.lastApprovedAt ? t(l, 'dataProductGovernance.reviewDue.last', { date: d.lastApprovedAt.slice(0, 10) }) : t(l, 'dataProductGovernance.reviewDue.never'),
+            d.lastApprovedAt
+              ? t(l, 'dataProductGovernance.reviewDue.last', { date: d.lastApprovedAt.slice(0, 10) })
+              : t(l, 'dataProductGovernance.reviewDue.never'),
             t(l, 'dataProductGovernance.reviewDue.hint'),
           ],
           data: { productId: p.id, portId: d.portId, environment: d.environment, dueDate: d.dueDate },

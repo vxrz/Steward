@@ -140,7 +140,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'dataproduct.discovery_failed': 'A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)',
   'dataproduct.access_requested': 'Someone asks for access to an output port of a data product you own (or manage), and you decide',
   'dataproduct.access_decided': 'Your request for access to a data product’s port was approved or refused',
-  'dataproduct.endorsement_review': 'An endorsement of a data product you own or endorsed is due for its review (or a breaking change or a rating below the floor needs one)',
+  'dataproduct.endorsement_review':
+    'An endorsement of a data product you own or endorsed is due for its review (or a breaking change or a rating below the floor needs one)',
   'dataproduct.access_review_due': 'The periodic access review of a port of a data product you own is due',
 };
 

@@ -496,7 +496,9 @@ export function promotedNames(qualifiedName: string, kind: string, from: string,
   const root = ruleRootOf(qualifiedName, kind);
   const rest = qualifiedName.slice(root.length);
   const low = root.toLowerCase();
-  const fromRule = rules.find((r) => r.environment === from && r.value.trim() && (r.match === 'prefix' ? low.startsWith(norm(r.value)) : low.endsWith(norm(r.value))));
+  const fromRule = rules.find(
+    (r) => r.environment === from && r.value.trim() && (r.match === 'prefix' ? low.startsWith(norm(r.value)) : low.endsWith(norm(r.value))),
+  );
   let base = root;
   if (fromRule) {
     const v = fromRule.value.trim();

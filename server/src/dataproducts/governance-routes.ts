@@ -39,10 +39,14 @@ import * as ropa from './ropa.js';
  *   GET        /api/data-products/records-of-processing[.csv|.pdf]           the GDPR Art. 30 view
  */
 
-const param = (req: FastifyRequest, name: string): string => z.string().min(1).max(200).parse((req.params as Record<string, unknown>)[name]);
+const param = (req: FastifyRequest, name: string): string =>
+  z
+    .string()
+    .min(1)
+    .max(200)
+    .parse((req.params as Record<string, unknown>)[name]);
 /** The query without the download link's session key (`?_sk=`, apiUrl in the web app). */
-const queryOf = (req: FastifyRequest) =>
-  Object.fromEntries(Object.entries((req.query ?? {}) as Record<string, unknown>).filter(([k]) => k !== LINK_PARAM));
+const queryOf = (req: FastifyRequest) => Object.fromEntries(Object.entries((req.query ?? {}) as Record<string, unknown>).filter(([k]) => k !== LINK_PARAM));
 const envQuery = z.object({ environment: z.string().trim().min(1).max(60) }).strict();
 
 export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise<void> {
@@ -127,7 +131,10 @@ export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise
 
   // ---------- promotion ----------
   app.get('/data-products/:id/promotion', async (req) => {
-    const q = z.object({ from: z.string().trim().min(1).max(60), to: z.string().trim().min(1).max(60) }).strict().parse(req.query ?? {});
+    const q = z
+      .object({ from: z.string().trim().min(1).max(60), to: z.string().trim().min(1).max(60) })
+      .strict()
+      .parse(req.query ?? {});
     return promotion.promotionPreview(param(req, 'id'), q.from, q.to);
   });
   app.post('/data-products/:id/promotion', { config: { access: ACCESS.session } }, async (req) => promotion.promote(param(req, 'id'), req.body));

@@ -139,7 +139,11 @@ export function endorse(productId: string, body: unknown): DataEndorsementView {
       entityType: 'data_product',
       entityId: p.id,
       summary: `Data product "${p.name}" ${before ? 'endorsed again' : 'endorsed'} until ${reviewDate}`,
-      details: { reviewDate, note: input.note.slice(0, 500), before: before ? { by: before.endorsed_by, reviewDate: before.review_date, reason: before.review_reason } : null },
+      details: {
+        reviewDate,
+        note: input.note.slice(0, 500),
+        before: before ? { by: before.endorsed_by, reviewDate: before.review_date, reason: before.review_reason } : null,
+      },
     });
   });
   return getEndorsement(p.id);
@@ -221,7 +225,9 @@ export function noticeEndorsementReviews(onlyIds?: readonly string[], on = today
       const e = endorsementOf(r, !!floors.get(p.id), on);
       if (!e.review || !claimNotice('endorsement', p.id, `${e.reviewDate}:${e.review}`)) continue;
       all ??= people();
-      const to = namedPeople(all, [...endorsersOf(p), ...parseJson<string[]>(p.owners, []), `user:${r.endorsed_by.toLowerCase()}`]).filter((x) => seesProduct(x, p));
+      const to = namedPeople(all, [...endorsersOf(p), ...parseJson<string[]>(p.owners, []), `user:${r.endorsed_by.toLowerCase()}`]).filter((x) =>
+        seesProduct(x, p),
+      );
       sent += send({
         event: 'dataproduct.endorsement_review',
         recipients: to,

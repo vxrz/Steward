@@ -66,7 +66,9 @@ beforeAll(async () => {
   kafka = platforms.find((p) => p.kind === 'kafka')!.id;
   product = (await dana('POST', '/data-products', { key: 'gov-orders', name: 'Governed orders', owners: ['user:dana'] })).id;
   port = (await dana('POST', `/data-products/${product}/ports`, { direction: 'output', name: 'orders', type: 'table', version: 'v1' })).id;
-  const table = (await dana('POST', '/data-elements', { platformId: snowflake, kind: 'snowflake.table', qualifiedName: 'GOV.SALES.ORDERS', environment: 'prod' })).id;
+  const table = (
+    await dana('POST', '/data-elements', { platformId: snowflake, kind: 'snowflake.table', qualifiedName: 'GOV.SALES.ORDERS', environment: 'prod' })
+  ).id;
   const topic = (await dana('POST', '/data-elements', { platformId: kafka, kind: 'kafka.topic', qualifiedName: 'gov.orders.v1', environment: 'prod' })).id;
   await dana('PUT', `/data-products/${product}/ports/${port}/bindings/prod`, { elementIds: [table, topic] });
   // a product only its secret team sees
@@ -115,7 +117,12 @@ describe('pure rules', () => {
 
   it('rate high or above, endorsements and maturity 5', () => {
     const keys = ['normal', 'high', 'very_high'];
-    expect([highOrAbove(keys, 'normal'), highOrAbove(keys, 'high'), highOrAbove(keys, 'very_high'), highOrAbove(keys, null)]).toEqual([false, true, true, false]);
+    expect([highOrAbove(keys, 'normal'), highOrAbove(keys, 'high'), highOrAbove(keys, 'very_high'), highOrAbove(keys, null)]).toEqual([
+      false,
+      true,
+      true,
+      false,
+    ]);
     expect(endorsementState({ reviewDate: '2027-06-30', flagged: null }, '2026-11-13', false)).toEqual({ valid: true, review: null });
     expect(endorsementState({ reviewDate: '2026-12-01', flagged: null }, '2026-11-13', false)).toEqual({ valid: true, review: 'reviewDue' });
     expect(endorsementState({ reviewDate: '2026-11-01', flagged: null }, '2026-11-13', false)).toEqual({ valid: false, review: 'expired' });
@@ -147,9 +154,9 @@ describe('declared against actual consumers', () => {
     const silent = (await reg({ kind: 'text', text: 'Old batch job', purpose: 'Nightly' })).id;
     await dana('PUT', `/data-products/${product}/ports/${port}/consumers/${team}/identities`, { identities: ['role:reporting'] });
     await dana('PUT', `/data-products/${product}/ports/${port}/consumers/${silent}/identities`, { identities: ['user:OLD_BATCH'] });
-    expect(
-      await fail(dana('PUT', `/data-products/${product}/ports/${port}/consumers/${silent}/identities`, { identities: ['nonsense'] })),
-    ).toMatchObject({ status: 400 });
+    expect(await fail(dana('PUT', `/data-products/${product}/ports/${port}/consumers/${silent}/identities`, { identities: ['nonsense'] }))).toMatchObject({
+      status: 400,
+    });
 
     resetSnowflakeStatements();
     resetKafkaCalls();
@@ -162,7 +169,9 @@ describe('declared against actual consumers', () => {
     ]);
     const state = (id: string) => v.declared.find((d: { consumerId: string }) => d.consumerId === id).state;
     expect([state(user), state(team), state(silent)]).toEqual(['seen', 'seen', 'silent']);
-    const notRegistered = v.actual.filter((a: { registeredAs: string[] }) => !a.registeredAs.length).map((a: { kind: string; name: string }) => `${a.kind}:${a.name}`);
+    const notRegistered = v.actual
+      .filter((a: { registeredAs: string[] }) => !a.registeredAs.length)
+      .map((a: { kind: string; name: string }) => `${a.kind}:${a.name}`);
     expect(notRegistered.sort()).toEqual(['group:gov-billing', 'role:ETL_ROLE', 'user:SVC_UNKNOWN']);
     expect(v.counts).toMatchObject({ seen: 2, silent: 1, notRegistered: 3 });
     expect(v.actual.find((a: { name: string }) => a.name === 'SVC_UNKNOWN')).toMatchObject({ reads: 40, objects: ['GOV.SALES.ORDERS'] });
@@ -248,7 +257,9 @@ describe('access requests', () => {
     expect(actual.declared.find((d: { consumerId: string }) => d.consumerId === done.consumerId).identities).toEqual(['role:FINANCE', 'user:OLIVIA']);
     // audited as a decision and as an access change
     const audit = (await s.api('GET', `/audit?entityType=data_product&entityId=${product}&limit=100`)) as { action: string }[];
-    expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(['dataproduct.access_requested', 'dataproduct.access_approved', 'access.data_port_consumer_granted']));
+    expect(audit.map((a) => a.action)).toEqual(
+      expect.arrayContaining(['dataproduct.access_requested', 'dataproduct.access_approved', 'access.data_port_consumer_granted']),
+    );
     // the requester is told once
     expect(await notes(olivia, 'dataproduct.access_decided')).toHaveLength(1);
     expect(await fail(dana('POST', `/data-products/access-requests/${request}/decision`, { decision: 'refuse', comment: 'x' }))).toMatchObject({

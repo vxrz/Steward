@@ -23,7 +23,7 @@
     "who": "Registrierter Konsument",
     "state": "Gesehen",
     "identities": "Plattform-Identitäten",
-    "identitiesHelp": "Womit der Konsument liest: user:<Snowflake-Benutzer>, role:<Snowflake-Rolle>, group:<Kafka-Consumer-Gruppe>. Ein registrierter Benutzer wird auch über seinen Benutzernamen und seine E-Mail-Adresse erkannt.",
+    "identitiesHelp": "Womit der Konsument liest: user:NAME (ein Snowflake-Benutzer), role:NAME (eine Snowflake-Rolle), group:NAME (eine Kafka-Consumer-Gruppe). Ein registrierter Benutzer wird auch über seinen Benutzernamen und seine E-Mail-Adresse erkannt.",
     "identitiesTitle": "Plattform-Identitäten eines Konsumenten",
     "identitiesInvalid": "Keine Identität: {{list}} – verwenden Sie user:, role: oder group:",
     "editIdentities": "Plattform-Identitäten von {{name}} ändern",

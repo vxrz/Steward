@@ -2,7 +2,15 @@ import { useState } from 'react';
 import { ActionIcon, Alert, Badge, Button, Collapse, Group, Stack, Table, TagsInput, Text, VisuallyHidden } from '@mantine/core';
 import { IconChevronDown, IconEye, IconEyeOff, IconHelpCircle, IconPencil, IconRefresh, IconUserQuestion } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { DATA_GOVERNANCE_LIMITS, DATA_IDENTITY_RE, type DataActualRead, type DataDeclaredConsumer, type DataDeclaredState, type DataPort, type DataProduct } from '@sm/shared';
+import {
+  DATA_GOVERNANCE_LIMITS,
+  DATA_IDENTITY_RE,
+  type DataActualRead,
+  type DataDeclaredConsumer,
+  type DataDeclaredState,
+  type DataPort,
+  type DataProduct,
+} from '@sm/shared';
 import { post, put } from '../../../api';
 import { FormModal } from '../../../components/FormModal';
 import { TableScroll } from '../../../components/TableScroll';
@@ -94,10 +102,19 @@ export function ActualConsumers({ p, port, environment }: { p: DataProduct; port
                 {t('actual.neverRead')}
               </Text>
             )}
-            {v?.reads.map((r, i) => <ReadLine key={r.platformId ?? `hidden-${i}`} r={r} />)}
+            {v?.reads.map((r, i) => (
+              <ReadLine key={r.platformId ?? `hidden-${i}`} r={r} />
+            ))}
             {v?.canRead && canEdit && (
               <Group>
-                <Button size="xs" variant="default" leftSection={<IconRefresh size={14} />} loading={busy} onClick={() => void read()} data-testid="actual-read-now">
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<IconRefresh size={14} />}
+                  loading={busy}
+                  onClick={() => void read()}
+                  data-testid="actual-read-now"
+                >
                   {t('actual.readNow')}
                 </Button>
               </Group>

@@ -151,7 +151,14 @@ function EndorseForm({ p, onClose, onSaved }: { p: DataProduct; onClose: () => v
             error={v.error('reviewDate')}
             data-testid="endorse-review-date"
           />
-          <Textarea label={t('endorsement.note')} value={note} onChange={(e) => setNote(e.currentTarget.value)} autosize minRows={2} data-testid="endorse-note" />
+          <Textarea
+            label={t('endorsement.note')}
+            value={note}
+            onChange={(e) => setNote(e.currentTarget.value)}
+            autosize
+            minRows={2}
+            data-testid="endorse-note"
+          />
           <FormButtons busy={busy} submit={t('endorsement.endorse')} testId="endorse-save" />
         </Stack>
       </form>

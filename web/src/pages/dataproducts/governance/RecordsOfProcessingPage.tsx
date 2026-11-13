@@ -40,7 +40,13 @@ export function RecordsOfProcessingPage() {
   const rows = useMemo(() => q.data?.items ?? [], [q.data]);
   const list = (xs: string[], hidden = 0) => (
     <Stack gap={2}>
-      {xs.length ? xs.map((x, i) => <Text key={i} size="sm" style={{ overflowWrap: 'anywhere' }}>{x}</Text>) : !hidden && <Text size="sm">–</Text>}
+      {xs.length
+        ? xs.map((x, i) => (
+            <Text key={i} size="sm" style={{ overflowWrap: 'anywhere' }}>
+              {x}
+            </Text>
+          ))
+        : !hidden && <Text size="sm">–</Text>}
       <HiddenCount count={hidden} />
     </Stack>
   );

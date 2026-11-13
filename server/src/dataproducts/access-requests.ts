@@ -112,7 +112,14 @@ export function needsFourEyes(productId: string): boolean {
   if (!rating) return false;
   return CIA_DIMENSIONS.some((d) => {
     const r = rating[d];
-    return !!r && !r.needsRerating && highOrAbove(scale.levels[d].map((l) => l.key), r.level);
+    return (
+      !!r &&
+      !r.needsRerating &&
+      highOrAbove(
+        scale.levels[d].map((l) => l.key),
+        r.level,
+      )
+    );
   });
 }
 
@@ -254,11 +261,7 @@ function checkConsumer(u: AuthUser, c: z.infer<typeof dataAccessRequestInput>['c
   if (c.kind === 'text' && !c.text) throw bad('text');
   if (c.kind === 'application' || c.kind === 'service' || c.kind === 'product') {
     if (!c.refId) throw bad('ref');
-    const label = consumerLabel(
-      u,
-      { consumer_kind: c.kind, ref_id: c.refId, consumer_subjects: '[]', consumer_text: '' } as RequestRow,
-      new Map(),
-    );
+    const label = consumerLabel(u, { consumer_kind: c.kind, ref_id: c.refId, consumer_subjects: '[]', consumer_text: '' } as RequestRow, new Map());
     if (!label) throw c.kind === 'product' ? productNotFound(c.refId) : bad('notFound');
   }
 }
@@ -499,7 +502,11 @@ export async function decideRequest(id: string, body: unknown): Promise<DataAcce
       db().run('UPDATE dp_access_requests SET ticket_id = ? WHERE id = ?', tk.id, r.id);
     } catch (err) {
       logger.warn({ err, requestId: r.id }, 'the ticket reference of an access request could not be added');
-      db().run('UPDATE dp_access_requests SET decision_comment = ? WHERE id = ?', `${input.comment}\n[ticket: ${(err as Error).message}]`.trim().slice(0, 2_500), r.id);
+      db().run(
+        'UPDATE dp_access_requests SET decision_comment = ? WHERE id = ?',
+        `${input.comment}\n[ticket: ${(err as Error).message}]`.trim().slice(0, 2_500),
+        r.id,
+      );
     }
   }
   // the platform team's process, live, as the approver (its own approvals apply)
@@ -543,7 +550,10 @@ export async function decideRequest(id: string, body: unknown): Promise<DataAcce
 function settingsView(productId: string, row: SettingsRow | undefined, u: AuthUser): DataAccessSettings {
   let process: DataAccessSettings['process'] = null;
   if (row?.process_id) {
-    const pr = db().get<{ id: string; name: string; owner: string | null; acl: string }>('SELECT id, name, owner, acl FROM processes WHERE id = ?', row.process_id);
+    const pr = db().get<{ id: string; name: string; owner: string | null; acl: string }>(
+      'SELECT id, name, owner, acl FROM processes WHERE id = ?',
+      row.process_id,
+    );
     // a process the reader may not see is not named
     const visible = !!pr && processPermissions(u, { id: pr.id, owner: pr.owner, acl: parseJson(pr.acl, []) }).includes('view');
     process = { id: row.process_id, name: visible ? pr.name : null };

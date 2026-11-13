@@ -23,7 +23,7 @@
     "who": "Registered consumer",
     "state": "Seen",
     "identities": "Platform identities",
-    "identitiesHelp": "How the consumer reads: user:<Snowflake user>, role:<Snowflake role>, group:<Kafka consumer group>. A registered user is also matched by their user name and e-mail address.",
+    "identitiesHelp": "How the consumer reads: user:NAME (a Snowflake user), role:NAME (a Snowflake role), group:NAME (a Kafka consumer group). A registered user is also matched by their user name and e-mail address.",
     "identitiesTitle": "Platform identities of a consumer",
     "identitiesInvalid": "Not an identity: {{list}} – use user:, role: or group:",
     "editIdentities": "Change the platform identities of {{name}}",

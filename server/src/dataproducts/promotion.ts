@@ -132,7 +132,10 @@ function plan(u: AuthUser, productId: string, from: string, to: string): Plan {
   const contracts = new Map<string, DataRef>();
   const contractIds = [...new Set(sourceBindings.map((b) => b.contract_id).filter((x): x is string => !!x))];
   for (const part of chunks(contractIds))
-    for (const c of db().all<{ id: string; contract_key: string; name: string }>(`SELECT id, contract_key, name FROM data_contracts WHERE id IN (${marks(part.length)})`, ...part))
+    for (const c of db().all<{ id: string; contract_key: string; name: string }>(
+      `SELECT id, contract_key, name FROM data_contracts WHERE id IN (${marks(part.length)})`,
+      ...part,
+    ))
       contracts.set(c.id, contractAccess(u, { id: c.id }).permissions.includes('view') ? { id: c.id, key: c.contract_key, name: c.name } : HIDDEN);
   const previewBindings: DataPromotionPreview['bindings'] = [];
   const bindingSets: Plan['bindingSets'] = [];
@@ -219,7 +222,12 @@ export function promote(productId: string, body: unknown): { promotion: DataProm
     ensureEnvironment(p.id, input.to);
     for (const g of pl.memberAdds)
       for (let i = 0; i < g.elementIds.length; i += 500)
-        addMembers(p.id, p.name, { elementIds: g.elementIds.slice(i, i + 500), role: g.role, includeDescendants: g.includeDescendants, note: `promoted from ${input.from}` });
+        addMembers(p.id, p.name, {
+          elementIds: g.elementIds.slice(i, i + 500),
+          role: g.role,
+          includeDescendants: g.includeDescendants,
+          note: `promoted from ${input.from}`,
+        });
     for (const b of pl.bindingSets)
       setBinding(p.id, p.name, b.portId, input.to, {
         elementIds: b.elementIds,

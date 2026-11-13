@@ -194,7 +194,9 @@ describe('promotion between environments', () => {
     expect(prod).toMatchObject({ objectives: { freshnessMinutes: 60 } });
     expect(await fail(dana('POST', `/data-products/${product}/promotion`, { from: 'dev', to: 'prod' }))).toMatchObject({ params: { context: 'nothingToDo' } });
     expect((await dana('GET', `/data-products/${product}/promotions`)).map((p: { to: string }) => p.to)).toEqual(['prod']);
-    const audit = (await s.api('GET', `/audit?entityType=data_product&entityId=${product}&action=dataproduct.promoted`)) as { details: { evidence: unknown } }[];
+    const audit = (await s.api('GET', `/audit?entityType=data_product&entityId=${product}&action=dataproduct.promoted`)) as {
+      details: { evidence: unknown };
+    }[];
     expect(audit[0]?.details.evidence).toEqual({ kind: 'record', ref: 'CR-2026-117' });
   });
 });

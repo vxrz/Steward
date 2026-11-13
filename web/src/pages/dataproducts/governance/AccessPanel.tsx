@@ -225,7 +225,11 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
             <Badge variant="light" tt="none">
               {t(`reviews.statuses.${r.status}`)}
             </Badge>
-            {r.fourEyes && <Badge variant="outline" tt="none">{t('reviews.fourEyesShort')}</Badge>}
+            {r.fourEyes && (
+              <Badge variant="outline" tt="none">
+                {t('reviews.fourEyesShort')}
+              </Badge>
+            )}
           </Group>
           {r.check && (
             <Text size="xs" c="dimmed">
@@ -253,7 +257,9 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
                         {i.detail && ` · ${i.detail}`}
                       </Text>
                     </Table.Td>
-                    <Table.Td style={{ overflowWrap: 'anywhere' }}>{i.kind === 'grant' ? i.finding : t(`actual.states.${i.finding}`, { defaultValue: i.finding })}</Table.Td>
+                    <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                      {i.kind === 'grant' ? i.finding : t(`actual.states.${i.finding}`, { defaultValue: i.finding })}
+                    </Table.Td>
                     <Table.Td>
                       {r.mayDecide ? (
                         <Stack gap={4}>
@@ -447,4 +453,3 @@ function SettingsForm({ p, settings, onClose }: { p: DataProduct; settings: NonN
     </FormModal>
   );
 }
-

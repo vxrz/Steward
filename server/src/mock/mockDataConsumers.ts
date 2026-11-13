@@ -48,8 +48,7 @@ const list = (v: string): string[] => {
 /** The answer of a tag the data consumers read sends; null: not this tag. */
 export function dataConsumerAnswer(tag: string, bindings: string[]): { names: string[]; rows: Cell[][] } | { error: string } | null {
   if (tag !== 'dp-access-history') return null;
-  if (!available)
-    return { error: "SQL compilation error:\nObject 'SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY' does not exist or not authorized." };
+  if (!available) return { error: "SQL compilation error:\nObject 'SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY' does not exist or not authorized." };
   const names = new Set(list(bindings[2] ?? '[]'));
   const prefixes = list(bindings[3] ?? '[]');
   const limit = Number(bindings[4]) || 1000;

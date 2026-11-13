@@ -262,10 +262,24 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
     <Group gap={4} wrap="nowrap">
       {r.mayDecide && (
         <>
-          <Button size="compact-xs" variant="light" color="green" leftSection={<IconCheck size={12} />} onClick={() => setDeciding({ r, approve: true })} data-testid="request-approve">
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="green"
+            leftSection={<IconCheck size={12} />}
+            onClick={() => setDeciding({ r, approve: true })}
+            data-testid="request-approve"
+          >
             {t('requests.approve')}
           </Button>
-          <Button size="compact-xs" variant="light" color="red" leftSection={<IconX size={12} />} onClick={() => setDeciding({ r, approve: false })} data-testid="request-refuse">
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="red"
+            leftSection={<IconX size={12} />}
+            onClick={() => setDeciding({ r, approve: false })}
+            data-testid="request-refuse"
+          >
             {t('requests.refuse')}
           </Button>
         </>
