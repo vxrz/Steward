@@ -24,4 +24,6 @@ export const PROCESS_SHARE_KIND: ShareKindDef<ProcessPermission> = {
     return owner ? [{ subject: `user:${owner}`, level: 'manage', as: 'owner' }] : [];
   },
   restrictBy: 'manage',
+  // a migrated Custom entry with `manage` but not `edit` changed the access list: it still changes the shares (ADR 0033 "Migration")
+  managesWith: 'manage',
 };

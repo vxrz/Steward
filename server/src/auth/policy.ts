@@ -335,6 +335,11 @@ export function shareReasons<P extends string>(u: AuthUser, r: { kind: OwnedKind
 export interface HeldShare {
   level: ShareLevel | null;
   actions: ShareAction[];
+  /**
+   * Changes the shares without holding the whole Manage level (0.23.0): a migrated _Custom_ entry with `manage` but
+   * not `edit` – it changed the access list before; what it shares stays within `level` and `actions`
+   */
+  manages?: boolean;
 }
 
 /**
@@ -351,7 +356,7 @@ export function heldShare<P extends string>(u: AuthUser | null, model: ShareMode
 }
 
 /** Whether these rights include Manage (changing shares, decision 3: Edit may not re-share). */
-export const managesShares = (held: HeldShare | 'all'): boolean => held === 'all' || held.level === 'manage';
+export const managesShares = (held: HeldShare | 'all'): boolean => held === 'all' || held.level === 'manage' || !!held.manages;
 
 /**
  * The rights `u` has on a resource, with the reasons. `all` lists every right of the kind (in order), `defaults`
