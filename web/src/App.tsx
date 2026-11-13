@@ -4,6 +4,7 @@ import { AppShell, Badge, Burger, Button, Center, Group, Loader, Text, ActionIco
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { codeText } from './i18n/errors';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IconMapPinOff, IconMoon, IconSun } from '@tabler/icons-react';
 import { EmptyState } from './components/common';
@@ -312,7 +313,10 @@ function Shell({ status }: { status: AuthStatus }) {
           {t('backToDashboard')}
         </Button>
       }
-    />
+    >
+      {/* a plant viewer or a module-only user: say why, in plain words (the server's MODULE_ONLY_USER) */}
+      {plantOnly && <Text size="sm">{codeText('MODULE_ONLY_USER')}</Text>}
+    </EmptyState>
   );
 
   return (
