@@ -4,8 +4,10 @@ description: |
   device is onboarded (`deviceStatus`: ACTIVE, PENDING or DELETED), not whether
   it is connected. The online state therefore comes from the device statistics:
   the newest key of `GET /portal/api/v1/devices/{id}/statistics` is the time of
-  the device's last report (epoch milliseconds). A device that reported within
-  the last `onlineWithinMinutes` is online, an older report means offline. A
+  the device's last report (epoch milliseconds). Devices report about once per
+  report interval (`SystemInfo.Period` of the report, usually 60 minutes; 60
+  when it is missing). A device whose last report is at most the interval plus
+  `onlineWithinMinutes` old is online, an older report means offline. A
   device without statistics is "unknown", a PENDING device "not onboarded" –
   neither counts as offline. Deleted devices are left out.
 
@@ -22,7 +24,7 @@ connections:
     kind: industrial-edge-management
 inputs:
   - name: onlineWithinMinutes
-    label: Online when the last report is at most this old (minutes)
+    label: Grace after the device's report interval before it counts as offline (minutes)
     type: number
     default: 15
 steps:
@@ -67,7 +69,10 @@ steps:
               $times := vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)];
               $last := $max($times.$number($));
               $minutes := $exists($last) ? ($toMillis($now()) - $last) / 60000;
-              $online := $exists($last) and $minutes <= $inputs.onlineWithinMinutes;
+              $report := $exists($last) ? $string($lookup(vars.stats.body.data, $string($last)));
+              $p := $match($report, /Period\W+([0-9.]+) *(minute|hour)/)[0];
+              $interval := $p ? $number($p.groups[0]) * ($p.groups[1] = 'hour' ? 60 : 1) : 60;
+              $online := $exists($last) and $minutes <= $interval + $inputs.onlineWithinMinutes;
               {
                 'id': vars.device.id,
                 'name': vars.device.name,
