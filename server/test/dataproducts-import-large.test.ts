@@ -207,6 +207,37 @@ describe('large imports', () => {
     expect(await elementCount('END')).toBe(0);
   }, 600_000);
 
+  it('an undo that fails is logged, never an unhandled rejection – the next run of the job takes the import back', async () => {
+    const { db } = await import('../src/db.js');
+    const { vi } = await import('vitest');
+    const d = db();
+    const run = d.run.bind(d);
+    // the import fails in its last transaction (an active product without owner and output port), and so does its undo
+    const spy = vi.spyOn(d, 'run').mockImplementation((sql: string, ...params: unknown[]) => {
+      if (sql.includes("SET phase = 'undo'")) throw new Error('invented failure of the undo');
+      return run(sql, ...params);
+    });
+    let id: string | undefined;
+    try {
+      const files = [{ name: 'undo2.json', content: bigFile('UNDOFAIL', 1_200, 1, 10, { lifecycle: 'active' }) }];
+      id = (await dana('POST', '/data-products/import', { files, mode: 'update' })).job.id as string;
+      const { importJobDone } = await import('../src/dataproducts/import-jobs.js');
+      await importJobDone(id);
+      // the job is left running: another import starts taking it back, which fails again – logged, refused with 409
+      expect(await fail(dana('POST', '/data-products/import', { files: [{ name: 'x.json', content: '{"version":1}' }], mode: 'add' }))).toMatchObject({
+        status: 409,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await dana('GET', `/data-products/import/jobs/${id}`)).toMatchObject({ state: 'running' });
+    const { runDataProductsJob } = await import('../src/dataproducts/discovery/job.js');
+    await runDataProductsJob();
+    expect(await dana('GET', `/data-products/import/jobs/${id}`)).toMatchObject({ state: 'failed', undone: { removed: 1_200 } });
+    expect(await elementCount('UNDOFAIL')).toBe(0);
+  }, 600_000);
+
   it('a job a stopped server left running is taken back by the next run of the job', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();
