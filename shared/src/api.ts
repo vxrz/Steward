@@ -35,8 +35,7 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
-  plant:
-    'Deprecated since 0.23.0: the module role contributor of the plant registry (Users → module roles). Still accepted for one release and turned into that grant',
+  plant: 'Deprecated since 0.23.0: the plant registry’s module role contributor (Users → Module roles). Accepted for one release and turned into that role.',
 };
 
 /**
