@@ -933,7 +933,6 @@
       "validFrom": "Valid from",
       "validTo": "Valid to",
       "valid": "Valid",
-      "datePlaceholder": "YYYY-MM-DD",
       "sourceNote": "Source"
     },
     "versions": {

@@ -3367,7 +3367,6 @@ export interface Resources {
     'prices.item.validFrom': string;
     'prices.item.validTo': string;
     'prices.item.valid': string;
-    'prices.item.datePlaceholder': string;
     'prices.item.sourceNote': string;
     'prices.versions.title': string;
     'prices.versions.when': string;

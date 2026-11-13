@@ -152,6 +152,16 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await expectAccessible(page, 'estimate priced by contract');
   if (mobile) await expectNoHorizontalScroll(page);
 
+  // ---- a list book's item: its validity picked as days ----
+  if (!mobile) {
+    await page.goto(`/costs/price-books/${f.list}`);
+    await page.getByTestId('entry-add').click();
+    const entry = page.getByRole('dialog');
+    await expect(entry.getByLabel('Valid from')).toHaveAttribute('type', 'date');
+    await expect(entry.getByLabel('Valid to')).toHaveAttribute('type', 'date');
+    await entry.getByRole('button', { name: 'Cancel' }).click();
+  }
+
   // ---- the derived book: its base, its terms on the contract, Access ----
   await page.goto(`/costs/price-books/${f.derived}`);
   const info = page.getByTestId('derived-info');

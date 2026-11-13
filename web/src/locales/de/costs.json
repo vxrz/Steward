@@ -933,7 +933,6 @@
       "validFrom": "Gültig ab",
       "validTo": "Gültig bis",
       "valid": "Gültig",
-      "datePlaceholder": "JJJJ-MM-TT",
       "sourceNote": "Quelle"
     },
     "versions": {
