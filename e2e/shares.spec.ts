@@ -172,9 +172,9 @@ test('a team named as owner gives an implied share, not a scope: the Access tab 
     );
     // an administrator gets the way to the owning teams: the button puts the focus into their field
     await expect(panel.getByTestId('shares-scope-teams')).toContainText('To keep this item to some teams, set its owning teams.');
+    await expectAccessible(page, 'access of a system with a team as owner');
     await panel.getByRole('button', { name: 'Set owning teams' }).click();
     await expect(page.getByRole('combobox', { name: 'Teams' })).toBeFocused();
-    await expectAccessible(page, 'access of a system with a team as owner');
 
     // German
     const ctx = await browser.newContext({ baseURL: baseURL(), serviceWorkers: 'block', storageState: authFile('admin'), locale: 'de-DE' });
