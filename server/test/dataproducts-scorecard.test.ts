@@ -285,8 +285,9 @@ describe('the scorecard', () => {
     const c = await card();
     expect(c.parts.find((p) => p.id === 'ports')!.evidence[0]).toEqual({ key: 'evidence.ports.bound', values: { bound: 7, of: 7 } });
     expect(counted.get(url)).toBe(few);
-    // the scorecard's own reads and the element health of health.ts (check links, monitors, states – in bulk)
-    expect(few).toBeLessThanOrEqual(48);
+    // the scorecard's own reads and the element health of health.ts (check links, monitors, states – in bulk); since
+    // 0.24.0 also the quality results and personal fields (package B) and the endorsements and port reviews (package C)
+    expect(few).toBeLessThanOrEqual(52);
     // a product the reader may not see answers like a missing one
     const team = (await s.api('POST', '/teams', { name: 'Invented score team', members: ['olivia'] })).id;
     const { db } = await import('../src/db.js');
