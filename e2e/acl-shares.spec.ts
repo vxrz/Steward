@@ -112,8 +112,9 @@ test('a dashboard and a data contract have the Access section; a contract share 
   await page.getByRole('option', { name: /\(vera\)/ }).click();
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
   const row = panel.getByTestId('share-row').filter({ hasText: /vera/i });
-  await expect(row.getByRole('checkbox', { name: 'relax the breaking-change rule' })).toBeVisible();
-  await expect(row.getByRole('checkbox', { name: 'test' })).toBeVisible();
+  // labels in sentence case (the rights' names are lower case for running text)
+  await expect(row.getByRole('checkbox', { name: 'Relax the breaking-change rule', exact: true })).toBeVisible();
+  await expect(row.getByRole('checkbox', { name: 'Test', exact: true })).toBeVisible();
   await expectAccessible(page, 'data contract access section');
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoHorizontalScroll(page);

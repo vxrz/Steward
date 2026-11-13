@@ -16,7 +16,7 @@ import {
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../../api';
 import { subjectOptionLabel, useSubjectLabel, useSubjects } from '../SubjectsInput';
-import { fmtDayOnly } from '../../format';
+import { capFirst, fmtDayOnly } from '../../format';
 
 /** One share as the form edits it (end date as a day, empty: none). */
 interface Draft {
@@ -240,7 +240,8 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                         {v.actions.map((a) => (
                           <Checkbox
                             key={a}
-                            label={t(`common:permissions.${a}`, { defaultValue: a })}
+                            // a label starts with a capital (the right's name is lower case for running text: "may: view, run")
+                            label={capFirst(t(`common:permissions.${a}`, { defaultValue: a }))}
                             checked={s.actions.includes(a)}
                             disabled={!mayAction(a)}
                             onChange={(e) => update(i, { actions: e.currentTarget.checked ? [...s.actions, a] : s.actions.filter((x) => x !== a) })}
