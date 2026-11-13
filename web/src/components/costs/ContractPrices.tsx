@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ActionIcon, Anchor, Autocomplete, Badge, Button, Group, Input, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -68,6 +69,46 @@ const validText = (t: T, c: Pick<CostCondition, 'validFrom' | 'validTo'>) =>
 
 function ConditionsTable({ list, testId }: { list: CostConditionView[]; testId: string }) {
   const { t } = useTranslation('costs');
+  const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  const kindBadge = (c: CostConditionView) => (
+    <Badge size="xs" variant="light" color={COST_DERIVATION_KINDS.includes(c.kind) ? 'grape' : 'blue'}>
+      {t(`conditions.kinds.${c.kind}`)}
+    </Badge>
+  );
+  const details = (c: CostConditionView) => (
+    <>
+      {c.flag && (
+        <Text size="xs" c="orange">
+          {t('conditions.flag.contractedBook')}
+        </Text>
+      )}
+      {c.note && (
+        <Text size="xs" c="dimmed">
+          {c.note}
+        </Text>
+      )}
+    </>
+  );
+  // a phone: a card per condition – kind and validity on top, the condition in words below
+  if (phone)
+    return (
+      <Stack gap="xs" data-testid={testId}>
+        {list.map((c) => (
+          <Paper key={c.id} withBorder p="xs" data-testid="condition-card">
+            <Group justify="space-between" gap="xs" wrap="wrap">
+              {kindBadge(c)}
+              <Text size="xs" c="dimmed">
+                {validText(t, c)}
+              </Text>
+            </Group>
+            <Text size="sm" mt={4}>
+              {conditionText(t, c)}
+            </Text>
+            {details(c)}
+          </Paper>
+        ))}
+      </Stack>
+    );
   return (
     <Table.ScrollContainer minWidth={420}>
       <Table striped data-testid={testId}>

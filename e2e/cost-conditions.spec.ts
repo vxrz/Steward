@@ -107,7 +107,12 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await expect(prices.getByTestId('contract-conditions')).toContainText('12 % off');
   await expect(prices.getByTestId('contract-conditions')).toContainText('Negotiated unit price');
   await expectAccessible(page, 'contract prices');
-  if (mobile) await expectNoHorizontalScroll(page);
+  if (mobile) {
+    await expectNoHorizontalScroll(page);
+    // a card per condition on a phone, not a table to scroll sideways
+    await expect(prices.getByTestId('condition-card')).toHaveCount(4);
+    await expect(prices.getByRole('table')).toHaveCount(0);
+  }
   if (!mobile) {
     await prices.getByTestId('contract-prices-edit').click();
     // the target suggests what the provider's books name; a book is picked from them
