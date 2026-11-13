@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Anchor, Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -58,6 +58,11 @@ function SinkElementModal({ assetId, collectionId, sink, onClose }: { assetId: s
   const [environment, setEnvironment] = useState('');
   const [busy, setBusy] = useState(false);
   const [made, setMade] = useState<DataElement | null>(null);
+  // the form (and its focused button) goes once the element is made: the focus moves to the link to it (WCAG 2.4.3)
+  const link = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (made) link.current?.focus();
+  }, [made]);
   const save = async () => {
     if (!topic.trim()) return;
     setBusy(true);
@@ -91,7 +96,7 @@ function SinkElementModal({ assetId, collectionId, sink, onClose }: { assetId: s
         {made ? (
           <Stack gap="sm" data-testid="sink-element-made">
             <Text size="sm">{t('sinkElement.made', { name: made.qualifiedName })}</Text>
-            <Anchor component={Link} to={`/data-elements/${encodeURIComponent(made.id)}`} size="sm">
+            <Anchor ref={link} component={Link} to={`/data-elements/${encodeURIComponent(made.id)}`} size="sm">
               {t('sinkElement.open')}
             </Anchor>
           </Stack>

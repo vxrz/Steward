@@ -65,7 +65,7 @@ test.describe('edge devices', () => {
     await expectAccessible(page, 'edge system');
   });
 
-  test('the edge asset: apps on this device, collects data from; the Databus sink makes an element', async ({ page }) => {
+  test('the edge asset: apps on this device, collects data from; the Databus sink makes an element', async ({ page, apiAs }) => {
     await page.goto('/plant/assets/rvs-edge-01');
     const edge = page.getByTestId('asset-edge');
     await expect(edge.getByRole('link', { name: SYSTEM })).toBeVisible();
@@ -87,8 +87,18 @@ test.describe('edge devices', () => {
     await expect(dialog.getByRole('textbox', { name: 'Topic' })).toHaveValue('ie/d/line-1/opcua/state');
     await expect(dialog.getByRole('textbox', { name: 'Broker (host:port)' })).toHaveValue('ie-databus:1883');
     await expectAccessible(page, 'create element from a sink');
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    // made: the form goes, the focus moves to the link to the new element (removed again afterwards)
+    await dialog.getByRole('textbox', { name: 'Topic' }).fill(`ie/d/line-1/opcua/state-e2e-${Date.now().toString(36)}`);
+    await dialog.getByTestId('sink-element-create').click();
+    const open = dialog.getByRole('link', { name: 'Open the element' });
+    await expect(open).toBeFocused();
+    const href = (await open.getAttribute('href')) ?? '';
+    const elementId = decodeURIComponent(href.split('/data-elements/')[1] ?? '');
+    expect(elementId).not.toBe('');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
     await expect(dialog).toBeHidden();
+    const del = await (await apiAs('admin')).delete(`/api/data-elements/${encodeURIComponent(elementId)}`);
+    expect(del.ok(), await del.text()).toBe(true);
   });
 
   test('the bridge step runs on the edge device, in the table and the picture', async ({ page }) => {
