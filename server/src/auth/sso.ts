@@ -50,6 +50,7 @@ import { config as appConfig } from '../config.js';
 import { assertAddressSafe, guardedLookup } from '../platforms/outbound.js';
 import { previewModuleUses } from '../modules/access.js';
 import { syncSsoModuleRoles } from '../modules/sso-roles.js';
+import { usesWithoutOwnSso } from '../modules/grants.js';
 import { readCookie, ssoBindingCookie, ssoBindingCookieName } from './cookies.js';
 import { aliasTarget } from './aliases.js';
 import {
@@ -1047,6 +1048,8 @@ interface Decision {
   wantedTeamRoles: Map<string, Role[]>;
   /** Module roles from the matched mappings and the alias of the role "plant" (ADR 0034 part 6) */
   moduleRoles: { module: ModuleId; role: ModuleRole }[];
+  /** The modules whose role comes only from the deprecated role "plant" of a mapping (not from a mapping's module roles) */
+  aliasModules: ModuleId[];
 }
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -1098,6 +1101,8 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
   const split = splitDeprecatedRoles([...new Set([...p.defaultRoles, ...matched.flatMap((m) => m.roles)])] as Role[]);
   const mappedRoles = split.roles;
   const moduleRoles = mappedModuleRoles([...split.moduleRoles, ...matched.flatMap((m) => m.moduleRoles ?? [])]);
+  const explicit = new Set(matched.flatMap((m) => (m.moduleRoles ?? []).map((x) => x.module)));
+  const aliasModules = [...new Set(split.moduleRoles.map((x) => x.module))].filter((m) => !explicit.has(m));
   const managedTeams = new Set(p.mappings.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
   const wantedTeams = new Set(matched.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
   const wantedTeamRoles = new Map<string, Role[]>();
@@ -1129,7 +1134,7 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     ...(moduleRoles.length ? { moduleRoles } : {}),
     notes,
   };
-  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams, wantedTeamRoles, moduleRoles };
+  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams, wantedTeamRoles, moduleRoles, aliasModules };
   const refuse = (refusal: { code: string; message: string; params?: ErrorParams }): Decision => {
     preview.outcome = 'refuse';
     preview.refusal = refusal;
@@ -1430,9 +1435,22 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
     );
     if (created || p.syncRoles) {
       const user = getUser(userId);
-      syncRolesAndTeams(p, user.id, user.username, user.roles, d.mappedRoles, d.managedTeams, d.wantedTeams, d.wantedTeamRoles);
+      // the deprecated role "plant" of a mapping on a restricted plant registry that does not let the person in: the role
+      // stays (it gives them nothing there, as before) – a grant would put them on the module's list (0.23.0 review)
+      const teamsAfter = [
+        ...user.teams.filter((t) => !d.managedTeams.has(t.toLowerCase())),
+        ...listTeams()
+          .filter((t) => d.wantedTeams.has(t.name.toLowerCase()))
+          .map((t) => t.name),
+      ];
+      const leftOut = d.aliasModules.filter((m) => !usesWithoutOwnSso({ id: user.id, username: user.username, roles: d.mappedRoles, teams: teamsAfter }, m));
+      const roles = leftOut.length ? [...d.mappedRoles, 'plant' as Role] : d.mappedRoles;
+      syncRolesAndTeams(p, user.id, user.username, user.roles, roles, d.managedTeams, d.wantedTeams, d.wantedTeamRoles);
       // module roles from the mappings (ADR 0034 part 6), synchronised like roles; each change is an access change
-      syncSsoModuleRoles(user.username, d.moduleRoles);
+      syncSsoModuleRoles(
+        user.username,
+        d.moduleRoles.filter((m) => !leftOut.includes(m.module)),
+      );
     }
   });
   return getUser(userId);

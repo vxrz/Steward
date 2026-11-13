@@ -530,6 +530,31 @@ describe('single sign-on (ADR 0034 part 6)', () => {
     const listed = (await s.api('GET', '/users')).find((u: { username: string }) => u.username === name);
     expect(listed.moduleRoles).toEqual([{ module: 'plant', role: 'viewer', source: 'admin' }]);
   });
+
+  it('the role "plant" of a mapping does not put a person on the list of a restricted plant registry: they keep the role', async () => {
+    const before = await s.api('GET', '/settings/modules/plant/access');
+    const kept = before.grants
+      .filter((g: { source: string; subject: string }) => g.source !== 'sso' && !g.subject.startsWith('user:nina'))
+      .map((g: { subject: string; role?: string | null }) => ({ subject: g.subject, role: g.role ?? null }));
+    await s.api('PUT', '/settings/modules/plant/access', { mode: 'selected', grants: kept });
+    try {
+      mock.setMockIdentity('nina', { preferred_username: 'nina@contoso.example', idToken: { roles: ['SM.PlantViewers'] } });
+      expect((await signIn('nina')).error).toBeUndefined();
+      const name = ((await s.api('GET', '/users')) as { username: string }[]).find((u) => u.username.startsWith('nina'))!.username;
+      // no grant (it would put her on the list), the role kept: what the mapping gave her in 0.22 – nothing here
+      expect(db().all("SELECT role FROM module_grants WHERE module_id = 'plant' AND subject = ?", `user:${name}`)).toEqual([]);
+      expect(JSON.parse(db().get<{ roles: string }>('SELECT roles FROM users WHERE username = ?', name)!.roles)).toEqual(['plant']);
+      // once an administrator lets her use it, the next sign-in turns the role into the synchronised grant
+      await s.api('PUT', '/settings/modules/plant/access', { mode: 'selected', grants: [...kept, { subject: `user:${name}` }] });
+      expect((await signIn('nina')).error).toBeUndefined();
+      expect(db().all("SELECT role, source FROM module_grants WHERE module_id = 'plant' AND subject = ? AND source = 'sso'", `user:${name}`)).toEqual([
+        { role: 'contributor', source: 'sso' },
+      ]);
+      expect(JSON.parse(db().get<{ roles: string }>('SELECT roles FROM users WHERE username = ?', name)!.roles)).toEqual([]);
+    } finally {
+      await s.api('PUT', '/settings/modules/plant/access', { mode: before.mode, grants: kept });
+    }
+  });
 });
 
 describe('the data products module (ADR 0036 part 12)', () => {
