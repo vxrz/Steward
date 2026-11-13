@@ -6,6 +6,19 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Object storage for data products** ([docs/DATA-PRODUCTS.md](docs/DATA-PRODUCTS.md#object-storage), [ADR 0037](docs/adr/0037-data-products-connectors-files-edge.md) part 2): a discovery source on an AWS account reads `files.path` elements from the S3 prefixes it names and from the files.path elements of products – `ListObjectsV2` only (no file is read): objects, size, newest change, the format by suffix (Parquet, CSV, JSON, Avro, ORC; Iceberg and Delta Lake by their folders) and Hive partitions, within limits per run that say when they cut one. The IAM policy needs `s3:ListBucket` on the named prefixes only ([docs/AWS.md](docs/AWS.md#object-storage-for-data-products)). The _Data element_ check reads a file element's freshness (the newest object) and volume (objects or bytes).
+- **Stages and pipes as lineage**: a Snowflake external stage keeps its URL and a pipe the names of the stage and table of its COPY statement; both become proposed steps, so `S3 prefix → stage → pipe → table` is lineage without data access.
+- **File ports**: a port of type _file_ carries the format of its files and its partition keys (form, file format, `/api/v1`) and names the S3 locations it is bound to; a contract drafted from a `files.path` element gets an ODCS server of type `s3`. The demo reads invented S3 buckets and has a file-based product, _Sales files_. Migration `dataproducts-006c-file-ports`.
+- **Large data product imports in the background**: an import that writes more than 1,000 elements runs as a job with progress in the import dialog – its elements in short transactions, the rest in one; a failure or a server stop takes back what it wrote, so the import counts whole or not at all. Another import waits meanwhile. Migration `dataproducts-006c-import-jobs`.
+
+### Changed
+
+- **dbt files are parsed in a worker thread**: `manifest.json` and `run_results.json` (pushes and uploads) no longer hold up the server – a 39 MB manifest blocked it for about 1.1 s, now no turn of the event loop takes more than about 50 ms. The six dbt files a minute per source stay.
+- **Data product imports read faster**: stored elements are looked up in bulk, JSON files are read with `JSON.parse`, members are added up to 500 at a time – an import of 20,000 elements took about 9 s in one transaction, now about 4 s in the background.
+- **Fewer database statements** on a data product's page (26 → 20 beyond what every request costs) and its scorecard (51 → 37).
+
 ## [0.24.0] - 2026-11-13
 
 Steward 0.24.0 brings **data products, phase 2** ([ADR 0036](docs/adr/0036-data-products-module.md#phases)): lineage from tools – OpenLineage events, dbt manifests and run results, Snowflake's access history – proposed to the people who document, never written on their own; quality results from dbt tests, Snowflake data metric functions and contract tests, mapped to the ISO/IEC 25012 dimensions; the scorecard over time and in reports; who really reads a product beside the consumers who registered; access requests with four eyes for the most confidential products and sealed port access reviews; promotion between environments, endorsement and maturity 5; personal data in fields and the records of processing (GDPR Art. 30); costs by measured use and estimates for products; ODPS import, a _replace_ import mode, Git sync, the Ossie export of data objects and proposals from assistants. A release review of security, standards, performance, UI, UX and accessibility (WCAG 2.2) was fixed before the release. Migrations are additive (`dataproducts-005a-lineage`, `dataproducts-005b-quality-scorecard-history`, `dataproducts-005c-governance`, `dataproducts-005d-measured-use-origins`, `dataproducts-005e-port-review-facts`).

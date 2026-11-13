@@ -134,6 +134,31 @@ The monitor check **DynamoDB table** ([MONITORS.md](MONITORS.md#dynamodb-tables)
 
 API references: DynamoDB [`Query`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html), [`DescribeTable`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeTable.html), [`DescribeContinuousBackups`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeContinuousBackups.html), [`DescribeTimeToLive`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DescribeTimeToLive.html) (AWS JSON 1.0, `X-Amz-Target: DynamoDB_20120810.<Action>`); CloudWatch [`GetMetricData`](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html) in the AWS JSON 1.0 protocol (`X-Amz-Target: GraniteServiceVersion20100801.GetMetricData`, timestamps as epoch seconds); the [DynamoDB metrics](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/metrics-dimensions.html) (`ConsumedWriteCapacityUnits`, dimension `TableName`).
 
+### Object storage for data products
+
+Since 0.25.0 ([ADR 0037](adr/0037-data-products-connectors-files-edge.md) part 2) a **discovery source** of the data products module on an AWS account reads `files.path` elements from S3 ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#object-storage)) – **only the prefixes it names** (`s3://<bucket>/<prefix>/`, a bucket's root only as `s3://<bucket>/`) and the `files.path` elements of products on the platform, never the whole account. It calls **`ListObjectsV2` only** – once with the delimiter `/` for the folders one level down, then 1,000 keys a call for the keys below – and keeps metadata: the number of objects, their size, the newest `LastModified`, the format by the keys' suffixes and Hive partitions. No `GetObject`, no `HeadObject`: Steward never reads a file. The `data-element` check reads the same listing for a file element's freshness and volume.
+
+The calls are signed for the service `s3` in the bucket's region (the platform's main region first; a bucket elsewhere answers with its region, and Steward asks there once more), go to `https://<bucket>.s3.<region>.amazonaws.com/` (path style `https://s3.<region>.amazonaws.com/<bucket>` for a bucket with dots; any other base URL – LocalStack, the demo – path style below it) and through the outbound policy like every other request: an allow-list must name the S3 addresses.
+
+**The role's policy** needs `s3:ListBucket` – and only on the prefixes the sources name, with the `s3:prefix` condition:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StewardListNamedPrefixes",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::invented-landing.example",
+      "Condition": { "StringLike": { "s3:prefix": ["orders/", "orders/*"] } }
+    }
+  ]
+}
+```
+
+One statement per bucket; a source's scope that names a prefix outside the condition fails with _AccessDenied_ and says so on the run. Encrypted buckets need nothing more (a listing reads no object). Limits per run: 2,000 listings and 200,000 keys – a run they cut is _truncated_ and marks nothing missing; a check reads at most 20,000 keys of its element.
+
 ## Components of an application
 
 An application component of type **Cloud account** names the AWS platform; its **name is the value of the tag** – `shop` for `application=shop`. Without a platform, a cloud account stays a plain entry as before.
@@ -167,4 +192,4 @@ The dashboard [Cloud costs and keys](../examples/dashboards/63-cloud-costs-and-k
 
 ## Demo
 
-The demo has _AWS (demo)_, an account `123456789012` with resources tagged `application=shop` and `application=crm` in `eu-central-1` and `eu-west-1`, six months of costs and three IAM users. Its DynamoDB table `crm-contacts` (index `by-segment-updated`: `segment`, `updatedAt`) answers `Query`, the `Describe…` calls and CloudWatch `GetMetricData`; the example monitor _CRM contacts (DynamoDB)_ reads it in all three modes (the segment `partner` is stale on purpose). The mock checks the signature of every request. The sample applications _Webshop (demo)_ and _CRM (demo)_ have the cloud accounts `shop` and `crm`, so the templates above have data, and the access check _Platform access (demo) – AWS IAM users_ reads the IAM users.
+The demo has _AWS (demo)_, an account `123456789012` with resources tagged `application=shop` and `application=crm` in `eu-central-1` and `eu-west-1`, six months of costs and three IAM users. Its DynamoDB table `crm-contacts` (index `by-segment-updated`: `segment`, `updatedAt`) answers `Query`, the `Describe…` calls and CloudWatch `GetMetricData`; the example monitor _CRM contacts (DynamoDB)_ reads it in all three modes (the segment `partner` is stale on purpose). Since 0.25.0 it also answers S3 `ListObjectsV2` for two invented buckets – `invented-landing.example` (Parquet files by day under `orders/`, which the external stage `SHOP.RAW.LANDING` of _Snowflake (demo)_ reads) and `invented-shop-lake.example` (CSV and JSON exports and an Iceberg table) – which the discovery source _Shop files (demo)_ reads. The mock checks the signature of every request. The sample applications _Webshop (demo)_ and _CRM (demo)_ have the cloud accounts `shop` and `crm`, so the templates above have data, and the access check _Platform access (demo) – AWS IAM users_ reads the IAM users.
