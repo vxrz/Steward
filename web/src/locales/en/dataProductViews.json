@@ -48,7 +48,8 @@
     "controls": "Zoom",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "fitView": "Show everything"
+    "fitView": "Show everything",
+    "panHint": "More of the picture lies beyond the frame: drag it to move it, Tab reaches every part, “Fit to screen” shows all of it."
   },
   "export": {
     "subtitle": "Data products · documented as of {{date}}"

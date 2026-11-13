@@ -48,7 +48,8 @@
     "controls": "Zoomen",
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern",
-    "fitView": "Alles zeigen"
+    "fitView": "Alles zeigen",
+    "panHint": "Ein Teil des Bilds liegt außerhalb des Rahmens: Ziehen Sie es, um es zu verschieben; mit Tab erreichen Sie jeden Teil, „An Bildschirm anpassen“ zeigt alles."
   },
   "export": {
     "subtitle": "Datenprodukte · dokumentiert am {{date}}"

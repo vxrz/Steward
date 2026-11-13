@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -6,6 +6,7 @@ import {
   EdgeLabelRenderer,
   Handle,
   MarkerType,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -287,8 +288,8 @@ export function DataGraphCanvas(props: DataGraphCanvasProps) {
   );
 }
 
-/** Below this zoom the picture opens at it (the rest is a drag away), so names stay readable. */
-const READABLE_ZOOM = 0.6;
+/** Below this zoom the picture opens at it, from its upstream side (the rest is a drag, a scroll or a Tab away), so names stay readable. */
+const READABLE_ZOOM = 0.85;
 
 function Canvas({
   nodes: graphNodes,
@@ -402,9 +403,12 @@ function Canvas({
       onSelect(selected === id ? null : id);
     } else if (ev.key === 'Escape') onSelect(null);
   };
+  // the picture is larger than the frame at a readable size: say how to reach the rest
+  const [clipped, setClipped] = useState(false);
   const fit = () => {
     if (!fw || !fh) return;
     const zoom = Math.min((fw - 32) / layout.width, (fh - 32) / layout.height, 1);
+    setClipped(zoom < READABLE_ZOOM);
     if (zoom >= READABLE_ZOOM) void rf.fitView({ padding: 0.06, maxZoom: 1 });
     else void rf.setViewport({ x: 16, y: Math.max(8, (fh - layout.height * READABLE_ZOOM) / 2), zoom: READABLE_ZOOM });
   };
@@ -415,6 +419,7 @@ function Canvas({
       first.current = false;
       return;
     }
+    setClipped(false);
     void rf.fitView({ padding: 0.04, minZoom: 0.05, duration: animate ? 300 : 0 });
   }, [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps -- only when asked
   useEffect(() => {
@@ -465,6 +470,11 @@ function Canvas({
         >
           <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
           <Controls showInteractive={false} />
+          {clipped && (
+            <Panel position="top-right" className="dpv-pan-hint" data-testid="graph-pan-hint">
+              {t('graph.panHint')}
+            </Panel>
+          )}
         </ReactFlow>
       )}
     </div>

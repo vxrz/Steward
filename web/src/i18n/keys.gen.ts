@@ -4296,6 +4296,7 @@ export interface Resources {
     'graph.zoomIn': string;
     'graph.zoomOut': string;
     'graph.fitView': string;
+    'graph.panHint': string;
     'export.subtitle': string;
     'notes.truncated_one': string;
     'notes.truncated_other': string;

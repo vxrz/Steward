@@ -5,6 +5,15 @@
 .dpv-node {
   height: 92px;
 }
+.dpv-pan-hint {
+  max-width: min(26rem, calc(100% - 24px));
+  padding: 4px 8px;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-xs);
+}
 .dpv-node[data-outside='true'] {
   background: var(--mantine-color-default-hover);
   border-style: dashed;

@@ -118,6 +118,16 @@ test.describe('the pictures of data products', () => {
     await expect(graph).toHaveAttribute('data-animated', 'true');
     await expect(page.getByTestId('graph-legend')).toContainText('never OK');
     await expectAccessible(page, 'pipeline picture');
+    // readable at first: never below 85 %; what lies beyond the frame is said, and the keyboard reaches it
+    const zoom = () => graph.locator('.react-flow__viewport').evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).a);
+    expect(await zoom()).toBeGreaterThanOrEqual(0.85);
+    await expect(page.getByTestId('graph-pan-hint')).toBeVisible();
+    const last = graph.locator('.react-flow__node[tabindex="0"]').last();
+    await last.focus();
+    const frame = (await graph.boundingBox())!;
+    await expect.poll(async () => (await last.boundingBox())!.x + (await last.boundingBox())!.width).toBeLessThanOrEqual(frame.x + frame.width);
+    await page.getByTestId('graph-fit').click();
+    await expect(page.getByTestId('graph-pan-hint')).toHaveCount(0);
 
     // the keyboard goes through the parts as the data flows: column by column, top to bottom
     const order = await graph.locator('.react-flow__node[tabindex="0"]').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
