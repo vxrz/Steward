@@ -58,8 +58,7 @@ export function takeScorecardSnapshots(now = Date.now(), force = false): number 
   const byEnv = new Map<string, string[]>();
   for (const p of products) {
     const mine = envs.filter((e) => e.product_id === p).map((e) => e.environment);
-    for (const e of mine.length ? mine : [''])
-      if (!taken.has(`${p}\u0000${e}`)) byEnv.set(e, [...(byEnv.get(e) ?? []), p]);
+    for (const e of mine.length ? mine : ['']) if (!taken.has(`${p}\u0000${e}`)) byEnv.set(e, [...(byEnv.get(e) ?? []), p]);
   }
   if (!byEnv.size) return 0;
   const takenAt = nowIso();

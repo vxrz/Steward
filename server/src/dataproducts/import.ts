@@ -761,7 +761,11 @@ const listName = (x: string) => x.split('\u0000').filter(Boolean).join(' ');
  * The product as the files say it, its lists included: members, ports, steps and the consumers of each port are those
  * of the file (an item the file leaves out is removed); other fields as add and update (a key left out keeps its value).
  */
-function replacedLists(cur: ProductFile, inc: ProductFile, keepPorts: ReadonlySet<string> = new Set()): { merged: ProductFile; removed: DataProductImportField[] } {
+function replacedLists(
+  cur: ProductFile,
+  inc: ProductFile,
+  keepPorts: ReadonlySet<string> = new Set(),
+): { merged: ProductFile; removed: DataProductImportField[] } {
   const merged = overlay(cur, inc);
   const removed: DataProductImportField[] = [];
   const keep = <T>(field: string, list: T[] | undefined, wanted: T[] | undefined, id: (x: T) => string): T[] => {

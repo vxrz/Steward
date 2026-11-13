@@ -85,10 +85,7 @@ const mayDecide = (u: AuthUser, r: ReviewRow, p: ProductRow) => r.status === 'op
 /** Whether `u` decided an entry of the review (four eyes: who decided or submitted never approves). */
 const decidedAny = (u: AuthUser, items: readonly Pick<ItemRow, 'decided_by'>[]) => items.some((i) => !!i.decided_by && samePerson(i.decided_by, u));
 const mayApprove = (u: AuthUser, r: ReviewRow, p: ProductRow, items: readonly Pick<ItemRow, 'decided_by'>[]) =>
-  r.status === 'submitted' &&
-  (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) &&
-  !samePerson(r.submitted_by, u) &&
-  !decidedAny(u, items);
+  r.status === 'submitted' && (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) && !samePerson(r.submitted_by, u) && !decidedAny(u, items);
 
 function summary(r: ReviewRow, port: PortRow | undefined, counts: { items: number; removals: number }): DataPortReviewSummary {
   return {
@@ -463,7 +460,8 @@ export function approveReview(id: string, body: unknown): DataPortReview {
   const input = dataPortReviewApprovalInput.parse(body);
   if (r.status !== 'submitted') throw reviewState('The review is not submitted', 'notSubmitted');
   const items = db().all<ItemRow>('SELECT * FROM dp_port_review_items WHERE review_id = ?', r.id);
-  if (samePerson(r.submitted_by, u) || decidedAny(u, items)) throw reviewState('A second person approves – not who decided or submitted the review', 'secondPerson');
+  if (samePerson(r.submitted_by, u) || decidedAny(u, items))
+    throw reviewState('A second person approves – not who decided or submitted the review', 'secondPerson');
   if (!mayApprove(u, r, p, items)) forbid('approve this access review', 'dataProducts');
   if (!input.approve && !input.comment) throw reviewState('Say why it goes back', 'comment');
   db().tx(() => {

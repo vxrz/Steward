@@ -239,7 +239,11 @@ export function pushOpenLineage(token: VerifiedLineageToken, req: { raw: Buffer 
           action: 'datalineage.pushed',
           entityType: 'data_lineage_source',
           entityId: src.id,
-          summary: `Lineage source "${src.name}": ${r.proposals.created} job(s) proposed, ${r.proposals.changed} changed${r.warnings.length ? ` – ${r.warnings.join('; ')}` : ''}`.slice(0, 500),
+          summary:
+            `Lineage source "${src.name}": ${r.proposals.created} job(s) proposed, ${r.proposals.changed} changed${r.warnings.length ? ` – ${r.warnings.join('; ')}` : ''}`.slice(
+              0,
+              500,
+            ),
           details: { tokenId: token.id, ip: req.ip, events: r.events, ...r.proposals, ...(r.warnings.length ? { warnings: r.warnings } : {}) },
         });
       return r;

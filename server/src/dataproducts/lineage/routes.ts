@@ -82,7 +82,11 @@ export async function dataLineageRoutes(app: FastifyInstance): Promise<void> {
             throw new HttpError(400, 'This lineage source takes OpenLineage events, not dbt files', 'DATA_LINEAGE_SOURCE_KIND', { context: row.kind });
           // the source's dbt files a minute, pushed and uploaded together – before the file is parsed
           const busy = takeDbtSlot(row.id);
-          if (busy) return reply.code(busy.status).headers(busy.headers ?? {}).send(busy.body);
+          if (busy)
+            return reply
+              .code(busy.status)
+              .headers(busy.headers ?? {})
+              .send(busy.body);
           return importDbtFile(row, file, Buffer.isBuffer(req.body) ? req.body : undefined, { actor: me().username, via: 'upload' });
         },
       );
