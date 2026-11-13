@@ -50,6 +50,11 @@ const API_ONLY: Record<string, string> = {
   'GET /manifest.webmanifest': 'linked from index.html',
   // probes (the others are shown on the system status page)
   'GET /api/instance': 'instance proof for other Steward instances and the desktop launcher',
+  // the deprecated access-list routes (0.23.0, ADR 0033 phase 2): kept for one release, written as shares – the web app
+  // uses /api/access/:kind/:id/shares (processes and monitors still change their owner through theirs)
+  'PUT /api/platforms/:id/access': 'deprecated access-list route (docs/TEAMS.md#access-lists-became-shares)',
+  'PUT /api/platforms/:id/identities/:identityId/access': 'deprecated access-list route (docs/TEAMS.md#access-lists-became-shares)',
+  'PUT /api/plant/sites/:siteId/access': 'deprecated access-list route (docs/TEAMS.md#access-lists-became-shares)',
   // the public API, its documentation, MCP and OAuth for MCP clients
   'GET /api/v1/*': 'public API (docs/API.md)',
   'POST /api/v1/*': 'public API (docs/API.md)',

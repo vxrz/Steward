@@ -170,7 +170,8 @@
     "scope": {
       "instance": "Scope: the whole instance – everybody's roles apply, and the shares below add to them.",
       "teams": "Scope: the owning teams ({{teams}}) – their members have their roles, and the shares below add exceptions.",
-      "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item."
+      "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item.",
+      "identity": "Closed by default: only administrators, members of its owning teams who design or operate, and the entries below use this identity – and only who may use the platform as well."
     },
     "restricted": "Restricted",
     "restrictedHint": "Instance roles give nothing on this item: only its shares, owners, administrators and auditors reach it.",

@@ -147,6 +147,7 @@ export interface Resources {
     'shares.scope.instance': string;
     'shares.scope.teams': string;
     'shares.scope.restricted': string;
+    'shares.scope.identity': string;
     'shares.restricted': string;
     'shares.restrictedHint': string;
     'shares.implied': string;

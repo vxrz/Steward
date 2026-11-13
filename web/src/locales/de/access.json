@@ -170,7 +170,8 @@
     "scope": {
       "instance": "Bereich: die ganze Instanz – die Rollen aller gelten, die Einträge unten kommen hinzu.",
       "teams": "Bereich: die zuständigen Teams ({{teams}}) – ihre Mitglieder haben ihre Rollen, die Einträge unten fügen Ausnahmen hinzu.",
-      "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag."
+      "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag.",
+      "identity": "Standardmäßig geschlossen: Nur Administratoren, Mitglieder seiner zuständigen Teams, die gestalten oder bedienen, und die Einträge unten nutzen diese Identität – und nur, wer auch die Plattform nutzen darf."
     },
     "restricted": "Eingeschränkt",
     "restrictedHint": "Instanzrollen geben auf diesem Eintrag nichts: Nur die Einträge unter „Geteilt mit“, Eigentümer, Administratoren und Prüfer erreichen ihn.",

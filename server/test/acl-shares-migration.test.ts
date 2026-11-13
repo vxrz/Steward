@@ -421,6 +421,7 @@ describe('lists read shares in bulk', () => {
 
   it('the statements of the lists stay the same when their items get shares and are Restricted', async () => {
     const olivia = await s.as('olivia', PW);
+    await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Invented Plants AG', labels: {}, fields: {} });
     const count = async () => {
       const out: Record<string, number> = {};
       for (const u of LIST_URLS) out[u] = await statements(olivia, u);

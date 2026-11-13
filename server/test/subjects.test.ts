@@ -52,7 +52,8 @@ describe('subjects', () => {
     expect(tables['applications.owners']).toMatchObject({ count: 1, examples: ['Team owned'] });
     expect(tables['services.owners'].count).toBe(1);
     expect(tables['credentials.owner_subjects'].count).toBe(1);
-    expect(tables['processes.acl'].count).toBe(1);
+    // (the access list is the process's shares since 0.23.0)
+    expect(tables['resource_shares.subject'].count).toBe(1);
 
     await s.api('PUT', `/teams/${team.id}`, { name: 'Data Analytics', members: ['dana'] });
     const key = 'team:data analytics';
@@ -60,7 +61,11 @@ describe('subjects', () => {
     expect((await s.api('GET', `/services/${svc.id}`)).owners).toEqual([key, 'user:olivia']);
     expect((await s.api('GET', `/credentials/${cred.id}`)).ownerSubjects).toEqual([key]);
     const { db } = await import('../src/db.js');
-    const aclOf = () => db().get<{ acl: string }>('SELECT acl FROM processes WHERE id = ?', proc.id)!.acl;
+    const aclOf = () =>
+      db()
+        .all<{ subject: string }>("SELECT subject FROM resource_shares WHERE kind = 'process' AND resource_id = ?", proc.id)
+        .map((r) => r.subject)
+        .join();
     expect(aclOf()).toContain(key);
     const e = (await s.api('GET', `/audit?entityType=team&entityId=${team.id}&limit=5`))[0];
     expect(e.summary).toContain('renamed from "Data Platform"');

@@ -140,7 +140,13 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
   // an identity's share means nothing without "use": a new one carries it
   const newActions: ShareAction[] = oneLevel ? v.actions.filter(mayAction) : [];
   const rightName = (r: string) => t(`common:permissions.${r}`, { defaultValue: r });
-  const scopeText = v.scope === 'teams' ? t('shares.scope.teams', { teams: v.owningTeams.map((x) => x.name).join(', ') }) : t(`shares.scope.${v.scope}`);
+  // an identity is closed by default whatever its scope (ADR 0009): instance roles give nothing on it
+  const scopeText =
+    v.kind === 'platform_identity'
+      ? t('shares.scope.identity')
+      : v.scope === 'teams'
+        ? t('shares.scope.teams', { teams: v.owningTeams.map((x) => x.name).join(', ') })
+        : t(`shares.scope.${v.scope}`);
   const maxDay = v.maxEnd.slice(0, 10);
 
   return (
