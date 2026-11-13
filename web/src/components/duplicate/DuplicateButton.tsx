@@ -188,6 +188,11 @@ function DuplicateDialog({ kind, id, onClose, onDone }: DialogProps) {
               {t('duplicate.systemNote')}
             </Text>
           )}
+          {(kind === 'device-profile' || kind === 'kpi-definition') && (
+            <Text size="xs" c="dimmed" data-testid="duplicate-plant-scope">
+              {t('duplicate.plantScope')}
+            </Text>
+          )}
           {s.canCopyAccess && (
             <Checkbox
               label={t(kind === 'application' || kind === 'service' || kind === 'system' ? 'duplicate.copyOwners' : 'duplicate.copyAccess')}

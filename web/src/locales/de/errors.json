@@ -927,6 +927,7 @@
     "PLANT_NODE_NOT_FOUND": "Diesen Teil der Hierarchie gibt es nicht (mehr).",
     "PLANT_BUILDING_NOT_FOUND": "Dieses Gebäude gibt es nicht (mehr).",
     "PLANT_ID_TAKEN": "Die ID {{id}} ist schon vergeben – wählen Sie eine andere.",
+    "PLANT_COPY_NOT_VISIBLE": "Die Kopie gehörte dorthin, wohin das Original gehört – seinen zuständigen Teams oder nur denen, mit denen es geteilt ist –, und Sie würden sie nicht sehen. Wenden Sie sich an ein Mitglied der zuständigen Teams oder an einen Administrator.",
     "PLANT_ID_UNAVAILABLE": "Die ID {{id}} kann nicht verwendet werden – wählen Sie eine andere.",
     "PLANT_ID_ALIAS": "Die ID {{id}} ist noch eine alte ID eines anderen Eintrags und führt dorthin. Eine Administratorin oder ein Administrator kann sie unter Einstellungen → Module → Anlagenregister entfernen.",
     "PLANT_ID_FORMAT": "Die neue ID {{id}} folgt nicht den Regeln ihrer Art – siehe den Hinweis unter dem Feld.",

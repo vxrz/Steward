@@ -1,5 +1,4 @@
 import { isPlantHidden } from '@sm/shared';
-import { OwningTeams } from '../components/OwningTeams';
 import { useEffect, useState } from 'react';
 import { Anchor, Badge, Button, Grid, Group, List, Paper, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -635,8 +634,6 @@ export function PlantProfilePage() {
                 )}
               </Stack>
             </Paper>
-            {/* 0.21.0 (#293): who owns the profile; designers among them manage it */}
-            <OwningTeams kind="device_profile" id={p.id} />
             {(p.extendedBy.length > 0 || derived || !!p.extendedByHidden) && (
               <Paper withBorder p="md" data-testid="profile-extended-by">
                 <Stack gap="xs">

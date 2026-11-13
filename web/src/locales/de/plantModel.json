@@ -262,7 +262,8 @@
       "leading": "Das führende Profil ist eines der gewählten Profile.",
       "no_points": "Wählen Sie mindestens einen Datenpunkt, den jedes Profil teilen kann.",
       "base_taken": "Ein Geräteprofil mit der Kennung {{id}} gibt es bereits.",
-      "rules": "Das Ergebnis verletzt eine Regel für Geräteprofile: {{message}}"
+      "rules": "Das Ergebnis verletzt eine Regel für Geräteprofile: {{message}}",
+      "hidden": "Das Basisprofil gehörte dorthin, wohin das führende Profil {{profile}} gehört (seinen zuständigen Teams oder nur denen, mit denen es geteilt ist), und Sie würden es nicht sehen – wählen Sie ein führendes Profil Ihrer Teams oder wenden Sie sich an einen Administrator."
     },
     "interfaces": "Schnittstellen der Basis",
     "interfacesHelp": "Die Schnittstelle jedes Profils, die die gemeinsamen Datenpunkte hält, erhält diese Kennung. Wo sich ihre Protokolle unterscheiden, hat die Schnittstelle der Basis das Protokoll „Andere“ und keine Adressen – jedes Profil behält sein Protokoll und seine Adressen.",
