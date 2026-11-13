@@ -7,15 +7,18 @@ import {
   levelIncludes,
   shareInputSchema,
   type OwnedKind,
+  moduleOfItemKind,
   type ResourceShare,
   type ShareInput,
+  type ShareLevel,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, nowIso } from '../util.js';
 import { currentActor, type AuthUser } from './context.js';
 import { assertKnownSubjects } from './subjects.js';
 import { findUserByName, toAuthUser } from './users.js';
-import { heldShare, managesShares, memberships, owningTeams, plantOnly, type HeldShare, type ShareModel } from './policy.js';
+import { heldShare, managesShares, memberships, owningTeams, plantOnly, type HeldShare, type OwningTeam, type ShareModel } from './policy.js';
+import { subjectUsesModule } from '../modules/access.js';
 import { isRestricted, shareActive, sharesChanged, sharesOf, toShare, type ShareRow } from './share-store.js';
 import { ACCESS_AUDIT, auditAccessChange, gainedRights, requireAccessGrant, type Gain } from './access-change.js';
 
@@ -49,6 +52,15 @@ export interface ShareKindDef<P extends string = string> {
   link: (id: string) => string;
   /** The rights `u` has on the item – the kind's own access function, shares included; [] when they may not see it */
   rights: (u: AuthUser, id: string) => readonly P[];
+  /**
+   * The shares its owner or responsible fields imply (ADR 0033 part 2): computed from the field, never stored; the
+   * Access tab shows them read-only. Default: none
+   */
+  implied?: (id: string) => { subject: string; level: ShareLevel; as: 'owner' | 'responsible' }[];
+  /** The teams that scope the item (default: its owning teams; an application without its own: its services') */
+  teams?: (id: string) => OwningTeam[];
+  /** Who may switch Restricted (decision 15): administrators (the default) or the item's Manage holders as well */
+  restrictBy?: 'admin' | 'manage';
 }
 
 const KINDS = new Map<OwnedKind, ShareKindDef>();
@@ -125,7 +137,9 @@ function statusOnly(u: AuthUser): boolean {
 
 /**
  * A share never widens route access (ADR 0033 security notes): status viewers get none, plant viewers only on the
- * plant registry's kinds; `role:admin` and `role:status` mean nothing as share subjects.
+ * plant registry's kinds; `role:admin` and `role:status` mean nothing as share subjects. A share of a module's item
+ * goes only to a user or team that uses the module (ADR 0034 decision 15): giving module access stays an
+ * administrator's decision, so the refusal says why (`context: 'module'`).
  */
 function assertSuitable(kind: OwnedKind, subject: string): void {
   const [type, name] = [subject.slice(0, subject.indexOf(':')), subject.slice(subject.indexOf(':') + 1)];
@@ -135,6 +149,13 @@ function assertSuitable(kind: OwnedKind, subject: string): void {
     if (name === 'admin' || name === 'status' || (name === 'plant' && !plantKind)) throw unsuitable();
     return;
   }
+  const module = moduleOfItemKind(kind);
+  if (module && (type === 'user' || type === 'team') && !subjectUsesModule(subject, module))
+    throw new HttpError(400, `${subject} does not use the module of this item – an administrator can give them access to it`, 'SHARE_SUBJECT_UNSUITABLE', {
+      subject,
+      context: 'module',
+      module,
+    });
   if (type !== 'user') return;
   const info = findUserByName(name);
   if (!info) return; // a former name (alias): assertKnownSubjects decided
@@ -182,6 +203,25 @@ export function sharesWiden(kind: OwnedKind, id: string, input: readonly ShareIn
   const restricted = isRestricted(kind, id);
   const next = cleanShares(kind, input).map((s) => ({ ...s, createdBy: '', createdAt: '' }));
   return shareGains({ restricted, shares: sharesOf(kind, id) }, { restricted, shares: next }).length > 0;
+}
+
+/**
+ * What a change of shares or scope would give and take (the Access tab's preview, ADR 0033 part 7): per subject, the
+ * rights it gains (a widening: the step-up) and the rights it loses (a narrowing: confirmed). `extended` is a later end
+ * date, `shortened` an earlier one, `roleDefaults` the instance roles' defaults of the scope. Nothing is stored.
+ */
+export function previewShares(
+  kind: OwnedKind,
+  id: string,
+  change: { shares?: readonly ShareInput[]; restricted?: boolean },
+): { gains: Gain[]; losses: Gain[] } {
+  const before: ShareState = { restricted: isRestricted(kind, id), shares: sharesOf(kind, id) };
+  const after: ShareState = {
+    restricted: change.restricted ?? before.restricted,
+    shares: change.shares ? cleanShares(kind, change.shares).map((s) => ({ ...s, createdBy: '', createdAt: '' })) : before.shares,
+  };
+  const losses = shareGains(after, before).map((g) => ({ ...g, rights: g.rights.map((r) => (r === 'extended' ? 'shortened' : r)) }));
+  return { gains: shareGains(before, after), losses };
 }
 
 // ---------- changing ----------

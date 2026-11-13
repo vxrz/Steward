@@ -69,6 +69,7 @@
       "cost_price_book": "Designers of these teams maintain this price book; a contracted book is read only by the teams’ members, administrators and auditors.",
       "cost_calculator": "Designers of these teams maintain this calculator; everyone using Costs reads it."
     },
+    "hintRestricted": "Restricted: no owning team, and roles in the instance give nothing on it – only its shares, its owners, administrators and auditors reach it.",
     "saved": "Owning teams saved",
     "notSaved": "Owning teams not saved",
     "why": "Why do I have access?",
@@ -89,7 +90,8 @@
       "shareUser": "Shared with {{name}} – {{level}}",
       "shareTeam": "Shared with team {{name}} – {{level}}",
       "shareRole": "Shared with everyone with the role {{name}} – {{level}}",
-      "until": "{{text}} (until {{date}})"
+      "until": "{{text}} (until {{date}})",
+      "implied": "{{as}} ({{subject}}): {{level}} (implied)"
     },
     "level": {
       "view": "View",
@@ -154,5 +156,56 @@
     "hint_other": "{{names}} are not in the owning teams ({{teams}}) and will see and change this item. Saving asks you to confirm it is you.",
     "platformHint_one": "{{names}} is not in the contract’s owning teams ({{teams}}) and will see this contract through the platform. Adding it asks you to confirm it is you.",
     "platformHint_other": "{{names}} are not in the contract’s owning teams ({{teams}}) and will see this contract through the platform. Adding it asks you to confirm it is you."
+  },
+  "shares": {
+    "title": "Shared with",
+    "loading": "Loading the shares …",
+    "loadFailed": "The shares could not be loaded.",
+    "scope": {
+      "instance": "Scope: the whole instance – everybody's roles apply, and the shares below add to them.",
+      "teams": "Scope: the owning teams ({{teams}}) – their members have their roles, and the shares below add exceptions.",
+      "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item."
+    },
+    "restricted": "Restricted",
+    "restrictedHint": "Instance roles give nothing on this item: only its shares, owners, administrators and auditors reach it.",
+    "implied": "{{as}} – {{level}} (implied)",
+    "as": {
+      "owner": "Owner",
+      "responsible": "Responsible"
+    },
+    "outside": "outside the owning teams",
+    "impliedHint": "Owners have an implied Edit share: it is computed from the owner field and goes when the owner is removed.",
+    "notYours": "Only who manages this item, administrators and auditors see whom it is shared with. Why do I have access? shows your own reasons.",
+    "empty": "Not shared with anyone.",
+    "unknown": "No longer exists – this share matches nobody",
+    "level": "Level",
+    "levelFor": "Level for {{name}}",
+    "until": "Ends on",
+    "untilFor": "End date for {{name}}",
+    "untilShort": "until {{date}}",
+    "remove": "Remove the share with {{name}}",
+    "hidden_one": "And {{count}} share with a user or team you may not see – it is kept when you save.",
+    "hidden_other": "And {{count}} shares with users or teams you may not see – they are kept when you save.",
+    "add": "Share with",
+    "newLevel": "Level of the new share",
+    "addButton": "Add",
+    "save": "Save shares",
+    "saved": "Shares saved",
+    "scopeSaved": "Scope saved",
+    "notSaved": "Access not changed",
+    "previewTitle": "Before you save",
+    "nothingChanges": "Nobody gains or loses anything.",
+    "gains": "Who gains what",
+    "losses": "Who loses what",
+    "gainLine": "{{who}} gains: {{rights}}",
+    "lossLine": "{{who}} loses: {{rights}}",
+    "everyoneByRole": "Everyone by their role",
+    "change": {
+      "extended": "a later end date",
+      "shortened": "an earlier end date",
+      "roleDefaults": "the defaults of their roles"
+    },
+    "stepUpHint": "Giving access asks you to confirm it is you.",
+    "confirm": "Save"
   }
 }

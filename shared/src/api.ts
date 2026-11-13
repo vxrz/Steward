@@ -405,16 +405,17 @@ export type OwnedKind = (typeof OWNED_KINDS)[number];
 export interface AccessReason {
   /**
    * admin | owner | auditor | instanceRole | teamRole | accessList | named (a named owner or responsible, #195) |
-   * share (a share of the resource, ADR 0033)
+   * share (a share of the resource, ADR 0033) | implied (a share implied by an owner or responsible field: computed, not
+   * stored – ADR 0033 part 2)
    */
-  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share';
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share' | 'implied';
   /** The role, the team, or the access list or share subject the right comes from */
   role?: Role;
   team?: string;
   subject?: string;
-  /** source named: named as an owner or as a responsible (ticket references) */
+  /** source named or implied: named as an owner or as a responsible (ticket references) */
   as?: 'owner' | 'responsible';
-  /** source share: its level, action rights and end date (ADR 0033) */
+  /** source share or implied: its level, action rights and end date (ADR 0033) */
   level?: ShareLevel;
   actions?: ShareAction[];
   expiresAt?: string | null;

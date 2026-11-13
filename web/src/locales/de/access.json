@@ -69,6 +69,7 @@
       "cost_price_book": "Designer dieser Teams pflegen dieses Preisbuch; ein vertragliches Buch lesen nur die Mitglieder der Teams, Administratoren und Auditoren.",
       "cost_calculator": "Designer dieser Teams pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn."
     },
+    "hintRestricted": "Eingeschränkt: kein zuständiges Team, und Rollen in der Instanz geben darauf nichts – nur die Einträge unter „Geteilt mit“, seine Eigentümer, Administratoren und Prüfer erreichen ihn.",
     "saved": "Zuständige Teams gespeichert",
     "notSaved": "Zuständige Teams nicht gespeichert",
     "why": "Warum habe ich Zugriff?",
@@ -89,7 +90,8 @@
       "shareUser": "Geteilt mit {{name}} – {{level}}",
       "shareTeam": "Geteilt mit Team {{name}} – {{level}}",
       "shareRole": "Geteilt mit allen mit der Rolle {{name}} – {{level}}",
-      "until": "{{text}} (bis {{date}})"
+      "until": "{{text}} (bis {{date}})",
+      "implied": "{{as}} ({{subject}}): {{level}} (abgeleitet)"
     },
     "level": {
       "view": "Ansehen",
@@ -154,5 +156,56 @@
     "hint_other": "{{names}} gehören nicht zu den zuständigen Teams ({{teams}}) und werden diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",
     "platformHint_one": "{{names}} gehört nicht zu den zuständigen Teams des Vertrags ({{teams}}) und wird ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind.",
     "platformHint_other": "{{names}} gehören nicht zu den zuständigen Teams des Vertrags ({{teams}}) und werden ihn über die Plattform sehen. Beim Hinzufügen bestätigen Sie, dass Sie es sind."
+  },
+  "shares": {
+    "title": "Geteilt mit",
+    "loading": "Geteilte Zugriffe werden geladen …",
+    "loadFailed": "Die geteilten Zugriffe konnten nicht geladen werden.",
+    "scope": {
+      "instance": "Bereich: die ganze Instanz – die Rollen aller gelten, die Einträge unten kommen hinzu.",
+      "teams": "Bereich: die zuständigen Teams ({{teams}}) – ihre Mitglieder haben ihre Rollen, die Einträge unten fügen Ausnahmen hinzu.",
+      "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag."
+    },
+    "restricted": "Eingeschränkt",
+    "restrictedHint": "Instanzrollen geben auf diesem Eintrag nichts: Nur die Einträge unter „Geteilt mit“, Eigentümer, Administratoren und Prüfer erreichen ihn.",
+    "implied": "{{as}} – {{level}} (abgeleitet)",
+    "as": {
+      "owner": "Eigentümer",
+      "responsible": "Verantwortlicher"
+    },
+    "outside": "außerhalb der zuständigen Teams",
+    "impliedHint": "Eigentümer haben abgeleitet das Recht Bearbeiten: Es ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
+    "notYours": "Mit wem dieser Eintrag geteilt ist, sehen nur, wer ihn verwaltet, Administratoren und Prüfer. „Warum habe ich Zugriff?“ zeigt Ihre eigenen Gründe.",
+    "empty": "Mit niemandem geteilt.",
+    "unknown": "Existiert nicht mehr – dieser Eintrag trifft auf niemanden zu",
+    "level": "Stufe",
+    "levelFor": "Stufe für {{name}}",
+    "until": "Endet am",
+    "untilFor": "Enddatum für {{name}}",
+    "untilShort": "bis {{date}}",
+    "remove": "Teilen mit {{name}} beenden",
+    "hidden_one": "Und {{count}} Eintrag mit einem Benutzer oder Team, das Sie nicht sehen dürfen – er bleibt beim Speichern erhalten.",
+    "hidden_other": "Und {{count}} Einträge mit Benutzern oder Teams, die Sie nicht sehen dürfen – sie bleiben beim Speichern erhalten.",
+    "add": "Teilen mit",
+    "newLevel": "Stufe des neuen Eintrags",
+    "addButton": "Hinzufügen",
+    "save": "Geteilte Zugriffe speichern",
+    "saved": "Geteilte Zugriffe gespeichert",
+    "scopeSaved": "Bereich gespeichert",
+    "notSaved": "Zugriff nicht geändert",
+    "previewTitle": "Bevor Sie speichern",
+    "nothingChanges": "Niemand erhält oder verliert etwas.",
+    "gains": "Wer was erhält",
+    "losses": "Wer was verliert",
+    "gainLine": "{{who}} erhält: {{rights}}",
+    "lossLine": "{{who}} verliert: {{rights}}",
+    "everyoneByRole": "Alle über ihre Rolle",
+    "change": {
+      "extended": "ein späteres Enddatum",
+      "shortened": "ein früheres Enddatum",
+      "roleDefaults": "die Standardrechte ihrer Rollen"
+    },
+    "stepUpHint": "Wenn Sie Zugriff geben, bestätigen Sie anschließend, dass Sie es sind.",
+    "confirm": "Speichern"
   }
 }

@@ -24,7 +24,7 @@ import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
 import { StackVersions } from '../components/catalogue/versions';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DetailHeader } from '../components/page/DetailPage';
 import { CostsButton } from '../components/costs/CostsButton';
 import { platformKeys } from '../queryKeys';
@@ -241,7 +241,7 @@ export function ApplicationDetailPage() {
                 </Text>
               </Stack>
             </Paper>
-            <OwningTeams kind="application" id={a.id} mt="md" />
+            <AccessTab kind="application" id={a.id} mt="md" />
           </Grid.Col>
         </Grid>
       </SectionGroup>

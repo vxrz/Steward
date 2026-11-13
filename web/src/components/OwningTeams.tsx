@@ -20,7 +20,7 @@ interface OwningTeamsResponse {
  * Owning teams of a process or platform (#131): members of these teams have their roles in the team on it; everyone
  * else only what the access list below gives. Administrators change them; everybody can see why they have access.
  */
-export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?: 'md' }) {
+export function OwningTeams({ kind, id, mt, restricted }: { kind: OwnedKind; id: string; mt?: 'md'; restricted?: boolean }) {
   const { t } = useTranslation(['access', 'common']);
   const qc = useQueryClient();
   const key = ['owning-teams', kind, id];
@@ -64,7 +64,7 @@ export function OwningTeams({ kind, id, mt }: { kind: OwnedKind; id: string; mt?
           </Button>
         </Group>
         <Text size="sm" c="dimmed">
-          {current.length ? t(`owning.hintOwned.${kind}`) : t(`owning.hintNone.${kind}`)}
+          {current.length ? t(`owning.hintOwned.${kind}`) : restricted ? t('owning.hintRestricted') : t(`owning.hintNone.${kind}`)}
         </Text>
         {canChange && kind === 'service' && <ServiceBulkTeams serviceId={id} onDone={() => qc.invalidateQueries({ queryKey: key })} />}
         {canChange ? (
@@ -189,6 +189,13 @@ function reasonText(t: ReturnType<typeof useTranslation<['access', 'common']>>['
       return r.as === 'responsible'
         ? t('owning.reason.namedResponsible', { subject: r.subject, rights })
         : t('owning.reason.namedOwner', { subject: r.subject, rights });
+    case 'implied':
+      // ADR 0033 part 2: "Owner (user:dana): Edit (implied)" – computed from the owner field, not stored
+      return t('owning.reason.implied', {
+        as: t(`shares.as.${r.as ?? 'owner'}`),
+        subject: r.subject,
+        level: t(`owning.level.${r.level ?? 'edit'}`),
+      });
     case 'share': {
       // ADR 0033: "Shared with team Payments – Edit, run (until 31 Jan 2027)"
       const level = [t(`owning.level.${r.level ?? 'view'}`), ...(r.actions ?? []).map((a) => t(`common:permissions.${a}`, { defaultValue: a }))].join(', ');

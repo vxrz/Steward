@@ -25,6 +25,7 @@ import { moduleUseOf } from '../modules/access.js';
 import { ACCESS, me } from './access.js';
 import { capabilities, isAdmin } from './permissions.js';
 import {
+  SHARED_CATALOGUE_KINDS,
   catalogueAccess,
   catalogueTeams,
   contractAccess,
@@ -44,6 +45,7 @@ import { findUserByName, listUsers, toAuthUser } from './users.js';
 import { protectOpening } from '../suppliers/shared.js';
 import { canManageSuppliers, contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
+import { isRestricted } from './share-store.js';
 import type { AuthUser } from './context.js';
 import { bookRights, bookRow } from '../costs/price-books.js';
 import { calculatorRights } from '../costs/calculators.js';
@@ -141,7 +143,9 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   }
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
-  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : [])], reasons: d.reasons };
+  // Manage (its shares, owners from outside) on the kinds switched to shares (ADR 0033)
+  const manage = d.manage && SHARED_CATALOGUE_KINDS.has(kind);
+  return { permissions: [...(d.view ? ['view'] : []), ...(d.edit ? ['edit'] : []), ...(manage ? ['manage'] : [])], reasons: d.reasons };
 }
 
 /** Whether `u` may see a resource of any kind that can have owning teams (the held messages re-check this at release). */
@@ -169,6 +173,8 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   cost_calculator: ['Calculator not found', 'COST_CALCULATOR_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
+/** 404 for an item of a kind, like one that does not exist (the Access tab's routes, auth/share-routes.ts). */
+export const resourceNotFound = notFound;
 
 /** The resource, if the caller may see it (404 otherwise, like one that does not exist). */
 function visible(kind: OwnedKind, id: string): ResourceRow {
@@ -455,6 +461,9 @@ export async function scopeRoutes(app: FastifyInstance): Promise<void> {
       // the rights beyond seeing it: only who may change the item learns who is in its owning teams
       if (!access(b.kind, r, u).permissions.some((p) => p !== 'view')) throw notFound(b.kind, b.id);
       teams = isCatalogue(b.kind) ? catalogueTeams(b.kind, r.id) : owningTeams(b.kind, r.id);
+      // a Restricted item (ADR 0033): every subject named is from outside
+      if (isCatalogue(b.kind) && SHARED_CATALOGUE_KINDS.has(b.kind) && !teams.length && isRestricted(b.kind, r.id))
+        return { teams: [], outside: uncoveredSubjects([], [], b.subjects, true) };
     }
     return { teams: teams.map((t) => t.name), outside: uncoveredSubjects(teams, [], b.subjects) };
   });

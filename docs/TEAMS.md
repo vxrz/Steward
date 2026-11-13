@@ -19,7 +19,7 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 | Process (with its schedules and runs) | roles and the access list                                             | team roles; the access list adds exceptions for others            |
 | Platform                              | roles and the access list                                             | team roles; the access list adds exceptions for others            |
 | Monitor                               | roles and the access list                                             | team roles; the access list adds exceptions for others            |
-| Service, application, system          | everybody sees it; designers and owners change it                     | designers among the members change it                             |
+| Service, application, system          | everybody sees it; designers and owners change it; shares add         | designers among the members change it; shares add                 |
 | Record, living document               | everybody sees it; editors and the owner change it; approvers approve | editors change it, approvers approve it (four-eyes still applies) |
 | Credential                            | readers by role; editors and owners change it                         | members with a reading or editing role                            |
 | Dashboard                             | everybody sees it; its owner changes it                               | members see it                                                    |
@@ -56,8 +56,8 @@ Applications take options: their components (the stack entered by hand; what was
 ## Setting it up
 
 1. In _Users → Teams_, create a team per service team, add its members, and give each member their roles in the team (e.g. _designer_ in team Orders, _viewer_ in team Payments).
-2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors and documents, and on the page itself for services, applications, systems, credentials, dashboards and ticket references.
-3. To move a whole service at once, use **Owning teams for the whole service** on the service page (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
+2. Open a resource and choose its owning teams in the _Owning teams_ panel. It is on the _Access_ tab for processes, platforms, monitors, documents and services, and on the page itself for applications, systems (with their shares below it), credentials, dashboards and ticket references.
+3. To move a whole service at once, use **Owning teams for the whole service** on the service's _Access_ tab (or `POST /api/owning-teams/bulk` with `service`). It covers the service, its applications, the records and ticket references linked to them, and the credentials that belong to them. Preview it first (`preview: true` in the API): for every resource it lists who **gains** and who **loses** visibility, and changes nothing.
 
 Only administrators change owning teams. Adding a team, and removing every team (the resource then belongs to the whole instance), is confirmed with a step-up, like other grants – also in a bulk change. Every change is audited as `access.owning_teams_changed`, and a bulk change audits each resource. A **supplier** in a bulk change gets the same protections as on its own panel: its contracts keep their teams and its contacts their readers ([SUPPLIERS.md](SUPPLIERS.md#shared-suppliers-merging-and-opening)).
 
@@ -65,12 +65,40 @@ Only administrators change owning teams. Adding a team, and removing every team 
 
 **Why do I have access?** On every owning-teams panel, this button shows your rights and where each one comes from, for example "designer in team Orders", "access list team:payments: use", "Named owner (user:vic): view, edit", "Named responsible (team:payments): view, edit" or "Auditor: view". Administrators and auditors can ask the same for any user. Access reviews use the same explanation.
 
+## Sharing: the Access tab
+
+Owning teams are the scope of a resource; **shares** are the exceptions (0.21.0, [ADR 0033](adr/0033-one-access-model.md)). A share gives one subject – a user (`user:dana`), a team (`team:payments`) or, on a Restricted resource, everyone with a role (`role:operator`) – a **level** on one resource:
+
+| Level                    | What it gives                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| **View** (_Ansehen_)     | see the item and everything that follows it                                                  |
+| **Edit** (_Bearbeiten_)  | View, and change the item and its children                                                   |
+| **Manage** (_Verwalten_) | Edit, and change its shares and name owners from outside its owning teams (only Manage does) |
+
+Kinds with **action rights** offer them beside the level (`use` on a platform, `run` and `approve` on a process, `acknowledge` on a monitor, `propose` on a site, `test` on a data contract) – using a production tenant is not editing it. A share may have an **end date** (at most a year ahead): it stops counting at once when the date has passed, the job removes it (`access.share_expired`), and whoever manages the item is reminded seven days before. Shares only add; there are no deny rules.
+
+The **Access** tab (_Zugriff_) of a resource shows, from top to bottom:
+
+- its **owning teams** with _Why do I have access?_,
+- its **scope**: the whole instance, its owning teams, or **Restricted** – no owning team, and roles in the instance give nothing on it: only its shares, its owners, administrators and auditors reach it. Administrators switch it; switching it off asks for the step-up,
+- **Shared with** (_Geteilt mit_): the shares, each with its level, action rights and end date; a share whose user or team no longer exists stays as an entry that matches nobody and is marked so,
+- the **implied shares** of owners: an owner has _Owner – Edit (implied)_, computed from the owner field and never stored; it is not removable there – removing the owner removes it.
+
+**Who sees the list:** who manages the item, administrators and auditors. Everyone else who sees the item finds only their own reasons in _Why do I have access?_ (for example _Shared with team Payments – View_). A manager who may not list users and teams (a viewer given Manage) sees only their own subjects; the others are **counted, not named** (_And 2 shares with users or teams you may not see_) and kept when the list is saved.
+
+**Changing shares** needs Manage. Nobody shares more than they hold (administrators excepted): a share cannot carry a level or action right its author lacks. Before saving, the tab says **who gains and who loses what** (`POST /api/access/:kind/:id/preview`); a change that gives anyone a right they did not have – a new share, a higher level, a new action right, a later end date, Restricted switched off – asks for the step-up `grantAccess` (control point `access.grant`), and narrowing never does. API tokens cannot change shares at all: share lists name people and are read and changed in the app. **Which kinds:** services, applications, systems and suppliers (0.21.0). A supplier's share opens its company record, not its team-owned contracts or the contacts scoped to them ([SUPPLIERS.md](SUPPLIERS.md#sharing-a-supplier)). Their children – components, duties, objectives, CIA ratings, links, "runs on" – follow their item. An application without owning teams of its own inherits its services' teams, but **not their shares or scope**. Upgrading changes nobody's access: no share is stored and nothing is Restricted at the upgrade, owners keep exactly their rights through the implied share.
+
+Every change is audited in the access family – `access.share_added`, `access.share_changed`, `access.share_removed`, `access.scope_changed` – with the step-up's proof, so it appears in the assurance report and the evidence packs.
+
+**Not every subject can be given a share:** status viewers get none, plant viewers only on the plant registry, and a share of a module's item goes only to users and teams who use that module (`SHARE_SUBJECT_UNSUITABLE` – giving module access stays an administrator's decision, [ADR 0034](adr/0034-module-access.md)).
+
 ## Named owners and responsibles
 
 The people who change a team's item can name a `user:` or `team:` as its owner or responsible – also one from **outside the owning teams**, for example a contact person in another team. That subject then sees the item and changes it: a grant across teams without an administrator. It stays possible, but it is as deliberate as changing an access list (0.19.0, #195):
 
 - **Covered** subjects need nothing: a member of one of the item's owning teams, or one of those teams itself.
-- An item **without owning teams** belongs to the whole instance: naming anyone there grants nothing new, so nothing is asked.
+- An item **without owning teams** belongs to the whole instance: naming anyone there grants nothing new, so nothing is asked – unless it is **Restricted** (services, applications, systems and suppliers since 0.21.0): then every new owner gains access and is asked for.
+- On services, applications, systems and suppliers an owner is an **implied Edit share** (0.21.0, [ADR 0033](adr/0033-one-access-model.md)): it is shown on the _Access_ tab and in _Why do I have access?_ as _Owner – Edit (implied)_, and only who **manages** the item (designers among the members, administrators, Manage shares) names one from outside the owning teams (`FORBIDDEN`, context `nameOutside`, for others). An owner named from outside gets Edit, not Manage, so they cannot name further outsiders.
 - **Adding** an uncovered subject asks for the **step-up** (_Name an owner or responsible from outside the owning teams_, the baseline control point `access.grant` – [SECURITY-HARDENING.md](SECURITY-HARDENING.md#step-up-re-authentication), [ASSURANCE.md](ASSURANCE.md)). **Removing** one, or keeping one already named, never asks.
 - It is audited as an **access change**: `access.named_subjects_granted` on the item, with the field, who was granted (`granted`), what they may do (`rights`) and the owning teams they are outside of (`owningTeams`), and the step-up's proof (`assurance`) – so it appears in the assurance report and the evidence packs that include it. The ordinary change entry (`credential.updated`, `service.updated` …) is written as before.
 - **API tokens** cannot confirm, so they are refused (`SESSION_REQUIRED`), as for access lists; a change that only names covered subjects works with a token as before. Every other path – duplicates, suggestions turned into findings, a merge of suppliers – asks the same in the service before it writes anything, so nothing is granted without a confirmation. The public API (`/api/v1`) is read-only.
@@ -129,13 +157,17 @@ When the group leaves the token, the next sign-in removes the team membership an
 
 ## API
 
-|                                        |                                                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| `GET /api/owning-teams/:kind/:id`      | the owning teams (for whoever can see the resource)                                |
-| `PUT /api/owning-teams/:kind/:id`      | `{ teamIds }`: set them (administrators)                                           |
-| `POST /api/owning-teams/bulk`          | `{ teamIds, mode: set\|add\|remove, resources?: [{kind,id}], service?, preview? }` |
-| `GET /api/access/explain?kind&id&user` | the rights of a user and where they come from                                      |
-| `POST /api/access/named-outside`       | `{ kind, id?, supplierId?, subjects }`: which are outside the item's owning teams  |
-| `GET/PUT /api/me/new-resource-teams`   | the owning teams of your new resources and your choice (`{ teamId \| null }`)      |
+|                                        |                                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/owning-teams/:kind/:id`      | the owning teams (for whoever can see the resource)                                                                 |
+| `PUT /api/owning-teams/:kind/:id`      | `{ teamIds }`: set them (administrators)                                                                            |
+| `POST /api/owning-teams/bulk`          | `{ teamIds, mode: set\|add\|remove, resources?: [{kind,id}], service?, preview? }`                                  |
+| `GET /api/access/explain?kind&id&user` | the rights of a user and where they come from                                                                       |
+| `GET /api/access/:kind/:id/shares`     | the Access tab: scope, owning teams, shares (Manage, administrators, auditors), implied shares, what you may change |
+| `PUT /api/access/:kind/:id/shares`     | `{ shares: [{ subject, level, actions?, expiresAt? }] }`: replace them (Manage; a widening asks for the step-up)    |
+| `PUT /api/access/:kind/:id/scope`      | `{ restricted }`: switch Restricted (administrators; switching it off asks for the step-up)                         |
+| `POST /api/access/:kind/:id/preview`   | `{ shares?, restricted? }`: who would gain and who would lose what, nothing stored                                  |
+| `POST /api/access/named-outside`       | `{ kind, id?, supplierId?, subjects }`: which are outside the item's owning teams                                   |
+| `GET/PUT /api/me/new-resource-teams`   | the owning teams of your new resources and your choice (`{ teamId \| null }`)                                       |
 
 `kind` is one of `process`, `platform`, `service`, `application`, `system`, `record`, `credential`, `monitor`, `dashboard` and `ticket`. Report schedules keep their own rule (owner, recipients, auditors and administrators) and have no owning teams.

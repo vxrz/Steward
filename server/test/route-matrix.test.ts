@@ -1159,6 +1159,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/access/explain': ALL,
   // which named users and teams are outside an item's owning teams (#195): the forms' hint; who may change the item
   'POST /api/access/named-outside': ALL,
+  // the Access tab (ADR 0033, #290) of the demo service: whoever sees it reads it (the share list only who manages
+  // it); designers and administrators manage it by role; administrators switch Restricted
+  'GET /api/access/:kind/:id/shares': ALL,
+  'PUT /api/access/:kind/:id/shares': DESIGN,
+  'PUT /api/access/:kind/:id/scope': ADMIN,
+  'POST /api/access/:kind/:id/preview': DESIGN,
 
   // ---- daily summary ----
   'GET /api/me/daily-summary': ALL,
@@ -1431,6 +1437,11 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // shares (ADR 0033 part 7): share lists name people and are read and changed in the app
+  'GET /api/access/:kind/:id/shares',
+  'PUT /api/access/:kind/:id/shares',
+  'PUT /api/access/:kind/:id/scope',
+  'POST /api/access/:kind/:id/preview',
   // module access (ADR 0034): tokens act with their owner's module access, they never change it
   'GET /api/settings/modules/:id/access',
   'PUT /api/settings/modules/:id/access',
@@ -1635,6 +1646,13 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/vault/passphrase': 'always',
   // the Teams bot (ADR 0013): its credential and where decisions can be taken
   'PUT /api/settings/teams-bot': 'always',
+  // a share that gives someone a right, Restricted switched off (ADR 0033 part 5); narrowing never asks
+  'PUT /api/access/:kind/:id/shares': { sensitive: { shares: [{ subject: 'user:vera', level: 'view' }] }, harmless: { shares: [] } },
+  'PUT /api/access/:kind/:id/scope': {
+    sensitive: { restricted: false },
+    harmless: { restricted: true },
+    path: () => `/api/access/service/${fx.serviceRestricted}/scope`,
+  },
   // adding an owning team gives its members their roles on the resource (#131)
   'PUT /api/owning-teams/:kind/:id': {
     get sensitive() {
@@ -2106,6 +2124,8 @@ function fill(url: string): string {
       // the module registry (ADR 0016): a module the fixtures do not depend on
       .replace(/\/api\/settings\/modules\/:id/, '/api/settings/modules/statusPages')
       .replace(/\/api\/owning-teams\/:kind\/:id/, `/api/owning-teams/process/${fx.process}`)
+      // the Access tab (ADR 0033): the demo service
+      .replace(/\/api\/access\/:kind\/:id/, `/api/access/service/${fx.service}`)
       .replace(/\/api\/duplicates\/:kind\/:id/, `/api/duplicates/process/${fx.process}`)
       .replace(/\/api\/costs\/attribution\/:kind\/:id/, `/api/costs/attribution/application/${fx.application}`)
       // database schemas (#222): the demo database platform, the newest snapshot
@@ -2301,6 +2321,9 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/owning-teams/:kind/:id': { teamIds: [] },
   'POST /api/owning-teams/bulk': { teamIds: [], resources: [] },
   'POST /api/access/named-outside': { kind: 'service', subjects: ['user:vera'] },
+  'PUT /api/access/:kind/:id/shares': { shares: [] },
+  'PUT /api/access/:kind/:id/scope': { restricted: true },
+  'POST /api/access/:kind/:id/preview': { shares: [] },
   'POST /api/schedules': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'PUT /api/schedules/:id': { name: 'x', processId: fx.process, cron: '0 3 * * *' },
   'POST /api/triggers': { ...TRIGGER, processId: fx.process },
@@ -2763,6 +2786,12 @@ beforeAll(async () => {
     contractTeam: (await a('POST', `/suppliers/${supplierTeam}/contracts`, { title: 'Matrix team contract', owners: ['team:matrix owners'] })).contracts.find(
       (c: { title: string }) => c.title === 'Matrix team contract',
     ).id as string,
+    // a Restricted service (ADR 0033): switching it off gives the instance roles their defaults back (step-up)
+    serviceRestricted: await (async () => {
+      const id = (await a('POST', '/services', { name: 'Matrix restricted service', owners: [] })).id as string;
+      await a('PUT', `/access/service/${id}/scope`, { restricted: true });
+      return id;
+    })(),
     // a platform of another team (security review 0.19.0 M1): covering it gives that team the contract
     platformOutside: await (async () => {
       const id = (await a('POST', '/platforms', { name: 'Matrix outside platform', kind: 'rest', baseUrl: 'https://matrix-outside.example' })).id as string;

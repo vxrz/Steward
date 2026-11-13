@@ -9,7 +9,8 @@ import { subjectOptionLabel } from './AccessEditor';
 import { subjectLabel } from './common';
 import { NamedOutsideHint, type NamedScope } from './NamedOutsideHint';
 
-const useSubjects = () => useQuery({ queryKey: subjectKeys.all, queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false, staleTime: 60_000 });
+export const useSubjects = () =>
+  useQuery({ queryKey: subjectKeys.all, queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false, staleTime: 60_000 });
 
 /**
  * Owners and other subjects by name: users by their display name ("Dana Designer", not "dana"), teams as they were

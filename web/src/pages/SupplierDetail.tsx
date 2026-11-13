@@ -19,7 +19,7 @@ import { DetailState, useFieldErrors } from '../components/common';
 import { Field } from '../components/records/common';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate, fmtDay } from '../format';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { DetailHeader } from '../components/page/DetailPage';
 import { LinkTabs } from '../components/page/LinkTabs';
 import { supplierKeys } from '../queryKeys';
@@ -35,7 +35,7 @@ import { useSubjectLabel } from '../components/SubjectsInput';
 import { TableScroll } from '../components/TableScroll';
 
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
-const TABS = ['overview', 'contracts', 'services', 'contacts', 'certificates', 'usedBy'] as const;
+const TABS = ['overview', 'contracts', 'services', 'contacts', 'certificates', 'usedBy', 'access'] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -176,6 +176,7 @@ export function SupplierDetailPage() {
       {tab === 'contacts' && <SupplierContacts s={s} contacts={s.contacts} onSaved={() => saved()} />}
       {tab === 'certificates' && <CertificatesTab s={s} onSaved={saved} />}
       {tab === 'usedBy' && <UsedByTab s={s} />}
+      {tab === 'access' && <AccessTab kind="supplier" id={s.id} />}
       {editing && <SupplierFormModal supplier={s} onClose={() => setEditing(false)} onSaved={saved} />}
       {merging && (
         <MergeModal
@@ -286,7 +287,6 @@ function Overview({ s, complianceOn }: { s: SupplierDetail; complianceOn: boolea
             </Text>
           </Stack>
         </Paper>
-        <OwningTeams kind="supplier" id={s.id} mt="md" />
       </Grid.Col>
     </Grid>
   );

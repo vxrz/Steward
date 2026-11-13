@@ -41,6 +41,7 @@ import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { forgetShares } from '../auth/shares.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { listBacklinks } from '../records/links.js';
 import { firewallOf } from '../records/firewall.js';
@@ -582,6 +583,8 @@ export function deleteSystem(id: string): void {
     db().run('DELETE FROM systems WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('system', id);
+    // and its shares and scope (ADR 0033)
+    forgetShares('system', id);
     audit({
       action: 'system.deleted',
       entityType: 'system',

@@ -71,6 +71,7 @@ import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { moduleAvailable } from '../modules/access.js';
 import { supplierVisible, visibleContracts } from './links.js';
+import { forgetShares } from '../auth/shares.js';
 import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
 import { dropSchedules, type ScheduleRow } from '../costs/schedule-model.js';
 
@@ -1167,6 +1168,7 @@ export function dismissSupplier(id: string): { ok: true; unlinked: Record<string
     db().run('DELETE FROM supplier_contacts WHERE supplier_id = ?', id);
     db().run('DELETE FROM suppliers WHERE id = ?', id);
     forgetOwningTeams('supplier', id);
+    forgetShares('supplier', id);
     audit({
       action: 'supplier.dismissed',
       entityType: 'supplier',
