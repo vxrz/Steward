@@ -1,5 +1,24 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActionIcon, Alert, Badge, Button, Checkbox, Group, List, Loader, Modal, Paper, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Group,
+  List,
+  Loader,
+  Modal,
+  Paper,
+  Select,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconShare, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -74,6 +93,7 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
     // the button goes with its row: keep the keyboard focus in the panel (WCAG 2.4.3)
     requestAnimationFrame(() => heading.current?.focus());
   }, []);
+  const phone = useMediaQuery('(max-width: 48em)') ?? false;
   // the levels the kind offers (a platform and a site: View and Manage; an identity: View with "use")
   const levelData = useMemo(
     () =>
@@ -220,7 +240,16 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
               </Text>
             )}
             {draft.map((s) => (
-              <ShareRow key={s.subject} share={s} name={subjectName(s.subject)} view={v} levelData={levelData} onUpdate={update} onRemove={remove} />
+              <ShareRow
+                key={s.subject}
+                share={s}
+                name={subjectName(s.subject)}
+                view={v}
+                levelData={levelData}
+                phone={phone}
+                onUpdate={update}
+                onRemove={remove}
+              />
             ))}
             {v.hidden > 0 && (
               <Text size="sm" c="dimmed" data-testid="shares-hidden">
@@ -233,7 +262,9 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                   restricted={v.restricted}
                   taken={draft.map((s) => s.subject)}
                   levels={levelData}
-                  onAdd={(subject, level) => setDraft((d) => [...d, { subject, level, actions: newActions, until: '', known: true, custom: null }])}
+                  onAdd={(subject, level) => {
+                    setDraft((d) => [...d, { subject, level, actions: newActions, until: '', known: true, custom: null }]);
+                  }}
                 />
                 <Group gap="xs">
                   <Button onClick={() => void askSave()} disabled={!dirty} loading={busy && !preview}>
@@ -259,6 +290,7 @@ const ShareRow = memo(function ShareRow({
   name,
   view: v,
   levelData,
+  phone,
   onUpdate,
   onRemove,
 }: {
@@ -266,6 +298,8 @@ const ShareRow = memo(function ShareRow({
   name: string;
   view: ResourceAccessView;
   levelData: { value: string; label: string; disabled: boolean }[];
+  /** A phone: the row as a card – name and removal on top, the level and end date side by side, the rights below */
+  phone: boolean;
   onUpdate: (subject: string, change: Partial<Draft>) => void;
   onRemove: (subject: string) => void;
 }) {
@@ -276,67 +310,105 @@ const ShareRow = memo(function ShareRow({
   const oneLevel = v.levels.length === 1;
   const maxDay = v.maxEnd.slice(0, 10);
   const update = (change: Partial<Draft>) => onUpdate(s.subject, change);
+  const who = (
+    <Stack gap={0} style={{ flex: '1 1 160px', minWidth: 0 }}>
+      <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
+        {name}
+      </Text>
+      {!s.known && (
+        <Text size="xs" c="orange">
+          {t('shares.unknown')}
+        </Text>
+      )}
+      {s.custom && (
+        <Text size="xs" c="dimmed" data-testid="share-custom">
+          {t('shares.custom', { rights: s.custom.map(rightName).join(', ') })}
+        </Text>
+      )}
+    </Stack>
+  );
+  const level = !oneLevel && (
+    <Select
+      label={t('shares.level')}
+      data={levelData}
+      // a Custom share has no level of its own: the field says so until one is chosen
+      value={s.custom ? null : s.level}
+      placeholder={s.custom ? t('shares.customShort') : undefined}
+      onChange={(l) => l && update({ level: l as ShareLevel })}
+      allowDeselect={false}
+      w={phone ? undefined : 140}
+      aria-label={t('shares.levelFor', { name })}
+    />
+  );
+  const rights = v.actions.map((a) => (
+    <Checkbox
+      key={a}
+      // a label starts with a capital (the right's name is lower case for running text: "may: view, run")
+      label={capFirst(t(`common:permissions.${a}`, { defaultValue: a }))}
+      checked={s.actions.includes(a)}
+      disabled={!mayAction(a)}
+      onChange={(e) => update({ actions: e.currentTarget.checked ? [...s.actions, a] : s.actions.filter((x) => x !== a) })}
+    />
+  ));
+  const until = (
+    <TextInput
+      type="date"
+      label={t('shares.until')}
+      aria-label={t('shares.untilFor', { name })}
+      value={s.until}
+      max={maxDay}
+      onChange={(e) => update({ until: e.currentTarget.value })}
+      w={phone ? undefined : 170}
+    />
+  );
+  const remove = (
+    <ActionIcon variant="subtle" color="red" size="lg" aria-label={t('shares.remove', { name })} onClick={() => onRemove(s.subject)}>
+      <IconTrash size={16} />
+    </ActionIcon>
+  );
+  const badge = (
+    <Badge variant="light">
+      {(s.custom ? [t('shares.customShort')] : [t(`owning.level.${s.level}`), ...s.actions.map(rightName)]).join(', ')}
+      {s.until ? ` · ${t('shares.untilShort', { date: fmtDayOnly(s.until) })}` : ''}
+    </Badge>
+  );
+  if (phone)
+    return (
+      <Paper withBorder p="xs" data-testid="share-row">
+        <Group gap="xs" wrap="nowrap" align="flex-start">
+          {who}
+          {v.canManage && remove}
+        </Group>
+        {v.canManage ? (
+          <Stack gap="xs" mt="xs">
+            <SimpleGrid cols={level ? 2 : 1} spacing="xs">
+              {level}
+              {until}
+            </SimpleGrid>
+            {rights.length > 0 && (
+              <Group gap="md" wrap="wrap">
+                {rights}
+              </Group>
+            )}
+          </Stack>
+        ) : (
+          <Group mt={4}>{badge}</Group>
+        )}
+      </Paper>
+    );
   return (
     <Paper withBorder p="xs" data-testid="share-row">
       <Group gap="sm" wrap="wrap" align="flex-end">
-        <Stack gap={0} style={{ flex: '1 1 160px', minWidth: 0 }}>
-          <Text size="sm" fw={500} style={{ overflowWrap: 'anywhere' }}>
-            {name}
-          </Text>
-          {!s.known && (
-            <Text size="xs" c="orange">
-              {t('shares.unknown')}
-            </Text>
-          )}
-          {s.custom && (
-            <Text size="xs" c="dimmed" data-testid="share-custom">
-              {t('shares.custom', { rights: s.custom.map(rightName).join(', ') })}
-            </Text>
-          )}
-        </Stack>
+        {who}
         {v.canManage ? (
           <>
-            {!oneLevel && (
-              <Select
-                label={t('shares.level')}
-                data={levelData}
-                // a Custom share has no level of its own: the field says so until one is chosen
-                value={s.custom ? null : s.level}
-                placeholder={s.custom ? t('shares.customShort') : undefined}
-                onChange={(l) => l && update({ level: l as ShareLevel })}
-                allowDeselect={false}
-                w={140}
-                aria-label={t('shares.levelFor', { name })}
-              />
-            )}
-            {v.actions.map((a) => (
-              <Checkbox
-                key={a}
-                // a label starts with a capital (the right's name is lower case for running text: "may: view, run")
-                label={capFirst(t(`common:permissions.${a}`, { defaultValue: a }))}
-                checked={s.actions.includes(a)}
-                disabled={!mayAction(a)}
-                onChange={(e) => update({ actions: e.currentTarget.checked ? [...s.actions, a] : s.actions.filter((x) => x !== a) })}
-              />
-            ))}
-            <TextInput
-              type="date"
-              label={t('shares.until')}
-              aria-label={t('shares.untilFor', { name })}
-              value={s.until}
-              max={maxDay}
-              onChange={(e) => update({ until: e.currentTarget.value })}
-              w={170}
-            />
-            <ActionIcon variant="subtle" color="red" size="lg" aria-label={t('shares.remove', { name })} onClick={() => onRemove(s.subject)}>
-              <IconTrash size={16} />
-            </ActionIcon>
+            {level}
+            {rights}
+            {until}
+            {remove}
           </>
         ) : (
-          <Badge variant="light">
-            {(s.custom ? [t('shares.customShort')] : [t(`owning.level.${s.level}`), ...s.actions.map(rightName)]).join(', ')}
-            {s.until ? ` · ${t('shares.untilShort', { date: fmtDayOnly(s.until) })}` : ''}
-          </Badge>
+          badge
         )}
       </Group>
     </Paper>
