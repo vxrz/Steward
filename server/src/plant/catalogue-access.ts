@@ -7,6 +7,7 @@ import {
   type PlantCatalogueKind,
   type PlantCataloguePermission,
   type PlantHiddenCatalogue,
+  type PlantAssignmentValues,
   type PlantKpiValues,
   type PlantProfileValues,
   type PlantResolvedProfile,
@@ -19,6 +20,7 @@ import { isRestricted } from '../auth/share-store.js';
 import { usesModule } from '../modules/access.js';
 import { HttpError } from '../util.js';
 import { canManageCatalogue, plantProposesSome, proposing } from './access.js';
+import { kpiProfiles } from './checks.js';
 
 /**
  * Device profiles and KPI definitions with owning teams and shares (0.21.0, #293; ADR 0033 parts 3 and 4).
@@ -320,4 +322,61 @@ export const idUnavailable = (id: string): HttpError =>
 /** Refuses a change the reader's rights on an entry do not cover (403, after the entry is known to be visible). */
 export function requireRight(rights: readonly PlantCataloguePermission[], need: PlantCataloguePermission, what: string): void {
   if (!rights.includes(need)) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', { context: 'managePlantCatalogue' });
+}
+
+// ---------- KPI inputs ----------
+
+/** The profiles a KPI definition's inputs name, as placeholders where the caller may not see them (in the order named). */
+export const kpiRefs = (k: Pick<PlantKpiValues, 'inputs'>, scope: CatalogueScope): HiddenRefs => new HiddenRefs(scope.profile, kpiProfiles(k));
+
+/** A KPI definition's inputs with the profiles the caller may not see as placeholders (`profile`, `profiles`, `mapping`). */
+export function presentInputs(k: Pick<PlantKpiValues, 'inputs'>, refs: HiddenRefs): PlantKpiValues['inputs'] {
+  return k.inputs.map((i) => ({
+    ...i,
+    profile: i.profile ? refs.ref(i.profile) : i.profile,
+    ...(i.profiles ? { profiles: i.profiles.map((p) => refs.ref(p)) } : {}),
+    ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([p, m]) => [refs.ref(p), m])) } : {}),
+  }));
+}
+
+/**
+ * A KPI definition's inputs as stored: placeholders become the profiles they stand for in the stored definition, a
+ * profile the caller may not see that it did not name is refused like an unknown one (0.21.0, part 4).
+ */
+export function keptInputs(
+  inputs: PlantKpiValues['inputs'],
+  stored: Pick<PlantKpiValues, 'inputs'> | null,
+  scope: CatalogueScope,
+  notFound: (id: string) => HttpError,
+): PlantKpiValues['inputs'] {
+  const refs = new HiddenRefs(scope.profile, stored ? kpiProfiles(stored) : []);
+  const kept = (p: string) => keptRef(p, refs, scope.profile, notFound);
+  return inputs.map((i) => ({
+    ...i,
+    profile: i.profile ? kept(i.profile) : i.profile,
+    ...(i.profiles ? { profiles: i.profiles.map(kept) } : {}),
+    ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([p, m]) => [kept(p), m])) } : {}),
+  }));
+}
+
+// ---------- assignments ----------
+
+/**
+ * Placeholders of the profiles an asset's assignment names – the assigned one first (`~hidden-1` when hidden), then its
+ * bases (`chain`: the assigned profile's, itself first) – and of its KPI instances' definitions, in their order.
+ */
+export function assignmentRefs(
+  a: Pick<PlantAssignmentValues, 'profileId' | 'kpis'> | null,
+  chain: readonly string[],
+  scope: CatalogueScope,
+): { profiles: HiddenRefs; kpis: HiddenRefs } {
+  return {
+    profiles: new HiddenRefs(scope.profile, [a?.profileId, ...chain.slice(1)]),
+    kpis: new HiddenRefs(scope.kpi, (a?.kpis ?? []).map((k) => k.kpi)),
+  };
+}
+
+/** An assignment as the reader may see it: hidden profiles and KPI definitions by their placeholders. */
+export function presentAssignment<T extends Pick<PlantAssignmentValues, 'profileId' | 'kpis'>>(a: T, refs: { profiles: HiddenRefs; kpis: HiddenRefs }): T {
+  return { ...a, profileId: refs.profiles.ref(a.profileId), kpis: a.kpis.map((k) => ({ ...k, kpi: refs.kpis.ref(k.kpi) })) };
 }

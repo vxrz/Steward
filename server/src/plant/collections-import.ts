@@ -24,6 +24,7 @@ import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
+import { catalogueEntryAccess } from './catalogue-access.js';
 import { canManageCatalogue, requireManage } from './access.js';
 import { changedKeys, removeCollectionLinks } from './model.js';
 import { visibleAsset } from './service.js';
@@ -470,7 +471,7 @@ export function applyCollectionImport(assetId: string, input: CollectionImportIn
   if (problems.length) failed(problems);
   const by = me().username;
   const at = nowIso();
-  const catalogue = canManageCatalogue();
+  let catalogue = canManageCatalogue();
   const decisions = new Map<string, PlantItemDecision>(input.decisions.map((d) => [`${d.collection}\u0000${d.index}`, d]));
   const result: PlantCollectionImportResult = {
     collections: { added: 0, changed: 0, unchanged: 0, removed: p.removed.length },
@@ -499,6 +500,8 @@ export function applyCollectionImport(assetId: string, input: CollectionImportIn
     },
   );
   const profileId = assignment.profileId;
+  // 0.21.0 (#293): changing the asset's profile (known-as names, data points) needs the Edit right on that profile
+  if (profileId) catalogue = catalogueEntryAccess(me(), 'device_profile', profileId).permissions.includes('edit');
   const profiles = ownProfiles();
   let profile = profileId ? structuredClone(profiles.get(profileId) ?? null) : null;
   const profileBefore = profile ? structuredClone(profile) : null;

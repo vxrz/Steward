@@ -41,7 +41,17 @@ import {
 import { assignmentChecks, canHave, unitMismatches } from './checks.js';
 import { collectedPoints, isCollected, partsByAsset } from './potential.js';
 import { assetModel } from './resolve.js';
-import { HiddenRefs, anonymousProfile, catalogueScope, presentKpis, presentProfiles, presentResolved, type CatalogueScope } from './catalogue-access.js';
+import {
+  HiddenRefs,
+  anonymousProfile,
+  assignmentRefs,
+  catalogueScope,
+  presentAssignment,
+  presentKpis,
+  presentProfiles,
+  presentResolved,
+  type CatalogueScope,
+} from './catalogue-access.js';
 
 /**
  * The assignment of an asset (#219): its device profile and controller firmware, per interface whether it is set up
@@ -55,12 +65,7 @@ import { HiddenRefs, anonymousProfile, catalogueScope, presentKpis, presentProfi
  */
 
 /** Placeholders of the profiles an assignment names (the assigned one first, then its bases) and of its KPI definitions. */
-function refsOf(a: PlantAssignmentValues | null, profile: PlantResolvedProfile | null, scope: CatalogueScope) {
-  return {
-    profiles: new HiddenRefs(scope.profile, [a?.profileId, ...(profile?.chain.slice(1) ?? [])]),
-    kpis: new HiddenRefs(scope.kpi, (a?.kpis ?? []).map((k) => k.kpi)),
-  };
-}
+const refsOf = (a: PlantAssignmentValues | null, profile: PlantResolvedProfile | null, scope: CatalogueScope) => assignmentRefs(a, profile?.chain ?? [], scope);
 
 /** The assigned profile as the reader may see it: its model; unnamed (and without its own part) when it is hidden. */
 function shownProfile(profile: PlantResolvedProfile | null, refs: HiddenRefs): PlantProfileValues | null {
@@ -134,7 +139,7 @@ export function getAssignment(assetId: string, scope: CatalogueScope = catalogue
   const collected = collectedPoints(new Set([assetId])).get(assetId);
   return {
     asset: brief,
-    assignment: a ? { ...a, profileId: refs.profiles.ref(a.profileId), kpis: a.kpis.map((k) => ({ ...k, kpi: refs.kpis.ref(k.kpi) })) } : null,
+    assignment: a ? presentAssignment(a, refs) : null,
     profile: shownProfile(profile, refs.profiles),
     ...(profile && refs.profiles.hides(profile.id) ? { profileHidden: true } : {}),
     model: model.interfaces,

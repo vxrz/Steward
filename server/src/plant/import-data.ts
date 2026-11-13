@@ -54,6 +54,16 @@ import {
 } from './data-model.js';
 import { assignmentChecks, kpiChecks } from './checks.js';
 import { descendantsOf, extendsProblems, normalizeOwnPart, ownPartProblems, resolveAll, resolveChain, resolvedProblems } from './resolve.js';
+import {
+  HiddenRefs,
+  assignmentRefs,
+  catalogueScope,
+  kpiRefs,
+  presentAssignment,
+  presentInputs,
+  presentKpis,
+  presentProfiles,
+} from './catalogue-access.js';
 
 /**
  * The YAML import and export of part 2 (#219): device profiles, KPI definitions and assignments, in the same file
@@ -116,6 +126,8 @@ export function pushWrite<V extends object>(
   cur: { not_in_source: number } | undefined,
   write: () => void,
   adopt: () => void,
+  /** 0.21.0: the values as the importer may see them, for the preview's diff (placeholders for hidden entries) */
+  show: (v: V) => V = (v) => v,
 ): void {
   if (!before) return void writes.push({ kind, action: 'add', siteId, id, name, apply: write });
   if (mode === 'add') return void writes.push({ kind, action: 'skip', siteId, id, name, note: 'exists (add only)', apply: () => undefined });
@@ -131,8 +143,8 @@ export function pushWrite<V extends object>(
       name,
       fields,
       apply: write,
-      diff: () => fieldDiff(before, after),
-      drops: () => droppedItems(before, after),
+      diff: () => fieldDiff(show(before), show(after)),
+      drops: () => droppedItems(show(before), show(after)),
     });
   else writes.push({ kind, action: 'unchanged', siteId, id, name, apply: adopt });
 }
@@ -626,17 +638,93 @@ export function computeData(c: DataContext): PlantCheck[] {
   );
   const visibleSite = (siteId: string) => !c.sites.has(siteId) || !!c.rights.get(siteId)?.includes('view');
 
-  // ---- rights on the catalogues
-  if ((p.profiles.size || p.kpis.size) && !canManageCatalogue(c.user)) {
-    const first = [...p.profiles.values(), ...p.kpis.values()][0]!;
-    problems.push({ ...first, message: 'You may not add or change device profiles and KPI definitions' });
+  // ---- rights on the catalogues (0.21.0, #293: per entry – its owning teams and shares)
+  const scope = catalogueScope(c.user);
+  const preProfiles = resolveAll(new Map([...storedProfiles].map(([id, r]) => [id, profileValuesOf(r)])));
+  const mayAdd = canManageCatalogue(c.user);
+  let refused = false;
+  const refuse = (o: Origin, message: string) => {
+    if (!refused) problems.push({ ...o, message });
+    refused = true;
+  };
+  const unknown = (o: Origin, path: string, what: string, id: string) =>
+    problems.push({ file: o.file, path: `${o.path}.${path}`, message: `There is no ${what} "${id}"` });
+  for (const pp of [...p.profiles.values()]) {
+    const id = pp.values.id;
+    if (storedProfiles.has(id) && !scope.profile(id)) {
+      // an entry the importer may not see: its id cannot be used, said neutrally; it stays out of the plan (and the preview)
+      problems.push({ file: pp.file, path: `${pp.path}.id`, message: `The id "${id}" cannot be used – choose another one` });
+      p.profiles.delete(id);
+      continue;
+    }
+    if (storedProfiles.has(id) ? !scope.rights('device_profile', id).includes('edit') : !mayAdd)
+      refuse(pp, 'You may not add or change device profiles and KPI definitions');
+    // a base by its placeholder keeps the hidden base it stands for; a hidden base it did not have reads like an unknown one
+    if (pp.values.extends) {
+      const refs = new HiddenRefs(scope.profile, preProfiles.get(id)?.chain.slice(1) ?? []);
+      const base = refs.id(pp.values.extends);
+      if (base === undefined || (!scope.profile(base) && !refs.hides(base))) {
+        unknown(pp, 'extends', 'device profile', pp.values.extends);
+        pp.values.extends = null;
+      } else pp.values.extends = base;
+    }
+  }
+  for (const pk of [...p.kpis.values()]) {
+    const id = pk.values.id;
+    if (storedKpis.has(id) && !scope.kpi(id)) {
+      problems.push({ file: pk.file, path: `${pk.path}.id`, message: `The id "${id}" cannot be used – choose another one` });
+      p.kpis.delete(id);
+      continue;
+    }
+    if (storedKpis.has(id) ? !scope.rights('kpi_definition', id).includes('edit') : !mayAdd)
+      refuse(pk, 'You may not add or change device profiles and KPI definitions');
+    if (pk.values.inputs) {
+      const cur = storedKpis.get(id);
+      const refs = cur ? kpiRefs(kpiValuesOf(cur), scope) : new HiddenRefs(scope.profile);
+      const kept = (n: number, v: string): string | null => {
+        const x = refs.id(v);
+        if (x !== undefined && (scope.profile(x) || refs.hides(x))) return x;
+        unknown(pk, `inputs[${n}].profile`, 'device profile', v);
+        return null;
+      };
+      pk.values.inputs = pk.values.inputs.map((i, n) => {
+        const profiles = i.profiles?.map((x) => kept(n, x) ?? x);
+        return {
+          ...i,
+          profile: i.profile ? (kept(n, i.profile) ?? '') : i.profile,
+          ...(profiles ? { profiles } : {}),
+          ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([k, m]) => [refs.id(k) ?? k, m])) } : {}),
+        };
+      });
+    }
+  }
+  for (const pa of p.assignments.values()) {
+    const cur = storedAssignments.get(pa.assetId);
+    const was = cur ? assignmentValuesOf(cur) : null;
+    const refs = assignmentRefs(was, was?.profileId ? (preProfiles.get(was.profileId)?.chain ?? []) : [], scope);
+    const v = pa.values;
+    if (v.profileId) {
+      const x = refs.profiles.id(v.profileId);
+      if (x === undefined || (!scope.profile(x) && !refs.profiles.hides(x))) {
+        unknown(pa, 'profile', 'device profile', v.profileId);
+        v.profileId = null;
+      } else v.profileId = x;
+    }
+    if (v.kpis)
+      v.kpis = v.kpis.map((k, n) => {
+        const x = refs.kpis.id(k.kpi);
+        if (x !== undefined && (scope.kpi(x) || refs.kpis.hides(x))) return { ...k, kpi: x };
+        if (x === undefined || storedKpis.has(x)) unknown(pa, `kpis[${n}].kpi`, 'KPI definition', k.kpi);
+        return k;
+      });
   }
 
   // ---- what goes (replace, remove)
   const removing = { profiles: new Set<string>(), kpis: new Set<string>(), assignments: new Set<string>() };
   if (full && c.missing === 'remove' && prevId) {
-    for (const r of storedProfiles.values()) if (fromPrev(r) && !p.profiles.has(r.id)) removing.profiles.add(r.id);
-    for (const r of storedKpis.values()) if (fromPrev(r) && !p.kpis.has(r.id)) removing.kpis.add(r.id);
+    // a replace never removes what the importer may not see (0.21.0, part 4)
+    for (const r of storedProfiles.values()) if (fromPrev(r) && !p.profiles.has(r.id) && scope.profile(r.id)) removing.profiles.add(r.id);
+    for (const r of storedKpis.values()) if (fromPrev(r) && !p.kpis.has(r.id) && scope.kpi(r.id)) removing.kpis.add(r.id);
     for (const r of storedAssignments.values()) if (fromPrev(r) && !p.assignments.has(r.asset_id)) removing.assignments.add(r.asset_id);
   }
 
@@ -700,7 +788,6 @@ export function computeData(c: DataContext): PlantCheck[] {
   // every profile that extends one of the files' still resolves; the checks read the resolved profiles
   const postProfiles = resolveAll(postOwn);
   // 0.12.0: what a changed profile drops is also what its model in effect loses (an inherited known-as name replaced …)
-  const preProfiles = resolveAll(new Map([...storedProfiles].map(([id, r]) => [id, profileValuesOf(r)])));
   for (const w of writes)
     if (w.kind === 'profile' && w.action === 'change') {
       const own = w.drops;
@@ -716,7 +803,8 @@ export function computeData(c: DataContext): PlantCheck[] {
       if (told.has(d) || p.profiles.has(d)) continue;
       told.add(d);
       const pr = resolvedProblems(postProfiles.get(d)!);
-      if (pr.length) problems.push({ file: pp.file, path: `${pp.path}.interfaces`, message: `Device profile "${d}" extends this one: ${pr[0]!.message}` });
+      const who = scope.profile(d) ? `Device profile "${d}"` : 'A device profile you may not see';
+      if (pr.length) problems.push({ file: pp.file, path: `${pp.path}.interfaces`, message: `${who} extends this one: ${pr[0]!.message}` });
     }
   for (const pp of p.profiles.values())
     if (postOwn.get(pp.values.id)?.extends) {
@@ -732,8 +820,10 @@ export function computeData(c: DataContext): PlantCheck[] {
     const cur = storedKpis.get(pk.values.id);
     const before = cur ? kpiValuesOf(cur) : null;
     const planned: PlantKpiValues = { ...(before && !full ? before : KPI_DEFAULTS(pk.values.id)), ...pk.values };
-    // 0.13: a mapping to a data point a profile (as the files leave it) lacks is a problem
-    for (const pr of kpiProblems(planned, postProfiles)) problems.push({ file: pk.file, path: `${pk.path}.${pr.path}`, message: pr.message });
+    // 0.13: a mapping to a data point a profile (as the files leave it) lacks is a problem (a hidden one by its placeholder)
+    const krefs = kpiRefs(planned, scope);
+    for (const pr of kpiProblems(planned, postProfiles))
+      problems.push({ file: pk.file, path: `${pk.path}.${krefs.redact(pr.path)}`, message: krefs.redact(pr.message) });
     const after: PlantKpiValues = { ...planned, inputs: normalizeKpiInputs(planned.inputs) };
     postKpis.set(after.id, after);
     pushWrite(
@@ -748,6 +838,7 @@ export function computeData(c: DataContext): PlantCheck[] {
       cur,
       () => upsertKpi(after, c.meta),
       () => db().run('UPDATE plant_kpis SET import_id = ?, not_in_source = 0 WHERE id = ?', c.importId, after.id),
+      (v) => ({ ...v, inputs: presentInputs(v, krefs) }),
     );
   }
 
@@ -777,8 +868,10 @@ export function computeData(c: DataContext): PlantCheck[] {
     const before = cur ? assignmentValuesOf(cur) : null;
     const after: PlantAssignmentValues = { ...(before && !full ? before : ASSIGNMENT_DEFAULTS()), ...pa.values };
     const profile = after.profileId ? postProfiles.get(after.profileId) : null;
+    // the preview names hidden profiles and KPI definitions by their placeholders (0.21.0)
+    const arefs = assignmentRefs(before, before?.profileId ? (preProfiles.get(before.profileId)?.chain ?? []) : [], scope);
     for (const pr of assignmentProblems(after, profile, (id) => postKpis.has(id)))
-      problems.push({ file: pa.file, path: `${pa.path}.${pr.path}`, message: pr.message });
+      problems.push({ file: pa.file, path: `${pa.path}.${pr.path}`, message: arefs.profiles.redact(arefs.kpis.redact(pr.message)) });
     postAssignments.set(pa.assetId, after);
     const name = c.storedAssets.get(pa.assetId)?.name ?? pa.assetId;
     checked.push({ assetId: pa.assetId, siteId, name, values: after });
@@ -794,6 +887,7 @@ export function computeData(c: DataContext): PlantCheck[] {
       cur,
       () => upsertAssignment(pa.assetId, after, c.meta),
       () => db().run('UPDATE plant_assignments SET import_id = ?, not_in_source = 0 WHERE asset_id = ?', c.importId, pa.assetId),
+      (v) => presentAssignment(v, arefs),
     );
   }
 
@@ -827,7 +921,7 @@ export function computeData(c: DataContext): PlantCheck[] {
       else writes.push({ kind, action: 'mark', siteId: '', id, name, note: 'kept, marked "not in source"', apply: mark });
     };
     for (const r of storedProfiles.values())
-      if (fromPrev(r) && !p.profiles.has(r.id))
+      if (fromPrev(r) && !p.profiles.has(r.id) && scope.profile(r.id))
         gone(
           'profile',
           r.id,
@@ -837,7 +931,7 @@ export function computeData(c: DataContext): PlantCheck[] {
           () => db().run('UPDATE plant_profiles SET not_in_source = 1, import_id = ? WHERE id = ?', c.importId, r.id),
         );
     for (const r of storedKpis.values())
-      if (fromPrev(r) && !p.kpis.has(r.id))
+      if (fromPrev(r) && !p.kpis.has(r.id) && scope.kpi(r.id))
         gone(
           'kpi',
           r.id,
@@ -878,7 +972,7 @@ export function computeData(c: DataContext): PlantCheck[] {
           problems.push({
             file: '(files)',
             path: 'device_profiles',
-            message: `Device profile "${x.extends}" is removed, but profile "${x.id}" extends it – add it to the files, or keep and mark the missing records`,
+            message: `Device profile "${x.extends}" is removed, but ${scope.profile(x.id) ? `profile "${x.id}"` : 'a device profile you may not see'} extends it – add it to the files, or keep and mark the missing records`,
           });
     // a profile or KPI definition that goes while an assignment that stays still names it: the import stops
     if (c.missing === 'remove')
@@ -903,10 +997,13 @@ export function computeData(c: DataContext): PlantCheck[] {
 
   // ---- what Steward checks in the records of the files, after the import
   const checks: PlantCheck[] = [];
-  for (const x of checked) checks.push(...assignmentChecks({ kind: 'asset', id: x.assetId, name: x.name, siteId: x.siteId }, x.values, postProfiles, postKpis));
+  // they name profiles and KPI definitions the importer may not see "~hidden" (0.21.0)
+  const shownProfiles = presentProfiles(postProfiles, scope);
+  const shownKpis = presentKpis(postKpis, scope);
+  for (const x of checked) checks.push(...assignmentChecks({ kind: 'asset', id: x.assetId, name: x.name, siteId: x.siteId }, x.values, shownProfiles, shownKpis));
   for (const pk of p.kpis.values()) {
     const k = postKpis.get(pk.values.id);
-    if (k) checks.push(...kpiChecks(k, postProfiles));
+    if (k) checks.push(...kpiChecks(k, shownProfiles));
   }
   c.onPost?.(postAssignments, postProfiles);
   return checks.slice(0, 500);

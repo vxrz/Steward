@@ -54,7 +54,10 @@ import {
   HiddenRefs,
   catalogueScope,
   idUnavailable,
+  keptInputs,
   keptRef,
+  kpiRefs,
+  presentInputs,
   presentKpis,
   presentProfiles,
   presentResolved,
@@ -580,19 +583,6 @@ function kpiSummary(
   };
 }
 
-/** The profiles a KPI definition's inputs name, as placeholders where the caller may not see them (in the order named). */
-export const kpiRefs = (k: Pick<PlantKpiValues, 'inputs'>, scope: CatalogueScope): HiddenRefs => new HiddenRefs(scope.profile, kpiProfiles(k));
-
-/** A KPI definition's inputs with the profiles the caller may not see as placeholders (`profile`, `profiles`, `mapping`). */
-export function presentInputs(k: Pick<PlantKpiValues, 'inputs'>, refs: HiddenRefs): PlantKpiValues['inputs'] {
-  return k.inputs.map((i) => ({
-    ...i,
-    profile: i.profile ? refs.ref(i.profile) : i.profile,
-    ...(i.profiles ? { profiles: i.profiles.map((p) => refs.ref(p)) } : {}),
-    ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([p, m]) => [refs.ref(p), m])) } : {}),
-  }));
-}
-
 /** The KPI definitions the caller may see (0.21.0: others are counted – GET /plant/catalogue/hidden). */
 export function listKpis(scope: CatalogueScope = catalogueScope()): PlantKpiSummary[] {
   requirePlant();
@@ -681,24 +671,9 @@ export function getKpi(id: string, scope: CatalogueScope = catalogueScope()): Pl
   };
 }
 
-/**
- * A KPI definition's inputs as stored: placeholders become the profiles they stand for in the stored definition, a
- * profile the caller may not see that it did not name is refused like an unknown one (0.21.0, part 4).
- */
-export function keptInputs(inputs: PlantKpiValues['inputs'], stored: Pick<PlantKpiValues, 'inputs'> | null, scope: CatalogueScope): PlantKpiValues['inputs'] {
-  const refs = new HiddenRefs(scope.profile, stored ? kpiProfiles(stored) : []);
-  const kept = (p: string) => keptRef(p, refs, scope.profile, profileNotFound);
-  return inputs.map((i) => ({
-    ...i,
-    profile: i.profile ? kept(i.profile) : i.profile,
-    ...(i.profiles ? { profiles: i.profiles.map(kept) } : {}),
-    ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([p, m]) => [kept(p), m])) } : {}),
-  }));
-}
-
 function kpiValues(id: string, b: z.infer<typeof kpiUpdate>, scope: CatalogueScope): PlantKpiValues {
   const stored = kpiRowOf(id);
-  const v: PlantKpiValues = { id, ...b, inputs: keptInputs(b.inputs, stored ? kpiValuesOf(stored) : null, scope) };
+  const v: PlantKpiValues = { id, ...b, inputs: keptInputs(b.inputs, stored ? kpiValuesOf(stored) : null, scope, profileNotFound) };
   // 0.13: a mapping to a data point a profile lacks is refused – naming a profile the caller may not see by its placeholder
   const problems = kpiProblems(v, presentProfiles(allProfiles(), scope));
   if (problems.length) {
