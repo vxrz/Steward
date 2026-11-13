@@ -994,6 +994,86 @@ export interface ProductCost {
   amountsHidden: boolean;
 }
 
+/**
+ * A cost match (part 11): the lines of a platform a product claims in one environment – by resource id, sub-account,
+ * service name, tag value or the application the lines are mapped to. On an element, the products it is a member of
+ * inherit it (in the element's environment).
+ */
+export interface DataCostMatch {
+  id: string;
+  /** The product the match is on; null: on an element */
+  productId: string | null;
+  elementId: string | null;
+  /** The element of an inherited match as the product shows it (decision 15); null for a product's own match */
+  element: { id: string; qualifiedName: string; visible: boolean } | null;
+  environment: string;
+  /** null: a platform the reader may not see – its value is not shown either (platformHidden) */
+  platformId: string | null;
+  platformName: string | null;
+  platformHidden: boolean;
+  kind: DataCostMatchKind;
+  value: string | null;
+  /** The tag's key (kind tag) */
+  tagKey: string;
+  /** Other products that match the same lines (counted, never named) */
+  sharedWith: number;
+  canDelete: boolean;
+  createdAt: string;
+  createdBy: string;
+}
+
+/** A line of a product's costs in a month: what it takes of the platform's lines of one match, with the rule. */
+export interface DataProductCostLine extends ProductCostLine {
+  platformName: string;
+  match: { kind: DataCostMatchKind; value: string; tagKey: string };
+  /** The products the line is split between, this one included (others counted, never named) */
+  products: number;
+}
+
+/** The Costs tab of a product (GET /api/data-products/:id/costs): per month in one environment, value beside it. */
+export interface DataProductCosts {
+  productId: string;
+  /** The environment shown (production first by default); null: the product has none */
+  environment: string | null;
+  environments: string[];
+  /** Oldest month first */
+  months: (Omit<ProductCost, 'lines'> & { lines: DataProductCostLine[] })[];
+  /** Its own matches and those inherited from its elements, in the environment */
+  matches: DataCostMatch[];
+  /** The product's value beside its costs – never netted, no ratio (decision 30) */
+  value: { statement: string; tier: DataValueTier | null; amount: number | null; currency: string | null };
+  /** Some month is incomplete: a platform whose amounts the reader may not see takes part */
+  incomplete: boolean;
+  amountsHidden: boolean;
+  canEditMatches: boolean;
+}
+
+/**
+ * How a platform's lines of one match key are split between the products that match them (part 11): equal, or by a
+ * weight in percent per product – never more than 100 % of a line; the rest is not attributed. Set by who may manage
+ * the platform; weights are shown to who sees the platform's amounts.
+ */
+export interface DataCostAllocation {
+  platformId: string;
+  platformName: string;
+  kind: DataCostMatchKind;
+  value: string;
+  tagKey: string;
+  rule: DataCostAllocationRule;
+  /** Products matching the key that the reader may see, with their weight (null: weights not shown) */
+  products: { product: DataRef & { hidden?: false }; environments: string[]; weightPct: number | null }[];
+  /** Products matching it that the reader may not see (counted, never named) */
+  hiddenProducts: number;
+  /** Weight of the hidden products together (null: weights not shown) */
+  hiddenWeightPct: number | null;
+  /** What no product takes (weight rule; null: weights not shown) */
+  notAttributedPct: number | null;
+  weightsShown: boolean;
+  canEdit: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 // ---------- scorecard and maturity (part 13; WP4) ----------
 
 export const DATA_SCORECARD_PARTS = [
@@ -1039,6 +1119,17 @@ export interface DataScorecardPart {
   state: DataScorecardState;
   /** What the state rests on (i18n keys with values, rendered by the web app) */
   evidence: { key: string; values?: Record<string, string | number> }[];
+}
+
+/** The scorecard of a product in one environment (GET /api/data-products/:id/scorecard): computed on read. */
+export interface DataProductScorecard {
+  productId: string;
+  /** The environment shown (production first by default); null: the product has none */
+  environment: string | null;
+  environments: string[];
+  /** The parts (group part), then the ISO/IEC 25012 dimensions (group iso25012) */
+  parts: DataScorecardPart[];
+  maturity: DataMaturityLevel;
 }
 
 /** Maturity levels: 0 not yet documented, 1 documented, 2 observed, 3 contracted, 4 reliable, 5 endorsed (phase 2). */

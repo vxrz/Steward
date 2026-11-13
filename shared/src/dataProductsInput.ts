@@ -6,6 +6,7 @@ import {
   DATA_CHECK_PURPOSES,
   DATA_CLASSIFICATIONS,
   DATA_CONSUMER_KINDS,
+  DATA_COST_MATCH_KINDS,
   DATA_ELEMENT_KINDS,
   DATA_ENVIRONMENT_STATES,
   DATA_MEMBER_ROLES,
@@ -380,3 +381,50 @@ export const dataCheckLinkInput = z
   })
   .strict();
 export type DataCheckLinkInput = z.input<typeof dataCheckLinkInput>;
+
+// ---------- costs (part 11; WP4) ----------
+
+const costMatchFields = {
+  kind: z.enum(DATA_COST_MATCH_KINDS),
+  /** A resource id, sub-account id, service name, tag value or application id, as the cost lines carry it */
+  value: z.string().trim().min(1).max(L.short),
+  /** The tag's key (kind tag only) */
+  tagKey: z.string().trim().max(100).default(''),
+};
+
+/** A product's own match (POST /api/data-products/:id/costs/matches): in one environment. */
+export const dataCostMatchInput = z.object({ platformId: id(), environment: z.string().trim().min(1).max(60), ...costMatchFields }).strict();
+export type DataCostMatchInput = z.input<typeof dataCostMatchInput>;
+
+/** An element's match (POST /api/data-elements/:id/cost-matches): its platform unless named, its environment. */
+export const dataElementCostMatchInput = z.object({ platformId: id().optional(), ...costMatchFields }).strict();
+export type DataElementCostMatchInput = z.input<typeof dataElementCostMatchInput>;
+
+/** The split of a platform's lines of one match key (PUT /api/data-products/cost-allocations). Measured use is phase 2. */
+export const dataCostAllocationInput = z
+  .object({
+    platformId: id(),
+    ...costMatchFields,
+    rule: z.enum(['equal', 'weight']),
+    /** Percent of the line per product (weight rule); at most 100 together, the rest is not attributed */
+    weights: z
+      .array(z.object({ productId: id(), pct: z.number().min(0).max(100) }).strict())
+      .max(L.products)
+      .default([]),
+  })
+  .strict();
+export type DataCostAllocationInput = z.input<typeof dataCostAllocationInput>;
+
+export const dataProductCostsQuery = z.object({
+  environment: z.string().trim().max(60).optional(),
+  /** Months back from the current one (included) */
+  months: z.coerce.number().int().min(1).max(24).default(12),
+});
+
+export const dataCostAllocationsQuery = z.object({
+  platformId: z.string().trim().max(100).optional(),
+});
+
+export const dataProductScorecardQuery = z.object({
+  environment: z.string().trim().max(60).optional(),
+});

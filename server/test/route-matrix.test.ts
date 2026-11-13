@@ -426,6 +426,17 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-elements/:id': ALL,
   'PUT /api/data-elements/:id': DESIGN,
   'DELETE /api/data-elements/:id': DESIGN,
+  // data products' costs and scorecard (ADR 0036 WP4): matches follow the product's or element's edit right; allocations
+  // only who manages the platform (the administrator in the fixtures)
+  'GET /api/data-products/:id/costs': ALL,
+  'POST /api/data-products/:id/costs/matches': DESIGN,
+  'DELETE /api/data-products/:id/costs/matches/:matchId': DESIGN,
+  'GET /api/data-elements/:id/cost-matches': ALL,
+  'POST /api/data-elements/:id/cost-matches': DESIGN,
+  'DELETE /api/data-elements/:id/cost-matches/:matchId': DESIGN,
+  'GET /api/data-products/cost-allocations': ALL,
+  'PUT /api/data-products/cost-allocations': ADMIN,
+  'GET /api/data-products/:id/scorecard': ALL,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1435,6 +1446,8 @@ const EXPECT: Record<string, Access> = {
 const SESSION_ONLY = [
   // data products (ADR 0036): retiring a product is a decision of a person in the app
   'POST /api/data-products/:id/lifecycle',
+  // splitting a platform's costs between data products (ADR 0036 WP4)
+  'PUT /api/data-products/cost-allocations',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2097,6 +2110,7 @@ function fill(url: string): string {
       .replace(/^\/api\/data-products\/:id\/steps\/:stepId/, `/api/data-products/${fx.dataProduct}/steps/${fx.dataStep}`)
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
+      .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
       .replace(/:environment/g, 'prod')
       .replace(/:runId/g, fx.run!)
