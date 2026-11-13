@@ -857,6 +857,7 @@ export function deleteElementRows(ids: readonly string[]): void {
   d.run(`DELETE FROM dp_port_elements WHERE element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM dp_step_elements WHERE element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM dp_check_links WHERE element_id IN (${m})`, ...ids);
+  d.run(`DELETE FROM dp_cost_matches WHERE element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM dp_members WHERE element_id IN (${m})`, ...ids);
   d.run(`UPDATE dp_ports SET source_element_id = NULL, source_kind = NULL WHERE source_element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM resource_teams WHERE kind = 'data_element' AND resource_id IN (${m})`, ...ids);

@@ -251,6 +251,20 @@
         "label": "Erklärung zur Anwendbarkeit wartet",
         "info": "Eine Version einer Erklärung zur Anwendbarkeit wurde eingereicht und wartet auf Ihre Freigabe (Freigeber und Administratoren)"
       }
+    },
+    "dataproduct": {
+      "deprecated": {
+        "label": "Datenprodukt abgekündigt",
+        "info": "Ein Datenprodukt oder Port, den Sie nutzen, wurde abgekündigt (registrierte Nutzer und die Besitzer der Produkte, die es nutzen), mit Abschaltdatum und Nachfolger"
+      },
+      "elements_missing": {
+        "label": "Elemente eines Datenprodukts fehlen",
+        "info": "Ein Erkennungslauf hat Elemente eines Datenprodukts, das Sie besitzen, nicht mehr gefunden (einmal je Produkt und Lauf)"
+      },
+      "discovery_failed": {
+        "label": "Erkennung für Datenprodukte schlägt fehl",
+        "info": "Eine Erkennungsquelle für Datenprodukte, die Sie eingerichtet haben oder auf einer Plattform liegt, die Sie verwalten, ist fehlgeschlagen (einmal, bis sie wieder gelingt)"
+      }
     }
   },
   "quiet": {
@@ -282,7 +296,8 @@
       "monitors": "Monitore und Plattformen",
       "reminders": "Erinnerungen",
       "reports": "Berichte und Releases",
-      "costs": "Budgets und Kosten"
+      "costs": "Budgets und Kosten",
+      "dataProducts": "Datenprodukte"
     },
     "groupHints": {
       "decisions": "Entscheidungsschritte, KI-Anfragen, ausgelassene Pflichten, zu prüfende Werksänderungen. Eine Ausführung wartet: höchstens stündlich.",
@@ -290,7 +305,8 @@
       "monitors": "Monitorstatus, Verbindungstests von Plattformen, Ziele, Wartung.",
       "reminders": "Zugangsdaten, Dokumentprüfungen, Tickets, Pflichten, Maßnahmen, Zugriffsänderungen, entschiedene Werksänderungen, Zertifikate und Kündigungsfristen von Lieferanten.",
       "reports": "Geplante Berichte, Supportende und neue Releases.",
-      "costs": "Token-Budgets für KI und Kostenbudgets."
+      "costs": "Token-Budgets für KI und Kostenbudgets.",
+      "dataProducts": "Abgekündigte Datenprodukte und Ports, fehlende Elemente, fehlschlagende Erkennung."
     },
     "rhythms": {
       "immediately": "Sofort",
