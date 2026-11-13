@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   ActionIcon,
   Alert,
@@ -490,6 +491,7 @@ function AllocationForm({ a, onClose, onSaved }: { a: DataCostAllocation; onClos
   const invalidate = useInvalidateDataProducts();
   const matchText = useMatchText();
   const [rule, setRule] = useState<'equal' | 'weight' | 'measured'>(a.rule);
+  const narrow = useMediaQuery('(max-width: 40em)') ?? false;
   const [weights, setWeights] = useState<Record<string, number | string>>(Object.fromEntries(a.products.map((x) => [x.product.id, x.weightPct ?? ''])));
   const [measure, setMeasure] = useState<DataCostMeasure>(a.measured?.measure ?? 'snowflakeWarehouse');
   const [subjects, setSubjects] = useState<Record<string, string[]>>(Object.fromEntries(a.products.map((x) => [x.product.id, x.subjects ?? []])));
@@ -532,6 +534,8 @@ function AllocationForm({ a, onClose, onSaved }: { a: DataCostAllocation; onClos
               { value: 'measured', label: t('allocations.measured') },
             ]}
             fullWidth
+            // three rules do not fit beside each other on a phone ("By measured use" was cut off)
+            orientation={narrow ? 'vertical' : 'horizontal'}
             aria-label={t('allocations.rule')}
             data-testid="allocation-rule"
           />

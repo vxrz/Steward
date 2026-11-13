@@ -138,7 +138,14 @@ test.describe('costs: estimates and measured use', () => {
     await page.goto(`/data-products/${s.product}/costs`);
     await expect(page.getByTestId('product-estimates')).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'estimates on a phone');
+    await expectAccessible(page, 'estimates on a phone', { wcag22: true });
+    // the split's three rules one below the other: "By measured use" is not cut off
+    await page.getByTestId('allocation-edit').first().click();
+    await animationsDone(page);
+    const rule = page.getByTestId('allocation-rule');
+    await expect(rule).toHaveAttribute('data-orientation', 'vertical');
+    const box = (await rule.getByText('By measured use').boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   });
 });
 
