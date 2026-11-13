@@ -170,4 +170,12 @@ describe('apps on this device and collects data from', () => {
     // a system she may not see answers 404
     expect((await status(dana('GET', `/plant/systems/${secretSystem}/edge`))).status).toBe(404);
   });
+
+  it('the OT network diagram places the edge system on the device’s VLAN and names the apps on it', async () => {
+    await s.api('PUT', '/plant/assets/rvs-mill-02/devices/edge', { hostname: 'ied-line-01', domain: 'example', system: edge, vlan: 'rvs-vlan-120' });
+    const p = await dana('GET', '/plant/sites/riverside/network/placement');
+    expect(p.hosts.find((h: { id: string }) => h.id === edge)).toMatchObject({ vlans: ['rvs-vlan-120'] });
+    expect(p.edgeDevices).toEqual([{ asset: 'rvs-mill-02', device: 'edge', system: edge, apps: ['Invented Modbus import client'], hiddenApps: 1 }]);
+    expect(JSON.stringify(p)).not.toContain(secretSystem);
+  });
 });

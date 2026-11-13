@@ -41,12 +41,14 @@ export interface NetworkWords {
   level: (l: ZoneLevelOf) => string;
   /** info labels */
   label: Record<
-    'devices' | 'subnets' | 'owner' | 'vlans' | 'items' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level',
+    'devices' | 'subnets' | 'owner' | 'vlans' | 'items' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level' | 'apps',
     string
   >;
   yes: string;
   hidden: string;
   noVlan: string;
+  /** 0.25.0: "and N you may not see" after the applications of an edge device */
+  hiddenApps: (n: number) => string;
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -194,6 +196,8 @@ export function networkGraph(
     if (!drawn.has(a.id)) continue;
     const vlan = assetVlan.get(a.id);
     const mine = n.devices.filter((d) => d.assetId === a.id);
+    // 0.25.0 (ADR 0037): the applications on its devices that are systems – in the card and the table
+    const edgeApps = (placement?.edgeDevices ?? []).filter((x) => x.asset === a.id);
     node({
       id: `asset:${a.id}`,
       kind: 'asset',
@@ -202,15 +206,25 @@ export function networkGraph(
       path: `/plant/assets/${encodeURIComponent(a.id)}`,
       parent: vlan && nodes.has(`vlan:${vlan}`) ? `vlan:${vlan}` : undefined,
       live: liveOf(a.live),
-      info: mine.map((d) => ({
-        label: d.hostname || d.id,
-        value: w.deviceLine({
-          address: d.address,
-          vlan: d.vlan ? (vlanById.get(d.vlan)?.vid !== null && vlanById.get(d.vlan) ? w.vid(vlanById.get(d.vlan)!.vid!) : d.vlan) : w.noVlan,
-          state: d.state,
-          live: d.live.watched ? d.live.state : 'notWatched',
-        }),
-      })),
+      info: mine
+        .map((d) => ({
+          label: d.hostname || d.id,
+          value: w.deviceLine({
+            address: d.address,
+            vlan: d.vlan ? (vlanById.get(d.vlan)?.vid !== null && vlanById.get(d.vlan) ? w.vid(vlanById.get(d.vlan)!.vid!) : d.vlan) : w.noVlan,
+            state: d.state,
+            live: d.live.watched ? d.live.state : 'notWatched',
+          }),
+        }))
+        .concat(
+          edgeApps.map((x) => {
+            const d = mine.find((y) => y.id === x.device);
+            return {
+              label: `${w.label.apps} (${d?.hostname || x.device})`,
+              value: [x.apps.join(', '), x.hiddenApps ? w.hiddenApps(x.hiddenApps) : ''].filter(Boolean).join(' ') || '–',
+            };
+          }),
+        ),
     });
   }
 
