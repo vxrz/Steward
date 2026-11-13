@@ -89,6 +89,7 @@ export const NOT_MOVED: Record<string, string> = {
   supplier_reminders: 'send bookkeeping of the source (a supplier reminder of a date ahead may be sent again on the target)',
   cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
   cost_volume_notices: 'send bookkeeping of the source (a warning of a contract volume may be sent again on the target)',
+  cost_price_review_notices: 'send bookkeeping of the source (a price book due for its review may be reminded of again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -194,6 +195,18 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_schedules.updated_by',
   'cost_entry_imports.created_by',
   'cost_entry_imports.removed_by',
+  // price books, calculators and estimates (0.21.0, ADR 0035): who made, changed, checked and published them
+  'cost_price_books.checked_by',
+  'cost_price_books.created_by',
+  'cost_price_books.updated_by',
+  'cost_price_book_versions.created_by',
+  'cost_fx_rates.set_by',
+  'cost_calculators.created_by',
+  'cost_calculators.updated_by',
+  'cost_calculator_versions.published_by',
+  'cost_estimates.created_by',
+  'cost_estimates.updated_by',
+  'cost_estimate_results.replaced_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',

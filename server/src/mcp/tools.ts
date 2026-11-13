@@ -112,6 +112,7 @@ function planForTool(y: CostPlanYear) {
       coversFrom: l.coversFrom,
       coversTo: l.coversTo,
       schedule: l.schedule,
+      estimate: l.estimate,
       notBooked: l.notBooked,
       renewalDate: l.renewalDate,
       read: l.read,

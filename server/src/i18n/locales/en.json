@@ -651,5 +651,9 @@
     "runsOutOn": "Estimated to be used up on {{date}}.",
     "estimateNote": "The estimate is linear from the use of the recent months and changes when the use does.",
     "stateOnly": "The figures are not shown: the volume is also used by services or platforms you may not see."
+  },
+  "priceReview": {
+    "title": "Prices to review: {{book}}",
+    "body": "The price book “{{book}}” is kept by hand and was last checked on {{checked}} (review every {{days}} days). Check its prices against the provider’s, then save a new version or choose Mark as checked."
   }
 }

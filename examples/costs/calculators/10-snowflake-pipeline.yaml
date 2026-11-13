@@ -1,0 +1,55 @@
+# steward-min-version: 0.21.0
+#
+# A Snowflake batch pipeline (ADR 0035, docs/COSTS.md#estimates). Quantities only: the formulas count warehouse
+# hours, credits, gigabyte-months and gigabytes; Steward prices them with the price book the estimate uses (a list
+# book written by hand or from CSV, or the platform's contracted book). The book prices each warehouse size in
+# credits per hour (examples/costs/price-books/snowflake-technical-factors.csv) – no money prices are shipped.
+kind: costCalculator
+id: snowflake-pipeline
+name: Snowflake pipeline
+description: >-
+  A batch pipeline on a virtual warehouse: warehouse size × runtime × runs per day, serverless credits, data kept and,
+  optionally, data transferred out. The warehouse sizes are priced in credits per hour by the book; the credit's price
+  is the book's (or your contract's).
+checked: '2026-11-12'
+inputs:
+  - key: size
+    label: Warehouse size
+    type: select
+    options: [XS, S, M, L, XL, 2XL, 3XL, 4XL]
+    default: S
+    help: A size doubles the credits per hour of the one before.
+  - { key: minutes, label: Runtime per run, type: number, unit: min, default: 12, min: 0, max: 1440 }
+  - { key: runs, label: Runs per day, type: integer, default: 24, min: 0, max: 1440 }
+  - { key: serverless, label: Serverless credits per month, type: number, unit: '{credit}', default: 0, min: 0 }
+  - { key: stored, label: Data kept, type: number, unit: GBy, default: 500, min: 0 }
+  - { key: transfer, label: Data transferred out per month, type: number, unit: GBy, default: 0, min: 0 }
+let:
+  # warehouse hours per month: a month of 730 hours, runs spread over every day
+  hours: inputs.minutes / 60 * inputs.runs * const.hoursPerMonth / 24
+lines:
+  - key: compute
+    label: Warehouse
+    item: { provider: Snowflake, sku: "{{ 'warehouse-' & inputs.size }}" }
+    quantity: let.hours
+    unit: h
+    group: Compute
+  - key: serverless
+    label: Serverless features
+    item: { provider: Snowflake, sku: serverless-credit }
+    quantity: inputs.serverless
+    unit: '{credit}'
+    group: Compute
+  - key: storage
+    label: Storage
+    item: { provider: Snowflake, sku: storage }
+    quantity: inputs.stored
+    unit: GBy.mo
+    group: Storage
+  - key: transfer
+    label: Data transfer out
+    item: { provider: Snowflake, sku: data-transfer }
+    quantity: inputs.transfer
+    unit: GBy
+    group: Transfer
+    when: inputs.transfer > 0

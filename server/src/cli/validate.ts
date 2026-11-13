@@ -69,6 +69,7 @@ export interface FileResult {
     | 'record type'
     | 'connector type'
     | 'security advisory'
+    | 'cost calculator'
     | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
@@ -201,6 +202,12 @@ export async function validateFile(file: string): Promise<FileResult> {
       errors,
       warnings: findings.filter((f) => f.severity !== 'error').map((f) => `${f.path}: ${f.message}`),
     };
+  }
+  // a cost calculator (0.21.0, ADR 0035, examples/costs/calculators): checked as on save, the formulas' syntax included
+  if (obj && obj.kind === 'costCalculator') {
+    const { parseCalculator } = await import('../costs/calculators.js');
+    const p = parseCalculator(fs.readFileSync(file, 'utf8'));
+    return { file: rel, kind: 'cost calculator', ok: p.ok, count: p.definition?.lines.length, errors: p.errors, warnings: [] };
   }
   // a record type (Git sync and libraries: kind recordType)
   if (obj && obj.kind === 'recordType') {

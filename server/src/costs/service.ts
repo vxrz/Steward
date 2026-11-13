@@ -1,5 +1,6 @@
 import {
   COST_LIMITS,
+  SNOWFLAKE_KIND,
   costSourceOfKind,
   costImportInput,
   costSourceInput,
@@ -15,6 +16,7 @@ import { audit } from '../audit.js';
 import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso } from '../util.js';
 import { requireScope, scopeInfo } from './access.js';
+import { setCreditPrice, snowflakeCreditPrice } from './price-books.js';
 import { parseFocusAsync, summarize, type ParsedFocus } from './focus.js';
 import { ingest, mapLines, mapper, remap, tagKeyOf, type IngestResult } from './store.js';
 
@@ -49,6 +51,8 @@ export function getSource(platformId: string): CostSourceSettings {
   const info = requireScope('platform', platformId);
   const p = platformRow(platformId);
   const r = sourceRow(platformId);
+  // the price per credit lives in the platform's contracted price book since 0.21.0 (ADR 0035 decision 15)
+  const book = p.kind === SNOWFLAKE_KIND ? snowflakeCreditPrice(platformId) : null;
   return {
     platformId,
     platformName: p.name,
@@ -56,8 +60,8 @@ export function getSource(platformId: string): CostSourceSettings {
     source: costSourceOfKind(p.kind),
     enabled: !!r?.enabled,
     tagKey: tagKeyOf(platformId),
-    creditPrice: r?.credit_price ?? null,
-    creditCurrency: r?.credit_currency ?? null,
+    creditPrice: book ? fromMicros(toMicros(book.price) ?? 0) : (r?.credit_price ?? null),
+    creditCurrency: book?.currency ?? r?.credit_currency ?? null,
     currency: r?.currency ?? null,
     lastReadAt: r?.last_read_at ?? null,
     lastReadError: r?.last_read_error ?? null,
@@ -115,6 +119,14 @@ export function setSource(platformId: string, body: unknown): CostSourceSettings
       },
     });
   });
+  // the price per credit of the Snowflake fallback is an entry of the platform's contracted price book (0.21.0): a
+  // changed one is a new version of it (who manages the platform maintains that book)
+  if (p.kind === SNOWFLAKE_KIND) {
+    const was = snowflakeCreditPrice(platformId);
+    const next = price ? { price, currency: x.creditCurrency ?? 'USD' } : null;
+    const same = was && next ? toMicros(was.price) === toMicros(next.price) && was.currency === next.currency : !was && !next;
+    if (!same) db().tx(() => setCreditPrice(platformId, p.name, next?.price ?? null, next?.currency ?? 'USD'));
+  }
   // a new tag key links the lines anew
   if (before?.tag_key !== x.tagKey) remap(platformId, costSourceOfKind(p.kind));
   return getSource(platformId);

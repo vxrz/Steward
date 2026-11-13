@@ -16,6 +16,8 @@ import {
   FISCAL_YEAR_MAX,
   FISCAL_YEAR_MIN,
   SUPPLIER_STATUSES,
+  COST_PRICE_BOOK_KINDS,
+  COST_PRICE_CHARGES,
 } from '@sm/shared';
 
 /** Response and query schemas of platform costs in the public API (/api/v1/costs, #226). */
@@ -217,6 +219,10 @@ export const CostPlanYear = z.object({
         .object({ id: z.string(), contractId: z.string(), title: z.string(), changed: z.boolean() })
         .nullable()
         .describe('The payment schedule of a supplier contract the line was made from (0.18.0); changed: the contract changed since (Contract changed)'),
+      estimate: z
+        .object({ id: z.string(), title: z.string(), changed: z.boolean() })
+        .nullable()
+        .describe('The cost estimate the line was made from (0.21.0); changed: the estimate no longer proposes what the line was made from (Estimate changed)'),
       contractEnds: z.string().nullable().describe('A line naming a contract without a schedule: the end of its contract when it falls in this fiscal year'),
       twoLines: z.boolean().describe('A hand-made line for a contract that also has a payment schedule paying in this year'),
       paymentDates: z.array(z.string().nullable()).nullable().describe('A schedule line: the payment date in each month of the year (null: no payment)'),
@@ -449,7 +455,205 @@ export const CostCommitmentsQuery = z.object({
   cursor,
 });
 
-export const COST_COMPONENTS: Record<string, ZodTypeAny> = { CostOverviewRow, CostScopeDetail, CostPlanYear, CostCommitment, CostAttribution };
+// ---------- price books, calculators and estimates (0.21.0, ADR 0035) ----------
+
+const decimal = (d: string) => z.string().describe(`${d} – a decimal (e.g. "1840.00")`);
+export const CostRange = z
+  .object({ low: decimal('Low'), expected: decimal('Expected'), high: decimal('High') })
+  .describe(
+    'Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal.',
+  );
+const range = (d: string) => z.object({ low: z.string(), expected: z.string(), high: z.string() }).describe(d);
+
+export const PriceBookItem = z.object({
+  sku: z.string().describe("The item's id in the book (the provider's SKU where there is one)"),
+  priceId: z.string().describe('Several prices of one SKU (region, edition): their id; empty when the SKU has one'),
+  name: z.string(),
+  service: z.string(),
+  category: z.string(),
+  driver: z.string().describe('What is counted (throughput, storage, requests, hours …)'),
+  unit: z.string().describe('UCUM code of the unit (GBy, h, GBy.mo, MBy/s, {request}); annotations in braces are counted things'),
+  charge: z.enum(COST_PRICE_CHARGES),
+  price: z.string().describe('Per block, up to 12 decimals, in `currency` – or in units of `creditSku` (a price in credits)'),
+  block: z.number().int().describe('1, 1000 or 1000000 units'),
+  currency: z.string().nullable(),
+  creditSku: z.string().nullable(),
+  tiers: z.array(z.object({ from: z.string(), price: z.string() })).nullable().describe('Bands of the quantity per month (after the included quantity)'),
+  tierMode: z.enum(['graduated', 'volume']),
+  included: z.string().nullable().describe('Free per month'),
+  minimum: z.string().nullable().describe('At least per month (when anything is used)'),
+  validFrom: z.string().nullable(),
+  validTo: z.string().nullable(),
+  attributes: z.array(z.object({ key: z.string(), value: z.string() })),
+  sourceNote: z.string(),
+});
+
+const PriceDiffCounts = z.object({ added: z.number().int(), removed: z.number().int(), changed: z.number().int(), unchanged: z.number().int() });
+
+export const PriceBook = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(COST_PRICE_BOOK_KINDS).describe('list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)'),
+  provider: z.string(),
+  currency: z.string(),
+  description: z.string(),
+  platform: z.object({ id: z.string(), name: z.string() }).nullable(),
+  supplier: z.object({ id: z.string(), name: z.string() }).nullable(),
+  supplierContract: z.object({ id: z.string(), title: z.string() }).nullable(),
+  source: z.enum(['manual', 'csv']),
+  reviewDays: z.number().int(),
+  checkedAt: ts().nullable(),
+  checkedBy: z.string().nullable(),
+  reviewDue: z.boolean().describe('Kept by hand and not checked for longer than its review interval'),
+  version: z.number().int().describe('The current version (0: no prices yet)'),
+  entries: z.number().int(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const PriceBookDetail = PriceBook.extend({
+  versions: z.array(
+    z.object({
+      number: z.number().int(),
+      source: z.enum(['manual', 'csv', 'migration', 'source']),
+      entries: z.number().int(),
+      note: z.string(),
+      sha256: z.string(),
+      changes: PriceDiffCounts.nullable().describe('What changed against the version before'),
+      createdAt: ts(),
+      createdBy: z.string(),
+    }),
+  ),
+});
+
+const EstimateRef = z.object({ kind: z.enum(['service', 'platform']), id: z.string(), name: z.string() });
+
+export const CostEstimateSummary = z.object({
+  id: z.string(),
+  title: z.string(),
+  owner: EstimateRef,
+  for: z.object({ kind: z.enum(['application', 'system', 'platform']), id: z.string(), name: z.string() }).nullable(),
+  calculator: z.object({ id: z.string(), name: z.string() }).nullable(),
+  currency: z.string(),
+  appliesFrom: z.string().describe('YYYY-MM'),
+  monthly: range('Usage and recurring per month; null when the token owner may not see amounts').nullable(),
+  oneOff: range('One-off; null when the token owner may not see amounts').nullable(),
+  ranged: z.boolean(),
+  adjusted: z.boolean().describe('With ad-hoc adjustments (what-if prices, never written back)'),
+  atListPrice: z.boolean().describe('Some lines are shown at list price: they were priced with rates the token owner may not see'),
+  pending: z.boolean().describe('A recalculation with new prices waits for "Accept new prices"'),
+  planLines: z.number().int(),
+  updatedAt: ts(),
+});
+
+const EstimateLine = z.object({
+  key: z.string(),
+  label: z.string(),
+  group: z.string(),
+  provider: z.string(),
+  sku: z.string(),
+  priceId: z.string(),
+  name: z.string(),
+  charge: z.enum(COST_PRICE_CHARGES).nullable(),
+  quantity: range("In the item's unit"),
+  unit: z.string(),
+  credits: range('Priced in credits: how many').nullable(),
+  creditSku: z.string().nullable(),
+  book: z.object({ id: z.string(), name: z.string(), kind: z.enum(COST_PRICE_BOOK_KINDS), version: z.number().int() }).nullable(),
+  unitPrice: z.string().nullable(),
+  block: z.number().int(),
+  priceCurrency: z.string().nullable(),
+  tiered: z.boolean(),
+  fx: z.object({ from: z.string(), rate: z.string(), date: z.string() }).nullable().describe('The manual exchange rate the line was converted with'),
+  found: range('What the price found comes to, before an adjustment').nullable(),
+  adjustment: z
+    .object({
+      scope: z.enum(['line', 'estimate']),
+      kind: z.enum(['percent', 'price']),
+      value: z.string(),
+      currency: z.string().nullable(),
+      block: z.number().int(),
+      reason: z.string(),
+    })
+    .nullable(),
+  fixedMoved: z.object({ was: z.string(), now: z.string() }).nullable(),
+  amount: range('Per month (usage, recurring) or once (one-off); null without a price').nullable(),
+  priceHidden: z.boolean().describe('Priced with rates the token owner may not see – shown at list price (or left out)'),
+  missing: z.enum(['noBook', 'noItem', 'unit', 'ambiguous']).nullable(),
+});
+
+const EstimateResult = z.object({
+  calculatedAt: ts(),
+  calculatedBy: z.string(),
+  currency: z.string(),
+  appliesFrom: z.string(),
+  hoursPerMonth: z.number().describe('730 – the convention of the cloud price lists'),
+  calculator: z.object({ id: z.string(), name: z.string(), version: z.number().int() }).nullable(),
+  ranged: z.boolean(),
+  adjusted: z.boolean(),
+  lines: z.array(EstimateLine),
+  totals: z.object({ monthly: CostRange, usage: CostRange, recurring: CostRange, oneOff: CostRange }),
+  months: z.array(z.object({ month: z.string(), monthly: CostRange })).nullable().describe('The next 36 months, only when a price changes within them'),
+  books: z.array(z.object({ id: z.string(), name: z.string(), kind: z.enum(COST_PRICE_BOOK_KINDS), version: z.number().int(), provider: z.string(), hidden: z.boolean() })),
+  rates: z.array(z.object({ from: z.string(), to: z.string(), rate: z.string(), date: z.string() })),
+  missing: z.number().int(),
+  atListPrice: z.boolean(),
+  incomplete: z.boolean(),
+});
+
+export const CostEstimateDetail = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  owner: EstimateRef,
+  for: z.object({ kind: z.enum(['application', 'system', 'platform']), id: z.string(), name: z.string(), visible: z.boolean() }).nullable(),
+  calculator: z.object({ id: z.string(), name: z.string(), version: z.number().int(), latest: z.number().int() }).nullable(),
+  inputs: z.array(z.object({ key: z.string(), value: z.unknown() })),
+  currency: z.string(),
+  appliesFrom: z.string(),
+  amountsVisible: z.boolean(),
+  result: EstimateResult.nullable().describe('null when the token owner may not see amounts'),
+  pending: EstimateResult.extend({ changePct: z.number().nullable() }).nullable(),
+  planLines: z.array(z.object({ id: z.string(), fiscalYear: z.number().int(), title: z.string(), changed: z.boolean() })),
+  createdAt: ts(),
+  createdBy: z.string(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const CostEstimatesQuery = z.object({
+  serviceId: z.string().max(100).optional().describe('Only the estimates of this service'),
+  platformId: z.string().max(100).optional().describe('Only the estimates of this platform'),
+  limit,
+  cursor,
+});
+
+export const PriceBooksQuery = z.object({
+  provider: z.string().max(120).optional().describe('Only books of this provider (case-insensitive)'),
+  kind: z.enum(COST_PRICE_BOOK_KINDS).optional(),
+  limit,
+  cursor,
+});
+
+export const PriceBookItemsQuery = z.object({
+  q: z.string().max(200).optional().describe('Only items whose SKU, name, service or driver contains this text'),
+  limit: z.number().int().min(1).max(500).default(200).describe('Page size (1–500, default 200)'),
+  cursor,
+});
+
+export const COST_COMPONENTS: Record<string, ZodTypeAny> = {
+  CostOverviewRow,
+  CostScopeDetail,
+  CostPlanYear,
+  CostCommitment,
+  CostAttribution,
+  CostRange,
+  PriceBook,
+  PriceBookDetail,
+  PriceBookItem,
+  CostEstimateSummary,
+  CostEstimateDetail,
+};
 
 export const CostListQuery = z.object({
   scope: z.enum(COST_SCOPES).default('service').describe('service, application, team or platform'),

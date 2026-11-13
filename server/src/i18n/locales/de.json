@@ -651,5 +651,9 @@
     "runsOutOn": "Voraussichtlich aufgebraucht am {{date}}.",
     "estimateNote": "Die Schätzung ist linear aus der Nutzung der letzten Monate und ändert sich, wenn sich die Nutzung ändert.",
     "stateOnly": "Die Zahlen werden nicht gezeigt: Das Volumen nutzen auch Services oder Plattformen, die Sie nicht sehen dürfen."
+  },
+  "priceReview": {
+    "title": "Preise prüfen: {{book}}",
+    "body": "Das Preisbuch „{{book}}“ wird von Hand gepflegt und wurde zuletzt am {{checked}} geprüft (Prüfung alle {{days}} Tage). Vergleichen Sie die Preise mit denen des Anbieters und speichern Sie eine neue Version oder wählen Sie „Als geprüft markieren“."
   }
 }
