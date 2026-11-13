@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import {
   DATA_CONTRACT_LIMITS,
   DATA_CONTRACT_PLATFORM_SERVER_TYPES,
@@ -205,8 +206,23 @@ export async function platformServerHeaders(x: Extract<Target, { kind: 'snowflak
     const h: Record<string, string> = { 'datacontract-snowflake-account': String(v.account ?? '').toUpperCase(), 'datacontract-snowflake-username': String(v.user ?? '') };
     if (v.role) h['datacontract-snowflake-role'] = String(v.role);
     if (v.warehouse) h['datacontract-snowflake-warehouse'] = String(v.warehouse);
-    h['datacontract-snowflake-private-key'] = secrets.privateKey;
-    if (secrets.privateKeyPassphrase) h['datacontract-snowflake-private-key-passphrase'] = secrets.privateKeyPassphrase;
+    // a header carries no line breaks: the key as base64 DER (PKCS#8, unencrypted – the CLI takes PEM or base64 DER),
+    // decrypted here when the platform's key has a passphrase
+    let der: string;
+    try {
+      der = crypto
+        .createPrivateKey({ key: secrets.privateKey, format: 'pem', ...(secrets.privateKeyPassphrase ? { passphrase: secrets.privateKeyPassphrase } : {}) })
+        .export({ type: 'pkcs8', format: 'der' })
+        .toString('base64');
+    } catch {
+      throw new HttpError(409, `"${x.database.name}" has no private key for the data contract service`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
+        server: x.server,
+        type: 'snowflake',
+        context: 'noKey',
+        name: x.database.name,
+      });
+    }
+    h['datacontract-snowflake-private-key'] = der;
     return h;
   }
   const declared = bootstrapList(v.bootstrap);
@@ -360,11 +376,13 @@ export async function runContractTest(contractId: string, opts: TestOptions): Pr
   // the credentials through the resolver (ADR 0009): the default identities of the service and the database
   const { platform: service, secrets: serviceSecrets } = getConnection(x.service.id);
   const { secrets: dbSecrets } = getConnection(x.database.id);
-  const allSecrets = maskable(serviceSecrets, dbSecrets);
   // the tested server goes through the outbound policy as a connection of Steward's own would, and the service is sent
   // the address Steward checked
   const testedHeaders =
     x.kind === 'database' ? serverHeaders(x.settings.dialect, x.settings, dbSecrets, await testedHost(x.settings)) : await platformServerHeaders(x, dbSecrets);
+  // what was derived from a secret (a Snowflake key as DER) is masked like the secret
+  const derived = Object.fromEntries(Object.entries(testedHeaders).filter(([k]) => /-(password|private-key)$/.test(k)));
+  const allSecrets = maskable(serviceSecrets, dbSecrets, derived);
   await serviceUrl(service, serviceSecrets, '/test');
   const started = Date.now();
   const startedAt = nowIso();

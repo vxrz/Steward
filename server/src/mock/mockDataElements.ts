@@ -62,7 +62,36 @@ const seedColumns = (): Map<string, Column[]> =>
     ],
   ]);
 
+/** 0.24.0: ROW_COUNT and BYTES of tables (INFORMATION_SCHEMA.TABLES) for the volume mode. */
+const seedVolumes = (): Map<string, { rows: number; bytes: number }> =>
+  new Map([
+    ['SHOP.SALES.ORDERS', { rows: 125_000, bytes: 9_800_000 }],
+    ['SHOP.SALES.CUSTOMERS', { rows: 4_200, bytes: 640_000 }],
+  ]);
+interface Dmf {
+  /** DB.SCHEMA.METRIC */
+  metric: string;
+  args: string;
+  value: number | null;
+  hoursAgo: number;
+}
+/** 0.24.0: Data Metric Function results per table (SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS). */
+const seedDmf = (): Map<string, Dmf[]> =>
+  new Map([
+    [
+      'SHOP.SALES.ORDERS',
+      [
+        { metric: 'SNOWFLAKE.CORE.NULL_COUNT', args: 'CUSTOMER_ID', value: 0, hoursAgo: 2 },
+        { metric: 'SNOWFLAKE.CORE.DUPLICATE_COUNT', args: 'ORDER_ID', value: 0, hoursAgo: 2 },
+        { metric: 'SNOWFLAKE.CORE.ROW_COUNT', args: '', value: 125_000, hoursAgo: 2 },
+      ],
+    ],
+    ['SHOP.SALES.CUSTOMERS', [{ metric: 'SNOWFLAKE.CORE.NULL_COUNT', args: 'EMAIL', value: 12, hoursAgo: 3 }]],
+  ]);
+
 let refreshes = seedRefreshes();
+let volumes = seedVolumes();
+let dmf = seedDmf();
 let tasks = seedTasks();
 let columns = seedColumns();
 
@@ -78,8 +107,19 @@ export function setTaskRuns(name: string, successHours: number | null, lastState
 export function setColumns(name: string, cols: Column[]): void {
   columns.set(name, cols);
 }
+/** For tests: a table's row count and size. */
+export function setTableVolume(name: string, rows: number | null, bytes: number | null = null): void {
+  if (rows === null) volumes.delete(name);
+  else volumes.set(name, { rows, bytes: bytes ?? rows * 80 });
+}
+/** For tests: a table's Data Metric Function results. */
+export function setDmfResults(name: string, results: Dmf[]): void {
+  dmf.set(name, results);
+}
 export function resetDataElementMock(): void {
   refreshes = seedRefreshes();
+  volumes = seedVolumes();
+  dmf = seedDmf();
   tasks = seedTasks();
   columns = seedColumns();
 }
@@ -89,7 +129,10 @@ export const dataElementStatements: { sql: string; bindings: string[] }[] = [];
 
 const unquote = (s: string) => s.replaceAll('"', '');
 
-const CHECK_TAGS = new Set(['dp-dynamic-refresh', 'dp-task-runs', 'dp-table-fresh', 'dp-project-fresh', 'dp-columns']);
+const CHECK_TAGS = new Set(['dp-dynamic-refresh', 'dp-task-runs', 'dp-table-fresh', 'dp-project-fresh', 'dp-columns', 'dp-table-volume', 'dp-dmf-results']);
+
+/** 0.24.0: the statements of the volume and quality modes with their bindings, for their allow-list test. */
+export const qualityStatements: { sql: string; bindings: string[] }[] = [];
 
 /**
  * The answer to a `dp-…` statement, or null for another tag. `tables` are the demo account's tables (catalog, schema,
@@ -103,7 +146,8 @@ export function dataElementAnswer(
 ): { names: string[]; rows: Cell[][] } | null {
   // the checks' statements only (discovery's dp-… tags are answered by mockSnowflake.ts)
   if (!CHECK_TAGS.has(tag)) return null;
-  if (dataElementStatements.length < 1000) dataElementStatements.push({ sql, bindings: [1, 2, 3, 4].map(arg).filter(Boolean) });
+  const record = tag === 'dp-table-volume' || tag === 'dp-dmf-results' ? qualityStatements : dataElementStatements;
+  if (record.length < 1000) record.push({ sql, bindings: [1, 2, 3, 4].map(arg).filter((x) => x !== '') });
   // the database of a table function: TABLE(<db>.INFORMATION_SCHEMA.…)
   const db = unquote(/TABLE\(\s*("?[A-Za-z0-9_$-]+"?)\.INFORMATION_SCHEMA/.exec(sql)?.[1] ?? '');
   switch (tag) {
@@ -138,6 +182,19 @@ export function dataElementAnswer(
         rows: [
           [String(ts.length), iso(newest.altered), iso(oldest.altered), `${oldest.schema}.${oldest.name}`, String(ts.filter((t) => t.altered > maxAge).length)],
         ],
+      };
+    }
+    case 'dp-table-volume': {
+      const dbName = unquote(arg(1).split('.INFORMATION_SCHEMA')[0] ?? '');
+      const v = volumes.get(`${dbName}.${arg(2)}.${arg(3)}`);
+      return { names: ['ROW_COUNT', 'BYTES'], rows: v ? [[String(v.rows), String(v.bytes)]] : [] };
+    }
+    case 'dp-dmf-results': {
+      const within = Math.abs(Number(arg(4))) * H;
+      const rs = (dmf.get(`${arg(1)}.${arg(2)}.${arg(3)}`) ?? []).filter((r) => r.hoursAgo * H <= within);
+      return {
+        names: ['METRIC', 'ARGS', 'VALUE', 'MEASURED'],
+        rows: rs.map((r) => [r.metric, r.args, r.value === null ? null : String(r.value), iso(r.hoursAgo * H)]),
       };
     }
     case 'dp-columns': {

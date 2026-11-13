@@ -81,6 +81,17 @@ const fits = (logical: string, sqlType: string): boolean => {
 
 const PREFIX: Record<string, string> = { postgres: 'postgres', postgresql: 'postgres', mysql: 'mysql', sqlserver: 'sqlserver', snowflake: 'snowflake', kafka: 'kafka' };
 
+/** A private key as the CLI takes it in a header: base64 DER (PKCS#8). */
+function isDerKey(v: string | undefined): boolean {
+  if (!v || v.includes('-----')) return false;
+  try {
+    crypto.createPrivateKey({ key: Buffer.from(v, 'base64'), format: 'der', type: 'pkcs8' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Headers that carry a credential: never recorded with their value. */
 const SECRET_HEADER = /(username|password|private-key|passphrase)$/;
 
@@ -114,7 +125,7 @@ function run(contract: Obj, serverName: string | null, headers: FastifyRequest['
   const platformServer = p === 'snowflake' || p === 'kafka';
   const matched =
     p === 'snowflake'
-      ? h('account') === DEMO_SNOWFLAKE.account && h('username') === DEMO_SNOWFLAKE.user && (h('private-key') ?? '').includes('PRIVATE KEY')
+      ? h('account') === DEMO_SNOWFLAKE.account && h('username') === DEMO_SNOWFLAKE.user && isDerKey(h('private-key'))
       : p === 'kafka'
         ? host === DEMO_KAFKA_BOOTSTRAP && h('sasl-username') === DEMO_KAFKA.username && h('sasl-password') === DEMO_KAFKA.password
         : host === DEMO_DB_HOST &&
