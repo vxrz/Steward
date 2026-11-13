@@ -25,6 +25,7 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 | Dashboard                             | everybody sees it; its owner changes it                               | members see it                                                    |
 | Ticket reference                      | everybody sees it; editors and responsibles change it                 | editors change it                                                 |
 | Plant registry site (with its assets) | everybody sees it; designers manage it; an access list restricts it   | designers among the members manage it; the access list adds more  |
+| Device profile, KPI definition        | everyone who sees the plant registry; designers manage it             | members see it, designers among them manage it; shares add more   |
 
 **Child objects follow their parent.** Components, duties, objectives and CIA ratings follow their service or application; editions, reviews, attachments and links follow their record; schedules and runs follow their process.
 
@@ -35,6 +36,8 @@ Everyone else does not see a team-owned resource. It answers like one that does 
 **New resources** get their creator's teams, but only teams that already own something. A team that owns nothing does not use team scopes yet, so after an upgrade new resources stay the whole instance's. Administrators' new resources get no owning team.
 
 **Suppliers are the exception** (0.18.0, [ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)): a new supplier gets no owning team, whoever creates it – the company record is shared by the instance, and the setting below does not apply to it. Each team keeps its own **contracts** with the supplier instead: a new contract's owners are its creator and the creator's teams for new resources, and a team-owned contract is seen only by its owners, the readers of the services it covers, administrators and auditors ([SUPPLIERS.md](SUPPLIERS.md#contracts-and-the-services-they-cover)). An administrator can still restrict a supplier on its _Owning teams_ panel; changing its owning teams there shows a preview first and protects its contracts and contacts ([SUPPLIERS.md](SUPPLIERS.md#shared-suppliers-merging-and-opening)).
+
+**Device profiles and KPI definitions** (0.21.0, [ADR 0033](adr/0033-one-access-model.md) decision 9) are the same: a new one gets no owning team, whoever adds it – they describe device models every site may use. A team keeps one to itself deliberately (its _Owning teams_ panel, administrators); an asset that uses a profile its reader may not see still shows the interfaces and data points it delivers, without the profile's name ([PLANT.md](PLANT.md#rights)).
 
 Each team can change that in its settings (_Users → Teams_ → settings → _New resources_): **Once the team owns something** (the default, as above), **Always** (from the start, so a new team can begin with its members' own resources) or **Never** (the team only owns what administrators give it).
 

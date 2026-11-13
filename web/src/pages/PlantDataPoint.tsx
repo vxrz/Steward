@@ -1,3 +1,4 @@
+import { isPlantHidden } from '@sm/shared';
 import { lazy, Suspense } from 'react';
 import { Anchor, Badge, Box, Button, Grid, Group, List, Paper, Stack, Table, Text, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
@@ -27,6 +28,8 @@ const PointLineageView = lazy(() => import('./plant/views/AssetFlowView').then((
  */
 export function PlantDataPointPage() {
   const { t, i18n } = useTranslation(['plant', 'common', 'plantModel']);
+  // 0.21.0 (#293): a base profile the reader may not see is named so
+  const shownBase = (id: string) => (isPlantHidden(id) ? t('catalogueAccess.hiddenBase') : id);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const hint = useAddressHint();
@@ -112,7 +115,7 @@ export function PlantDataPointPage() {
             )}
             {p.description && d.origin.descriptionFrom !== d.profile.id && (
               <Text size="xs" c="dimmed" data-testid="point-description-origin">
-                {t('plantModel:describe.inherited', { from: d.origin.descriptionFrom })}
+                {t('plantModel:describe.inherited', { from: shownBase(d.origin.descriptionFrom) })}
               </Text>
             )}
             <Stack gap="xs" data-testid="point-assets">
@@ -211,8 +214,8 @@ export function PlantDataPointPage() {
                 {d.origin.from !== d.profile.id && (
                   <Text size="xs" c="dimmed" data-testid="point-origin">
                     {d.origin.kind === 'overridden'
-                      ? t('plantModel:origin.pointOverridden', { from: d.origin.from, fields: d.origin.fields.join(', ') })
-                      : t('plantModel:origin.pointInherited', { from: d.origin.from })}
+                      ? t('plantModel:origin.pointOverridden', { from: shownBase(d.origin.from), fields: d.origin.fields.join(', ') })
+                      : t('plantModel:origin.pointInherited', { from: shownBase(d.origin.from) })}
                   </Text>
                 )}
               </Field>

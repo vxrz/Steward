@@ -1,11 +1,13 @@
-import { PLANT_ID_SCOPE, plantIdPattern, type PlantIdAlias, type PlantIdKind, type PlantPermission } from '@sm/shared';
+import { PLANT_ID_SCOPE, plantIdPattern, type PlantCatalogueKind, type PlantIdAlias, type PlantIdKind, type PlantPermission } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
+import { currentUser } from '../auth/context.js';
 import { HttpError, nowIso } from '../util.js';
 import { canManageCatalogue, siteRights, sitePermissions } from './access.js';
 import { pointsOf, profileValuesOf, type ProfileRow } from './data-model.js';
 import { requirePlant } from './settings.js';
+import { catalogueEntryAccess } from './catalogue-access.js';
 
 /**
  * Entries of the plant registry by kind, scope and id (0.11.0, docs/PLANT.md#changing-ids): whether one exists, its
@@ -23,6 +25,14 @@ export interface Entry {
 }
 
 const one = <T>(sql: string, ...p: unknown[]) => db().get<T>(sql, ...p);
+
+/** The device profile or KPI definition whose rights a catalogue entry follows (null: not one). */
+function catalogueEntryOf(e: Partial<Pick<Entry, 'kind' | 'scope' | 'id'>>): { kind: PlantCatalogueKind; id: string } | null {
+  if (e.kind === 'profile' && e.id) return { kind: 'device_profile', id: e.id };
+  if (e.kind === 'kpi' && e.id) return { kind: 'kpi_definition', id: e.id };
+  if ((e.kind === 'interface' || e.kind === 'data_point') && e.scope) return { kind: 'device_profile', id: e.scope };
+  return null;
+}
 
 /** The entry as stored, whatever the reader may see (null: none). */
 export function entryOf(kind: PlantIdKind, scope: string, id: string): Entry | null {
@@ -84,9 +94,20 @@ export function entryOf(kind: PlantIdKind, scope: string, id: string): Entry | n
   }
 }
 
-/** The rights of the current user on an entry: view and manage (catalogue entries: everyone in the module sees them). */
-export function entryPermissions(e: Pick<Entry, 'siteId'>, rights?: Map<string, PlantPermission[]>): PlantPermission[] {
-  if (e.siteId === null) return canManageCatalogue() ? ['view', 'manage'] : ['view'];
+/**
+ * The rights of the current user on an entry: view and manage. Catalogue entries (0.21.0, #293): those of the device
+ * profile or KPI definition – an interface or data point follows its profile; renaming or removing it needs Manage on it.
+ */
+export function entryPermissions(
+  e: Pick<Entry, 'siteId'> & Partial<Pick<Entry, 'kind' | 'scope' | 'id'>>,
+  rights?: Map<string, PlantPermission[]>,
+): PlantPermission[] {
+  if (e.siteId === null) {
+    const of = catalogueEntryOf(e);
+    if (!of) return canManageCatalogue() ? ['view', 'manage'] : ['view'];
+    const r = catalogueEntryAccess(currentUser(), of.kind, of.id).permissions;
+    return [...(r.includes('view') ? (['view'] as const) : []), ...(r.includes('manage') ? (['manage'] as const) : [])];
+  }
   if (rights) return rights.get(e.siteId) ?? [];
   const s = one<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites WHERE id = ?', e.siteId);
   return s ? sitePermissions(s) : [];

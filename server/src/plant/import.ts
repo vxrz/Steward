@@ -23,6 +23,7 @@ import {
   type PlantMissing,
   type PlantPermission,
   type PlantRecordType,
+  type PlantKpiValues,
   type PlantProfileValues,
   type PlantResolvedProfile,
   type PlantAssignmentValues,
@@ -40,6 +41,7 @@ import { fieldDefs, fieldProblems, isDate, isHttpUrl, plantSettings, requirePlan
 import { issueMessages, plantFileSchema, SCHEMA_ID, type AreaFile, type AssetFile, type PlantFile, type SiteFile } from './format.js';
 import { assignmentOut, computeData, dataPlanEmpty, emptyDataPlan, kpiOut, profileOut, planData, pushWrite, type DataPlan, type Write } from './import-data.js';
 import { allAssignments, allKpis, allProfiles, ownProfiles } from './data-model.js';
+import { HiddenRefs, assignmentRefs, catalogueScope, kpiRefs, presentAssignment, presentInputs, type CatalogueScope } from './catalogue-access.js';
 import { assetPoints } from './collections-model.js';
 import { applyRenames, missingEntries, planIds } from './import-ids.js';
 import { auditBulkRenames, dryRun } from './rename.js';
@@ -1397,10 +1399,20 @@ export const EXPORT_TYPES = { yaml: 'application/yaml; charset=utf-8', json: 'ap
  * or one KPI definition. The importer reads both.
  */
 /** A profile's own part as written in a file (a derived profile only with what it adds and changes, 0.11.0). */
-function ownProfileOut(id: string, resolved: Map<string, PlantResolvedProfile>, own: Map<string, PlantProfileValues>): Record<string, unknown> {
+/** A profile's own part as the file holds it; 0.21.0: a base the reader may not see by its placeholder (#293, part 4). */
+function ownProfileOut(
+  id: string,
+  resolved: Map<string, PlantResolvedProfile>,
+  own: Map<string, PlantProfileValues>,
+  scope: CatalogueScope = catalogueScope(null),
+): Record<string, unknown> {
   const p = own.get(id)!;
-  return profileOut(p, p.extends ? (resolved.get(p.extends) ?? null) : null);
+  const refs = new HiddenRefs(scope.profile, resolved.get(id)?.chain.slice(1) ?? []);
+  return profileOut({ ...p, extends: refs.ref(p.extends) }, p.extends ? (resolved.get(p.extends) ?? null) : null);
 }
+
+/** A KPI definition as the file holds it, profiles the reader may not see by their placeholders. */
+const shownKpiOut = (k: PlantKpiValues, scope: CatalogueScope) => kpiOut({ ...k, inputs: presentInputs(k, kpiRefs(k, scope)) });
 
 export function exportYaml(
   q: ExportQuery = {},
@@ -1417,27 +1429,31 @@ export function exportYaml(
   // a resolved profile's interfaces are the effective ones; the file holds the own part
   const own = ownProfiles();
   const viaText = opts.tokenId ? ' via the API' : '';
+  // 0.21.0 (#293): the catalogue the reader may see – entries of other teams are left out, a hidden base or input profile
+  // of a visible entry and an asset's hidden profile or KPI definition are written as placeholders (they import back)
+  const scope = catalogueScope();
   // one catalogue record, or the catalogues
   if (q.profile || q.kpi || q.part === 'catalogue') {
-    const profiles = allProfiles();
-    const kpis = allKpis();
+    const all = allProfiles();
+    const profiles = new Map([...all].filter(([id]) => scope.profile(id)));
+    const kpis = new Map([...allKpis()].filter(([id]) => scope.kpi(id)));
     let doc: Record<string, unknown>;
     let filename: string;
     if (q.profile) {
       const pr = profiles.get(q.profile);
       if (!pr) throw new HttpError(404, `Device profile ${q.profile} not found`, 'PLANT_PROFILE_NOT_FOUND', { id: q.profile });
-      doc = { version: PLANT_FORMAT_VERSION, device_profile: ownProfileOut(pr.id, profiles, own) };
+      doc = { version: PLANT_FORMAT_VERSION, device_profile: ownProfileOut(pr.id, all, own, scope) };
       filename = `${pr.id}.profile.plant.yaml`;
     } else if (q.kpi) {
       const k = kpis.get(q.kpi);
       if (!k) throw new HttpError(404, `KPI definition ${q.kpi} not found`, 'PLANT_KPI_NOT_FOUND', { id: q.kpi });
-      doc = { version: PLANT_FORMAT_VERSION, kpi_definition: kpiOut(k) };
+      doc = { version: PLANT_FORMAT_VERSION, kpi_definition: shownKpiOut(k, scope) };
       filename = `${k.id}.kpi.plant.yaml`;
     } else {
       doc = {
         version: PLANT_FORMAT_VERSION,
-        ...(profiles.size ? { device_profiles: [...profiles.keys()].map((id) => ownProfileOut(id, profiles, own)) } : {}),
-        ...(kpis.size ? { kpi_definitions: [...kpis.values()].map(kpiOut) } : {}),
+        ...(profiles.size ? { device_profiles: [...profiles.keys()].map((id) => ownProfileOut(id, all, own, scope)) } : {}),
+        ...(kpis.size ? { kpi_definitions: [...kpis.values()].map((k) => shownKpiOut(k, scope)) } : {}),
       };
       filename = 'plant-catalogue.plant.yaml';
     }
@@ -1550,10 +1566,16 @@ export function exportYaml(
   const enterprise = plantSettings().enterprise;
   // part 2 (#219): the whole registry carries the catalogues; a site and the whole registry the assignments of their assets
   const assignments = allAssignments();
-  const assigned = assets.filter((a) => assignments.has(a.id)).map((a) => assignmentOut(a.id, assignments.get(a.id)!));
   const resolvedProfiles = allProfiles();
-  const profiles = siteId ? [] : [...resolvedProfiles.keys()];
-  const kpis = siteId ? [] : [...allKpis().values()];
+  const assigned = assets
+    .filter((a) => assignments.has(a.id))
+    .map((a) => {
+      const x = assignments.get(a.id)!;
+      const chain = x.profileId ? (resolvedProfiles.get(x.profileId)?.chain ?? []) : [];
+      return assignmentOut(a.id, presentAssignment(x, assignmentRefs(x, chain, scope)));
+    });
+  const profiles = siteId ? [] : [...resolvedProfiles.keys()].filter((id) => scope.profile(id));
+  const kpis = siteId ? [] : [...allKpis().values()].filter((k) => scope.kpi(k.id));
   // part 3 (#220): the OT network of the sites and of their assets
   const networks = chosen.map((x) => otNetworkOut(x.id)).filter((x): x is Record<string, unknown> => !!x);
   const assetNetworks = assetNetworksOut(assets.map((a) => a.id));
@@ -1561,8 +1583,8 @@ export function exportYaml(
     version: PLANT_FORMAT_VERSION,
     ...(enterprise ? { enterprise: { name: enterprise } } : {}),
     ...(siteId ? { site: out[0] } : { sites: out }),
-    ...(profiles.length ? { device_profiles: profiles.map((id) => ownProfileOut(id, resolvedProfiles, own)) } : {}),
-    ...(kpis.length ? { kpi_definitions: kpis.map(kpiOut) } : {}),
+    ...(profiles.length ? { device_profiles: profiles.map((id) => ownProfileOut(id, resolvedProfiles, own, scope)) } : {}),
+    ...(kpis.length ? { kpi_definitions: kpis.map((k) => shownKpiOut(k, scope)) } : {}),
     ...(assigned.length ? { assignments: assigned } : {}),
     ...(networks.length ? (siteId ? { ot_network: networks[0] } : { ot_networks: networks }) : {}),
     ...(assetNetworks.length ? { asset_networks: assetNetworks } : {}),

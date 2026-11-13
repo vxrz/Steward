@@ -21,6 +21,7 @@ import { HttpError, parseJson, sha256 } from '../util.js';
 import { ToolError, defineTool, type ToolContext, type ToolDef } from '../mcp/tooling.js';
 import { registerReviewKind, saveProposal, type Row } from '../mcp/requests.js';
 import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome, siteRights } from './access.js';
+import { catalogueScope } from './catalogue-access.js';
 import { samePerson } from '../auth/assurance.js';
 import { withAuditDetails } from '../audit.js';
 import { applyStored, insertChangeSet, insertOp, quietDryRun, reviewNeeded, sourceOf, type CsRow } from './changesets/core.js';
@@ -192,7 +193,10 @@ function seesFor(u: AuthUser): (siteId: string | null) => boolean {
 }
 function forReader(s: Stored, u: AuthUser): { preview: McpPlantPreview; hidden: number } {
   const sees = seesFor(u);
-  const changes = s.changes.filter((c) => sees(c.siteId));
+  // 0.21.0 (#293): device profiles and KPI definitions the reader may not see are counted, not shown
+  const scope = catalogueScope(u);
+  const seesEntry = (c: PlantChange) => (c.kind === 'profile' ? scope.profile(c.id) : c.kind === 'kpi' ? scope.kpi(c.id) : true);
+  const changes = s.changes.filter((c) => sees(c.siteId) && seesEntry(c));
   return {
     preview: {
       counts: s.counts,

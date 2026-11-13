@@ -1,4 +1,5 @@
 import {
+  PLANT_HIDDEN,
   kpiInputPoint,
   kpiInputProfiles,
   unitRelation,
@@ -107,10 +108,14 @@ export const kpiProfiles = (def: Pick<PlantKpiValues, 'inputs'>): string[] => [
   ...new Set(def.inputs.filter((i) => i.kind === 'data_point').flatMap((i) => kpiInputProfiles(i))),
 ];
 
-/** The profiles an input names, for a message: "a" or "a", "b" (0.13). */
-const namesOf = (input: Pick<KpiInput, 'profile' | 'profiles'>) =>
+/**
+ * The profiles an input names, for a message: "a" or "a", "b" (0.13). 0.21.0: a profile the reader may not see – its
+ * name is `~hidden` in `profiles` (plant/catalogue-access.ts presentProfiles) – is named `~hidden`, never by its id.
+ */
+const shownId = (id: string, profiles?: Map<string, Pick<PlantResolvedProfile, 'name'>>) => (profiles?.get(id)?.name === PLANT_HIDDEN ? PLANT_HIDDEN : id);
+const namesOf = (input: Pick<KpiInput, 'profile' | 'profiles'>, profiles?: Map<string, Pick<PlantResolvedProfile, 'name'>>) =>
   kpiInputProfiles(input)
-    .map((n) => `"${n}"`)
+    .map((n) => `"${shownId(n, profiles)}"`)
     .join(' or ');
 
 /** The data point inputs of a KPI definition an asset with this assignment does not deliver (empty: it delivers all). */
@@ -118,6 +123,8 @@ export function inputGaps(
   def: PlantKpiValues,
   a: PlantAssignmentValues,
   profile: Profile | undefined,
+  /** Every profile as the reader may see it: names the input's profiles in messages (0.21.0) */
+  profiles?: Map<string, Pick<PlantResolvedProfile, 'name'>>,
 ): { code: PlantCheckCode; message: string; params: Record<string, string | number> }[] {
   const out: { code: PlantCheckCode; message: string; params: Record<string, string | number> }[] = [];
   const inputs = def.inputs.filter((i) => i.kind === 'data_point');
@@ -132,10 +139,10 @@ export function inputGaps(
     // a KPI that reads a base profile reads every profile that extends it (0.11.0); 0.13: any of several profiles
     const via = matchedProfile(input, profile);
     if (via === null) {
-      const names = kpiInputProfiles(input);
+      const names = kpiInputProfiles(input).map((n) => shownId(n, profiles));
       out.push({
         code: 'kpi_other_profile',
-        message: `KPI "${def.name}" reads data points of profile ${namesOf(input)}, the asset has profile "${profile.name}"`,
+        message: `KPI "${def.name}" reads data points of profile ${namesOf(input, profiles)}, the asset has profile "${profile.name}"`,
         params: { kpi: def.name, profile: names.join(', '), assigned: profile.name },
       });
       continue;
@@ -309,7 +316,7 @@ export function assignmentChecks(
     }
     // 0.12.0: a unit that differs from the expected one (of the inputs the asset delivers)
     const units = unitMismatches(def, a, profile, profiles).map((m) => unitCheck(def, m));
-    for (const g of [...inputGaps(def, a, profile), ...units, ...paramChecks(def, k)]) out.push(check(g.code, subject, g.message, g.params, k.job));
+    for (const g of [...inputGaps(def, a, profile, profiles), ...units, ...paramChecks(def, k)]) out.push(check(g.code, subject, g.message, g.params, k.job));
   }
   return out;
 }

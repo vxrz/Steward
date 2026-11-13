@@ -1,3 +1,5 @@
+import { isPlantHidden } from '@sm/shared';
+import { OwningTeams } from '../components/OwningTeams';
 import { useEffect, useState } from 'react';
 import { Anchor, Badge, Button, Grid, Group, List, Paper, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -135,7 +137,9 @@ export function PlantProfilePage() {
   };
   const values = p.own;
   const derived = !!p.extends;
-  const nameOf2 = (id: string) => (id === p.id ? p.name : (p.bases.find((b) => b.id === id)?.name ?? id));
+  // 0.21.0 (#293): a base the reader may not see is named so, never by its name or id
+  const nameOf2 = (id: string) =>
+    id === p.id ? p.name : isPlantHidden(id) ? t('plant:catalogueAccess.hiddenBase') : (p.bases.find((b) => b.id === id)?.name ?? id);
   const inheritedIface = (id: string) => p.origins.interfaces[id]?.kind !== undefined && p.origins.interfaces[id]?.kind !== 'own';
   const inheritedPoint = (id: string) => p.origins.points[id]?.kind !== undefined && p.origins.points[id]?.kind !== 'own';
   const inheritedGroup = (iface: string, group: string) =>
@@ -304,7 +308,11 @@ export function PlantProfilePage() {
                             →
                           </Text>
                         )}
-                        {b.exists ? (
+                        {b.hidden ? (
+                          <Badge size="sm" variant="light" color="gray" tt="none" data-testid="base-hidden">
+                            {t('plant:catalogueAccess.baseHidden')}
+                          </Badge>
+                        ) : b.exists ? (
                           <Anchor component={Link} to={`/plant/profiles/${encodeURIComponent(b.id)}`} size="sm">
                             {b.name}
                           </Anchor>
@@ -319,6 +327,11 @@ export function PlantProfilePage() {
                   <Text size="xs" c="dimmed">
                     {t('plantModel:extends.chainHelp')}
                   </Text>
+                  {p.bases.some((b) => b.hidden) && (
+                    <Text size="xs" c="dimmed" data-testid="base-hidden-hint">
+                      {t('plant:catalogueAccess.baseHiddenHint')}
+                    </Text>
+                  )}
                   {(p.notPresent.interfaces.length > 0 || p.notPresent.points.length > 0) && (
                     <Stack gap={4} data-testid="profile-not-present">
                       <Text size="sm" fw={500}>
@@ -622,17 +635,19 @@ export function PlantProfilePage() {
                 )}
               </Stack>
             </Paper>
-            {(p.extendedBy.length > 0 || derived) && (
+            {/* 0.21.0 (#293): who owns the profile; designers among them manage it */}
+            <OwningTeams kind="device_profile" id={p.id} />
+            {(p.extendedBy.length > 0 || derived || !!p.extendedByHidden) && (
               <Paper withBorder p="md" data-testid="profile-extended-by">
                 <Stack gap="xs">
                   <Title order={2} fz="h5">
                     {t('plantModel:extends.extendedBy')}
                   </Title>
-                  {p.extendedBy.length === 0 ? (
+                  {p.extendedBy.length === 0 && !p.extendedByHidden ? (
                     <Text size="sm" c="dimmed">
                       {t('plantModel:extends.noneExtends')}
                     </Text>
-                  ) : (
+                  ) : p.extendedBy.length === 0 ? null : (
                     <List size="sm" spacing={2}>
                       {p.extendedBy.map((x) => (
                         <List.Item key={x.id}>
@@ -642,6 +657,11 @@ export function PlantProfilePage() {
                         </List.Item>
                       ))}
                     </List>
+                  )}
+                  {!!p.extendedByHidden && (
+                    <Text size="sm" c="dimmed" data-testid="extended-by-hidden">
+                      {t('plant:catalogueAccess.extendedByHidden', { count: p.extendedByHidden })}
+                    </Text>
                   )}
                 </Stack>
               </Paper>
@@ -701,7 +721,11 @@ export function PlantProfilePage() {
       {dialog?.kind === 'profile' && (
         <ProfileFormModal
           profile={values}
-          bases={(profiles.data ?? []).filter((x) => x.id !== p.id).map((x) => ({ value: x.id, label: `${x.name} (${x.id})` }))}
+          bases={[
+            // a base the reader may not see stays choosable as it is (its placeholder keeps it, part 4)
+            ...(p.own.extends && isPlantHidden(p.own.extends) ? [{ value: p.own.extends, label: t('plant:catalogueAccess.hiddenBase') }] : []),
+            ...(profiles.data ?? []).filter((x) => x.id !== p.id).map((x) => ({ value: x.id, label: `${x.name} (${x.id})` })),
+          ]}
           onClose={() => setDialog(null)}
           onSave={save}
         />

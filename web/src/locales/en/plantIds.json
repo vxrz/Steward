@@ -47,6 +47,8 @@
     "link_other": "{{count}} links",
     "owning_team_one": "{{count}} owning team",
     "owning_team_other": "{{count}} owning teams",
+    "share_one": "{{count}} share or restriction",
+    "share_other": "{{count}} shares or restrictions",
     "credential_one": "{{count}} credential (used by)",
     "credential_other": "{{count}} credentials (used by)",
     "import_one": "{{count}} earlier import",

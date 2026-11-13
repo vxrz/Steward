@@ -35,6 +35,7 @@ import { currentPolicy } from '../../auth/assurance-policy.js';
 import { readSetting, writeSetting } from '../../settings.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../../util.js';
 import { asProposer, canCreateSites, canManageCatalogue, plantProposesSome, siteRights } from '../access.js';
+import { catalogueScope, presentEntryValues, type CatalogueScope } from '../catalogue-access.js';
 import { requirePlant } from '../settings.js';
 import { dryRun, renameId } from '../rename.js';
 import { fieldDiff } from '../diff.js';
@@ -251,10 +252,38 @@ export function summariesOf(rows: CsRow[], u: AuthUser | null = currentUser()): 
   }));
 }
 
-/** Whether `u` may see the change set: its authors always; others not a draft, and only when they see one of its sites. */
-export function canSee(r: CsRow, u: AuthUser, rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u)): boolean {
+/** The device profiles and KPI definitions the operations of change sets name: of one, or (lists) of all in one statement. */
+export function catalogueOps(id?: string): Map<string, { kind: string; id: string }[]> {
+  const out = new Map<string, { kind: string; id: string }[]>();
+  const rows = db().all<{ change_set_id: string; kind: string; entry_id: string }>(
+    `SELECT DISTINCT change_set_id, kind, entry_id FROM plant_change_ops WHERE kind IN ('profile', 'kpi')${id ? ' AND change_set_id = ?' : ''}`,
+    ...(id ? [id] : []),
+  );
+  for (const r of rows) out.set(r.change_set_id, [...(out.get(r.change_set_id) ?? []), { kind: r.kind, id: r.entry_id }]);
+  return out;
+}
+
+/**
+ * Whether `u` may see the change set: its authors always; others not a draft, and only when they see one of its sites.
+ * 0.21.0 (#293): one that changes a device profile or KPI definition `u` may not see is hidden from them (`ops`: the
+ * lists read every change set's catalogue operations once – catalogueOps()).
+ */
+export function canSee(
+  r: CsRow,
+  u: AuthUser,
+  rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u),
+  ops?: Map<string, { kind: string; id: string }[]>,
+  scope?: CatalogueScope,
+): boolean {
   if (isAuthor(r, u)) return true;
   if (r.state === 'draft') return false;
+  if (Number(r.catalogue)) {
+    const named = (ops ?? catalogueOps(r.id)).get(r.id) ?? [];
+    if (named.length) {
+      const sc = scope ?? catalogueScope(u);
+      if (named.some((o) => (o.kind === 'profile' ? !sc.profile(o.id) : !sc.kpi(o.id)))) return false;
+    }
+  }
   const sites = sitesOf(r);
   if (sites.some((s) => rights.get(s)?.includes('view'))) return true;
   // device profiles and KPI definitions: everyone who sees the registry; new sites: who may add sites
@@ -1186,9 +1215,13 @@ export function operationsFor(r: CsRow, u: AuthUser): { operations: PlantChangeO
     const s = siteOf(o);
     return !s || !rights.has(s) || !!rights.get(s)?.includes('view');
   });
+  // 0.21.0 (#293): a device profile or KPI definition the reader may not see is not named in the values
+  const scope = catalogueScope(u);
+  const shown = (kind: string | null, id: string, v: unknown) =>
+    kind && v && typeof v === 'object' && !Array.isArray(v) ? presentEntryValues(kind, id, v as Record<string, unknown>, scope) : v;
   return {
     operations: visible.map((o) => {
-      const value = parseJson<unknown>(o.value, null);
+      const value = shown(o.kind, o.entry_id, parseJson<unknown>(o.value, null));
       return {
         seq: Number(o.seq),
         op: o.op,
@@ -1199,7 +1232,7 @@ export function operationsFor(r: CsRow, u: AuthUser): { operations: PlantChangeO
         origin: o.origin,
         author: o.author,
         baseRevision: o.base_revision === null ? null : Number(o.base_revision),
-        base: parseJson<unknown>(o.base, null),
+        base: shown(o.kind, o.entry_id, parseJson<unknown>(o.base, null)),
         // a document is shown by its size and hash (the files themselves are in the import's preview)
         value: o.op === 'import' || o.op === 'collections' ? { ...(value as object), files: undefined, mappingFile: undefined } : value,
         path: o.kind ? entryPagePath(o.kind, o.scope, o.entry_id) : null,

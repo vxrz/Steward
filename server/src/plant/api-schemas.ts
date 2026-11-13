@@ -272,8 +272,13 @@ export const PlantProfileDetailEntry = PlantProfileEntry.extend({
   description: z.string(),
   notes: z.string(),
   interfaces: z.array(Interface).describe('The effective interfaces: inherited from the bases, changed here and own'),
-  bases: z.array(z.object({ id: z.string(), name: z.string(), exists: z.boolean() })).describe('The bases, nearest first'),
-  extendedBy: z.array(z.object({ id: z.string(), name: z.string() })).describe('Profiles that extend this one directly'),
+  bases: z
+    .array(z.object({ id: z.string(), name: z.string(), exists: z.boolean(), hidden: z.boolean().optional() }))
+    .describe(
+      'The bases, nearest first. 0.21.0: a base the token owner may not see has `hidden: true`, a placeholder id (`~hidden-1`) and the name `~hidden`; its items stay this profile’s model',
+    ),
+  extendedBy: z.array(z.object({ id: z.string(), name: z.string() })).describe('Profiles that extend this one directly (that the token owner may see)'),
+  extendedByHidden: z.number().int().optional().describe('0.21.0: profiles that extend this one that the token owner may not see (counted)'),
   assets: z.array(AssetBrief).describe('Assets with this profile (that the token owner may see)'),
   kpis: z.array(z.object({ id: z.string(), name: z.string(), names, dataPoints: z.array(z.string()) })).describe('KPI definitions that read its data points'),
   createdAt: ts(),
@@ -433,7 +438,9 @@ export const PlantAssignmentEntry = z.object({
       category: z.string(),
       interfaces: z.array(Interface),
     })
-    .nullable(),
+    .nullable()
+    .describe('0.21.0: a profile the token owner may not see has the id `~hidden-1`, the name `~hidden` and no maker'),
+  profileHidden: z.boolean().optional().describe('0.21.0 (#293): the device profile is one the token owner may not see – its interfaces are the asset’s model'),
   model: z.array(Interface).describe('The asset’s model: its resolved profile’s interfaces with the asset’s additions'),
   added: z.object({ interfaces: z.array(z.string()), points: z.array(z.string()) }).describe('Interfaces and data points of the model the asset adds itself'),
   kpis: z.array(
@@ -445,7 +452,10 @@ export const PlantAssignmentEntry = z.object({
       dashboard: z.string().nullable(),
       dataset: z.string().nullable(),
       notes: z.string(),
-      definition: z.object({ id: z.string(), name: z.string(), names, category: z.string() }).nullable(),
+      definition: z
+        .object({ id: z.string(), name: z.string(), names, category: z.string(), hidden: z.boolean().optional() })
+        .nullable()
+        .describe('0.21.0: a definition the token owner may not see has `hidden: true`, a placeholder id and the name `~hidden`'),
     }),
   ),
   checks: z.array(Check),

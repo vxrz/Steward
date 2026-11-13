@@ -1,3 +1,4 @@
+import { catalogueScope } from './catalogue-access.js';
 import {
   dataPathEnds,
   IMPACT_LIMITS,
@@ -348,6 +349,8 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
   const assignments = allAssignments();
   const profiles = allProfiles();
   const kpis = allKpis();
+  // 0.21.0 (#293): a KPI definition the reader may not see is not named (a job is named by its job name)
+  const catalogue = catalogueScope();
   const { datasets, dashboards } = out;
   for (const assetId of new Set([...wholeAssets.keys(), ...points.keys()])) {
     const a = assignments.get(assetId);
@@ -362,7 +365,7 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
       sink.add('kpis', key2(assetId, job.job), {
         name: job.job,
         path: assetPath(assetId),
-        detail: `${def?.name ?? job.kpi} · ${detailOf(assetId)}`,
+        detail: def && !catalogue.kpi(def.id) ? detailOf(assetId) : `${def?.name ?? job.kpi} · ${detailOf(assetId)}`,
         via: wholeAssets.has(assetId) ? 'asset' : 'dataPoint',
         from: reads[0]?.point ?? null,
         visible,
@@ -376,7 +379,7 @@ export function plantImpact(targets: { kind: MaintenanceTargetKind; id: string }
     for (const c of collsOf.get(assetId) ?? []) if (!affColls.has(key2(assetId, c.v.id))) for (const i of c.v.items) if (i.dataPoint) others.add(i.dataPoint);
     const all = new Set([...mine, ...others]);
     for (const def of kpis.values()) {
-      if (a.kpis.some((k) => k.kpi === def.id)) continue;
+      if (a.kpis.some((k) => k.kpi === def.id) || !catalogue.kpi(def.id)) continue;
       if (!isCollected(def, all, profile) || isCollected(def, others, profile) || inputGaps(def, a, profile).length) continue;
       sink.add('coverage', key2(assetId, def.id), {
         name: def.name,

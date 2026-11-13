@@ -1340,6 +1340,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/plant/sites/:siteId/documentation': PLANT,
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
+  'GET /api/plant/catalogue/hidden': PLANT,
   'POST /api/plant/profiles': DESIGN,
   // 0.12.0: extract a base profile (the candidates and the preview change nothing)
   'POST /api/plant/profiles/extract-base/candidates': DESIGN,

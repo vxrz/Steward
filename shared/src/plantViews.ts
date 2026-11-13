@@ -294,7 +294,8 @@ export interface PlantCoverageGroup {
 export interface PlantCoverageRow {
   asset: PlantAssetBrief;
   area: { id: string; name: string; names: Translations } | null;
-  profile: { id: string; name: string } | null;
+  /** 0.21.0: a profile the reader may not see – `hidden: true`, a placeholder id and the name `~hidden` */
+  profile: { id: string; name: string; hidden?: boolean } | null;
   /** In the order of `kpis` */
   cells: PlantCoverageCell[];
 }
@@ -318,6 +319,8 @@ export interface PlantCoverage {
     areas: { siteId: string; id: string; name: string; names: Translations }[];
     profiles: { id: string; name: string }[];
   };
+  /** 0.21.0 (#293): KPI definitions the reader may not see – not shown as columns, counted here */
+  hiddenKpis?: number;
 }
 
 /** KPI coverage in per cent: instances of the KPIs that assets could have (null: nothing to cover). */

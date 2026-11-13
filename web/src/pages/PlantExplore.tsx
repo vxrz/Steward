@@ -4,7 +4,7 @@ import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { PlantAssetSummary, PlantAssignmentView, PlantPointHit } from '@sm/shared';
+import type { PlantAssetSummary, PlantAssignmentView, PlantHiddenCatalogue, PlantPointHit } from '@sm/shared';
 import { CollectedBadge, UnitsBadge } from '../components/plant/potential';
 import { get } from '../api';
 import { QueryState } from '../components/common';
@@ -95,6 +95,11 @@ function PointSearch({ needle }: { needle: string }) {
     queryFn: () => get<PlantPointHit[]>(`/plant/explore/points?q=${encodeURIComponent(needle)}`),
     enabled: !!needle,
   });
+  const hiddenHits = useQuery({
+    queryKey: [...plantKeys.hiddenCatalogue, needle],
+    queryFn: () => get<PlantHiddenCatalogue>(`/plant/catalogue/hidden?q=${encodeURIComponent(needle)}`),
+    enabled: !!needle,
+  });
   if (!needle)
     return (
       <Text size="sm" c="dimmed">
@@ -102,6 +107,8 @@ function PointSearch({ needle }: { needle: string }) {
       </Text>
     );
   const list = hits.data ?? [];
+  // 0.21.0 (#293): profiles the reader may not see are counted, not named
+  const hidden = hiddenHits.data?.points ?? 0;
   const delivered = (h: PlantPointHit) =>
     h.deliveredBy > 0 ? (
       <Anchor component={Link} to={assetsPath(h)} size="sm">
@@ -118,6 +125,11 @@ function PointSearch({ needle }: { needle: string }) {
       {hits.isSuccess && list.length === 0 && (
         <Text size="sm" c="dimmed">
           {t('explore.noHits')}
+        </Text>
+      )}
+      {hidden > 0 && (
+        <Text size="sm" c="dimmed" data-testid="explore-hidden">
+          {t('catalogueAccess.exploreHidden', { count: hidden })}
         </Text>
       )}
       {list.length > 0 && (

@@ -4,6 +4,7 @@ import {
   BUILDING_KINDS,
   boundedRecord,
   PLANT_ID_RE,
+  PLANT_HIDDEN_REF_RE,
   PLANT_LANG_RE,
   PLANT_LIMITS,
   PLANT_LEVELS,
@@ -240,6 +241,14 @@ export function changedKeys<T extends object>(before: T, after: T, skip: (keyof 
 
 export const ID_HINT = 'Use lower-case letters, digits, ".", "_" and "-", starting with a letter or digit (at most 80)';
 export const plantId = z.string().trim().regex(PLANT_ID_RE, ID_HINT);
+/**
+ * An id of a device profile or KPI definition named by another entry (0.21.0, #293): an id, or the placeholder of one the
+ * caller may not see (`~hidden-1`), which keeps it (plant/catalogue-access.ts).
+ */
+export const plantRef = z
+  .string()
+  .trim()
+  .refine((v) => PLANT_ID_RE.test(v) || PLANT_HIDDEN_REF_RE.test(v), ID_HINT);
 const text = (max: number) => z.string().trim().max(max).default('');
 export const translations = boundedRecord(z.string().trim().min(1).max(PLANT_LIMITS.name), PLANT_LIMITS.translations)
   .refine((o) => Object.keys(o).every((k) => PLANT_LANG_RE.test(k)), 'Translations are keyed by language codes such as de or pt-BR')
