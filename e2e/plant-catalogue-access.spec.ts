@@ -124,6 +124,11 @@ test.describe('the Access tab of a profile and a KPI definition', () => {
     await ok(admin.put(`/api/owning-teams/kpi_definition/${kpi}`, { data: { teamIds: [f.team] } }));
     try {
       await page.goto(`/plant/profiles/${f.base}`);
+      // a copy stays with the original's owning teams: the dialog says so
+      await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+      await expect(page.getByTestId('duplicate-plant-scope')).toContainText('The copy belongs to the same owning teams as the original');
+      await expectAccessible(page, 'duplicating a profile of a team');
+      await page.getByTestId('duplicate-dialog').getByRole('button', { name: 'Cancel' }).click();
       await page.getByTestId('profile-tab-access').click();
       await expect(page).toHaveURL(/\/access$/);
       await expect(page.getByText('Owning teams', { exact: true })).toBeVisible();
@@ -182,10 +187,10 @@ for (const tag of ['', ' @mobile'])
         const row = panel.getByTestId('share-row');
         await expect(row).toHaveCount(1);
         // the kind's action right beside the level
-        await row.getByRole('checkbox', { name: 'Propose' }).check();
+        await row.getByRole('checkbox', { name: 'propose' }).check();
         await panel.getByRole('button', { name: 'Save shares' }).click();
         const preview = page.getByRole('dialog', { name: 'Before you save' });
-        await expect(preview).toContainText('Rita Plant Reader (own) gains: View, Propose');
+        await expect(preview).toContainText('Rita Plant Reader (own) gains: View, propose');
         await expectAccessible(page, 'preview of a profile share');
         await preview.getByRole('button', { name: 'Save', exact: true }).click();
         const stepUp = page.getByRole('dialog', { name: 'Confirm it is you' });
