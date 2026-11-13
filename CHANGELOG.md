@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-13
+
+Steward 0.20.0 is a review release: the whole application was reviewed for bugs, best practices, security, performance, architecture and UI/UX, and what was found is fixed. The Industrial Edge examples read the real fields of the IEM Portal API (online state from device statistics, firmware from the device details). Data paths of the plant registry follow the direction of the data: transfers can _receive_ (a PLC that pushes to a gateway), applications and platforms can be peers and destinations, two paths that only deliver into the same system are no longer chained, and zones list the systems and platforms in them – a cloud platform in the External zone of every site. A monitor whose machine is off longer than allowed can be _Down_ instead of _Degraded_ (#288). Git sync recognises rate limits, stages all or nothing and fetches the example library with a few calls; MCP has configurations for Mistral Vibe and Claude Code. Deleting a team no longer opens the items it alone owns to everyone, IPv6 clients are rate-limited per /64, the hot pages run a fixed number of queries, searchable pickers no longer flicker, dialogs keep what was typed, and focus, contrast, wording and phone layouts were improved across the app. Decision records 0033–0036 plan the next releases: one access model with shares, module access, price books and calculators, and a data products module. Migrations are additive (`plant-031-zone-items`, `gitsync-004-last-error-detail`, `teams-004-member-index`, `records-006-events-created`).
+
 ### Added
 
 - **The plan line dialog says that a line needs no contract** ([docs/COSTS.md](docs/COSTS.md#planning-per-service)): a licence to buy later or a renewal still to be negotiated is a plan line without supplier and contract; the contract is chosen once it exists.
@@ -1451,7 +1455,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/vxrz/steward/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/vxrz/steward/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/vxrz/steward/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/vxrz/steward/compare/v0.16.0...v0.17.0
