@@ -144,6 +144,7 @@ export const dataHealthQuery = z
     ids: z
       .string()
       .max(DATA_PRODUCT_LIMITS.page * 40)
+      .default('')
       .transform((s) =>
         [
           ...new Set(
