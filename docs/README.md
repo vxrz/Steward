@@ -81,6 +81,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [COSTS.md](COSTS.md)                                                     | Platform costs per service, application and team (showback, FinOps FOCUS)                   |
 | [TICKETS.md](TICKETS.md)                                                 | Ticket references to incidents and vendor cases that live in other systems                  |
 | [DATA-CONTRACTS.md](DATA-CONTRACTS.md)                                   | Data contracts in ODCS v3: schema, quality rules, tests and their evidence                  |
+| [DATA-PRODUCTS.md](DATA-PRODUCTS.md)                                     | Data products (preview): domains, data objects, products, elements, ports and consumers     |
 | [STATUS-PAGES.md](STATUS-PAGES.md)                                       | Service status pages for people outside the service team                                    |
 | [PLANT.md](PLANT.md)                                                     | The plant registry (preview): sites, assets, device profiles, KPIs, OT network              |
 | [ADVISORIES.md](ADVISORIES.md)                                           | Security advisories (CSAF 2.0) for OT devices, matched to assets by model and firmware      |
