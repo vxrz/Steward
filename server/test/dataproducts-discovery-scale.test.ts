@@ -34,7 +34,7 @@ async function measured(sourceId: string) {
   const { runSource } = await import('../src/dataproducts/discovery/job.js');
   const { requestDbStats } = await import('../src/database/timing.js');
   const stats = { statements: 0, ms: 0 };
-  const h = monitorEventLoopDelay({ resolution: 10 });
+  const h = monitorEventLoopDelay({ resolution: 20 });
   h.enable();
   const t0 = Date.now();
   const run = await requestDbStats.run(stats, () => runSource(sourceId, { trigger: 'schedule' }));
