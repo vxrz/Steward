@@ -118,3 +118,25 @@ describe('a Restricted service', () => {
     expect(await code(dana('POST', '/maintenance-windows', window))).toBe('ok');
   });
 });
+
+describe('a price book that names a supplier', () => {
+  it('names it only to who may see the supplier, and takes only one its author may see', async () => {
+    const sup = (await s.api('POST', '/suppliers', { name: 'Invented Clearing AG', type: 'saas' })).id as string;
+    await s.api('PUT', `/access/supplier/${sup}/scope`, { restricted: true });
+    // Dana (a costs manager) may not probe for it or name it
+    expect(await code(dana('POST', '/costs/price-books', { name: 'Invented rates', kind: 'list', provider: 'Invented', currency: 'EUR', supplierId: sup }))).toBe(
+      'SUPPLIER_NOT_FOUND',
+    );
+    const book = await s.api('POST', '/costs/price-books', { name: 'Invented clearing rates', kind: 'list', provider: 'Invented', currency: 'EUR', supplierId: sup });
+    expect(book.supplier).toEqual({ id: sup, name: 'Invented Clearing AG' });
+    // a list book: every reader of the Costs module sees it – not the supplier it names
+    for (const c of [vic, dana]) {
+      const listed = ((await c('GET', '/costs/price-books')) as { id: string; supplier: unknown }[]).find((b) => b.id === book.id);
+      expect(listed?.supplier).toBeNull();
+      expect((await c('GET', `/costs/price-books/${book.id}`)).supplier).toBeNull();
+    }
+    // Dana edits the book (the form sends no supplier): the supplier she may not see stays
+    await dana('PUT', `/costs/price-books/${book.id}`, { name: 'Invented clearing rates 2027', kind: 'list', provider: 'Invented', currency: 'EUR' });
+    expect((await s.api('GET', `/costs/price-books/${book.id}`)).supplier).toEqual({ id: sup, name: 'Invented Clearing AG' });
+  });
+});
