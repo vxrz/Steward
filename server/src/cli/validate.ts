@@ -28,7 +28,7 @@ import { EXIT_FAILURE, EXIT_OK, UsageError, palette, parseCli, usageFailure } fr
 
 const COMMAND = 'npm run validate --';
 
-const HELP = `Validate Steward process, dashboard and monitor definitions and data contracts (YAML or JSON).
+const HELP = `Validate Steward process, dashboard and monitor definitions, data contracts and data products files (YAML or JSON).
 
 Usage:
   npm run validate [-- [options] [path ...]]
@@ -70,6 +70,7 @@ export interface FileResult {
     | 'connector type'
     | 'security advisory'
     | 'cost calculator'
+    | 'data products'
     | 'unreadable';
   /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
@@ -134,6 +135,20 @@ export async function validateFile(file: string): Promise<FileResult> {
           warnings: [],
         }
       : { file: rel, kind: 'template bundle', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
+  }
+  // a data products file (0.22.0, ADR 0036, examples/data-products): version 1 with domains, data objects, elements or
+  // products – checked against its format (docs/data-products/data-products-1.schema.json); names of platforms and
+  // contracts are checked by the import against the instance
+  const DATA_PRODUCT_KEYS = ['domains', 'domain', 'data_objects', 'data_object', 'elements', 'data_products', 'data_product'];
+  if (obj && typeof obj === 'object' && 'version' in obj && DATA_PRODUCT_KEYS.some((k) => k in obj)) {
+    const { dataProductsFileSchema, issueMessages } = await import('../dataproducts/format.js');
+    const r = dataProductsFileSchema.safeParse(raw);
+    if (!r.success)
+      return { file: rel, kind: 'data products', ok: false, errors: issueMessages(r.error.issues).map((i) => `${i.path}: ${i.message}`), warnings: [] };
+    const d = r.data;
+    const n = (many: unknown[] | undefined, one: unknown) => (many?.length ?? 0) + (one ? 1 : 0);
+    const count = n(d.domains, d.domain) + n(d.data_objects, d.data_object) + (d.elements?.length ?? 0) + n(d.data_products, d.data_product);
+    return { file: rel, kind: 'data products', ok: true, count, errors: [], warnings: [] };
   }
   // a plant registry file (#218, examples/plant): version 1 with sites, a site or assets – checked against its format;
   // since part 2 (#219) also device profiles, KPI definitions and assignments; since part 3 (#220) OT networks
@@ -371,7 +386,7 @@ export async function main(argv: string[]): Promise<number> {
       else if (r.kind === 'library release') out.push(`${c.dim('•')} ${r.file}: library release (checked with its manifest)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : r.kind === 'security advisory' ? 'products' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : r.kind === 'security advisory' ? 'products' : r.kind === 'data products' ? 'entries' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);
