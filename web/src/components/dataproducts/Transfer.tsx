@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Table, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Text, TextInput } from '@mantine/core';
 import { IconDownload, IconFileExport, IconFileImport, IconFileUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   DATA_PRODUCT_IMPORT_MODES,
   DATA_PRODUCT_IMPORT_ORIGIN_RE,
+  type DataProductImportChange,
   type DataProductImportMode,
   type DataProductImportPreview,
   type DataProductImportResult,
 } from '@sm/shared';
 import { apiUrl, notifyOk, post } from '../../api';
 import { FormModal, FormModalCancel } from '../FormModal';
-import { TableScroll } from '../TableScroll';
-import { Breakable } from '../../pages/dataproducts/parts';
+import { Breakable, CardTable } from '../../pages/dataproducts/parts';
 import { useBusy } from './form';
 
 /**
@@ -120,6 +120,55 @@ const show = (v: unknown): string => {
 };
 
 const ACTION_COLOR = { add: 'green', change: 'blue', unchanged: 'gray', skip: 'orange', remove: 'red' } as const;
+
+/** The changes of an import's preview (and of an assistant's proposal): a table, a card per change on phones. */
+export function ChangeTable({ changes, label, testId }: { changes: DataProductImportChange[]; label: string; testId?: string }) {
+  const { t } = useTranslation('dataProducts');
+  return (
+    <CardTable
+      ariaLabel={label}
+      testId={testId}
+      rows={changes.map((c, i) => ({ ...c, i }))}
+      rowKey={(c) => String(c.i)}
+      columns={[
+        {
+          key: 'key',
+          header: t('transfer.key'),
+          cell: (c) => (
+            <span className="mono" style={{ overflowWrap: 'break-word' }}>
+              <Breakable text={c.key} />
+            </span>
+          ),
+        },
+        { key: 'what', header: t('transfer.what'), cell: (c) => t(`transfer.kinds.${c.kind}`) },
+        {
+          key: 'action',
+          header: t('transfer.action'),
+          cell: (c) => (
+            <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light" tt="none">
+              {t(`transfer.actions.${c.action}`)}
+            </Badge>
+          ),
+        },
+        {
+          key: 'detail',
+          header: t('transfer.detail'),
+          cell: (c) => (
+            <div style={{ overflowWrap: 'break-word' }}>
+              {c.action === 'skip'
+                ? (c.reason ?? '')
+                : c.fields.map((f) => (
+                    <Text key={f.field} size="xs">
+                      <span className="mono">{f.field}</span>: {show(f.before)} → {show(f.after)}
+                    </Text>
+                  ))}
+            </div>
+          ),
+        },
+      ]}
+    />
+  );
+}
 
 /** Import files of Steward's format: choose, preview, import. */
 export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
@@ -273,42 +322,10 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
               </Alert>
             )}
             {shown.length > 0 && (
-              <TableScroll style={{ maxHeight: 360 }}>
-                <Table fz="sm" striped aria-label={t('transfer.changes')}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th scope="col">{t('transfer.what')}</Table.Th>
-                      <Table.Th scope="col">{t('transfer.key')}</Table.Th>
-                      <Table.Th scope="col">{t('transfer.action')}</Table.Th>
-                      <Table.Th scope="col">{t('transfer.detail')}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {shown.map((c, i) => (
-                      <Table.Tr key={i}>
-                        <Table.Td>{t(`transfer.kinds.${c.kind}`)}</Table.Td>
-                        <Table.Td className="mono" style={{ overflowWrap: 'break-word' }}>
-                          <Breakable text={c.key} />
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge size="sm" color={ACTION_COLOR[c.action]} variant="light" tt="none">
-                            {t(`transfer.actions.${c.action}`)}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td style={{ overflowWrap: 'break-word' }}>
-                          {c.action === 'skip'
-                            ? (c.reason ?? '')
-                            : c.fields.map((f) => (
-                                <Text key={f.field} size="xs">
-                                  <span className="mono">{f.field}</span>: {show(f.before)} → {show(f.after)}
-                                </Text>
-                              ))}
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </TableScroll>
+              // a long preview scrolls in its box – reachable with the keyboard, named for screen readers
+              <div style={{ maxHeight: 360, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={t('transfer.changes')}>
+                <ChangeTable changes={shown} label={t('transfer.changes')} />
+              </div>
             )}
           </Stack>
         )}

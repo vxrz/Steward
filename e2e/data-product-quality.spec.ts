@@ -108,6 +108,9 @@ test.describe('quality of data products', () => {
   test('quality on a phone @mobile', async ({ page }) => {
     await page.goto(`/data-products/${s.product}`);
     await expect(page.getByTestId('personal-fields')).toBeVisible();
+    // a card per field, no table
+    await expect(page.getByTestId('personal-fields').getByTestId('personal-field').first()).toBeVisible();
+    await expect(page.getByTestId('personal-fields').locator('table')).toHaveCount(0);
     await expectNoHorizontalScroll(page);
     await page.goto(`/data-elements/${s.element}`);
     // a card per result on a phone

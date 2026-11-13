@@ -207,6 +207,22 @@ test.describe('exchange', () => {
     await expectAccessible(page, 'import replace preview');
   });
 
+  test('the import preview on a phone @mobile', async ({ page }) => {
+    const k = tag().toLowerCase();
+    await page.goto('/data-products');
+    await page.getByTestId('products-transfer').click();
+    await page.getByTestId('products-import').click();
+    await animationsDone(page);
+    const doc = ['version: 1', 'data_products:', `  - key: ${k}-phone`, `    name: Phone ${k}`].join('\n') + '\n';
+    await page.locator('input[type="file"]').setInputFiles({ name: 'phone.yaml', mimeType: 'application/yaml', buffer: Buffer.from(doc) });
+    await page.getByTestId('import-preview-run').click();
+    // a card per change, no table
+    await expect(page.getByTestId('import-preview').getByText(`${k}-phone`)).toBeVisible();
+    await expect(page.getByTestId('import-preview').locator('table')).toHaveCount(0);
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'import preview on a phone', { wcag22: true });
+  });
+
   test('the data objects export as an Ossie model', async ({ page }) => {
     await page.goto('/data-objects');
     await page.getByTestId('objects-ossie').click();

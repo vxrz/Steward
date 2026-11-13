@@ -1379,7 +1379,8 @@
       "more_one": "… und {{count}} weiteres Feld",
       "more_other": "… und {{count}} weitere Felder",
       "hidden_one": "{{count}} gebundener Vertrag, den Sie nicht sehen dürfen",
-      "hidden_other": "{{count}} gebundene Verträge, die Sie nicht sehen dürfen"
+      "hidden_other": "{{count}} gebundene Verträge, die Sie nicht sehen dürfen",
+      "fieldsOf": "Personenbezogene und eingestufte Felder von {{name}}"
     },
     "element": {
       "title": "Qualität",

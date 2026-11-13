@@ -1379,7 +1379,8 @@
       "more_one": "… and {{count}} more field",
       "more_other": "… and {{count}} more fields",
       "hidden_one": "{{count}} bound contract you may not see",
-      "hidden_other": "{{count}} bound contracts you may not see"
+      "hidden_other": "{{count}} bound contracts you may not see",
+      "fieldsOf": "Personal and classified fields of {{name}}"
     },
     "element": {
       "title": "Quality",

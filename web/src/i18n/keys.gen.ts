@@ -6158,6 +6158,7 @@ export interface Resources {
     'quality.personal.more_other': string;
     'quality.personal.hidden_one': string;
     'quality.personal.hidden_other': string;
+    'quality.personal.fieldsOf': string;
     'quality.element.title': string;
     'quality.element.none': string;
     'quality.element.dimension': string;

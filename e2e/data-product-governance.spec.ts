@@ -184,7 +184,7 @@ test.describe('governance of data products', () => {
     await expect(data.getByRole('link', { name: 'Access requests' })).toBeVisible();
   });
 
-  test('governance on a phone @mobile', async ({ page }) => {
+  test('governance on a phone @mobile', async ({ page, apiAs }) => {
     await page.goto(`/data-products/records-of-processing?q=${s.token}`);
     await expect(page.getByTestId('ropa-card').first()).toBeVisible();
     // the card says what the table says: the data subjects too
@@ -201,6 +201,35 @@ test.describe('governance of data products', () => {
     await page.goto(`/data-products/${s.product}/ports`);
     await page.getByTestId('port-orders').getByTestId('port-actual-toggle').click();
     await expect(page.getByTestId('port-actual')).toBeVisible();
+    // who reads: cards, no table
+    await expect(page.getByTestId('port-actual').locator('table')).toHaveCount(0);
+    await expectNoHorizontalScroll(page);
+
+    // a port access review on a product of its own (the desktop test counts the entries of its own): the whole
+    // screen, a card per entry
+    const admin = await apiAs('admin');
+    const own = (await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-phone`, name: `Phone review ${s.token}`, owners: ['user:dana'] })).id;
+    const ownPort = (await post(admin, `/api/data-products/${own}/ports`, { direction: 'output', name: 'orders', type: 'table' })).id;
+    const el = await json<{ items: { id: string }[] }>(await admin.get(`/api/data-elements?prefix=${s.token}.SALES.ORDERS&environment=prod`));
+    expect((await admin.put(`/api/data-products/${own}/ports/${ownPort}/bindings/prod`, { data: { elementIds: [el.items[0]!.id] } })).ok()).toBe(true);
+    await post(admin, `/api/data-products/${own}/ports/${ownPort}/consumers`, { kind: 'text', text: 'Invented phone reader' });
+    await post(admin, `/api/data-products/${own}/ports/${ownPort}/reviews`, { environment: 'prod', fourEyes: false });
+    await page.goto(`/data-products/${own}/access`);
+    await page.getByTestId('review-row').first().getByTestId('review-open').click();
+    const review = page.getByTestId('review-modal');
+    await expect(review).toBeVisible();
+    await expect(review.locator('table')).toHaveCount(0);
+    await expect(review.getByTestId('review-entry').first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'port access review on a phone', { wcag22: true });
+    await page.keyboard.press('Escape');
+
+    // the promotion's preview: cards
+    await page.goto(`/data-products/${s.product}`);
+    await page.getByTestId('detail-actions').click();
+    await page.getByTestId('product-promote').click();
+    await expect(page.getByTestId('promotion-preview')).toBeVisible();
+    await expect(page.getByTestId('promotion-preview').locator('table')).toHaveCount(0);
     await expectNoHorizontalScroll(page);
   });
 });

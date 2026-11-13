@@ -1,55 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Alert, Badge, Checkbox, Group, List, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Badge, Checkbox, Group, List, Paper, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { DataProductImportChange, McpDataProductsProposal, McpProposalSelection } from '@sm/shared';
-import { TableScroll } from '../TableScroll';
+import { ChangeTable } from '../dataproducts/Transfer';
 import { fmtNumber } from '../../format';
-
-const show = (v: unknown): string => {
-  if (v === null || v === undefined || v === '') return '–';
-  const s = typeof v === 'string' ? v : JSON.stringify(v);
-  return s.length > 120 ? `${s.slice(0, 119)}…` : s;
-};
 
 /** The entries a proposal adds and changes, a changed one field by field (the assistant's texts as plain text). */
 function Changes({ changes, testId }: { changes: DataProductImportChange[]; testId: string }) {
-  const { t } = useTranslation(['mcp', 'dataProducts']);
+  const { t } = useTranslation('mcp');
   if (!changes.length) return null;
   return (
-    <TableScroll style={{ maxHeight: 420 }}>
-      <Table fz="sm" striped aria-label={t('dpProposal.changes')} data-testid={testId}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th scope="col">{t('dataProducts:transfer.what')}</Table.Th>
-            <Table.Th scope="col">{t('dataProducts:transfer.key')}</Table.Th>
-            <Table.Th scope="col">{t('dataProducts:transfer.action')}</Table.Th>
-            <Table.Th scope="col">{t('dataProducts:transfer.detail')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {changes.map((c, i) => (
-            <Table.Tr key={i}>
-              <Table.Td>{t(`dataProducts:transfer.kinds.${c.kind}`)}</Table.Td>
-              <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                {c.key}
-              </Table.Td>
-              <Table.Td>
-                <Badge size="sm" color={c.action === 'add' ? 'green' : 'blue'} variant="light" tt="none">
-                  {t(`dataProducts:transfer.actions.${c.action}`)}
-                </Badge>
-              </Table.Td>
-              <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                {c.fields.map((f) => (
-                  <Text key={f.field} size="xs">
-                    <span className="mono">{f.field}</span>: {show(f.before)} → {show(f.after)}
-                  </Text>
-                ))}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </TableScroll>
+    // a long proposal scrolls in its box – reachable with the keyboard, named for screen readers
+    <div style={{ maxHeight: 420, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={t('dpProposal.changes')}>
+      <ChangeTable changes={changes} label={t('dpProposal.changes')} testId={testId} />
+    </div>
   );
 }
 
