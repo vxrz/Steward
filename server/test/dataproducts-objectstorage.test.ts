@@ -265,3 +265,49 @@ describe('checks, links and file ports', () => {
     expect(odcs.servers[0]).toMatchObject({ type: 's3', format: 'csv', location: 's3://invented-shop-lake.example/exports/daily-sales/**/*.csv' });
   });
 });
+
+describe('S3 sink connectors and discovered prefixes (0.25.0 integration of packages A and C)', () => {
+  it('the proposal of an S3 sink connector names the files.path element the S3 discovery found at its prefix', async () => {
+    const { setMockS3Bucket } = await import('../src/mock/mockAws.js');
+    const { isRunning } = await import('../src/dataproducts/discovery/job.js');
+    const { proposeFromConnectors } = await import('../src/dataproducts/connector-lineage.js');
+    const confluent = ((await s.api('GET', '/platforms')) as { id: string; name: string }[]).find((p) => p.name === 'Confluent Cloud (demo)')!.id;
+    const sink = async () =>
+      (
+        (await dana('GET', '/data-products/lineage-proposals?origin=connector&status=open')).items as {
+          name: string;
+          outputs: { id: string; qualifiedName: string }[];
+          unmatchedOutputs: string[];
+          cannotAccept: string | null;
+        }[]
+      ).find((p) => p.name === 'orders-s3-sink')!;
+    // before: the demo's Confluent S3 sink names a prefix no element is at
+    expect((await sink()).unmatchedOutputs).toEqual(['s3://demo-orders-archive/topics/orders/']);
+    const at = new Date(Date.now() - 3_600_000).toISOString();
+    setMockS3Bucket('demo-orders-archive', [
+      { key: 'topics/orders/year=2026/month=11/orders+0+0000000000.snappy.parquet', size: 2_048, lastModified: at },
+      { key: 'topics/orders/year=2026/month=11/orders+0+0000000100.snappy.parquet', size: 4_096, lastModified: at },
+    ]);
+    const src = await dana('POST', '/data-products/discovery-sources', {
+      name: 'Orders archive (invented)',
+      platformId: aws,
+      scope: ['s3://demo-orders-archive/topics/orders/'],
+    });
+    try {
+      expect((await dana('POST', `/data-products/discovery-sources/${src.id}/run`)).status).toBe('running');
+      for (let i = 0; i < 100 && isRunning(src.id); i++) await new Promise((r) => setTimeout(r, 50));
+      // C's naming: s3://bucket/prefix/, its OpenLineage dataset s3://bucket + the prefix without the end slash
+      const el = await element('s3://demo-orders-archive/topics/orders/');
+      expect(el).toMatchObject({ source: 'discovered', olNamespace: 's3://demo-orders-archive', olName: 'topics/orders' });
+      // A's connector lineage proposes again from the readout: the sink's output is that element now
+      proposeFromConnectors(confluent, { force: true });
+      const p = await sink();
+      expect(p.outputs.map((o) => o.id)).toEqual([el.id]);
+      expect(p.unmatchedOutputs).toEqual([]);
+      expect(p.cannotAccept).not.toBe('noOutputs');
+    } finally {
+      await dana('DELETE', `/data-products/discovery-sources/${src.id}`);
+      setMockS3Bucket('demo-orders-archive', null);
+    }
+  });
+});
