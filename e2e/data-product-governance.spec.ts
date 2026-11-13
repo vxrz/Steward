@@ -85,7 +85,8 @@ test.describe('governance of data products', () => {
     await port.getByTestId('actual-read-now').click();
     await expect(port.getByTestId('actual-read-ok')).toBeVisible();
     await settle(page);
-    await expectAccessible(page, 'actual consumers');
+    // with WCAG 2.2: the toggle of a port's readers is a target of at least 24 px
+    await expectAccessible(page, 'actual consumers', { wcag22: true });
 
     // an operator asks for access
     const olivia = await loginAs('olivia');

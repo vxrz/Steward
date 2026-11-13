@@ -9,11 +9,15 @@ export async function animationsDone(page: Page) {
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity));
 }
 
-/** axe-core WCAG 2.1 A/AA scan; fails on "serious" or "critical" violations (same rules as accessibility.spec.ts). */
-export async function expectAccessible(page: Page, name: string) {
+/**
+ * axe-core WCAG 2.1 A/AA scan; fails on "serious" or "critical" violations (same rules as accessibility.spec.ts).
+ * `wcag22`: also the WCAG 2.2 AA rules (target size) – for the pages that already meet them.
+ */
+export async function expectAccessible(page: Page, name: string, opts: { wcag22?: boolean } = {}) {
+  const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', ...(opts.wcag22 ? ['wcag22aa'] : [])];
   const scan = async () => {
     await animationsDone(page);
-    const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    const result = await new AxeBuilder({ page }).withTags(tags).analyze();
     return result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
   };
   let bad = await scan();

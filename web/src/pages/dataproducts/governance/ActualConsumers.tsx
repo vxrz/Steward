@@ -88,7 +88,9 @@ export function ActualConsumers({ p, port, environment }: { p: DataProduct; port
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         data-testid="port-actual-toggle"
+        // grows with a wrapped summary, never below the 24 px of a target (WCAG 2.5.8)
         h="auto"
+        mih={26}
         maw="100%"
         styles={{ label: { whiteSpace: 'normal', textAlign: 'left' } }}
       >
