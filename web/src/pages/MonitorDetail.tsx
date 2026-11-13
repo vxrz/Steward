@@ -39,7 +39,7 @@ import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
 import { ObservedDelaySummary } from '../components/monitors/ObservedDelay';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
-import { CheckSettlingBadge, OffBanner, SettlingNote, WhyThisState, offText, settlingCheckIds } from '../components/monitors/StatePanel';
+import { CheckSettlingBadge, OffBanner, SettlingNote, StateProblemBanner, WhyThisState, offText, settlingCheckIds } from '../components/monitors/StatePanel';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLabel } from '../components/catalogue/maintenance';
 import { confirmDanger, confirmDialog } from '../components/confirm';
@@ -231,6 +231,7 @@ export function MonitorDetailPage() {
           </Text>
         )}
         <OffBanner monitor={m} />
+        <StateProblemBanner monitor={m} />
         {!m.isTemplate && m.rootCauses.length > 0 && (
           <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('list.rootCause')} data-testid="monitor-root-cause">
             {(m.state?.reason === 'contradiction' || m.state?.reason === 'required') && (

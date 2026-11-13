@@ -267,6 +267,102 @@ describe('decision table (pure)', () => {
     expect(evaluateStates({ def: none, statuses: s, memory: mem, now: 300 * 60 * MIN }).status).toBe('off');
   });
 
+  it('off beyond the maximum: degraded by default, down with afterMaxOff (monitor or row); planned downtime suspends it (#288)', () => {
+    const s = st({ pm: 'down', data: 'down', ih: 'down', machine: 'off', gw: 'up' });
+    const mem: StateMemory = { id: 'off', since: 0, settleUntil: 12 * MIN, changes: [] };
+    const at = (d: MonitorDefinition, now: number, downtime?: { active: boolean; msSince: (from: number) => number }) =>
+      evaluateStates({ def: d, statuses: s, memory: mem, now, downtime });
+    const withStates = (states: object) => def({ ...MACHINE, states: { ...MACHINE.states!, ...states } });
+    // default and explicit degraded: as before
+    expect(at(MACHINE, 9 * 60 * MIN).status).toBe('degraded');
+    expect(at(withStates({ afterMaxOff: 'degraded' }), 9 * 60 * MIN).status).toBe('degraded');
+    // down: the same reason and message, no root cause of a check
+    const down = withStates({ afterMaxOff: 'down' });
+    expect(at(down, 8 * 60 * MIN - MIN).status).toBe('off');
+    const over = at(down, 9 * 60 * MIN);
+    expect(over).toMatchObject({ status: 'down', causes: [], info: { reason: 'maxOff', message: 'Off for longer than expected (9 h, maximum 8 h)' } });
+    // planned downtime: not counted, and while it lasts the maximum is not checked
+    expect(at(down, 9 * 60 * MIN, { active: false, msSince: () => 3 * 60 * MIN }).status).toBe('off');
+    expect(at(down, 30 * 60 * MIN, { active: true, msSince: () => 0 }).status).toBe('off');
+    // the row overrides the monitor, both ways
+    const rowDown = def({
+      ...MACHINE,
+      states: { ...MACHINE.states!, cases: MACHINE.states!.cases.map((c) => (c.id === 'off' ? { ...c, afterMaxOff: 'down' } : c)) },
+    });
+    expect(at(rowDown, 9 * 60 * MIN).status).toBe('down');
+    const rowDegraded = def({
+      ...MACHINE,
+      states: { ...MACHINE.states!, afterMaxOff: 'down', cases: MACHINE.states!.cases.map((c) => (c.id === 'off' ? { ...c, afterMaxOff: 'degraded' } : c)) },
+    });
+    expect(at(rowDegraded, 9 * 60 * MIN).status).toBe('degraded');
+    // 0 = no maximum: never down
+    expect(at(withStates({ afterMaxOff: 'down', maxOffHours: 0 }), 300 * 60 * MIN).status).toBe('off');
+    // back: the machine runs again – up, the off time ends with the state
+    const back = evaluateStates({
+      def: down,
+      statuses: st({ pm: 'up', data: 'up', ih: 'up', machine: 'up', gw: 'up' }),
+      memory: over.memory,
+      now: 9 * 60 * MIN + MIN,
+    });
+    expect(back).toMatchObject({ status: 'up', changed: true, info: { id: 'running', offSeconds: null } });
+    // a contradiction beyond the maximum stays a contradiction (its root cause, not the off time)
+    const contra = evaluateStates({
+      def: down,
+      statuses: st({ pm: 'down', data: 'up', ih: 'down', machine: 'off', gw: 'up' }),
+      memory: mem,
+      now: 9 * 60 * MIN,
+    });
+    expect(contra.info.reason).toBe('contradiction');
+    // Try it: off for longer than the maximum, as the monitor and the row say
+    const offNow = { pm: 'down', data: 'down', ih: 'down', machine: 'off', gw: 'up' } as const;
+    expect(tryStates(down, offNow).status).toBe('off');
+    expect(tryStates(down, offNow, { beyondMaxOff: true })).toMatchObject({ status: 'down', info: { reason: 'maxOff' } });
+    expect(tryStates(MACHINE, offNow, { beyondMaxOff: true }).status).toBe('degraded');
+    // not off: the switch changes nothing
+    expect(tryStates(down, { pm: 'up', data: 'up', ih: 'up', machine: 'up', gw: 'up' }, { beyondMaxOff: true }).status).toBe('up');
+  });
+
+  it('rules carry a code for the editor; a data path required in an off state is a warning (0.20 review)', () => {
+    const d = def({
+      ...MACHINE,
+      states: {
+        cases: [
+          { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' } },
+          { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, requires: ['gw', 'data'] },
+          { id: 'standby', name: 'Standby', when: { pm: 'up', ih: 'down' } },
+        ],
+      },
+    });
+    expect(stateIssues(d)).toEqual([
+      expect.objectContaining({ path: 'states.cases.1.requires', warning: true, code: 'requiredDataPath', params: { check: 'PowerMeter data', state: 'Off' } }),
+      expect.objectContaining({ path: 'states.cases.2.when', warning: true, code: 'neverMatches', params: { earlier: 'Running' } }),
+    ]);
+    // warnings never stop saving
+    expect(stateIssues(d).every((i) => i.warning)).toBe(true);
+    // the gateway (a sub-monitor) is what a required check is for: no warning
+    expect(stateIssues(MACHINE)).toEqual([]);
+  });
+
+  it('afterMaxOff is refused on a row that does not show off and on a follower (#288)', () => {
+    const msgs = (d: MonitorDefinition) => stateIssues(d).map((i) => `${i.path}: ${i.message}`);
+    const running = def({
+      ...MACHINE,
+      states: { ...MACHINE.states!, cases: MACHINE.states!.cases.map((c) => (c.id === 'running' ? { ...c, afterMaxOff: 'down' } : c)) },
+    });
+    expect(msgs(running)).toEqual(['states.cases.0.afterMaxOff: only an off state has a maximum off time']);
+    const follower = def({
+      name: 'Machine data',
+      checks: [{ id: 'reports', name: 'Reports', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }],
+      states: { from: 'leader', afterMaxOff: 'down', cases: [{ id: 'off', status: 'off', afterMaxOff: 'down', expect: { reports: 'down' } }] },
+    });
+    expect(msgs(follower)).toEqual([
+      'states.cases.0.afterMaxOff: a state that follows another monitor has no maximum off time of its own',
+      'states.afterMaxOff: a state that follows another monitor has no maximum off time of its own',
+    ]);
+    expect(stateIssues(def({ ...MACHINE, states: { ...MACHINE.states!, afterMaxOff: 'down' } }))).toEqual([]);
+    expect(() => def({ ...MACHINE, states: { ...MACHINE.states!, afterMaxOff: 'outage' } })).toThrow();
+  });
+
   it('followers take the leader state; Try it gives the settled answer', () => {
     const f = def({
       name: 'Machine data',
@@ -826,6 +922,114 @@ describe('on contradiction (the States tab column)', () => {
     await s.api('PUT', `/monitors/${r.monitor.id}`, { definition: definition('down') });
     expect((await get(r.monitor.id)).definition.states.cases[0].contradiction).toBe('down');
     await expect(s.api('PUT', `/monitors/${r.monitor.id}`, { definition: definition('warning') })).rejects.toThrow(/states\.cases\.0\.contradiction/);
+  });
+});
+
+describe('off beyond the maximum as an outage (afterMaxOff, #288)', () => {
+  /** A machine off for 1 h 30 min with a maximum of 1 h; back on afterwards. */
+  async function machine(key: string, afterMaxOff: 'down' | undefined, T: number) {
+    const r = await s.api('POST', '/monitors', {
+      key,
+      definition: {
+        name: `Kiln 3 – PowerMeter (${key})`,
+        failuresBeforeDown: 1,
+        checks: [
+          { id: 'pm', name: 'PowerMeter reachable', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600 },
+          { id: 'data', name: 'PowerMeter data', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 3600 },
+        ],
+        outputs: [{ id: 'notify', type: 'notification', subscribers: ['user:olivia'] }],
+        states: {
+          maxOffHours: 1,
+          ...(afterMaxOff ? { afterMaxOff } : {}),
+          cases: [
+            { id: 'running', name: 'Running', when: { pm: 'up' }, expect: { data: 'up' } },
+            { id: 'off', name: 'Off', status: 'off', when: { pm: 'down' }, expect: { data: 'down' }, settleSeconds: 60 },
+          ],
+        },
+      },
+    });
+    const id = r.monitor.id as string;
+    await eng.settle();
+    const at = async (t: number, status: 'up' | 'down') => {
+      eng.setMonitorClock(() => t);
+      push(id, 'pm', t, { status });
+      push(id, 'data', t, { status });
+      await eng.evaluateMonitorNow(id);
+      await eng.settle();
+      return get(id);
+    };
+    expect((await at(T, 'up')).status).toBe('up');
+    expect((await at(T + MIN, 'down')).status).toBe('off');
+    expect((await at(T + 61 * MIN, 'down')).status).toBe('off');
+    return { id, at };
+  }
+
+  it('down with the same reason and message, notifies as an outage and counts as unavailable; degraded stays available', async () => {
+    const { statusPoints, upAndDown, monitorUptimeHundredths } = await import('../src/monitors/stats.js');
+    const T = Math.ceil(Date.now() / MIN) * MIN + 400 * MIN;
+    const down = await machine('test-kiln-down', 'down', T);
+    const before = (await notes(down.id)).length;
+    let m = await down.at(T + 62 * MIN, 'down');
+    expect(m.status).toBe('down');
+    expect(m.state).toMatchObject({ id: 'off', reason: 'maxOff', message: 'Off for longer than expected (61 min, maximum 60 min)' });
+    expect(m.rootCauses).toEqual([]);
+    const n = await notes(down.id);
+    expect(n.length).toBe(before + 1);
+    expect(n[0].title).toBe('Down: Kiln 3 – PowerMeter (test-kiln-down)');
+    // the public API (Zabbix pull) reports code 2 with the reason
+    const { token } = await s.api('POST', '/me/tokens', { name: 'max off read', scope: 'read' });
+    const v1 = await (await fetch(`${s.base}/api/v1/monitors/${down.id}/status`, { headers: { authorization: `Bearer ${token}` } })).json();
+    expect(v1).toMatchObject({ status: 'down', statusCode: 2, state: { id: 'off', reason: 'maxOff' } });
+    m = await down.at(T + 90 * MIN, 'down');
+    expect(m.status).toBe('down');
+    // uptime and objectives: 1 min up, 61 min off (not counted), 28 min down
+    const end = T + 90 * MIN;
+    expect(upAndDown(statusPoints(down.id, T, end), T, end)).toEqual({ ok: MIN, down: 28 * MIN, off: 61 * MIN });
+    expect(monitorUptimeHundredths(down.id, { w: 90 * MIN }, end).w).toBe(Math.round((1 / 29) * 10000));
+    // back on: up, a recovery
+    m = await down.at(T + 91 * MIN, 'up');
+    expect(m.status).toBe('up');
+    expect((await notes(down.id))[0].title).toMatch(/^Recovered: /);
+
+    // the default (degraded): the same time counts as available
+    const T2 = T + 200 * MIN;
+    const degraded = await machine('test-kiln-degraded', undefined, T2);
+    expect((await degraded.at(T2 + 62 * MIN, 'down')).status).toBe('degraded');
+    await degraded.at(T2 + 90 * MIN, 'down');
+    const end2 = T2 + 90 * MIN;
+    expect(upAndDown(statusPoints(degraded.id, T2, end2), T2, end2)).toEqual({ ok: 29 * MIN, down: 0, off: 61 * MIN });
+    expect(monitorUptimeHundredths(degraded.id, { w: 90 * MIN }, end2).w).toBe(10000);
+    eng.setMonitorClock(null);
+  });
+
+  it('planned downtime ends the outage; the setting survives YAML export and import', async () => {
+    const T = Math.ceil(Date.now() / MIN) * MIN + 900 * MIN;
+    const k = await machine('test-kiln-downtime', 'down', T);
+    expect((await k.at(T + 62 * MIN, 'down')).status).toBe('down');
+    const w = await s.api('POST', '/maintenance-windows', {
+      kind: 'downtime',
+      title: 'Shutdown (test)',
+      startsAt: iso(T + 30 * MIN),
+      endsAt: iso(T + 5 * 60 * MIN),
+      targets: [{ kind: 'monitor', id: k.id }],
+    });
+    const m = await k.at(T + 63 * MIN, 'down');
+    expect(m.status).toBe('off');
+    expect(m.state.plannedDowntime).toBe(true);
+    await s.api('POST', `/maintenance-windows/${w.id}/cancel`, { reason: 'test' }).catch(() => undefined);
+    eng.setMonitorClock(null);
+
+    const yaml = String(await s.api('GET', `/monitors/${k.id}/export`));
+    expect(yaml).toMatch(/\n {2}afterMaxOff: down\n/);
+    const copy = await s.api('POST', '/monitors/import', { yaml: yaml.replace('key: test-kiln-downtime', 'key: test-kiln-downtime-copy') });
+    expect(copy.monitor.definition.states).toMatchObject({ maxOffHours: 1, afterMaxOff: 'down' });
+    // refused where it has no meaning: on a row that does not show off
+    const d = copy.monitor.definition;
+    await expect(
+      s.api('PUT', `/monitors/${copy.monitor.id}`, {
+        definition: { ...d, states: { ...d.states, cases: d.states.cases.map((c: any) => (c.id === 'running' ? { ...c, afterMaxOff: 'down' } : c)) } },
+      }),
+    ).rejects.toThrow(/only an off state has a maximum off time/);
   });
 });
 

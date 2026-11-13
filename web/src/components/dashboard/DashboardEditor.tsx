@@ -8,7 +8,6 @@ import {
   Button,
   Group,
   Menu,
-  Modal,
   MultiSelect,
   NumberInput,
   Paper,
@@ -40,6 +39,7 @@ import { get } from '../../api';
 import { defaultWidth } from './widgets';
 import i18n from '../../i18n';
 import { datasetKeys, processKeys } from '../../queryKeys';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /** Widget type name and description in the UI language (descriptions default to WIDGET_INFO in shared/). */
 export const widgetLabel = (type: WidgetType): string => i18n.t(`dashboards:widgets.${type}.label`);
@@ -255,7 +255,7 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
   const usesDataset = ['kpi', 'trend', 'status', 'table', 'vega'].includes(w.type);
 
   return (
-    <Modal opened onClose={onClose} title={t('form.title', { type: widgetLabel(w.type) })} size="lg">
+    <FormModal onClose={onClose} title={t('form.title', { type: widgetLabel(w.type) })} size="lg">
       <Stack gap="sm">
         <Text size="xs" c="dimmed">
           {widgetInfo(w.type)}
@@ -428,14 +428,12 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
           />
         )}
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => onSave(w)} disabled={!!specError}>
             {t('form.apply')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }

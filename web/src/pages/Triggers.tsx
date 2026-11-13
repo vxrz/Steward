@@ -58,6 +58,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys } from '../queryKeys';
 import { TableScroll } from '../components/TableScroll';
+import { FormModal, FormModalCancel } from '../components/FormModal';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -511,7 +512,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
   };
 
   return (
-    <Modal opened onClose={onClose} title={draft.id ? t('form.editTitle') : t('new')} size="xl">
+    <FormModal onClose={onClose} title={draft.id ? t('form.editTitle') : t('new')} size="xl">
       <Stack>
         {draft.id && <CopyId id={draft.id} />}
         <Group grow align="flex-start">
@@ -696,15 +697,13 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
         <NotifyPolicyFields value={d.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }} onChange={(notify) => setD({ ...d, notify })} />
         <Hint>{draft.owner ? <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsOfYou')}</Hint>
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            {t('common:cancel')}
-          </Button>
+          <FormModalCancel />
           <Button onClick={() => onSave(d)} disabled={!d.processId || !d.name}>
             {draft.id ? t('common:save') : t('form.create')}
           </Button>
         </Group>
       </Stack>
-    </Modal>
+    </FormModal>
   );
 }
 

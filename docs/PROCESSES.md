@@ -180,6 +180,19 @@ Templates are YAML files in [`examples/processes/`](../examples/README.md); exam
 - **IEM devices.** The device list (`GET /portal/api/v1/devices`, paged with `size` and `page` from 1, answer `data`, `pageNo`, `totalPages`) names devices by `deviceId` and `deviceName` and has only the onboarding state `deviceStatus` (ACTIVE, PENDING, DELETED) – no online state, no firmware. The templates read the last report from the newest epoch-millisecond key of `GET /portal/api/v1/devices/{id}/statistics` (online when it is recent enough, "unknown" without statistics), the IED OS version from `deviceVersion` of `GET /portal/api/v1/devices/{id}`, and installed app versions from `GET /portal/api/v1/devices/installed-apps`; see [examples/README.md](../examples/README.md#verify-against-your-environment).
 - Import the official OpenAPI specs from the Siemens developer portal into each platform. The editor's _Pick from API spec_ and the explorer then list all operations.
 
+## Schedules: cron and time zones
+
+A schedule runs a process at the times of a cron expression (`minute hour day-of-month month day-of-week`, an optional leading seconds field) **in its time zone** – an IANA name picked from the list (`Europe/Berlin`); empty means Steward's own. The editor shows the next five runs in that zone, with the zone's short name when it is not the browser's, and the list shows the next run the same way.
+
+| Wanted                                      | Expression(s)                                                                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every 30 minutes, 06:00–21:59 on weekdays   | `*/30 6-21 * * 1-5`                                                                                                                               |
+| … and hourly outside those hours            | two more schedules (_Duplicate_ the first): `0 0-5,22-23 * * 1-5` (weekday nights) and `0 * * * 0,6` (weekends) – one schedule has one expression |
+| The first Tuesday of the month, 06:00       | `0 6 * * 2#1` (`TUE#1` too) – not `0 6 1-7 * 2`, which runs on days 1–7 **and** every Tuesday; the editor warns and offers the right form         |
+| The last day of the month / the last Friday | `0 6 L * *` / `0 6 * * 5#L`                                                                                                                       |
+
+**Daylight saving.** Times stay local: `0 7 * * *` in `Europe/Berlin` runs at 07:00 in winter and in summer. A time that does not exist on the day clocks go forward (02:30 on the last Sunday of March) runs an hour later, at 03:30, and is not lost; a time that happens twice when clocks go back (02:30 on the last Sunday of October) runs once. Use `UTC` for jobs that must keep an exact distance between runs.
+
 ## More ways to work with processes
 
 - **Manual steps and manual procedures** document work people do outside Steward, with a checklist, fields, evidence and a second person who verifies: [MANUAL-STEPS.md](MANUAL-STEPS.md).

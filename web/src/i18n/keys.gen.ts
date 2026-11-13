@@ -3663,6 +3663,7 @@ export interface Resources {
     'view.sources': string;
     'view.allSources': string;
     'view.addWidgetAbove': string;
+    'view.discardMessage': string;
     'widgets.kpi.label': string;
     'widgets.kpi.info': string;
     'widgets.trend.label': string;
@@ -7132,6 +7133,8 @@ export interface Resources {
     'wall.offSettling': string;
     'wall.settling_one': string;
     'wall.settling_other': string;
+    'wall.outdatedTitle': string;
+    'wall.outdated': string;
     title: string;
     description: string;
     new: string;
@@ -7765,6 +7768,7 @@ export interface Resources {
     'editor.templateBadParam': string;
     'editor.templateSaved': string;
     'editor.templateNotSaved': string;
+    'editor.discardMessage': string;
     'graph.nonCritical': string;
     'graph.hard': string;
     'graph.softLinkAria': string;
@@ -8037,6 +8041,27 @@ export interface Resources {
     'states.notAsExpectedYet_one': string;
     'states.notAsExpectedYet_other': string;
     'states.settlingCard': string;
+    'states.afterMaxOff': string;
+    'states.afterMaxOffHint': string;
+    'states.afterMaxOffDegradedDefault': string;
+    'states.afterMaxOffDown': string;
+    'states.afterMaxOffInherit': string;
+    'states.afterMaxOffOf': string;
+    'states.tryBeyondMax': string;
+    'states.legendMaxOff': string;
+    'states.offTooLong': string;
+    'states.issue.duplicateId': string;
+    'states.issue.unknownCheck': string;
+    'states.issue.checkDisabled': string;
+    'states.issue.offOnlySub': string;
+    'states.issue.conditionAlready': string;
+    'states.issue.requiredOtherCell': string;
+    'states.issue.followerNoCondition': string;
+    'states.issue.needsCondition': string;
+    'states.issue.maxOffOnlyOff': string;
+    'states.issue.followerNoMaxOff': string;
+    'states.issue.neverMatches': string;
+    'states.issue.requiredDataPath': string;
   };
   nav: {
     'items.dashboard': string;
@@ -13858,6 +13883,7 @@ export interface Resources {
     'presets.mondays': string;
     'presets.monthly': string;
     'presets.quarterly': string;
+    'presets.firstMonday': string;
     'form.process': string;
     'form.name': string;
     'form.when': string;
@@ -13900,6 +13926,8 @@ export interface Resources {
     'form.notify.channel.webhook': string;
     'form.notify.urgent': string;
     'form.notify.urgentHint': string;
+    'form.timezoneHint': string;
+    'form.timezoneServer': string;
     'emptyState.title': string;
     'emptyState.text': string;
     'emptyState.action': string;

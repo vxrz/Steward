@@ -1,6 +1,7 @@
 import { Alert, Anchor, Badge, Group, Paper, Stack, Table, Text, Title } from '@mantine/core';
 import { IconCheck, IconClockHour4, IconPower, IconQuestionMark, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { CellVerdict, MonitorDetail, MonitorStateInfo, StateCellView, UptimeSet } from '@sm/shared';
 import i18n from '../../i18n';
 import { dateTimeFormat, fmtDate, fmtNumber } from '../../format';
@@ -26,6 +27,16 @@ export function offText(off: UptimeSet | null): string {
   if (!off || !(off.d30 || off.d7 || off.h24)) return '';
   const h = (v: number | null) => `${fmtNumber(v ?? 0, { maximumFractionDigits: 1 })} h`;
   return i18n.t('monitors:states.offTime' as 'common:add', { h24: h(off.h24), d7: h(off.d7), d30: h(off.d30) }) as string;
+}
+
+/**
+ * The state's own problem when it has no root cause to name – off for longer than the maximum, or changing state too
+ * often – in the reader's language (the engine's message is English). null for every other reason.
+ */
+export function stateProblemText(t: TFunction<'monitors'>, s: MonitorStateInfo | null | undefined): string | null {
+  if (s?.reason === 'maxOff') return t('states.offTooLong', { state: s.name ?? s.id ?? '', off: fmtSpan(s.offSeconds), max: fmtSpan(s.maxOffSeconds) });
+  if (s?.reason === 'flapping') return `${t('states.reason.flapping')} – ${t('states.changesLastHour', { count: s.changesLastHour })}`;
+  return null;
 }
 
 /** Amber: a check that deviates while the settle time runs – not counted yet, so not red. */
@@ -128,6 +139,31 @@ export function OffBanner({ monitor }: { monitor: MonitorDetail }) {
           {t('states.unknownChecks', { count: s.unknownChecks })}
         </Text>
       )}
+    </Alert>
+  );
+}
+
+/**
+ * Off for longer than the maximum, or changing state too often: no root cause to show, so the page says it here – red
+ * when it makes the monitor down (`afterMaxOff: down`, #288), amber when degraded. Not during maintenance.
+ */
+export function StateProblemBanner({ monitor }: { monitor: MonitorDetail }) {
+  const { t } = useTranslation('monitors');
+  const text = monitor.isTemplate || monitor.status === 'maintenance' || monitor.rootCauses.length ? null : stateProblemText(t, monitor.state);
+  if (!text || !monitor.state) return null;
+  const s = monitor.state;
+  return (
+    <Alert
+      color={monitor.status === 'down' ? 'red' : 'orange'}
+      variant="light"
+      icon={<IconPower size={18} />}
+      title={t(`states.reason.${s.reason as 'maxOff' | 'flapping'}`)}
+      data-testid="monitor-state-problem"
+    >
+      <Text size="sm">
+        {text}
+        {s.reason === 'maxOff' ? ` · ${t('states.offSince', { date: fmtDate(s.since) })}` : ''}
+      </Text>
     </Alert>
   );
 }
