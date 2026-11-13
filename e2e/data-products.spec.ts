@@ -9,7 +9,8 @@ import { expectNoHorizontalScroll, json } from './support/helpers';
  * catalogue with the server-side search, binds an output port to a data contract and deprecates the product (which
  * needs a sunset date); a viewer sees what the team scope allows – a team's product is neither listed nor opened,
  * and an element's other product is counted, not named; phones get cards and no sideways scroll; axe on each page.
- * The data is seeded through the API (the demo comes with WP8).
+ * The data is seeded through the API; the demo's products (_Load demo data_ with the service half) show the list's
+ * maturity, import and export and the Access tab with the shares.
  */
 
 interface Seed {
@@ -188,6 +189,63 @@ test.describe('the data products pages', () => {
     await page.goto('/data-products/discovery');
     await expect(page.getByRole('heading', { level: 1, name: 'Discovery' })).toBeVisible();
     await expectAccessible(page, 'discovery');
+  });
+
+  test('the demo products, import and export, and the Access tab with the shares', async ({ page }) => {
+    // the demo's Orders: maturity and last month's costs in the list (one bulk read)
+    await page.goto('/data-products?q=orders');
+    const table = page.getByTestId('product-table');
+    const orders = table.getByRole('link', { name: 'Orders', exact: true });
+    await expect(orders).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Maturity' })).toBeVisible();
+    await expect(table.getByRole('row').filter({ has: orders })).toContainText('Maturity');
+    // export: everything as YAML from the list, the product as YAML, JSON or ODPS from its menu
+    await page.getByTestId('products-transfer').click();
+    await expect(page.getByTestId('products-export-yaml')).toHaveAttribute('href', /\/api\/data-products\/export\?format=yaml/);
+    await page.keyboard.press('Escape');
+    await orders.click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Orders');
+    await page.getByTestId('detail-actions').click();
+    await expect(page.getByTestId('product-export-odps')).toHaveAttribute('href', /\/api\/data-products\/dpr_[^/]+\/odps/);
+    const download = page.waitForEvent('download');
+    await page.getByTestId('product-export-yaml').click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/\.yaml$/);
+    // the Access tab: dana owns the demo product – owning teams, Restricted and the shares, her own implied
+    const id = page.url().split('/data-products/')[1]!.split(/[/?]/)[0]!;
+    await page.goto(`/data-products/${id}/access`);
+    await expect(page.getByTestId('access-tab')).toBeVisible();
+    await expect(page.getByTestId('shares-panel')).toBeVisible();
+    await expect(page.getByTestId('shares-implied')).toContainText('Dana Designer');
+    await settle(page);
+    await expectAccessible(page, 'data product access');
+
+    // import: a file of the format, previewed before anything is written
+    await page.goto('/data-products');
+    await page.getByTestId('products-transfer').click();
+    await page.getByTestId('products-import').click();
+    const dialog = page.getByRole('dialog', { name: 'Import data products' });
+    const key = `imported-${s.token.toLowerCase()}`;
+    const yaml = [
+      'version: 1',
+      'data_products:',
+      `  - key: ${key}`,
+      `    name: Imported ${s.token}`,
+      '    domain: sales',
+      '    members:',
+      `      - element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: ${s.token}.RAW.ORDERS, environment: prod }`,
+      '        role: internal',
+      '',
+    ].join('\n');
+    await dialog.locator('input[type="file"]').setInputFiles({ name: 'imported.yaml', mimeType: 'application/yaml', buffer: Buffer.from(yaml) });
+    await dialog.getByTestId('import-preview-run').click();
+    await expect(dialog.getByTestId('import-count-add')).toHaveText('1 to add');
+    await expect(dialog.getByTestId('import-preview')).toContainText(key);
+    await expectAccessible(page, 'import preview');
+    await dialog.getByTestId('import-run').click();
+    await expect(dialog).toBeHidden();
+    await page.goto(`/data-products?q=${key}`);
+    await expect(page.getByTestId('product-table').getByRole('link', { name: `Imported ${s.token}` })).toBeVisible();
   });
 
   test('team scope: a viewer neither sees a team’s product nor its name on a shared element', async ({ loginAs }) => {
