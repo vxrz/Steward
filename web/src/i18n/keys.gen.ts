@@ -13126,6 +13126,8 @@ export interface Resources {
     'node.instances_other': string;
     'node.liveSentence': string;
     'node.docOnly': string;
+    'node.moreLines_one': string;
+    'node.moreLines_other': string;
     'node.opens': string;
     'edge.points_one': string;
     'edge.points_other': string;
