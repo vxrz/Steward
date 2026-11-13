@@ -222,6 +222,15 @@ test.describe('the data products pages', () => {
     await expect(page.getByTestId('shares-implied')).toContainText('Dana Designer');
     await settle(page);
     await expectAccessible(page, 'data product access');
+    // the scorecard folds what has no evidence yet, counted, and opens it on request
+    await page.goto(`/data-products/${id}`);
+    const fold = page.getByTestId('scorecard-fold-iso25012');
+    await expect(fold).toHaveText(/^Show \d+ more with no evidence yet$/);
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('product-scorecard').locator('[data-state="noEvidence"]')).toHaveCount(0);
+    await fold.click();
+    await expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('product-scorecard').locator('[data-state="noEvidence"]').first()).toBeVisible();
     // the costs per month by name in the UI language, and the consumers counted in the singular where it is one
     await page.goto(`/data-products/${id}/costs`);
     const months = page.getByRole('table', { name: 'Costs per month' }).getByRole('button');

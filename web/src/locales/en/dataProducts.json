@@ -620,6 +620,10 @@
     "in": "In {{environment}}",
     "maturity": "Maturity {{level}}: {{name}}",
     "maturityHelp": "Computed from the scorecard, never typed: 1 documented and rated, 2 observed, 3 contracted, 4 objectives met for 30 days, 5 endorsed.",
+    "showNoEvidence_one": "Show 1 more with no evidence yet",
+    "showNoEvidence_other": "Show {{count}} more with no evidence yet",
+    "hideNoEvidence_one": "Hide the one with no evidence yet",
+    "hideNoEvidence_other": "Hide the {{count}} with no evidence yet",
     "levels": {
       "0": "not yet documented",
       "1": "documented",

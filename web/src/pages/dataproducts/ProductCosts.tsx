@@ -601,6 +601,7 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
   const { t } = useTranslation(['dataProducts', 'dataProductViews', 'applications']);
   const s = query.data;
   const level = useLevel();
+  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
   const evidence = (e: { key: string; values?: Record<string, string | number> }) => {
     const values: Record<string, string | number> = { ...(e.values ?? {}) };
     // numbers in the reader's format (99,5 in German); `count` stays a number for the plural
@@ -641,14 +642,18 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
             </Text>
           )}
           {(['part', 'iso25012'] as const).map((g) => {
-            const parts = s.parts.filter((x) => x.group === g);
-            if (!parts.length) return null;
+            const all = s.parts.filter((x) => x.group === g);
+            if (!all.length) return null;
+            // what has no evidence yet is folded away, counted: the rows that say something come first
+            const folded = all.filter((x) => x.state === 'noEvidence');
+            const open = unfolded.has(g);
+            const parts = open ? all : all.filter((x) => x.state !== 'noEvidence');
             return (
               <div key={g}>
                 <Text size="sm" fw={600} mb={4}>
                   {t(`scorecard.groups.${g}`)}
                 </Text>
-                <Stack gap={4}>
+                <Stack gap={4} id={`scorecard-${g}`}>
                   {parts.map((x) => {
                     const st = STATE_ICON[x.state];
                     const words = x.evidence.map(evidence).filter(Boolean);
@@ -669,6 +674,19 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
                     );
                   })}
                 </Stack>
+                {folded.length > 0 && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    mt={4}
+                    aria-expanded={open}
+                    aria-controls={`scorecard-${g}`}
+                    onClick={() => setUnfolded((u) => (u.has(g) ? new Set([...u].filter((x) => x !== g)) : new Set([...u, g])))}
+                    data-testid={`scorecard-fold-${g}`}
+                  >
+                    {open ? t('scorecard.hideNoEvidence', { count: folded.length }) : t('scorecard.showNoEvidence', { count: folded.length })}
+                  </Button>
+                )}
               </div>
             );
           })}

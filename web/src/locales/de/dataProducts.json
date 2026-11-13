@@ -635,6 +635,10 @@
     "in": "Umgebung: {{environment}}",
     "maturity": "Reife {{level}}: {{name}}",
     "maturityHelp": "Aus der Scorecard berechnet, nie eingegeben: 1 dokumentiert und eingestuft, 2 beobachtet, 3 vertraglich gebunden, 4 Ziele 30 Tage erreicht, 5 bestätigt.",
+    "showNoEvidence_one": "1 weiteren Eintrag ohne Nachweis anzeigen",
+    "showNoEvidence_other": "{{count}} weitere Einträge ohne Nachweis anzeigen",
+    "hideNoEvidence_one": "Den Eintrag ohne Nachweis ausblenden",
+    "hideNoEvidence_other": "Die {{count}} Einträge ohne Nachweis ausblenden",
     "levels": {
       "0": "noch nicht dokumentiert",
       "1": "dokumentiert",

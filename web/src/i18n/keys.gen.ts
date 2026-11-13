@@ -4979,6 +4979,10 @@ export interface Resources {
     'scorecard.in': string;
     'scorecard.maturity': string;
     'scorecard.maturityHelp': string;
+    'scorecard.showNoEvidence_one': string;
+    'scorecard.showNoEvidence_other': string;
+    'scorecard.hideNoEvidence_one': string;
+    'scorecard.hideNoEvidence_other': string;
     'scorecard.levels.0': string;
     'scorecard.levels.1': string;
     'scorecard.levels.2': string;
