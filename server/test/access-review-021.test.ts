@@ -140,3 +140,20 @@ describe('a price book that names a supplier', () => {
     expect((await s.api('GET', `/costs/price-books/${book.id}`)).supplier).toEqual({ id: sup, name: 'Invented Clearing AG' });
   });
 });
+
+describe('changing who uses a module', () => {
+  it('asks for the step-up in the service too, not only in the route (a path without the route rule never widens)', async () => {
+    const { runAs } = await import('../src/auth/context.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    const { setModuleAccess } = await import('../src/modules/access-change.js');
+    const admin = toAuthUser(findUserByName('admin')!);
+    runAs(admin, () => setModuleAccess('costs', { mode: 'selected', grants: [] }));
+    try {
+      // opening it again, without a confirmation in this request
+      expect(() => runAs(admin, () => setModuleAccess('costs', { mode: 'everyone', grants: [] }))).toThrow(/confirm|step|session/i);
+      expect((await s.api('GET', '/settings/modules/costs/access')).mode).toBe('selected');
+    } finally {
+      await s.api('PUT', '/settings/modules/costs/access', { mode: 'everyone', grants: [] });
+    }
+  });
+});
