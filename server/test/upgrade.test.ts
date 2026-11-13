@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,7 @@ import { startedUrl } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
 import { coreMigrations, Db, listUpgradeBackups, namedMigrations, type DatabaseTarget } from '../src/db.js';
 import { schemaDiff, schemaSnapshot, type SchemaSnapshot } from './schema-snapshot.js';
+import { spawnTestServer } from './server-process.js';
 
 /**
  * Upgrade test: the current version starts on a data folder written by a released version
@@ -334,7 +335,7 @@ describe.each(versions)('upgrade from %s', (version) => {
       delete env[k];
     if (pg) Object.assign(env, { SM_DATABASE_URL: PG_TEST_URL, SM_DATABASE_SCHEMA: schema });
     proc = await new Promise<ChildProcess>((resolve, reject) => {
-      const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawnTestServer({ cwd: SERVER, env, stdio: ['ignore', 'pipe', 'pipe'] });
       const timer = setTimeout(() => reject(new Error('server start timeout: ' + stdout)), 45000);
       child.stdout!.on('data', (d: Buffer) => {
         stdout += d.toString();

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { freshDbEnv, PG_TEST_URL } from './pg-env.js';
+import { spawnTestServer } from './server-process.js';
 
 /**
  * A clean stop on SIGTERM (main.ts, bootstrap.ts) and, on PostgreSQL, the single-instance lease (database/lease.ts):
@@ -23,7 +24,7 @@ interface Server {
 
 function spawnServer(env: Record<string, string>): Server {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-lease-'));
-  const proc = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+  const proc = spawnTestServer({
     cwd: path.join(ROOT, 'server'),
     env: { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: '0', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],

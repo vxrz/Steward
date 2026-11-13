@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setup, startedUrl, startTestServer, type Client, type TestServer } from './helpers.js';
 import { freshDbEnv } from './pg-env.js';
+import { spawnTestServer } from './server-process.js';
 
 let s: TestServer;
 let hub: string;
@@ -536,7 +537,7 @@ describe('sub-process after a restart', () => {
 
   const startServer = () =>
     new Promise<ChildProcess>((resolve, reject) => {
-      const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+      const child = spawnTestServer({
         cwd: path.resolve(__dirname, '..'),
         env: {
           ...process.env,

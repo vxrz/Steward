@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ADMIN, authHeaders, loginCookie, quiesce, setEnv, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
+import { spawnTestServer } from './server-process.js';
 
 let s: TestServer;
 let gatus: string;
@@ -637,10 +638,9 @@ describe('M7 – reverse proxy settings', () => {
 
 describe('M7 – behind a reverse proxy (separate server process)', () => {
   it('uses the forwarded client address and marks the cookie Secure with an https public URL', async () => {
-    const { spawn } = await import('node:child_process');
     const { freshDbEnv } = await import('./pg-env.js');
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-proxy-'));
-    const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+    const child = spawnTestServer({
       cwd: path.resolve(__dirname, '..'),
       env: {
         ...process.env,

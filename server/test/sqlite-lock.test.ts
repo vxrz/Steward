@@ -7,6 +7,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { describeHolder, holderFileOf, lockFileOf, lockForCommand, lockHeldElsewhere, SqliteInstanceLock } from '../src/database/sqlite-lock.js';
+import { spawnTestServer } from './server-process.js';
 
 /**
  * The single-instance lock on SQLite (database/sqlite-lock.ts, ADR 0002 update 0.10.1): a second instance on the same
@@ -162,7 +163,7 @@ function spawnServer(dataDir: string, extra: Record<string, string> = {}): Serve
   // SQLite, also when the suite runs on PostgreSQL
   delete env.SM_DATABASE_URL;
   delete env.SM_DATABASE_SCHEMA;
-  const proc = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], { cwd: path.join(ROOT, 'server'), env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const proc = spawnTestServer({ cwd: path.join(ROOT, 'server'), env, stdio: ['ignore', 'pipe', 'pipe'] });
   children.push(proc);
   let out = '';
   proc.stdout!.on('data', (d) => (out += d.toString()));
