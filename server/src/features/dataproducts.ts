@@ -1,4 +1,6 @@
 import { DATA_PRODUCT_MIGRATIONS } from '../migrations/dataproducts.js';
+import { dataProductRoutes } from '../dataproducts/routes.js';
+import { DATA_PRODUCT_LINK_KIND_RESOLVERS } from '../dataproducts/links.js';
 import { defineFeature } from './define.js';
 
 /**
@@ -8,5 +10,8 @@ import { defineFeature } from './define.js';
 export default defineFeature({
   name: 'dataproducts',
   module: 'dataProducts',
+  routes: [dataProductRoutes],
+  // ADR 0036 part 17: documents, records and ticket references link products and data objects
+  linkKinds: [...DATA_PRODUCT_LINK_KIND_RESOLVERS],
   migrations: [DATA_PRODUCT_MIGRATIONS],
 });

@@ -900,6 +900,8 @@ export interface DataStep {
   name: string;
   kind: DataStepKind;
   runner: DataStepRunner | null;
+  /** The runner is an application, platform, process or element the reader may not see (runner is null then) */
+  runnerHidden: boolean;
   /** Text or a cron expression */
   schedule: string;
   description: string;
