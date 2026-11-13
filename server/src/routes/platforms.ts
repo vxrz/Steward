@@ -17,6 +17,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ACCESS, me } from '../auth/access.js';
+import { markDeprecated } from '../auth/acl-shares.js';
 import { requirePlatform } from './helpers.js';
 import { PRESET_SPECS } from '../platforms/presets.js';
 import { moduleOfPlatformKind } from '@sm/shared';
@@ -141,9 +142,12 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
       return platforms.getPlatform(id);
     },
   );
-  app.put('/platforms/:id/access', { config: { stepUp: { action: 'grantAccess', ...platformAccess } } }, async (req) => {
+  // deprecated since 0.23.0 (ADR 0033 phase 2): written as shares (PUT /api/access/platform/:id/shares). Session only
+  app.put('/platforms/:id/access', { config: { access: ACCESS.session, stepUp: { action: 'grantAccess', ...platformAccess } } }, async (req, reply) => {
     requirePlatform(params(req).id!, 'manage', 'change access to this platform');
-    return platforms.setPlatformAccess(params(req).id!, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);
+    const out = platforms.setPlatformAccess(params(req).id!, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);
+    markDeprecated(reply, 'platform', out.id);
+    return out;
   });
   app.delete('/platforms/:id', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'delete this platform');

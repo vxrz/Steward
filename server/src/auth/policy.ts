@@ -24,6 +24,8 @@ import {
   type NewResourceTeams,
   type TeamNewResourceMode,
   type OwnedKind,
+  type MonitorPermission,
+  type PlantPermission,
   type PlatformPermission,
   type ProcessPermission,
   type Role,
@@ -307,17 +309,62 @@ export function decide<P extends string>(
   return { permissions: all.filter((x) => granted.has(x)), reasons };
 }
 
-export function processAccess(u: AuthUser | null, p: { id: string; owner?: string | null; acl: AclEntry<ProcessPermission>[] }): Decision<ProcessPermission> {
-  const d = decide(u, { kind: 'process', ...p }, PROCESS_PERMISSIONS, DEFAULT_PROCESS, 'view');
+// ---------- the kinds whose access lists became shares (0.23.0, ADR 0033 phase 2) ----------
+
+/**
+ * The access lists of processes, platforms, identities, monitors and sites were migrated to shares one to one
+ * (migrations/access.ts): their `acl` columns are no longer read – the `acl` the callers still pass is ignored – and
+ * shares and the Restricted scope decide instead. A share's level and action rights give the kind's own rights below.
+ */
+export type Legacy = { acl?: unknown };
+
+/** Process: View sees it and what follows it, Edit changes the definition, Manage also its shares, owner and archive. */
+export const PROCESS_SHARE_MODEL: ShareModel<ProcessPermission> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+  actions: { run: ['view', 'run'], approve: ['view', 'approve'] },
+};
+
+/** Platform: View sees the page and its health, Manage changes it and its shares; `use` calls it (Edit is not offered yet). */
+export const PLATFORM_SHARE_MODEL: ShareModel<PlatformPermission> = {
+  levels: { view: ['view'], edit: ['view'], manage: ['view', 'use', 'manage'] },
+  actions: { use: ['view', 'use'] },
+};
+
+/** A platform identity: its share is View with `use`; Manage is the platform's (who manages it changes the identities' shares). */
+export const IDENTITY_SHARE_MODEL: ShareModel<'use' | 'manage'> = {
+  levels: { view: [], edit: [], manage: ['manage'] },
+  actions: { use: ['use'] },
+};
+
+/** Monitor: Manage includes acknowledging, as `manage` did. */
+export const MONITOR_SHARE_MODEL: ShareModel<MonitorPermission> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage', 'acknowledge'] },
+  actions: { acknowledge: ['view', 'acknowledge'] },
+};
+
+/**
+ * Plant site: View sees it and what follows it, Manage changes it, its entries and its shares (one right, `manage`, as
+ * before – Edit is not offered yet); `propose` beside.
+ */
+export const SITE_SHARE_MODEL: ShareModel<PlantPermission> = {
+  levels: { view: ['view'], edit: ['view'], manage: ['view', 'propose', 'manage'] },
+  actions: { propose: ['view', 'propose'] },
+};
+
+export function processAccess(u: AuthUser | null, p: { id: string; owner?: string | null } & Legacy): Decision<ProcessPermission> {
+  const d = decide(u, { kind: 'process', id: p.id, owner: p.owner, acl: [] }, PROCESS_PERMISSIONS, DEFAULT_PROCESS, 'view', { shares: PROCESS_SHARE_MODEL });
   // any right on a process includes seeing it
   if (d.permissions.length && !d.permissions.includes('view')) d.permissions = PROCESS_PERMISSIONS.filter((x) => x === 'view' || d.permissions.includes(x));
   return d;
 }
 
-export function platformAccess(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }): Decision<PlatformPermission> {
-  const d = decide(u, { kind: 'platform', ...p }, PLATFORM_PERMISSIONS, DEFAULT_PLATFORM);
-  // manage includes use
-  if (d.permissions.includes('manage') && !d.permissions.includes('use')) d.permissions = [...PLATFORM_PERMISSIONS];
+export function platformAccess(u: AuthUser | null, p: { id: string } & Legacy): Decision<PlatformPermission> {
+  const d = decide(u, { kind: 'platform', id: p.id, acl: [] }, PLATFORM_PERMISSIONS, DEFAULT_PLATFORM, undefined, { shares: PLATFORM_SHARE_MODEL });
+  // manage includes use; any right includes seeing it
+  const out = new Set(d.permissions);
+  if (out.has('manage')) out.add('use');
+  if (out.size) out.add('view');
+  d.permissions = PLATFORM_PERMISSIONS.filter((x) => out.has(x));
   return d;
 }
 
@@ -334,10 +381,9 @@ const DEFAULT_IDENTITY_USE: Record<Role, readonly 'use'[]> = {
 };
 
 /** What identityAccess needs to know of an identity. */
-export interface IdentityForAccess {
+export interface IdentityForAccess extends Legacy {
   id: string;
   default: boolean;
-  acl: AclEntry<'use'>[];
 }
 
 /**
@@ -346,13 +392,14 @@ export interface IdentityForAccess {
  * other identity is closed by default: only administrators, members of its owning teams whose role gives `use`
  * (designer, operator) and its access list. Managing the platform does not make someone a user of its identities.
  */
-export function identityAccess(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }, identity: IdentityForAccess): Decision<'use'> {
+export function identityAccess(u: AuthUser | null, p: { id: string } & Legacy, identity: IdentityForAccess): Decision<'use'> {
   const platform = platformAccess(u, p);
   const viaPlatform = platform.reasons.filter((r) => r.permissions.includes('use')).map((r) => ({ ...r, permissions: ['use'] }));
   if (!platform.permissions.includes('use')) return { permissions: [], reasons: [] };
   if (identity.default) return { permissions: ['use'], reasons: viaPlatform };
-  const d = decide(u, { kind: 'platform_identity', id: identity.id, acl: identity.acl }, ['use'] as const, DEFAULT_IDENTITY_USE, undefined, {
+  const d = decide(u, { kind: 'platform_identity', id: identity.id, acl: [] }, ['use'] as const, DEFAULT_IDENTITY_USE, undefined, {
     instanceDefaults: false,
+    shares: IDENTITY_SHARE_MODEL as ShareModel<'use'>,
   });
   return d.permissions.includes('use') ? { permissions: ['use'], reasons: [...viaPlatform, ...d.reasons] } : { permissions: [], reasons: [] };
 }
@@ -361,12 +408,13 @@ export function identityAccess(u: AuthUser | null, p: { id: string; acl: AclEntr
  * Whether `u` may see data read from a platform (dataset partitions, #142): from a platform of the whole instance
  * without an access list everyone who sees the dataset; otherwise members of its owning teams and whoever may use it.
  */
-export function platformDataVisible(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }): boolean {
+export function platformDataVisible(u: AuthUser | null, p: { id: string } & Legacy): boolean {
   if (!u) return false;
   const d = platformAccess(u, p);
   if (d.permissions.includes('use')) return true;
   const teams = owningTeams('platform', p.id);
-  if (!teams.length) return !p.acl.length;
+  // (a Restricted platform: as one whose access list had entries)
+  if (!teams.length) return !isRestricted('platform', p.id);
   const mine = memberships(u);
   return teams.some((t) => mine.has(t.id));
 }

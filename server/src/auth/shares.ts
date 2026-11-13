@@ -61,8 +61,11 @@ export interface ShareKindDef<P extends string = string> {
   implied?: (id: string) => { subject: string; level: ShareLevel; as: 'owner' | 'responsible' }[];
   /** The teams that scope the item (default: its owning teams; an application without its own: its services') */
   teams?: (id: string) => OwningTeam[];
-  /** Who may switch Restricted (decision 15): administrators (the default) or the item's Manage holders as well */
-  restrictBy?: 'admin' | 'manage';
+  /**
+   * Who may switch Restricted (decision 15): administrators (the default), the item's Manage holders as well, or nobody
+   * (a kind whose instance roles give nothing anyway: platform identities)
+   */
+  restrictBy?: 'admin' | 'manage' | 'never';
 }
 
 const KINDS = new Map<OwnedKind, ShareKindDef>();
@@ -424,6 +427,34 @@ export function setRestricted(c: { kind: OwnedKind; id: string; restricted: bool
   });
   sharesChanged();
   return true;
+}
+
+/**
+ * Copies the shares and the scope of a resource to its copy (_Duplicate_ with _Copy the access settings_, which only
+ * who manages the original may ask for, with the step-up): ended shares are left out. No audit of its own – the
+ * duplication is audited (`<kind>.duplicated`).
+ */
+export function copyShares(kind: OwnedKind, fromId: string, toId: string): void {
+  const ts = nowIso();
+  const actor = currentActor();
+  db().tx(() => {
+    for (const s of sharesOf(kind, fromId))
+      db().run(
+        'INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, rights, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        kind,
+        toId,
+        s.subject,
+        s.level,
+        JSON.stringify(s.actions),
+        s.expiresAt,
+        s.rights?.length ? JSON.stringify(s.rights) : null,
+        actor,
+        ts,
+      );
+    if (isRestricted(kind, fromId))
+      db().run('INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', kind, toId, actor, ts);
+  });
+  sharesChanged();
 }
 
 /** Removes the shares and the scope of a deleted resource (no audit: the deletion is). */

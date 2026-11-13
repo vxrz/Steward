@@ -1294,6 +1294,7 @@ export interface MonitorSummary {
 
 export interface MonitorDetail extends MonitorSummary {
   definition: MonitorDefinition;
+  /** Deprecated since 0.23.0 (ADR 0033): the shares as the former access list, for who manages it (empty for others) */
   acl: AclEntry<MonitorPermission>[];
   templateParams: Record<string, unknown> | null;
   checks: CheckState[];

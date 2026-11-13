@@ -5,10 +5,12 @@ import { ENGINE_MIGRATIONS } from '../migrations/engine.js';
 import { MANUAL_STEP_MIGRATIONS } from '../migrations/manual-steps.js';
 import { RUNTIME_MIGRATIONS } from '../migrations/runtime.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
+import { PROCESS_SHARE_KIND } from '../processes/shares.js';
 
 /** Processes, their runs and the run engine: schedules, manual steps, debugging, the step palette. */
 export default defineFeature({
   name: 'processes',
+  shareKinds: [PROCESS_SHARE_KIND],
   routes: [processRoutes, engineExtrasRoutes, debugRoutes],
   jobs: [
     // the scheduler's "still running" mark: fires after the last mark count as missed at the next start (scheduler.ts)

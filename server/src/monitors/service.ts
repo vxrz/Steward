@@ -33,6 +33,10 @@ import {
   type TemplateParam,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { forgetShares, heldOn } from '../auth/shares.js';
+import { aclOf, writeAlias } from '../auth/acl-shares.js';
+import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
+import { MONITOR_SHARE_KIND } from './shares.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
@@ -341,7 +345,8 @@ export function getMonitor(idOrKey: string): MonitorDetail {
   return {
     ...summary(r, counts, canView),
     definition: r.is_template ? def : redactDefinition(def, canView),
-    acl: parseJson<AclEntry<MonitorPermission>[]>(r.acl, []),
+    // deprecated (0.23.0): the shares as the former access list, for who may change them
+    acl: permissionsOfRow(r).includes('manage') ? aclOf<MonitorPermission>('monitor', r.id) : [],
     templateParams: parseJson(r.template_params, null),
     checks,
     usedBy: usedBy(r.id),
@@ -1162,6 +1167,7 @@ export function deleteMonitor(idOrKey: string): void {
     db().run('DELETE FROM monitors WHERE id = ?', r.id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('monitor', r.id);
+    forgetShares('monitor', r.id);
     audit({
       action: r.is_template ? 'monitor.template_deleted' : 'monitor.deleted',
       entityType: 'monitor',
@@ -1172,19 +1178,28 @@ export function deleteMonitor(idOrKey: string): void {
   engine.forgetMonitor(r.id);
 }
 
-export function setAccess(idOrKey: string, input: { acl: unknown; owner?: string }): MonitorDetail {
+/**
+ * `PUT /monitors/:id/access` (deprecated since 0.23.0, ADR 0033 phase 2): the access list – written as shares and the
+ * Restricted scope (auth/acl-shares.ts) – and the owner (an empty one keeps the current). Either may be left out. A new
+ * owner has every right: a widening, confirmed by the route's step-up and audited as `access.owner_changed`.
+ */
+export function setAccess(idOrKey: string, input: { acl?: unknown; owner?: string }): MonitorDetail {
   const r = requireMonitor(idOrKey, 'manage', 'change the access of this monitor');
-  const acl = cleanAcl(input.acl, MONITOR_PERMISSIONS);
   const owner = input.owner?.trim() || r.owner;
+  const label = `monitor "${r.name}"`;
   db().tx(() => {
-    db().run('UPDATE monitors SET acl = ?, owner = ?, updated_at = ? WHERE id = ?', JSON.stringify(acl), owner, nowIso(), r.id);
-    audit({
-      action: 'monitor.access_changed',
-      entityType: 'monitor',
-      entityId: r.id,
-      summary: `Access to monitor "${r.name}" changed${owner !== r.owner ? ` (owner ${r.owner} → ${owner})` : ''}`,
-      details: { acl, owner, previousOwner: r.owner },
-    });
+    if (input.acl !== undefined) writeAlias({ kind: 'monitor', id: r.id, aclInput: input.acl, held: heldOn(MONITOR_SHARE_KIND, me(), r.id), label });
+    if (owner.toLowerCase() !== r.owner.toLowerCase()) {
+      requireAccessGrant();
+      db().run('UPDATE monitors SET owner = ?, updated_at = ? WHERE id = ?', owner, nowIso(), r.id);
+      auditAccessChange({
+        action: ACCESS_AUDIT.ownerChanged,
+        entityType: 'monitor',
+        entityId: r.id,
+        summary: `Owner of ${label}: ${r.owner} → ${owner} (every right on it)`,
+        details: { field: 'owner', before: r.owner, after: owner, granted: [{ subject: `user:${owner.toLowerCase()}`, rights: ['all'] }] },
+      });
+    }
   });
   engine.reloadMonitor(r.id);
   return getMonitor(r.id);

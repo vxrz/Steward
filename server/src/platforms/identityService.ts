@@ -19,6 +19,10 @@ import {
   AUTH_TYPES,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { forgetShares, heldOn, sharesOf } from '../auth/shares.js';
+import { aliasWidens, sharesToAcl, writeAlias } from '../auth/acl-shares.js';
+import { IDENTITY_SHARE_KIND } from './shares.js';
+import { me } from '../auth/access.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -425,6 +429,7 @@ export function deleteIdentity(platformId: string, identityId: string): void {
   db().tx(() => {
     db().run('DELETE FROM platform_identities WHERE id = ? AND platform_id = ?', r.id, platformId);
     forgetOwningTeams('platform_identity', r.id);
+    forgetShares('platform_identity', r.id);
     audited(p, r, 'platform.identity_deleted', 'identity deleted', { secretKeys: secretNames(r.secrets) });
   });
   invalidateIdentityCaches(platformId, r.id);
@@ -507,46 +512,28 @@ export function setIdentityAccess(platformId: string, identityId: string, aclInp
       'The default identity has no access list: everyone with "use" on the platform may use it – narrow the platform\'s access instead',
       'IDENTITY_DEFAULT_NO_ACCESS_LIST',
     );
-  const acl = cleanAcl(aclInput, ['use'] as const).filter((e) => e.permissions.length);
-  const before = parseJson<AclEntry<'use'>[]>(r.acl, []);
-  db().tx(() => {
-    db().run(
-      'UPDATE platform_identities SET acl = ?, updated_at = ?, updated_by = ? WHERE id = ? AND platform_id = ?',
-      JSON.stringify(acl),
-      nowIso(),
-      actor(),
-      r.id,
-      platformId,
-    );
-    audited(
-      p,
-      r,
-      'platform.identity_access_changed',
-      `access: ${acl.length ? acl.map((e) => e.subject).join(', ') : 'closed (administrators and owning teams only)'}`,
-      {
-        acl,
-        previous: before,
-      },
-    );
+  // deprecated since 0.23.0 (ADR 0033 phase 2): written as the identity's shares – the shares core asks and audits
+  writeAlias({
+    kind: 'platform_identity',
+    id: r.id,
+    aclInput,
+    held: heldOn(IDENTITY_SHARE_KIND, me(), r.id),
+    label: `identity "${r.name}" of platform "${p.name}"`,
   });
   return view(platformId, r.id);
 }
 
-/** Whether a new access list adds someone (a step-up, ADR 0009). */
+/** Whether a new access list gives someone the identity (a step-up, ADR 0009): the shares core decides (0.23.0). */
 export function accessAddsSubjects(platformId: string, identityId: string, aclInput: unknown): boolean {
   const r = identityRow(platformId, identityId);
   // not a list: refused by the route's validation, nobody gains anything
   if (!Array.isArray(aclInput)) return false;
   if (!r) return true;
-  const before = new Set(parseJson<AclEntry<'use'>[]>(r.acl, []).map((e) => e.subject));
-  return aclInput.some(
-    (e) =>
-      !before.has(
-        String((e as { subject?: unknown })?.subject ?? '')
-          .trim()
-          .toLowerCase(),
-      ),
-  );
+  try {
+    return aliasWidens('platform_identity', r.id, aclInput);
+  } catch {
+    return false; // a body the route refuses
+  }
 }
 
 /** An identity's MCP mode: off, read, or approved writes (confirm or fourEyes). Database platforms: never writes. */
@@ -623,11 +610,14 @@ export function makeDefaultIdentity(platformId: string, identityId: string): Pla
       db().run('UPDATE platform_identities SET is_default = 0, updated_at = ?, updated_by = ? WHERE id = ?', ts, actor(), before.id);
       sealIdentity(before.id);
     }
-    db().run("UPDATE platform_identities SET is_default = 1, acl = '[]', updated_at = ?, updated_by = ? WHERE id = ?", ts, actor(), r.id);
+    db().run('UPDATE platform_identities SET is_default = 1, updated_at = ?, updated_by = ? WHERE id = ?', ts, actor(), r.id);
     sealIdentity(r.id);
+    // the default identity has no shares of its own (0.23.0: they are removed, recorded in the audit entry)
+    const cleared = sharesToAcl('platform_identity', sharesOf('platform_identity', r.id, { expired: true }));
+    forgetShares('platform_identity', r.id);
     audited(p, r, 'platform.identity_default_changed', `is the default identity now${before ? ` (was "${before.name}")` : ''}`, {
       previousDefault: before ? { id: before.id, name: before.name } : null,
-      clearedAccessList: parseJson<AclEntry<'use'>[]>(r.acl, []),
+      clearedAccessList: cleared,
     });
   });
   // plain platform objects stand for the default identity in the caches: all of the platform's entries go

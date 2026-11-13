@@ -21,6 +21,7 @@ import { audit } from '../audit.js';
 import { HttpError, nowIso } from '../util.js';
 import { me, forbid } from '../auth/access.js';
 import { owningTeams, setOwningTeams } from '../auth/policy.js';
+import { copyShares } from '../auth/shares.js';
 import { getUser } from '../auth/users.js';
 import { getSettings } from '../settings.js';
 import { resolveLocale, t } from '../i18n/index.js';
@@ -163,6 +164,13 @@ export function copyKey(key: string, taken: (k: string) => boolean, max = 64): s
 export function copyOwningTeams(kind: OwnedKind, fromId: string, toId: string): string[] {
   const teams = owningTeams(kind, fromId).map((x) => x.id);
   setOwningTeams(kind, toId, teams);
+  return teams;
+}
+
+/** The access settings of a kind switched to shares (0.23.0): owning teams, shares and the Restricted scope. */
+export function copyAccessSettings(kind: OwnedKind, fromId: string, toId: string): string[] {
+  const teams = copyOwningTeams(kind, fromId, toId);
+  copyShares(kind, fromId, toId);
   return teams;
 }
 

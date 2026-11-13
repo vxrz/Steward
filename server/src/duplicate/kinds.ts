@@ -32,7 +32,7 @@ import { canCreateChecks } from '../compliance/access.js';
 import { canCreateServices } from '../records/access.js';
 import { getPlatform } from '../platforms/service.js';
 import { secretInputNames } from '../engine/secret-inputs.js';
-import { copyOwningTeams, type Duplicator } from './common.js';
+import { copyAccessSettings, copyOwningTeams, type Duplicator } from './common.js';
 import { monitorDuplicator } from './monitor.js';
 import { applicationDuplicator, serviceDuplicator, systemDuplicator } from './catalogue.js';
 import { assetDuplicator, kpiDuplicator, profileDuplicator } from '../plant/duplicate.js';
@@ -70,8 +70,7 @@ const processDuplicator: Duplicator<ProcessDetail> = {
     for (const i of def.inputs ?? []) if (secrets.has(i.name)) delete (i as { default?: unknown }).default;
     const made = processes.createProcess(def, { id: input.key!, comment: `Copied from ${p.id} v${p.currentVersion}` });
     if (input.copyAccess) {
-      db().run('UPDATE processes SET acl = ? WHERE id = ?', JSON.stringify(p.acl), made.id);
-      copyOwningTeams('process', p.id, made.id);
+      copyAccessSettings('process', p.id, made.id);
     }
     return { id: made.id, name: made.name, key: made.id, details: { version: p.currentVersion } };
   },

@@ -98,7 +98,7 @@ export function accessView(def: ShareKindDef, id: string, u: AuthUser): Resource
     levels: [...shareLevelsOf(def.kind)],
     held: held === 'all' ? 'all' : { level: held.level, actions: [...held.actions] },
     canManage,
-    canRestrict: isAdmin(u) || (def.restrictBy === 'manage' && canManage),
+    canRestrict: def.restrictBy !== 'never' && (isAdmin(u) || (def.restrictBy === 'manage' && canManage)),
     maxEnd: latestShareEnd().toISOString(),
   };
 }
