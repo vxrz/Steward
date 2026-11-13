@@ -18,7 +18,8 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '@mantine/hooks';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconArrowsDiff, IconInfoCircle, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
@@ -1358,10 +1359,13 @@ function ForDataProduct({ e, value, onChange }: { e: CostEstimate; value: string
   const { t } = useTranslation('costs');
   const on = useModuleOn('dataProducts');
   const [search, setSearch] = useState('');
+  // asked once typing pauses, not for every key; what was found stays while the next answer comes
+  const [term] = useDebouncedValue(search, 250);
   const q = useQuery({
-    queryKey: ['dataProducts', 'estimatePicker', search],
-    queryFn: () => get<{ items: { id: string; key: string; name: string }[] }>(`/data-products?limit=20&q=${encodeURIComponent(search)}`),
+    queryKey: ['dataProducts', 'estimatePicker', term],
+    queryFn: () => get<{ items: { id: string; key: string; name: string }[] }>(`/data-products?limit=20&q=${encodeURIComponent(term)}`),
     enabled: on && e.canEdit,
+    placeholderData: keepPreviousData,
   });
   if (!on) return null;
   const current = e.for?.kind === 'dataProduct' ? e.for : null;

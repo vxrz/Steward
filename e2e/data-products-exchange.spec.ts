@@ -132,6 +132,16 @@ test.describe('costs: estimates and measured use', () => {
     await expect(page.getByTestId('estimate-for-product')).toBeVisible();
     await expect(page.getByTestId('estimate-for-product')).toHaveValue(/Measured /);
     await expectAccessible(page, 'estimate for a data product');
+    // the picker asks the server once typing pauses, not for every key
+    const asked: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/data-products?limit=20')) asked.push(r.url());
+    });
+    const picker = page.getByTestId('estimate-for-product');
+    await picker.clear();
+    await picker.pressSequentially('Other', { delay: 30 });
+    await expect(page.getByRole('option', { name: /^Other / })).toBeVisible();
+    expect(asked.length).toBeLessThanOrEqual(2);
   });
 
   test('estimated against attributed on a phone @mobile', async ({ page }) => {
