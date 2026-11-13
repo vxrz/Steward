@@ -1,13 +1,13 @@
 # Users, roles and access
 
-Everyone signs in, with a password or through single sign-on. What a person may do comes from their **roles**, their **teams**, and the **access lists** of processes and platforms. Every check runs on the server.
+Everyone signs in, with a password or through single sign-on. What a person may do comes from their **roles**, their **teams**, and the **shares** of single items ([TEAMS.md](TEAMS.md#sharing-the-access-tab)). Every check runs on the server.
 
 ## Roles
 
 | Role     | Default rights                                                                                        |
 | -------- | ----------------------------------------------------------------------------------------------------- |
 | admin    | Everything: users and teams, platforms and credentials, settings, all processes, unlocking the vault. |
-| designer | Create processes. Edit and run all processes unless an access list says otherwise.                    |
+| designer | Create processes. Edit and run all processes unless their owning teams or Restricted say otherwise.   |
 | operator | Run and schedule processes.                                                                           |
 | approver | Decide approvals and user tasks.                                                                      |
 | auditor  | Read-only access to everything, including the audit log and all protocols.                            |
@@ -16,7 +16,7 @@ Everyone signs in, with a password or through single sign-on. What a person may 
 
 ## Who may do what
 
-- **Process and platform access lists** narrow the role defaults for one process or platform ([below](#process-access-list)).
+- **Shares and Restricted** add rights on one item for a user, a team or a role, or keep it to its shares ([below](#processes-and-platforms)).
 - **Settings** are personal (your profile), per team (_Users → Teams_) or for the whole instance (_Settings_, one area per topic). See [SETTINGS.md](SETTINGS.md).
 - **Teams and owning teams.** Resources can belong to one or more teams: members have their roles in the team on them, everyone else does not see them (administrators and auditors see everything). A resource without an owning team behaves as before, so upgrades keep every instance's visibility. See [TEAMS.md](TEAMS.md).
 - **Decisions.** A user task can name `assignees` (users, teams, roles). Otherwise everyone with `run` or `approve` on the process may decide. With `fourEyes: true`, the person who started the run may not decide.
@@ -24,13 +24,11 @@ Everyone signs in, with a password or through single sign-on. What a person may 
 - **Webhook triggers** follow the same rules as schedules: creating one needs run rights on the process, runs use the owner's rights (checked on every call), and the owner, an admin or a process manager can change it.
 - **Owners and responsibles** (services, applications, systems, duties, credentials, tickets) are picked from the users and teams, so a typo cannot become an owner nobody is; the server refuses users and teams that do not exist (owners stored before stay). A person who has not signed in through single sign-on yet is added by an administrator as an account without a password for that provider. Renaming a team keeps it the owner everywhere; deleting a team removes it from owner and responsible lists (access lists and the owners of supplier contracts keep the entry, so access never widens – a contract without a team owner would be seen by every reader of its supplier); a team that is the only owning team of items is deleted only once you name the team they move to (0.20.0, [TEAMS.md](TEAMS.md)); before a team is deleted or an account is deactivated, the Users page lists where it is still named.
 
-### Process access list
+### Processes and platforms
 
-Rights are `view`, `run` (start, schedule, make selection decisions), `edit`, `approve` and `manage` (change access, archive). An empty list means the role defaults apply. As soon as entries exist, only the listed `user:…`, `team:…` or `role:…` subjects get the listed rights. Admins and the process owner (its creator) always keep full rights.
+A **process**'s rights are `view`, `run` (start, schedule, make selection decisions), `edit`, `approve` and `manage` (its shares, owner, archive); a **platform**'s are `view` (its page and health, 0.23.0), `use` (bind it in runs; read-only explorer calls) and `manage` (configuration, credentials, shares, write calls in the explorer). Without owning teams the role defaults apply; the item's _Access_ tab shares it with `user:…`, `team:…` or `role:…` subjects – View, Edit or Manage (a platform: View or Manage), with `run` and `approve` (processes) or `use` (platforms) beside the level – and **Restricted** keeps it to its shares, for example the production tenant to one team. Admins and the process owner (its creator) always keep full rights; auditors view processes. See [TEAMS.md](TEAMS.md#sharing-the-access-tab).
 
-### Platform access list
-
-Rights are `use` (bind it in runs; read-only explorer calls) and `manage` (configuration, credentials, access, write calls in the explorer). Use this to restrict e.g. the production tenant to one team.
+Until 0.22 these were **access lists**: the upgrade to 0.23.0 turned every entry into a share with exactly its rights, and an item with a list into a Restricted one – nobody gains or loses a right (an entry no level expresses, such as `manage` without `edit`, stays _Custom_ until someone changes it). The routes `PUT /api/processes/:id/access` and `/api/platforms/:id/access` still take an `acl` for one release (deprecated, signed-in sessions only).
 
 ## Passwords and recovery
 

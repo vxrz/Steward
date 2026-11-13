@@ -20,7 +20,7 @@ A process is one service procedure as a flow of steps: read calls, decisions, ch
 | **Schedule**        | Cron plus time zone, with preset inputs and connections. It skips a new run while the previous one is still waiting, unless overlap is allowed. The editor shows the next runs and warns when day of month and day of week are both set: cron then runs when **either** matches, so “the first Monday” is `0 6 * * 1#1`, not `0 6 1-7 * 1`.                                                                    |
 | **Webhook trigger** | `POST /api/hooks/<id>` with a secret starts a process as the trigger's owner; inputs are mapped from the JSON body, allow-listed headers and the query with JSONata. See [GATUS.md](GATUS.md#webhook-trigger-reference).                                                                                                                                                                                       |
 
-Who may view, run, edit, approve or manage a process is set by roles and its access list: [USERS.md](USERS.md#process-access-list). Platforms and connection slots: [PLATFORMS.md](PLATFORMS.md).
+Who may view, run, edit, approve or manage a process is set by roles, its owning teams and its shares (its _Access_ tab, since 0.23.0 – the former access list): [USERS.md](USERS.md#processes-and-platforms), [TEAMS.md](TEAMS.md#sharing-the-access-tab). Platforms and connection slots: [PLATFORMS.md](PLATFORMS.md).
 
 Processes are built on the canvas or as YAML (_Source_ tab, or _Import YAML_).
 

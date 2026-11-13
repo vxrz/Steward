@@ -54,7 +54,7 @@ On the site page:
 
 - **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, [move](#move-to) (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it. The areas start open and the work centers folded; the arrow beside a node folds it, _Expand all_ and _Collapse all_ do it for the whole tree. A link to `#node-<id>` opens the path to that node.
 - **Buildings**: buildings, halls, floors, rooms and outdoor areas; a floor or room names the building it is in (no cycles). A building that something names cannot be removed.
-- The site's assets by status, its links, its access list and owning teams.
+- The site's assets by status, its links, its owning teams and shares (_Access_).
 
 ### Move to
 
@@ -119,7 +119,7 @@ Since 0.14. Plant assets and their documents live for decades: a manual written 
 
 A **review interval** is optional and only ever a **hint**:
 
-- **per site**: _Documentation review interval_ (months) on the site's overview, beside _Changes need a second person_ and the access list – a setting of the site, changed by who manages it (`PUT /api/plant/sites/:siteId/doc-review`, audited as `site.doc_review_changed`; not part of the file format);
+- **per site**: _Documentation review interval_ (months) on the site's overview, beside _Changes need a second person_ – a setting of the site, changed by who manages it (`PUT /api/plant/sites/:siteId/doc-review`, audited as `site.doc_review_changed`; not part of the file format);
 - **per document type**: _Settings → Modules → Plant registry → Review intervals of documents_ (months per living-document type, `documentReview` in the plant settings) – it applies instead of the site's.
 
 When the last confirmation – or, before the first, the document's last change (an asset: when it was added) – is older than the interval, the document shows **A look is due** in a quiet blue, else _Next look by …_. Never red, never an alert, no notification: nothing is wrong with an old document, and a reminder every three years for every manual of a site would only teach people to ignore reminders. Without an interval nothing is ever due.
@@ -1264,8 +1264,8 @@ The card shows what the history, the baselines and the change sets take in the d
 
 Rights are per site; the hierarchy, buildings and assets of a site follow it ([ADR 0006](adr/0006-owning-teams-policy-module.md)):
 
-- **Without owning teams or access list**: every role that works in Steward (viewer, operator, approver, auditor, designer, administrator) sees the site; designers and administrators manage it (change it, its hierarchy, buildings and assets, import into it). Designers and administrators add sites.
-- **Access list** (site page → _Access_, for who manages it; adding an entry asks for a step-up like other grants): only its entries get their rights – _view_, _propose_ or _manage_ – plus administrators; auditors always see.
+- **Without owning teams, shares or Restricted**: every role that works in Steward (viewer, operator, approver, auditor, designer, administrator) sees the site; designers and administrators manage it (change it, its hierarchy, buildings and assets, import into it). Designers and administrators add sites.
+- **Shares** (the site's _Access_ section, 0.23.0 – the former access list): who manages the site shares it with a user, a team or a role – View or Manage, with _propose_ beside the level – and can make it **Restricted** (only its shares, administrators and auditors reach it); a widening asks for the step-up, narrowing does not ([TEAMS.md](TEAMS.md#sharing-the-access-tab)). Since the upgrade an access list is its shares with exactly its rights, and a site that had one is Restricted.
 - **Propose** (0.13.0, [Change sets](#change-sets)): keep drafts of changes and propose them – never apply. By default operators, approvers and plant viewers; managing a site includes it. Device profiles and KPI definitions belong to no site: whoever may propose for some site may propose changes to them. An AI assistant may propose with its owner's _propose_ right. `permissions` of a site lists _view_ and _manage_ as before; `canPropose` says whether the person may propose.
 - **A second person** (0.13.0): where a site needs one (`plant.changeSet`), no author applies a change set – administrators included.
 - **Owning teams**: as for other resources, members of the owning teams have their instance and team roles on the site.

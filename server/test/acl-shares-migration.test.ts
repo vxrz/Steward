@@ -4,7 +4,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { AclEntry, Role } from '@sm/shared';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, storeAcl, type Client, type TestServer } from './helpers.js';
 
 /**
  * The proof of the migration of access lists to shares (0.23.0, ADR 0033 "Migration", #297): nobody gains or loses a
@@ -217,9 +217,17 @@ function legacyDataVisible(u: U, it: Item): boolean {
 }
 
 const at = '2026-10-01T00:00:00.000Z';
+const counted = new Map<string, number>();
 
 beforeAll(async () => {
-  s = await startTestServer();
+  s = await startTestServer({
+    routes: (a) =>
+      a.addHook('onSend', async (req, _reply, payload) => {
+        const { requestDbTotals } = await import('../src/http-observability.js');
+        counted.set(req.url, requestDbTotals(req)?.statements ?? -1);
+        return payload;
+      }),
+  });
   await setup(s);
   policy = await import('../src/auth/policy.js');
   perms = await import('../src/auth/permissions.js');
@@ -390,6 +398,32 @@ describe('access lists become shares (0.23.0): nobody gains or loses a right', (
       { subject: 'user:vera', permissions: ['view', 'approve'] },
     ]);
     expect(got.restricted).toBe(true);
+  });
+});
+
+describe('lists read shares in bulk', () => {
+  /** Statements of one GET (the second call: caches of the first are warm). */
+  async function statements(c: Client, url: string): Promise<number> {
+    await c('GET', url);
+    counted.delete(`/api${url}`);
+    await c('GET', url);
+    return counted.get(`/api${url}`) ?? -1;
+  }
+  const LIST_URLS = ['/processes', '/platforms', '/monitors', '/plant/sites'];
+
+  it('the statements of the lists stay the same when their items get shares and are Restricted', async () => {
+    const olivia = await s.as('olivia', PW);
+    const count = async () => {
+      const out: Record<string, number> = {};
+      for (const u of LIST_URLS) out[u] = await statements(olivia, u);
+      return out;
+    };
+    const mine = items.filter((it) => it.kind !== 'platform_identity' && !it.acl.length).slice(0, 40);
+    const open = await count();
+    for (const it of mine) await storeAcl(it.kind, it.id, [{ subject: 'user:olivia', permissions: it.kind === 'platform' ? ['use'] : ['view'] }]);
+    const shared = await count();
+    expect(shared).toEqual(open);
+    for (const it of mine) await storeAcl(it.kind, it.id, []);
   });
 });
 

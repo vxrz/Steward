@@ -1113,7 +1113,8 @@ describe('permissions, templates and lifecycle', () => {
     await dana('DELETE', `/monitors/${monitor.id}`);
     expect(await status(dana('GET', `/monitors/${monitor.id}`))).toBe(404);
     const audit = await s.api('GET', `/audit?entityType=monitor&entityId=${monitor.id}`);
-    expect(audit.map((a: any) => a.action)).toEqual(expect.arrayContaining(['monitor.created', 'monitor.access_changed', 'monitor.deleted']));
+    // (since 0.23.0 the access list is written as shares: audited in the access family)
+    expect(audit.map((a: any) => a.action)).toEqual(expect.arrayContaining(['monitor.created', 'access.share_added', 'access.scope_changed', 'monitor.deleted']));
   });
 
   it('templates: instances from a form row and from CSV, outdated after a template change, re-sync', async () => {
