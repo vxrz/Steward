@@ -124,6 +124,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
           description={t('transfer.filesHint')}
           multiple
           clearable
+          clearButtonProps={{ 'aria-label': t('transfer.clearFiles') }}
           accept=".yaml,.yml,.json,application/yaml,application/json"
           leftSection={<IconFileUpload size={16} />}
           value={files}

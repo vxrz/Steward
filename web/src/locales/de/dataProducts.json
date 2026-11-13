@@ -1210,6 +1210,7 @@
     "schema": "Dateiformat (JSON Schema)",
     "files": "Dateien",
     "filesHint": "Höchstens 500 Dateien und zusammen 8 MB.",
+    "clearFiles": "Gewählte Dateien entfernen",
     "tooLarge": "Die Dateien sind zusammen größer als 8 MB.",
     "mode": "Modus",
     "modes": {

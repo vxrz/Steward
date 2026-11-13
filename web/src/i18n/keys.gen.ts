@@ -5455,6 +5455,7 @@ export interface Resources {
     'transfer.schema': string;
     'transfer.files': string;
     'transfer.filesHint': string;
+    'transfer.clearFiles': string;
     'transfer.tooLarge': string;
     'transfer.mode': string;
     'transfer.modes.add': string;
