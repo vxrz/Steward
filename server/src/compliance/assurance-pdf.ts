@@ -202,7 +202,7 @@ const TEXTS = {
     } as Record<string, string>,
     modules: 'Module access',
     modulesText:
-      'Who uses the modules restricted to selected teams and users at the end of the period, and every change of module access in it (access.module_access_changed). Every other module is used by everyone signed in; administrators and auditors use every module. Widening is confirmed with a step-up (Give rights in an access list), narrowing in the dialog.',
+      'Who uses the modules restricted to selected teams and users at the end of the period, the module roles given (viewer, contributor, manager), and every change of module access and module roles in it (access.module_access_changed). Every other module is used by everyone signed in; administrators and auditors use every module. Widening is confirmed with a step-up (Give rights in an access list), narrowing in the dialog.',
     module: 'Module',
     usedBy: 'Used by',
     noRestricted: 'No module is restricted: everyone signed in uses every module that is on.',
@@ -214,6 +214,9 @@ const TEXTS = {
     confirmedStepUp: 'step-up',
     confirmedDialog: 'dialog',
     nobody: 'administrators and auditors only',
+    moduleRoles: 'Module roles',
+    roleNames: { viewer: 'viewer', contributor: 'contributor', manager: 'manager' } as Record<string, string>,
+    viaSso: 'single sign-on',
     moduleNames: {} as Record<string, string>,
     integrity: 'Basis',
     integrityText:
@@ -278,7 +281,7 @@ const TEXTS = {
     } as Record<string, string>,
     modules: 'Modulzugriff',
     modulesText:
-      'Wer die auf ausgewählte Teams und Benutzer beschränkten Module am Ende des Zeitraums nutzt, und jede Änderung des Modulzugriffs im Zeitraum (access.module_access_changed). Alle anderen Module nutzen alle angemeldeten Personen; Administratoren und Auditoren nutzen jedes Modul. Eine Erweiterung wird mit einer erneuten Bestätigung bestätigt (Rechte in einer Zugriffsliste vergeben), eine Einschränkung im Dialog.',
+      'Wer die auf ausgewählte Teams und Benutzer beschränkten Module am Ende des Zeitraums nutzt, die vergebenen Modulrollen (Leser, Mitwirkender, Verwalter) und jede Änderung des Modulzugriffs und der Modulrollen im Zeitraum (access.module_access_changed). Alle anderen Module nutzen alle angemeldeten Personen; Administratoren und Auditoren nutzen jedes Modul. Eine Erweiterung wird mit einer erneuten Bestätigung bestätigt (Rechte in einer Zugriffsliste vergeben), eine Einschränkung im Dialog.',
     module: 'Modul',
     usedBy: 'Genutzt von',
     noRestricted: 'Kein Modul ist beschränkt: Alle angemeldeten Personen nutzen jedes eingeschaltete Modul.',
@@ -290,6 +293,9 @@ const TEXTS = {
     confirmedStepUp: 'Bestätigung',
     confirmedDialog: 'Dialog',
     nobody: 'nur Administratoren und Auditoren',
+    moduleRoles: 'Modulrollen',
+    roleNames: { viewer: 'Leser', contributor: 'Mitwirkender', manager: 'Verwalter' } as Record<string, string>,
+    viaSso: 'Single Sign-on',
     moduleNames: {
       compliance: 'Compliance und Nachweise',
       scorecard: 'Scorecard',
@@ -444,7 +450,14 @@ export async function drawAssurancePdf(m: AssuranceReportModel, brand: BrandingI
         ],
         ma.current.map((c) => [
           moduleName(c.module, c.name),
-          c.subjects.join(', ') || L.nobody,
+          [
+            c.restricted === false ? L.mode.everyone : c.subjects.join(', ') || L.nobody,
+            c.roles?.length
+              ? `${L.moduleRoles}: ${c.roles.map((r) => `${r.subject} (${L.roleNames[r.role] ?? r.role}${r.source === 'sso' ? `, ${L.viaSso}` : ''})`).join(', ')}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
           c.updatedAt ? `${tr.dateTime(c.updatedAt)}${c.updatedBy ? ` (${c.updatedBy})` : ''}` : '–',
         ]),
       );
@@ -469,6 +482,9 @@ export async function drawAssurancePdf(m: AssuranceReportModel, brand: BrandingI
               c.before !== c.after ? `${L.mode[c.before] ?? c.before} → ${L.mode[c.after] ?? c.after}` : (L.mode[c.after] ?? c.after),
               c.granted.length ? `${L.granted}: ${subjects(c.granted)}` : '',
               c.removed.length ? `${L.removed}: ${subjects(c.removed)}` : '',
+              c.roles?.length
+                ? `${L.moduleRoles}: ${c.roles.map((r) => `${r.subject} ${r.before ? (L.roleNames[r.before] ?? r.before) : '–'} → ${r.after ? (L.roleNames[r.after] ?? r.after) : '–'}`).join(', ')}`
+                : '',
             ]
               .filter(Boolean)
               .join('\n'),

@@ -39,8 +39,18 @@ const preview = (c: Client, files: { name: string; content: string }[], mode: 'a
 const importFiles = (c: Client, files: { name: string; content: string }[], mode: 'add' | 'update' = 'update', fingerprint?: string) =>
   c('POST', '/data-products/import', { files, mode, ...(fingerprint ? { fingerprint } : {}) });
 
+/** Statements per request (the guards of imports and exports at volume) */
+const counted = new Map<string, number>();
+
 beforeAll(async () => {
-  s = await startTestServer();
+  s = await startTestServer({
+    routes: (app) =>
+      app.addHook('onSend', async (req, _reply, payload) => {
+        const { requestDbTotals } = await import('../src/http-observability.js');
+        counted.set(req.url.split('?')[0]!, requestDbTotals(req)?.statements ?? -1);
+        return payload;
+      }),
+  });
   await setup(s);
   await s.api('POST', '/demo/setup', {});
   await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
@@ -437,4 +447,55 @@ describe('ODPS', () => {
     expect(v1.status).toBe(200);
     expect(odpsProblems(await v1.json())).toEqual([]);
   });
+});
+
+describe('at volume', () => {
+  it('imports thousands of elements with a few statements each – the catalogue is counted once, not per element', async () => {
+    const run = async (n: number) => {
+      const elements = Array.from({ length: n }, (_, i) => ({ kind: 'other', qualified_name: `volume${n}.item.${String(i).padStart(5, '0')}` }));
+      const files = [file({ version: 1, elements }, `volume-${n}.yaml`)];
+      const p = await preview(dana, files, 'add');
+      expect(p.problems).toEqual([]);
+      const preview_ = counted.get('/api/data-products/import/preview')!;
+      expect((await importFiles(dana, files, 'add', p.fingerprint)).counts.add).toBe(n);
+      return { preview: preview_, apply: counted.get('/api/data-products/import')! };
+    };
+    const small = await run(500);
+    const large = await run(2_000);
+    // per element: its look-up in the plan, the uniqueness check, the row, its owning teams and its audit entry
+    const perElement = (a: number, b: number) => (b - a) / 1_500;
+    expect(perElement(small.apply, large.apply), JSON.stringify({ small, large })).toBeLessThanOrEqual(6);
+    expect(perElement(small.preview, large.preview), JSON.stringify({ small, large })).toBeLessThanOrEqual(5);
+  }, 120_000);
+
+  it('exports with a number of statements that does not grow with the products', async () => {
+    const app = ((await s.api('GET', '/applications')) as { id: string }[])[0]!.id;
+    const add = async (from: number, to: number) => {
+      for (let i = from; i < to; i++) {
+        const p = await dana('POST', '/data-products', { key: `volume-${i}`, name: `Volume ${i}` });
+        const raw = (await dana('POST', '/data-elements', { kind: 'other', qualifiedName: `volume.raw.${i}` })).id;
+        const out = (await dana('POST', '/data-elements', { kind: 'other', qualifiedName: `volume.out.${i}` })).id;
+        const port = await dana('POST', `/data-products/${p.id}/ports`, { direction: 'output', name: 'out', version: 'v1' });
+        await dana('PUT', `/data-products/${p.id}/ports/${port.id}/bindings/prod`, { elementIds: [out] });
+        await dana('POST', `/data-products/${p.id}/ports/${port.id}/consumers`, { kind: 'application', refId: app, purpose: 'Reports' });
+        await dana('POST', `/data-products/${p.id}/steps`, { name: 'Load', inputs: [raw], outputs: [out], runner: { kind: 'application', id: app } });
+      }
+    };
+    const measure = async () => {
+      await dana('GET', '/data-products/export?format=json');
+      return counted.get('/api/data-products/export')!;
+    };
+    await add(0, 5);
+    const few = await measure();
+    await add(5, 25);
+    const many = await measure();
+    const body = await dana('GET', '/data-products/export?format=json');
+    const doc = typeof body === 'string' ? JSON.parse(body) : body;
+    expect(doc.data_products.find((p: { key: string }) => p.key === 'volume-24')).toMatchObject({
+      ports: [{ consumers: [{ kind: 'application' }] }],
+      steps: [{ name: 'Load', runner: { kind: 'application' } }],
+    });
+    // four times the products, the same statements (the IN lists are chunked by 500)
+    expect(many, JSON.stringify({ few, many })).toBeLessThanOrEqual(few + 5);
+  }, 120_000);
 });

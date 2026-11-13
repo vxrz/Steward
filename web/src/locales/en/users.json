@@ -298,7 +298,8 @@
         "GROUPS_OVERAGE": "The token left the groups out (too many groups; claim {{claim}}). No roles come from them. Assign groups to the application, use app roles or a group filter.",
         "USERINFO_USED": "Claims from the userinfo endpoint are used too."
       },
-      "modules": "Restricted modules"
+      "modules": "Modules",
+      "moduleRoles": "Module roles"
     },
     "stripDomains": "Domains to strip",
     "stripDomainsHint": "Only these domains are removed (max@contoso.com → max). A user name of any other domain is refused – otherwise boss@any-domain could claim the account “boss”.",
@@ -325,7 +326,8 @@
     },
     "teamRoles": "Roles in these teams",
     "changedCount_one": "{{count}} changed",
-    "changedCount_other": "{{count}} changed"
+    "changedCount_other": "{{count}} changed",
+    "moduleRoles": "Module roles"
   },
   "profileValues": {
     "title": "From the sign-in provider",
@@ -459,5 +461,12 @@
     "confirmLabel": "Type the user name {{name}} to confirm",
     "submit": "Replace by a pseudonym",
     "done": "The data of {{name}} was replaced by the pseudonym {{pseudonym}}"
+  },
+  "moduleRoles": {
+    "title": "Module roles",
+    "hint": "What the person may do in a module beyond what their roles give – the highest counts. Their teams’ module roles and single sign-on’s are set elsewhere (Settings → Modules, the provider’s mappings).",
+    "none": "From their roles",
+    "fromSso": "Single sign-on gives {{role}} (kept up to date at each sign-in)",
+    "sso": "single sign-on"
   }
 }

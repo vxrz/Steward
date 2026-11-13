@@ -7,6 +7,7 @@ import {
   accessPreviewSchema,
   accessScopeSchema,
   latestShareEnd,
+  shareLevelsOf,
   sharesInputSchema,
   type AccessPreview,
   type OwnedKind,
@@ -94,9 +95,10 @@ export function accessView(def: ShareKindDef, id: string, u: AuthUser): Resource
       outside: teams.length ? uncoveredSubjects(teams, [], [x.subject]).length > 0 : restricted,
     })),
     actions: [...SHARE_ACTIONS[def.kind]],
+    levels: [...shareLevelsOf(def.kind)],
     held: held === 'all' ? 'all' : { level: held.level, actions: [...held.actions] },
     canManage,
-    canRestrict: isAdmin(u) || (def.restrictBy === 'manage' && canManage),
+    canRestrict: def.restrictBy !== 'never' && (isAdmin(u) || (def.restrictBy === 'manage' && canManage)),
     maxEnd: latestShareEnd().toISOString(),
   };
 }

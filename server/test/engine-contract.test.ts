@@ -497,13 +497,14 @@ describe('the command layer (engine/commands.ts)', () => {
         config: { variables: {}, http: { proxy: 'none' } },
       })
     ).id;
+    // (a share names an existing account: the user first)
+    const ulla = await user('contract-ulla', ['operator']);
     await s.api('PUT', `/platforms/${closed}/access`, {
       acl: [
         { subject: 'user:admin', permissions: ['manage', 'use'] },
         { subject: 'user:contract-ulla', permissions: ['use'] },
       ],
     });
-    const ulla = await user('contract-ulla', ['operator']);
     const child = await proc('Contract use child', [n('start', 'start')], [], { connections: [{ slot: 'api' }] });
     const parent = await proc(
       'Contract use parent',

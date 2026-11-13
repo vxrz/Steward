@@ -103,7 +103,10 @@
       "shareTeam": "Geteilt mit Team {{name}} – {{level}}",
       "shareRole": "Geteilt mit allen mit der Rolle {{name}} – {{level}}",
       "until": "{{text}} (bis {{date}})",
-      "implied": "{{as}} ({{subject}}): {{level}} (abgeleitet)"
+      "implied": "{{as}} ({{subject}}): {{level}} (abgeleitet)",
+      "moduleRoleUser": "Modulrolle {{role}}: {{rights}}",
+      "moduleRoleTeam": "Modulrolle {{role}} des Teams {{team}}: {{rights}}",
+      "moduleRoleSso": "Modulrolle {{role}} aus dem Single Sign-on: {{rights}}"
     },
     "level": {
       "view": "Ansehen",
@@ -182,7 +185,8 @@
     "scope": {
       "instance": "Bereich: die ganze Instanz – die Rollen aller gelten, die Einträge unten kommen hinzu.",
       "teams": "Bereich: die zuständigen Teams ({{teams}}) – ihre Mitglieder haben ihre Rollen, die Einträge unten fügen Ausnahmen hinzu.",
-      "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag."
+      "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag.",
+      "identity": "Standardmäßig geschlossen: Nur Administratoren, Mitglieder seiner zuständigen Teams, die gestalten oder bedienen, und die Einträge unten nutzen diese Identität – und nur, wer auch die Plattform nutzen darf."
     },
     "restricted": "Eingeschränkt",
     "restrictedHint": "Instanzrollen geben auf diesem Eintrag nichts: Nur die Einträge unter „Geteilt mit“, Eigentümer, Administratoren und Prüfer erreichen ihn.",
@@ -192,7 +196,7 @@
       "responsible": "Verantwortlicher"
     },
     "outside": "außerhalb der zuständigen Teams",
-    "impliedHint": "Eigentümer haben abgeleitet das Recht Bearbeiten: Es ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
+    "impliedHint": "Eigentümer und Verantwortliche haben abgeleitet die angezeigte Stufe: Sie ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
     "notYours": "Mit wem dieser Eintrag geteilt ist, sehen nur, wer ihn verwaltet, Administratoren und Prüfer. „Warum habe ich Zugriff?“ zeigt Ihre eigenen Gründe.",
     "empty": "Mit niemandem geteilt.",
     "unknown": "Existiert nicht mehr – dieser Eintrag trifft auf niemanden zu",
@@ -224,6 +228,13 @@
       "roleDefaults": "die Standardrechte ihrer Rollen"
     },
     "stepUpHint": "Wenn Sie Zugriff geben, bestätigen Sie anschließend, dass Sie es sind.",
-    "confirm": "Speichern"
-  }
+    "confirm": "Speichern",
+    "custom": "Individuell: {{rights}} – genau die Rechte des früheren Eintrags der Zugriffsliste. Wird der Eintrag geändert, gilt stattdessen seine Stufe.",
+    "customShort": "Individuell",
+    "customRight": "{{right}} (individuell)"
+  },
+  "ownerSave": "Eigentümer speichern",
+  "ownerSaved": "Eigentümer gespeichert",
+  "ownerNotSaved": "Der Eigentümer konnte nicht gespeichert werden",
+  "ownerNotYours": "Wer diesen Eintrag verwaltet, ändert seinen Eigentümer."
 }

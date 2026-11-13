@@ -230,9 +230,40 @@
       "admin": "as an administrator",
       "auditor": "as an auditor",
       "user": "named on its list",
-      "team": "through team {{team}}"
+      "team": "through team {{team}}",
+      "sso": "through single sign-on"
     },
     "uses": "Uses {{name}} {{through}}",
-    "notUses": "Does not use {{name}}"
-  }
+    "notUses": "Does not use {{name}}",
+    "rolesTitle": "Module roles",
+    "rolesIntro": "{{name}} has module roles: viewer, contributor and manager. Core roles give one by default (a designer is a manager, an operator a contributor, a viewer a viewer); a role given here adds – the highest counts. A team’s role applies to its members across the whole module.",
+    "roleColumn": "Module role",
+    "roleDefault": "From core roles",
+    "roleDefaultHint": "Uses it, with the role their core roles give",
+    "everyoneRolesHint": "Open to everyone, only entries with a module role are kept.",
+    "ssoGrants": "From single sign-on (kept up to date at each sign-in): {{grants}}",
+    "roleChanges_one": "{{count}} person’s module role changes:",
+    "roleChanges_other": "{{count}} people’s module roles change:",
+    "roleChange": "{{person}}: {{before}} → {{after}}",
+    "noRole": "none",
+    "roleThrough": {
+      "coreRole": "as {{role}}",
+      "user": "given to them",
+      "team": "through team {{team}}",
+      "sso": "through single sign-on"
+    },
+    "role": "{{role}} ({{through}})",
+    "usesWithRole": "Uses {{name}} {{through}}; module role {{role}}"
+  },
+  "roleNames": {
+    "viewer": "Viewer",
+    "contributor": "Contributor",
+    "manager": "Manager"
+  },
+  "roleHint": {
+    "viewer": "Sees the module’s items",
+    "contributor": "Sees them and proposes changes",
+    "manager": "Changes and manages them"
+  },
+  "moduleRole": "{{module}}: {{role}}"
 }

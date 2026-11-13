@@ -356,7 +356,7 @@ describe('permissions mirror the web UI', () => {
       expect(one.text).not.toContain('API hidden platform');
       // dana is on the access list, administrators see everything
       expect((await v1(tokens.dana, '/platforms?limit=200')).body.items.map((p: any) => p.id)).toContain(pf.id);
-      expect((await v1(tokens.dana, `/platforms/${pf.id}`)).body.permissions).toEqual(['use']);
+      expect((await v1(tokens.dana, `/platforms/${pf.id}`)).body.permissions).toEqual(['view', 'use']);
       expect((await v1(tokens.admin, `/platforms/${pf.id}`)).status).toBe(200);
     } finally {
       await s.api('DELETE', `/platforms/${pf.id}`);

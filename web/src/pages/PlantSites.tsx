@@ -3,7 +3,7 @@ import { Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Text } from '@m
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconBuildingFactory2, IconDownload, IconFileImport, IconPlus } from '@tabler/icons-react';
+import { IconBuildingFactory2, IconDownload, IconFileImport, IconPlus, IconSettings } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { ASSET_STATUSES, type PlantSiteSummary } from '@sm/shared';
 import { apiUrl, get } from '../api';
@@ -17,6 +17,7 @@ import { AssetStatusBadge, MapLink, NotInSourceBadge, PreviewBadge, useNameOf, u
 import { BulkBar, SelectAllBox, SelectBox, useSelection } from '../components/plant/bulk';
 import { SiteFormModal } from '../components/plant/forms';
 import { SiteTileStats } from './plant/views/SiteTiles';
+import { useMe } from '../auth';
 
 /** The sites of the enterprise (#218): the plant registry's start page. */
 export function PlantSitesPage() {
@@ -26,6 +27,7 @@ export function PlantSitesPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const cfg = usePlantConfig();
+  const { caps } = useMe();
   const sites = useQuery({ queryKey: plantKeys.sites, queryFn: () => get<PlantSiteSummary[]>('/plant/sites') });
   // the search lives in the address (?q=), like the other plant lists
   const { params, set } = useListParams();
@@ -158,6 +160,19 @@ export function PlantSitesPage() {
             </Button>
           )}
           {!!sites.data?.length && exportLink}
+          {/* a granted manager changes the registry's content settings (0.23.0); administrators do it in Settings → Modules */}
+          {caps.moduleSettings?.includes('plant') && !caps.manageSettings && (
+            <Button
+              size="xs"
+              variant="default"
+              component={Link}
+              to="/plant/settings"
+              leftSection={<IconSettings size={14} />}
+              data-testid="plant-manager-settings"
+            >
+              {t('settings.managerTitle')}
+            </Button>
+          )}
         </>
       }
       search={sites.data?.length ? { value: q, onChange: (v) => set('q', v), placeholder: t('sites.search') } : undefined}

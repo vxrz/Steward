@@ -28,7 +28,23 @@ import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconCheck, IconCopy, IconDownload, IconEdit, IconKey, IconMask, IconPlus, IconSettings, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { PASSWORD_RULES, ROLES, ROLE_INFO, TEAM_ROLES, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
+import {
+  BRAND,
+  DEPRECATED_ROLES,
+  PASSWORD_RULES,
+  ROLES,
+  ROLE_INFO,
+  TEAM_ROLES,
+  modulesWithRoles,
+  moduleRolesOf,
+  type AuthStatus,
+  type ModuleId,
+  type ModuleRole,
+  type Role,
+  type Team,
+  type UserInfo,
+  type UserModuleRole,
+} from '@sm/shared';
 import { apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post, put } from '../api';
 import { useFieldErrors } from '../components/common';
 import { DataTable, type DataColumn } from '../components/DataTable';
@@ -56,7 +72,25 @@ const ROLE_COLORS: Record<Role, string> = {
 /** Role name and description in the UI language (descriptions default to the English text in shared/). */
 export const roleLabel = (r: Role): string => i18n.t(`common:roles.${r}`);
 export const roleInfo = (r: Role): string => i18n.t(`common:roleInfo.${r}`, { defaultValue: ROLE_INFO[r] });
-const roleOptions = () => ROLES.map((r) => ({ value: r, label: `${roleLabel(r)} – ${roleInfo(r)}` }));
+/** The roles to choose: the deprecated role "plant" only while an account still has it (it is the plant registry's contributor now). */
+const roleOptions = (current: readonly string[] = []) =>
+  ROLES.filter((r) => !DEPRECATED_ROLES.includes(r) || current.includes(r)).map((r) => ({ value: r, label: `${roleLabel(r)} – ${roleInfo(r)}` }));
+
+/** A person's own module roles (0.23.0, ADR 0034): "Plant registry: Contributor" badges. */
+export function ModuleRoleBadges({ roles }: { roles?: UserModuleRole[] }) {
+  const { t } = useTranslation(['modules', 'users']);
+  if (!roles?.length) return null;
+  return (
+    <Group gap={4}>
+      {roles.map((r) => (
+        <Badge key={`${r.module}-${r.source}`} size="xs" variant="outline" color="lime">
+          {t('modules:moduleRole', { module: t(`modules:items.${r.module}.name`, { brand: BRAND.name }), role: t(`modules:roleNames.${r.role}`) })}
+          {r.source === 'sso' ? ` · ${t('users:moduleRoles.sso')}` : ''}
+        </Badge>
+      ))}
+    </Group>
+  );
+}
 
 export function RoleBadges({ roles }: { roles: Role[] }) {
   const { t } = useTranslation('users');
@@ -263,7 +297,7 @@ export function UsersPage() {
             {t('roles.title')}
           </Title>
           <Stack gap={4}>
-            {ROLES.map((r) => (
+            {ROLES.filter((r) => !DEPRECATED_ROLES.includes(r)).map((r) => (
               <Group key={r} gap="xs" wrap="nowrap" align="flex-start">
                 <Badge size="sm" variant="light" color={ROLE_COLORS[r]} w={110} style={{ flexShrink: 0 }}>
                   {roleLabel(r)}
@@ -424,7 +458,16 @@ function UserList({
   );
   const columns: DataColumn<UserInfo>[] = [
     { key: 'user', header: t('table.user'), cell: who, sortValue: (u) => u.displayName },
-    { key: 'roles', header: t('table.roles'), cell: (u) => <RoleBadges roles={u.roles} /> },
+    {
+      key: 'roles',
+      header: t('table.roles'),
+      cell: (u) => (
+        <Stack gap={2}>
+          <RoleBadges roles={u.roles} />
+          <ModuleRoleBadges roles={u.moduleRoles} />
+        </Stack>
+      ),
+    },
     { key: 'teams', header: t('table.teams'), cell: (u) => <Text size="xs">{u.teams.join(', ') || '–'}</Text>, sortValue: (u) => u.teams.join(', ') },
     { key: 'lastSignIn', header: t('table.lastSignIn'), cell: lastSignIn, nowrap: true, sortValue: (u) => u.lastLoginAt ?? '' },
     { key: 'active', header: t('table.active'), cell: active },
@@ -446,6 +489,7 @@ function UserList({
           </Group>
           <Box mt={6}>
             <RoleBadges roles={u.roles} />
+            <ModuleRoleBadges roles={u.moduleRoles} />
           </Box>
           <Group justify="space-between" mt={6} gap="xs" wrap="nowrap">
             <Text size="xs" c="dimmed" style={{ minWidth: 0 }}>
@@ -551,7 +595,7 @@ function UserModal({
   onClose: () => void;
   onSaved: (tempPw: string | undefined, username: string) => void;
 }) {
-  const { t } = useTranslation(['users', 'common']);
+  const { t } = useTranslation(['users', 'common', 'modules']);
   const [username, setUsername] = useState(user?.username ?? '');
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
@@ -560,6 +604,14 @@ function UserModal({
   // fields the account's single sign-on provider updates at every sign-in are read-only here
   const managed = (f: UserInfo['managedFields'][number]) => !!user?.managedFields.includes(f);
   const [roles, setRoles] = useState<string[]>(user?.roles ?? ['operator']);
+  // the person's own module roles (0.23.0, ADR 0034): set here; single sign-on's are shown, not changed
+  const ownModuleRole = (m: ModuleId): ModuleRole | null => user?.moduleRoles?.find((r) => r.module === m && r.source === 'admin')?.role ?? null;
+  const [moduleRoles, setModuleRoles] = useState<Partial<Record<ModuleId, ModuleRole | null>>>(() =>
+    Object.fromEntries(modulesWithRoles().map((m) => [m, ownModuleRole(m)])),
+  );
+  const changedModuleRoles = modulesWithRoles()
+    .filter((m) => (moduleRoles[m] ?? null) !== ownModuleRole(m))
+    .map((m) => ({ module: m, role: moduleRoles[m] ?? null }));
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const passwordsOff = usePasswordsOff();
@@ -585,6 +637,7 @@ function UserModal({
           ...(managed('email') ? {} : { email: email || undefined }),
           roles,
           ...(local && provider ? { provider } : {}),
+          ...(changedModuleRoles.length ? { moduleRoles: changedModuleRoles } : {}),
         });
         notifyOk(t('userModal.updated', { user: user.username }));
         onSaved(undefined, user.username);
@@ -598,6 +651,7 @@ function UserModal({
           roles,
           password: (!passwordsOff && !provider && password) || undefined,
           ...(provider ? { provider } : {}),
+          ...(changedModuleRoles.length ? { moduleRoles: changedModuleRoles } : {}),
         });
         notifyOk(t('userModal.created', { user: r.user.username }));
         onSaved(r.temporaryPassword, r.user.username);
@@ -637,7 +691,35 @@ function UserModal({
           </Text>
         )}
         {user && <ProfileValues values={user.profile} />}
-        <MultiSelect label={t('table.roles')} data={roleOptions()} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
+        <MultiSelect label={t('table.roles')} data={roleOptions(user?.roles)} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
+        <Stack gap={4} data-testid="user-module-roles">
+          <Text size="sm" fw={500}>
+            {t('moduleRoles.title')}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {t('moduleRoles.hint')}
+          </Text>
+          {modulesWithRoles().map((m) => {
+            const sso = user?.moduleRoles?.find((r) => r.module === m && r.source === 'sso');
+            return (
+              <Select
+                key={m}
+                size="xs"
+                label={t(`modules:items.${m}.name`, { brand: BRAND.name })}
+                data={[
+                  { value: '', label: t('moduleRoles.none') },
+                  ...moduleRolesOf(m).map((r) => ({ value: r, label: `${t(`modules:roleNames.${r}`)} – ${t(`modules:roleHint.${r}`)}` })),
+                ]}
+                value={moduleRoles[m] ?? ''}
+                onChange={(v) => setModuleRoles({ ...moduleRoles, [m]: (v || null) as ModuleRole | null })}
+                allowDeselect={false}
+                description={sso ? t('moduleRoles.fromSso', { role: t(`modules:roleNames.${sso.role}`) }) : undefined}
+                comboboxProps={{ withinPortal: true }}
+                data-testid={`user-module-role-${m}`}
+              />
+            );
+          })}
+        </Stack>
         {!user && (
           <Text size="xs" c="dimmed">
             {passwordsOff ? t('userModal.noPasswordHint') : t('userModal.ssoHint')}

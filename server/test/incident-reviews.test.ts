@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 
 /**
  * Incident reviews (#109): the built-in type on the decision workflow, its measures (who may keep them, owners mark
@@ -135,7 +135,7 @@ describe('incident reviews', () => {
     expect(sources.has('audit')).toBe(false);
     expect((await s.api('GET', `/records/${r.id}/timeline?${q}`)).items.some((i: any) => i.source === 'audit')).toBe(true);
     // a process with an access list without vera: its run is not offered to her
-    db().run('UPDATE processes SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:dana', permissions: ['view'] }]), proc.id);
+    await storeAcl('process', proc.id, [{ subject: 'user:dana', permissions: ['view'] }]);
     expect((await vera('GET', `/records/${r.id}/timeline?${q}`)).items.some((i: any) => i.key === 'run:run_pir')).toBe(false);
     expect(await code(dana('GET', `/records/${r.id}/timeline?from=${encodeURIComponent(from)}&to=${encodeURIComponent(from)}`))).toBe('TIMELINE_RANGE');
     const keys = c.items.filter((i: any) => i.source !== 'ticket').map((i: any) => i.key);
@@ -146,7 +146,7 @@ describe('incident reviews', () => {
     expect(updated.body.indexOf('## What went well')).toBeGreaterThan(updated.body.indexOf('## Timeline'));
     expect(await code(dana('POST', `/records/${r.id}/timeline`, { from, to, keys: ['run:nope'] }))).toBe('TIMELINE_EMPTY');
     db().run("DELETE FROM runs WHERE id = 'run_pir'");
-    db().run("UPDATE processes SET acl = '[]' WHERE id = ?", proc.id);
+    await storeAcl('process', proc.id, []);
   });
 
   it('starts from a closed ticket reference (its time, title and services) or a monitor outage', async () => {

@@ -35,6 +35,7 @@ import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
 import { forbid, me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, type OwningTeam } from '../auth/policy.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
+import { forgetShares } from '../auth/shares.js';
 import { environmentList } from '../catalogue/environments.js';
 import { currentScale } from '../catalogue/cia.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -651,7 +652,8 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
 
 const summaries = (u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): DataProductSummary[] => summaryData(u, rows).items;
 
-export function listProducts(q: DataProductListQuery): DataPage<DataProductSummary> {
+/** `keep`: a further filter over the ids the reader may see (the health of the internal list) – before paging and counting. */
+export function listProducts(q: DataProductListQuery, keep?: (ids: string[]) => Set<string>): DataPage<DataProductSummary> {
   const u = me();
   const text = q.q?.toLowerCase();
   const inEnv = q.environment
@@ -701,6 +703,12 @@ export function listProducts(q: DataProductListQuery): DataPage<DataProductSumma
         .filter((x) => x.perms.length);
       rows.push(...more);
     }
+  }
+  if (keep) {
+    const kept = keep(rows.map((x) => x.p.id));
+    let n = 0;
+    for (const x of rows) if (kept.has(x.p.id)) rows[n++] = x;
+    rows.length = n;
   }
   const page = pageOf(
     rows,
@@ -952,6 +960,8 @@ export function deleteProduct(id: string): void {
     deleteRatings('product', row.id);
     db().run('DELETE FROM dp_products WHERE id = ?', row.id);
     forgetOwningTeams('data_product', row.id);
+    // its shares and Restricted mark go with it (else the share job reminds and expires shares of a deleted product)
+    forgetShares('data_product', row.id);
     audit({
       action: 'dataproduct.deleted',
       entityType: 'data_product',

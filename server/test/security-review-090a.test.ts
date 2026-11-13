@@ -5,7 +5,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, type TestServer, storeAcl } from './helpers.js';
 
 let s: TestServer;
 type Hit = { method: string; url: string; headers: http.IncomingHttpHeaders; body: string };
@@ -249,6 +249,8 @@ describe('2: confirming the settings never seals what the platform page does not
       p.id,
       JSON.stringify({ type: 'token_request', request: { method: 'POST', url: `${echo2Base}/login?x=1` } }),
     );
+    // (who may use it: since 0.23.0 its shares)
+    await storeAcl('platform_identity', `pi_planted_${p.id}`, [{ subject: 'user:mallory', permissions: ['use'] }]);
     expect((await s.api('GET', `/platforms/${p.id}`)).integrity).toBe('mismatch'); // the default identity was changed
     const review = await s.api('GET', `/platforms/${p.id}/confirm-config`);
     expect(review.identities).toEqual([

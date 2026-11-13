@@ -142,7 +142,7 @@ export function contractRow(id: string): ContractRow | undefined {
 
 /** The rights of the caller (jobs without a caller: every right). */
 export function permissionsOf(r: Pick<ContractRow, 'id'>, u: AuthUser | null = currentUser()): DataContractPermission[] {
-  if (!u) return ['view', 'test', 'edit', 'manage'];
+  if (!u) return ['view', 'test', 'edit', 'relax', 'manage'];
   return contractAccess(u, r).permissions;
 }
 
@@ -813,7 +813,7 @@ export function setSettings(id: string, body: unknown): DataContractDetail {
   // switching off "breaking changes need a change record" is the decision of who approves changes (manage) – who has
   // only that right (an approver) changes nothing else
   const switchedOff = !!row.require_change_record && !input.requireChangeRecord;
-  if (switchedOff) requirePermission(perms, 'manage', 'switch off the change record rule of this data contract');
+  if (switchedOff) requirePermission(perms, 'relax', 'switch off the change record rule of this data contract');
   // a service the caller may not see is not named to them (null): it stays as it is unless they choose another one
   const hidden = !!row.service_platform_id && !platformVisible(row.service_platform_id, u);
   const service = input.servicePlatformId === null && hidden ? row.service_platform_id : (input.servicePlatformId ?? null);
@@ -852,6 +852,8 @@ export function deleteContract(id: string): void {
   db().tx(() => {
     for (const t of ['data_contract_versions', 'data_contract_links', 'data_contract_runs']) db().run(`DELETE FROM ${t} WHERE contract_id = ?`, id);
     db().run('DELETE FROM data_contracts WHERE id = ?', id);
+    // the output ports of data products bound to it are held to no contract from now on (ADR 0036)
+    db().run('UPDATE dp_port_bindings SET contract_id = NULL, contract_version = NULL, contract_server = NULL WHERE contract_id = ?', id);
     forgetOwningTeams('contract', id);
     // the change record rule outlives the contract: a new one with this ODCS id (an import) starts with it
     if (row.require_change_record) {

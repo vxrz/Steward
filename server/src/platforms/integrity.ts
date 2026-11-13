@@ -1,5 +1,6 @@
 import { BRAND, type PlatformConfirmReview } from '@sm/shared';
 import { db } from '../db.js';
+import { sharesOf } from '../auth/share-store.js';
 import { audit } from '../audit.js';
 import { checkMac, configMac, type IntegrityState } from '../integrity.js';
 import { readSetting, writeSetting } from '../settings.js';
@@ -147,9 +148,9 @@ export function confirmReview(id: string): PlatformConfirmReview {
       secretKeys = []; // an unreadable blob: it holds no usable credential
     }
     const signIn = signInOf(i.auth);
-    const access = parseJson<{ subject?: unknown }[]>(i.acl, [])
-      .map((e) => (typeof e?.subject === 'string' ? e.subject.slice(0, 200) : ''))
-      .filter(Boolean)
+    // who may use it: its shares (0.23.0, its former access list)
+    const access = sharesOf('platform_identity', i.id)
+      .map((x) => x.subject.slice(0, 200))
       .slice(0, 100);
     return {
       id: i.id,

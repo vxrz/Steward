@@ -52,7 +52,7 @@ import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { confirmDanger } from '../components/confirm';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { ListPage } from '../components/page/ListPage';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { EntraImportButton } from '../components/credentials/EntraImport';
@@ -774,7 +774,7 @@ function CredentialDrawer({
               </Timeline.Item>
             ))}
           </Timeline>
-          <OwningTeams kind="credential" id={c.id} />
+          <AccessTab kind="credential" id={c.id} />
           <Text size="xs" c="dimmed">
             {t('detail.updated', { user: c.updatedBy, date: fmtDate(c.updatedAt) })}
           </Text>

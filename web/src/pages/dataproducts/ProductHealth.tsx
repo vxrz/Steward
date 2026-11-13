@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, List, Loader, Modal, Paper, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, List, Loader, Modal, Paper, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { IconHeartRateMonitor, IconInfoCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { DataMonitorResult, DataProduct, ProductHealth } from '@sm/shared';
 import { notifyOk, post } from '../../api';
 import { ErrorState } from '../../components/common';
-import { TableScroll } from '../../components/TableScroll';
 import { useBusy } from '../../components/dataproducts/form';
 import { HealthBadge } from './views';
 import { pagesOf, qs, useInvalidateDataProducts, useMembers, useMonitorProposal, useProductHealth } from './api';
-import { ElementName, EnvironmentSwitch, Section, useEnvironmentParam } from './parts';
+import { Breakable, CardTable, ElementName, EnvironmentSwitch, Section, useEnvironmentParam } from './parts';
 
 const enc = encodeURIComponent;
 
@@ -104,37 +103,32 @@ function ElementHealthTable({
   return (
     <Section title={t('health.elements')} testId="health-elements">
       {h.elements.length ? (
-        <TableScroll>
-          <Table fz="sm" aria-label={t('health.elements')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th scope="col">{t('elements.name')}</Table.Th>
-                <Table.Th scope="col">{t('products.health')}</Table.Th>
-                <Table.Th scope="col">{t('health.checks')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {h.elements.map((e) => {
+        <CardTable
+          ariaLabel={t('health.elements')}
+          rows={h.elements}
+          rowKey={(e) => e.elementId}
+          columns={[
+            {
+              key: 'name',
+              header: t('elements.name'),
+              cell: (e) => {
                 const n = names.get(e.elementId);
-                return (
-                  <Table.Tr key={e.elementId}>
-                    <Table.Td>{n ? <ElementName e={n} /> : <Text size="sm">{t('ports.anElement')}</Text>}</Table.Td>
-                    <Table.Td>
-                      <HealthBadge status={e.status} size="xs" />
-                    </Table.Td>
-                    <Table.Td>
-                      {e.checks.visible + e.checks.hidden === 0
-                        ? t('health.noChecks')
-                        : [t('health.checksVisible', { count: e.checks.visible }), e.checks.hidden ? t('health.checksHidden', { count: e.checks.hidden }) : '']
-                            .filter(Boolean)
-                            .join(', ')}
-                    </Table.Td>
-                  </Table.Tr>
-                );
-              })}
-            </Table.Tbody>
-          </Table>
-        </TableScroll>
+                return n ? <ElementName e={n} /> : <Text size="sm">{t('ports.anElement')}</Text>;
+              },
+            },
+            { key: 'health', header: t('products.health'), cell: (e) => <HealthBadge status={e.status} size="xs" /> },
+            {
+              key: 'checks',
+              header: t('health.checks'),
+              cell: (e) =>
+                e.checks.visible + e.checks.hidden === 0
+                  ? t('health.noChecks')
+                  : [t('health.checksVisible', { count: e.checks.visible }), e.checks.hidden ? t('health.checksHidden', { count: e.checks.hidden }) : '']
+                      .filter(Boolean)
+                      .join(', '),
+            },
+          ]}
+        />
       ) : (
         <Text size="sm" c="dimmed">
           {t('health.noElements')}
@@ -194,42 +188,46 @@ function MonitorProposal({ p, environment, onClose }: { p: DataProduct; environm
                 </Alert>
               )}
               {x.checks.length ? (
-                <TableScroll>
-                  <Table fz="sm" aria-label={t('monitor.checks')} data-testid="monitor-checks">
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th scope="col">{t('monitor.check')}</Table.Th>
-                        <Table.Th scope="col">{t('monitor.mode')}</Table.Th>
-                        <Table.Th scope="col">{t('monitor.watches')}</Table.Th>
-                        <Table.Th scope="col">{t('monitor.weight')}</Table.Th>
-                        <Table.Th scope="col">{t('monitor.maxAge')}</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {x.checks.map((c) => (
-                        <Table.Tr key={c.id}>
-                          <Table.Td>{c.name}</Table.Td>
-                          <Table.Td>{t(`monitor.modes.${c.mode}`)}</Table.Td>
-                          <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                            {c.elementName ?? '–'}
-                            {c.role && (
-                              <Text span size="xs" c="dimmed">
-                                {' '}
-                                · {t(`roles.${c.role}`)}
-                              </Text>
-                            )}
-                          </Table.Td>
-                          <Table.Td>
-                            <Badge size="xs" color={c.critical ? 'red' : 'gray'} variant="light" tt="none">
-                              {c.critical ? t('monitor.critical') : t('monitor.degrades')}
-                            </Badge>
-                          </Table.Td>
-                          <Table.Td className="nowrap">{c.maxAgeMinutes ? t('objectives.minutes', { count: c.maxAgeMinutes }) : '–'}</Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </TableScroll>
+                <CardTable
+                  ariaLabel={t('monitor.checks')}
+                  testId="monitor-checks"
+                  rows={x.checks}
+                  rowKey={(c) => c.id}
+                  columns={[
+                    { key: 'check', header: t('monitor.check'), cell: (c) => c.name },
+                    { key: 'mode', header: t('monitor.mode'), cell: (c) => t(`monitor.modes.${c.mode}`) },
+                    {
+                      key: 'watches',
+                      header: t('monitor.watches'),
+                      cell: (c) => (
+                        <>
+                          <span className="mono">{c.elementName ? <Breakable text={c.elementName} /> : '–'}</span>
+                          {c.role && (
+                            <Text span size="xs" c="dimmed">
+                              {' '}
+                              · {t(`roles.${c.role}`)}
+                            </Text>
+                          )}
+                        </>
+                      ),
+                    },
+                    {
+                      key: 'weight',
+                      header: t('monitor.weight'),
+                      cell: (c) => (
+                        <Badge size="xs" color={c.critical ? 'red' : 'gray'} variant="light" tt="none">
+                          {c.critical ? t('monitor.critical') : t('monitor.degrades')}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      key: 'maxAge',
+                      header: t('monitor.maxAge'),
+                      nowrap: true,
+                      cell: (c) => (c.maxAgeMinutes ? t('objectives.minutes', { count: c.maxAgeMinutes }) : '–'),
+                    },
+                  ]}
+                />
               ) : (
                 <Alert color="gray" variant="light">
                   {t('monitor.nothing')}

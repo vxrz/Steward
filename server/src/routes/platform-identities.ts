@@ -12,6 +12,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { requirePlatform } from './helpers.js';
 import { params } from './params.js';
 import { ACCESS, me } from '../auth/access.js';
+import { markDeprecated } from '../auth/acl-shares.js';
 import { requireCapability } from '../auth/permissions.js';
 
 /**
@@ -125,14 +126,19 @@ export async function platformIdentityRoutes(app: FastifyInstance): Promise<void
   app.put(
     '/platforms/:id/identities/:identityId/access',
     {
+      // deprecated since 0.23.0 (ADR 0033 phase 2): written as the identity's shares (PUT /api/access/platform_identity/:id/shares).
+      // Session only: share lists name people and are changed in the app
       config: {
+        access: ACCESS.session,
         stepUp: { action: 'grantAccess', who: manages, when: (req) => identities.accessAddsSubjects(ids(req).id, ids(req).identityId, body(req).acl) },
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const { id, identityId } = ids(req);
       requirePlatform(id, 'manage', 'change who may use this identity');
-      return identities.setIdentityAccess(id, identityId, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);
+      const out = identities.setIdentityAccess(id, identityId, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);
+      markDeprecated(reply, 'platform_identity', identityId);
+      return out;
     },
   );
   app.put(

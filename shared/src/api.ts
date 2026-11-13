@@ -1,4 +1,4 @@
-import type { ModuleId, ModuleStates, ModuleUse, ModuleUseState } from './modules.js';
+import type { ModuleGrantSource, ModuleId, ModuleRole, ModuleStates, ModuleUse, ModuleUseState } from './modules.js';
 import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
@@ -36,12 +36,34 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
-  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or documents',
+  plant: 'Deprecated since 0.23.0: the plant registry’s module role contributor (Users → Module roles). Accepted for one release and turned into that role.',
 };
+
+/**
+ * The instance role "plant" (Plant viewer, #218) became the plant registry's module role contributor (ADR 0034 part 5,
+ * 0.23.0). The API still accepts it for one release and turns it into that grant; it is no longer stored or offered.
+ */
+export const DEPRECATED_ROLES: readonly Role[] = ['plant'];
+
+/** Splits the deprecated roles off a role list: the roles to store, and the module roles they stand for ("plant": the plant registry's contributor). */
+export function splitDeprecatedRoles(roles: readonly Role[]): { roles: Role[]; moduleRoles: { module: ModuleId; role: ModuleRole }[] } {
+  return {
+    roles: roles.filter((r) => !DEPRECATED_ROLES.includes(r)),
+    moduleRoles: roles.includes('plant') ? [{ module: 'plant', role: 'contributor' }] : [],
+  };
+}
+
+/** A module role of one user (0.23.0, ADR 0034 part 4): set in the user form, or synchronised by single sign-on. */
+export interface UserModuleRole {
+  module: ModuleId;
+  role: ModuleRole;
+  /** admin: given by an administrator; sso: synchronised at each sign-in (read-only in the user form) */
+  source: ModuleGrantSource;
+}
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
 export type ProcessPermission = (typeof PROCESS_PERMISSIONS)[number];
-export const PLATFORM_PERMISSIONS = ['use', 'manage'] as const;
+export const PLATFORM_PERMISSIONS = ['view', 'use', 'manage'] as const;
 export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[number];
 
 /** subject: user:<username> | team:<team name> | role:<role> */
@@ -73,6 +95,11 @@ export interface UserInfo {
   profile: UserProfileValue[];
   /** Fields the single sign-on provider keeps up to date at every sign-in: not editable in Steward */
   managedFields: ('displayName' | 'firstName' | 'lastName' | 'email')[];
+  /**
+   * The module roles granted to the person themselves (0.23.0, ADR 0034): not those of their teams or core roles – GET
+   * /api/access/explain and the person access review name every source. Only in the administrators' user lists.
+   */
+  moduleRoles?: UserModuleRole[];
   /** When an administrator replaced the person's data by a pseudonym (0.11.0, docs/PRIVACY.md): for good */
   pseudonymisedAt?: string | null;
 }
@@ -155,6 +182,11 @@ export interface SsoRoleMapping {
   teams: string[];
   /** Roles the user gets in these teams (#131), beside their instance roles */
   teamRoles?: Role[];
+  /**
+   * Module roles the user gets (0.23.0, ADR 0034 part 6), synchronised at each sign-in like roles – a shortcut beside
+   * module access through the mapped teams. The deprecated role "plant" in `roles` gives the plant registry's contributor.
+   */
+  moduleRoles?: { module: ModuleId; role: ModuleRole }[];
 }
 
 export interface SsoProvider {
@@ -418,9 +450,15 @@ export interface AccessReason {
    * share (a share of the resource, ADR 0033) | implied (a share implied by an owner or responsible field: computed, not
    * stored – ADR 0033 part 2)
    */
-  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share' | 'implied';
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share' | 'implied' | 'moduleRole';
   /** The role, the team, or the access list or share subject the right comes from */
   role?: Role;
+  /**
+   * source moduleRole (0.23.0, ADR 0034 part 4): a module role granted to the person (`subject` user:…), a team they are
+   * in (`subject` team:…) or through single sign-on (`sso`) – it counts like an instance role
+   */
+  moduleRole?: ModuleRole;
+  sso?: boolean;
   team?: string;
   subject?: string;
   /** source named or implied: named as an owner or as a responsible (ticket references) */
@@ -429,6 +467,8 @@ export interface AccessReason {
   level?: ShareLevel;
   actions?: ShareAction[];
   expiresAt?: string | null;
+  /** source share: a Custom share (a migrated access-list entry no level expresses) – it gives exactly `permissions` */
+  custom?: boolean;
   permissions: string[];
 }
 
@@ -467,8 +507,15 @@ export interface Capabilities {
   plant?: boolean;
   /** With the module on: the user may manage a site or add one (the sidebar's Import). Missing means false. */
   plantManage?: boolean;
-  /** A plant viewer: role "plant" and no other working role – the web app shows the Plant area and the profile only. Missing means false. */
+  /**
+   * A plant viewer: a module role of the plant registry (or the deprecated role "plant") and no other working role – the
+   * web app shows the Plant area and the profile only. Missing means false.
+   */
   plantOnly?: boolean;
+  /** The person's module role per module that declares roles and that they use (0.23.0, ADR 0034). Only in GET /auth/status. */
+  moduleRoles?: Partial<Record<ModuleId, ModuleRole>>;
+  /** The modules whose manager settings the person may change (a granted manager role, or an administrator). Only in GET /auth/status. */
+  moduleSettings?: ModuleId[];
   /**
    * The modules (0.11.0, ADR 0016) and whether each is on for the person; a module missing here is on. False also for a
    * module the person does not use (ADR 0034): the web app hides it the same way. Only in GET /auth/status.
@@ -810,8 +857,13 @@ export interface PlatformIdentity {
   operationFilter: IdentityOperationFilter | null;
   /** Operations of the filter that no longer resolve (a spec was removed or changed): they match nothing (0.13.0) */
   staleOperations?: number;
-  /** Who may use it besides the platform's users (0.13.0): never set on the default identity (everyone with "use") */
+  /**
+   * Who may use it besides the platform's users (0.13.0): never set on the default identity (everyone with "use").
+   * Deprecated since 0.23.0: computed from the identity's shares, for who manages the platform (empty for others)
+   */
   acl?: AclEntry<'use'>[];
+  /** How many shares say who may use it (0.23.0; not set on the default identity) */
+  shared?: number;
   /**
    * Kept but not usable (0.13.0): it was added or changed outside Steward when an administrator confirmed the platform's
    * settings – no credentials are sent with it until an administrator enables it (POST …/identities/:iid/enable).
@@ -926,7 +978,10 @@ export interface Platform {
    * changed outside the application (e.g. directly in the database) – no requests until an administrator confirms.
    */
   integrity?: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+  /** Deprecated since 0.23.0 (ADR 0033): the shares as the former access list, for who manages it (empty for others) */
   acl: AclEntry<PlatformPermission>[];
+  /** Restricted (0.23.0): instance roles give nothing on it – only its owning teams and shares */
+  restricted?: boolean;
   /** What the current user may do with this platform. */
   permissions: PlatformPermission[];
   createdAt: string;
@@ -1053,7 +1108,10 @@ export interface ProcessSummary {
   updatedAt: string;
   lastRun?: { id: string; status: RunStatus; outcome?: RunOutcome; startedAt: string } | null;
   owner?: string | null;
+  /** Deprecated since 0.23.0 (ADR 0033): the shares as the former access list, for who manages it (empty for others) */
   acl: AclEntry<ProcessPermission>[];
+  /** Restricted (0.23.0): instance roles give nothing on it – only its owning teams and shares */
+  restricted?: boolean;
   /** What the current user may do with this process. */
   permissions: ProcessPermission[];
 }

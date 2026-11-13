@@ -132,6 +132,35 @@ export function updatePlantSettings(input: z.infer<typeof plantSettingsInput>, o
   return next;
 }
 
+// ---------- the settings of the plant registry's managers (ADR 0034 decision 11, 0.23.0) ----------
+
+/** The manager settings: the content of the registry's settings, never its switch (enterprise, labels, own fields, review intervals). */
+export const plantManagerSettingsInput = plantSettingsInput.omit({ enabled: true });
+
+/** GET /api/plant/settings: what the plant registry's managers change, and which of it this person may change. */
+export function plantManagerSettings(): PlantSettings {
+  return plantSettings();
+}
+
+/**
+ * Changes the manager settings (PUT /api/plant/settings): administrators, and whoever is granted the plant registry's
+ * manager role (`managerSettings` of the module – a manager role from core roles does not count). The switch stays with
+ * administrators (PUT /api/settings/plant). Audited as plant.settings_changed.
+ */
+export function updatePlantManagerSettings(input: z.infer<typeof plantManagerSettingsInput>, may: (key: string) => boolean): PlantSettings {
+  const before = plantSettings();
+  const changed = (['enterprise', 'labels', 'fields', 'documentReview'] as const).filter(
+    (k) => input[k] !== undefined && JSON.stringify(before[k] ?? {}) !== JSON.stringify(input[k]),
+  );
+  const refused = changed.filter((k) => !may(k));
+  if (refused.length)
+    throw new HttpError(403, `Only administrators change ${refused.join(', ')} of the plant registry`, 'MODULE_SETTING_ADMIN_ONLY', {
+      module: 'plant',
+      setting: refused[0]!,
+    });
+  return updatePlantSettings({ ...input, enabled: before.enabled });
+}
+
 // ---------- own fields ----------
 
 export const fieldValuesInput = boundedRecord(z.union([z.string().max(PLANT_LIMITS.fieldText), z.number(), z.boolean(), z.null()]), PLANT_LIMITS.fieldDefs);

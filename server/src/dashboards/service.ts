@@ -10,7 +10,7 @@ import { parseYaml } from '../yaml-safe.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
-import { assignCreatorTeams, forgetOwningTeams, teamScoped } from '../auth/policy.js';
+import { assignCreatorTeams, forgetOwningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
 import type { AuthUser } from '../auth/context.js';
 
 interface DashRow {
@@ -28,15 +28,19 @@ interface DashRow {
  */
 export function dashboardAccess(u: AuthUser | null, r: Pick<DashRow, 'id' | 'owner'>) {
   const owner = !!u && !!r.owner && r.owner.toLowerCase() === u.username.toLowerCase();
-  return teamScoped<'view' | 'edit'>(
+  return teamScoped<'view' | 'edit' | 'manage'>(
     u,
     { kind: 'dashboard', id: r.id },
     {
-      all: ['view', 'edit'],
-      byRole: () => ['view'],
-      personal: owner ? { permissions: ['view', 'edit'] } : null,
+      all: ['view', 'edit', 'manage'],
+      // a designer among the members of its owning teams edits it, like other team items (0.23.0, ADR 0033 decision 11)
+      byRole: (role) => (role === 'designer' ? ['view', 'edit'] : ['view']),
+      instanceByRole: () => ['view'],
+      // its owner: an implied Manage share (decision 13) – it changes the dashboard, its shares and deletes it
+      personal: owner ? { permissions: ['view', 'edit', 'manage'], subject: `user:${u!.username.toLowerCase()}`, as: 'owner', level: 'manage' } : null,
       auditor: ['view'],
-      unscoped: () => (!u ? [] : owner || isAdmin(u) ? ['view', 'edit'] : ['view']),
+      shares: ITEM_SHARE_MODEL,
+      unscoped: () => (!u ? [] : owner || isAdmin(u) ? ['view', 'edit', 'manage'] : ['view']),
     },
   );
 }
@@ -129,7 +133,10 @@ export function saveDashboard(id: string, def: unknown): Dashboard {
 
 export function deleteDashboard(id: string): void {
   const d = getDashboard(id);
-  if (!d.canEdit) throw new HttpError(403, 'Only the owner or an administrator can delete this dashboard');
+  // deleting is Manage (0.23.0, ADR 0033): its owner, administrators, Manage shares – not who edits it by role
+  const row = db().get<Pick<DashRow, 'id' | 'owner'>>('SELECT id, owner FROM dashboards WHERE id = ?', id)!;
+  if (!dashboardAccess(currentUser(), row).permissions.includes('manage'))
+    throw new HttpError(403, 'Only the owner or an administrator can delete this dashboard', 'FORBIDDEN', { context: 'right_manage' });
   db().tx(() => {
     db().run('DELETE FROM dashboards WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them

@@ -17,7 +17,7 @@ import { installFeatures } from './features/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
 import { currentUser, requestContext, type AuthUser } from './auth/context.js';
 import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
-import { plantOnly } from './auth/policy.js';
+import { moduleOnlyModules, moduleOnlyReaches, moduleOnlyRefusal, statusOnly } from './auth/policy.js';
 import { moduleOff, switchedOffModuleOfRoute } from './modules/registry.js';
 import { moduleNoAccess, unusedModuleOfRoute } from './modules/access.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
@@ -381,13 +381,13 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
       }
       // A status viewer (#26) reaches the routes that allow them – nothing else, whatever a route checks itself.
-      if (isStatusViewer(user.roles) && !access.statusViewer) {
+      if (isStatusViewer(user.roles) && !access.statusViewer && statusOnly(user)) {
         return void reply.code(403).send({ error: 'Status viewers only see the status pages', code: 'STATUS_VIEWER_ONLY' });
       }
-      // A plant viewer (#218) sees the plant registry and their own profile – nothing else (a status role adds its pages).
-      if (!access.plantViewer && !(access.statusViewer && user.roles.includes('status')) && plantOnly(user)) {
-        return void reply.code(403).send({ error: 'Plant viewers only see the plant registry', code: 'PLANT_VIEWER_ONLY' });
-      }
+      // A module-only user (ADR 0034, 0.23.0; the plant viewer of #218) reaches their modules and their own profile –
+      // nothing else (a status role adds its pages). Someone with a working core role costs no statement here.
+      const only = moduleOnlyModules(user);
+      if (only.length && !moduleOnlyReaches(only, url, access, user)) return void reply.code(403).send(moduleOnlyRefusal(only));
       if (access.roles && !hasRole(user, access.roles)) {
         return void reply.code(403).send({ error: 'You are not allowed to do this', code: 'FORBIDDEN' });
       }

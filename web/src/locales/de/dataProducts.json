@@ -130,9 +130,10 @@
     "classification": "Klassifizierung",
     "value": "Wert",
     "updated": "Geändert",
+    "columns": "Spalten",
+    "columnsLabel": "Angezeigte Spalten",
     "inEnvironments": "Umgebungen: {{list}}",
     "noMatch": "Kein Datenprodukt passt zu den Filtern.",
-    "healthFilterPage": "Der Zustandsfilter gilt für die bisher geladenen Produkte – laden Sie mehr, um den Rest zu sehen.",
     "emptyTitle": "Noch keine Datenprodukte",
     "emptyText": "Ein Datenprodukt bündelt, was eine Domäne anbietet – ihre Tabellen, Topics und APIs – mit Verantwortlichen, Ports, Einstufung und Zustand.",
     "whoCanAct": "Designer und Administratoren legen sie an.",
@@ -148,7 +149,7 @@
     "deleteConfirm": "Das Datenprodukt „{{name}}“ mit seinen Ports, Bindungen, Nutzern und Mitgliedschaften löschen? Die Elemente bleiben im Katalog",
     "changeLifecycle": "Lebenszyklus",
     "rate": "Einstufen",
-    "pipelinePage": "Pipeline im ganzen Fenster",
+    "pipelinePage": "Pipeline im Vollbild",
     "versionLabel": "Fassung {{version}}",
     "ownersLine": "Verantwortliche: {{owners}}",
     "sunsetLine": "Abschaltung am {{date}}",
@@ -158,7 +159,8 @@
     "dataObjects": "Datenobjekte, die es bereitstellt",
     "noObjects": "Keine Datenobjekte: Benennen Sie sie an den Ausgangsports oder verknüpfen Sie die Elemente mit den Datenobjekten, die sie umsetzen.",
     "consumers": "Nutzer",
-    "consumerCounts": "{{registered}} registriert, {{derived}} nutzende Produkte",
+    "consumerCounts_one": "{{registered}} registriert, {{count}} nutzendes Produkt",
+    "consumerCounts_other": "{{registered}} registriert, {{count}} nutzende Produkte",
     "toPorts": "Ports und ihre Nutzer",
     "noOutputPorts": "Noch kein Ausgangsport – nichts zu nutzen.",
     "facts": "Angaben",
@@ -338,7 +340,8 @@
   },
   "consumers": {
     "title": "Nutzer von {{name}}",
-    "summary": "{{registered}} registriert, {{derived}} nutzende Produkte",
+    "summary_one": "{{registered}} registriert, {{count}} nutzendes Produkt",
+    "summary_other": "{{registered}} registriert, {{count}} nutzende Produkte",
     "none": "Kein registrierter Nutzer.",
     "derived_one": "{{count}} Produkt nutzt diesen Port über einen Eingangsport.",
     "derived_other": "{{count}} Produkte nutzen diesen Port über ihre Eingangsports.",
@@ -399,7 +402,6 @@
     "outputsRequired": "Nennen Sie mindestens einen Ausgang",
     "hiddenInputs_one": "Dazu {{count}} Eingang, den Sie nicht sehen dürfen: Er bleibt.",
     "hiddenInputs_other": "Dazu {{count}} Eingänge, die Sie nicht sehen dürfen: Sie bleiben.",
-    "to": "nach",
     "runner": "Ausführender",
     "runnerHint": "Was den Schritt ausführt.",
     "runnerHidden": "Der Ausführende ist etwas, das Sie nicht sehen dürfen: Wählen Sie einen, um ihn zu ersetzen, oder lassen Sie das Feld leer, um ihn zu entfernen.",
@@ -644,6 +646,10 @@
     "in": "Umgebung: {{environment}}",
     "maturity": "Reife {{level}}: {{name}}",
     "maturityHelp": "Aus der Scorecard berechnet, nie eingegeben: 1 dokumentiert und eingestuft, 2 beobachtet, 3 vertraglich gebunden, 4 Ziele 30 Tage erreicht, 5 bestätigt.",
+    "showNoEvidence_one": "1 weiteren Eintrag ohne Nachweis anzeigen",
+    "showNoEvidence_other": "{{count}} weitere Einträge ohne Nachweis anzeigen",
+    "hideNoEvidence_one": "Den Eintrag ohne Nachweis ausblenden",
+    "hideNoEvidence_other": "Die {{count}} Einträge ohne Nachweis ausblenden",
     "levels": {
       "0": "noch nicht dokumentiert",
       "1": "dokumentiert",
@@ -727,8 +733,8 @@
         "availability": "{{uptime}} % verfügbar über 30 Tage (Ziel {{target}} %)",
         "availabilityShort": "Verfügbarkeitsziel {{target}} %: Der Monitor läuft noch keine 30 Tage",
         "availabilityNoMonitor": "Verfügbarkeitsziel {{target}} %: noch kein Monitor",
-        "freshness": "{{port}}: {{uptime}} % der Zeit aktuell (Ziel {{target}})",
-        "freshnessShort": "{{port}}: Aktualitätsziel {{target}}, noch keine 30 Tage Prüfungen",
+        "freshness": "{{port}}: {{uptime}} % der Zeit aktuell (Ziel {{target}} %)",
+        "freshnessShort": "{{port}}: Aktualitätsziel {{target}} %, noch keine 30 Tage Prüfungen",
         "none": "Keine Ziele an den Ausgangsports",
         "completeness": "{{port}}: {{share}} % der Vollständigkeitstests bestanden (Ziel {{target}} %)",
         "completenessNoResults": "{{port}}: Vollständigkeitsziel {{target}} %, keine Vollständigkeitsergebnisse in 30 Tagen"
@@ -808,7 +814,7 @@
         "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Verantwortliche, Prüfer und Administratoren"
       }
     },
-    "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Lineage und Karte zeigen es ohne Namen."
+    "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Datenherkunft und Produktkarte zeigen es ohne Namen."
   },
   "links": {
     "title": "Verknüpfungen",
@@ -931,7 +937,7 @@
     "externalId": "Plattform-ID",
     "openLineage": "OpenLineage-Dataset",
     "updated": "Geändert",
-    "lineagePage": "Lineage im ganzen Fenster",
+    "lineagePage": "Datenherkunft im Vollbild",
     "draftContract": "Vertrag entwerfen",
     "draftTitle": "Vertragsentwurf aus {{name}}",
     "draftHelp": "Steward liest die Spalten oder das Schema des Elements – nur Metadaten – und entwirft einen ODCS-Vertrag. Prüfen Sie ihn; er wird erst ein Vertrag, wenn Sie ihn anlegen.",

@@ -3,6 +3,13 @@ import * as oidc from 'openid-client';
 import { EnvHttpProxyAgent, fetch as undiciFetch } from 'undici';
 import { z } from 'zod';
 import {
+  MODULE_IDS,
+  MODULE_ROLES,
+  splitDeprecatedRoles,
+  higherModuleRole,
+  moduleRolesOf,
+  type ModuleId,
+  type ModuleRole,
   ROLES,
   SSO_GROUP_VALUES,
   SSO_LIMITS,
@@ -41,7 +48,8 @@ import { invalidateAliases } from './aliases.js';
 import { BRAND, TEAM_ROLES } from '@sm/shared';
 import { config as appConfig } from '../config.js';
 import { assertAddressSafe, guardedLookup } from '../platforms/outbound.js';
-import { restrictedModuleUses } from '../modules/access.js';
+import { previewModuleUses } from '../modules/access.js';
+import { syncSsoModuleRoles } from '../modules/sso-roles.js';
 import { readCookie, ssoBindingCookie, ssoBindingCookieName } from './cookies.js';
 import { aliasTarget } from './aliases.js';
 import {
@@ -95,6 +103,11 @@ const providerSchema = z.object({
         roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
         teams: z.array(z.string().max(64)).max(100).default([]),
         teamRoles: z.array(z.enum(TEAM_ROLES)).max(TEAM_ROLES.length).default([]),
+        /** Module roles (0.23.0, ADR 0034 part 6), synchronised like roles */
+        moduleRoles: z
+          .array(z.object({ module: z.enum(MODULE_IDS), role: z.enum(MODULE_ROLES) }).strict())
+          .max(MODULE_IDS.length)
+          .optional(),
       }),
     )
     .max(500)
@@ -1032,9 +1045,18 @@ interface Decision {
   wantedTeams: Set<string>;
   /** Roles in each wanted team (lower-case team name → roles), from the matched mappings */
   wantedTeamRoles: Map<string, Role[]>;
+  /** Module roles from the matched mappings and the alias of the role "plant" (ADR 0034 part 6) */
+  moduleRoles: { module: ModuleId; role: ModuleRole }[];
 }
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+
+/** Module roles of the matched mappings: per module the highest, only roles the module declares. */
+function mappedModuleRoles(list: { module: ModuleId; role: ModuleRole }[]): { module: ModuleId; role: ModuleRole }[] {
+  const best = new Map<ModuleId, ModuleRole>();
+  for (const m of list) if (moduleRolesOf(m.module).includes(m.role)) best.set(m.module, higherModuleRole(best.get(m.module), m.role)!);
+  return [...best].map(([module, role]) => ({ module, role })).sort((a, b) => a.module.localeCompare(b.module));
+}
 const MAX_USERNAME = 128;
 
 /**
@@ -1072,7 +1094,10 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
   const norm = (v: string) => (p.groupValues === 'ids' ? v.trim() : v.trim().toLowerCase());
   const values = new Set(groupValues.map(norm));
   const matched = p.mappings.filter((m) => values.has(norm(m.claimValue)));
-  const mappedRoles = [...new Set([...p.defaultRoles, ...matched.flatMap((m) => m.roles)])] as Role[];
+  // the deprecated role "plant" of a mapping gives the plant registry's contributor (ADR 0034 part 5): not stored as a role
+  const split = splitDeprecatedRoles([...new Set([...p.defaultRoles, ...matched.flatMap((m) => m.roles)])] as Role[]);
+  const mappedRoles = split.roles;
+  const moduleRoles = mappedModuleRoles([...split.moduleRoles, ...matched.flatMap((m) => m.moduleRoles ?? [])]);
   const managedTeams = new Set(p.mappings.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
   const wantedTeams = new Set(matched.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
   const wantedTeamRoles = new Map<string, Role[]>();
@@ -1101,9 +1126,10 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     groups: { claim: p.groupsClaim, values: groupValues.slice(0, 200), matched: matched.map((m) => m.claimValue), overage, valuesAre: p.groupValues },
     roles: mappedRoles,
     teams: teamNames,
+    ...(moduleRoles.length ? { moduleRoles } : {}),
     notes,
   };
-  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams, wantedTeamRoles };
+  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams, wantedTeamRoles, moduleRoles };
   const refuse = (refusal: { code: string; message: string; params?: ErrorParams }): Decision => {
     preview.outcome = 'refuse';
     preview.refusal = refusal;
@@ -1405,6 +1431,8 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
     if (created || p.syncRoles) {
       const user = getUser(userId);
       syncRolesAndTeams(p, user.id, user.username, user.roles, d.mappedRoles, d.managedTeams, d.wantedTeams, d.wantedTeamRoles);
+      // module roles from the mappings (ADR 0034 part 6), synchronised like roles; each change is an access change
+      syncSsoModuleRoles(user.username, d.moduleRoles);
     }
   });
   return getUser(userId);
@@ -1575,7 +1603,10 @@ export function testResult(testId: string, adminId: string, draft?: unknown): Ss
     if (c.useUserinfo && r.userinfo) out.preview.notes.push({ code: 'USERINFO_USED' });
     // the modules restricted to selected teams and users: which the person would use with these roles and teams (ADR 0034)
     const p = out.preview;
-    const modules = restrictedModuleUses({ id: p.account?.id ?? '', username: p.account?.username ?? p.username, roles: p.roles, teams: p.teams });
+    const modules = previewModuleUses(
+      { id: p.account?.id ?? '', username: p.account?.username ?? p.username, roles: p.roles, teams: p.teams },
+      p.moduleRoles ?? [],
+    );
     if (modules.length) p.modules = modules;
   }
   return out;

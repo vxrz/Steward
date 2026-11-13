@@ -1030,6 +1030,10 @@ describe('names of what a suggestion or finding came from, read with the readerâ
       const sug = all.find((x) => x.sourceKey === key);
       ids.push((await s.api('POST', `/compliance/corrective-suggestions/${sug.id}/confirm`, { controlIds: [c518] })).id);
     }
+    // a finding of the team's service: dana, a designer outside the team, does not read it at all (0.23.0, ADR 0033
+    // decision 14) â€“ as its owner she does, without the names of what it came from
+    expect(await status(dana('GET', `/compliance/corrective-actions/${ids[0]}`))).toBe(404);
+    for (const id of ids) await s.api('PUT', `/compliance/corrective-actions/${id}`, { owner: 'dana' });
     const f = await dana('GET', `/compliance/corrective-actions/${ids[0]}`);
     expect(f).toMatchObject({ title: 'Incident review accepted (critical)', sourceRef: { visible: false, label: 'an incident review you may not see' } });
     expect(leaks(f)).toEqual([]);
@@ -1059,5 +1063,33 @@ describe('the module switch', () => {
       await s.api('PUT', '/settings/modules/compliance', { enabled: true });
     }
     expect((await s.api('GET', '/compliance/corrective-actions')).items.length).toBeGreaterThan(0);
+  });
+});
+
+describe('findings in team scope (0.23.0, ADR 0033 decision 14)', () => {
+  it('a finding of a team-owned service is read by its readers, not by every designer and approver', async () => {
+    const team = await s.api('POST', '/teams', { name: 'Invented payroll team', members: ['vera'] });
+    const svc = (await s.api('POST', '/services', { name: 'Invented payroll (team)' })).id;
+    await s.api('PUT', `/owning-teams/service/${svc}`, { teamIds: [team.id] });
+    try {
+      const f = await s.api('POST', '/compliance/corrective-actions', { title: 'Team finding', source: 'internalAudit', serviceId: svc });
+      // designers and approvers of the instance outside the team: not any more (a missing finding)
+      expect(await status(dana('GET', `/compliance/corrective-actions/${f.id}`))).toBe(404);
+      expect(await status(adam('GET', `/compliance/corrective-actions/${f.id}`))).toBe(404);
+      expect((await adam('GET', '/compliance/corrective-actions')).items.map((x: { id: string }) => x.id)).not.toContain(f.id);
+      // the service's readers: a viewer in its owning team; auditors as before
+      expect(await status(vera('GET', `/compliance/corrective-actions/${f.id}`))).toBe(200);
+      expect(await status(audrey('GET', `/compliance/corrective-actions/${f.id}`))).toBe(200);
+      // a share of the service opens its findings too
+      await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:adam', level: 'view' }] });
+      expect(await status(adam('GET', `/compliance/corrective-actions/${f.id}`))).toBe(200);
+      // a finding of a service of the whole instance: designers and approvers read it, as before
+      const open = await s.api('POST', '/compliance/corrective-actions', { title: 'Instance finding', source: 'internalAudit', serviceId: svcB });
+      expect(await status(adam('GET', `/compliance/corrective-actions/${open.id}`))).toBe(200);
+      expect(await status(dana('GET', `/compliance/corrective-actions/${open.id}`))).toBe(200);
+    } finally {
+      await s.api('PUT', `/access/service/${svc}/shares`, { shares: [] });
+      await s.api('PUT', `/owning-teams/service/${svc}`, { teamIds: [] });
+    }
   });
 });

@@ -17,8 +17,8 @@
     "matches": "Passt zu den Filtern"
   },
   "lineage": {
-    "title": "Herkunft von {{name}}",
-    "titlePlain": "Herkunft",
+    "title": "Datenherkunft von {{name}}",
+    "titlePlain": "Datenherkunft",
     "help": "Woher die Daten dieses Elements kommen und wohin sie gehen, über Produkte hinweg.",
     "elements": "Elemente",
     "this": "Dieses Element"
@@ -48,7 +48,8 @@
     "controls": "Zoomen",
     "zoomIn": "Vergrößern",
     "zoomOut": "Verkleinern",
-    "fitView": "Alles zeigen"
+    "fitView": "Alles zeigen",
+    "panHint": "Ein Teil des Bilds liegt außerhalb des Rahmens: Ziehen Sie es, um es zu verschieben; mit Tab erreichen Sie jeden Teil, „An Bildschirm anpassen“ zeigt alles."
   },
   "export": {
     "subtitle": "Datenprodukte · dokumentiert am {{date}}"
@@ -170,6 +171,7 @@
     "count_one": "{{count}} Schritt",
     "count_other": "{{count}} Schritte",
     "deprecated": "Abgekündigt",
+    "deprecatedPort": "{{name}} (abgekündigt)",
     "proposed": "Vorgeschlagen"
   },
   "health": {

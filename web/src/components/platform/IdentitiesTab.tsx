@@ -33,7 +33,6 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   DATABASE_KIND,
-  type AclEntry,
   type ApiOperation,
   type Credential,
   type IdentityOperationFilter,
@@ -44,8 +43,7 @@ import {
 } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { platformKeys } from '../../queryKeys';
-import { AccessEditor } from '../AccessEditor';
-import { OwningTeams } from '../OwningTeams';
+import { AccessTab } from '../access/AccessTab';
 import { DataTable, type DataColumn } from '../DataTable';
 import { confirmDanger } from '../confirm';
 import { useMe } from '../../auth';
@@ -166,7 +164,7 @@ function filterText(t: T, i: PlatformIdentity): string {
   return i.staleOperations ? `${text} · ${t('identities.stale', { count: i.staleOperations })}` : text;
 }
 function whoText(t: T, i: PlatformIdentity): string {
-  return i.default ? t('identities.everyoneWithUse') : i.acl?.length ? t('identities.listed', { count: i.acl.length }) : t('identities.closed');
+  return i.default ? t('identities.everyoneWithUse') : i.shared ? t('identities.listed', { count: i.shared }) : t('identities.closed');
 }
 
 /**
@@ -281,7 +279,7 @@ function IdentityDialog({
             </Tabs.Panel>
           )}
           <Tabs.Panel value="access">
-            <AccessForm platform={platform} identity={identity} manage={manage} />
+            <AccessForm identity={identity} />
           </Tabs.Panel>
           <Tabs.Panel value="mcp">
             <McpForm platform={platform} identity={identity} manage={manage} />
@@ -759,30 +757,16 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
 }
 
 /** Who may use the identity: everyone with "use" (the default), else its access list and owning teams. */
-function AccessForm({ platform, identity, manage }: { platform: Platform; identity: PlatformIdentity; manage: boolean }) {
+function AccessForm({ identity }: { identity: PlatformIdentity }) {
   const { t } = useTranslation(['platforms', 'common']);
-  const refresh = useRefresh(platform);
   if (identity.default) return <Text size="sm">{t('identities.defaultAccess')}</Text>;
   return (
     <Stack>
       <Text size="sm" c="dimmed">
         {t('identities.accessHelp')}
       </Text>
-      <AccessEditor
-        kind="identity"
-        acl={(identity.acl ?? []) as AclEntry[]}
-        readOnly={!manage}
-        onSave={async (acl) => {
-          try {
-            await put(`${base(platform, identity)}/access`, { acl });
-            await refresh();
-            notifyOk(t('identities.accessSaved'));
-          } catch (e) {
-            notifyError(e, t('identities.notSaved'));
-          }
-        }}
-      />
-      <OwningTeams kind="platform_identity" id={identity.id} />
+      {/* 0.23.0 (ADR 0033 phase 2): its access list became shares – View with "use" */}
+      <AccessTab kind="platform_identity" id={identity.id} />
     </Stack>
   );
 }

@@ -73,7 +73,8 @@ import {
   type DocRow,
   type EditionRow,
 } from './document-model.js';
-import { assignCreatorTeams, owningTeams, setOwningTeams } from '../auth/policy.js';
+import { assignCreatorTeams, owningTeams, recordAccess, setOwningTeams } from '../auth/policy.js';
+import { isRestricted } from '../auth/share-store.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, userSubject, type NamedGrant } from '../auth/named-grants.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { applyClose, firewallActionReason, planClose } from './firewall.js';
@@ -884,6 +885,9 @@ function handOver(r: RecordRow, owner: string): NamedGrant {
     before: userSubject(r.owner),
     after: userSubject(owner),
     rights: ['view', 'edit'],
+    // 0.23.0 (ADR 0033 decision 3): only who manages the record hands it over to someone from outside
+    restricted: !owningTeams('record', r.id).length && isRestricted('record', r.id),
+    mayGrant: recordAccess(currentUser(), r).manage,
   };
 }
 

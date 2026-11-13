@@ -8,8 +8,8 @@ import { currentStore, type ShareIndex } from './context.js';
  * auth/shares.ts, without anything that writes, so the policy module can read it without an import cycle.
  *
  * Reads in bulk per request (ADR 0033 "Performance", security review 0.19.0 H2): the shares of one user's subjects
- * on one kind are one statement (index on `subject`), the Restricted resources of one kind another; every decision
- * after that is a lookup. Questions about one resource (its Access tab, previews, reminders) read it by its key.
+ * are one statement for every kind (index on `subject`), the Restricted resources another; every decision after that
+ * is a lookup. Questions about one resource (its Access tab, previews, reminders) read it by its key.
  * Outside a request or job run (no store) each question reads what it needs.
  */
 
@@ -20,6 +20,8 @@ export interface ShareRow {
   level: string;
   actions: string;
   expires_at: string | null;
+  /** Custom (0.23.0): the exact rights of a migrated access-list entry, JSON; NULL for a share of a level */
+  rights?: string | null;
   reminded_at?: string | null;
   created_by: string;
   created_at: string;
@@ -35,6 +37,7 @@ export function toShare(r: ShareRow): ResourceShare {
     level: (LEVELS.has(r.level) ? r.level : 'view') as ShareLevel,
     actions: parseJson<unknown[]>(r.actions, []).filter((a): a is ShareAction => typeof a === 'string' && ACTIONS.has(a)),
     expiresAt: r.expires_at,
+    ...(r.rights ? { rights: parseJson<unknown[]>(r.rights, []).filter((x): x is string => typeof x === 'string') } : {}),
     createdBy: r.created_by,
     createdAt: r.created_at,
   };
@@ -43,7 +46,7 @@ export function toShare(r: ShareRow): ResourceShare {
 /** Whether a share still counts at `now`: an end date in the past ends it at once, before the job removes it. */
 export const shareActive = (s: Pick<ResourceShare, 'expiresAt'>, now: number = Date.now()): boolean => !s.expiresAt || Date.parse(s.expiresAt) > now;
 
-const SELECT = 'SELECT kind, resource_id, subject, level, actions, expires_at, created_by, created_at FROM resource_shares';
+const SELECT = 'SELECT kind, resource_id, subject, level, actions, expires_at, rights, created_by, created_at FROM resource_shares';
 
 function index(): ShareIndex | undefined {
   const store = currentStore();
@@ -77,18 +80,19 @@ export function sharesFor(userId: string, subjects: ReadonlySet<string>, kind: O
       .map(toShare)
       .filter((s) => shareActive(s));
   }
-  const key = `${userId}|${kind}`;
-  let mine = idx.mine.get(key);
+  // every kind's shares of the user's subjects in one statement (0.23.0: most kinds decide by shares now)
+  let mine = idx.mine.get(userId);
   if (!mine) {
     mine = new Map();
-    for (const r of db().all<ShareRow>(`${SELECT} WHERE kind = ? AND subject IN (${list.map(() => '?').join(', ')})`, kind, ...list)) {
-      const l = mine.get(r.resource_id) ?? [];
+    for (const r of db().all<ShareRow>(`${SELECT} WHERE subject IN (${list.map(() => '?').join(', ')})`, ...list)) {
+      const key = `${r.kind}:${r.resource_id}`;
+      const l = mine.get(key) ?? [];
       l.push(toShare(r));
-      mine.set(r.resource_id, l);
+      mine.set(key, l);
     }
-    idx.mine.set(key, mine);
+    idx.mine.set(userId, mine);
   }
-  return (mine.get(id) ?? []).filter((s) => shareActive(s));
+  return (mine.get(`${kind}:${id}`) ?? []).filter((s) => shareActive(s));
 }
 
 /** Whether a resource's scope is Restricted: instance roles give nothing there (ADR 0033 part 1). */
@@ -97,16 +101,17 @@ export function isRestricted(kind: OwnedKind, id: string): boolean {
   if (over !== undefined) return over;
   const idx = index();
   if (!idx) return !!db().get('SELECT 1 FROM resource_restrictions WHERE kind = ? AND resource_id = ?', kind, id);
-  let set = idx.restricted.get(kind);
+  // every kind's Restricted resources in one statement (there are few)
+  let set = idx.restricted.get('*');
   if (!set) {
     set = new Set(
       db()
-        .all<{ resource_id: string }>('SELECT resource_id FROM resource_restrictions WHERE kind = ?', kind)
-        .map((r) => r.resource_id),
+        .all<{ kind: string; resource_id: string }>('SELECT kind, resource_id FROM resource_restrictions')
+        .map((r) => `${r.kind}:${r.resource_id}`),
     );
-    idx.restricted.set(kind, set);
+    idx.restricted.set('*', set);
   }
-  return set.has(id);
+  return set.has(`${kind}:${id}`);
 }
 
 /** Forget what this request read (after changing shares or a scope). */

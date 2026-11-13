@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Anchor, Badge, Button, Grid, Group, List, Modal, Select, SimpleGrid, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Grid, Group, List, Modal, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { IconBinaryTree, IconContract, IconHeartbeat, IconInfoCircle, IconLink, IconLinkOff, IconPencil, IconTrash } from '@tabler/icons-react';
@@ -23,7 +23,6 @@ import { DetailPage } from '../../components/page/DetailPage';
 import { LinkTabs } from '../../components/page/LinkTabs';
 import { confirmDanger } from '../../components/confirm';
 import { OwningTeams } from '../../components/OwningTeams';
-import { TableScroll } from '../../components/TableScroll';
 import { ContractYamlEditor } from '../../components/contracts/parts';
 import { ElementForm } from '../../components/dataproducts/CatalogueForms';
 import { FormModal } from '../../components/FormModal';
@@ -34,7 +33,7 @@ import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { ElementLineageView, HealthBadge } from './views';
 import { dpKeys, useElement, useElementChecks, useElementCostMatches, useInvalidateDataProducts } from './api';
 import { CostMatchForm, MatchTable, useMatchText } from './ProductCosts';
-import { Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
+import { CardTable, Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
 import { MissingBadge } from './ElementsPage';
 import { ElementQualityPanel, PersonalFieldsPanel } from './ProductQuality';
 
@@ -481,76 +480,77 @@ function ElementChecks({ e }: { e: DataElement }) {
           </Text>
         )}
         {c && c.checks.length > 0 && (
-          <TableScroll>
-            <Table fz="sm" aria-label={t('checks.title')}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th scope="col">{t('checks.check')}</Table.Th>
-                  <Table.Th scope="col">{t('checks.status')}</Table.Th>
-                  <Table.Th scope="col">{t('checks.purpose')}</Table.Th>
-                  <Table.Th scope="col">{t('checks.origin')}</Table.Th>
-                  <Table.Th scope="col">{t('checks.message')}</Table.Th>
-                  <Table.Th scope="col">{t('table.actions')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {c.checks.map((x, i) => (
-                  <Table.Tr key={x.linkId ?? `found-${i}`} data-testid={x.linkId ? 'check-row' : 'check-found'}>
-                    <Table.Td>
-                      {x.hidden ? (
-                        <Text size="sm" c="dimmed" fs="italic">
-                          {t('checks.hidden')}
-                        </Text>
-                      ) : (
-                        <Stack gap={0}>
-                          {x.monitor && (
-                            <Anchor component={Link} to={`/monitors/${enc(x.monitor.id)}`} size="sm">
-                              {x.monitor.name}
-                            </Anchor>
-                          )}
-                          <Text size="xs" c="dimmed">
-                            {x.check ? `${x.check.name} · ${x.check.type}` : ''}
-                            {x.monitor && !x.monitor.enabled ? ` · ${t('checks.monitorOff')}` : ''}
-                          </Text>
-                        </Stack>
+          <CardTable
+            ariaLabel={t('checks.title')}
+            rows={c.checks.map((x, i) => ({ x, key: x.linkId ?? `found-${i}` }))}
+            rowKey={(r) => r.key}
+            rowTestId={(r) => (r.x.linkId ? 'check-row' : 'check-found')}
+            columns={[
+              {
+                key: 'check',
+                header: t('checks.check'),
+                cell: ({ x }) =>
+                  x.hidden ? (
+                    <Text size="sm" c="dimmed" fs="italic">
+                      {t('checks.hidden')}
+                    </Text>
+                  ) : (
+                    <Stack gap={0}>
+                      {x.monitor && (
+                        <Anchor component={Link} to={`/monitors/${enc(x.monitor.id)}`} size="sm">
+                          {x.monitor.name}
+                        </Anchor>
                       )}
-                    </Table.Td>
-                    <Table.Td>
-                      <HealthBadge status={x.status} size="xs" />
-                      {!x.active && (
-                        <Text size="xs" c="dimmed">
-                          {t('checks.notRunning')}
-                        </Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>{t(`checks.purposes.${x.purpose}`)}</Table.Td>
-                    <Table.Td>{t(`checks.origins.${x.origin}`)}</Table.Td>
-                    <Table.Td style={{ overflowWrap: 'anywhere' }}>{x.message ?? '–'}</Table.Td>
-                    <Table.Td>
-                      {c.canLink &&
-                        !x.hidden &&
-                        (x.linkId ? (
-                          <Tooltip label={t('checks.unlink')}>
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              aria-label={t('checks.unlinkNamed', { name: x.check?.name ?? '' })}
-                              onClick={() => void unlink(x)}
-                            >
-                              <IconLinkOff size={14} />
-                            </ActionIcon>
-                          </Tooltip>
-                        ) : (
-                          <Button size="compact-xs" variant="light" onClick={() => void link(x)} data-testid="check-link-found">
-                            {t('checks.linkFound')}
-                          </Button>
-                        ))}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableScroll>
+                      <Text size="xs" c="dimmed">
+                        {x.check ? `${x.check.name} · ${x.check.type}` : ''}
+                        {x.monitor && !x.monitor.enabled ? ` · ${t('checks.monitorOff')}` : ''}
+                      </Text>
+                    </Stack>
+                  ),
+              },
+              {
+                key: 'status',
+                header: t('checks.status'),
+                cell: ({ x }) => (
+                  <>
+                    <HealthBadge status={x.status} size="xs" />
+                    {!x.active && (
+                      <Text size="xs" c="dimmed">
+                        {t('checks.notRunning')}
+                      </Text>
+                    )}
+                  </>
+                ),
+              },
+              { key: 'purpose', header: t('checks.purpose'), cell: ({ x }) => t(`checks.purposes.${x.purpose}`) },
+              { key: 'origin', header: t('checks.origin'), cell: ({ x }) => t(`checks.origins.${x.origin}`) },
+              { key: 'message', header: t('checks.message'), cell: ({ x }) => x.message ?? '–' },
+              {
+                key: 'actions',
+                header: t('table.actions'),
+                actions: true,
+                cell: ({ x }) =>
+                  c.canLink &&
+                  !x.hidden &&
+                  (x.linkId ? (
+                    <Tooltip label={t('checks.unlink')}>
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label={t('checks.unlinkNamed', { name: x.check?.name ?? '' })}
+                        onClick={() => void unlink(x)}
+                      >
+                        <IconLinkOff size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                  ) : (
+                    <Button size="compact-xs" variant="light" onClick={() => void link(x)} data-testid="check-link-found">
+                      {t('checks.linkFound')}
+                    </Button>
+                  )),
+              },
+            ]}
+          />
         )}
         <Text size="xs" c="dimmed" mt="sm">
           {t('checks.help')}

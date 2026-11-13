@@ -162,8 +162,10 @@ export function portViews(u: AuthUser | null, productId: string, known?: Readonl
           environment: b.environment,
           contractId: b.contract_id && contracts.get(b.contract_id)?.id ? b.contract_id : null,
           contractVersion: b.contract_version === null ? null : Number(b.contract_version),
-          contractServer: b.contract_server,
-          contract: b.contract_id ? (contracts.get(b.contract_id) ?? HIDDEN) : null,
+          // a contract the reader may not see is counted, never named: neither is its server
+          contractServer: b.contract_id && contracts.get(b.contract_id)?.hidden ? null : b.contract_server,
+          // a contract that is gone (deleted since) is none; one the reader may not see is counted, never named
+          contract: b.contract_id ? (contracts.get(b.contract_id) ?? null) : null,
           objectives: objectives(b.objectives),
           elementIds: b.elementIds,
         })),
@@ -377,7 +379,11 @@ export function setBinding(productId: string, productName: string, portId: strin
   if (!env || env.length > 60) throw new HttpError(400, 'A binding is for one environment', 'DATA_PORT_BINDING', { context: 'environment' });
   const input = dataPortBindingInput.parse(body);
   const u = me();
-  const existing = db().get<{ id: string }>('SELECT id FROM dp_port_bindings WHERE port_id = ? AND environment = ?', port.id, env);
+  const existing = db().get<{ id: string; contract_id: string | null; contract_version: number | null; contract_server: string | null }>(
+    'SELECT id, contract_id, contract_version, contract_server FROM dp_port_bindings WHERE port_id = ? AND environment = ?',
+    port.id,
+    env,
+  );
   const before = existing ? (bindingsOf([port.id]).find((b) => b.id === existing.id)?.elementIds ?? []) : [];
   const all = [...new Set([...before, ...input.elementIds])];
   const rows = elementsByIds(all);
@@ -396,7 +402,19 @@ export function setBinding(productId: string, productName: string, portId: strin
   const kept = before.filter((id) => rows.has(id) && !sees(id));
   const next = [...new Set([...input.elementIds, ...kept])];
   if (next.length > L.elementsPerBinding) throw limitReached('elementsPerBinding', L.elementsPerBinding);
-  if (input.contractId) {
+  // a contract the editor may not see is not in their form (portViews names it hidden): it stays on save, as it was –
+  // with its version and server – like the elements they may not see
+  const stored = existing?.contract_id ?? null;
+  if (
+    stored &&
+    (input.contractId === null || input.contractId === stored) &&
+    db().get('SELECT 1 FROM data_contracts WHERE id = ?', stored) &&
+    !contractAccess(u, { id: stored }).permissions.includes('view')
+  ) {
+    input.contractId = stored;
+    input.contractVersion = existing!.contract_version === null ? null : Number(existing!.contract_version);
+    input.contractServer = existing!.contract_server;
+  } else if (input.contractId) {
     if (port.direction !== 'output') throw new HttpError(400, 'Only output ports are held to a data contract', 'DATA_PORT_CONTRACT', { context: 'inputPort' });
     const c = db().get<{ id: string; current_version: number }>('SELECT id, current_version FROM data_contracts WHERE id = ?', input.contractId);
     if (!c || !contractAccess(u, { id: c.id }).permissions.includes('view'))

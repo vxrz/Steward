@@ -135,6 +135,8 @@ export interface DataGraphEdge {
    * an open proposal; drawn dashed and named _proposed_, never merged with a documented way
    */
   proposed?: boolean;
+  /** Map: the names among `labels` of the ports that are deprecated or retired (the others on the edge are not) */
+  deprecatedLabels?: string[];
 }
 
 /** A step as the table lists it: its ends as node ids of the graph (hidden ones counted). */
@@ -263,7 +265,10 @@ class EdgeSet {
       e.hidden = false;
       if (label && !e.labels.includes(label) && e.labels.length < DATA_GRAPH_LIMITS.edgeLabels) e.labels.push(label);
     }
-    if (o.deprecated) e.deprecated = true;
+    if (o.deprecated) {
+      e.deprecated = true;
+      if (label && !o.hidden && e.labels.includes(label) && !e.deprecatedLabels?.includes(label)) (e.deprecatedLabels ??= []).push(label);
+    }
   }
   list(): DataGraphEdge[] {
     return [...this.map.values()].map((e) => {
@@ -678,12 +683,13 @@ export function mergeNodes(g: Pick<DataGraph, 'nodes' | 'edges'>, rep: ReadonlyM
     if (from === to) continue;
     const id = `${from}>${to}${e.proposed ? '~proposed' : ''}`;
     const cur = edges.get(id);
-    if (!cur) edges.set(id, { ...e, id, from, to, labels: [...e.labels] });
+    if (!cur) edges.set(id, { ...e, id, from, to, labels: [...e.labels], ...(e.deprecatedLabels ? { deprecatedLabels: [...e.deprecatedLabels] } : {}) });
     else {
       cur.count += e.count;
       for (const l of e.labels) if (!cur.labels.includes(l) && cur.labels.length < DATA_GRAPH_LIMITS.edgeLabels) cur.labels.push(l);
       if (!e.hidden) delete cur.hidden;
       if (e.deprecated) cur.deprecated = true;
+      for (const l of e.deprecatedLabels ?? []) if (cur.labels.includes(l) && !cur.deprecatedLabels?.includes(l)) (cur.deprecatedLabels ??= []).push(l);
     }
   }
   return { nodes, edges: [...edges.values()] };

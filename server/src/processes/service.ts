@@ -16,8 +16,12 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { logger } from '../log.js';
-import { cleanAcl, processPermissions } from '../auth/permissions.js';
-import { PROCESS_PERMISSIONS, runOutcome, type AclEntry, type ProcessPermission } from '@sm/shared';
+import { processPermissions } from '../auth/permissions.js';
+import { runOutcome, type ProcessPermission } from '@sm/shared';
+import { aclOf, aliasWidens, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
+import { isRestricted } from '../auth/shares.js';
+import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
+import { PROCESS_SHARE_KIND } from './shares.js';
 import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { assignCreatorTeams } from '../auth/policy.js';
@@ -56,7 +60,7 @@ function lastRunOf(r: LastRunRow): ProcessSummary['lastRun'] {
 }
 
 function toSummary(r: ProcessRow & LastRunRow): ProcessSummary {
-  const acl = parseJson<AclEntry<ProcessPermission>[]>(r.acl, []);
+  const permissions = processPermissions(currentUser(), { id: r.id, owner: r.owner });
   return {
     id: r.id,
     name: r.name,
@@ -66,8 +70,10 @@ function toSummary(r: ProcessRow & LastRunRow): ProcessSummary {
     updatedAt: r.updated_at,
     lastRun: lastRunOf(r),
     owner: r.owner,
-    acl,
-    permissions: processPermissions(currentUser(), { id: r.id, owner: r.owner, acl }),
+    // deprecated (0.23.0): the shares as the former access list, for who may change them
+    acl: permissions.includes('manage') ? aclOf('process', r.id) : [],
+    restricted: isRestricted('process', r.id),
+    permissions,
   };
 }
 
@@ -106,19 +112,35 @@ export function visibleProcessIds(): Set<string> {
   return ids;
 }
 
-export function setProcessAccess(id: string, input: { acl: unknown; owner?: string | null }): ProcessDetail {
+/**
+ * `PUT /processes/:id/access` (deprecated since 0.23.0, ADR 0033 phase 2): the access list – written as shares and the
+ * Restricted scope (auth/acl-shares.ts) – and the owner. Either may be left out. A new owner has every right: a
+ * widening, confirmed by the route's step-up and audited as `access.owner_changed`.
+ */
+export function setProcessAccess(id: string, input: { acl?: unknown; owner?: string | null }): ProcessDetail {
   const before = getProcess(id);
-  const acl = cleanAcl(input.acl, PROCESS_PERMISSIONS);
-  const owner = input.owner === undefined ? before.owner : input.owner;
+  const owner = input.owner === undefined ? before.owner : input.owner?.trim() || null;
+  const label = `process "${before.name}"`;
+  // a new owner has every right: a widening unless they had them all (decided before anything is written)
+  const ownerWidens = aliasWidens('process', id, undefined, { before: before.owner ?? null, after: owner ?? null });
   db().tx(() => {
-    db().run('UPDATE processes SET acl = ?, owner = ?, updated_at = ? WHERE id = ?', JSON.stringify(acl), owner ?? null, nowIso(), id);
-    audit({
-      action: 'process.access_changed',
-      entityType: 'process',
-      entityId: id,
-      summary: `Access of "${before.name}" changed: ${acl.length ? acl.map((e) => `${e.subject} (${e.permissions.join('/')})`).join(', ') : 'default role rights'}${owner !== before.owner ? `; owner ${before.owner ?? '–'} → ${owner ?? '–'}` : ''}`,
-      details: { acl, owner, previous: { acl: before.acl, owner: before.owner } },
-    });
+    if (input.acl !== undefined) writeAlias({ kind: 'process', id, aclInput: input.acl, held: heldByAuthor(PROCESS_SHARE_KIND, id), label });
+    if ((owner ?? '').toLowerCase() !== (before.owner ?? '').toLowerCase()) {
+      if (ownerWidens) requireAccessGrant();
+      db().run('UPDATE processes SET owner = ?, updated_at = ? WHERE id = ?', owner, nowIso(), id);
+      auditAccessChange({
+        action: ACCESS_AUDIT.ownerChanged,
+        entityType: 'process',
+        entityId: id,
+        summary: `Owner of ${label}: ${before.owner ?? '–'} → ${owner ?? '–'}${owner ? ' (every right on it)' : ''}`,
+        details: {
+          field: 'owner',
+          before: before.owner,
+          after: owner,
+          ...(owner ? { granted: [{ subject: `user:${owner.toLowerCase()}`, rights: ['all'] }] } : {}),
+        },
+      });
+    }
   });
   return getProcess(id);
 }

@@ -44,7 +44,7 @@ Every change is in the entry's history and in the audit log (`ticket.created`, `
 | Delete entries                        | Administrators                                                                   |
 | Change the sources and the default    | Administrators                                                                   |
 
-A responsible person without an editor role cannot remove themselves (or their team) from the list – they would lock themselves out. A responsible from outside the entry's owning teams then sees and changes it: the form says so, and saving asks for the step-up ([TEAMS.md](TEAMS.md#named-owners-and-responsibles)).
+A responsible person without an editor role cannot remove themselves (or their team) from the list – they would lock themselves out. A responsible from outside the entry's owning teams then sees and changes it: the form says so, and saving asks for the step-up ([TEAMS.md](TEAMS.md#named-owners-and-responsibles)); only who manages the reference (its editors, Manage shares) names one. Since 0.23.0 its _Access_ section shares it with a user, a team or a role – View, Edit or Manage – and a responsible shows as _Responsible – Edit (implied)_ ([TEAMS.md](TEAMS.md#sharing-the-access-tab)).
 
 An affected item is shown by name only to people who may see it. Others see "an item you cannot see"; their edits keep such links as they are, and they cannot add links to items they cannot see.
 

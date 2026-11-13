@@ -6,6 +6,7 @@ import { assuranceRoutes } from '../routes/assurance.js';
 import { SECURITY_MIGRATIONS } from '../migrations/security.js';
 import { SIGN_IN_MIGRATIONS } from '../migrations/sign-in.js';
 import { TEAM_MIGRATIONS } from '../migrations/teams.js';
+import { ACCESS_MIGRATIONS } from '../migrations/access.js';
 import { ASSURANCE_MIGRATIONS } from '../migrations/assurance.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
@@ -19,5 +20,5 @@ export default defineFeature({
     // shares (ADR 0033): ended ones removed and audited, their Manage holders reminded 7 days before (auth/share-jobs.ts)
     every5Minutes('shares', MINUTE, () => import('../auth/share-jobs.js').then((m) => m.runShareJob())),
   ],
-  migrations: [SECURITY_MIGRATIONS, SIGN_IN_MIGRATIONS, TEAM_MIGRATIONS, ASSURANCE_MIGRATIONS],
+  migrations: [SECURITY_MIGRATIONS, SIGN_IN_MIGRATIONS, TEAM_MIGRATIONS, ASSURANCE_MIGRATIONS, ACCESS_MIGRATIONS],
 });

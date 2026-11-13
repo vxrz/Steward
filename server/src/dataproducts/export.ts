@@ -1,5 +1,5 @@
 import YAML from 'yaml';
-import { CIA_DIMENSIONS, type AclEntry, type DataObjectives, type DataStepRunner, type PlatformPermission } from '@sm/shared';
+import { CIA_DIMENSIONS, type AclEntry, type DataObjectives, type DataStep, type DataStepRunner, type PlatformPermission } from '@sm/shared';
 import { db } from '../db.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
@@ -11,7 +11,7 @@ import { domainAccess, elementAccess, elementScopeSql, objectAccess, productAcce
 import { domainNotFound } from './common.js';
 import { identitiesOf } from './consumers-actual.js';
 import { sortEnvironments, visibleProduct } from './service.js';
-import { productSteps } from './steps.js';
+import { productsSteps } from './steps.js';
 import { ratingsByItem } from './ratings.js';
 import {
   bindingsOf,
@@ -19,8 +19,10 @@ import {
   elementTeamIds,
   elementsByIds,
   environmentsOf,
+  inChunks,
   marks,
   membersOf,
+  objectsByIds,
   portObjectsOf,
   portsOf,
   productsByIds,
@@ -166,22 +168,61 @@ export class Snapshot {
     this.productKeys.set(p.id, productAccess(this.u, p).permissions.length ? p.key : null);
   }
 
-  /** Names of applications, services and processes as the reader may see them (null: hidden or gone). */
+  /** Data objects and products by id, read in bulk (an export names many: one statement per 500, not one each). */
+  objects(ids: Iterable<string>): void {
+    const missing = [...new Set(ids)].filter((id) => !this.objectKeys.has(id));
+    for (const id of missing) this.objectKeys.set(id, null);
+    for (const o of objectsByIds(missing).values()) this.noteObject(o);
+  }
+  products(ids: Iterable<string>): void {
+    const missing = [...new Set(ids)].filter((id) => !this.productKeys.has(id));
+    for (const id of missing) this.productKeys.set(id, null);
+    for (const p of productsByIds(missing).values()) this.noteProduct(p);
+  }
+
+  private names = new Map<string, string | null>();
+  /** Names of applications and services as the reader may see them (null: hidden or gone); `ids` read in bulk. */
+  catalogue(kind: 'application' | 'service', ids: Iterable<string>): void {
+    const missing = [...new Set(ids)].filter((id) => !this.names.has(`${kind}:${id}`));
+    for (const id of missing) this.names.set(`${kind}:${id}`, null);
+    for (let i = 0; i < missing.length; i += 500) {
+      const part = missing.slice(i, i + 500);
+      for (const r of db().all<{ id: string; name: string; owners: string }>(
+        `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'} WHERE id IN (${marks(part.length)})`,
+        ...part,
+      ))
+        this.names.set(`${kind}:${r.id}`, canViewCatalogue(this.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }) ? r.name : null);
+    }
+  }
   catalogueName(kind: 'application' | 'service', id: string): string | null {
-    const r = db().get<{ id: string; name: string; owners: string }>(
-      `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'} WHERE id = ?`,
-      id,
-    );
-    return r && canViewCatalogue(this.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }) ? r.name : null;
+    this.catalogue(kind, [id]);
+    return this.names.get(`${kind}:${id}`) ?? null;
   }
   processName(id: string): string | null {
-    const r = db().get<{ name: string }>('SELECT name FROM processes WHERE id = ?', id);
-    return r && permissionsFor(id).includes('view') ? r.name : null;
+    const key = `process:${id}`;
+    if (!this.names.has(key)) {
+      const r = db().get<{ name: string }>('SELECT name FROM processes WHERE id = ?', id);
+      this.names.set(key, r && permissionsFor(id).includes('view') ? r.name : null);
+    }
+    return this.names.get(key) ?? null;
+  }
+  /** Contracts' ODCS ids where the reader may see them, read in bulk. */
+  contracts(ids: Iterable<string>): void {
+    const missing = [...new Set(ids)].filter((id) => !this.names.has(`contract:${id}`));
+    for (const id of missing) this.names.set(`contract:${id}`, null);
+    for (let i = 0; i < missing.length; i += 500) {
+      const part = missing.slice(i, i + 500);
+      for (const r of db().all<{ id: string; contract_key: string }>(
+        `SELECT id, contract_key FROM data_contracts WHERE id IN (${marks(part.length)})`,
+        ...part,
+      ))
+        this.names.set(`contract:${r.id}`, contractAccess(this.u, { id: r.id }).permissions.includes('view') ? r.contract_key : null);
+    }
   }
   /** A contract's ODCS id where the reader may see it. */
   contractKey(id: string): string | null {
-    const r = db().get<{ id: string; contract_key: string }>('SELECT id, contract_key FROM data_contracts WHERE id = ?', id);
-    return r && contractAccess(this.u, { id: r.id }).permissions.includes('view') ? r.contract_key : null;
+    this.contracts([id]);
+    return this.names.get(`contract:${id}`) ?? null;
   }
 }
 
@@ -330,24 +371,101 @@ export const consumerIdentity = (c: Pick<ConsumerFile, 'kind' | 'subject' | 'ref
  * A product as the file writes it, with its environments, members, ports (bindings, consumers) and steps – what the
  * reader may see; `environment`: only that environment's elements, bindings and environment entry.
  */
-export function productEntry(s: Snapshot, p: ProductRow, environment?: string): ProductFile {
-  const rating = ratingsByItem('product', [p.id]).get(p.id)!;
-  const reasons = parseJson<Record<string, string>>(p.rating_reason, {});
-  const inEnv = (r: ElementRefFile | null) => !!r && (environment === undefined || (r.environment ?? '') === environment);
-  const envRows = environmentsOf([p.id]).filter((e) => environment === undefined || e.environment === environment);
-  const members = membersOf([p.id]);
-  const ports = portsOf([p.id]);
+/**
+ * What the entries of many products need, read in bulk – a fixed number of statements however many products an export
+ * holds (IN lists in chunks of 500): ratings, environments, members, ports with bindings, data objects and consumers,
+ * the ports they consume, the pipelines, and the elements, objects, products, contracts and applications they name.
+ */
+export interface ProductFacts {
+  ratings: ReturnType<typeof ratingsByItem>;
+  environments: Map<string, ReturnType<typeof environmentsOf>>;
+  members: Map<string, ReturnType<typeof membersOf>>;
+  ports: Map<string, PortRow[]>;
+  bindings: Map<string, ReturnType<typeof bindingsOf>>;
+  declared: Map<string, ReturnType<typeof portObjectsOf>>;
+  consumers: Map<string, ReturnType<typeof consumersOf>>;
+  /** The platform identities each registration names (0.24.0) */
+  identities: Map<string, string[]>;
+  sourcePorts: Map<string, PortRow>;
+  steps: Map<string, DataStep[]>;
+}
+
+const groupBy = <T>(rows: T[], key: (r: T) => string): Map<string, T[]> => {
+  const out = new Map<string, T[]>();
+  for (const r of rows) {
+    const k = key(r);
+    const list = out.get(k);
+    if (list) list.push(r);
+    else out.set(k, [r]);
+  }
+  return out;
+};
+
+export function productFacts(s: Snapshot, productIds: readonly string[]): ProductFacts {
+  const ports = portsOf(productIds);
   const portIds = ports.map((x) => x.id);
-  const bindings = bindingsOf(portIds).filter((b) => environment === undefined || b.environment === environment);
+  const bindings = bindingsOf(portIds);
   const declared = portObjectsOf(portIds);
   const consumers = consumersOf(portIds);
-  const identities = consumers.length ? identitiesOf(consumers.map((c) => c.id)) : new Map<string, string[]>();
-  const steps = productSteps(p.id);
-  s.elements([...members.map((m) => m.element_id), ...bindings.flatMap((b) => b.elementIds), ...steps.flatMap((x) => [...x.inputs, ...x.outputs])]);
-  const sourcePorts = new Map<string, PortRow>();
-  const sourceIds = ports.map((x) => x.source_port_id).filter((x): x is string => !!x);
-  if (sourceIds.length)
-    for (const r of db().all<PortRow>(`SELECT * FROM dp_ports WHERE id IN (${marks(sourceIds.length)})`, ...sourceIds)) sourcePorts.set(r.id, r);
+  const members = membersOf(productIds);
+  const steps = productsSteps(productIds);
+  const sourceIds = [...new Set(ports.map((x) => x.source_port_id).filter((x): x is string => !!x))];
+  const sourcePorts = new Map(inChunks<PortRow>((m) => `SELECT * FROM dp_ports WHERE id IN (${m})`, sourceIds).map((r) => [r.id, r]));
+  // what the entries name, in bulk
+  s.elements([
+    ...members.map((m) => m.element_id),
+    ...bindings.flatMap((b) => b.elementIds),
+    ...ports.flatMap((x) => (x.source_element_id ? [x.source_element_id] : [])),
+    ...[...steps.values()].flatMap((list) => list.flatMap((x) => [...x.inputs, ...x.outputs, ...(x.runner?.kind === 'element' ? [x.runner.id] : [])])),
+  ]);
+  s.platforms(
+    [...steps.values()].flatMap((list) =>
+      list.flatMap((x) => (x.runner?.kind === 'connector' ? [x.runner.platformId] : x.runner?.kind === 'platform' ? [x.runner.id] : [])),
+    ),
+  );
+  s.objects(declared.map((d) => d.object_id));
+  s.products(
+    [...sourcePorts.values()].map((p) => p.product_id).concat(consumers.flatMap((c) => (c.consumer_kind === 'product' && c.ref_id ? [c.ref_id] : []))),
+  );
+  s.contracts(bindings.flatMap((b) => (b.contract_id ? [b.contract_id] : [])));
+  s.catalogue(
+    'application',
+    consumers
+      .flatMap((c) => (c.consumer_kind === 'application' && c.ref_id ? [c.ref_id] : []))
+      .concat([...steps.values()].flatMap((list) => list.flatMap((x) => (x.runner?.kind === 'application' ? [x.runner.id] : [])))),
+  );
+  s.catalogue(
+    'service',
+    consumers.flatMap((c) => (c.consumer_kind === 'service' && c.ref_id ? [c.ref_id] : [])),
+  );
+  return {
+    ratings: ratingsByItem('product', productIds),
+    // the platform identities of the registrations (0.24.0), in bulk
+    identities: consumers.length ? identitiesOf(consumers.map((c) => c.id)) : new Map<string, string[]>(),
+    environments: groupBy(environmentsOf(productIds), (e) => e.product_id),
+    members: groupBy(members, (m) => m.product_id),
+    ports: groupBy(ports, (p) => p.product_id),
+    bindings: groupBy(bindings, (b) => b.port_id),
+    declared: groupBy(declared, (d) => d.port_id),
+    consumers: groupBy(consumers, (c) => c.port_id),
+    sourcePorts,
+    steps,
+  };
+}
+
+export function productEntry(s: Snapshot, p: ProductRow, environment?: string, facts: ProductFacts = productFacts(s, [p.id])): ProductFile {
+  const rating = facts.ratings.get(p.id)!;
+  const reasons = parseJson<Record<string, string>>(p.rating_reason, {});
+  const inEnv = (r: ElementRefFile | null) => !!r && (environment === undefined || (r.environment ?? '') === environment);
+  const envRows = (facts.environments.get(p.id) ?? []).filter((e) => environment === undefined || e.environment === environment);
+  const members = facts.members.get(p.id) ?? [];
+  const ports = facts.ports.get(p.id) ?? [];
+  const bindings = ports.flatMap((x) => facts.bindings.get(x.id) ?? []).filter((b) => environment === undefined || b.environment === environment);
+  const declared = ports.flatMap((x) => facts.declared.get(x.id) ?? []);
+  const consumers = ports.flatMap((x) => facts.consumers.get(x.id) ?? []);
+  const identities = facts.identities;
+  const steps = facts.steps.get(p.id) ?? [];
+  const sourcePorts = facts.sourcePorts;
   const byId = new Map(ports.map((x) => [x.id, x]));
   const domain = s.domainKey(p.domain_id);
   const successor = p.successor_id ? s.productKey(p.successor_id) : null;
@@ -553,7 +671,9 @@ export function exportDocument(scope: ExportScope = {}): ExportResult {
   }
   for (const p of products) s.noteProduct(p);
   const productIds = products.map((p) => p.id);
-  const entries = products.map((p) => productEntry(s, p, env));
+  s.products(products.flatMap((p) => (p.successor_id ? [p.successor_id] : [])));
+  const facts = productFacts(s, productIds);
+  const entries = products.map((p) => productEntry(s, p, env, facts));
 
   // data objects: those of the scope, and those the products' ports name
   const declared = new Set(portObjectsOf(portsOf(productIds).map((p) => p.id)).map((d) => d.object_id));
@@ -584,7 +704,7 @@ export function exportDocument(scope: ExportScope = {}): ExportResult {
 
   // elements: those named, and (everything) the entered and imported ones
   const named = new Set([...elementIdsOf(productIds), ...links.map((l) => l.element_id)]);
-  for (const st of productIds.flatMap((id) => productSteps(id))) for (const e of [...st.inputs, ...st.outputs]) named.add(e);
+  for (const st of [...facts.steps.values()].flat()) for (const e of [...st.inputs, ...st.outputs]) named.add(e);
   if (!scope.productId && !scope.domainId) {
     const scopeSql = elementScopeSql(u);
     for (const r of db().all<{ id: string }>(

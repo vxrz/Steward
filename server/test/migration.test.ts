@@ -625,7 +625,8 @@ describe('import into SQLite through the web API', () => {
     // ownership and access follow the mapping; history keeps the source's names
     const p = await max('GET', `/processes/${source.processOwner.id}`);
     expect(p.owner).toBe('dana@contoso.example');
-    expect(p.acl.map((e: any) => e.subject)).toEqual(['user:olivia', 'team:service desk']);
+    // (the access list is the process's shares since 0.23.0, by subject)
+    expect(p.acl.map((e: any) => e.subject)).toEqual(['team:service desk', 'user:olivia']);
     // team scopes (#131): the process belongs to the team it was mapped to, with the member's role in it
     expect((await max('GET', `/owning-teams/process/${source.processOwner.id}`)).teams.map((t: any) => t.name)).toEqual(['Service Desk']);
     const deskTeam = (await max('GET', '/teams')).find((t: any) => t.name === 'Service Desk');

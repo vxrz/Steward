@@ -9,7 +9,8 @@ import { DiscoveryError, type DiscoveryContext } from './common.js';
  * (more tables than the schema read keeps) makes the run truncated, so nothing is marked missing.
  */
 
-const OL_SCHEME: Record<string, string> = { postgresql: 'postgres', mysql: 'mysql', sqlserver: 'sqlserver' };
+/** The schemes of the OpenLineage naming conventions (https://openlineage.io/docs/spec/naming): SQL Server is `mssql://`. */
+const OL_SCHEME: Record<string, string> = { postgresql: 'postgres', mysql: 'mysql', sqlserver: 'mssql' };
 
 /** The OpenLineage namespace and the name prefix of a database platform (`postgres://host:5432`, `shop.`). */
 export function sqlOpenLineage(p: Platform): { address: string; prefix: string } | null {

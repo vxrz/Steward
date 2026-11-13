@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
@@ -201,6 +202,19 @@ test.describe('the data products pages', () => {
     await expect(orders).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Maturity' })).toBeVisible();
     await expect(table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) })).toContainText('Maturity');
+    // fewer columns at first, the rest a choice remembered for the person; the rating on one line
+    await expect(table.getByRole('columnheader', { name: 'Value' })).toHaveCount(0);
+    const ordersRow = table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) });
+    expect((await ordersRow.getByText(/^C: /).boundingBox())!.y).toBe((await ordersRow.getByText(/^A: /).boundingBox())!.y);
+    await page.getByTestId('product-columns').click();
+    await page.getByTestId('product-column-value').check();
+    await page.keyboard.press('Escape');
+    await expect(table.getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('product-table').getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await page.getByTestId('product-columns').click();
+    await page.getByTestId('product-column-value').uncheck();
+    await page.keyboard.press('Escape');
     // export: everything as YAML from the list, the product as YAML, JSON or ODPS from its menu
     await page.getByTestId('products-transfer').click();
     await expect(page.getByTestId('products-export-yaml')).toHaveAttribute('href', /\/api\/data-products\/export\?format=yaml/);
@@ -221,6 +235,28 @@ test.describe('the data products pages', () => {
     await expect(page.getByTestId('shares-implied')).toContainText('Dana Designer');
     await settle(page);
     await expectAccessible(page, 'data product access');
+    // the scorecard folds what has no evidence yet, counted, and opens it on request
+    await page.goto(`/data-products/${id}`);
+    const fold = page.getByTestId('scorecard-fold-iso25012');
+    await expect(fold).toHaveText(/^Show \d+ more with no evidence yet$/);
+    await expect(fold).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('product-scorecard').locator('[data-state="noEvidence"]')).toHaveCount(0);
+    await fold.click();
+    await expect(fold).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('product-scorecard').locator('[data-state="noEvidence"]').first()).toBeVisible();
+    // the costs per month by name in the UI language, and the consumers counted in the singular where it is one
+    await page.goto(`/data-products/${id}/costs`);
+    const months = page.getByRole('table', { name: 'Costs per month' }).getByRole('button');
+    await expect(months.first()).toHaveText(/^[A-Z][a-z]{2,3} \d{4}$/);
+    // amounts with the currency's minor units, as in the costs module
+    await expect(page.getByRole('table', { name: 'Costs per month' }).locator('tbody tr').first()).toContainText(/US\$[\d,]+\.\d{2}/);
+    await expect(page.getByTestId('cost-lines').getByRole('heading')).toHaveText(/^Costs in [A-Z][a-z]+ \d{4}$/);
+    await page.goto(`/data-products/${id}/ports`);
+    await expect(page.getByText(/^\d+ registered, 1 consuming product$/).first()).toBeVisible();
+    // WCAG 2.2 target size: the elements a step reads and writes, one under the other, far enough apart
+    await page.goto(`/data-products/${id}/pipeline`);
+    await expect(page.getByRole('table', { name: 'Steps' })).toBeVisible();
+    expect((await new AxeBuilder({ page }).withRules(['target-size']).analyze()).violations).toEqual([]);
 
     // import: a file of the format, previewed before anything is written
     await page.goto('/data-products');
@@ -248,6 +284,31 @@ test.describe('the data products pages', () => {
     await expect(dialog).toBeHidden();
     await page.goto(`/data-products?q=${key}`);
     await expect(page.getByTestId('product-table').getByRole('link', { name: `Imported ${s.token}` })).toBeVisible();
+  });
+
+  test('the health filter asks the server: the list is paged and counted after it', async ({ page }) => {
+    const asked = page.waitForRequest((r) => r.url().includes('/api/data-products?') && r.url().includes('health=noData'));
+    await page.goto(`/data-products?q=${s.token}&health=noData`);
+    await asked;
+    await expect(page.getByTestId('product-table').getByRole('link', { name: `Customer 360 ${s.token}` })).toBeVisible();
+    await expect(page.getByTestId('list-footer')).toBeVisible();
+    await page.goto(`/data-products?q=${s.token}&health=down`);
+    await expect(page.getByTestId('products-no-match')).toBeVisible();
+  });
+
+  test('a dialog opened from a menu gives the focus back to the menu’s button', async ({ page }) => {
+    await page.goto('/data-products');
+    await expect(page.getByTestId('product-table')).toBeVisible();
+    const menu = page.getByTestId('products-transfer');
+    await menu.click();
+    await page.getByTestId('products-import').click();
+    const dialog = page.getByRole('dialog', { name: 'Import data products' });
+    await expect(dialog).toBeVisible();
+    // the menu has closed: the item that opened the dialog is gone
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(menu).toBeFocused();
   });
 
   test('team scope: a viewer neither sees a team’s product nor its name on a shared element', async ({ loginAs }) => {
@@ -288,5 +349,20 @@ test.describe('the data products pages', () => {
     await page.goto(`/data-elements/${s.shared}`);
     await expect(page.getByTestId('element-products')).toBeVisible();
     await expectNoHorizontalScroll(page);
+    // the small tables of the demo product are cards on a phone
+    await page.goto('/data-products?q=orders');
+    await page.getByTestId('product-card').getByRole('link', { name: 'Orders', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Orders');
+    const base = new URL(page.url()).pathname;
+    for (const [tab, row] of [
+      ['costs', 'cost-match'],
+      ['pipeline', 'step-Ingest orders'],
+    ] as const) {
+      await page.goto(`${base}/${tab}`);
+      const first = page.getByTestId(row).first();
+      await expect(first).toBeVisible();
+      expect(await first.evaluate((e) => e.tagName)).not.toBe('TR');
+      await expectNoHorizontalScroll(page);
+    }
   });
 });

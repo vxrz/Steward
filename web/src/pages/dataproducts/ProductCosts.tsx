@@ -42,21 +42,18 @@ import { confirmDanger } from '../../components/confirm';
 import { FormModal } from '../../components/FormModal';
 import { TableScroll } from '../../components/TableScroll';
 import { useLevel } from '../../components/catalogue/cia';
+import { fmtMoney, fmtMonth } from '../../components/costs/common';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
 import { fmtNumber, fmtRelative, numberFormat } from '../../format';
 import { estimatePath } from '../../components/costs/Estimates';
 import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts, useProductEstimates } from './api';
-import { EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
+import { Breakable, CardTable, EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
 
 const enc = encodeURIComponent;
 
-/** An amount in micros as money in its currency (UI language). */
+/** An amount in micros as money in its currency (UI language), with the currency's minor units as in the costs module. */
 export function money(micros: number, currency: string): string {
-  try {
-    return numberFormat({ style: 'currency', currency, maximumFractionDigits: 0 }).format(micros / 1e6);
-  } catch {
-    return `${fmtNumber(Math.round(micros / 1e6))} ${currency}`;
-  }
+  return fmtMoney(String(micros / 1e6), currency);
 }
 
 const totalText = (totals: { currency: string; amountMicros: number }[]) => totals.map((x) => money(x.amountMicros, x.currency)).join(' + ');
@@ -149,7 +146,7 @@ export function ProductCostsTab({ p }: { p: DataProduct }) {
                             onClick={() => setMonth(m.month)}
                             aria-pressed={m.month === shown?.month}
                           >
-                            {m.month}
+                            {fmtMonth(m.month)}
                           </Button>
                         </Table.Td>
                         <Table.Td ta="right" className="nowrap">
@@ -183,49 +180,45 @@ function LinesOfMonth({ month }: { month: DataProductCosts['months'][number] }) 
   const { t } = useTranslation('dataProducts');
   const matchText = useMatchText();
   return (
-    <Section title={t('costs.title', { month: month.month })} testId="cost-lines">
-      <TableScroll>
-        <Table fz="sm" aria-label={t('costs.lines')}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th scope="col">{t('costs.platform')}</Table.Th>
-              <Table.Th scope="col">{t('costs.match')}</Table.Th>
-              <Table.Th scope="col">{t('costs.kind')}</Table.Th>
-              <Table.Th scope="col">{t('costs.share')}</Table.Th>
-              <Table.Th scope="col" ta="right">
-                {t('costs.amount')}
-              </Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {month.lines.map((l, i) => (
-              <Table.Tr key={i}>
-                <Table.Td>{l.platformName}</Table.Td>
-                <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {matchText(l.match)}
-                </Table.Td>
-                <Table.Td>
-                  {l.kind === 'direct' ? t('costs.direct') : t('costs.shareBy', { rule: t(`costs.rules.${l.rule ?? 'equal'}`) })}
-                  {l.measured && (
-                    <Text size="xs" c="dimmed">
-                      {t(`measured.measures.${l.measured.measure}`)} · {l.measured.priced ? t('measured.priced') : t('measured.shareOfTotal')}
-                    </Text>
-                  )}
-                  {l.products > 1 && (
-                    <Text size="xs" c="dimmed">
-                      {t('costs.splitBetween', { count: l.products })}
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>{fmtNumber(l.share * 100, { maximumFractionDigits: 1 })} %</Table.Td>
-                <Table.Td ta="right" className="nowrap">
-                  {money(l.amountMicros, l.currency)}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </TableScroll>
+    <Section title={t('costs.title', { month: fmtMonth(month.month, 'long') })} testId="cost-lines">
+      <CardTable
+        ariaLabel={t('costs.lines')}
+        rows={month.lines.map((l, i) => ({ ...l, i }))}
+        rowKey={(l) => String(l.i)}
+        columns={[
+          { key: 'platform', header: t('costs.platform'), cell: (l) => l.platformName },
+          {
+            key: 'match',
+            header: t('costs.match'),
+            cell: (l) => (
+              <span className="mono">
+                <Breakable text={matchText(l.match)} />
+              </span>
+            ),
+          },
+          {
+            key: 'kind',
+            header: t('costs.kind'),
+            cell: (l) => (
+              <>
+                {l.kind === 'direct' ? t('costs.direct') : t('costs.shareBy', { rule: t(`costs.rules.${l.rule ?? 'equal'}`) })}
+                {l.measured && (
+                  <Text size="xs" c="dimmed">
+                    {t(`measured.measures.${l.measured.measure}`)} · {l.measured.priced ? t('measured.priced') : t('measured.shareOfTotal')}
+                  </Text>
+                )}
+                {l.products > 1 && (
+                  <Text size="xs" c="dimmed">
+                    {t('costs.splitBetween', { count: l.products })}
+                  </Text>
+                )}
+              </>
+            ),
+          },
+          { key: 'share', header: t('costs.share'), nowrap: true, cell: (l) => `${fmtNumber(l.share * 100, { maximumFractionDigits: 1 })} %` },
+          { key: 'amount', header: t('costs.amount'), nowrap: true, cell: (l) => money(l.amountMicros, l.currency) },
+        ]}
+      />
       <Text size="xs" c="dimmed" mt="xs">
         {t('costs.showback')}
       </Text>
@@ -291,48 +284,50 @@ export function MatchTable({ matches, onRemove }: { matches: DataCostMatch[]; on
       </Text>
     );
   return (
-    <TableScroll>
-      <Table fz="sm" aria-label={t('costs.matches')}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th scope="col">{t('costs.platform')}</Table.Th>
-            <Table.Th scope="col">{t('costs.match')}</Table.Th>
-            <Table.Th scope="col">{t('costs.from')}</Table.Th>
-            <Table.Th scope="col">{t('costs.shared')}</Table.Th>
-            <Table.Th scope="col">{t('table.actions')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {matches.map((m) => (
-            <Table.Tr key={m.id} data-testid="cost-match">
-              <Table.Td>{m.platformHidden ? t('hidden.platform') : m.platformName}</Table.Td>
-              <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                {matchText(m)}
-              </Table.Td>
-              <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                {m.element ? (
-                  <Text span size="sm" className="mono">
-                    {m.element.qualifiedName}
-                  </Text>
-                ) : (
-                  t('costs.fromProduct')
-                )}
-              </Table.Td>
-              <Table.Td>{m.sharedWith ? t('costs.sharedWith', { count: m.sharedWith }) : '–'}</Table.Td>
-              <Table.Td>
-                {m.canDelete && (
-                  <Tooltip label={t('costs.removeMatch')}>
-                    <ActionIcon variant="subtle" color="red" aria-label={t('costs.removeMatchNamed', { match: matchText(m) })} onClick={() => onRemove(m)}>
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </TableScroll>
+    <CardTable
+      ariaLabel={t('costs.matches')}
+      rows={matches}
+      rowKey={(m) => m.id}
+      rowTestId={() => 'cost-match'}
+      columns={[
+        { key: 'platform', header: t('costs.platform'), cell: (m) => (m.platformHidden ? t('hidden.platform') : m.platformName) },
+        {
+          key: 'match',
+          header: t('costs.match'),
+          cell: (m) => (
+            <span className="mono">
+              <Breakable text={matchText(m)} />
+            </span>
+          ),
+        },
+        {
+          key: 'from',
+          header: t('costs.from'),
+          cell: (m) =>
+            m.element ? (
+              <Text span size="sm" className="mono">
+                <Breakable text={m.element.qualifiedName} />
+              </Text>
+            ) : (
+              t('costs.fromProduct')
+            ),
+        },
+        { key: 'shared', header: t('costs.shared'), cell: (m) => (m.sharedWith ? t('costs.sharedWith', { count: m.sharedWith }) : '–') },
+        {
+          key: 'actions',
+          header: t('table.actions'),
+          actions: true,
+          cell: (m) =>
+            m.canDelete && (
+              <Tooltip label={t('costs.removeMatch')}>
+                <ActionIcon variant="subtle" color="red" aria-label={t('costs.removeMatchNamed', { match: matchText(m) })} onClick={() => onRemove(m)}>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Tooltip>
+            ),
+        },
+      ]}
+    />
   );
 }
 
@@ -643,7 +638,7 @@ export function ValueAndCosts({ p, withCosts = true }: { p: DataProduct; withCos
       )}
       {withCosts && (
         <Text size="sm" mt="sm" data-testid="product-costs-line">
-          {t('value.costsLastMonth', { month: last?.month ?? '–', costs: costText })}
+          {t('value.costsLastMonth', { month: last ? fmtMonth(last.month, 'long') : '–', costs: costText })}
         </Text>
       )}
     </Section>
@@ -663,8 +658,11 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
   const { t } = useTranslation(['dataProducts', 'dataProductViews', 'applications']);
   const s = query.data;
   const level = useLevel();
+  const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
   const evidence = (e: { key: string; values?: Record<string, string | number> }) => {
     const values: Record<string, string | number> = { ...(e.values ?? {}) };
+    // numbers in the reader's format (99,5 in German); `count` stays a number for the plural
+    for (const [k, v] of Object.entries(values)) if (typeof v === 'number' && k !== 'count') values[k] = fmtNumber(v);
     // a health status in words (healthy.status)
     if (typeof values.status === 'string') values.status = t(`dataProductViews:health.${values.status as 'up'}`);
     if (typeof values.source === 'string') values.source = t(`scorecard.sources.${values.source as 'monitor'}`);
@@ -701,14 +699,18 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
             </Text>
           )}
           {(['part', 'iso25012'] as const).map((g) => {
-            const parts = s.parts.filter((x) => x.group === g);
-            if (!parts.length) return null;
+            const all = s.parts.filter((x) => x.group === g);
+            if (!all.length) return null;
+            // what has no evidence yet is folded away, counted: the rows that say something come first
+            const folded = all.filter((x) => x.state === 'noEvidence');
+            const open = unfolded.has(g);
+            const parts = open ? all : all.filter((x) => x.state !== 'noEvidence');
             return (
               <div key={g}>
                 <Text size="sm" fw={600} mb={4}>
                   {t(`scorecard.groups.${g}`)}
                 </Text>
-                <Stack gap={4}>
+                <Stack gap={4} id={`scorecard-${g}`}>
                   {parts.map((x) => {
                     const st = STATE_ICON[x.state];
                     const words = x.evidence.map(evidence).filter(Boolean);
@@ -729,6 +731,19 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
                     );
                   })}
                 </Stack>
+                {folded.length > 0 && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    mt={4}
+                    aria-expanded={open}
+                    aria-controls={`scorecard-${g}`}
+                    onClick={() => setUnfolded((u) => (u.has(g) ? new Set([...u].filter((x) => x !== g)) : new Set([...u, g])))}
+                    data-testid={`scorecard-fold-${g}`}
+                  >
+                    {open ? t('scorecard.hideNoEvidence', { count: folded.length }) : t('scorecard.showNoEvidence', { count: folded.length })}
+                  </Button>
+                )}
               </div>
             );
           })}

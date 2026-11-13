@@ -12,6 +12,10 @@ import type { NamedMigration } from '../db.js';
  *   renamed to the name of a deleted team's grant leaves two rows rather than failing the rename.
  * reports.modules: the restrictable modules whose sections a scheduled report holds (JSON array; null: none) – a
  *   recipient who does not use one of them reads the copy of the report without them instead.
+ * module_grants.source (0.23.0, module roles): who keeps a grant – null for an administrator's (the access dialog, the
+ *   user form), `sso` for one synchronised from single sign-on at each sign-in. The former instance role "plant" becomes
+ *   a contributor grant of the plant registry in code, once the vault is open (modules/user-roles.ts
+ *   convertDeprecatedRoles: it reads the roles as JSON and audits each account).
  */
 export const MODULE_MIGRATIONS: NamedMigration[] = [
   {
@@ -37,5 +41,9 @@ export const MODULE_MIGRATIONS: NamedMigration[] = [
   {
     name: 'modules-002-report-modules',
     sql: `ALTER TABLE reports ADD COLUMN modules TEXT;`,
+  },
+  {
+    name: 'modules-003-grant-source',
+    sql: `ALTER TABLE module_grants ADD COLUMN source TEXT;`,
   },
 ];

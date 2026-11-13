@@ -11,6 +11,12 @@
  */
 const DIALOG = '[role="dialog"], [role="alertdialog"]';
 
+/** The button of the menu an item belongs to: the item is gone once the menu closes, its button stays (Mantine's Menu names its dropdown by it). */
+function menuButton(el: HTMLElement): HTMLElement | null {
+  const id = el.closest('[role="menu"]')?.getAttribute('aria-labelledby');
+  return id ? el.ownerDocument.getElementById(id) : null;
+}
+
 export function installFocusReturn(doc: Document = document): () => void {
   const openers = new Map<Element, HTMLElement>();
   // the element that had the focus last (the focus can pass through <body> on its way into a dialog)
@@ -25,7 +31,7 @@ export function installFocusReturn(doc: Document = document): () => void {
     const related = e.relatedTarget instanceof HTMLElement && e.relatedTarget !== doc.body ? e.relatedTarget : null;
     const from = related ?? previous;
     // from the page (or from another dialog: a dialog opened over a dialog), not from inside the same dialog
-    if (from && from.isConnected && !dialog.contains(from)) openers.set(dialog, from);
+    if (from && from.isConnected && !dialog.contains(from)) openers.set(dialog, menuButton(from) ?? from);
   };
 
   const observer = new MutationObserver(() => {

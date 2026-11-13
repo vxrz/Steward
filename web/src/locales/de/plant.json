@@ -422,7 +422,9 @@
     "fieldAdd": "Feld hinzufügen",
     "fieldRemove": "Feld {{name}} entfernen",
     "save": "Speichern",
-    "saved": "Einstellungen des Werksregisters gespeichert"
+    "saved": "Einstellungen des Werksregisters gespeichert",
+    "managerTitle": "Einstellungen des Registers",
+    "managerHint": "Als Verwalter des Werksregisters ändern Sie seinen Inhalt: den Namen des Unternehmens, die Namen der Datensatztypen, eigene Felder und Prüfintervalle. Das Ein- und Ausschalten des Moduls, wer es nutzt und die Karte bleiben bei den Administratoren."
   },
   "profiles": {
     "title": "Geräteprofile",

@@ -4,10 +4,20 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { Subject } from '@sm/shared';
 import { getOptional } from '../api';
+import i18n from '../i18n';
 import { subjectKeys } from '../queryKeys';
-import { subjectOptionLabel } from './AccessEditor';
 import { subjectLabel } from './common';
 import { NamedOutsideHint, type NamedScope } from './NamedOutsideHint';
+
+/** Translated label of a subject from /subjects (users keep the server label "Name (login)"). */
+export function subjectOptionLabel(s: Subject): string {
+  if (s.kind === 'team') return i18n.t('common:subjects.team', { name: s.name ?? s.value.slice(5) });
+  if (s.kind === 'role') {
+    const role = s.name ?? s.value.slice(5);
+    return i18n.t('access:everyoneWithRole', { role: i18n.t(`common:roles.${role}` as 'common:roles.admin', { defaultValue: role }) });
+  }
+  return s.label;
+}
 
 export const useSubjects = () =>
   useQuery({ queryKey: subjectKeys.all, queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false, staleTime: 60_000 });
