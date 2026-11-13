@@ -228,7 +228,7 @@
     "evidencePacks": "Alle außer Betrachtern exportieren Nachweispakete.",
     "users": "Administratoren laden Benutzer ein und legen Teams an.",
     "plantSites": "Die Verwalter des Werksregisters legen Standorte an – Designer, Administratoren und wem die Rolle vergeben wurde.",
-    "plantAssets": "Wer einen Standort verwaltet, legt seine Anlagen an: Designer und Administratoren oder die Personen in seiner Zugriffsliste."
+    "plantAssets": "Wer einen Standort verwaltet, legt seine Anlagen an: Designer und Administratoren oder wer ihn über „Geteilt mit“ verwalten darf."
   },
   "duplicate": {
     "action": "Duplizieren",

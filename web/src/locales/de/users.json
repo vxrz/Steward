@@ -1,6 +1,6 @@
 {
   "title": "Benutzer & Teams",
-  "description": "Wer sich anmelden kann, mit welchen Rollen und in welchen Teams. Rollen vergeben überall Standardrechte; Zugriffslisten an Prozessen und Plattformen können sie einschränken.",
+  "description": "Wer sich anmelden kann, mit welchen Rollen und in welchen Teams. Rollen vergeben überall Standardrechte; ein Eintrag kann eingeschränkt und mit Benutzern, Teams und Rollen geteilt werden.",
   "addUser": "Benutzer hinzufügen",
   "noRoles": "keine Rollen",
   "resetConfirm": "Passwort von {{user}} zurücksetzen? Alle Sitzungen dieses Benutzers werden abgemeldet.",
@@ -24,7 +24,7 @@
   "teams": {
     "title": "Teams",
     "new": "Neues Team",
-    "none": "Noch keine Teams. Teams fassen Benutzer zusammen, damit Zugriffslisten und Aufgabenzuweisungen auf sie verweisen können (z. B. team:service desk).",
+    "none": "Noch keine Teams. Teams fassen Benutzer zusammen, damit Einträge unter „Geteilt mit“ und Aufgabenzuweisungen auf sie verweisen können (z. B. team:service desk).",
     "edit": "Team {{name}} bearbeiten",
     "delete": "Team {{name}} löschen",
     "deleteConfirm": "Team „{{name}}“ löschen? Zugriffseinträge, die es nennen, gelten dann für niemanden mehr.",
@@ -42,7 +42,7 @@
   },
   "roles": {
     "title": "Rollen",
-    "hint": "Rollen sind Standardwerte. Ein Prozess oder eine Plattform mit Zugriffsliste gewährt nur die dort aufgeführten Rechte (zusätzlich Administratoren und bei Prozessen der Eigentümer). Freigabeschritte lassen sich zusätzlich bestimmten Benutzern, Teams oder Rollen zuweisen und können eine zweite Person verlangen (Vier-Augen-Prinzip)."
+    "hint": "Rollen sind Standardwerte. Ein eingeschränkter Eintrag gewährt nur die Rechte, mit denen er geteilt ist (zusätzlich haben Administratoren, Prüfer und sein Eigentümer Zugriff). Freigabeschritte lassen sich zusätzlich bestimmten Benutzern, Teams oder Rollen zuweisen und können eine zweite Person verlangen (Vier-Augen-Prinzip)."
   },
   "userModal": {
     "updated": "{{user}} aktualisiert",

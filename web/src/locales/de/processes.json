@@ -19,7 +19,7 @@
     "archive": "Archivieren",
     "archiveConfirm": "„{{name}}“ archivieren? Seine Zeitpläne werden deaktiviert; Ausführungen und Versionen bleiben erhalten.",
     "restricted": "eingeschränkt",
-    "restrictedHint": "Zugriff durch eine Zugriffsliste eingeschränkt",
+    "restrictedHint": "Eingeschränkt: Nur die Einträge unter „Geteilt mit“, der Eigentümer, Administratoren und Prüfer erreichen ihn",
     "readOnly": "schreibgeschützt",
     "lastRun": "zuletzt ausgeführt {{when}}",
     "runNamed": "{{name}} ausführen",
