@@ -31,7 +31,33 @@ A product has a key (unique, used by the file format and the ODPS `id`), a name,
 
 ## The element catalogue
 
-_To come: discovery from Snowflake, Kafka and SQL schema snapshots (WP2)._ An element has a platform (or none for APIs and other things), a **kind** (`snowflake.table`, `kafka.topic`, `sql.view`, `api.openapi`, `files.path`, …), a qualified name unique per platform, kind and environment (case does not matter), a parent (database → schema → table), a layer and a description. Discovered elements keep what people wrote: a new read changes only the technical fields and the readout.
+An element has a platform (or none for APIs and other things), a **kind** (`snowflake.table`, `kafka.topic`, `sql.view`, `api.openapi`, `files.path`, …), a qualified name unique per platform, kind and environment (case does not matter), a parent (database → schema → table), a layer and a description. Elements are entered, imported or **discovered** (below). Discovered elements keep what people wrote: a new read changes only the technical fields – name, kind flags, parent, external id, OpenLineage dataset – and the readout. An entered element that a discovery source finds again is looked after by that source from then on.
+
+## Discovery
+
+**Discovery sources** read elements from the platforms Steward already connects to – metadata only, with the platform's identity (mark it read-only, [PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#read-only-identities-and-the-operation-filter)), as a background job. _API:_ `/api/data-products/discovery-sources` (the page follows with the module's pages).
+
+| Platform                                                             | What a source reads                                                                                                                         | Elements                                                                                                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Snowflake** ([SNOWFLAKE.md](SNOWFLAKE.md#data-products-discovery)) | the databases and schemas of its scope (`SHOP`, `SHOP.SALES`): the catalogue views and `SHOW … IN DATABASE`                                 | databases, schemas, tables, views (secure and materialized as flags), dynamic tables, streams, tasks, stages, pipes         |
+| **Kafka** ([KAFKA.md](KAFKA.md#data-products-discovery))             | the cluster's topics under its prefixes (none: all; internal `_…` topics left out) and the platform's Schema Registry                       | topics with their topic id, partitions, replication, `cleanup.policy`, `retention.ms` and the latest `<topic>-value` schema |
+| **Databases** (PostgreSQL, MariaDB/MySQL, SQL Server)                | the platform's **latest schema snapshot** ([DATABASES.md](DATABASES.md#database-schemas)) – no connection of its own; a scope names schemas | schemas, tables, views (column counts only)                                                                                 |
+
+Confluent Cloud clusters are discovered as the Kafka platforms that connect to them.
+
+**A source** has a platform, a **scope**, **include and exclude prefixes** (plain comparisons of the qualified name without case – no patterns; `SHOP.SALES.` keeps the database `SHOP` and the schema `SHOP.SALES` as their containers), **environment rules** (a prefix or suffix of the database, schema or topic → an environment, e.g. suffix `_DEV` → `dev`; the first that matches, else the platform's environment), the Snowflake **mode**, the **identity** it reads with, the **owning teams** of what it finds (default: the platform's) and how often it reads – daily by default, at most hourly, at least weekly. At most 50 sources per instance.
+
+**Who:** the module's managers (designers until module roles exist) and the platform's managers set sources up – if they may use the platform: a source **runs as the person who last saved it**, and that person's use right on the platform and the identity is checked again before every run; a source whose person lost the right stops and says so (_The source runs as …_). Who has a right on the platform sees its sources, unless the owning teams of what they find exclude them. Every change and _Read now_ needs a signed-in session and is in the audit log (`datadiscovery.source_created`, `…_updated`, `…_deleted`, `datadiscovery.run`, `datadiscovery.run_failed`). Owning teams that reach people the platform's teams do not – or none, the whole instance – ask for a confirmation (control point `access.grant`) and are recorded as an access change (`access.owning_teams_changed`). New owning teams apply to the elements the source adds from then on.
+
+**A run** (the job `data-products` every 5 minutes for the sources that are due, one at a time; or _Read now_):
+
+- reads in partitions and writes in batches of 250 elements per transaction, with a turn of the event loop between batches – an unchanged element writes only its readout;
+- **renames** an element when the platform's id of it is known under a new name (Snowflake `TABLE_ID` in _account usage_ mode): people's fields, memberships and links stay; in _information schema_ mode a renamed table is a new element and the old one goes missing;
+- marks the source's elements it did not find **missing** – only after a **complete** run. A run that stops at 50,000 elements, at the instance's 250,000, after 10 minutes, or reads a cut schema snapshot is _truncated_ and marks nothing. A missing element in no product is removed after 30 days; in a product it stays and is flagged there;
+- fills the **OpenLineage** namespace and name of each element (`snowflake://<account>` with `DB.SCHEMA.TABLE`, `kafka://<first bootstrap server>` with the topic, `postgres://<host>:<port>` with `<database>.<schema>.<table>`), for matching run events later;
+- keeps the newest 30 runs per source with their counts (added, changed, renamed, unchanged, missing, removed) and why a run failed, stopped early or could not read a part (a Schema Registry: the topics stand without schema versions).
+
+**Metadata only.** Snowflake: `INFORMATION_SCHEMA` (SCHEMATA, TABLES, VIEWS – secure ones), `ACCOUNT_USAGE` (DATABASES, SCHEMATA, TABLES, VIEWS) and `SHOW DYNAMIC TABLES | STREAMS | TASKS | STAGES | PIPES`, of whose output only metadata columns are kept – never a definition; Kafka: the metadata and DescribeConfigs requests, never a consumer group, an offset or a message; the Schema Registry: `GET /subjects` and the latest version of a subject (its id, version and type, not the schema). Names from a scope go into Snowflake statements as a bound `IDENTIFIER(?)` or, for `SHOW`, as a checked and quoted identifier; every other value is a binding. Every request goes through the outbound policy – the account's and the registry's origins are checked first – and connects to the checked address. The tests check the statements and calls against these lists.
 
 ## Ports, contracts and consumers
 
@@ -55,4 +81,4 @@ Documents, records and ticket references link data products and data objects (li
 
 ## To come
 
-Discovery, health and _Create monitor_, costs and the scorecard, the pages and pictures, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
+Health and _Create monitor_, costs and the scorecard, the discovery page, the pages and pictures, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
