@@ -33,6 +33,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **An estimate's _For a data product_** no longer puts back the chosen product's name over what you type when the server's answer to an earlier search comes late.
 - **Records of processing** counted its limit of 5,000 data objects before the team filter, so a reader could get a short or empty list; the limit now counts only what the reader may see, and a list cut there says so in the view, the CSV and the PDF.
 
 ### Security

@@ -128,20 +128,38 @@ test.describe('costs: estimates and measured use', () => {
   });
 
   test('the estimate says which data product it is for', async ({ page }) => {
+    // The picker searches for the chosen product's own name once it opens. Its answer is held back here and let through
+    // while the person types – as on a busy server, where it came late: the chosen option's label changed with it
+    // ("Name" → "Name (key)"), and Select put the search back to that label, over what was typed.
+    let release = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    await page.route(/\/api\/data-products\?limit=20&q=Measured/, async (route) => {
+      await gate;
+      await route.continue();
+    });
+    const ownName = page.waitForRequest(/\/api\/data-products\?limit=20&q=Measured/);
     await page.goto(`/costs/estimates/${s.estimate}`);
-    await expect(page.getByTestId('estimate-for-product')).toBeVisible();
-    await expect(page.getByTestId('estimate-for-product')).toHaveValue(/Measured /);
-    await expectAccessible(page, 'estimate for a data product');
+    const picker = page.getByTestId('estimate-for-product');
+    await expect(picker).toBeVisible();
+    await expect(picker).toHaveValue(/Measured /);
+    await ownName;
     // the picker asks the server once typing pauses, not for every key
     const asked: string[] = [];
     page.on('request', (r) => {
-      if (r.url().includes('/api/data-products?limit=20')) asked.push(r.url());
+      if (r.url().includes('/api/data-products?limit=20') && !r.url().includes('q=Measured')) asked.push(r.url());
     });
-    const picker = page.getByTestId('estimate-for-product');
     await picker.clear();
-    await picker.pressSequentially('Other', { delay: 30 });
+    await picker.pressSequentially('Ot', { delay: 30 });
+    const late = page.waitForResponse(/\/api\/data-products\?limit=20&q=Measured/);
+    release();
+    await late;
+    await picker.pressSequentially('her', { delay: 30 });
+    await expect(picker).toHaveValue('Other');
     await expect(page.getByRole('option', { name: /^Other / }).first()).toBeVisible();
+    await expect(picker).toHaveValue('Other');
     expect(asked.length).toBeLessThanOrEqual(2);
+    await page.keyboard.press('Escape');
+    await expectAccessible(page, 'estimate for a data product');
   });
 
   test('estimated against attributed on a phone @mobile', async ({ page }) => {
