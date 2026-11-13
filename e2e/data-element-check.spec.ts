@@ -25,9 +25,9 @@ async function ordersElement(admin: APIRequestContext): Promise<string> {
 
 test('a data element check: search the element, try it, save it', async ({ page, apiAs }) => {
   const admin = await apiAs('admin');
-  const modules = await json<{ modules: { id: string; enabled: boolean }[] }>(await admin.get('/api/settings/modules'));
-  const wasOn = modules.modules.find((m) => m.id === 'dataProducts')!.enabled;
-  if (!wasOn) expect((await admin.put('/api/settings/modules/dataProducts', { data: { enabled: true } })).ok()).toBe(true);
+  // switched on and left on: the other data specs run beside this one and need it (switching it off again made their
+  // requests answer 404 in the middle of a test)
+  expect((await admin.put('/api/settings/modules/dataProducts', { data: { enabled: true } })).ok()).toBe(true);
   let monitorId: string | null = null;
   try {
     const element = await ordersElement(admin);
@@ -60,6 +60,5 @@ test('a data element check: search the element, try it, save it', async ({ page,
     expect(saved.definition.checks[0]).toMatchObject({ type: 'data-element', element, maxAgeMinutes: 60 });
   } finally {
     if (monitorId) await admin.delete(`/api/monitors/${monitorId}`);
-    if (!wasOn) await admin.put('/api/settings/modules/dataProducts', { data: { enabled: false } });
   }
 });
