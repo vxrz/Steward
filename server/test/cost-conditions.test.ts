@@ -280,6 +280,8 @@ describe('which price applies', () => {
     // the plan proposals carry the list amounts and say so
     const p = await vic('GET', `/costs/estimates/${est.id}/proposals`);
     expect(JSON.stringify(p)).not.toContain('156');
+    // plan lines from it ask first: its readers may not all see the contract's prices
+    expect((await s.api('GET', `/costs/estimates/${est.id}/proposals`)).hiddenRates).toBe(true);
     // /api/v1 and MCP
     const token = (await vic('POST', '/me/tokens', { name: 'v1', scope: 'read' })).token as string;
     const v1 = await fetch(`${s.base}/api/v1/cost-estimates/${est.id}`, { headers: { authorization: `Bearer ${token}` } }).then((x) => x.text());
@@ -424,7 +426,7 @@ describe('derived books', () => {
     for (const x of ['120.00', '-12.00', '9.72', '"10"', '"9"', 'Invented data services agreement', '0.005']) expect(text, x).not.toContain(x);
     const book = (await pia('GET', `/costs/price-books/${derived}`)) as CostPriceBookDetail;
     expect(book).toMatchObject({ termsVisible: false, base: null, terms: null });
-    expect(book.versions.every((v) => v.derivation === null)).toBe(true);
+    expect(book.versions.every((v) => v.derivation === null && v.note === '')).toBe(true);
     expect(JSON.stringify(book)).not.toContain('0.12"');
     // the dry run of a reader of the shared book: customer prices by default, no breakdown
     const r = await dry(pia, { lines: LINES.slice(0, 1) });

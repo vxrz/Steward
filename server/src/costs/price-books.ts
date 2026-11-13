@@ -389,7 +389,8 @@ const toVersion = (v: VersionRow, inUse: Set<string>, terms = false): CostPriceV
   source: v.source,
   sha256: v.sha256,
   entries: Number(v.entry_count),
-  note: v.note,
+  // a derived version's note names its cause (the base, the terms): only for who sees the terms
+  note: v.source === 'derived' && !terms ? '' : v.note,
   diff: summaryDiff(parseJson<CostPriceDiff | null>(v.diff, null)),
   createdAt: v.created_at,
   createdBy: v.created_by,

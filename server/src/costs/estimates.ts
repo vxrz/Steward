@@ -600,7 +600,7 @@ export function estimateProposals(id: string, fiscalYear?: number): CostEstimate
   const sm = startMonth();
   const sight = bookSight();
   const p = s ? proposalsOf(s, row.title, fy, sm, sight) : { lines: [], hidden: false };
-  const hiddenRates = !!s && s.books.some((b) => b.kind !== 'list');
+  const hiddenRates = !!s && confidential(s);
   const existing = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_plan_lines WHERE estimate_id = ? AND fiscal_year = ?', id, fy)?.n ?? 0);
   return {
     fiscalYear: fy,
@@ -613,6 +613,9 @@ export function estimateProposals(id: string, fiscalYear?: number): CostEstimate
   };
 }
 
+/** Priced with rates not every reader may see: a contracted or derived book, or a contract's conditions (0.23.0). */
+const confidential = (s: StoredResult): boolean => s.books.some((b) => b.kind !== 'list') || s.lines.some((l) => !!l.cid);
+
 /** "Add to plan": the chosen proposals become plan lines of the fiscal year, each remembering the estimate. */
 export function confirmEstimateProposals(id: string, body: unknown): { added: number; lineIds: string[] } {
   const { row, info } = requireEstimate(id, 'edit');
@@ -623,7 +626,7 @@ export function confirmEstimateProposals(id: string, body: unknown): { added: nu
   const p = proposalsOf(s, row.title, x.fiscalYear, startMonth(), sight);
   const chosen = p.lines.filter((l) => x.keys.includes(l.key));
   if (!chosen.length) throw new HttpError(400, 'Choose lines of the proposal', 'COST_PROPOSAL_NONE', { year: fiscalYearLabel(x.fiscalYear, startMonth()) });
-  if (s.books.some((b) => b.kind !== 'list') && !x.confirmHidden)
+  if (confidential(s) && !x.confirmHidden)
     throw new HttpError(409, 'Readers of this plan will see these amounts', 'COST_ESTIMATE_HIDDEN_RATES', { title: row.title });
   const o = ownerOf(row);
   const col = o.kind === 'service' ? 'service_id' : 'platform_id';
