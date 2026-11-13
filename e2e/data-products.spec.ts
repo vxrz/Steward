@@ -200,7 +200,7 @@ test.describe('the data products pages', () => {
     const orders = table.getByRole('link', { name: 'Orders', exact: true });
     await expect(orders).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Maturity' })).toBeVisible();
-    await expect(table.getByRole('row').filter({ has: orders })).toContainText('Maturity');
+    await expect(table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) })).toContainText('Maturity');
     // export: everything as YAML from the list, the product as YAML, JSON or ODPS from its menu
     await page.getByTestId('products-transfer').click();
     await expect(page.getByTestId('products-export-yaml')).toHaveAttribute('href', /\/api\/data-products\/export\?format=yaml/);
