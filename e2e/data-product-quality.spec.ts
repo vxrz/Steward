@@ -105,6 +105,25 @@ test.describe('quality of data products', () => {
     await expectAccessible(page, 'product overview with quality');
   });
 
+  test('the maturity trend of the demo’s Orders: a picture of the days with a table beside it', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const list = await json<{ items: { id: string; key: string }[] }>(await admin.get('/api/data-products?q=orders&limit=50'));
+    const orders = list.items.find((p) => p.key === 'orders')!.id;
+    await page.goto(`/data-products/${orders}`);
+    const trend = page.getByTestId('product-scorecard-trend');
+    // the demo's history: 30 days behind today, maturity that rose twice
+    const picture = trend.getByTestId('scorecard-trend-picture');
+    await expect(picture).toBeVisible();
+    await expect(picture).toHaveAttribute('aria-label', /: 0 at the start, 2 now$/);
+    await trend.getByText('Table', { exact: true }).click();
+    const rows = trend.getByTestId('scorecard-trend-table').getByRole('row');
+    await expect(rows).toHaveCount(32);
+    await expect(rows.nth(1)).toContainText('Maturity 2');
+    await expect(rows.last()).toContainText('Maturity 0');
+    await settle(page);
+    await expectAccessible(page, 'maturity trend', { wcag22: true });
+  });
+
   test('quality on a phone @mobile', async ({ page }) => {
     await page.goto(`/data-products/${s.product}`);
     await expect(page.getByTestId('personal-fields')).toBeVisible();
