@@ -127,7 +127,14 @@ test.describe('generic parts and bridges', () => {
       await admin.getByTestId('technology-pattern').fill('ibus://{host}');
       await expectAccessible(admin, 'technology form');
       await admin.getByTestId('technology-save').click();
-      await expect(admin.getByTestId(`technology-invented-bus-${token.toLowerCase()}`)).toContainText(`Invented Bus ${token}`);
+      await expect(admin.getByText(`Technology Invented Bus ${token} saved`)).toBeVisible();
+      const row = admin.getByTestId(`technology-invented-bus-${token.toLowerCase()}`);
+      await expect(row).toContainText(`Invented Bus ${token}`);
+      // removed again: said so
+      await row.getByRole('button', { name: `Remove Invented Bus ${token}` }).click();
+      await admin.getByTestId('confirm-dialog-confirm').click();
+      await expect(admin.getByText(`Technology Invented Bus ${token} removed`)).toBeVisible();
+      await expect(row).toHaveCount(0);
     } finally {
       await ctx.close();
     }

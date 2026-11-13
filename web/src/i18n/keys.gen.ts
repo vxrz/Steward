@@ -6549,6 +6549,8 @@ export interface Resources {
     'technologies.delete': string;
     'technologies.deleteNamed': string;
     'technologies.deleteConfirm': string;
+    'technologies.saved': string;
+    'technologies.deleted': string;
     'fileFormats.parquet': string;
     'fileFormats.csv': string;
     'fileFormats.json': string;

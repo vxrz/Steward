@@ -1573,7 +1573,9 @@
     "editNamed": "{{name}} ändern",
     "delete": "Entfernen",
     "deleteNamed": "{{name}} entfernen",
-    "deleteConfirm": "Die Technologie {{name}} aus der Liste entfernen? Elemente und Schritte, die sie nennen, behalten den Wert – er erscheint dann als nicht in der Liste."
+    "deleteConfirm": "Die Technologie {{name}} aus der Liste entfernen? Elemente und Schritte, die sie nennen, behalten den Wert – er erscheint dann als nicht in der Liste.",
+    "saved": "Technologie {{name}} gespeichert",
+    "deleted": "Technologie {{name}} entfernt"
   },
   "fileFormats": {
     "parquet": "Parquet",
