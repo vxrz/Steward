@@ -4193,6 +4193,8 @@ export interface Resources {
     'view.allSources': string;
     'view.addWidgetAbove': string;
     'view.discardMessage': string;
+    'view.access': string;
+    'view.accessHint': string;
     'widgets.kpi.label': string;
     'widgets.kpi.info': string;
     'widgets.trend.label': string;

@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { authFile, baseURL } from './support/env';
 import { expectAccessible } from './support/axe';
 import { expectNoHorizontalScroll, json, platformId, uniq } from './support/helpers';
 
@@ -109,12 +109,26 @@ test('a platform offers View and Manage with "use"; a monitor shows its owner ab
   await expectNoHorizontalScroll(page);
 });
 
-test('a dashboard and a data contract have the Access section; a contract share offers "relax the breaking-change rule"', async ({ page, apiAs }) => {
+test('a dashboard and a data contract have the Access section; a contract share offers "relax the breaking-change rule"', async ({ page, apiAs, browser }) => {
   const api = await apiAs('admin');
   const boards = await json<{ id: string }[]>(await api.get('/api/dashboards'));
   await page.goto(`/dashboards/${boards[0]!.id}`);
   await expect(page.getByTestId('access-tab').getByTestId('shares-panel')).toBeVisible();
   await expectAccessible(page, 'dashboard access section');
+  // a reader: the section is folded under the widgets and opens on request
+  const ctx = await browser.newContext({ storageState: authFile('vera'), baseURL: baseURL() });
+  try {
+    const reader = await ctx.newPage();
+    await reader.goto(`/dashboards/${boards[0]!.id}`);
+    const toggle = reader.getByTestId('section-dashboard-access-toggle');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(reader.getByTestId('shares-panel')).toBeHidden();
+    await toggle.click();
+    await expect(reader.getByTestId('shares-panel')).toBeVisible();
+    await expectAccessible(reader, 'dashboard access section (reader)');
+  } finally {
+    await ctx.close();
+  }
 
   await page.goto('/data-contracts');
   await page.getByRole('link', { name: 'Shop orders' }).first().click();

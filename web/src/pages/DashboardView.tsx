@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Anchor, Button, Group, Menu, MultiSelect, Paper, Text } from '@mantine/core';
+import { Anchor, Box, Button, Group, Menu, MultiSelect, Paper, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';
@@ -20,6 +20,7 @@ import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 import { AccessTab } from '../components/access/AccessTab';
+import { CollapsibleSection } from '../components/page/CollapsibleSection';
 import { DetailHeader } from '../components/page/DetailPage';
 import { dashboardKeys } from '../queryKeys';
 
@@ -236,7 +237,16 @@ export function DashboardViewPage() {
       ) : (
         <WidgetGrid widgets={def.widgets} />
       )}
-      <AccessTab kind="dashboard" id={d.id} mt="md" />
+      {d.canEdit ? (
+        <AccessTab kind="dashboard" id={d.id} mt="md" />
+      ) : (
+        // a reader: the Access section folded under the widgets (it opens on request, the dashboard comes first)
+        <Box mt="md">
+          <CollapsibleSection id="dashboard-access" title={t('view.access')} description={t('view.accessHint')} defaultOpen={false} variant="card">
+            <AccessTab kind="dashboard" id={d.id} />
+          </CollapsibleSection>
+        </Box>
+      )}
     </DashboardContext.Provider>
   );
 }
