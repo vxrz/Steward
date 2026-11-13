@@ -4,7 +4,10 @@ import {
   OWNED_KINDS,
   PLANT_SHARE_KINDS,
   SHARE_ACTIONS,
+  accessModule,
   accessPreviewSchema,
+  moduleOfItemKind,
+  type ModuleId,
   accessScopeSchema,
   latestShareEnd,
   shareLevelsOf,
@@ -18,7 +21,7 @@ import { HttpError } from '../util.js';
 import { ACCESS, me } from './access.js';
 import type { AuthUser } from './context.js';
 import { isAdmin, subjectsOf } from './permissions.js';
-import { managesShares, owningTeams, plantOnly } from './policy.js';
+import { managesShares, moduleOnlyModules, owningTeams } from './policy.js';
 import { heldOn, isRestricted, previewShares, setRestricted, setShares, shareKind, sharesOf, sharesWiden, type ShareKindDef } from './shares.js';
 import { accessGrantRule } from './access-change.js';
 import { subjectExists } from './subjects.js';
@@ -34,8 +37,8 @@ import { resourceNotFound } from './scope-routes.js';
  *   PUT  /api/access/:kind/:id/scope     switch Restricted (administrators; switching it off asks for the step-up)
  *   POST /api/access/:kind/:id/preview   who would gain and who would lose what, nothing stored
  *
- * Plant viewers reach them for the plant registry's kinds (device profiles, KPI definitions – a share may name them),
- * every other kind answers them 404.
+ * Module-only users (ADR 0034) reach them for their modules' kinds – plant viewers for the plant registry's (device
+ * profiles, KPI definitions: a share may name them) – every other kind answers them 404.
  *
  * Team scope: an item the reader may not see answers 404 like a missing one. The share list is for Manage holders,
  * administrators and auditors; a share whose subject the reader may not see (a Manage holder who may not list users
@@ -52,8 +55,22 @@ function target(req: FastifyRequest): { def: ShareKindDef; id: string; u: AuthUs
   const id = String(p.id ?? '');
   const def = shareKind(kind);
   const u = me();
-  if (!def || (plantOnly(u) && !PLANT_SHARE_KINDS.includes(kind)) || def.name(id) === undefined || !def.rights(u, id).length) throw resourceNotFound(kind, id);
+  const only = moduleOnlyModules(u);
+  if (!def || (only.length && !moduleOnlyShares(only, kind)) || def.name(id) === undefined || !def.rights(u, id).length) throw resourceNotFound(kind, id);
   return { def, id, u };
+}
+
+/** The kinds of the Costs module (they declare no link kinds, so moduleOfItemKind does not know them). */
+const COST_KINDS: readonly OwnedKind[] = ['cost_price_book', 'cost_calculator'];
+
+/**
+ * Which kinds' Access tabs a module-only user reaches (ADR 0034): the kinds of their modules – a plant viewer the plant
+ * registry's (#218) – never a core kind, even one shared with them (app.ts keeps them off its pages too).
+ */
+function moduleOnlyShares(only: readonly ModuleId[], kind: OwnedKind): boolean {
+  if (only.includes('plant') && PLANT_SHARE_KINDS.includes(kind)) return true;
+  const m = COST_KINDS.includes(kind) ? 'costs' : moduleOfItemKind(kind);
+  return !!m && m !== 'plant' && only.includes(accessModule(m));
 }
 
 /** Whether `u` may read every subject: who may list users and teams (GET /api/subjects), administrators and auditors. */

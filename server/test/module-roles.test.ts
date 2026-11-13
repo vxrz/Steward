@@ -442,11 +442,17 @@ describe('module-only users', () => {
       for (const kind of ['dashboard', 'site', 'process']) expect(await nora('GET', `/link-targets?kind=${kind}`), kind).toEqual([]);
       // a Costs manager without a core role maintains instance price books and reads the exchange rates they set
       const book = (await nora('POST', '/costs/price-books', { name: 'Invented module-only book', kind: 'list', provider: 'Invented', currency: 'USD' })).id;
+      // the Access tab (a route plant viewers reach): their modules' kinds only – not a core item, even one shared with them
+      const proc = ((await s.api('GET', '/processes')) as { id: string }[])[0]!.id;
+      await s.api('PUT', `/access/process/${proc}/shares`, { shares: [{ subject: 'user:nora', level: 'view' }] });
       try {
         expect((await nora('GET', '/costs/price-books')).map((b: { id: string }) => b.id)).toContain(book);
         await nora('PUT', `/costs/price-books/${book}/entries`, { entries: [{ sku: 'x', name: 'X', unit: 'h', price: '1', currency: 'USD' }] });
         expect((await nora('GET', '/costs/fx-rates')).length).toBe((await s.api('GET', '/costs/fx-rates')).length);
+        expect((await status(nora('GET', `/access/process/${proc}/shares`))).status).toBe(404);
+        expect((await nora('GET', `/access/cost_price_book/${book}/shares`)).canManage).toBe(true);
       } finally {
+        await s.api('PUT', `/access/process/${proc}/shares`, { shares: [] });
         await s.api('DELETE', `/costs/price-books/${book}`);
       }
       expect((await status(nora('GET', '/auth/status'))).status).toBe(200);
