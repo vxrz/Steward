@@ -244,6 +244,17 @@ describe('semantic models', () => {
     expect(doc.semantic_model[0].datasets[1].source).toBe('OTHER.SCHEMA.TABLE');
     expect(dev.headers.get('x-steward-sources-not-rewritten')).toBe('1');
     // /api/v1: the document, the versions and which one was valid on a day
+    // saved with an API token: the API's version
+    const writer = (await dana('POST', '/me/tokens', { name: 'sem-write', scope: 'full' })).token as string;
+    const viaApi = await fetch(`${s.base}/api/data-products/${product}/semantic-model/versions`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${writer}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ document: `${MODEL}# via the API\n` }),
+    });
+    expect(viaApi.status).toBe(201);
+    expect((await viaApi.json()).version).toMatchObject({ version: 6, origin: 'api' });
+    const { db: d } = await import('../src/db.js');
+    d().run('DELETE FROM dp_semantic_versions WHERE product_id = ? AND version = 6', product);
     const v1 = await get(`/api/v1/data-products/${product}/semantic-model`);
     expect(v1.status).toBe(200);
     expect(await v1.text()).toBe(MODEL);

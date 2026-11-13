@@ -225,7 +225,8 @@ export function saveSemanticVersion(
   }
   if (latest && Number(latest.n) >= L.versions) throw invalid(`A semantic model keeps at most ${L.versions} versions`, 'tooManyVersions', { max: L.versions });
   const version = (latest ? Number(latest.version) : 0) + 1;
-  const origin: DataSemanticOrigin = o.origin ?? input.origin;
+  // a save with an API token (no session) is the API's; the editor's and the draft's come from a signed-in person
+  const origin: DataSemanticOrigin = o.origin ?? (u.session ? input.origin : 'api');
   const row: VersionRow = {
     id: newId(),
     product_id: p.id,
