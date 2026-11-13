@@ -32,6 +32,7 @@ import { LinksTab } from './ProductMisc';
 import { RatingBadges, RatingPanelReadOnly } from './rating';
 import { MissingBadge } from './ElementsPage';
 import { useCanCreate } from './rights';
+import { PersonalFieldsPanel } from './ProductQuality';
 
 const enc = encodeURIComponent;
 const to = (o: { id: string }) => `/data-objects/${enc(o.id)}`;
@@ -396,6 +397,7 @@ export function DataObjectPage() {
                   </List>
                 </Section>
               )}
+              <PersonalFieldsPanel kind="object" id={o.id} />
               <ObjectElements o={o} />
             </Stack>
           </Grid.Col>

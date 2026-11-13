@@ -15,6 +15,7 @@ import { ismsSectionDraw } from '../../compliance/isms-report-section-draw.js';
 import { aiSectionDraw } from '../../ai/report-section-draw.js';
 import { costsSectionDraw } from '../../costs/report-section-draw.js';
 import { contractsSectionDraw } from '../../datacontracts/report-section-draw.js';
+import { dataProductsSectionDraw } from '../../dataproducts/report-section-draw.js';
 
 /**
  * Every kind of PDF Steward draws (#13). Each takes only collected data – no database – so it can run in the
@@ -50,4 +51,5 @@ export const SECTION_DRAWERS: readonly ReportSectionDraw<never>[] = [
   aiSectionDraw,
   costsSectionDraw,
   contractsSectionDraw,
+  dataProductsSectionDraw,
 ];

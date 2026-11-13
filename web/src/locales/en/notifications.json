@@ -278,6 +278,10 @@
       "discovery_failed": {
         "label": "Data product discovery failing",
         "info": "A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)"
+      },
+      "contract_breaking": {
+        "label": "Breaking contract change",
+        "info": "A new version of the data contract of an output port you consume has breaking changes (registered consumers and the owners of products that use it; once per version)"
       }
     }
   },

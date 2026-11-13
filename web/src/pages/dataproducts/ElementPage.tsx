@@ -36,6 +36,7 @@ import { dpKeys, useElement, useElementChecks, useElementCostMatches, useInvalid
 import { CostMatchForm, MatchTable, useMatchText } from './ProductCosts';
 import { Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
 import { MissingBadge } from './ElementsPage';
+import { ElementQualityPanel, PersonalFieldsPanel } from './ProductQuality';
 
 const enc = encodeURIComponent;
 const TABS = ['', 'lineage', 'checks'] as const;
@@ -204,6 +205,8 @@ function ElementOverview({ e }: { e: DataElement }) {
               </Text>
             )}
           </Section>
+          <ElementQualityPanel elementId={e.id} />
+          <PersonalFieldsPanel kind="element" id={e.id} />
         </Stack>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 5 }}>

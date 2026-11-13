@@ -194,6 +194,7 @@ export function objectivesFile(o: DataObjectives): NonNullable<PortFile['objecti
   if (o.freshnessMinutes != null) out.freshness_minutes = o.freshnessMinutes;
   if (o.availabilityPct != null) out.availability_pct = o.availabilityPct;
   if (o.completeness != null && o.completeness !== '') out.completeness = o.completeness;
+  if (o.completenessPct != null) out.completeness_pct = o.completenessPct;
   if (o.updateSchedule != null && o.updateSchedule !== '') out.update_schedule = o.updateSchedule;
   if (o.retention != null && o.retention !== '') out.retention = o.retention;
   return out;

@@ -205,6 +205,7 @@ export const dataObjectivesInput = z
       .optional(),
     availabilityPct: z.number().min(0).max(100).nullable().optional(),
     completeness: text(L.short).nullable().optional(),
+    completenessPct: z.number().min(0).max(100).nullable().optional(),
     updateSchedule: text(L.short).nullable().optional(),
     retention: text(L.short).nullable().optional(),
   })

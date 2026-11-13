@@ -320,10 +320,13 @@
     "freshnessHint": "Die Daten sind höchstens so alt.",
     "availability": "Verfügbarkeit",
     "availabilityHint": "Anteil der Zeit über 30 Tage, in der er verfügbar oder eingeschränkt war.",
+    "completeness": "Vollständigkeit",
+    "completenessHint": "Anteil der Vollständigkeitstests (nicht leer, Zeilenzahlen, Volumen), die über 30 Tage bestanden.",
     "schedule": "Aktualisierungsplan",
     "retention": "Aufbewahrung",
     "freshnessText": "höchstens {{value}} alt",
     "availabilityText": "{{value}} % verfügbar",
+    "completenessText": "{{value}} % vollständig",
     "scheduleText": "aktualisiert {{value}}",
     "retentionText": "aufbewahrt {{value}}",
     "minutes_one": "{{count}} Minute",
@@ -503,7 +506,9 @@
     "modes": {
       "freshness": "Aktualität",
       "schema": "Schema",
-      "findings": "Befunde des Vertrags"
+      "findings": "Befunde des Vertrags",
+      "volume": "Volumen",
+      "quality": "Qualität"
     },
     "watches": "Überwacht",
     "weight": "Gewicht",
@@ -718,7 +723,9 @@
         "availabilityNoMonitor": "Verfügbarkeitsziel {{target}} %: noch kein Monitor",
         "freshness": "{{port}}: {{uptime}} % der Zeit aktuell (Ziel {{target}})",
         "freshnessShort": "{{port}}: Aktualitätsziel {{target}}, noch keine 30 Tage Prüfungen",
-        "none": "Keine Ziele an den Ausgangsports"
+        "none": "Keine Ziele an den Ausgangsports",
+        "completeness": "{{port}}: {{share}} % der Vollständigkeitstests bestanden (Ziel {{target}} %)",
+        "completenessNoResults": "{{port}}: Vollständigkeitsziel {{target}} %, keine Vollständigkeitsergebnisse in 30 Tagen"
       },
       "dependencies": {
         "ok": "{{inputs}} Eingangsports, keiner an einem abgekündigten Port",
@@ -753,7 +760,15 @@
       "confidentiality": {
         "notRated": "Vertraulichkeit nicht eingestuft",
         "rated": "Vertraulichkeit als {{level}} eingestuft",
-        "belowFloor": "Vertraulichkeit {{level}}: unter seinen Datenobjekten"
+        "belowFloor": "Vertraulichkeit {{level}}: unter seinen Datenobjekten",
+        "personalFields_one": "{{count}} personenbezogenes Feld in den gebundenen Verträgen",
+        "personalFields_other": "{{count}} personenbezogene Felder in den gebundenen Verträgen",
+        "personalFieldsUndocumented_one": "{{count}} personenbezogenes Feld in den gebundenen Verträgen, aber kein bereitgestelltes Datenobjekt enthält personenbezogene Daten",
+        "personalFieldsUndocumented_other": "{{count}} personenbezogene Felder in den gebundenen Verträgen, aber kein bereitgestelltes Datenobjekt enthält personenbezogene Daten"
+      },
+      "quality": {
+        "results": "{{tests}} Tests: {{passed}} bestanden, {{warning}} warnen, {{failed}} fehlgeschlagen (jeweils der neueste, 30 Tage)",
+        "none": "Keine Qualitätsergebnisse in 30 Tagen"
       }
     }
   },
@@ -1255,6 +1270,60 @@
       "change": "Ändern",
       "unchanged": "Unverändert",
       "skip": "Überspringen"
+    }
+  },
+  "quality": {
+    "trend": {
+      "title": "Reife im Zeitverlauf",
+      "picture": "Bild",
+      "table": "Tabelle",
+      "view": "Verlauf zeigen als",
+      "none": "Noch kein Tagesstand – der erste wird innerhalb der nächsten Stunde erstellt.",
+      "hint_one": "{{count}} Tagesstand in {{environment}}",
+      "hint_other": "{{count}} Tagesstände in {{environment}}",
+      "caption": "Die Reife und die Teile der Scorecard je Tag",
+      "day": "Tag",
+      "maturity": "Reife",
+      "parts": "Teile",
+      "counts": "{{met}} erfüllt, {{partial}} teilweise, {{notMet}} nicht erfüllt",
+      "summary": "Reife von {{from}} bis {{to}}: {{start}} zu Beginn, {{now}} jetzt"
+    },
+    "personal": {
+      "title": "Personenbezogene Daten in Feldern",
+      "hint": "Felder der gebundenen Datenverträge, die als personenbezogen markiert (customProperties personalData) oder eingestuft sind. Das sagt der Vertrag – Steward markiert selbst nichts.",
+      "version": "Version {{version}}",
+      "field": "Feld",
+      "classification": "Einstufung",
+      "personal": "Personenbezogen",
+      "yes": "Personenbezogen",
+      "no": "Nein",
+      "more_one": "… und {{count}} weiteres Feld",
+      "more_other": "… und {{count}} weitere Felder",
+      "hidden_one": "{{count}} gebundener Vertrag, den Sie nicht sehen dürfen",
+      "hidden_other": "{{count}} gebundene Verträge, die Sie nicht sehen dürfen"
+    },
+    "element": {
+      "title": "Qualität",
+      "none": "Keine Qualitätsergebnisse in den letzten 30 Tagen. dbt-Tests, Vertragstests, Data Metric Functions und Volumenprüfungen erfassen sie.",
+      "dimension": "{{dimension}}: {{passed}} von {{tests}} bestanden",
+      "test": "Test",
+      "source": "Quelle",
+      "status": "Ergebnis",
+      "when": "Wann",
+      "showAll": "Alle {{count}} anzeigen"
+    },
+    "sources": {
+      "dbt": "dbt",
+      "dmf": "Data Metric Function",
+      "contract": "Vertragstest",
+      "check": "Prüfung",
+      "other": "Sonstiges"
+    },
+    "statuses": {
+      "passed": "bestanden",
+      "warning": "Warnung",
+      "failed": "fehlgeschlagen",
+      "error": "Fehler"
     }
   }
 }

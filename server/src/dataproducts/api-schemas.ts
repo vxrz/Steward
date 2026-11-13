@@ -50,10 +50,11 @@ const Objectives = z
     freshnessMinutes: z.number().nullable().optional(),
     availabilityPct: z.number().nullable().optional(),
     completeness: z.string().nullable().optional(),
+    completenessPct: z.number().nullable().optional(),
     updateSchedule: z.string().nullable().optional(),
     retention: z.string().nullable().optional(),
   })
-  .describe('Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention');
+  .describe('Objectives (SLO): freshness in minutes, availability and completeness in percent over 30 days, an update schedule and retention');
 
 const Health = z.object({
   environment: z.string(),

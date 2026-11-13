@@ -125,11 +125,15 @@ const objectivesSchema = z
       .optional(),
     availability_pct: z.number().min(0).max(100).nullable().optional(),
     completeness: text(L.short).nullable().optional(),
+    completeness_pct: z.number().min(0).max(100).nullable().optional(),
     update_schedule: text(L.short).nullable().optional(),
     retention: text(L.short).nullable().optional(),
   })
   .strict()
-  .meta({ id: 'Objectives', description: 'Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention' });
+  .meta({
+    id: 'Objectives',
+    description: 'Objectives (SLO): freshness in minutes, availability and completeness in percent over 30 days, an update schedule and retention',
+  });
 const objectives = () => objectivesSchema;
 
 const ratingLevel = z

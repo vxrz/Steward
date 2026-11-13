@@ -20,6 +20,8 @@ import { currentScale } from '../catalogue/cia.js';
 import { statusPointsOf, upAndDown, uptimeHundredths } from '../monitors/stats.js';
 import { parseJson } from '../util.js';
 import { elementHealthOf } from './health.js';
+import { personalFieldCounts } from './personal-fields.js';
+import { completenessCounts, latestQualityResults, summariseQuality } from './quality.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import {
@@ -42,7 +44,10 @@ import {
  * The scorecard of data products (ADR 0036 part 13, docs/DATA-PRODUCTS.md#scorecard): per product and environment,
  * computed on read in bulk (a fixed number of statements for any number of products), never typed – the parts
  * _documented_, _rated_, _ports_, _contracted_, _observed_, _healthy_, _objectives met_, _dependencies_, _costs known_,
- * and the ISO/IEC 25012 dimensions with the evidence Steward has (the others: _no evidence yet_). The maturity follows
+ * and the ISO/IEC 25012 dimensions with the evidence Steward has (the others: _no evidence yet_) – since 0.24.0 also
+ * _accuracy_, _completeness_ and _consistency_ from the quality results of the output elements (quality.ts), the
+ * completeness objective of ports, and the personal fields of the bound contracts as evidence of _confidentiality_
+ * (personal-fields.ts). The maturity follows
  * (shared maturityLevel): 1 documented and rated, 2 observed, 3 contracted, 4 objectives met for 30 days; 5 (endorsed)
  * is phase 2.
  *
@@ -176,6 +181,11 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
 
   // the health of every output element, read once for all products (never per product)
   const outputHealth = outputElementIds.length ? scorecardElementHealth(u, outputElementIds) : new Map<string, ElementHealth>();
+  // 0.24.0: quality results of the output elements (the latest per test, 30 days), completeness results for the
+  // completeness objectives, personal fields of the bound contracts – one statement each per chunk
+  const quality = outputElementIds.length ? latestQualityResults(outputElementIds, since) : [];
+  const completeness = outputElementIds.length ? completenessCounts(outputElementIds, since) : new Map<string, { passed: number; total: number }>();
+  const personalByBinding = personalFieldCounts(bindings.filter((b) => outputPortIds.has(b.port_id)));
 
   for (const p of products.values()) {
     const envs = sortEnvironments(envRows.filter((e) => e.product_id === p.id).map((e) => e.environment));
@@ -293,6 +303,28 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
         objEvidence.push(ev('objectives.availability', { uptime, target: availabilityTarget }));
       }
     }
+    // completeness (0.24.0): the share of the completeness results of the port's elements that passed over 30 days
+    for (const o of outputs) {
+      const target = objectivesOf(o, outBindings.get(o.id)).completenessPct ?? 0;
+      if (!(target > 0) || !outBindings.has(o.id)) continue;
+      let ok = 0;
+      let total = 0;
+      for (const e of outBindings.get(o.id)!.elementIds) {
+        const c = completeness.get(e);
+        if (c) {
+          ok += c.passed;
+          total += c.total;
+        }
+      }
+      if (!total) {
+        verdicts.push('noEvidence');
+        objEvidence.push(ev('objectives.completenessNoResults', { port: o.name, target }));
+      } else {
+        const pct = Math.round((ok / total) * 10000) / 100;
+        verdicts.push(pct >= target ? 'met' : 'notMet');
+        objEvidence.push(ev('objectives.completeness', { port: o.name, share: pct, target }));
+      }
+    }
     for (const o of freshnessPorts) {
       const target = objectivesOf(o, outBindings.get(o.id)).availabilityPct ?? FRESHNESS_DEFAULT_TARGET;
       const els = outBindings.get(o.id)!.elementIds;
@@ -400,11 +432,30 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
       exposed.length ? share(defined, exposed.length) : 'noEvidence',
       exposed.length ? [ev('understandability.defined', { count: defined, of: exposed.length })] : [ev('understandability.noObjects')],
     ]);
+    // accuracy, completeness, consistency (0.24.0): the latest result of each test of the output elements, 30 days
+    const outSet = new Set(outElements);
+    for (const q of summariseQuality(quality.filter((r) => outSet.has(r.elementId)))) {
+      if (q.dimension === 'currentness') continue;
+      isoState.set(q.dimension, [
+        !q.tests ? 'noEvidence' : q.failed ? 'notMet' : q.warning ? 'partial' : 'met',
+        q.tests ? [ev('quality.results', { tests: q.tests, passed: q.passed, warning: q.warning, failed: q.failed })] : [ev('quality.none')],
+      ]);
+    }
     const c = rating.confidentiality;
     const cBelow = floor.findings.some((f) => f.dimension === 'confidentiality' && !f.reason);
+    // personal fields of the bound contracts (0.24.0): a product whose contracts mark personal fields while none of
+    // the data objects it exposes holds personal data does not say what it carries
+    const personalFields = [...outBindings.values()].reduce((n, b) => n + (personalByBinding.get(b.id) ?? 0), 0);
+    const exposedPersonal = floor.objectIds.some((id) => (objects.get(id)?.personal_data ?? 'none') !== 'none');
+    const undocumented = personalFields > 0 && !exposedPersonal;
     isoState.set('confidentiality', [
-      !c || c.needsRerating ? 'notMet' : cBelow ? 'partial' : 'met',
-      [!c || c.needsRerating ? ev('confidentiality.notRated') : ev(cBelow ? 'confidentiality.belowFloor' : 'confidentiality.rated', { level: c.level })],
+      !c || c.needsRerating ? 'notMet' : cBelow || undocumented ? 'partial' : 'met',
+      [
+        !c || c.needsRerating ? ev('confidentiality.notRated') : ev(cBelow ? 'confidentiality.belowFloor' : 'confidentiality.rated', { level: c.level }),
+        ...(personalFields
+          ? [ev(undocumented ? 'confidentiality.personalFieldsUndocumented' : 'confidentiality.personalFields', { count: personalFields })]
+          : []),
+      ],
     ]);
     for (const d of ISO_25012_DIMENSIONS) {
       const x = isoState.get(d);

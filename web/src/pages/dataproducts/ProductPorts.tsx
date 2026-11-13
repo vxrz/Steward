@@ -29,6 +29,7 @@ export function useObjectivesText(): (o: DataObjectives) => string[] {
     [
       o.freshnessMinutes ? t('objectives.freshnessText', { value: minutesText(o.freshnessMinutes) }) : '',
       o.availabilityPct !== null && o.availabilityPct !== undefined ? t('objectives.availabilityText', { value: o.availabilityPct }) : '',
+      o.completenessPct !== null && o.completenessPct !== undefined ? t('objectives.completenessText', { value: o.completenessPct }) : '',
       o.updateSchedule ? t('objectives.scheduleText', { value: o.updateSchedule }) : '',
       o.retention ? t('objectives.retentionText', { value: o.retention }) : '',
     ].filter(Boolean);

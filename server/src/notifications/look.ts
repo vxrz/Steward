@@ -318,6 +318,7 @@ const WARN_EVENTS = new Set([
   'cost.price_review_due',
   'dataproduct.deprecated',
   'dataproduct.elements_missing',
+  'dataproduct.contract_breaking',
   'cost.estimate_changed',
 ]);
 

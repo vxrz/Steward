@@ -151,6 +151,14 @@ Streams are listed only to a role with `SELECT` on them, internal stages only wi
 
 The demo's source _Shop warehouse (demo)_ is set up this way over `SHOP` and `SHOP_DEV` ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-demo)).
 
+**Volume and quality checks** (0.24.0, the `data-element` check – [DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-check-type-data-element)): the _volume_ mode reads `ROW_COUNT` and `BYTES` from the same `INFORMATION_SCHEMA.TABLES` row as freshness (`/* steward:dp-table-volume */`, no further grant); the _quality_ mode with Data Metric Functions reads `SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS` (`/* steward:dp-dmf-results */`, the table's database, schema and name as bindings) – the measured metrics, never the table's rows – and needs:
+
+```sql
+GRANT APPLICATION ROLE SNOWFLAKE.DATA_QUALITY_MONITORING_VIEWER TO ROLE STEWARD_READ;
+```
+
+**Contract tests** of a `snowflake` server through the datacontract CLI ([DATA-CONTRACTS.md](DATA-CONTRACTS.md#testing)) use the platform's account, user, role, warehouse and key pair; the CLI's data checks need `SELECT` on what the contracts test – a data right Steward's own reads never need.
+
 ## Templates
 
 Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):

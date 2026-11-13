@@ -278,6 +278,10 @@
       "discovery_failed": {
         "label": "Erkennung für Datenprodukte schlägt fehl",
         "info": "Eine Erkennungsquelle für Datenprodukte, die Sie eingerichtet haben oder auf einer Plattform liegt, die Sie verwalten, ist fehlgeschlagen (einmal, bis sie wieder gelingt)"
+      },
+      "contract_breaking": {
+        "label": "Inkompatible Vertragsänderung",
+        "info": "Eine neue Version des Datenvertrags eines Ausgabe-Ports, den Sie nutzen, enthält inkompatible Änderungen (registrierte Nutzer und die Besitzer der Produkte, die ihn nutzen; einmal je Version)"
       }
     }
   },

@@ -520,11 +520,15 @@
     "dataElementMode": "Was geprüft wird",
     "dataElementModes": {
       "freshness": "Aktualität",
-      "schema": "Schema gegen den Vertrag"
+      "schema": "Schema gegen den Vertrag",
+      "volume": "Volumen",
+      "quality": "Qualität"
     },
     "dataElementModeHints": {
       "freshness": "Wie alt die Daten laut Metadaten sind: die letzte Änderung einer Tabelle, die letzte erfolgreiche Aktualisierung oder Ausführung, die neueste Nachricht eines Topics",
-      "schema": "Die Spalten oder Felder gegen den Datenvertrag, an den der Ausgabe-Port des Elements in seiner Umgebung gebunden ist"
+      "schema": "Die Spalten oder Felder gegen den Datenvertrag, an den der Ausgabe-Port des Elements in seiner Umgebung gebunden ist",
+      "volume": "Zeilen oder Größe einer Tabelle laut Metadaten oder die Nachrichten eines Topics laut End-Offsets, gegen die Messung davor",
+      "quality": "Ergebnisse der Data Metric Functions einer Snowflake-Tabelle oder die von Steward erfassten Qualitätsergebnisse (dbt-Tests, Vertragstests)"
     },
     "dataElementMaxAge": "Höchstes Alter (Minuten)",
     "dataElementMaxAgeHint": "1440 ist ein Tag",
@@ -537,15 +541,48 @@
     "dataElementMaxLag": "Höchster Rückstand (Nachrichten)",
     "dataElementSchemaVersion": "Schemaversion (optional)",
     "dataElementSchemaVersionHint": "Leer: die neueste Version von <topic>-value",
-    "dataElementFailAs": "Status, wenn zu alt",
-    "dataElementSchemaFailAs": "Status bei fehlendem Feld oder anderem Typ",
     "dataElementWarningAs": "Status einer Warnung",
     "dataElementWarningHints": {
       "freshness": "Die letzte Aktualisierung oder Ausführung schlug fehl, die Daten sind aber noch aktuell genug",
-      "schema": "Pflicht und optional weichen ab, oder es gibt Spalten, die der Vertrag nicht nennt"
+      "schema": "Pflicht und optional weichen ab, oder es gibt Spalten, die der Vertrag nicht nennt",
+      "volume": "Wird im Volumenmodus nicht verwendet",
+      "quality": "Ein erfasster Qualitätstest warnt"
     },
-    "dataElementFreshnessNote": "Aktualität sind Metadaten, nie ein Datenwert: LAST_ALTERED ändert sich auch bei DDL und Hintergrundwartung, die Prüfung sagt also „geändert“, nicht „geladen“. Für den neuesten Wert einer Zeitstempelspalte schreiben Sie eine eigene Datenbankprüfung und verknüpfen sie mit dem Element.",
-    "dataElementSchemaNote": "Snowflake-Spalten stammen aus INFORMATION_SCHEMA.COLUMNS, Kafka-Felder aus der Schema Registry (Protobuf wird nicht verglichen), Datenbanktabellen aus dem neuesten Schema-Snapshot."
+    "dataElementFailAsModes": {
+      "freshness": "Status, wenn zu alt",
+      "schema": "Status bei fehlendem Feld oder anderem Typ",
+      "volume": "Status außerhalb der Grenzen",
+      "quality": "Status eines fehlgeschlagenen Tests oder einer Metrik außerhalb ihrer Grenzen"
+    },
+    "dataElementNotes": {
+      "freshness": "Aktualität sind Metadaten, nie ein Datenwert: LAST_ALTERED ändert sich auch bei DDL und Hintergrundwartung, die Prüfung sagt also „geändert“, nicht „geladen“. Für den neuesten Wert einer Zeitstempelspalte schreiben Sie eine eigene Datenbankprüfung und verknüpfen sie mit dem Element.",
+      "schema": "Snowflake-Spalten stammen aus INFORMATION_SCHEMA.COLUMNS, Kafka-Felder aus der Schema Registry (Protobuf wird nicht verglichen), Datenbanktabellen aus dem neuesten Schema-Snapshot.",
+      "volume": "Volumen sind Metadaten: ROW_COUNT und BYTES aus INFORMATION_SCHEMA.TABLES von Snowflake, End-Offsets von Kafka (es wird keine Nachricht gelesen). Eine Messung wird höchstens alle 5 Minuten für 8 Tage aufbewahrt; die Änderung wird gegen die neueste Messung gemessen, die mindestens ein Fenster alt ist.",
+      "quality": "Ergebnisse der Data Metric Functions stammen aus SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS (die Rolle braucht SNOWFLAKE.DATA_QUALITY_MONITORING_VIEWER). Ohne eigene Grenzen müssen Null-, Leer- und Duplikatzahlen und -anteile 0 sein. Erfasste Ergebnisse liest Steward aus seiner eigenen Datenbank, ohne Plattform."
+    },
+    "dataElementMeasure": "Was gemessen wird",
+    "dataElementMeasures": {
+      "rows": "Zeilen",
+      "bytes": "Größe (Bytes)",
+      "messages": "Nachrichten"
+    },
+    "dataElementWindow": "Fenster (Minuten)",
+    "dataElementWindowHint": "Verglichen mit der neuesten Messung, die mindestens so alt ist",
+    "dataElementMinRows": "Mindestens (Zeilen)",
+    "dataElementMinMessages": "Mindestens (Nachrichten)",
+    "dataElementMinGrowth": "Wachstum mindestens",
+    "dataElementMinGrowthHint": "Seit der Messung davor – 1 findet eine stehende Ladung",
+    "dataElementMaxChange": "Änderung höchstens",
+    "dataElementQualitySource": "Qualitätsergebnisse aus",
+    "dataElementQualitySources": {
+      "results": "Erfasste Ergebnisse",
+      "dmf": "Data Metric Functions"
+    },
+    "dataElementQualitySourceHints": {
+      "results": "dbt-Tests, Vertragstests und DMF-Ergebnisse, die Steward für das Element erfasst hat",
+      "dmf": "Das neueste Ergebnis jeder Data Metric Function auf der Tabelle"
+    },
+    "dataElementWithinHours": "Ergebnisse der letzten (Stunden)"
   },
   "detail": {
     "template": "Vorlage",

@@ -62,7 +62,21 @@ import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/Dupli
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard', 'isms', 'ai', 'costs', 'contracts'];
+const BUILTIN = [
+  'availability',
+  'gatus',
+  'credentials',
+  'runs',
+  'records',
+  'tickets',
+  'duties',
+  'scorecard',
+  'isms',
+  'ai',
+  'costs',
+  'contracts',
+  'dataProducts',
+];
 
 type Draft = Pick<
   ReportSchedule,
@@ -521,6 +535,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     ai: { platformIds: null },
     costs: { scope: 'service', ids: null },
     contracts: { contractIds: null },
+    dataProducts: { productIds: null, environment: null },
   };
   const check = useFieldErrors({
     name: !d.name.trim() && t('common:validation.required'),
