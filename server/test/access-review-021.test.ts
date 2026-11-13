@@ -86,3 +86,35 @@ describe('a team that takes the name of a deleted team', () => {
     expect((await s.api('GET', `/access/service/${svc}/shares`)).shares).toHaveLength(1);
   });
 });
+
+describe('a Restricted service', () => {
+  let svc = '';
+  beforeAll(async () => {
+    svc = (await s.api('POST', '/services', { name: 'Invented board reporting', owners: [] })).id;
+    await s.api('PUT', `/access/service/${svc}/scope`, { restricted: true });
+  });
+
+  it('is published on a status page only by who may change it', async () => {
+    // Dana (a designer outside it) may set up status pages, but not publish what she may not see
+    expect(await code(dana('POST', '/status-pages', { title: 'Invented page', serviceIds: [svc] }))).toBe('SERVICE_NOT_FOUND');
+    // a View share lets her see it, not publish it
+    await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:dana', level: 'view' }] });
+    expect(await code(dana('POST', '/status-pages', { title: 'Invented page', serviceIds: [svc] }))).toBe('SERVICE_NOT_FOUND');
+    await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:dana', level: 'edit' }] });
+    expect(await code(dana('POST', '/status-pages', { title: 'Invented page', serviceIds: [svc] }))).toBe('ok');
+  });
+
+  it('gets maintenance windows only from who may change it', async () => {
+    await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:dana', level: 'view' }] });
+    const now = Date.now();
+    const window = {
+      title: 'Invented patch night',
+      startsAt: new Date(now + 3_600_000).toISOString(),
+      endsAt: new Date(now + 7_200_000).toISOString(),
+      targets: [{ kind: 'service', id: svc }],
+    };
+    expect(await code(dana('POST', '/maintenance-windows', window))).toBe('FORBIDDEN');
+    await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:dana', level: 'edit' }] });
+    expect(await code(dana('POST', '/maintenance-windows', window))).toBe('ok');
+  });
+});
