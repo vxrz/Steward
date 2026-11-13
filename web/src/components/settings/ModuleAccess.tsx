@@ -78,9 +78,7 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
   const people = (list: ModuleAccessPreview['gains']) => (
     <List size="sm" spacing={2}>
       {list.slice(0, SHOWN).map((p) => (
-        <List.Item key={p.username}>
-          {p.displayName && p.displayName !== p.username ? `${p.displayName} (${p.username})` : p.username}
-        </List.Item>
+        <List.Item key={p.username}>{p.displayName && p.displayName !== p.username ? `${p.displayName} (${p.username})` : p.username}</List.Item>
       ))}
       {list.length > SHOWN && <List.Item>{t('access.more', { count: list.length - SHOWN })}</List.Item>}
     </List>
@@ -201,7 +199,12 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
 export function ModuleAccessBadge({ mode }: { mode: ModuleAccessMode }) {
   const { t } = useTranslation('modules');
   return (
-    <Badge size="sm" variant="light" color={mode === 'selected' ? 'grape' : 'gray'} leftSection={mode === 'selected' ? <IconShieldLock size={11} aria-hidden /> : null}>
+    <Badge
+      size="sm"
+      variant="light"
+      color={mode === 'selected' ? 'grape' : 'gray'}
+      leftSection={mode === 'selected' ? <IconShieldLock size={11} aria-hidden /> : null}
+    >
       {t(`access.mode.${mode}`)}
     </Badge>
   );

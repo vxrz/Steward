@@ -792,7 +792,12 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           value={d.recipients.emails}
           onChange={(v) => set({ recipients: { ...d.recipients, emails: v } })}
         />
-        <ModuleRecipients id={d.id} sections={Object.keys(d.sections)} recipients={d.recipients} userLabel={(n) => users.find((x) => x.value === n)?.label ?? n} />
+        <ModuleRecipients
+          id={d.id}
+          sections={Object.keys(d.sections)}
+          recipients={d.recipients}
+          userLabel={(n) => users.find((x) => x.value === n)?.label ?? n}
+        />
         <Select
           label={t('form.team')}
           description={t('form.teamHint')}

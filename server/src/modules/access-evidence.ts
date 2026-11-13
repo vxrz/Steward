@@ -41,7 +41,13 @@ export function moduleAccessEvidence(from: string, to: string): ModuleAccessEvid
   const current = MODULES.filter((m) => moduleRestrictable(m.id))
     .map((m) => moduleAccessView(m.id))
     .filter((v) => v.mode === 'selected')
-    .map((v) => ({ module: v.module, name: moduleDef(v.module).name, subjects: v.grants.map((g) => g.subject), updatedAt: v.updatedAt, updatedBy: v.updatedBy }));
+    .map((v) => ({
+      module: v.module,
+      name: moduleDef(v.module).name,
+      subjects: v.grants.map((g) => g.subject),
+      updatedAt: v.updatedAt,
+      updatedBy: v.updatedBy,
+    }));
   const { rows, rejected } = authenticRows("action = 'access.module_access_changed' AND ts >= ? AND ts <= ?", [from, to], {
     ascending: true,
     limit: MODULE_ACCESS_EVIDENCE_LIMIT,

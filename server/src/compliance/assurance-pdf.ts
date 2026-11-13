@@ -440,7 +440,11 @@ export async function drawAssurancePdf(m: AssuranceReportModel, brand: BrandingI
           { header: L.usedBy, width: 6 },
           { header: L.at, width: 2 },
         ],
-        ma.current.map((c) => [moduleName(c.module, c.name), c.subjects.join(', ') || L.nobody, c.updatedAt ? `${tr.dateTime(c.updatedAt)}${c.updatedBy ? ` (${c.updatedBy})` : ''}` : '–']),
+        ma.current.map((c) => [
+          moduleName(c.module, c.name),
+          c.subjects.join(', ') || L.nobody,
+          c.updatedAt ? `${tr.dateTime(c.updatedAt)}${c.updatedBy ? ` (${c.updatedBy})` : ''}` : '–',
+        ]),
       );
     w.subheading(L.moduleChanges);
     if (!ma.changes.length) w.paragraph(L.noModuleChanges, { size: 9 });

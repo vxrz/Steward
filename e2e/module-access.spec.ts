@@ -1,7 +1,7 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { USERS } from './support/env';
-import { expectAccessible, settle } from './support/axe';
+import { expectAccessible } from './support/axe';
 import { expectNoHorizontalScroll } from './support/helpers';
 import { sessionState, ISOLATED_SETUP_MS, startIsolatedServer, type IsolatedServer } from './support/server';
 
@@ -40,7 +40,8 @@ test.describe('who may use a module (own server)', () => {
     return page;
   }
 
-  const grants = async (id: string) => ((await srv.api('GET', `/settings/modules/${id}/access`)) as { grants: { subject: string }[] }).grants.map((g) => g.subject);
+  const grants = async (id: string) =>
+    ((await srv.api('GET', `/settings/modules/${id}/access`)) as { grants: { subject: string }[] }).grants.map((g) => g.subject);
 
   test('restrict Costs to one user: preview and confirmation; widen with the step-up; open it again', async ({ browser }) => {
     test.setTimeout(150_000);

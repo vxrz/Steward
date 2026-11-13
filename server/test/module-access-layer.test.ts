@@ -15,13 +15,17 @@ process.env.SM_MONITOR_DEMO_SIMULATOR = '0';
 
 let s: TestServer;
 const PW = 'Demo-password-1';
-let vera: Client, dana: Client;
+let vera: Client, dana: Client, olivia: Client;
+let svcId: string;
 
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
-  [vera, dana] = await Promise.all(['vera', 'dana'].map((u) => s.as(u, PW)));
+  [vera, dana, olivia] = await Promise.all(['vera', 'dana', 'olivia'].map((u) => s.as(u, PW)));
+  // a service of the whole instance (no owning team): everyone sees it
+  svcId = (await s.api('POST', '/services', { name: 'Invented module layer service' })).id;
+  await s.api('PUT', `/owning-teams/service/${svcId}`, { teamIds: [] });
 }, 180_000);
 afterAll(async () => {
   await s?.app.close();
@@ -33,7 +37,7 @@ const open = (id: ModuleId) => s.api('PUT', `/settings/modules/${id}/access`, { 
 
 describe('Why do I have access? names the module layer', () => {
   it('for an item of a module: through which team the person uses it, or that they do not (and so have no rights)', async () => {
-    const contract = ((await s.api('GET', '/data-contracts')) as { items?: { id: string }[] } | { id: string }[]) as unknown;
+    const contract = (await s.api('GET', '/data-contracts')) as { items?: { id: string }[] } | { id: string }[] as unknown;
     const list = (Array.isArray(contract) ? contract : ((contract as { items: { id: string }[] }).items ?? [])) as { id: string }[];
     expect(list.length).toBeGreaterThan(0);
     const id = list[0]!.id;
@@ -58,9 +62,12 @@ describe('Why do I have access? names the module layer', () => {
       await s.api('DELETE', `/teams/${team.id}`);
     }
     // open to everyone: said so; a core item has no module layer
-    expect((await s.api('GET', `/access/explain?kind=contract&id=${id}&user=vera`)).module).toMatchObject({ restricted: false, uses: true, through: [{ source: 'everyone' }] });
-    const svc = ((await s.api('GET', '/services')) as { id: string }[])[0]!;
-    expect((await s.api('GET', `/access/explain?kind=service&id=${svc.id}`)).module).toBeUndefined();
+    expect((await s.api('GET', `/access/explain?kind=contract&id=${id}&user=vera`)).module).toMatchObject({
+      restricted: false,
+      uses: true,
+      through: [{ source: 'everyone' }],
+    });
+    expect((await s.api('GET', `/access/explain?kind=service&id=${svcId}`)).module).toBeUndefined();
   });
 
   it('the access preview names the teams that own data contracts but would not use the module', async () => {
@@ -128,7 +135,10 @@ describe('person access reviews', () => {
 
 describe('the report schedule form', () => {
   it('names the recipients who get the report without the sections of a module they do not use', async () => {
-    const body = { sections: ['runs', 'scorecard'], recipients: { users: ['vera', 'dana'], teams: ['Invented report readers'], emails: ['someone@example.com'] } };
+    const body = {
+      sections: ['runs', 'scorecard'],
+      recipients: { users: ['vera', 'dana'], teams: ['Invented report readers'], emails: ['someone@example.com'] },
+    };
     const team = await s.api('POST', '/teams', { name: 'Invented report readers', members: [] });
     try {
       expect(await dana('POST', '/report-schedules/recipients-preview', body)).toEqual({ modules: [] });
@@ -138,14 +148,16 @@ describe('the report schedule form', () => {
         modules: [{ module: 'scorecard', ownerUses: true, users: ['vera'], teams: ['Invented report readers'], emails: 1 }],
       });
       // the owner who does not use it: the sections are left out for everyone
-      expect((await vera('POST', '/report-schedules/recipients-preview', body)).modules[0]).toMatchObject({ ownerUses: false });
+      expect((await olivia('POST', '/report-schedules/recipients-preview', body)).modules[0]).toMatchObject({ ownerUses: false });
+      // read-only accounts make no schedules
+      await expect(vera('POST', '/report-schedules/recipients-preview', body)).rejects.toThrow(/403/);
       // a schedule of someone else: only its owner or an administrator asks
       const sch = await dana('POST', '/report-schedules', { name: 'Modules preview', preset: 'weekly', sections: { runs: true }, enabled: false });
-      await expect(vera('POST', '/report-schedules/recipients-preview', { ...body, id: sch.id })).rejects.toMatchObject({ status: 404 });
+      await expect(olivia('POST', '/report-schedules/recipients-preview', { ...body, id: sch.id })).rejects.toThrow(/404/);
       expect((await s.api('POST', '/report-schedules/recipients-preview', { ...body, id: sch.id })).modules[0]).toMatchObject({ ownerUses: true });
-      await expect(vera('POST', '/report-schedules/recipients-preview', { ...body, sections: Array.from({ length: 101 }, (_, i) => `s${i}`) })).rejects.toMatchObject({
-        status: 400,
-      });
+      await expect(dana('POST', '/report-schedules/recipients-preview', { ...body, sections: Array.from({ length: 101 }, (_, i) => `s${i}`) })).rejects.toThrow(
+        /400/,
+      );
     } finally {
       await open('scorecard');
       await s.api('DELETE', `/teams/${team.id}`);
@@ -155,22 +167,23 @@ describe('the report schedule form', () => {
 
 describe('a monitor check of a module the viewer does not use', () => {
   it('shows its status, not what it found – in the detail, the results and the history', async () => {
-    const svc = ((await s.api('GET', '/services')) as { id: string }[])[0]!;
     const m = await s.api('POST', '/monitors', {
-      name: 'Invented costs watch (modules)',
-      checks: [
-        {
-          id: 'cost',
-          name: 'Costs not rising',
-          type: 'cost',
-          scope: 'service',
-          target: svc.id,
-          period: 'month',
-          maxIncreasePct: 20,
-          failAs: 'degraded',
-          noData: 'unknown',
-        },
-      ],
+      definition: {
+        name: 'Invented costs watch (modules)',
+        checks: [
+          {
+            id: 'cost',
+            name: 'Costs not rising',
+            type: 'cost',
+            scope: 'service',
+            target: svcId,
+            period: 'month',
+            maxIncreasePct: 20,
+            failAs: 'degraded',
+            noData: 'unknown',
+          },
+        ],
+      },
     });
     const id = (m.monitor ?? m).id as string;
     // the monitor of the whole instance: everyone may view it
@@ -191,7 +204,8 @@ describe('a monitor check of a module the viewer does not use', () => {
     const read = async (c: Client) => {
       const d = await c('GET', `/monitors/${id}`);
       const check = (d.checks as { checkId: string; last: { message: string; value?: unknown } | null }[]).find((x) => x.checkId === 'cost')!;
-      const history = (await c('GET', `/monitors/${id}/history`)) as { checkId: string | null; message: string }[] | { items: { checkId: string | null; message: string }[] };
+      const history = (await c('GET', `/monitors/${id}/history`)) as
+        { checkId: string | null; message: string }[] | { items: { checkId: string | null; message: string }[] };
       const items = Array.isArray(history) ? history : history.items;
       return { check, history: items.filter((h) => h.checkId === 'cost').map((h) => h.message) };
     };
