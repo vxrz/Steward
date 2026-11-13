@@ -747,7 +747,13 @@ function Versions({ book, onOpen }: { book: CostPriceBookDetail; onOpen: (n: num
                   {t(`prices.sources.${v.source}`)}
                   {v.derivation && (
                     <Text size="xs" c="dimmed">
-                      {t('prices.versions_cause', { cause: v.derivation.cause, version: v.derivation.baseVersion })}
+                      {t('prices.versions_cause', {
+                        // the cause in the UI's language; a version written before the codes keeps the server's text
+                        cause: v.derivation.causeCode
+                          ? t(`prices.causes.${v.derivation.causeCode}`, { book: v.derivation.causeBook ?? '', version: v.derivation.causeVersion ?? '' })
+                          : v.derivation.cause,
+                        version: v.derivation.baseVersion,
+                      })}
                     </Text>
                   )}
                 </Table.Td>
@@ -1017,17 +1023,12 @@ function EntryDialog({ book, entry, onClose, onSaved }: { book: CostPriceBookDet
             <TextInput label={t('prices.item.included')} value={e.included ?? ''} onChange={(x) => set({ included: x.currentTarget.value || null })} />
             <TextInput label={t('prices.item.minimum')} value={e.minimum ?? ''} onChange={(x) => set({ minimum: x.currentTarget.value || null })} />
             <TextInput
+              type="date"
               label={t('prices.item.validFrom')}
-              placeholder={t('prices.item.datePlaceholder')}
               value={e.validFrom ?? ''}
               onChange={(x) => set({ validFrom: x.currentTarget.value || null })}
             />
-            <TextInput
-              label={t('prices.item.validTo')}
-              placeholder={t('prices.item.datePlaceholder')}
-              value={e.validTo ?? ''}
-              onChange={(x) => set({ validTo: x.currentTarget.value || null })}
-            />
+            <TextInput type="date" label={t('prices.item.validTo')} value={e.validTo ?? ''} onChange={(x) => set({ validTo: x.currentTarget.value || null })} />
           </SimpleGrid>
           <TextInput label={t('prices.item.sourceNote')} value={e.sourceNote} onChange={(x) => set({ sourceNote: x.currentTarget.value })} />
           <Group justify="flex-end">

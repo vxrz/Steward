@@ -6,7 +6,7 @@ import { json, startRunApi, waitForRun } from './support/helpers';
 import { animationsDone } from './support/axe';
 
 /**
- * axe-core checks for WCAG 2.1 A/AA. A test fails on "serious" or "critical" violations.
+ * axe-core checks for WCAG 2.2 A/AA (the 2.1 rules plus 2.5.8 target size). A test fails on "serious" or "critical" violations.
  * Known issues that cannot be fixed right now go into KNOWN_ISSUES with a reason (see docs/TESTING.md).
  */
 const KNOWN_ISSUES: { rule: string; reason: string }[] = [
@@ -16,7 +16,7 @@ const KNOWN_ISSUES: { rule: string; reason: string }[] = [
 async function expectAccessible(page: Page, name: string) {
   await animationsDone(page);
   const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .disableRules(KNOWN_ISSUES.map((k) => k.rule))
     .analyze();
   const bad = result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
@@ -31,8 +31,9 @@ async function expectAccessible(page: Page, name: string) {
 }
 
 /**
- * Page structure beyond the WCAG 2.1 tags: exactly one level-1 heading (axe "page-has-heading-one") and buttons and
- * links of at least 24 × 24 px or far enough apart (WCAG 2.2, 2.5.8 "target-size"; axe exempts links in running text).
+ * Page structure beyond the WCAG tags: exactly one level-1 heading (axe "page-has-heading-one") and buttons and links of
+ * at least 24 × 24 px or far enough apart (2.5.8 "target-size", which the WCAG 2.2 scan checks for every control as well;
+ * axe exempts links in running text).
  */
 async function expectStructure(page: Page, name: string) {
   await expect(page.getByRole('heading', { level: 1 }), `one h1 on ${name}`).toHaveCount(1);
@@ -50,7 +51,7 @@ async function settle(page: Page) {
   await page.waitForLoadState('networkidle');
 }
 
-test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
+test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
   test.use({ storageState: authFile('admin') });
 
   const PAGES: [string, string][] = [

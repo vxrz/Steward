@@ -1,6 +1,6 @@
 {
   "title": "Users & teams",
-  "description": "Who can sign in, their roles and teams. Roles give default rights everywhere; access lists on processes and platforms can narrow them down.",
+  "description": "Who can sign in, their roles and teams. Roles give default rights everywhere; an item can be restricted and shared with users, teams and roles.",
   "addUser": "Add user",
   "noRoles": "no roles",
   "resetConfirm": "Reset the password of {{user}}? Their sessions are signed out.",
@@ -24,7 +24,7 @@
   "teams": {
     "title": "Teams",
     "new": "New team",
-    "none": "No teams yet. Teams group users so that access lists and task assignments can refer to them (e.g. team:service desk).",
+    "none": "No teams yet. Teams group users so that shares and task assignments can refer to them (e.g. team:service desk).",
     "edit": "Edit team {{name}}",
     "delete": "Delete team {{name}}",
     "deleteConfirm": "Delete team \"{{name}}\"? Access entries that name it stop matching anyone.",
@@ -42,7 +42,7 @@
   },
   "roles": {
     "title": "Roles",
-    "hint": "Roles are defaults. A process or platform with an access list only grants the rights listed there (plus administrators and, for processes, the owner). Approval steps can additionally be assigned to specific users, teams or roles and require a second person (four-eyes principle)."
+    "hint": "Roles are defaults. A restricted item grants only the rights it is shared with (plus administrators, auditors and its owner). Approval steps can additionally be assigned to specific users, teams or roles and require a second person (four-eyes principle)."
   },
   "userModal": {
     "updated": "{{user}} updated",

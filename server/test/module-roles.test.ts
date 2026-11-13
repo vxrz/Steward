@@ -431,7 +431,7 @@ const pick = (x: Record<string, unknown>) => ({ enterprise: x.enterprise, labels
 describe('module-only users', () => {
   it('reach only their modules and their profile: plant users keep PLANT_VIEWER_ONLY, others get MODULE_ONLY_USER', async () => {
     const nora = users.nora!;
-    expect((await nora('GET', '/auth/status')).me.capabilities.plantOnly).toBe(false);
+    expect((await nora('GET', '/auth/status')).me.capabilities).toMatchObject({ plantOnly: false, moduleOnly: [] });
     const id = (await s.api('GET', '/users')).find((u: { username: string }) => u.username === 'nora').id;
     await s.api('PUT', `/users/${id}`, { moduleRoles: [{ module: 'costs', role: 'manager' }] });
     try {
@@ -456,6 +456,8 @@ describe('module-only users', () => {
         await s.api('DELETE', `/costs/price-books/${book}`);
       }
       expect((await status(nora('GET', '/auth/status'))).status).toBe(200);
+      // the web app's sidebar follows the modules they use only through module roles
+      expect((await nora('GET', '/auth/status')).me.capabilities).toMatchObject({ plantOnly: false, moduleOnly: ['costs'] });
       await s.api('PUT', `/users/${id}`, {
         moduleRoles: [
           { module: 'costs', role: null },
@@ -465,7 +467,7 @@ describe('module-only users', () => {
       expect(await status(nora('GET', '/services'))).toEqual({ status: 403, code: 'PLANT_VIEWER_ONLY' });
       expect((await status(nora('GET', '/plant/sites'))).status).toBe(200);
       const st = (await nora('GET', '/auth/status')).me.capabilities;
-      expect(st).toMatchObject({ plantOnly: true, plant: true, moduleRoles: { plant: 'viewer' } });
+      expect(st).toMatchObject({ plantOnly: true, moduleOnly: ['plant'], plant: true, moduleRoles: { plant: 'viewer' } });
       // a viewer sees, does not propose
       expect((await nora('GET', '/plant/sites/rx-open')).permissions).toEqual(['view']);
     } finally {

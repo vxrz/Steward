@@ -107,14 +107,41 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await expect(prices.getByTestId('contract-conditions')).toContainText('12 % off');
   await expect(prices.getByTestId('contract-conditions')).toContainText('Negotiated unit price');
   await expectAccessible(page, 'contract prices');
-  if (mobile) await expectNoHorizontalScroll(page);
+  if (mobile) {
+    await expectNoHorizontalScroll(page);
+    // a card per condition on a phone, not a table to scroll sideways
+    await expect(prices.getByTestId('condition-card')).toHaveCount(4);
+    await expect(prices.getByRole('table')).toHaveCount(0);
+  }
   if (!mobile) {
     await prices.getByTestId('contract-prices-edit').click();
+    // the target suggests what the provider's books name; a book is picked from them
+    await page.getByTestId('condition-0-target').fill('Netw');
+    await expect(page.getByRole('option', { name: 'Network', exact: true })).toBeVisible();
+    await page.getByTestId('condition-0-target').fill('Compute');
+    await page.getByTestId('conditions-form').getByText('The most specific condition wins').click();
     await page.getByTestId('condition-add').click();
-    await page.getByTestId('condition-4-percent').fill('5');
+    // a commitment's bands, a row each – the short form pasted is read into rows
+    await page.getByTestId('condition-4-kind').click();
+    await page.getByRole('option', { name: 'Commitment', exact: true }).click();
+    const bands = page.getByTestId('condition-4-bands');
+    await bands.getByRole('textbox', { name: 'Committed amount per year, band 1' }).fill('0:0;100000:15');
+    await expect(bands.getByRole('textbox', { name: 'Committed amount per year, band 2' })).toHaveValue('100000');
+    await expect(bands.getByRole('textbox', { name: 'Percentage, band 2' })).toHaveValue('15');
+    await expectAccessible(page, 'contract prices: a commitment with its bands');
+    await page.getByTestId('condition-4-kind').click();
+    await page.getByRole('option', { name: 'Percent off list', exact: true }).click();
+    // saving without a percentage: the form marks the field in plain words and puts the focus there
+    await page.getByTestId('conditions-save').click();
+    await expect(page.getByTestId('condition-4-percent')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByTestId('condition-4-percent')).toBeFocused();
+    await expect(page.getByTestId('conditions-form')).toContainText('A percentage from 0 to 100');
+    await expect(page.getByTestId('conditions-form')).not.toContainText('conditions.4');
+    // a decimal comma as typed in German is taken
+    await page.getByTestId('condition-4-percent').fill('5,5');
     await expectAccessible(page, 'contract prices: the dialog');
     await page.getByTestId('conditions-save').click();
-    await expect(prices.getByTestId('contract-conditions')).toContainText('5 % off');
+    await expect(prices.getByTestId('contract-conditions')).toContainText('5.5 % off');
   }
 
   // ---- an estimate priced with them: how each price was found ----
@@ -124,6 +151,16 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await expect(est.getByTestId('estimate-result')).toContainText('Negotiated price of contract E2E-1');
   await expectAccessible(page, 'estimate priced by contract');
   if (mobile) await expectNoHorizontalScroll(page);
+
+  // ---- a list book's item: its validity picked as days ----
+  if (!mobile) {
+    await page.goto(`/costs/price-books/${f.list}`);
+    await page.getByTestId('entry-add').click();
+    const entry = page.getByRole('dialog');
+    await expect(entry.getByLabel('Valid from')).toHaveAttribute('type', 'date');
+    await expect(entry.getByLabel('Valid to')).toHaveAttribute('type', 'date');
+    await entry.getByRole('button', { name: 'Cancel' }).click();
+  }
 
   // ---- the derived book: its base, its terms on the contract, Access ----
   await page.goto(`/costs/price-books/${f.derived}`);
@@ -139,6 +176,8 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   await page.goto(`/costs/estimates/${f.viaProvider}`);
   await expect(page.getByTestId('estimate-result')).toContainText('Customer price of');
   await expect(page.getByTestId('line-breakdown').first()).toContainText('Discount 10 %');
+  // a subtracted amount with a real minus sign (U+2212), not a hyphen
+  await expect(page.getByTestId('line-breakdown').first()).toContainText('Discount 10 %: \u2212');
   await expectAccessible(page, 'estimate through a provider');
   if (mobile) await expectNoHorizontalScroll(page);
 
@@ -170,6 +209,31 @@ test('contract conditions and derived books on a phone @mobile', async ({ page, 
   const f = await fixture(api);
   try {
     await flow(page, api, f, true);
+  } finally {
+    await cleanup(api, f);
+  }
+});
+
+test('the contract’s prices in German: percentages and days in the UI language', async ({ page, apiAs }) => {
+  test.setTimeout(120_000);
+  const api = await apiAs('admin');
+  const f = await fixture(api);
+  try {
+    const conditions = [
+      { kind: 'percentOff', provider: f.provider, on: 'service', target: 'Compute', percent: '12.5', validFrom: '2026-01-01', validTo: '2026-12-31' },
+    ];
+    expect((await api.put(`/api/costs/contracts/${f.contract}/conditions`, { data: { conditions } })).ok()).toBe(true);
+    await page.addInitScript(() => localStorage.setItem('steward.language', 'de'));
+    await page.goto(`/suppliers/${f.supplier}/contracts/${f.contract}`);
+    const table = page.getByTestId('contract-prices').getByTestId('contract-conditions');
+    // "12,5 % Nachlass", the validity as German days – not "12.5" and "2026-01-01"
+    await expect(table).toContainText('12,5 % Nachlass');
+    await expect(table).toContainText('01.01.2026');
+    await expect(table).not.toContainText('2026-01-01');
+    // the derived book's versions name their cause in German (a code, not the server's English text)
+    await page.goto(`/costs/price-books/${f.derived}`);
+    await expect(page.getByText('Die Konditionen des Vertrags wurden geändert').first()).toBeVisible();
+    await expectAccessible(page, 'contract prices (de)');
   } finally {
     await cleanup(api, f);
   }

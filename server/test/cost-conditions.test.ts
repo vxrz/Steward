@@ -409,7 +409,12 @@ describe('derived books', () => {
     await s.api('PUT', `/costs/price-books/${list}/entries`, { entries: [{ ...LIST[0], price: '0.12' }] });
     const after = (await s.api('GET', `/costs/price-books/${derived}`)) as CostPriceBookDetail;
     expect(after.version).toBe(2);
-    expect(after.versions[0]!.derivation).toMatchObject({ cause: 'Invented Cloud list v2' });
+    expect(after.versions[0]!.derivation).toMatchObject({
+      cause: 'Invented Cloud list v2',
+      causeCode: 'base',
+      causeBook: 'Invented Cloud list',
+      causeVersion: 2,
+    });
     expect(after.items.find((i) => i.sku === 'vm-small')!.price).toBe('0.11664');
     // a changed term does too
     await fin('PUT', `/costs/contracts/${customers}/conditions`, {
@@ -422,7 +427,7 @@ describe('derived books', () => {
     });
     const v3 = (await s.api('GET', `/costs/price-books/${derived}`)) as CostPriceBookDetail;
     expect(v3.version).toBe(3);
-    expect(v3.versions[0]!.derivation?.cause).toBe('terms of the contract changed');
+    expect(v3.versions[0]!.derivation).toMatchObject({ cause: 'terms of the contract changed', causeCode: 'contractTerms', causeBook: null });
     const audit = (await s.api('GET', `/audit?action=cost.price_book_derived&entityId=${derived}`)) as unknown[];
     expect(audit.length).toBe(3);
   });

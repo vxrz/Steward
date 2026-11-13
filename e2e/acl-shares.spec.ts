@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { authFile, baseURL } from './support/env';
 import { expectAccessible } from './support/axe';
 import { expectNoHorizontalScroll, json, platformId, uniq } from './support/helpers';
 
@@ -34,11 +34,17 @@ test('a process: its access list is shares with a Custom one, the owner above th
     const panel = page.getByTestId('shares-panel');
     await expect(panel.getByTestId('shares-scope')).toContainText('Restricted');
     await expect(panel.getByTestId('share-row')).toHaveCount(2);
+    // the owner of a Restricted item without owning teams: not "outside the owning teams" – there are none
+    await expect(panel.getByTestId('shares-implied')).toContainText('gives access to a Restricted item');
+    await expect(panel.getByTestId('shares-implied')).not.toContainText('outside the owning teams');
     await expect(panel.getByTestId('share-custom')).toHaveText(/^Custom: manage, view/);
     await expectAccessible(page, 'process access tab with shares');
 
     // changing the Custom share replaces it with its level; reset brings it back
     const vera = panel.getByTestId('share-row').filter({ has: page.getByTestId('share-custom') });
+    // a Custom share has no level: its level field says Custom, not View
+    await expect(vera.getByRole('combobox', { name: /^Level for / })).toHaveValue('');
+    await expect(vera.getByRole('combobox', { name: /^Level for / })).toHaveAttribute('placeholder', 'Custom');
     await vera.getByRole('combobox', { name: /^Level for / }).click();
     await page.getByRole('option', { name: 'Edit' }).click();
     await expect(panel.getByTestId('share-custom')).toHaveCount(0);
@@ -47,6 +53,8 @@ test('a process: its access list is shares with a Custom one, the owner above th
 
     // removing the role's share narrows: the preview says who loses what, no step-up
     await panel.getByRole('button', { name: /^Remove the share with Everyone with role operator/ }).click();
+    // the focus stays in the panel (its heading), not on the page's body
+    await expect(panel.getByRole('heading', { name: 'Shared with' })).toBeFocused();
     await panel.getByRole('button', { name: 'Save shares' }).click();
     const preview = page.getByRole('dialog', { name: 'Before you save' });
     await expect(preview).toContainText('loses');
@@ -58,6 +66,16 @@ test('a process: its access list is shares with a Custom one, the owner above th
     // the phone layout
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(panel.getByTestId('share-row')).toHaveCount(1);
+    // a card: the level and the end date side by side under the name, within the screen
+    const card = panel.getByTestId('share-row').first();
+    const boxes = async () => ({
+      level: (await card.getByRole('combobox', { name: /^Level for / }).boundingBox())!,
+      until: (await card.getByLabel(/^End date for /).boundingBox())!,
+    });
+    // (the layout follows the viewport after a render)
+    await expect.poll(async () => Math.abs((await boxes()).level.y - (await boxes()).until.y)).toBeLessThan(4);
+    const { until } = await boxes();
+    expect(until.x + until.width).toBeLessThanOrEqual(390);
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'process access tab (phone)');
   } finally {
@@ -95,12 +113,26 @@ test('a platform offers View and Manage with "use"; a monitor shows its owner ab
   await expectNoHorizontalScroll(page);
 });
 
-test('a dashboard and a data contract have the Access section; a contract share offers "relax the breaking-change rule"', async ({ page, apiAs }) => {
+test('a dashboard and a data contract have the Access section; a contract share offers "relax the breaking-change rule"', async ({ page, apiAs, browser }) => {
   const api = await apiAs('admin');
   const boards = await json<{ id: string }[]>(await api.get('/api/dashboards'));
   await page.goto(`/dashboards/${boards[0]!.id}`);
   await expect(page.getByTestId('access-tab').getByTestId('shares-panel')).toBeVisible();
   await expectAccessible(page, 'dashboard access section');
+  // a reader: the section is folded under the widgets and opens on request
+  const ctx = await browser.newContext({ storageState: authFile('vera'), baseURL: baseURL() });
+  try {
+    const reader = await ctx.newPage();
+    await reader.goto(`/dashboards/${boards[0]!.id}`);
+    const toggle = reader.getByTestId('section-dashboard-access-toggle');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(reader.getByTestId('shares-panel')).toBeHidden();
+    await toggle.click();
+    await expect(reader.getByTestId('shares-panel')).toBeVisible();
+    await expectAccessible(reader, 'dashboard access section (reader)');
+  } finally {
+    await ctx.close();
+  }
 
   await page.goto('/data-contracts');
   await page.getByRole('link', { name: 'Shop orders' }).first().click();
@@ -112,8 +144,11 @@ test('a dashboard and a data contract have the Access section; a contract share 
   await page.getByRole('option', { name: /\(vera\)/ }).click();
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
   const row = panel.getByTestId('share-row').filter({ hasText: /vera/i });
-  await expect(row.getByRole('checkbox', { name: 'relax the breaking-change rule' })).toBeVisible();
-  await expect(row.getByRole('checkbox', { name: 'test' })).toBeVisible();
+  // the new share's level field has the focus (the Add button is disabled again)
+  await expect(row.getByRole('combobox', { name: /^Level for / })).toBeFocused();
+  // labels in sentence case (the rights' names are lower case for running text)
+  await expect(row.getByRole('checkbox', { name: 'Relax the breaking-change rule', exact: true })).toBeVisible();
+  await expect(row.getByRole('checkbox', { name: 'Test', exact: true })).toBeVisible();
   await expectAccessible(page, 'data contract access section');
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoHorizontalScroll(page);

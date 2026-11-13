@@ -9,11 +9,11 @@ export async function animationsDone(page: Page) {
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity));
 }
 
-/** axe-core WCAG 2.1 A/AA scan; fails on "serious" or "critical" violations (same rules as accessibility.spec.ts). */
+/** axe-core WCAG 2.2 A/AA scan (2.1 rules plus target size); fails on "serious" or "critical" violations (same rules as accessibility.spec.ts). */
 export async function expectAccessible(page: Page, name: string) {
   const scan = async () => {
     await animationsDone(page);
-    const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     return result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
   };
   let bad = await scan();
