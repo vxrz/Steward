@@ -124,10 +124,16 @@ describe('a price book that names a supplier', () => {
     const sup = (await s.api('POST', '/suppliers', { name: 'Invented Clearing AG', type: 'saas' })).id as string;
     await s.api('PUT', `/access/supplier/${sup}/scope`, { restricted: true });
     // Dana (a costs manager) may not probe for it or name it
-    expect(await code(dana('POST', '/costs/price-books', { name: 'Invented rates', kind: 'list', provider: 'Invented', currency: 'EUR', supplierId: sup }))).toBe(
-      'SUPPLIER_NOT_FOUND',
-    );
-    const book = await s.api('POST', '/costs/price-books', { name: 'Invented clearing rates', kind: 'list', provider: 'Invented', currency: 'EUR', supplierId: sup });
+    expect(
+      await code(dana('POST', '/costs/price-books', { name: 'Invented rates', kind: 'list', provider: 'Invented', currency: 'EUR', supplierId: sup })),
+    ).toBe('SUPPLIER_NOT_FOUND');
+    const book = await s.api('POST', '/costs/price-books', {
+      name: 'Invented clearing rates',
+      kind: 'list',
+      provider: 'Invented',
+      currency: 'EUR',
+      supplierId: sup,
+    });
     expect(book.supplier).toEqual({ id: sup, name: 'Invented Clearing AG' });
     // a list book: every reader of the Costs module sees it – not the supplier it names
     for (const c of [vic, dana]) {
@@ -165,7 +171,9 @@ describe('the shares a reader may not see', () => {
     const svc = (await s.api('POST', '/services', { name: 'Invented shared desk', owners: [] })).id as string;
     const team = (i: number) => ({ subject: `team:invented crew ${String(i).padStart(3, '0')}`, level: 'view' });
     // Vic manages it by a share; the 60 team shares the administrator gives are not his to see (a viewer)
-    await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:vic', level: 'manage' }, ...Array.from({ length: 60 }, (_, i) => team(i))] });
+    await s.api('PUT', `/access/service/${svc}/shares`, {
+      shares: [{ subject: 'user:vic', level: 'manage' }, ...Array.from({ length: 60 }, (_, i) => team(i))],
+    });
     const v = await vic('GET', `/access/service/${svc}/shares`);
     expect(v.hidden).toBe(60);
     const mine = [{ subject: 'user:vic', level: 'manage' }, ...Array.from({ length: 50 }, (_, i) => team(60 + i))];
