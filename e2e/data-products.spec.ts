@@ -226,6 +226,8 @@ test.describe('the data products pages', () => {
     await page.goto(`/data-products/${id}/costs`);
     const months = page.getByRole('table', { name: 'Costs per month' }).getByRole('button');
     await expect(months.first()).toHaveText(/^[A-Z][a-z]{2,3} \d{4}$/);
+    // amounts with the currency's minor units, as in the costs module
+    await expect(page.getByRole('table', { name: 'Costs per month' }).locator('tbody tr').first()).toContainText(/US\$[\d,]+\.\d{2}/);
     await expect(page.getByTestId('cost-lines').getByRole('heading')).toHaveText(/^Costs in [A-Z][a-z]+ \d{4}$/);
     await page.goto(`/data-products/${id}/ports`);
     await expect(page.getByText(/^\d+ registered, 1 consuming product$/).first()).toBeVisible();

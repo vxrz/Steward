@@ -36,21 +36,17 @@ import { confirmDanger } from '../../components/confirm';
 import { FormModal } from '../../components/FormModal';
 import { TableScroll } from '../../components/TableScroll';
 import { useLevel } from '../../components/catalogue/cia';
-import { fmtMonth } from '../../components/costs/common';
+import { fmtMoney, fmtMonth } from '../../components/costs/common';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
-import { fmtNumber, numberFormat } from '../../format';
+import { fmtNumber } from '../../format';
 import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts } from './api';
 import { EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
 
 const enc = encodeURIComponent;
 
-/** An amount in micros as money in its currency (UI language). */
+/** An amount in micros as money in its currency (UI language), with the currency's minor units as in the costs module. */
 export function money(micros: number, currency: string): string {
-  try {
-    return numberFormat({ style: 'currency', currency, maximumFractionDigits: 0 }).format(micros / 1e6);
-  } catch {
-    return `${fmtNumber(Math.round(micros / 1e6))} ${currency}`;
-  }
+  return fmtMoney(String(micros / 1e6), currency);
 }
 
 const totalText = (totals: { currency: string; amountMicros: number }[]) => totals.map((x) => money(x.amountMicros, x.currency)).join(' + ');
