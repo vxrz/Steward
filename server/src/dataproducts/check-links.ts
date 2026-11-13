@@ -50,7 +50,7 @@ export function findChecks(elements: readonly ElementRow[]): FoundCheck[] {
     byName.set(k, [...(byName.get(k) ?? []), e]);
   }
   const rows = db().all<{ id: string; definition: string }>(
-    `SELECT id, definition FROM monitors WHERE is_template = 0 AND (definition LIKE '%"data-element"%' OR definition LIKE '%"snowflake"%' OR definition LIKE '%"kafka"%')`,
+    `SELECT id, definition FROM monitors WHERE is_template = 0 AND (lower(definition) LIKE '%"data-element"%' OR lower(definition) LIKE '%"snowflake"%' OR lower(definition) LIKE '%"kafka"%')`,
   );
   const out: FoundCheck[] = [];
   for (const r of rows) {
