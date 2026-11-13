@@ -37,7 +37,9 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
-import { plantId, translations } from './model.js';
+import { teamsChanged } from '../auth/policy.js';
+import { sharesChanged } from '../auth/share-store.js';
+import { plantId, plantRef, translations } from './model.js';
 import { assetModel, resolveAll, resolveChain } from './resolve.js';
 
 /**
@@ -441,7 +443,7 @@ export const profileInput = z
     description: text(L.longText),
     notes: text(L.longText),
     interfaces: z.array(interfaceInput).max(L.interfaces).default([]),
-    extends: plantId.nullable().default(null),
+    extends: plantRef.nullable().default(null),
     // 0.12.0: only for other profiles to extend (no asset may have it)
     template: z.boolean().default(false),
     interfaceOverrides: z.array(interfaceOverrideInput).max(L.interfaces).default([]),
@@ -487,10 +489,10 @@ export const kpiInput = z
           .object({
             kind: z.enum(KPI_INPUT_KINDS).default('data_point'),
             // a profile id, or empty: whatever profile the asset has
-            profile: z.union([z.literal(''), plantId]).default(''),
+            profile: z.union([z.literal(''), plantRef]).default(''),
             dataPoints: z.array(pointName).max(L.inputPoints).default([]),
             // 0.13: any of these profiles (two or more; `profile` is the first)
-            profiles: z.array(plantId).max(L.inputProfiles).optional(),
+            profiles: z.array(plantRef).max(L.inputProfiles).optional(),
             // 0.12.0: the unit expected per data point (a data point left out: its unit in the input's profile)
             units: kpiInputUnits,
             // 0.13: per profile, the input's data point → that profile's data point
@@ -561,7 +563,7 @@ const nullableText = (max: number) => z.string().trim().max(max).nullable().defa
 
 export const assignmentInput = z
   .object({
-    profileId: plantId.nullable().default(null),
+    profileId: plantRef.nullable().default(null),
     firmware: text(100),
     interfaces: z
       .array(z.object({ interface: pointName, active: z.boolean().default(true), endpoint: text(2000), notes: text(L.longText) }).strict())
@@ -625,7 +627,7 @@ export const assignmentInput = z
       .array(
         z
           .object({
-            kpi: plantId,
+            kpi: plantRef,
             job: z.string().trim().min(1).max(L.text),
             active: z.boolean().default(true),
             params: boundedRecord(paramValue, L.params).default({}),
@@ -989,14 +991,24 @@ export function upsertAssignment(assetId: string, v: PlantAssignmentValues, m: M
   );
 }
 
+/** 0.21.0 (#293): a removed entry's owning teams, shares and Restricted scope go with it (an id used again starts open). */
+function forgetAccess(kind: 'device_profile' | 'kpi_definition', id: string): void {
+  for (const table of ['resource_teams', 'resource_shares', 'resource_restrictions'])
+    db().run(`DELETE FROM ${table} WHERE kind = ? AND resource_id = ?`, kind, id);
+  teamsChanged();
+  sharesChanged();
+}
+
 export const removeProfileRow = (id: string) => {
   db().run("DELETE FROM copied_from WHERE kind = 'device-profile' AND id = ?", id);
   // 0.12: the links of records to it (the removal core refuses them without "also remove what belongs to it")
   db().run("DELETE FROM item_links WHERE to_kind = 'device-profile' AND to_id = ?", id);
   db().run('DELETE FROM plant_profiles WHERE id = ?', id);
+  forgetAccess('device_profile', id);
 };
 export const removeKpiRow = (id: string) => {
   db().run("DELETE FROM copied_from WHERE kind = 'kpi-definition' AND id = ?", id);
   db().run('DELETE FROM plant_kpis WHERE id = ?', id);
+  forgetAccess('kpi_definition', id);
 };
 export const removeAssignmentRow = (assetId: string) => db().run('DELETE FROM plant_assignments WHERE asset_id = ?', assetId);

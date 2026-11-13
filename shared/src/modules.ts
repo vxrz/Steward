@@ -309,7 +309,7 @@ export const MODULES: readonly ModuleDef[] = [
         'get_plant_advisory',
       ],
       exportParts: ['plant'],
-      itemKinds: ['site', 'asset', 'conduit', 'device-profile', 'data-collection', 'data-sink'],
+      itemKinds: ['site', 'asset', 'conduit', 'device-profile', 'data-collection', 'data-sink', 'device_profile', 'kpi_definition'],
     },
   },
   {

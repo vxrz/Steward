@@ -17,6 +17,7 @@ import { db } from '../db.js';
 import { refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
+import { currentUser } from '../auth/context.js';
 import { assignCreatorTeams } from '../auth/policy.js';
 import { listBacklinks, listLinks } from '../records/links.js';
 import { imageInfo, looksLikeSvg } from '../theme/service.js';
@@ -26,6 +27,7 @@ import { cleanFields, plantSettings, requirePlant } from './settings.js';
 import { mapClient } from './map.js';
 import { allProfiles, assignmentValuesOf, type AssignmentRow } from './data-model.js';
 import { deliveries } from './checks.js';
+import { seesEntry } from './catalogue-access.js';
 import {
   assetInput,
   assetRowOf,
@@ -559,10 +561,12 @@ export function listAssets(f: AssetFilter = {}): PlantAssetSummary[] {
         .all<AssignmentRow>('SELECT * FROM plant_assignments WHERE profile_id IS NOT NULL')
         .map((r) => [r.asset_id, assignmentValuesOf(r)]),
     );
+    // a profile the reader may not see filters like an unknown one: nothing (0.21.0, #293)
+    const known = seesEntry(currentUser(), 'device_profile', wanted);
     rows = rows.filter((a) => {
       const x = assigned.get(a.id);
       const profile = x?.profileId ? profiles.get(x.profileId) : undefined;
-      if (!x || !profile || !profile.chain.includes(wanted)) return false;
+      if (!known || !x || !profile || !profile.chain.includes(wanted)) return false;
       return !f.dataPoint || !!deliveries(x, profile).get(f.dataPoint)?.delivers;
     });
   }

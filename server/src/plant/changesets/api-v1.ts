@@ -18,7 +18,8 @@ import { requirePlant } from '../settings.js';
 import { found } from '../api-v1.js';
 import { PlantChangeOperationListQuery, PlantChangeSetListQuery } from '../api-schemas.js';
 import { ApiProposalRefused, proposeViaApi } from '../proposals.js';
-import { canSee, expireChangeSets, isAuthor, operationsFor, opsOf, rowOf, summariesOf, visibleRow, type CsRow } from './core.js';
+import { canSee, catalogueOps, expireChangeSets, isAuthor, operationsFor, opsOf, rowOf, summariesOf, visibleRow, type CsRow } from './core.js';
+import { catalogueScope } from '../catalogue-access.js';
 import { notifyProposed } from './notify.js';
 
 /**
@@ -95,6 +96,8 @@ export function changeSetApiRoutes(get: Get, app: FastifyInstance): void {
       expireChangeSets();
       const u = me();
       const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);
+      const ops = catalogueOps();
+      const scope = catalogueScope(u);
       const after = decodeCursor(cursor, filters) as [string, string] | undefined;
       // newest first, read in rounds: only what the token owner may see is kept (and counted)
       const out: CsRow[] = [];
@@ -122,7 +125,7 @@ export function changeSetApiRoutes(get: Get, app: FastifyInstance): void {
         exhausted = rows.length < SCAN;
         for (const r of rows) {
           key = [r.created_at, r.id];
-          if (!canSee(r, u, rights)) continue;
+          if (!canSee(r, u, rights, ops, scope)) continue;
           if (filters.mine && !isAuthor(r, u)) continue;
           if (filters.site && !parseJson<string[]>(r.sites, []).includes(filters.site)) continue;
           out.push(r);

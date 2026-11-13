@@ -330,6 +330,9 @@ describe('the registry of reference columns', () => {
   const OTHER_KINDS: Record<string, string> = {
     ca_findings: 'the source of a corrective action finding',
     cost_volume_notices: 'which contract volume warning was sent (runs out, shortfall, ceiling; ADR 0032)',
+    // 0.21.0 (ADR 0035): a price book's kind (list, contracted), an estimate's owner and what it is for (services, platforms)
+    cost_price_books: 'a price book kind',
+    cost_estimates: 'the service or platform an estimate belongs to',
     supplier_contract_items: 'an application or system a contract names for a covered service (ADR 0032)',
     ca_suggestions: 'the source of a suggested finding',
     supplier_certificates: 'a certificate kind (ISO 27001, SOC 2 …)',

@@ -14,6 +14,7 @@ import { assignmentOut, kpiOut, profileOut, sourceOut } from './import-data.js';
 import { plantJsonSchema, SCHEMA_ID } from './format.js';
 import { collectionOut, sinkOut } from './import-network.js';
 import { ihMapping } from './ih.js';
+import { HiddenRefs, catalogueScope, presentResolved } from './catalogue-access.js';
 
 /**
  * The plant registry for AI assistants (0.12.0, docs/MCP.md "Plant registry"): read tools over sites, assets with their
@@ -299,7 +300,9 @@ export const plantReadTools: ToolDef[] = [
         const id = currentId('profile', '', a.profileId);
         const p = cat.getProfile(id);
         const resolved = allProfiles();
-        const own = ownProfiles().get(id)!;
+        // 0.21.0 (#293): the own part as the reader may see it – a hidden base by its placeholder
+        const own = { ...ownProfiles().get(id)!, extends: p.own.extends };
+        const base = ownProfiles().get(id)!.extends;
         const r = { id: p.id, origins: p.origins };
         return {
           id: p.id,
@@ -320,7 +323,7 @@ export const plantReadTools: ToolDef[] = [
           assets: p.assets.slice(0, 200).map((x) => ({ id: x.id, name: x.name, siteId: x.siteId })),
           kpis: p.kpis.map((k) => ({ id: k.id, name: k.name, dataPoints: k.dataPoints })),
           youMayChange: p.canManage,
-          file: profileOut(own, own.extends ? (resolved.get(own.extends) ?? null) : null),
+          file: profileOut(own, base ? (resolved.get(base) ?? null) : null),
         };
       }),
   }),
@@ -343,8 +346,13 @@ export const plantReadTools: ToolDef[] = [
         let more = false;
         const only = a.profileId ? currentId('profile', '', a.profileId) : null;
         cat.listProfiles(); // the module check and the reader's catalogue right, as the web app's search
-        for (const p of allProfiles().values()) {
-          if (only && p.id !== only) continue;
+        // 0.21.0 (#293): only the profiles the reader may see; a hidden base is named by its placeholder
+        const scope = catalogueScope();
+        if (only && !scope.profile(only)) return { items: out, more }; // as an unknown profile: no hits
+        for (const whole of allProfiles().values()) {
+          if (only && whole.id !== only) continue;
+          if (!scope.profile(whole.id)) continue;
+          const p = presentResolved(whole, new HiddenRefs(scope.profile, whole.chain.slice(1)));
           for (const { iface, group, point } of pointsOf(p)) {
             if (!has(a.query, point.id, point.name, point.address, point.description, ...point.aliases)) continue;
             if (out.length >= a.limit) {
