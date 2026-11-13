@@ -306,6 +306,24 @@ describe('ports, consumers and the lifecycle', () => {
     }
   });
 
+  it('unbinds a data contract that is deleted', async () => {
+    const yaml = 'apiVersion: v3.0.2\nkind: DataContract\nid: orders-to-delete\nname: Orders to delete\nversion: 1.0.0\nstatus: draft\n';
+    const c = await s.api('POST', '/data-contracts', { yaml });
+    await dana('PUT', `/data-products/${orders}/ports/${output}/bindings/test`, { elementIds: [], contractId: c.id, contractVersion: 1 });
+    const { db } = await import('../src/db.js');
+    const binding = () =>
+      db().get<{ contract_id: string | null; contract_version: number | null }>(
+        "SELECT contract_id, contract_version FROM dp_port_bindings WHERE port_id = ? AND environment = 'test'",
+        output,
+      )!;
+    expect(binding().contract_id).toBe(c.id);
+    await s.api('DELETE', `/data-contracts/${c.id}`);
+    expect(binding()).toEqual({ contract_id: null, contract_version: null });
+    await dana('DELETE', `/data-products/${orders}/ports/${output}/bindings/test`);
+    await dana('DELETE', `/data-products/${orders}/environments/test`);
+    expect((await dana('GET', `/data-products/${orders}`)).environments).toEqual(['prod']);
+  });
+
   it('consumes another product’s output port through an input port, and counts consumers', async () => {
     const mart = (await dana('GET', '/data-products?q=sales')).items[0];
     const input = await dana('POST', `/data-products/${mart.id}/ports`, { direction: 'input', name: 'orders', source: { kind: 'port', portId: output } });
