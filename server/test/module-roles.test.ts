@@ -211,6 +211,41 @@ describe('the role "plant" becomes the contributor grant of the plant registry (
     ).toEqual(['pam', 'pete', 'pia', 'polly']);
   });
 
+  it('keeps the role of an account the restricted plant registry leaves out: converting it must not let them in', async () => {
+    const { convertDeprecatedRoles } = await import('../src/modules/user-roles.js');
+    const before = await s.api('GET', '/settings/modules/plant/access');
+    const kept = before.grants
+      .filter((g: { subject: string; source: string }) => g.source !== 'sso' && g.subject !== 'user:pia' && g.subject !== 'user:pete')
+      .map((g: { subject: string; role?: string | null }) => ({ subject: g.subject, role: g.role ?? null }));
+    await s.api('PUT', '/settings/modules/plant/access', { mode: 'selected', grants: [...kept, { subject: 'user:pete' }] });
+    try {
+      for (const name of ['pia', 'pete']) {
+        db().run('UPDATE users SET roles = ? WHERE username = ?', JSON.stringify(['plant']), name);
+        db().run("DELETE FROM module_grants WHERE subject = ? AND module_id = 'plant' AND role IS NOT NULL", `user:${name}`);
+      }
+      const pia = await s.as('pia', PW);
+      const refused = await status(pia('GET', '/plant/sites'));
+      expect(refused.status).toBeGreaterThanOrEqual(400);
+      // pete is on the list: his role becomes the grant; pia is not: she keeps the role (and with it what she had – nothing here)
+      expect(convertDeprecatedRoles()).toBe(1);
+      expect(JSON.parse(db().get<{ roles: string }>("SELECT roles FROM users WHERE username = 'pia'")!.roles)).toEqual(['plant']);
+      expect(db().get("SELECT 1 AS x FROM module_grants WHERE subject = 'user:pia' AND module_id = 'plant'")).toBeUndefined();
+      expect(await status(pia('GET', '/plant/sites'))).toEqual(refused);
+      expect((await status(pia('GET', '/services'))).code).toBe('PLANT_VIEWER_ONLY');
+    } finally {
+      await s.api('PUT', '/settings/modules/plant/access', { mode: before.mode, grants: kept });
+      db().run("UPDATE users SET roles = '[]' WHERE username IN ('pia', 'pete')");
+      db().run("DELETE FROM module_grants WHERE subject IN ('user:pia', 'user:pete') AND module_id = 'plant'");
+      for (const name of ['pia', 'pete'])
+        db().run(
+          "INSERT INTO module_grants (id, module_id, subject, role, created_by, created_at) VALUES (?, 'plant', ?, 'contributor', 'test', 'now')",
+          `mg_t_${name}`,
+          `user:${name}`,
+        );
+      db().run("UPDATE users SET roles = ? WHERE username = 'pete'", JSON.stringify(['viewer']));
+    }
+  });
+
   it('the API still takes the role as an alias for one release, says so, and stores the grant', async () => {
     // a raw session: the answer's headers matter here
     const login = await fetch(`${s.base}/api/auth/login`, {
@@ -402,6 +437,24 @@ describe('module-only users', () => {
     try {
       expect(await status(nora('GET', '/services'))).toEqual({ status: 403, code: 'MODULE_ONLY_USER' });
       expect((await status(nora('GET', '/costs/fx-rates'))).status).toBe(200);
+      // the link picker (a route plant viewers reach) finds nothing outside their modules: no dashboard names
+      expect(await s.api('GET', '/link-targets?kind=dashboard')).not.toEqual([]);
+      for (const kind of ['dashboard', 'site', 'process']) expect(await nora('GET', `/link-targets?kind=${kind}`), kind).toEqual([]);
+      // a Costs manager without a core role maintains instance price books and reads the exchange rates they set
+      const book = (await nora('POST', '/costs/price-books', { name: 'Invented module-only book', kind: 'list', provider: 'Invented', currency: 'USD' })).id;
+      // the Access tab (a route plant viewers reach): their modules' kinds only – not a core item, even one shared with them
+      const proc = ((await s.api('GET', '/processes')) as { id: string }[])[0]!.id;
+      await s.api('PUT', `/access/process/${proc}/shares`, { shares: [{ subject: 'user:nora', level: 'view' }] });
+      try {
+        expect((await nora('GET', '/costs/price-books')).map((b: { id: string }) => b.id)).toContain(book);
+        await nora('PUT', `/costs/price-books/${book}/entries`, { entries: [{ sku: 'x', name: 'X', unit: 'h', price: '1', currency: 'USD' }] });
+        expect((await nora('GET', '/costs/fx-rates')).length).toBe((await s.api('GET', '/costs/fx-rates')).length);
+        expect((await status(nora('GET', `/access/process/${proc}/shares`))).status).toBe(404);
+        expect((await nora('GET', `/access/cost_price_book/${book}/shares`)).canManage).toBe(true);
+      } finally {
+        await s.api('PUT', `/access/process/${proc}/shares`, { shares: [] });
+        await s.api('DELETE', `/costs/price-books/${book}`);
+      }
       expect((await status(nora('GET', '/auth/status'))).status).toBe(200);
       await s.api('PUT', `/users/${id}`, {
         moduleRoles: [
@@ -476,6 +529,31 @@ describe('single sign-on (ADR 0034 part 6)', () => {
     expect(grants()).toEqual([{ role: 'viewer', source: null }]);
     const listed = (await s.api('GET', '/users')).find((u: { username: string }) => u.username === name);
     expect(listed.moduleRoles).toEqual([{ module: 'plant', role: 'viewer', source: 'admin' }]);
+  });
+
+  it('the role "plant" of a mapping does not put a person on the list of a restricted plant registry: they keep the role', async () => {
+    const before = await s.api('GET', '/settings/modules/plant/access');
+    const kept = before.grants
+      .filter((g: { source: string; subject: string }) => g.source !== 'sso' && !g.subject.startsWith('user:nina'))
+      .map((g: { subject: string; role?: string | null }) => ({ subject: g.subject, role: g.role ?? null }));
+    await s.api('PUT', '/settings/modules/plant/access', { mode: 'selected', grants: kept });
+    try {
+      mock.setMockIdentity('nina', { preferred_username: 'nina@contoso.example', idToken: { roles: ['SM.PlantViewers'] } });
+      expect((await signIn('nina')).error).toBeUndefined();
+      const name = ((await s.api('GET', '/users')) as { username: string }[]).find((u) => u.username.startsWith('nina'))!.username;
+      // no grant (it would put her on the list), the role kept: what the mapping gave her in 0.22 – nothing here
+      expect(db().all("SELECT role FROM module_grants WHERE module_id = 'plant' AND subject = ?", `user:${name}`)).toEqual([]);
+      expect(JSON.parse(db().get<{ roles: string }>('SELECT roles FROM users WHERE username = ?', name)!.roles)).toEqual(['plant']);
+      // once an administrator lets her use it, the next sign-in turns the role into the synchronised grant
+      await s.api('PUT', '/settings/modules/plant/access', { mode: 'selected', grants: [...kept, { subject: `user:${name}` }] });
+      expect((await signIn('nina')).error).toBeUndefined();
+      expect(db().all("SELECT role, source FROM module_grants WHERE module_id = 'plant' AND subject = ? AND source = 'sso'", `user:${name}`)).toEqual([
+        { role: 'contributor', source: 'sso' },
+      ]);
+      expect(JSON.parse(db().get<{ roles: string }>('SELECT roles FROM users WHERE username = ?', name)!.roles)).toEqual([]);
+    } finally {
+      await s.api('PUT', '/settings/modules/plant/access', { mode: before.mode, grants: kept });
+    }
   });
 });
 

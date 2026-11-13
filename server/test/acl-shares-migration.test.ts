@@ -427,6 +427,41 @@ describe('access lists become shares (0.23.0): nobody gains or loses a right', (
   });
 });
 
+describe('a Custom entry with manage (no edit)', () => {
+  it('still changes the access of the item, as the list let it – within the rights it holds', async () => {
+    const p = items.find((x) => x.kind === 'process' && JSON.stringify(x.acl) === JSON.stringify(LISTS.process[6]) && !x.owner)!;
+    // (the processes of this suite have no definition: one for the page)
+    db().run(
+      "INSERT INTO process_versions (process_id, version, definition, hash, author, created_at) VALUES (?, 1, ?, 'x', 'admin', ?) ON CONFLICT DO NOTHING",
+      p.id,
+      JSON.stringify({ name: 'Process 6', nodes: [], edges: [] }),
+      at,
+    );
+    const vera = await s.as('vera', PW);
+    expect((await vera('GET', `/processes/${p.id}`)).permissions).toEqual(['view', 'manage']);
+    const tab = await vera('GET', `/access/process/${p.id}/shares`);
+    expect(tab).toMatchObject({ canManage: true, held: { level: 'view' } });
+    try {
+      // the deprecated route: an entry for someone else, within her own rights
+      const acl = [...LISTS.process[6], e('user:tess', 'view')];
+      expect((await vera('PUT', `/processes/${p.id}/access`, { acl })).acl).toEqual([
+        { subject: 'user:tess', permissions: ['view'] },
+        { subject: 'user:vera', permissions: ['view', 'manage'] },
+      ]);
+      // never more than she holds: no Edit for anyone
+      const kept = { subject: 'user:vera', level: 'view' };
+      await expect(vera('PUT', `/access/process/${p.id}/shares`, { shares: [kept, { subject: 'user:tess', level: 'edit' }] })).rejects.toMatchObject({
+        body: { code: 'SHARE_EXCEEDS_OWN_RIGHTS' },
+      });
+      // and her own Custom share stays as it is when she saves the tab unchanged
+      await vera('PUT', `/access/process/${p.id}/shares`, { shares: [kept, { subject: 'user:tess', level: 'view' }] });
+      expect((await vera('GET', `/processes/${p.id}`)).permissions).toEqual(['view', 'manage']);
+    } finally {
+      await storeAcl('process', p.id, [...LISTS.process[6]]);
+    }
+  });
+});
+
 describe('lists read shares in bulk', () => {
   /** Statements of one GET (the second call: caches of the first are warm). */
   async function statements(c: Client, url: string): Promise<number> {

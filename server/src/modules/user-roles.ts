@@ -17,10 +17,10 @@ import { db } from '../db.js';
 import { requireAccessGrant } from '../auth/access-change.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { forgetModulePolicy, modulePolicy, type ModulePolicy } from './grants.js';
+import { forgetModulePolicy, modulePolicy, usesByPolicy, type ModulePolicy } from './grants.js';
 import { moduleAccessMode } from './registry.js';
 import { recordModuleAccessChange } from './access-audit.js';
-import { setModuleRoleHook } from '../auth/users.js';
+import { findUserByName, setModuleRoleHook, toAuthUser } from '../auth/users.js';
 
 export { splitDeprecatedRoles } from '@sm/shared';
 
@@ -141,7 +141,9 @@ export function setUserModuleRoles(username: string, next: UserModuleRolesInput,
  * before 0.23.0, a migration package of an older version – gets the plant registry's contributor grant instead, once.
  * An account of a single sign-on provider that synchronises roles gets it as a synchronised grant (the next sign-in
  * keeps or removes it as the mappings say, as it would have kept or removed the role); every other account as an
- * administrator's grant. Nobody gains or loses a right: contributor gives exactly what the role gave, and `role:plant`
+ * administrator's grant – except an account the plant registry, restricted to selected teams and users, leaves out: it
+ * keeps the role, which the policy still reads (a grant would put it on the module's list). Nobody gains or loses a
+ * right: contributor gives exactly what the role gave, and `role:plant`
  * entries of access lists and shares still match (auth/permissions.ts). Audited per account. Runs once the vault is
  * open (the audit log needs its key) and after a migration package is imported. Returns the number of accounts.
  */
@@ -149,7 +151,14 @@ export function convertDeprecatedRoles(): number {
   const rows = db().all<{ id: string; username: string; roles: string; auth_source: string | null }>(
     "SELECT id, username, roles, auth_source FROM users WHERE lower(roles) LIKE '%plant%'",
   );
-  const affected = rows.filter((r) => parseJson<string[]>(r.roles, []).includes('plant'));
+  // an account the restricted plant registry leaves out keeps the role (which gives it nothing there, as before): a
+  // grant would put it on the module's list – it is converted once an administrator lets it use the module
+  const policy = modulePolicy();
+  const affected = rows.filter((r) => {
+    if (!parseJson<string[]>(r.roles, []).includes('plant')) return false;
+    const info = findUserByName(r.username);
+    return !!info && usesByPolicy(toAuthUser(info), PLANT_ROLE_ALIAS.module, policy);
+  });
   if (!affected.length) return 0;
   const syncing = new Set(
     db()

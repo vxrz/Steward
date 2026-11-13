@@ -128,6 +128,21 @@ export function usesByPolicy(u: GrantPerson | null | undefined, id: ModuleId, po
   return grantsOf(u, gate, policy).length > 0;
 }
 
+/**
+ * Whether `u` uses module `id` leaving out the grants single sign-on keeps for them (their own `user:` subject): what
+ * the deprecated role "plant" of a mapping may turn into a grant without putting the person on a restricted list.
+ */
+export function usesWithoutOwnSso(u: GrantPerson, id: ModuleId, policy: ModulePolicy = modulePolicy()): boolean {
+  const gate = accessModule(id);
+  const subject = `user:${u.username.toLowerCase()}`;
+  const grants = new Map(policy.grants);
+  grants.set(
+    gate,
+    (policy.grants.get(gate) ?? []).filter((g) => !(g.source === 'sso' && g.subject.trim().toLowerCase() === subject)),
+  );
+  return usesByPolicy(u, id, { restricted: policy.restricted, grants });
+}
+
 /** A person's module role and where it comes from (empty `through`: none). */
 export interface ModuleRoleOf {
   role: ModuleRole | null;

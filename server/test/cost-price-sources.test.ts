@@ -172,6 +172,28 @@ describe('sources', () => {
     expect(((await s.api('GET', `/costs/price-books/${snowBook}`)) as CostPriceBookDetail).version).toBe(v);
   });
 
+  it('links a contract the rate sheet names only when its author sees exactly one with that number', async () => {
+    const sup = (await s.api('POST', '/suppliers', { name: 'Invented data cloud', type: 'saas' })).id;
+    // the read itself: the mock's SDC-2026-014 named twice – the book stays without a contract
+    await s.api('POST', `/suppliers/${sup}/contracts`, { title: 'Invented capacity twin', reference: 'SDC-2026-014' });
+    const { db } = await import('../src/db.js');
+    db().run('UPDATE cost_price_books SET supplier_contract_id = NULL, supplier_id = NULL WHERE id = ?', snowBook);
+    const r = (await s.api('POST', `/costs/price-books/${snowBook}/read`, {})) as CostPriceBookDetail;
+    expect(r.supplierContract).toBeNull();
+    const { contractNamed } = await import('../src/costs/price-sources.js');
+    const made = async (title: string, reference: string, owners: string[]) =>
+      (await s.api('POST', `/suppliers/${sup}/contracts`, { title, reference, owners })).contracts.find((c: { title: string }) => c.title === title)
+        .id as string;
+    const finance = await made('Invented finance capacity', 'INV-RS-1', ['team:finance']);
+    // a team's contract: its member links it, a viewer outside the team does not learn of it
+    expect(contractNamed('INV-RS-1', 'fin')).toMatchObject({ id: finance, supplierId: sup });
+    expect(contractNamed('INV-RS-1', 'pia')).toBeNull();
+    // two contracts with the number: none
+    await made('Invented second capacity', 'INV-RS-1', []);
+    expect(contractNamed('INV-RS-1', 'admin')).toBeNull();
+    expect(contractNamed('INV-RS-1', 'pia')).not.toBeNull();
+  });
+
   it('Confluent’s observed rates of the last complete month, through the platform’s client', async () => {
     const book = (await s.api('POST', '/costs/price-books', {
       name: 'Confluent observed',
@@ -276,6 +298,38 @@ describe('recalculation in the background', () => {
     const seen = (await pia('GET', `/costs/estimates/${est.id}`)) as CostEstimate;
     expect(seen.pending!.totals.monthly.expected).toBe('830.00');
     expect(JSON.stringify(seen)).not.toContain('465.00');
+  });
+
+  it('notifies many estimates with statements that do not grow with users × estimates', async () => {
+    const { recalculateDue } = await import('../src/costs/estimate-notices.js');
+    const { requestDbStats } = await import('../src/database/timing.js');
+    const users = await import('../src/auth/users.js');
+    const book = (await s.api('POST', '/costs/price-books', { name: 'Recalc many', kind: 'list', provider: 'Invented Many AG', currency: 'EUR' })).id;
+    let price = 1;
+    const reprice = () =>
+      s.api('PUT', `/costs/price-books/${book}/entries`, { entries: [{ sku: 'vm', name: 'VM', unit: 'h', price: String((price *= 2)), currency: 'EUR' }] });
+    await reprice();
+    for (let i = 0; i < 12; i++)
+      await s.api('POST', '/costs/estimates', {
+        title: `Invented many ${i}`,
+        ownerKind: 'service',
+        ownerId: svc,
+        currency: 'EUR',
+        lines: [{ key: 'v', provider: 'Invented Many AG', sku: 'vm', quantity: '100', unit: 'h' }],
+      });
+    const run = async () => {
+      await reprice();
+      const stats = { statements: 0, ms: 0 };
+      const r = await requestDbStats.run(stats, () => recalculateDue());
+      expect(r).toMatchObject({ recalculated: 12, notified: 12 });
+      return stats.statements;
+    };
+    const before = await run();
+    for (let i = 0; i < 25; i++) users.createUser({ username: `many${i}`, roles: ['viewer'], password: PW, mustChangePassword: false });
+    const after = await run();
+    // 25 more people are asked once per run (whose estimate it is, what they see) – less than a statement per person and
+    // estimate (before: about seven)
+    expect(after - before, `${before} → ${after}`).toBeLessThan(12 * 25);
   });
 
   it('the threshold is a setting; below it nothing is notified', async () => {

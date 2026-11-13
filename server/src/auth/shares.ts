@@ -66,6 +66,11 @@ export interface ShareKindDef<P extends string = string> {
    * (a kind whose instance roles give nothing anyway: platform identities)
    */
   restrictBy?: 'admin' | 'manage' | 'never';
+  /**
+   * A right of the kind that lets its holder change the shares although they lack the rest of the Manage level – only
+   * within what they hold (processes: `manage` of a migrated _Custom_ entry, which changed the access list before)
+   */
+  managesWith?: P;
 }
 
 const KINDS = new Map<OwnedKind, ShareKindDef>();
@@ -80,7 +85,10 @@ export const shareKind = (kind: OwnedKind): ShareKindDef | undefined => KINDS.ge
 
 /** What `u` holds on an item of a registered kind in share terms (`'all'` for administrators). */
 export function heldOn(def: ShareKindDef, u: AuthUser, id: string): HeldShare | 'all' {
-  return heldShare(u, def.model, def.rights(u, id));
+  const rights = def.rights(u, id);
+  const held = heldShare(u, def.model, rights);
+  if (held === 'all' || held.level === 'manage' || !held.level || !def.managesWith || !rights.includes(def.managesWith)) return held;
+  return { ...held, manages: true };
 }
 
 /** The item for audit summaries: `service "Order intake"`, or the kind and id when the kind cannot name it. */
