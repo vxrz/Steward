@@ -251,7 +251,7 @@
       "belowFloor": "Die Einstufung liegt ohne Begründung unter der seiner Datenobjekte: Bestätigen Sie es nach einer Prüfung erneut."
     },
     "none": "Nicht bestätigt. Die Verantwortlichen der Domäne bestätigen ein Produkt, auf das man sich verlassen kann; Reifegrad 5 zählt eine gültige Bestätigung zusätzlich zu Reifegrad 4.",
-    "endorsers": "Bestätigt von den Verantwortlichen der Domäne: {{list}}.",
+    "endorsers": "Wer es bestätigen darf: die Verantwortlichen der Domäne – {{list}}.",
     "managers": "Die Domäne hat keine Verantwortlichen: Die Verwaltenden des Moduls bestätigen.",
     "ownProduct": "Niemand bestätigt ein Produkt, das er selbst verantwortet.",
     "formTitle": "{{name}} bestätigen",

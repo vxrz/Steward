@@ -251,7 +251,7 @@
       "belowFloor": "The rating is below its data objects without a reason: endorse it again after a review."
     },
     "none": "Not endorsed. The owners of its domain endorse a product they trust; maturity level 5 counts a valid endorsement on top of level 4.",
-    "endorsers": "Endorsed by the owners of its domain: {{list}}.",
+    "endorsers": "Who may endorse it: the owners of its domain – {{list}}.",
     "managers": "Its domain has no owners: the module’s managers endorse it.",
     "ownProduct": "Nobody endorses a product they own.",
     "formTitle": "Endorse {{name}}",
