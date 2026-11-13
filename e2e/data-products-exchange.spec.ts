@@ -140,7 +140,7 @@ test.describe('costs: estimates and measured use', () => {
     const picker = page.getByTestId('estimate-for-product');
     await picker.clear();
     await picker.pressSequentially('Other', { delay: 30 });
-    await expect(page.getByRole('option', { name: /^Other / })).toBeVisible();
+    await expect(page.getByRole('option', { name: /^Other / }).first()).toBeVisible();
     expect(asked.length).toBeLessThanOrEqual(2);
   });
 
@@ -212,7 +212,9 @@ test.describe('exchange', () => {
     await expect(page.getByText('Replacing needs the origin of the earlier import.')).toBeVisible();
     // the earlier import's origin is suggested with its entries
     await page.getByTestId('import-origin').fill(`e2e-${k}`.slice(0, 8));
-    await page.getByRole('option', { name: `e2e-${k} · 2 entries` }).click();
+    const suggested = page.getByRole('option').filter({ hasText: `e2e-${k}` });
+    await expect(suggested).toContainText('2 entries');
+    await suggested.click();
     await expect(page.getByTestId('import-origin')).toHaveValue(`e2e-${k}`);
     await page.getByTestId('import-preview-run').click();
     await expect(page.getByTestId('import-count-remove')).toHaveText('1 to remove');

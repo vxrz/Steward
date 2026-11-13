@@ -204,6 +204,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
     queryFn: () => get<{ items: DataProductImportOrigin[] }>('/data-products/import-origins'),
     staleTime: 60_000,
   });
+  const originInfo = new Map((origins.data?.items ?? []).map((o) => [o.origin, o]));
   const REMOVALS_NAMED = 10;
   /** A replace that removes something says what before it runs: the entries by name, the list items counted. */
   const confirmRemovals = async (): Promise<boolean> => {
@@ -299,15 +300,23 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
           description={t('transfer.originHint')}
           value={origin}
           onChange={(v) => changed(() => setOrigin(v))}
-          data={[
-            {
-              group: t('transfer.originsLabel'),
-              items: (origins.data?.items ?? []).map((o) => ({
-                value: o.origin,
-                label: `${o.origin} · ${t('transfer.originEntries', { count: o.entries })} · ${fmtRelative(o.lastAt)}`,
-              })),
-            },
-          ]}
+          // the value is the origin itself; the option says how many entries it holds and when it was last imported
+          data={[{ group: t('transfer.originsLabel'), items: (origins.data?.items ?? []).map((o) => o.origin) }]}
+          renderOption={({ option }) => {
+            const o = originInfo.get(option.value);
+            return (
+              <Stack gap={0}>
+                <Text size="sm" className="mono">
+                  {option.value}
+                </Text>
+                {o && (
+                  <Text size="xs" c="dimmed">
+                    {t('transfer.originEntries', { count: o.entries })} · {fmtRelative(o.lastAt)}
+                  </Text>
+                )}
+              </Stack>
+            );
+          }}
           maxLength={100}
           withAsterisk={mode === 'replace'}
           error={files.length || origin ? originError : undefined}

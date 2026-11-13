@@ -107,7 +107,7 @@ test.describe('governance of data products', () => {
     await olivia.getByRole('option', { name: 'Refused' }).click();
     await expect(olivia.getByTestId('requests-empty')).toHaveText('No request of this status – clear the status to see all.');
     await olivia.getByTestId('requests-status').click();
-    await olivia.getByRole('option', { name: 'Pending' }).click();
+    await olivia.getByRole('option', { name: 'Waiting' }).click();
     await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
     await expectAccessible(olivia, 'access requests page');
 
