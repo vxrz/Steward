@@ -13,6 +13,7 @@ import {
   IconShieldLock,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { fmtDay } from '../../../format';
 import {
   zoneLevels,
   type PlantFlowGraph,
@@ -379,7 +380,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
   const exportSvg = () => ({
     ...networkSvg(graph, layout, {
       title,
-      subtitle: t('export.subtitle', { date: new Date().toLocaleDateString() }),
+      subtitle: t('export.subtitle', { date: fmtDay(new Date()) }),
       kind: (x) => text.kind(x),
       status: (x) => statusSentence(tv, x),
       pill: (e) =>

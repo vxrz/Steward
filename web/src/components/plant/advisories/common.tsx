@@ -15,7 +15,7 @@ import {
   type PlantChangeSetList,
 } from '@sm/shared';
 import { get, notifyError, put } from '../../../api';
-import { fmtDate, localToday } from '../../../format';
+import { fmtDate, fmtNumber, localToday } from '../../../format';
 
 /** Security advisories (0.14, docs/ADVISORIES.md): what the list, the advisory page and the asset page share. */
 
@@ -46,7 +46,7 @@ export function SeverityBadge({ severity, cvss, size = 'sm' }: { severity: Advis
       data-testid="advisory-severity"
     >
       {t(`severity.${severity}`)}
-      {cvss !== null && cvss !== undefined ? ` ${cvss.toFixed(1)}` : ''}
+      {cvss !== null && cvss !== undefined ? ` ${fmtNumber(cvss, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : ''}
     </Badge>
   );
 }

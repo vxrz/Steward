@@ -57,3 +57,26 @@ test('a form dialog returns the focus to its opener and asks before discarding w
   await expect(dialog).toBeHidden();
   await expect(page.getByText('Invented Discard AG')).toHaveCount(0);
 });
+
+/**
+ * Dialogs that are not FormModals – most of them are mounted only while open, so Mantine cannot give the focus back –
+ * return it as well (web/src/focusReturn.ts, WCAG 2.4.3). Shown with the New service dialog (Esc and Cancel).
+ */
+test('every dialog gives the focus back to the control that opened it', async ({ page }) => {
+  await page.goto('/services');
+  await expect(page.getByRole('heading', { name: 'Services', level: 1 })).toBeVisible();
+  const opener = page.getByRole('main').getByRole('button', { name: 'New service' });
+  const dialog = page.getByRole('dialog', { name: 'New service' });
+  await opener.focus();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+
+  await opener.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+});

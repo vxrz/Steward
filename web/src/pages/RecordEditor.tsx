@@ -74,10 +74,14 @@ export function RecordEditorPage() {
 
   if (!rec || !draft) return <DetailState query={q} back="records" />;
   if (!rec.permissions.edit) {
+    // the page's heading and the way back to the document: no dead end (the alert says why it cannot be edited)
     return (
-      <Alert color="orange" title={`${rec.number} ${rec.title}`}>
-        {rec.frozen ? t('editor.frozen') : t('editor.notAllowed')}
-      </Alert>
+      <>
+        <PageHeader back={['records', { to: `/records/${rec.id}`, label: rec.number }]} title={`${rec.number} ${rec.title}`} />
+        <Alert color="orange" data-testid="record-not-editable">
+          {rec.frozen ? t('editor.frozen') : t('editor.notAllowed')}
+        </Alert>
+      </>
     );
   }
   const dirty = JSON.stringify(draft) !== JSON.stringify(fromRecord(rec));

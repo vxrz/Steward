@@ -24,7 +24,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconChecklist, IconChevronDown, IconFileImport, IconPackageExport, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -430,8 +430,9 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
   const targets = useQuery({
     queryKey: ['tag-targets', kind, pick.term],
     queryFn: () => get<{ id: string; label: string }[]>(`/compliance/tag-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
     enabled: !!meta?.canTag,
-    placeholderData: keepPreviousData,
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ['control-coverage'] });
   const add = async () => {

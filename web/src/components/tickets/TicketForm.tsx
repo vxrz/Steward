@@ -17,7 +17,7 @@ import {
   TextInput,
   Textarea,
 } from '@mantine/core';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -341,7 +341,8 @@ function AffectedPicker({ value, onChange, hidden }: { value: Affected[]; onChan
   const targets = useQuery({
     queryKey: ['link-targets', kind, pick.term],
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
-    placeholderData: keepPreviousData,
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
   });
   useEffect(() => setTarget(null), [kind]);
   const options = (targets.data ?? [])

@@ -20,6 +20,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconInfoCircle, IconMap, IconShieldLock } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { fmtBytes } from '../../../format';
 import {
   MAP_KEY_PLACES,
   PLANT_MAP_LIMITS,
@@ -51,8 +52,6 @@ const draftOf = (v: PlantMapSettingsView): Draft => ({
   file: v.file ?? { name: '', attribution: '' },
 });
 
-const bytes = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`);
-
 /**
  * Settings → Modules → Map of sites (#234, ADR 0015): where the map's tiles come from. Off until an administrator turns
  * it on (OpenStreetMap preselected); each choice says what Steward's server sends where. Saving a new source asks for
@@ -79,7 +78,7 @@ export function PlantMapSettingsCard() {
   };
   const fileChoices = v.files.map((f) => ({
     value: f.name,
-    label: `${f.name} (${f.kind === 'unknown' ? t('settings.file.unknown') : t(`settings.file.${f.kind}`)}, ${bytes(f.bytes)})`,
+    label: `${f.name} (${f.kind === 'unknown' ? t('settings.file.unknown') : t(`settings.file.${f.kind}`)}, ${fmtBytes(f.bytes)})`,
     disabled: !!f.problem,
   }));
   const chosenFile = v.files.find((f) => f.name === d.file.name);

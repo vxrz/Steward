@@ -14,6 +14,7 @@ import { fmtDate, fmtRelative } from '../format';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
 import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
+import { TagBadges } from '../components/tags';
 import { ListPage } from '../components/page/ListPage';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { TableScroll } from '../components/TableScroll';
@@ -214,23 +215,9 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
   const ownerName = (r: RecordSummary) => subjectName(`user:${r.owner}`);
   const tags = (r: RecordSummary) =>
     r.tags.length > 0 && (
-      <Group gap={4} mt={2}>
-        {r.tags.map((tag) => (
-          <Badge
-            key={tag}
-            size="xs"
-            variant="default"
-            component="button"
-            style={{ cursor: 'pointer' }}
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation();
-              onTag(tag);
-            }}
-          >
-            {tagLabel(tag)}
-          </Badge>
-        ))}
-      </Group>
+      <Box mt={2}>
+        <TagBadges tags={r.tags} onTag={onTag} />
+      </Box>
     );
   const columns: DataColumn<RecordSummary>[] = [
     { key: 'number', header: t('list.number'), sortValue: (r) => r.number, tdProps: () => ({ className: 'nowrap mono' }), cell: (r) => r.number },

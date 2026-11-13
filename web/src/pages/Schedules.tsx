@@ -327,7 +327,8 @@ export function SchedulesPage() {
               <Text size="xs" c="dimmed">
                 {t('table.next')}: {s.enabled && s.nextRunAt ? fmtRelative(s.nextRunAt) : '–'}
               </Text>
-              <Group justify="space-between" wrap="nowrap" mt={4}>
+              {/* wraps: an administrator's actions (with "Pause messages") are wider than a phone's card */}
+              <Group justify="space-between" wrap="wrap" gap="xs" mt={4}>
                 {lastRunOf(s)}
                 {actionsOf(s)}
               </Group>

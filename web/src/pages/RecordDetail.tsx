@@ -895,6 +895,7 @@ function TransitionModal({
     queryKey: ['link-targets', 'record', pick.term],
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(pick.term)}`),
     enabled: action.needsRecord || action.optionalRecord,
+    // while the next search loads, the list keeps the last results (no flicker of the options)
     placeholderData: keepPreviousData,
   });
   const label = t(`actions.${action.action as 'submit'}`, { defaultValue: action.action });

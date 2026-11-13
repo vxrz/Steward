@@ -1,7 +1,7 @@
 import './builtin';
 import { useEffect, useState } from 'react';
 import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Table, Text, TextInput, Tooltip } from '@mantine/core';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconExternalLink, IconLink, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -322,8 +322,9 @@ function LinkModal({
   const targets = useQuery({
     queryKey: ['link-targets', kind, pick.term],
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    // while the next search loads, the list keeps the last results of the same kind (no flicker of the options)
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === kind ? prev : undefined),
     enabled: kind !== 'external' && !editing,
-    placeholderData: keepPreviousData,
   });
   useEffect(() => setTarget(null), [kind]);
   const options = pick.options(

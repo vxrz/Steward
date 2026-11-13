@@ -45,7 +45,7 @@ import { useTranslation } from 'react-i18next';
 import type { Backlink, Credential, CredentialBelongsTo, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
 import { api, apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, FilterPanel, QueryState, TONE, useCreateParam } from '../components/common';
+import { EmptyState, FilterPanel, QueryState, TONE, subjectLabel, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
@@ -141,7 +141,7 @@ function CredentialTable({ items, onOpen, onTag }: { items: Credential[]; onOpen
       </Badge>
     );
   const nextDueKind = (c: Credential) => t(`dueKinds.${[...c.dues].sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]!.kind}`);
-  const owners = (c: Credential) => [...c.owners.map((o) => o.email), ...c.ownerSubjects].join(', ');
+  const owners = (c: Credential) => [...c.owners.map((o) => o.email), ...c.ownerSubjects.map(subjectLabel)].join(', ');
   // "Snowflake · Admin" where the entry documents an identity (0.14.0, ADR 0009 step 4)
   const platformOf = (c: Credential) => (c.platformName && c.identityName ? `${c.platformName} · ${c.identityName}` : (c.platformName ?? c.platformText));
   const columns: DataColumn<Credential>[] = [
@@ -666,7 +666,7 @@ function CredentialDrawer({
               ))}
               {c.ownerSubjects.map((s) => (
                 <Text size="sm" key={s}>
-                  {s}
+                  {subjectLabel(s)}
                 </Text>
               ))}
               {!c.owners.length && !c.ownerSubjects.length && (

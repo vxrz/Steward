@@ -92,7 +92,7 @@ export function TablesPanel({ snapshot, schemas }: { snapshot: DbSchemaSnapshot;
   );
   const name = (x: DbSchemaTable) => (
     <UnstyledButton onClick={() => setOpen(x)} className="mono" style={{ wordBreak: 'break-all' }} data-testid="schema-table-open">
-      <Text span size="sm" c="var(--mantine-primary-color-filled)" fw={500}>
+      <Text span size="sm" c="var(--mantine-color-anchor)" fw={500}>
         {qualifiedTable(x)}
       </Text>
     </UnstyledButton>

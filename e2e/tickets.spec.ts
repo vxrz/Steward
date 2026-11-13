@@ -39,7 +39,7 @@ test('an operator documents a vendor ticket from the service page and keeps its 
   await expect(page.getByRole('main').getByRole('link', { name: service.name })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open ticket' })).toHaveAttribute('href', 'https://support.vendor.example/cases/4711');
 
-  await page.getByRole('button', { name: `Change the status of ${number}` }).click();
+  await page.getByRole('button', { name: `Change status of ${number}` }).click();
   await page.getByRole('menuitem', { name: 'Waiting for vendor' }).click();
   const status = page.getByRole('dialog', { name: 'Change status: Waiting for vendor' });
   await status.getByRole('textbox', { name: 'Comment' }).fill('Logs sent to the vendor');
