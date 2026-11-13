@@ -61,8 +61,7 @@ beforeAll(async () => {
     createUser({ username: name, roles: [...roles], password: PW });
     users[name] = await s.as(name, PW);
   }
-  for (const id of ['rx-open', 'rx-listed', 'rx-team', 'rx-closed'])
-    await s.api('POST', '/plant/sites', { id, name: `Invented site ${id}` });
+  for (const id of ['rx-open', 'rx-listed', 'rx-team', 'rx-closed']) await s.api('POST', '/plant/sites', { id, name: `Invented site ${id}` });
   await s.api('PUT', '/plant/sites/rx-listed/access', { acl: [{ subject: 'role:plant', permissions: ['view'] }] });
   await s.api('PUT', '/plant/sites/rx-closed/access', { acl: [{ subject: 'user:desi', permissions: ['manage'] }] });
   teamId = (await s.api('POST', '/teams', { name: 'Invented plant engineering', members: ['pam', 'vic'] })).id;
@@ -197,7 +196,9 @@ describe('the role "plant" becomes the contributor grant of the plant registry (
     ]);
     expect(JSON.parse(db().get<{ roles: string }>("SELECT roles FROM users WHERE username = 'polly'")!.roles)).toEqual(['status']);
     const explain = await s.api('GET', '/access/explain?kind=site&id=rx-open&user=pia');
-    expect(explain.reasons).toEqual([expect.objectContaining({ source: 'moduleRole', moduleRole: 'contributor', subject: 'user:pia', permissions: ['view', 'propose'] })]);
+    expect(explain.reasons).toEqual([
+      expect.objectContaining({ source: 'moduleRole', moduleRole: 'contributor', subject: 'user:pia', permissions: ['view', 'propose'] }),
+    ]);
     expect(explain.module).toMatchObject({ role: 'contributor', roleThrough: [{ source: 'user', role: 'contributor' }] });
     // the access list entry "role:plant" still names them
     expect((await s.api('GET', '/access/explain?kind=site&id=rx-listed&user=pia')).permissions).toEqual(['view']);
@@ -256,13 +257,13 @@ describe('module roles given in Settings → Modules', () => {
     const p = await admin('POST', '/settings/modules/plant/access/preview', body);
     expect(p.widens).toBe(true);
     expect(p.gains).toEqual([]);
-    expect(p.roleChanges).toEqual(
-      expect.arrayContaining([expect.objectContaining({ username: 'vic', before: 'viewer', after: 'manager' })]),
-    );
+    expect(p.roleChanges).toEqual(expect.arrayContaining([expect.objectContaining({ username: 'vic', before: 'viewer', after: 'manager' })]));
     expect(await status(admin('PUT', '/settings/modules/plant/access', body))).toEqual({ status: 403, code: 'STEP_UP_REQUIRED' });
     const v = await s.api('PUT', '/settings/modules/plant/access', body);
     expect(v).toMatchObject({ mode: 'everyone', roles: ['viewer', 'contributor', 'manager'] });
-    expect(v.grants).toEqual(expect.arrayContaining([expect.objectContaining({ subject: 'team:invented plant engineering', role: 'manager', source: 'admin' })]));
+    expect(v.grants).toEqual(
+      expect.arrayContaining([expect.objectContaining({ subject: 'team:invented plant engineering', role: 'manager', source: 'admin' })]),
+    );
     // a team's module role is module-wide, like an instance role: vic manages the open site and adds sites
     expect((await s.api('GET', '/access/explain?kind=site&id=rx-open&user=vic')).permissions).toEqual(['view', 'propose', 'manage']);
     expect((await s.api('GET', '/access/explain?kind=site&id=rx-open&user=vic')).reasons).toEqual(
@@ -402,7 +403,12 @@ describe('module-only users', () => {
       expect(await status(nora('GET', '/services'))).toEqual({ status: 403, code: 'MODULE_ONLY_USER' });
       expect((await status(nora('GET', '/costs/fx-rates'))).status).toBe(200);
       expect((await status(nora('GET', '/auth/status'))).status).toBe(200);
-      await s.api('PUT', `/users/${id}`, { moduleRoles: [{ module: 'costs', role: null }, { module: 'plant', role: 'viewer' }] });
+      await s.api('PUT', `/users/${id}`, {
+        moduleRoles: [
+          { module: 'costs', role: null },
+          { module: 'plant', role: 'viewer' },
+        ],
+      });
       expect(await status(nora('GET', '/services'))).toEqual({ status: 403, code: 'PLANT_VIEWER_ONLY' });
       expect((await status(nora('GET', '/plant/sites'))).status).toBe(200);
       const st = (await nora('GET', '/auth/status')).me.capabilities;
