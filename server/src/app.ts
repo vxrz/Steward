@@ -40,6 +40,7 @@ import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from
 import { checkBodyShape } from './bodyShape.js';
 import { bodyTooLarge, DEFAULT_BODY_LIMIT } from './bodyLimits.js';
 import { extendForSignedInUploads, installRequestTimeout, serverTimeouts } from './requestTimeout.js';
+import { sharedSerializers } from './serializers.js';
 import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
 
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
@@ -238,6 +239,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     ...(config.tls ? { https: tlsServerOptions()! } : {}),
     // a slow body cannot hold a connection open (security review 0.19.0 M1, requestTimeout.ts)
     ...serverTimeouts(),
+    // one response serializer per distinct schema, not per route (start-up time, serializers.ts)
+    schemaController: { compilersFactory: { buildSerializer: sharedSerializers } },
   }) as unknown as FastifyInstance;
   installRequestTimeout(app);
   // every answer names its request id (errors, rate limits and 404s included), so it can be quoted and looked up
