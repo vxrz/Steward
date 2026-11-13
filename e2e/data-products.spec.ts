@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
@@ -228,6 +229,10 @@ test.describe('the data products pages', () => {
     await expect(page.getByTestId('cost-lines').getByRole('heading')).toHaveText(/^Costs in [A-Z][a-z]+ \d{4}$/);
     await page.goto(`/data-products/${id}/ports`);
     await expect(page.getByText(/^\d+ registered, 1 consuming product$/).first()).toBeVisible();
+    // WCAG 2.2 target size: the elements a step reads and writes, one under the other, far enough apart
+    await page.goto(`/data-products/${id}/pipeline`);
+    await expect(page.getByRole('table', { name: 'Steps' })).toBeVisible();
+    expect((await new AxeBuilder({ page }).withRules(['target-size']).analyze()).violations).toEqual([]);
 
     // import: a file of the format, previewed before anything is written
     await page.goto('/data-products');

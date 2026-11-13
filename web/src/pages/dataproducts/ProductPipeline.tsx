@@ -49,7 +49,7 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
     }
   };
   const ends = (ids: string[], hidden: number) => (
-    <Stack gap={0}>
+    <Stack gap={8}>
       {ids.map((id) => {
         const n = names.get(id);
         return n?.visible ? (
