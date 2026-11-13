@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Badge, Group, Select, SimpleGrid, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Group, Select, SimpleGrid, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { IconArrowRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,7 +13,7 @@ import {
 } from '@sm/shared';
 import { post } from '../../../api';
 import { QueryState } from '../../../components/common';
-import { FormModal } from '../../../components/FormModal';
+import { FormModal, FormModalCancel } from '../../../components/FormModal';
 import { TableScroll } from '../../../components/TableScroll';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate } from '../../../format';
@@ -107,7 +107,8 @@ export function PromotionForm({ p, onClose }: { p: DataProduct; onClose: () => v
     });
   const options = p.environments.map((e) => ({ value: e, label: e }));
   return (
-    <FormModal onClose={onClose} size="xl" title={t('promotion.title', { name: p.name })}>
+    // promoted: nothing entered is lost any more – close without asking
+    <FormModal onClose={onClose} dirty={done ? false : undefined} size="xl" title={t('promotion.title', { name: p.name })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -210,8 +211,19 @@ export function PromotionForm({ p, onClose }: { p: DataProduct; onClose: () => v
               {t('promotion.done')}
             </Alert>
           )}
-          {p.permissions.includes('edit') && !done && pv && pv.counts.found > 0 && (
+          {p.permissions.includes('edit') && !done && pv && pv.counts.found > 0 ? (
             <FormButtons busy={busy} submit={t('promotion.promote')} testId="promotion-save" />
+          ) : (
+            // nothing to promote, no right to, or done: a way out besides the ✕
+            <Group justify="flex-end" mt="sm">
+              {done ? (
+                <Button variant="default" onClick={onClose} data-testid="promotion-close">
+                  {t('common:close')}
+                </Button>
+              ) : (
+                <FormModalCancel data-testid="promotion-close">{t('common:close')}</FormModalCancel>
+              )}
+            </Group>
           )}
           {(history.data ?? []).length > 0 && (
             <Stack gap={2}>

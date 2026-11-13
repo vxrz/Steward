@@ -144,7 +144,9 @@ test.describe('governance of data products', () => {
     await page.getByTestId('promotion-save').click();
     await expect(page.getByTestId('promotion-done')).toBeVisible();
     await expect(page.getByTestId('promotion-history')).toContainText('CR-4711');
-    await page.keyboard.press('Escape');
+    // promoted: the dialog closes without asking to discard what was entered
+    await page.getByTestId('promotion-close').click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // the product owner does not endorse; the domain's owner does
     await page.goto(`/data-products/${s.product}`);
