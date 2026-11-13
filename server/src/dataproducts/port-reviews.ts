@@ -7,6 +7,7 @@ import {
   dataPortReviewInput,
   type DataPortReview,
   type DataPortReviewDue,
+  type DataPortReviewFacts,
   type DataPortReviewItem,
   type DataPortReviewItemKind,
   type DataPortReviewStatus,
@@ -68,6 +69,8 @@ interface ItemRow {
   label: string;
   finding: string;
   detail: string;
+  /** JSON of DataPortReviewFacts (entries frozen before: null, their text in detail) */
+  facts: string | null;
   decision: 'keep' | 'remove' | null;
   comment: string;
   decided_by: string | null;
@@ -112,6 +115,7 @@ const itemView = (i: ItemRow): DataPortReviewItem => ({
   label: i.label,
   finding: i.finding,
   detail: i.detail,
+  facts: i.facts === null || i.facts === undefined ? null : parseJson<DataPortReviewFacts | null>(i.facts, null),
   decision: i.decision,
   comment: i.comment,
   decidedBy: i.decided_by,
@@ -213,7 +217,7 @@ interface Frozen {
   consumerId: string | null;
   label: string;
   finding: string;
-  detail: string;
+  facts: DataPortReviewFacts;
 }
 
 /** The grants of an access check on the port's objects (the check read now as for person reviews, else its last snapshot). */
@@ -230,7 +234,13 @@ async function grantsOf(checkId: string, objects: string[]): Promise<{ items: Fr
   for (const s of read.subjects) {
     const rights = scoped ? s.rights : s.rights.filter(mentions);
     if (!rights.length) continue;
-    items.push({ kind: 'grant', consumerId: null, label: s.name || s.id, finding: rights.join(', ').slice(0, 2_000), detail: s.type ?? '' });
+    items.push({
+      kind: 'grant',
+      consumerId: null,
+      label: s.name || s.id,
+      finding: rights.join(', ').slice(0, 2_000),
+      facts: s.type ? { subjectType: s.type.slice(0, 100) } : {},
+    });
   }
   return { items, check: { id: check.id, name: check.name, origin: read.origin, takenAt: read.takenAt, error: read.error } };
 }
@@ -254,10 +264,13 @@ export async function startReview(productId: string, portId: string, body: unkno
       consumerId: d.consumerId,
       label: d.label ?? `(${d.kind})`,
       finding: d.state,
-      detail: [d.purpose, d.endDate ? `until ${d.endDate}` : '', d.identities.join(', '), d.seenAs.length ? `seen as ${d.seenAs.join(', ')}` : '']
-        .filter(Boolean)
-        .join(' · ')
-        .slice(0, 2_000),
+      // facts, not text: shown in the reader's language
+      facts: {
+        purpose: d.purpose.slice(0, 1_000),
+        until: d.endDate,
+        identities: d.identities.slice(0, 50),
+        seenAs: d.seenAs.slice(0, 50),
+      },
     });
   for (const a of actual.actual.filter((x) => !x.registeredAs.length))
     frozen.push({
@@ -265,10 +278,7 @@ export async function startReview(productId: string, portId: string, body: unkno
       consumerId: null,
       label: `${a.kind}:${a.name}`,
       finding: 'notRegistered',
-      detail: [a.platformName, a.objects.join(', '), a.reads !== null ? `${a.reads} reads` : '', a.lastSeen ? `last ${a.lastSeen.slice(0, 10)}` : '']
-        .filter(Boolean)
-        .join(' · ')
-        .slice(0, 2_000),
+      facts: { platform: a.platformName ?? null, objects: a.objects.slice(0, 50), reads: a.reads, lastSeen: a.lastSeen },
     });
   let check: DataPortReview['check'] = null;
   if (input.checkId) {
@@ -295,7 +305,7 @@ export async function startReview(productId: string, portId: string, body: unkno
     );
     frozen.forEach((f, i) =>
       db().run(
-        'INSERT INTO dp_port_review_items (id, review_id, seq, kind, consumer_id, label, finding, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        "INSERT INTO dp_port_review_items (id, review_id, seq, kind, consumer_id, label, finding, detail, facts) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)",
         newId(DATA_GOVERNANCE_ID_PREFIX.reviewItem),
         id,
         i + 1,
@@ -303,7 +313,7 @@ export async function startReview(productId: string, portId: string, body: unkno
         f.consumerId,
         f.label.slice(0, 500),
         f.finding,
-        f.detail,
+        JSON.stringify(f.facts),
       ),
     );
     audit({
@@ -379,6 +389,8 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
         label: i.label,
         finding: i.finding,
         detail: i.detail,
+        // the facts of entries frozen since they are structured (entries frozen before have none: their seal holds)
+        ...(i.facts === null || i.facts === undefined ? {} : { facts: parseJson<unknown>(i.facts, null) }),
         decision: i.decision,
         comment: i.comment,
         decidedBy: i.decided_by,

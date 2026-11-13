@@ -686,4 +686,12 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX dp_import_origins_item ON dp_import_origins(kind, item_id);
     `,
   },
+  {
+    // 0.24.0 (release review): what a port access review froze of each entry as structured facts (JSON) instead of an
+    // English text – entries frozen before keep their text (detail) and their seal
+    name: 'dataproducts-005e-port-review-facts',
+    sql: `
+      ALTER TABLE dp_port_review_items ADD COLUMN facts TEXT;
+    `,
+  },
 ];

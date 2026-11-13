@@ -96,6 +96,11 @@ describe('port access reviews', () => {
     expect(await fail(dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' }))).toMatchObject({
       params: { context: 'open' },
     });
+    // what was frozen as facts, shown in the reader's language – no text in English
+    const entry = (label: string) => r.entries.find((e: { label: string }) => e.label === label);
+    expect(entry('Finance reports')).toMatchObject({ detail: '', facts: { purpose: 'Close', until: null, identities: [], seenAs: [] } });
+    expect(entry('user:SVC_STRAY')).toMatchObject({ detail: '', facts: { objects: ['GOVR.SALES.ORDERS'], reads: 3 } });
+    expect(entry('user:SVC_STRAY').facts.lastSeen).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     const id = (label: string) => r.entries.find((e: { label: string }) => e.label === label).id;
     expect(await fail(dana('POST', `/data-products/port-reviews/${review}/submit`))).toMatchObject({ params: { context: 'undecided' } });
     expect(
@@ -142,6 +147,8 @@ describe('port access reviews', () => {
       return r.ok;
     };
     expect(await tampered('dp_port_review_items', 'detail', item.id, 'Close · SVC_OTHER', item.detail)).toBe(false);
+    const facts = db().get<{ facts: string }>('SELECT facts FROM dp_port_review_items WHERE id = ?', item.id)!.facts;
+    expect(await tampered('dp_port_review_items', 'facts', item.id, facts.replace('Close', 'Anything'), facts)).toBe(false);
     expect(await tampered('dp_port_review_items', 'decided_at', item.id, '2020-01-01T00:00:00.000Z', item.decided_at)).toBe(false);
     expect(await tampered('dp_port_reviews', 'four_eyes', review, 0, 1)).toBe(false);
     expect(await tampered('dp_port_reviews', 'approval_comment', review, 'Waved through', 'Agreed')).toBe(false);
@@ -154,6 +161,11 @@ describe('port access reviews', () => {
     expect(conf.evidence.map((e: { key: string }) => e.key)).toContain('evidence.confidentiality.accessReviewed');
     // four eyes: who decided an entry never approves, even when someone else submitted
     const next = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
+    // entries frozen before the facts (text in detail, no facts) are sealed and verified as they were
+    db().run(
+      "UPDATE dp_port_review_items SET facts = NULL, detail = 'Close · role:REPORTING · seen as role:REPORTING' WHERE review_id = ? AND label = 'Finance reports'",
+      next.id,
+    );
     await s.api('PUT', `/data-products/port-reviews/${next.id}/decisions`, {
       decisions: next.entries.map((e: { id: string }) => ({ itemId: e.id, decision: 'keep' })),
     });
@@ -162,7 +174,13 @@ describe('port access reviews', () => {
     expect(await fail(s.api('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true }))).toMatchObject({
       params: { context: 'secondPerson' },
     });
-    expect(await adam('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true })).toMatchObject({ status: 'approved' });
+    const sealed = await adam('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true });
+    expect(sealed).toMatchObject({ status: 'approved' });
+    expect(sealed.entries.find((e: { label: string }) => e.label === 'Finance reports')).toMatchObject({
+      facts: null,
+      detail: 'Close · role:REPORTING · seen as role:REPORTING',
+    });
+    expect(await dana('GET', `/data-products/port-reviews/${next.id}/verify`)).toMatchObject({ sealed: true, ok: true });
   });
 });
 
