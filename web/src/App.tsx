@@ -108,6 +108,8 @@ const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 
 // the data products module (ADR 0036): its pages (WP5) and pictures (WP6)
 const DataProductsPage = page(() => import('./pages/dataproducts'), 'DataProductsPage');
 const DataProductPage = page(() => import('./pages/dataproducts'), 'DataProductPage');
+const DataAccessRequestsPage = page(() => import('./pages/dataproducts'), 'DataAccessRequestsPage');
+const DataRecordsOfProcessingPage = page(() => import('./pages/dataproducts'), 'DataRecordsOfProcessingPage');
 const DataElementsPage = page(() => import('./pages/dataproducts'), 'DataElementsPage');
 const DataElementPage = page(() => import('./pages/dataproducts'), 'DataElementPage');
 const DataObjectsPage = page(() => import('./pages/dataproducts'), 'DataObjectsPage');
@@ -115,6 +117,7 @@ const DataObjectPage = page(() => import('./pages/dataproducts'), 'DataObjectPag
 const DataDomainsPage = page(() => import('./pages/dataproducts'), 'DataDomainsPage');
 const DataDiscoveryPage = page(() => import('./pages/dataproducts'), 'DataDiscoveryPage');
 const DataDiscoverySourcePage = page(() => import('./pages/dataproducts'), 'DataDiscoverySourcePage');
+const DataLineageSourcePage = page(() => import('./pages/dataproducts'), 'DataLineageSourcePage');
 const DataProductMapPage = page(() => import('./pages/dataproducts/views/pages'), 'DataProductMapPage');
 const DataPipelinePage = page(() => import('./pages/dataproducts/views/pages'), 'DataPipelinePage');
 const DataLineagePage = page(() => import('./pages/dataproducts/views/pages'), 'DataLineagePage');
@@ -530,6 +533,22 @@ function Shell({ status }: { status: AuthStatus }) {
                       }
                     />
                     <Route
+                      path="/data-products/access-requests"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataAccessRequestsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/records-of-processing"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataRecordsOfProcessingPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
                       path="/data-products/discovery"
                       element={
                         <ModuleGate module="dataProducts">
@@ -542,6 +561,14 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="dataProducts">
                           <DataDiscoverySourcePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/lineage/:id"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataLineageSourcePage />
                         </ModuleGate>
                       }
                     />

@@ -72,8 +72,13 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'dataproduct.deprecated',
     'dataproduct.elements_missing',
     'dataproduct.discovery_failed',
+    'dataproduct.contract_breaking',
     // estimates recalculated with new prices (ADR 0035 part 6): in the app and by e-mail
     'cost.estimate_changed',
+    'dataproduct.access_requested',
+    'dataproduct.access_decided',
+    'dataproduct.endorsement_review',
+    'dataproduct.access_review_due',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

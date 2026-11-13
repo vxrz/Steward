@@ -67,7 +67,9 @@
       "dashboard": "Dashboards",
       "monitor": "Monitors",
       "recordType": "Document types",
-      "costCalculator": "Cost calculators"
+      "costCalculator": "Cost calculators",
+      "dataProduct": "Data products",
+      "dataObject": "Data objects"
     },
     "token": "Access token",
     "tokenHint": "Read-only access to the repository contents. Stored encrypted in the vault, never shown again. Empty for public repositories.",

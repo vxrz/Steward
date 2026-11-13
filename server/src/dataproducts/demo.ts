@@ -5,11 +5,20 @@ import { db } from '../db.js';
 import { logger } from '../log.js';
 import { addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
 import { dropSnowflakeObject } from '../mock/mockSnowflake.js';
+import { nowIso } from '../util.js';
+import { requestAccess } from './access-requests.js';
+import { readNow, writeIdentities } from './consumers-actual.js';
 import { addProductMatch, setAllocation } from './costs.js';
 import { runSource } from './discovery/job.js';
 import { createSource } from './discovery/sources.js';
 import { applyImport } from './import.js';
+import { applyOlEvents, parseOlEvent } from './lineage/openlineage.js';
+import { createLineageSource } from './lineage/sources.js';
+import { readMeasuredUse } from './measured.js';
 import { applyMonitor } from './monitor-draft.js';
+import { addConsumer } from './ports.js';
+import { recordQualityResults } from './quality.js';
+import { takeScorecardSnapshots } from './scorecard-history.js';
 
 /**
  * The data products of the demo (0.22.0, ADR 0036 "Demo", docs/DATA-PRODUCTS.md): invented, on the simulated platforms.
@@ -26,9 +35,16 @@ import { applyMonitor } from './monitor-draft.js';
  *   4. Create monitor on Orders in prod: the disabled draft with a freshness check per element and soft links along
  *      the steps (enable it to see health along the pipeline).
  *   5. Costs from the Confluent Cloud demo lines: the connector to Orders alone, the cluster shared by Orders and Sales
- *      mart by weight (70/20 – a tenth not attributed), the event source connector shared equally by Orders and
+ *      mart **by measured use** (0.24.0: the bytes its topics received, from the Metrics API – orders for Orders,
+ *      payments for Sales mart, the rest not attributed), the event source connector shared equally by Orders and
  *      Customer 360.
  *   6. A second Snowflake run after a stage was dropped: the element is marked missing.
+ *   7. Phase 2 (0.24.0): an OpenLineage lineage source "Shop Airflow (demo)" with two pushed jobs – one the step
+ *      "Region report" documents already, one proposed (orders → daily sales); quality results of the curated orders
+ *      (dbt tests) and customers (Data Metric Functions); on Orders' output port a registration the platform sees
+ *      (role REPORTING) and one that stays silent, read once from ACCESS_HISTORY; an open access request for
+ *      Customer 360's port; 30 days of scorecard history behind today's snapshot (a maturity that rose twice), so
+ *      the trend has something to draw.
  *
  * Loaded with the service half of the demo (Home → Load demo, the UI tests), whether the module is on or off: switched
  * on, it is there. Once – a domain "sales" means it was loaded.
@@ -99,17 +115,20 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
       match(product('sales-mart'), 'lkc-demo1');
       match(orders, 'lcc-demo2');
       match(product('customer-360'), 'lcc-demo2');
+      // by measured use (0.24.0): the bytes the cluster's topics received – a topic of neither product is not attributed
       setAllocation({
         platformId: confluent,
         kind: 'resource',
         value: 'lkc-demo1',
-        rule: 'weight',
-        weights: [
-          { productId: orders, pct: 70 },
-          { productId: product('sales-mart'), pct: 20 },
+        rule: 'measured',
+        measure: 'confluentTopic',
+        subjects: [
+          { productId: orders, subjects: ['orders'] },
+          { productId: product('sales-mart'), subjects: ['payments'] },
         ],
       });
       setAllocation({ platformId: confluent, kind: 'resource', value: 'lcc-demo2', rule: 'equal' });
+      await readMeasuredUse(Date.now(), { force: true, platformId: confluent });
     } catch (err) {
       logger.warn({ err: (err as Error).message }, 'demo data product costs not matched');
     }
@@ -118,5 +137,188 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
   // 6. a stage dropped in dev: the second run marks it missing
   dropSnowflakeObject('SHOP_DEV.RAW.LANDING');
   await runSource(sf.id, { trigger: 'manual', actor });
+
+  // 7. phase 2 (0.24.0)
+  const el = (qualifiedName: string) =>
+    db().get<{ id: string; ol_namespace: string | null; ol_name: string | null }>(
+      "SELECT id, ol_namespace, ol_name FROM dp_elements WHERE platform_id = ? AND qualified_name = ? AND environment = 'prod'",
+      snowflake,
+      qualifiedName,
+    );
+  try {
+    lineageDemo(el);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo lineage source not set up');
+  }
+  try {
+    qualityDemo(el);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo quality results not recorded');
+  }
+  try {
+    scorecardHistoryDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo scorecard history not written');
+  }
+  try {
+    await consumersDemo(orders, product('customer-360'));
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo consumers and access request not set up');
+  }
   return imported.counts.add;
+}
+
+type ElementOf = (qualifiedName: string) => { id: string; ol_namespace: string | null; ol_name: string | null } | undefined;
+
+const HOUR = 3_600_000;
+
+/** An OpenLineage source with two pushed jobs: one documented by the step "Region report", one proposed. */
+function lineageDemo(el: ElementOf): void {
+  const source = createLineageSource({ name: 'Shop Airflow (demo)', kind: 'openlineage' });
+  const ds = (qn: string) => {
+    const e = el(qn);
+    return e?.ol_namespace && e.ol_name ? [{ namespace: e.ol_namespace, name: e.ol_name }] : [];
+  };
+  const run = (job: string, n: number, inputs: string[], outputs: string[]) =>
+    parseOlEvent({
+      eventType: 'COMPLETE',
+      eventTime: new Date(Date.now() - n * HOUR).toISOString(),
+      run: { runId: `0190c3d4-0000-7000-8000-00000000000${n}` },
+      job: { namespace: 'airflow-shop', name: job, facets: { jobType: { integration: 'AIRFLOW' } } },
+      inputs: inputs.flatMap(ds),
+      outputs: outputs.flatMap(ds),
+      producer: 'https://airflow.invented.example',
+      schemaURL: 'https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent',
+    });
+  const events = [
+    run('shop.region_report', 2, ['SHOP.CURATED.ORDERS', 'SHOP.CURATED.CUSTOMERS'], ['SHOP.MART.ORDERS_BY_REGION']),
+    run('shop.refresh_daily_sales', 1, ['SHOP.CURATED.ORDERS'], ['SHOP.MART.DAILY_SALES']),
+  ];
+  db().tx(() => {
+    applyOlEvents(source.id, [], events);
+    db().run('UPDATE dp_lineage_sources SET received = received + ?, last_event_at = ? WHERE id = ?', events.length, nowIso(), source.id);
+  });
+}
+
+const DAY = 24 * HOUR;
+const HISTORY_DAYS = 30;
+
+/**
+ * The scorecard over time: today's snapshots (as the daily job takes them), and behind them 30 days of history – a
+ * level lower 8 to 20 days ago, two lower before that (never below 0), with as many parts more not met – so the
+ * maturity trend draws two steps up. Invented like the rest; the daily job adds a day each day.
+ */
+function scorecardHistoryDemo(now = Date.now()): void {
+  takeScorecardSnapshots(now, true);
+  const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+  const today = db().all<{ product_id: string; environment: string; maturity: number; states: string }>(
+    'SELECT product_id, environment, maturity, states FROM dp_scorecard_snapshots WHERE day = ?',
+    day(now),
+  );
+  const taken = nowIso();
+  db().tx(() => {
+    for (const r of today)
+      for (let d = 1; d <= HISTORY_DAYS; d++) {
+        const maturity = Math.max(0, r.maturity - (d > 20 ? 2 : d > 7 ? 1 : 0));
+        const states = JSON.parse(r.states) as Record<string, string>;
+        // each level less: two parts that are met today were not met then
+        let lower = (r.maturity - maturity) * 2;
+        for (const key of Object.keys(states).reverse())
+          if (lower > 0 && states[key] === 'met') {
+            states[key] = 'notMet';
+            lower--;
+          }
+        db().run(
+          `INSERT INTO dp_scorecard_snapshots (product_id, environment, day, maturity, states, taken_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (product_id, environment, day) DO NOTHING`,
+          r.product_id,
+          r.environment,
+          day(now - d * DAY),
+          maturity,
+          JSON.stringify(states),
+          taken,
+        );
+      }
+  });
+}
+
+/** Quality results: dbt tests of the curated orders, Data Metric Functions of the curated customers. */
+function qualityDemo(el: ElementOf): void {
+  const orders = el('SHOP.CURATED.ORDERS')?.id;
+  const customers = el('SHOP.CURATED.CUSTOMERS')?.id;
+  const at = (h: number) => new Date(Date.now() - h * HOUR).toISOString();
+  recordQualityResults([
+    ...(orders
+      ? [
+          {
+            elementId: orders,
+            source: 'dbt' as const,
+            name: 'not_null_orders_order_id',
+            status: 'passed' as const,
+            value: 0,
+            runRef: 'invented-dbt-run-1',
+            observedAt: at(3),
+          },
+          {
+            elementId: orders,
+            source: 'dbt' as const,
+            name: 'unique_orders_order_id',
+            status: 'passed' as const,
+            value: 0,
+            runRef: 'invented-dbt-run-1',
+            observedAt: at(3),
+          },
+          {
+            elementId: orders,
+            source: 'dbt' as const,
+            name: 'accepted_values_orders_status',
+            status: 'warning' as const,
+            value: 2,
+            runRef: 'invented-dbt-run-1',
+            observedAt: at(3),
+          },
+        ]
+      : []),
+    ...(customers
+      ? [
+          { elementId: customers, source: 'dmf' as const, name: 'SNOWFLAKE.CORE.NULL_COUNT(EMAIL)', status: 'failed' as const, value: 14, observedAt: at(1) },
+          {
+            elementId: customers,
+            source: 'dmf' as const,
+            name: 'SNOWFLAKE.CORE.DUPLICATE_COUNT(CUSTOMER_ID)',
+            status: 'passed' as const,
+            value: 0,
+            observedAt: at(1),
+          },
+        ]
+      : []),
+  ]);
+}
+
+/** Orders' output port: a registration the platform sees and one that stays silent, read once; an access request. */
+async function consumersDemo(orders: string, customer360: string): Promise<void> {
+  const port = (productId: string, name: string) =>
+    db().get<{ id: string }>(
+      "SELECT id FROM dp_ports WHERE product_id = ? AND direction = 'output' AND name = ? AND lifecycle <> 'deprecated' ORDER BY version DESC",
+      productId,
+      name,
+    )?.id;
+  const ordersPort = port(orders, 'orders');
+  if (ordersPort) {
+    // the service desk's registration names the role it reads with: ACCESS_HISTORY sees it (seen)
+    const desk = db().get<{ id: string }>('SELECT id FROM dp_consumers WHERE port_id = ? ORDER BY created_at LIMIT 1', ordersPort);
+    if (desk) db().tx(() => writeIdentities(desk.id, ['role:REPORTING']));
+    // a registration whose user reads nothing (registered but silent)
+    const silent = addConsumer(orders, 'Orders', ordersPort, { kind: 'text', text: 'Invented payroll export', purpose: 'Monthly bonus figures' });
+    db().tx(() => writeIdentities(silent.id, ['user:SVC_PAYROLL']));
+    await readNow(orders, ordersPort, 'prod');
+  }
+  const customerPort = port(customer360, 'customer');
+  if (customerPort)
+    requestAccess(customer360, customerPort, {
+      environment: 'prod',
+      consumer: { kind: 'text', text: 'Invented marketing analytics' },
+      purpose: 'Segments for the spring campaign',
+      identities: ['role:MARKETING'],
+    });
 }

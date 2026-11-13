@@ -175,6 +175,26 @@ describe('person access reviews', () => {
     });
   });
 
+  it('is never approved by who decided a right of it – an administrator who decided while the reviewer submitted', async () => {
+    const users = await import('../src/auth/users.js');
+    users.createUser({ username: 'alma', roles: ['admin'], password: PW, mustChangePassword: false });
+    const alma = await s.as('alma', PW);
+    const c = await s.api('POST', '/compliance/person-reviews', {
+      title: 'Decided by another admin',
+      personName: 'CI',
+      identifiers: ['ci-deploy'],
+      checkIds: [awsCheck],
+      fourEyes: true,
+    });
+    await alma('PUT', `/compliance/person-reviews/${c.id}/decisions`, {
+      decisions: c.items.map((i: any) => ({ itemId: i.id, decision: 'keep', comment: '' })),
+    });
+    expect(await s.api('POST', `/compliance/person-reviews/${c.id}/submit`, {})).toMatchObject({ status: 'submitted', submittedBy: 'admin' });
+    expect(await alma('GET', `/compliance/person-reviews/${c.id}`)).toMatchObject({ canApprove: false });
+    await expect(alma('POST', `/compliance/person-reviews/${c.id}/approval`, { approve: true })).rejects.toThrow(/who decided a right/);
+    expect(await paula('POST', `/compliance/person-reviews/${c.id}/approval`, { approve: true })).toMatchObject({ status: 'approved', approvedBy: 'paula' });
+  });
+
   it('counts as evidence of the access check on controls, and only for those who may read it', async () => {
     const control = (await s.api('GET', '/compliance/controls?catalogue=ISO27001')).find((c: any) => c.ref === '5.18');
     await s.api('POST', `/compliance/controls/${control.id}/tags`, { kind: 'accessCheck', targetId: awsCheck });

@@ -1227,6 +1227,18 @@
             }
           ]
         },
+        "completeness_pct": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "update_schedule": {
           "anyOf": [
             {
@@ -1251,7 +1263,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention"
+      "description": "Objectives (SLO): freshness in minutes, availability and completeness in percent over 30 days, an update schedule and retention"
     },
     "PortSource": {
       "type": "object",
@@ -1445,6 +1457,16 @@
             "maxLength": 200,
             "pattern": "^(user|team):.+$",
             "description": "A person or a team: user:<name> or team:<name>"
+          }
+        },
+        "identities": {
+          "description": "The platform identities the registration names (user:, role:, group:), matched to who really reads the port (0.24.0)",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^(user|role|group):[^\\s:][^\\n\\r]{0,254}$"
           }
         }
       },

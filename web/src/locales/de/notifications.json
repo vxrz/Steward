@@ -278,6 +278,26 @@
       "discovery_failed": {
         "label": "Erkennung für Datenprodukte schlägt fehl",
         "info": "Eine Erkennungsquelle für Datenprodukte, die Sie eingerichtet haben oder auf einer Plattform liegt, die Sie verwalten, ist fehlgeschlagen (einmal, bis sie wieder gelingt)"
+      },
+      "access_requested": {
+        "label": "Zugriff auf Datenprodukt beantragt",
+        "info": "Jemand beantragt Zugriff auf einen Ausgangsport eines Datenprodukts, das Sie verantworten (oder verwalten), und Sie entscheiden"
+      },
+      "access_decided": {
+        "label": "Zugriff auf Datenprodukt entschieden",
+        "info": "Ihr Antrag auf Zugriff auf einen Port eines Datenprodukts wurde genehmigt oder abgelehnt"
+      },
+      "endorsement_review": {
+        "label": "Bestätigung eines Datenprodukts prüfen",
+        "info": "Die Bestätigung eines Datenprodukts, das Sie verantworten oder bestätigt haben, ist zur Prüfung fällig (oder eine inkompatible Änderung oder eine Einstufung unter der Untergrenze erfordert eine)"
+      },
+      "access_review_due": {
+        "label": "Zugriffsprüfung eines Datenprodukts fällig",
+        "info": "Die regelmäßige Zugriffsprüfung eines Ports eines Datenprodukts, das Sie verantworten, ist fällig"
+      },
+      "contract_breaking": {
+        "label": "Inkompatible Vertragsänderung",
+        "info": "Eine neue Version des Datenvertrags eines Ausgabe-Ports, den Sie nutzen, enthält inkompatible Änderungen (registrierte Nutzer und die Besitzer der Produkte, die ihn nutzen; einmal je Version)"
       }
     }
   },

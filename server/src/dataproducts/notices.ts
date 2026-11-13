@@ -43,13 +43,14 @@ import {
  *    the platform's managers who may see the platform (else the administrators).
  *
  * The discovery job (WP2) calls noticeElementsMissing and noticeDiscoveryFailed (or noticeDiscoveryRun for both).
+ * `dataproduct.contract_breaking` (0.24.0) is sent by contract-hooks.ts with the helpers exported here.
  */
 
 const LINK = (productId: string) => `/data-products/${encodeURIComponent(productId)}`;
 const MAX_NAMED = 10;
 
 /** Claims a notice (true: not sent before, send it now). */
-function claim(kind: string, itemId: string, key: string): boolean {
+export function claim(kind: string, itemId: string, key: string): boolean {
   return (
     db().run('INSERT INTO dp_notices (kind, item_id, notice_key, sent_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', kind, itemId, key, nowIso()).changes ===
     1
@@ -60,25 +61,26 @@ const forget = (kind: string, itemId: string, prefix: string): void => {
   db().run('DELETE FROM dp_notices WHERE kind = ? AND item_id = ? AND substr(notice_key, 1, ?) = ?', kind, itemId, prefix.length, prefix);
 };
 
-interface Person {
+export interface Person {
   info: UserInfo;
   auth: AuthUser;
 }
 
 /** Active users once per call, with their AuthUser (memberships are cached per AuthUser). */
-function people(): Person[] {
+export function people(): Person[] {
   return listUsers()
     .filter((u) => u.active)
     .map((info) => ({ info, auth: toAuthUser(info) }));
 }
 
 /** The people `subjects` (`user:`, `team:`) name. */
-const named = (all: Person[], subjects: readonly string[]): Person[] => (subjects.length ? all.filter((p) => subjects.some((s) => matches(p.auth, s))) : []);
+export const named = (all: Person[], subjects: readonly string[]): Person[] =>
+  subjects.length ? all.filter((p) => subjects.some((s) => matches(p.auth, s))) : [];
 
-const sees = (p: Person, product: ProductRow): boolean => productAccess(p.auth, product).permissions.length > 0;
+export const sees = (p: Person, product: ProductRow): boolean => productAccess(p.auth, product).permissions.length > 0;
 
 /** A product's owners; without any, the members of its owning teams who may change it. */
-function ownersOf(all: Person[], product: ProductRow): Person[] {
+export function ownersOf(all: Person[], product: ProductRow): Person[] {
   const owners = named(all, parseJson<string[]>(product.owners, []));
   if (owners.length) return owners;
   const teams = owningTeams('data_product', product.id).map((x) => x.id);

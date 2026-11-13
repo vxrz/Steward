@@ -207,6 +207,7 @@ export async function acceptUpdate(
     comment: note,
     disabled: opts.auto,
     platforms: opts.platforms,
+    sourceId: src.id,
   });
   db().tx(() => {
     link(src, { path: r.path, sha: r.blob_sha }, { sha: r.commit_sha }, { kind, hash: r.content_hash }, res.entityId, currentActor());

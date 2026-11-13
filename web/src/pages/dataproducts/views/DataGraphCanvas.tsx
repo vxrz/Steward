@@ -224,18 +224,25 @@ function Way({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPos
   const w = 1.4 + Math.min(3, Math.log2(e.count + 1) * 0.7) + (hl ? 1 : 0);
   return (
     <>
-      <g className="pv-edge" data-dim={dim || undefined} data-testid={`graph-edge-${id}`} data-deprecated={e.deprecated || undefined}>
+      <g
+        className="pv-edge"
+        data-dim={dim || undefined}
+        data-testid={`graph-edge-${id}`}
+        data-deprecated={e.deprecated || undefined}
+        data-proposed={e.proposed || undefined}
+      >
         <path
           id={id}
           d={path}
           className="pv-edge-base"
           data-problem={e.deprecated || undefined}
           data-inactive={e.hidden || undefined}
+          data-proposed={e.proposed || undefined}
           data-hl={hl || undefined}
           strokeWidth={w}
           markerEnd={markerEnd}
         />
-        {animate && !e.deprecated && <path d={path} className="pv-edge-flow" data-hl={hl || undefined} strokeWidth={w + 0.8} />}
+        {animate && !e.deprecated && !e.proposed && <path d={path} className="pv-edge-flow" data-hl={hl || undefined} strokeWidth={w + 0.8} />}
       </g>
       {pill && (
         <EdgeLabelRenderer>

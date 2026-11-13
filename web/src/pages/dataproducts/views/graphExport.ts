@@ -59,7 +59,7 @@ export function graphSvg(
     const ty = b.y + b.height / 2;
     const c = Math.max(30, Math.abs(tx - sx) / 2);
     const color = e.deprecated ? problem : edgeColor;
-    const dash = e.deprecated || e.hidden ? ' stroke-dasharray="7 6"' : '';
+    const dash = e.proposed ? ' stroke-dasharray="2 5" stroke-linecap="round"' : e.deprecated || e.hidden ? ' stroke-dasharray="7 6"' : '';
     out.push(
       `<path d="M${sx} ${sy} C${sx + c} ${sy} ${tx - c} ${ty} ${tx} ${ty}" fill="none" stroke="${color}" stroke-width="1.6"${dash} marker-end="url(#${e.deprecated ? 'ap' : 'a'})"/>`,
     );

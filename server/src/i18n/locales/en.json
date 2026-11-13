@@ -696,6 +696,103 @@
       "title": "Discovery failing: {{source}}",
       "body": "The discovery source “{{source}}” on {{platform}} failed and fails since {{since}}: {{error}}",
       "hint": "You get this once until it succeeds again, because you set up the source or manage the platform."
+    },
+    "breaking": {
+      "title": "Breaking contract change: {{port}} of {{product}}",
+      "body_one": "Version {{version}} of the data contract “{{contract}}” ({{key}}), which the port “{{port}}” of the data product “{{product}}” follows, has {{count}} breaking change:",
+      "body_other": "Version {{version}} of the data contract “{{contract}}” ({{key}}), which the port “{{port}}” of the data product “{{product}}” follows, has {{count}} breaking changes:",
+      "bodyHidden_one": "Version {{version}} of the data contract of the port “{{port}}” of the data product “{{product}}” has {{count}} breaking change.",
+      "bodyHidden_other": "Version {{version}} of the data contract of the port “{{port}}” of the data product “{{product}}” has {{count}} breaking changes.",
+      "environments": "Bound in: {{environments}}.",
+      "more_one": "… and {{count}} more",
+      "more_other": "… and {{count}} more",
+      "registered": "You are registered as a consumer of {{port}}.",
+      "consuming": "Your data products that use it: {{products}}.",
+      "hint": "You get this once per contract version because you are a registered consumer or you own a data product that uses the port. Check what the change means for you, and talk to the product's owners."
+    }
+  },
+  "dataProductGovernance": {
+    "requested": {
+      "title": "Access requested: {{port}} of {{product}}",
+      "body": "{{requester}} asks for access to the port “{{port}}” of the data product “{{product}}” in {{environment}}.",
+      "purpose": "Purpose: {{purpose}}",
+      "until": "Until: {{date}}",
+      "fourEyes": "The product is rated high or above: two people approve.",
+      "second": "{{first}} approved it: a second person decides now.",
+      "hint": "You get this because you decide access requests of the product. Decide on the product’s Access tab."
+    },
+    "decided": {
+      "approvedTitle": "Access approved: {{product}}",
+      "refusedTitle": "Access refused: {{product}}",
+      "approvedBody": "{{by}} approved your request for the port “{{port}}” of “{{product}}” in {{environment}}. You are a registered consumer now.",
+      "refusedBody": "{{by}} refused your request for the port “{{port}}” of “{{product}}” in {{environment}}.",
+      "comment": "Comment: {{comment}}",
+      "hint": "Steward does not grant on the platform itself: where the product names a process or a ticket, the platform team grants the access."
+    },
+    "reviewDue": {
+      "title": "Access review due: {{port}} of {{product}}",
+      "body": "The periodic access review of the port “{{port}}” of “{{product}}” in {{environment}} is due on {{date}}.",
+      "last": "Last approved review: {{date}}.",
+      "never": "The port has not been reviewed yet.",
+      "hint": "Start the review on the product’s Access tab: registered consumers, who really reads and the grants are compared there."
+    },
+    "endorsementReview": {
+      "title": "Endorsement to review: {{product}}",
+      "reviewDue": "The endorsement of “{{product}}” is due for its review on {{date}}.",
+      "expired": "The endorsement of “{{product}}” expired on {{date}} – it no longer counts for maturity level 5.",
+      "breakingChange": "A data contract bound to “{{product}}” had a breaking change: its endorsement needs a review.",
+      "belowFloor": "The rating of “{{product}}” is below its data objects without a reason: its endorsement needs a review.",
+      "by": "Endorsed by {{by}} on {{date}}.",
+      "hint": "Endorse it again (or revoke it) on the product’s overview."
+    },
+    "ropa": {
+      "title": "Records of processing",
+      "subtitle": "Data objects with personal data in data products (GDPR Art. 30) – a working view",
+      "disclaimer": "A working view from Steward’s data products for the data protection officer, not the record of processing activities itself. It lists only what the person who exported it may see; parts they may not see are counted.",
+      "domainHidden": "a domain you may not see",
+      "hidden_one": "{{count}} more you may not see",
+      "hidden_other": "{{count}} more you may not see",
+      "head": {
+        "object": "Data object",
+        "key": "Key",
+        "domain": "Domain",
+        "personalData": "Personal data",
+        "categories": "Categories of data",
+        "specialCategories": "Special categories",
+        "subjects": "Data subjects",
+        "legalBasis": "Legal basis",
+        "purposes": "Purposes",
+        "products": "Processed in",
+        "recipients": "Recipients",
+        "processors": "Platforms and processors",
+        "retention": "Retention",
+        "deletion": "Deletion rule",
+        "owner": "Data owner",
+        "flags": "Regulatory flags"
+      },
+      "personal": {
+        "none": "none",
+        "personal": "personal",
+        "special": "special categories (Art. 9)"
+      },
+      "basis": {
+        "consent": "consent (Art. 6(1)(a))",
+        "contract": "contract (Art. 6(1)(b))",
+        "legalObligation": "legal obligation (Art. 6(1)(c))",
+        "vitalInterests": "vital interests (Art. 6(1)(d))",
+        "publicTask": "public task (Art. 6(1)(e))",
+        "legitimateInterests": "legitimate interests (Art. 6(1)(f))"
+      },
+      "dpa": {
+        "inPlace": "DPA in place",
+        "missing": "DPA missing",
+        "unknown": "DPA not recorded"
+      },
+      "pd": {
+        "yes": "processes personal data",
+        "no": "no personal data",
+        "unknown": "personal data not answered"
+      }
     }
   },
   "estimateChanged": {

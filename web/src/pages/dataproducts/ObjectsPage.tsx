@@ -24,14 +24,16 @@ import { confirmDanger } from '../../components/confirm';
 import { OwningTeams } from '../../components/OwningTeams';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { ObjectForm } from '../../components/dataproducts/ObjectForm';
+import { OssieMenu } from '../../components/dataproducts/Transfer';
 import { RatingForm, domainOptions } from '../../components/dataproducts/ProductForm';
 import { fmtDate, fmtRelative } from '../../format';
 import { dpKeys, pagesOf, qs, useDomains, useInvalidateDataProducts, useObject, useObjectElements, useObjectList } from './api';
-import { ClassificationBadge, Fact, HiddenCount, LifecycleBadge, PersonalDataBadge, RefLink, Section, useKindLabel } from './parts';
+import { ClassificationBadge, Fact, HiddenCount, LifecycleBadge, PersonalDataBadge, RefLink, Section, useKindLabel, useRetentionText } from './parts';
 import { LinksTab } from './ProductMisc';
 import { RatingBadges, RatingPanelReadOnly } from './rating';
 import { MissingBadge } from './ElementsPage';
 import { useCanCreate } from './rights';
+import { PersonalFieldsPanel } from './ProductQuality';
 
 const enc = encodeURIComponent;
 const to = (o: { id: string }) => `/data-objects/${enc(o.id)}`;
@@ -81,6 +83,7 @@ export function DataObjectsPage() {
           </Button>
         )
       }
+      actions={<OssieMenu />}
       search={
         none
           ? undefined
@@ -261,6 +264,7 @@ export function DataObjectPage() {
   const q = useObject(id);
   const [editing, setEditing] = useState<'object' | 'rating' | null>(null);
   const subject = useSubjectLabel();
+  const retention = useRetentionText();
   const tab = TABS.find((x) => x === tabParam);
   if (tab === undefined) return <Navigate to={to({ id })} replace />;
   const o = q.data;
@@ -360,7 +364,7 @@ export function DataObjectPage() {
                     </Fact>
                   )}
                   <Fact label={t('objects.purposes')}>{o.purposes.join(', ') || '–'}</Fact>
-                  <Fact label={t('objects.retention')}>{o.retention || '–'}</Fact>
+                  <Fact label={t('objects.retention')}>{retention(o.retention) || '–'}</Fact>
                   <Fact label={t('objects.deletionRule')}>{o.deletionRule || '–'}</Fact>
                   <Fact label={t('objects.flags')}>
                     {o.regulatoryFlags.length ? (
@@ -396,6 +400,7 @@ export function DataObjectPage() {
                   </List>
                 </Section>
               )}
+              <PersonalFieldsPanel kind="object" id={o.id} />
               <ObjectElements o={o} />
             </Stack>
           </Grid.Col>

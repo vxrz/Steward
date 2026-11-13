@@ -17,6 +17,7 @@ import { fmtDate, fmtDuration, fmtNumber, fmtRelative } from '../../format';
 import { dpKeys, useInvalidateDataProducts, useRuns, useSource, useSources } from './api';
 import { CardTable, Fact, Section } from './parts';
 import { useCanManageModule } from './rights';
+import { LineageSection } from './lineage/LineageSources';
 
 const enc = encodeURIComponent;
 const to = (s: { id: string }) => `/data-products/discovery/${enc(s.id)}`;
@@ -212,6 +213,8 @@ export function DataDiscoveryPage() {
           ]}
         />
       )}
+      {/* 0.24.0: lineage from tools – OpenLineage and dbt sources, and the inbox of proposed steps */}
+      <LineageSection />
       {creating && (
         <SourceForm
           onClose={() => setCreating(false)}

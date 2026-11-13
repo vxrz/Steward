@@ -112,6 +112,8 @@ checks:
 
 The platform's costs in money ([COSTS.md](COSTS.md#sources)): turned on under _Costs → the platform → Source_, Steward reads `SNOWFLAKE.ORGANIZATION_USAGE.USAGE_IN_CURRENCY_DAILY` once a day for the platform's account (`ACCOUNT_LOCATOR` or the name after `ORG-` in the variable `account`) – the organisation's usage views must be readable (`IMPORTED PRIVILEGES` on the `SNOWFLAKE` database in an account that has `ORGANIZATION_USAGE`; not for reseller contracts). Without them it reads the credits of `ACCOUNT_USAGE.METERING_DAILY_HISTORY` and multiplies them by the **price per credit** – since 0.21.0 the item `compute-credit` of the platform's contracted price book ([PRICE-BOOKS.md](PRICE-BOOKS.md#price-books)), still set on the source as well. The costs belong to the platform's application, else they are unassigned.
 
+**Measured use of data products** (0.24.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#measured-use)): an allocation that splits the account's lines between data products by measured use reads, once a day, the credits per warehouse from `SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY` and – for query tags – the credits per tag from `SNOWFLAKE.ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY` (Enterprise Edition), the tags as bind parameters. The platform's role needs `IMPORTED PRIVILEGES` on the `SNOWFLAKE` database (or the database roles `USAGE_VIEWER` / `GOVERNANCE_VIEWER`); only sums per warehouse or tag and month are kept, never query text. The price per credit of the platform's contracted price book prices them.
+
 ## Data products discovery
 
 A discovery source of the data products module ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#discovery)) on a Snowflake platform reads the **databases and schemas of its scope** (`SHOP`, `SHOP.SALES`) into the element catalogue: databases, schemas, tables, views, dynamic tables, streams, tasks, stages and pipes, with row counts, bytes and the last change as metadata. Two modes (ADR 0036 decision 12):
@@ -122,6 +124,8 @@ A discovery source of the data products module ([DATA-PRODUCTS.md](DATA-PRODUCTS
 | **Account usage**                | `SNOWFLAKE.ACCOUNT_USAGE.DATABASES`, `SCHEMATA`, `TABLES` and `VIEWS` for the whole scope, one statement each – up to 90 minutes behind | `IMPORTED PRIVILEGES` on the `SNOWFLAKE` database (as for the readouts above)        |
 
 In both modes `SHOW DYNAMIC TABLES`, `SHOW STREAMS`, `SHOW TASKS`, `SHOW STAGES` and `SHOW PIPES` `IN DATABASE` (or `IN SCHEMA` for a schema in the scope) add what the views do not hold; of their output Steward keeps metadata columns only – never a definition. **Account usage** suits large accounts: one statement per view for all databases, and the `TABLE_ID` makes a renamed table the same element (people's descriptions, memberships and links stay). Its wider view is the whole account's metadata – `IMPORTED PRIVILEGES` shows every database's objects to the role; Steward still keeps only the scope. In **information schema** mode a role sees only the objects it has a privilege on, and there is no `TABLE_ID`: a renamed table is a new element and the old one goes missing.
+
+**Object dependencies** (0.24.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#lineage-from-tools)): in **account usage** mode, after a complete run, the source reads `SNOWFLAKE.ACCOUNT_USAGE.OBJECT_DEPENDENCIES` once – which table-like object of its scope (a view, a materialized or dynamic table, a stream) references which – and proposes a step per referencing object in _Data → Discovery → Proposed steps_, for a person to accept; ways the documented steps say already are marked _already documented_. Metadata, as the catalogue views: no definition, no query text. Information schema mode has no such view and proposes nothing.
 
 Grants for **information schema** mode – metadata, not data (`REFERENCES` shows a table's or view's definition of columns, never its rows; `MONITOR` shows a dynamic table, task or pipe):
 
@@ -150,6 +154,16 @@ Streams are listed only to a role with `SELECT` on them, internal stages only wi
 3. **Read now** and look at the run: added, changed, renamed, missing, and what it could not read. The elements are in _Data → Elements_ (prefix search `SHOP.CURATED.`); add them to products from there or from a product's _Elements_ tab.
 
 The demo's source _Shop warehouse (demo)_ is set up this way over `SHOP` and `SHOP_DEV` ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-demo)).
+
+**Volume and quality checks** (0.24.0, the `data-element` check – [DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-check-type-data-element)): the _volume_ mode reads `ROW_COUNT` and `BYTES` from the same `INFORMATION_SCHEMA.TABLES` row as freshness (`/* steward:dp-table-volume */`, no further grant); the _quality_ mode with Data Metric Functions reads `SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS` (`/* steward:dp-dmf-results */`, the table's database, schema and name as bindings) – the measured metrics, never the table's rows – and needs:
+
+```sql
+GRANT APPLICATION ROLE SNOWFLAKE.DATA_QUALITY_MONITORING_VIEWER TO ROLE STEWARD_READ;
+```
+
+**Contract tests** of a `snowflake` server through the datacontract CLI ([DATA-CONTRACTS.md](DATA-CONTRACTS.md#testing)) use the platform's account, user, role, warehouse and key pair; the CLI's data checks need `SELECT` on what the contracts test – a data right Steward's own reads never need.
+
+**Who really reads a port** (0.24.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#declared-against-actual-consumers)): one fixed, read-only statement (`/* steward:dp-access-history */`) on `SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY` (the objects read, `BASE_OBJECTS_ACCESSED`) joined to `QUERY_HISTORY` for the role – the last 30 days, aggregated per user and role, the port's object names as bound JSON arrays, never a query text. It needs the Enterprise edition and the database role `SNOWFLAKE.GOVERNANCE_VIEWER` (or `IMPORTED PRIVILEGES` on `SNOWFLAKE`): `GRANT DATABASE ROLE SNOWFLAKE.GOVERNANCE_VIEWER TO ROLE STEWARD_READ;`. Without it the port says _not available_ there.
 
 ## Templates
 

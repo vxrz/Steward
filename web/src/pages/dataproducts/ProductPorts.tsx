@@ -11,13 +11,16 @@ import { BindingForm, ConsumerForm, PortForm } from '../../components/dataproduc
 import type { PickedElement } from '../../components/dataproducts/ElementPicker';
 import { capFirst, fmtDay } from '../../format';
 import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from './api';
-import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam } from './parts';
+import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam, useRetentionText } from './parts';
+import { ActualConsumers } from './governance/ActualConsumers';
+import { RequestAccessButton } from './governance/AccessRequests';
 
 const enc = encodeURIComponent;
 
 /** Objectives in words (freshness in minutes, hours or days; availability in percent). */
 export function useObjectivesText(): (o: DataObjectives) => string[] {
   const { t } = useTranslation('dataProducts');
+  const retention = useRetentionText();
   const minutesText = (m: number) =>
     m % 1440 === 0
       ? t('objectives.days', { count: m / 1440 })
@@ -28,8 +31,9 @@ export function useObjectivesText(): (o: DataObjectives) => string[] {
     [
       o.freshnessMinutes ? t('objectives.freshnessText', { value: minutesText(o.freshnessMinutes) }) : '',
       o.availabilityPct !== null && o.availabilityPct !== undefined ? t('objectives.availabilityText', { value: o.availabilityPct }) : '',
+      o.completenessPct !== null && o.completenessPct !== undefined ? t('objectives.completenessText', { value: o.completenessPct }) : '',
       o.updateSchedule ? t('objectives.scheduleText', { value: o.updateSchedule }) : '',
-      o.retention ? t('objectives.retentionText', { value: o.retention }) : '',
+      o.retention ? t('objectives.retentionText', { value: retention(o.retention) }) : '',
     ].filter(Boolean);
 }
 
@@ -378,6 +382,9 @@ function PortCard({
               {t('consumers.summary', { registered: port.consumers.registered, count: port.consumers.derived })}
             </Button>
             <Collapse expanded={open}>{open && <Consumers p={p} port={port} canEdit={canEdit} onEdit={onConsumer} />}</Collapse>
+            {/* 0.24.0 (ADR 0036 phase 2): who really reads, and asking for access */}
+            {binding && <ActualConsumers p={p} port={port} environment={environment} />}
+            <RequestAccessButton p={p} port={port} />
           </div>
         )}
       </Stack>

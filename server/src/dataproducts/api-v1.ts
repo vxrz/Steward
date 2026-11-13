@@ -14,6 +14,10 @@ import { odpsDocument } from './odps.js';
 import { membersOf } from './store.js';
 import { scorecardsOf } from './scorecard.js';
 import { DataElementV1ListQuery, DataObjectV1ListQuery, DataProductLineageQuery, DataProductOdpsQuery, DataProductV1ListQuery } from './api-schemas.js';
+import YAML from 'yaml';
+import { SemanticModelQuery, ossieDocumentSchema } from '../api/v1/schemas.js';
+import type { OssieVersion } from '../semantic/ossie.js';
+import { dataObjectsSemanticModel } from './ossie.js';
 
 /**
  * The data products module in the public, read-only API (ADR 0036 part 19): products (paged; domain, lifecycle, type,
@@ -185,8 +189,26 @@ function graphOut(g: DataGraph, head: Record<string, unknown>) {
       ...(n.distance !== undefined ? { distance: n.distance } : {}),
       ...(n.count !== undefined ? { count: n.count } : {}),
     })),
-    edges: g.edges.map((e) => ({ id: e.id, from: e.from, to: e.to, labels: e.labels, count: e.count, ...(e.hidden ? { hidden: true } : {}) })),
-    steps: g.steps.map((s) => ({ id: s.id, name: s.name, kind: s.kind, runner: s.runner, inputs: s.inputs, outputs: s.outputs, hidden: s.hidden })),
+    // 0.24.0: ways a lineage source proposes are marked, never passed off as documented
+    edges: g.edges.map((e) => ({
+      id: e.id,
+      from: e.from,
+      to: e.to,
+      labels: e.labels,
+      count: e.count,
+      ...(e.hidden ? { hidden: true } : {}),
+      ...(e.proposed ? { proposed: true } : {}),
+    })),
+    steps: g.steps.map((s) => ({
+      id: s.id,
+      name: s.name,
+      kind: s.kind,
+      runner: s.runner,
+      inputs: s.inputs,
+      outputs: s.outputs,
+      hidden: s.hidden,
+      ...(s.proposed ? { proposed: true } : {}),
+    })),
     truncated: g.truncated,
     hidden: g.hidden,
   };
@@ -345,6 +367,30 @@ export function dataProductApiRoutes(get: Get): void {
       const p = svc.listObjects({ ...q, limit: q.limit ?? 50 });
       linkNext(req, reply, p.next);
       return { items: p.items.map((o) => ({ ...o, domain: ref(o.domain) })), nextCursor: p.next };
+    },
+  );
+  get(
+    '/data-objects/semantic-model',
+    {
+      operationId: 'getDataObjectsSemanticModel',
+      tag: TAG,
+      summary: 'The data objects as an Apache Ossie semantic model',
+      description: `The business vocabulary of the data products module as an [Apache Ossie](https://github.com/apache/ossie) document: each data object the token owner may see a dataset with its key attributes as fields, relationships from attributes named after another object's key. JSON or YAML (\`Accept: application/yaml\` or \`format=yaml\`). Unlike /semantic-model it differs between tokens (team scope). See docs/DATA-PRODUCTS.md. ${MODULE}`,
+      query: SemanticModelQuery,
+      response: {
+        content: {
+          'application/json': { schema: ossieDocumentSchema },
+          'application/yaml': { schema: { type: 'string', description: 'The same document as YAML' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as { format?: 'json' | 'yaml'; version: OssieVersion };
+      const accept = String(req.headers.accept ?? '');
+      const yamlFirst = /yaml/i.test(accept) && (!/json/i.test(accept) || accept.search(/yaml/i) < accept.search(/json/i));
+      const doc = dataObjectsSemanticModel(me(), q.version);
+      if (q.format === 'yaml' || (!q.format && yamlFirst)) return reply.type('application/yaml; charset=utf-8').send(YAML.stringify(doc, { lineWidth: 0 }));
+      return reply.type('application/json; charset=utf-8').send(JSON.stringify(doc));
     },
   );
   get(

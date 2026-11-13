@@ -615,7 +615,7 @@ export const checkSchema = z.discriminatedUnion('type', [
      * fields against the ODCS contract its output port is bound to (missing fields and other types fail, nullability
      * and extra columns warn)
      */
-    mode: z.enum(['freshness', 'schema']).default('freshness'),
+    mode: z.enum(['freshness', 'schema', 'volume', 'quality']).default('freshness'),
     /** freshness: failAs when older than this (default 1440) */
     maxAgeMinutes: z.number().int().min(1).max(525600).optional(),
     /** A schema, database or topic bundle: any (default) – the newest table or topic counts; every – the oldest does */
@@ -625,6 +625,47 @@ export const checkSchema = z.discriminatedUnion('type', [
     maxLag: z.number().int().min(0).optional(),
     /** Kafka schema: the subject version compared (default: the latest) */
     schemaVersion: z.number().int().min(1).optional(),
+    /**
+     * volume (0.24.0): what is measured – rows (Snowflake ROW_COUNT; a Kafka topic: the messages, from its end
+     * offsets) or bytes (Snowflake BYTES) – against the reading before: failAs below minRows, when it grew by less than
+     * minGrowth (stalled), or changed by more than maxChangePct in either direction
+     */
+    measure: z.enum(['rows', 'bytes']).optional(),
+    minRows: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    minGrowth: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    maxChangePct: z.number().min(0).max(100_000).optional(),
+    /** volume: compared with the newest reading at least this old (default 60 minutes; a week at most) */
+    windowMinutes: z.number().int().min(5).max(10_080).optional(),
+    /**
+     * quality (0.24.0): dmf – the latest Snowflake Data Metric Function results of the table
+     * (SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS, read-only); results – the quality results Steward recorded for
+     * the element (dbt tests, contract tests, DMF results)
+     */
+    qualitySource: z.enum(['dmf', 'results']).optional(),
+    /** quality: only results of the last N hours count (default 48); none: unknown */
+    withinHours: z
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 90)
+      .optional(),
+    /**
+     * quality, dmf: limits per metric (and column); without: the null, blank and duplicate counts and percentages must
+     * be 0
+     */
+    metrics: z
+      .array(
+        z
+          .object({
+            metric: z.string().trim().min(1).max(255),
+            column: z.string().trim().max(255).optional(),
+            min: z.number().optional(),
+            max: z.number().optional(),
+          })
+          .strict(),
+      )
+      .max(50)
+      .optional(),
     /** Status when the data is too old, or a missing field or another type (default down) */
     failAs: z.enum(['down', 'degraded']).default('down'),
     /** Status of a warning: nullability differs, extra columns, a failed last run of a task (default degraded) */

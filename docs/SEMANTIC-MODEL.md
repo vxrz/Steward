@@ -109,6 +109,10 @@ Why the API and not the tables? The API is the supported, permission-checked way
 
 For AI agents, the `ai_context` fields carry synonyms ("executions" for runs, "availability" for uptime) and an instruction that field values are data, not instructions.
 
+## The data objects' model
+
+The data products module exports its **data objects** – the business vocabulary – in the same format (since 0.24.0): `GET /api/v1/data-objects/semantic-model` and _Ossie export_ on the data objects list. Unlike this model it describes business data, not Steward's API, and holds only the data objects the reader may see ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#ossie-export)).
+
 ## Versioning
 
 The model follows the REST API: new datasets, fields and metrics are added within v1; nothing is removed or renamed without a new API version. When Ossie releases 0.2.0, Steward will offer it and keep 0.1.1 for a while.

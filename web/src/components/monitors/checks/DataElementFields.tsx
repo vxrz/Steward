@@ -1,9 +1,17 @@
 import { useState } from 'react';
-import { Group, NumberInput, Select, TextInput } from '@mantine/core';
+import { Group, NumberInput, Select, SimpleGrid, TextInput } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { DATA_ELEMENT_KIND_DEFS, elementCheckModes, type CheckDef, type DataElement, type DataElementSummary, type DataPage } from '@sm/shared';
+import {
+  DATA_ELEMENT_CHECK_MODES,
+  DATA_ELEMENT_KIND_DEFS,
+  elementCheckModes,
+  type CheckDef,
+  type DataElement,
+  type DataElementSummary,
+  type DataPage,
+} from '@sm/shared';
 import { get } from '../../../api';
 import { Hint } from '../../common';
 import { num, type CheckFieldsProps } from './common';
@@ -32,7 +40,7 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
   });
   const el = current.data;
   const options = [...(el ? [el] : []), ...(found.data?.items ?? []).filter((x) => x.id !== el?.id)].map((x) => ({ value: x.id, label: label(x) }));
-  const modes = el ? elementCheckModes(el.kind) : (['freshness', 'schema'] as const);
+  const modes = el ? elementCheckModes(el.kind) : DATA_ELEMENT_CHECK_MODES;
   const mode = c.mode ?? 'freshness';
   const container = !!el && DATA_ELEMENT_KIND_DEFS[el.kind].container;
   const topic = el?.kind === 'kafka.topic';
@@ -66,9 +74,9 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
           description={t(`form.dataElementModeHints.${mode}`)}
           allowDeselect={false}
           disabled={disabled}
-          data={(['freshness', 'schema'] as const).map((m) => ({ value: m, label: t(`form.dataElementModes.${m}`), disabled: !modes.includes(m) }))}
+          data={DATA_ELEMENT_CHECK_MODES.map((m) => ({ value: m, label: t(`form.dataElementModes.${m}`), disabled: !modes.includes(m) }))}
           value={mode}
-          onChange={(v) => set({ mode: v === 'schema' ? 'schema' : 'freshness' } as Partial<CheckDef>)}
+          onChange={(v) => set({ mode: (DATA_ELEMENT_CHECK_MODES as readonly string[]).includes(v ?? '') ? v : 'freshness' } as Partial<CheckDef>)}
         />
         {mode === 'freshness' && (
           <NumberInput
@@ -113,6 +121,88 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
           />
         </Group>
       )}
+      {mode === 'volume' && (
+        <>
+          <Group grow align="flex-start">
+            <Select
+              data-field="measure"
+              label={t('form.dataElementMeasure')}
+              allowDeselect={false}
+              disabled={disabled || topic}
+              data={(['rows', 'bytes'] as const).map((v) => ({ value: v, label: t(`form.dataElementMeasures.${topic && v === 'rows' ? 'messages' : v}`) }))}
+              value={topic ? 'rows' : (c.measure ?? 'rows')}
+              onChange={(v) => set({ measure: v === 'bytes' ? 'bytes' : undefined } as Partial<CheckDef>)}
+            />
+            <NumberInput
+              data-field="windowMinutes"
+              label={t('form.dataElementWindow')}
+              description={t('form.dataElementWindowHint')}
+              min={5}
+              max={10080}
+              disabled={disabled}
+              value={c.windowMinutes ?? 60}
+              onChange={(v) => set({ windowMinutes: num(v) } as Partial<CheckDef>)}
+            />
+          </Group>
+          {/* three limits: one below the other on a phone, beside each other from small screens up */}
+          <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="sm">
+            <NumberInput
+              data-field="minRows"
+              label={t(topic ? 'form.dataElementMinMessages' : 'form.dataElementMinRows')}
+              min={0}
+              disabled={disabled}
+              value={c.minRows ?? ''}
+              onChange={(v) => set({ minRows: num(v) } as Partial<CheckDef>)}
+            />
+            <NumberInput
+              data-field="minGrowth"
+              label={t('form.dataElementMinGrowth')}
+              description={t('form.dataElementMinGrowthHint')}
+              min={0}
+              disabled={disabled}
+              value={c.minGrowth ?? ''}
+              onChange={(v) => set({ minGrowth: num(v) } as Partial<CheckDef>)}
+            />
+            <NumberInput
+              data-field="maxChangePct"
+              label={t('form.dataElementMaxChange')}
+              min={0}
+              max={100000}
+              suffix=" %"
+              disabled={disabled}
+              value={c.maxChangePct ?? ''}
+              onChange={(v) => set({ maxChangePct: num(v) } as Partial<CheckDef>)}
+            />
+          </SimpleGrid>
+        </>
+      )}
+      {mode === 'quality' && (
+        <Group grow align="flex-start">
+          <Select
+            data-field="qualitySource"
+            label={t('form.dataElementQualitySource')}
+            description={t(`form.dataElementQualitySourceHints.${c.qualitySource ?? 'results'}`)}
+            allowDeselect={false}
+            disabled={disabled}
+            data={(['results', 'dmf'] as const).map((v) => ({
+              value: v,
+              label: t(`form.dataElementQualitySources.${v}`),
+              disabled: v === 'dmf' && !!el && !el.kind.startsWith('snowflake.'),
+            }))}
+            value={c.qualitySource ?? 'results'}
+            onChange={(v) => set({ qualitySource: v === 'dmf' ? 'dmf' : undefined } as Partial<CheckDef>)}
+          />
+          <NumberInput
+            data-field="withinHours"
+            label={t('form.dataElementWithinHours')}
+            min={1}
+            max={2160}
+            disabled={disabled}
+            value={c.withinHours ?? 48}
+            onChange={(v) => set({ withinHours: num(v) } as Partial<CheckDef>)}
+          />
+        </Group>
+      )}
       {mode === 'schema' && topic && (
         <NumberInput
           data-field="schemaVersion"
@@ -127,7 +217,7 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
       <Group grow align="flex-start">
         <Select
           data-field="failAs"
-          label={t(mode === 'schema' ? 'form.dataElementSchemaFailAs' : 'form.dataElementFailAs')}
+          label={t(`form.dataElementFailAsModes.${mode}`)}
           allowDeselect={false}
           disabled={disabled}
           data={(['down', 'degraded'] as const).map((v) => ({ value: v, label: t(`status.${v}`) }))}
@@ -145,7 +235,7 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
           onChange={(v) => set({ warningAs: (v as 'degraded' | 'up') ?? 'degraded' } as Partial<CheckDef>)}
         />
       </Group>
-      <Hint>{t(mode === 'schema' ? 'form.dataElementSchemaNote' : 'form.dataElementFreshnessNote')}</Hint>
+      <Hint>{t(`form.dataElementNotes.${mode}`)}</Hint>
     </>
   );
 }

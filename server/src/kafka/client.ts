@@ -104,6 +104,9 @@ async function assertBrokerAllowed(platform: Platform, host: string, port: numbe
   await assertNetAllowed(host, port, outboundContext());
 }
 
+/** The broker check for a connection another service makes for Steward (the datacontract CLI's Kafka test, 0.24.0). */
+export const assertKafkaBrokerAllowed = assertBrokerAllowed;
+
 function sasl(platform: Platform, secrets: Record<string, string>) {
   const mech = String(platform.config.variables?.sasl ?? 'plain').toLowerCase() as KafkaSasl;
   if (mech === 'none') return undefined;

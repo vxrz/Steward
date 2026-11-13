@@ -67,7 +67,9 @@
       "dashboard": "Dashboards",
       "monitor": "Monitore",
       "recordType": "Dokumentarten",
-      "costCalculator": "Kostenrechner"
+      "costCalculator": "Kostenrechner",
+      "dataProduct": "Datenprodukte",
+      "dataObject": "Datenobjekte"
     },
     "token": "Zugriffstoken",
     "tokenHint": "Nur Lesezugriff auf die Inhalte des Repositorys. Wird verschlüsselt im Tresor gespeichert und nie wieder angezeigt. Leer für öffentliche Repositorys.",

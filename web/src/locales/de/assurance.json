@@ -384,6 +384,12 @@
         "label": "Eine Version der Erklärung zur Anwendbarkeit freigeben",
         "description": "Freigebende und Administratoren geben eine eingereichte Version frei oder geben sie zurück, nachdem sie bestätigt haben, dass sie es sind. Vier-Augen-Prinzip: Wer einreicht, gibt nicht frei (jede Erklärung hat einen eigenen Schalter, standardmäßig an); erforderlich: für jede Erklärung."
       }
+    },
+    "dataproduct": {
+      "bulkChange": {
+        "label": "Mehrere Einträge der Datenprodukte in einem Import entfernen",
+        "description": "Ein Import von Datenprodukten im Modus „Ersetzen“ entfernt mehr als einen Eintrag oder Listeneintrag (Elemente, Ports, Schritte, Konsumenten), den die Dateien nicht mehr enthalten."
+      }
     }
   },
   "teamsLabel": "Darf in Microsoft Teams entschieden werden",

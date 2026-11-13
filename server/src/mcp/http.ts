@@ -416,6 +416,11 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
                 .object({ fingerprint: z.string().max(100) })
                 .strict()
                 .optional(),
+              // data products (0.24.0): the preview the reviewer saw
+              dataProducts: z
+                .object({ fingerprint: z.string().max(100) })
+                .strict()
+                .optional(),
             })
             .strict()
             .optional(),

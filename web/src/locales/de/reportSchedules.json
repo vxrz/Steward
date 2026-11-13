@@ -75,6 +75,10 @@
     "contracts": {
       "title": "Datenverträge",
       "hint": "Die Tests des Berichtszeitraums je Vertrag (bestanden, Warnungen, fehlgeschlagen), der letzte Test, Stewards Befunde und die gespeicherten Versionen – die Verträge, die der Eigentümer sehen darf"
+    },
+    "dataProducts": {
+      "title": "Datenprodukte",
+      "hint": "Je Datenprodukt die Reife jetzt und zu Beginn des Zeitraums, die erfüllten Teile der Scorecard, der Zustand, die Qualitätstests seiner Ausgabe-Elemente und inkompatible Vertragsversionen – die Produkte, die der Eigentümer sehen darf"
     }
   },
   "runNow": "Jetzt erstellen",

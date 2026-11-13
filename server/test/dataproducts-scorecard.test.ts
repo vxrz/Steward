@@ -75,8 +75,11 @@ describe('the scorecard', () => {
     expect(state(c, 'healthy')).toBe('noEvidence');
     expect(state(c, 'dependencies')).toBe('met');
     // dimensions without evidence say so
+    const credibility = c.parts.find((p) => p.id === 'credibility')!;
+    expect(credibility).toEqual({ id: 'credibility', group: 'iso25012', state: 'noEvidence', evidence: [{ key: 'evidence.noEvidenceYet' }] });
+    // 0.24.0: accuracy, completeness and consistency come from quality results – none yet
     const accuracy = c.parts.find((p) => p.id === 'accuracy')!;
-    expect(accuracy).toEqual({ id: 'accuracy', group: 'iso25012', state: 'noEvidence', evidence: [{ key: 'evidence.noEvidenceYet' }] });
+    expect(accuracy).toEqual({ id: 'accuracy', group: 'iso25012', state: 'noEvidence', evidence: [{ key: 'evidence.quality.none' }] });
   });
 
   it('reaches level 1 when documented and rated at least to the floor', async () => {
@@ -282,8 +285,9 @@ describe('the scorecard', () => {
     const c = await card();
     expect(c.parts.find((p) => p.id === 'ports')!.evidence[0]).toEqual({ key: 'evidence.ports.bound', values: { bound: 7, of: 7 } });
     expect(counted.get(url)).toBe(few);
-    // the scorecard's own reads and the element health of health.ts (check links, monitors, states – in bulk)
-    expect(few).toBeLessThanOrEqual(48);
+    // the scorecard's own reads and the element health of health.ts (check links, monitors, states – in bulk); since
+    // 0.24.0 also the quality results and personal fields (package B) and the endorsements and port reviews (package C)
+    expect(few).toBeLessThanOrEqual(52);
     // a product the reader may not see answers like a missing one
     const team = (await s.api('POST', '/teams', { name: 'Invented score team', members: ['olivia'] })).id;
     const { db } = await import('../src/db.js');

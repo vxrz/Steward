@@ -4,6 +4,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
+import { dataConsumerAnswer } from './mockDataConsumers.js';
 import { dataElementAnswer } from './mockDataElements.js';
 
 /**
@@ -80,6 +81,27 @@ const METERING = [
   { warehouse: 'PBI_WH', credits30: 18.75, credits7: 6.5 },
 ];
 const USED_BY: Record<string, string[]> = { SHOP: ['TRANSFORM_WH', 'BI_WH'], CRM: ['BI_WH'] };
+/** Credits of queries by query tag in a month (QUERY_ATTRIBUTION_HISTORY) – measured use of data products. */
+export const DEMO_QUERY_TAG_CREDITS: Readonly<Record<string, number>> = { orders: 30.5, customer360: 12.25 };
+/** The account's warehouse credits in a month (WAREHOUSE_METERING_HISTORY: each warehouse's 30 days). */
+export const DEMO_WAREHOUSE_CREDITS: Readonly<Record<string, number>> = Object.fromEntries(METERING.map((m) => [m.warehouse, m.credits30]));
+/** The months (YYYY-MM) from a timestamp to the current month. */
+function measureMonths(from: string): string[] {
+  const start = Date.parse(from);
+  if (!Number.isFinite(start)) return [];
+  const out: string[] = [];
+  const d = new Date(start);
+  const now = new Date();
+  for (let y = d.getUTCFullYear(), m = d.getUTCMonth(); y < now.getUTCFullYear() || (y === now.getUTCFullYear() && m <= now.getUTCMonth()); m++) {
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+    out.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+    if (out.length > 24) break;
+  }
+  return out;
+}
 /**
  * Users of the account. The four short names serve the SHOP and CRM databases; the project database
  * PRD_SDC_OPQ_PBI_DEV (#project access review) is used by people with employee ids and two technical users.
@@ -634,6 +656,42 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
           ]),
       };
     }
+    case 'dp-au-dependencies': {
+      // 0.24.0: which object of the catalogue references which (the demo's pipeline, and one source outside it)
+      const inScope = scopeOf(args);
+      const has = (q: string) => objects().some((o) => `${o.database}.${o.schema}.${o.name}` === q);
+      const domain = (q: string) => {
+        const t = objects().find((o) => `${o.database}.${o.schema}.${o.name}` === q)?.type ?? 'BASE TABLE';
+        return t === 'BASE TABLE' ? 'TABLE' : t;
+      };
+      const rows: Cell[][] = [];
+      const dep = (referenced: string, referencing: string) => {
+        const [rd, rs, rn] = referenced.split('.') as [string, string, string];
+        const [fd, fs, fn] = referencing.split('.') as [string, string, string];
+        if (!has(referencing) || !inScope({ database: fd, schema: fs })) return;
+        rows.push([rd, rs, rn, fd, fs, fn, domain(referencing)]);
+      };
+      for (const db of ['SHOP', 'SHOP_DEV']) {
+        dep(`${db}.STAGED.ORDERS`, `${db}.CURATED.ORDERS`);
+        dep(`${db}.CURATED.ORDERS`, `${db}.MART.ORDERS_BY_REGION`);
+        dep(`${db}.CURATED.CUSTOMERS`, `${db}.MART.ORDERS_BY_REGION`);
+        dep(`${db}.MART.ORDERS_BY_REGION`, `${db}.MART.DAILY_SALES`);
+      }
+      dep('SHOP.SALES.ORDERS', 'SHOP.REPORTING.DAILY_REVENUE');
+      dep('FINANCE.PUBLIC.FX_RATES', 'SHOP.REPORTING.DAILY_REVENUE');
+      return {
+        names: [
+          'REFERENCED_DATABASE',
+          'REFERENCED_SCHEMA',
+          'REFERENCED_OBJECT_NAME',
+          'REFERENCING_DATABASE',
+          'REFERENCING_SCHEMA',
+          'REFERENCING_OBJECT_NAME',
+          'REFERENCING_OBJECT_DOMAIN',
+        ],
+        rows: rows.slice(0, limit),
+      };
+    }
     case 'dp-show': {
       // SHOW <WHAT> IN DATABASE "DB" | IN SCHEMA "DB"."S" – quoted identifiers, as discovery sends them
       const m = /SHOW (DYNAMIC TABLES|STREAMS|TASKS|STAGES|PIPES) IN (DATABASE|SCHEMA) "([A-Z0-9_$]+)"(?:\."([A-Z0-9_$]+)")?$/.exec(
@@ -825,6 +883,9 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
       // the data products checks (ADR 0036 part 10, mockDataElements.ts) first, then discovery (part 5): both tag dp-…
       const check = dataElementAnswer(tag, sql, arg, TABLES);
       if (check) return result(reply, check.names, check.rows);
+      // who reads a port's objects (0.24.0, ACCESS_HISTORY – mockDataConsumers.ts)
+      const readers = dataConsumerAnswer(tag, bindings);
+      if (readers) return 'error' in readers ? reply.code(422).send({ code: '002003', message: readers.error }) : result(reply, readers.names, readers.rows);
       const r = discoveryAnswer(tag, sql, bindings);
       return 'error' in r ? reply.code(422).send({ code: '002003', message: r.error }) : resultInPartitions(reply, r.names, r.rows);
     }
@@ -911,6 +972,24 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
           reply,
           ['DATE', 'CONTRACT_NUMBER', 'SERVICE_TYPE', 'USAGE_TYPE', 'CURRENCY', 'EFFECTIVE_RATE'],
           RATE_SHEET.map((r) => [new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), 'SDC-2026-014', r[0], r[1], 'USD', r[2]]),
+        );
+      case 'costs-measure-warehouses':
+        // measured use of data products (ADR 0036 part 11, phase 2): each warehouse's 30-day credits in every month asked for
+        return result(
+          reply,
+          ['WAREHOUSE_NAME', 'MONTH', 'CREDITS'],
+          measureMonths(arg(1)).flatMap((m) => METERING.map((w) => [w.warehouse, m, w.credits30.toFixed(9)])),
+        );
+      case 'costs-measure-tags':
+        return result(
+          reply,
+          ['QUERY_TAG', 'MONTH', 'CREDITS'],
+          measureMonths(arg(1)).flatMap((m) =>
+            bindings
+              .slice(1)
+              .filter((t) => Object.prototype.hasOwnProperty.call(DEMO_QUERY_TAG_CREDITS, t))
+              .map((t) => [t, m, DEMO_QUERY_TAG_CREDITS[t]!.toFixed(9)]),
+          ),
         );
       case 'costs-credits':
         return result(

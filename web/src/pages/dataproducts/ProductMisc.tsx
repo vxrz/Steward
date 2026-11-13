@@ -13,6 +13,7 @@ import { useSubjectLabel } from '../../components/SubjectsInput';
 import { fmtDate, fmtDay } from '../../format';
 import { dpKeys, qs } from './api';
 import { Section } from './parts';
+import { GovernanceAccessSections } from './governance/AccessPanel';
 
 /**
  * Who may see and change a product (ADR 0036 part 12): its owning teams – the scope – with the explanation of anyone's
@@ -26,6 +27,8 @@ export function ProductAccessTab({ p }: { p: DataProduct }) {
     <Stack gap="md" maw={880}>
       {/* ADR 0033: owning teams with Why do I have access?, Restricted and the shares (View, Edit, Manage) */}
       <AccessTab kind="data_product" id={p.id} />
+      {/* 0.24.0 (ADR 0036 phase 2): access requests, port access reviews and their settings */}
+      <GovernanceAccessSections p={p} />
       <Section title={t('access.owners')}>
         <Text size="sm">{p.owners.length ? p.owners.map(subject).join(', ') : t('product.noOwner')}</Text>
         <Text size="xs" c="dimmed" mt="xs">

@@ -96,7 +96,19 @@ export const NOT_MOVED: Record<string, string> = {
   dp_discovery_runs: 'the run history of the discovery sources (not moved, as the sources)',
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
+  dp_volume_readings: 'the readings before of the data-element volume checks (0.24.0): read again on the target',
   cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
+  // lineage from tools (0.24.0, ADR 0036 phase 2): the push addresses and tokens are this instance's
+  dp_lineage_sources: 'lineage sources (OpenLineage, dbt) are push addresses of this instance: set them up again on the target and point the tools there',
+  dp_lineage_tokens: 'push tokens of lineage sources, only their hashes: created again on the target, like API tokens',
+  dp_lineage_proposals: 'proposed steps of the lineage sources (not moved, as the sources): the next push proposes them again; accepted steps move',
+  dp_lineage_proposal_elements: 'the elements of the proposed steps (not moved, as the proposals)',
+  dp_lineage_tests: 'the tests of the last dbt manifest of a lineage source (not moved, as the sources)',
+  // 0.24.0 (ADR 0036 phase 2): who really reads a port, as the platforms said – read again on the target
+  dp_actual_reads: 'when the actual consumers of a port were read and how (ACCESS_HISTORY, consumer groups): read again on the target',
+  dp_actual_consumers: 'who read a port as the platforms said (ACCESS_HISTORY, consumer groups): read again on the target',
+  // phase 2, package D (0.24.0)
+  dp_cost_usage: 'quantities of measured use read from the platforms (credits, bytes): read again on the target by the job data-products',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -202,6 +214,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'dp_objects', column: 'custodians', kind: 'subjects' },
   { table: 'dp_consumers', column: 'consumer_subjects', kind: 'subjects' },
   { table: 'dp_consumers', column: 'contacts', kind: 'subjects' },
+  // 0.24.0: the consumer an access request asks for (a team or user), mapped like a registration's
+  { table: 'dp_access_requests', column: 'consumer_subjects', kind: 'subjects' },
 ];
 
 /**
@@ -460,6 +474,16 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_check_links.created_by',
   'dp_cost_matches.created_by',
   'dp_cost_allocations.updated_by',
+  'dp_quality_results.recorded_by',
+  // 0.24.0 (ADR 0036 phase 2): who decided, reviewed, promoted and endorsed
+  'dp_access_settings.updated_by',
+  'dp_access_requests.decided_by',
+  'dp_port_reviews.created_by',
+  'dp_port_reviews.submitted_by',
+  'dp_port_reviews.approved_by',
+  'dp_port_review_items.decided_by',
+  'dp_promotions.created_by',
+  'dp_endorsements.endorsed_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */
@@ -493,6 +517,10 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'db_schema_settings.subject_id',
   // the data subjects of a data object (customers, employees …): categories of people, never persons (ADR 0036 part 2)
   'dp_objects.subjects',
+  // 0.24.0: how many members a promotion added, not people
+  'dp_promotions.members',
+  // what an allocation by measured use measures per product (warehouses, query tags, topics) – never a person
+  'dp_cost_allocations.subjects',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */

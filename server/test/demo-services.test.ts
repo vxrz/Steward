@@ -191,6 +191,32 @@ describe('demo services', () => {
       // Customer 360 is below the rating of its data object, with a reason
       const c360 = await s.api('GET', `/data-products/${list.items.find((x) => x.key === 'customer-360')!.id}`);
       expect(c360.ratingFloor.findings.some((f: { dimension: string; reason: string | null }) => f.dimension === 'confidentiality' && !!f.reason)).toBe(true);
+      // phase 2 (0.24.0): an OpenLineage source with two jobs – one documented by "Region report", one proposed
+      const sources = (await s.api('GET', '/data-products/lineage-sources')) as { id: string; name: string; proposals: Record<string, number> }[];
+      const airflow = sources.find((x) => x.name === 'Shop Airflow (demo)')!;
+      expect(airflow.proposals).toMatchObject({ open: 1, documented: 1 });
+      // quality results of the curated orders (dbt) and customers (Data Metric Functions)
+      const curated = (await s.api('GET', '/data-elements?prefix=SHOP.CURATED.ORDERS&environment=prod')).items[0];
+      const quality = await s.api('GET', `/data-elements/${curated.id}/quality`);
+      expect(quality.results.map((r: { source: string }) => r.source)).toEqual(['dbt', 'dbt', 'dbt']);
+      // Orders' port: one registration seen (role REPORTING), one silent, a reader not registered
+      const actual = await s.api('GET', `/data-products/${orders.id}/ports/${v2.id}/actual?environment=prod`);
+      expect(actual.counts).toMatchObject({ seen: 1, silent: 1 });
+      expect(actual.counts.notRegistered).toBeGreaterThan(0);
+      // an open access request for Customer 360's port
+      const requests = await s.api('GET', '/data-products/access-requests?scope=all');
+      expect(
+        requests.items.some(
+          (r: { status: string; consumer: { text: string } }) => r.status === 'pending' && r.consumer.text === 'Invented marketing analytics',
+        ),
+      ).toBe(true);
+      // the Confluent cluster split by measured use, read from the Metrics API
+      const allocations = (await s.api('GET', '/data-products/cost-allocations')) as {
+        value: string;
+        rule: string;
+        measured: { readAt: string | null } | null;
+      }[];
+      expect(allocations.find((a) => a.value === 'lkc-demo1')).toMatchObject({ rule: 'measured', measured: { readAt: expect.any(String) } });
     } finally {
       await s.api('PUT', '/settings/modules/dataProducts', { enabled: false });
     }

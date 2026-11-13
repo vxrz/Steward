@@ -91,6 +91,25 @@ export function RoleBadge({ role, size = 'sm' }: { role: DataMemberRole; size?: 
   );
 }
 
+const ISO_DURATION = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?)?$/i;
+const DURATION_UNITS = ['years', 'months', 'weeks', 'days', 'hours'] as const;
+
+/**
+ * A retention as people read it: an ISO 8601 duration ("P10Y", "P1Y6M", "P30D") in words of the UI language ("10 years",
+ * "1 Jahr und 6 Monate"); any other text – "until the contract ends" – as it was entered.
+ */
+export function useRetentionText(): (value: string | null | undefined) => string {
+  const { t, i18n } = useTranslation('dataProducts');
+  return (value) => {
+    const v = (value ?? '').trim();
+    const m = ISO_DURATION.exec(v);
+    if (!m || v.length < 3 || /T$/i.test(v)) return v;
+    const parts = DURATION_UNITS.flatMap((u, i) => (m[i + 1] ? [t(`duration.${u}`, { count: Number(m[i + 1]) })] : []));
+    if (!parts.length) return v;
+    return new Intl.ListFormat(i18n.language, { style: 'long', type: 'conjunction' }).format(parts);
+  };
+}
+
 /** The kind of an element in words. */
 export function useKindLabel(): (k: DataElementKind) => string {
   const { t } = useTranslation('dataProductViews');

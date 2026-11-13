@@ -1,7 +1,10 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   ActionIcon,
   Alert,
+  Anchor,
   Badge,
   Button,
   Group,
@@ -13,6 +16,7 @@ import {
   SimpleGrid,
   Stack,
   Table,
+  TagsInput,
   Text,
   TextInput,
   Tooltip,
@@ -21,7 +25,10 @@ import { IconCircleCheck, IconCircleDashed, IconCircleMinus, IconCircleX, IconPl
 import { useTranslation } from 'react-i18next';
 import {
   DATA_COST_MATCH_KINDS,
+  DATA_COST_MEASURE_LIMITS,
+  DATA_COST_MEASURES,
   type DataCostAllocation,
+  type DataCostMeasure,
   type DataCostMatch,
   type DataCostMatchKind,
   type DataProduct,
@@ -38,8 +45,9 @@ import { TableScroll } from '../../components/TableScroll';
 import { useLevel } from '../../components/catalogue/cia';
 import { fmtMoney, fmtMonth } from '../../components/costs/common';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
-import { fmtNumber } from '../../format';
-import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts } from './api';
+import { fmtNumber, fmtRelative } from '../../format';
+import { estimatePath } from '../../components/costs/Estimates';
+import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts, useProductEstimates } from './api';
 import { Breakable, CardTable, EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
 
 const enc = encodeURIComponent;
@@ -159,6 +167,7 @@ export function ProductCostsTab({ p }: { p: DataProduct }) {
             )}
           </Section>
           {shown && shown.lines.length > 0 && <LinesOfMonth month={shown} />}
+          <EstimatesSection p={p} environment={c.environment} months={Number(months)} />
           <MatchesSection p={p} costs={c} onChanged={() => void q.refetch()} />
           <AllocationsSection p={p} costs={c} />
         </>
@@ -194,6 +203,11 @@ function LinesOfMonth({ month }: { month: DataProductCosts['months'][number] }) 
             cell: (l) => (
               <>
                 {l.kind === 'direct' ? t('costs.direct') : t('costs.shareBy', { rule: t(`costs.rules.${l.rule ?? 'equal'}`) })}
+                {l.measured && (
+                  <Text size="xs" c="dimmed">
+                    {t(`measured.measures.${l.measured.measure}`)} · {l.measured.priced ? t('measured.priced') : t('measured.shareOfTotal')}
+                  </Text>
+                )}
                 {l.products > 1 && (
                   <Text size="xs" c="dimmed">
                     {t('costs.splitBetween', { count: l.products })}
@@ -432,14 +446,21 @@ function AllocationsSection({ p, costs }: { p: DataProduct; costs: DataProductCo
                   {a.platformName} · <span className="mono">{matchText(a)}</span>
                 </Text>
                 <Text size="xs" c="dimmed">
-                  {a.rule === 'weight' ? t('allocations.byWeight') : t('allocations.equal')}
+                  {a.rule === 'weight' ? t('allocations.byWeight') : a.rule === 'measured' ? t('allocations.measured') : t('allocations.equal')}
+                  {a.measured && ` (${t(`measured.measures.${a.measured.measure}`)})`}
                   {' · '}
-                  {a.products.map((x) => `${x.product.name}${a.weightsShown && x.weightPct !== null ? ` ${fmtNumber(x.weightPct)} %` : ''}`).join(', ')}
+                  {a.products
+                    .map(
+                      (x) =>
+                        `${x.product.name}${a.weightsShown && x.weightPct !== null ? ` ${fmtNumber(x.weightPct)} %` : ''}${x.subjects?.length ? ` (${x.subjects.join(', ')})` : ''}`,
+                    )
+                    .join(', ')}
                   {a.hiddenProducts > 0 && `, ${t('hidden.count', { count: a.hiddenProducts })}`}
                   {a.weightsShown && a.notAttributedPct !== null && a.rule === 'weight'
                     ? ` · ${t('allocations.notAttributed', { pct: fmtNumber(a.notAttributedPct) })}`
                     : ''}
                 </Text>
+                {a.measured && a.weightsShown && <MeasuredState m={a.measured} />}
               </div>
               {a.canEdit && (
                 <Button size="compact-xs" variant="default" leftSection={<IconScale size={12} />} onClick={() => setEditing(a)} data-testid="allocation-edit">
@@ -469,8 +490,11 @@ function AllocationForm({ a, onClose, onSaved }: { a: DataCostAllocation; onClos
   const { t } = useTranslation(['dataProducts', 'common']);
   const invalidate = useInvalidateDataProducts();
   const matchText = useMatchText();
-  const [rule, setRule] = useState<'equal' | 'weight'>(a.rule === 'weight' ? 'weight' : 'equal');
+  const [rule, setRule] = useState<'equal' | 'weight' | 'measured'>(a.rule);
+  const narrow = useMediaQuery('(max-width: 40em)') ?? false;
   const [weights, setWeights] = useState<Record<string, number | string>>(Object.fromEntries(a.products.map((x) => [x.product.id, x.weightPct ?? ''])));
+  const [measure, setMeasure] = useState<DataCostMeasure>(a.measured?.measure ?? 'snowflakeWarehouse');
+  const [subjects, setSubjects] = useState<Record<string, string[]>>(Object.fromEntries(a.products.map((x) => [x.product.id, x.subjects ?? []])));
   const [busy, run] = useBusy();
   const sum = Object.values(weights).reduce<number>((s, w) => s + (typeof w === 'number' ? w : 0), 0) + (a.hiddenWeightPct ?? 0);
   const v = useFieldErrors({ sum: rule === 'weight' && sum > 100 && t('allocations.over100') });
@@ -486,6 +510,7 @@ function AllocationForm({ a, onClose, onSaved }: { a: DataCostAllocation; onClos
           rule === 'weight'
             ? a.products.map((x) => ({ productId: x.product.id, pct: typeof weights[x.product.id] === 'number' ? (weights[x.product.id] as number) : 0 }))
             : [],
+        ...(rule === 'measured' ? { measure, subjects: a.products.map((x) => ({ productId: x.product.id, subjects: subjects[x.product.id] ?? [] })) } : {}),
       });
       invalidate();
       onSaved();
@@ -502,14 +527,52 @@ function AllocationForm({ a, onClose, onSaved }: { a: DataCostAllocation; onClos
         <Stack gap="sm">
           <SegmentedControl
             value={rule}
-            onChange={(r) => setRule(r as 'equal' | 'weight')}
+            onChange={(r) => setRule(r as 'equal' | 'weight' | 'measured')}
             data={[
               { value: 'equal', label: t('allocations.equal') },
               { value: 'weight', label: t('allocations.byWeight') },
+              { value: 'measured', label: t('allocations.measured') },
             ]}
             fullWidth
+            // three rules do not fit beside each other on a phone ("By measured use" was cut off)
+            orientation={narrow ? 'vertical' : 'horizontal'}
             aria-label={t('allocations.rule')}
+            data-testid="allocation-rule"
           />
+          {rule === 'measured' && (
+            <>
+              <Text size="sm" c="dimmed">
+                {t('measured.help')}
+              </Text>
+              <Select
+                label={t('measured.measure')}
+                data={DATA_COST_MEASURES.map((m) => ({ value: m, label: t(`measured.measures.${m}`) }))}
+                value={measure}
+                onChange={(m) => m && setMeasure(m as DataCostMeasure)}
+                allowDeselect={false}
+                data-testid="allocation-measure"
+              />
+              <SimpleGrid cols={{ base: 1, xs: 2 }}>
+                {a.products.map((x) => (
+                  <TagsInput
+                    key={x.product.id}
+                    label={x.product.name}
+                    description={t(`measured.subjectsHint.${measure}`)}
+                    value={subjects[x.product.id] ?? []}
+                    onChange={(v) => setSubjects((st) => ({ ...st, [x.product.id]: v }))}
+                    maxTags={DATA_COST_MEASURE_LIMITS.subjectsPerProduct}
+                    splitChars={[',', ' ']}
+                    clearable
+                  />
+                ))}
+              </SimpleGrid>
+              {a.hiddenProducts > 0 && (
+                <Text size="xs" c="dimmed">
+                  {t('measured.hiddenKept', { count: a.hiddenProducts })}
+                </Text>
+              )}
+            </>
+          )}
           {rule === 'weight' && (
             <SimpleGrid cols={{ base: 1, xs: 2 }}>
               {a.products.map((x) => (
@@ -689,6 +752,120 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
             );
           })}
         </Stack>
+      )}
+    </Section>
+  );
+}
+
+/** When measured use was read last and why a read failed, and how the shares are priced. */
+function MeasuredState({ m }: { m: NonNullable<DataCostAllocation['measured']> }) {
+  const { t } = useTranslation('dataProducts');
+  return (
+    <Text size="xs" c={m.error ? 'red' : 'dimmed'} data-testid="allocation-measured">
+      {m.readAt ? t('measured.readAt', { at: fmtRelative(m.readAt) }) : t('measured.notRead')}
+      {m.pricing && ` · ${t(`measured.pricing.${m.pricing}`)}`}
+      {m.error && ` · ${t('measured.error', { error: m.error })}`}
+    </Text>
+  );
+}
+
+const rangeMoney = (r: { low: number; expected: number; high: number }, currency: string) =>
+  r.low === r.high ? money(r.expected, currency) : `${money(r.expected, currency)} (${money(r.low, currency)}–${money(r.high, currency)})`;
+
+/**
+ * Estimated against attributed (phase 2): the estimates made for the product – each belongs to a service or a platform
+ * and is read as its plan allows – and per month the attributed costs beside the estimates that apply. Showback only.
+ */
+function EstimatesSection({ p, environment, months }: { p: DataProduct; environment: string | null; months: number }) {
+  const { t } = useTranslation('dataProducts');
+  const q = useProductEstimates(p.id, environment ?? '', months);
+  const e = q.data;
+  if (!e?.available) return null;
+  const rows = [...e.comparison].filter((x) => x.estimated).reverse();
+  return (
+    <Section title={t('estimates.title')} testId="product-estimates">
+      <Text size="sm" c="dimmed" mb="sm">
+        {t('estimates.help')}
+      </Text>
+      {e.estimates.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {t('estimates.none')}
+        </Text>
+      ) : (
+        <Stack gap={4} mb="sm">
+          {e.estimates.map((x) => (
+            <Group key={x.id} gap="xs" wrap="wrap" data-testid="product-estimate">
+              <Anchor component={Link} to={estimatePath(x.id)} size="sm">
+                {x.title}
+              </Anchor>
+              <Text size="xs" c="dimmed">
+                {t('estimates.of', { owner: x.owner.name, from: fmtMonth(x.appliesFrom) })}
+                {x.monthly && ` · ${t('estimates.perMonth', { amount: fmtMoney(x.monthly.expected, x.currency) })}`}
+                {x.atListPrice && ` · ${t('estimates.atListPrice')}`}
+              </Text>
+            </Group>
+          ))}
+        </Stack>
+      )}
+      {rows.length > 0 && (
+        <CardTable
+          ariaLabel={t('estimates.table')}
+          testId="estimates-against-attributed"
+          rows={rows}
+          rowKey={(x) => `${x.month}:${x.currency}`}
+          columns={[
+            { key: 'month', header: t('costs.month'), cell: (x) => fmtMonth(x.month) },
+            {
+              key: 'estimated',
+              header: t('estimates.estimated'),
+              nowrap: true,
+              cell: (x) => (
+                <>
+                  {rangeMoney(x.estimated!, x.currency)}
+                  {x.atListPrice && (
+                    <Text span size="xs" c="dimmed">
+                      {' '}
+                      ({t('estimates.atListPriceShort')})
+                    </Text>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'attributed',
+              header: t('estimates.attributed'),
+              nowrap: true,
+              cell: (x) => (
+                <>
+                  {money(x.attributedMicros, x.currency)}
+                  {x.incomplete && (
+                    <Text span size="xs" c="orange">
+                      {' '}
+                      ({t('costs.incompleteShort')})
+                    </Text>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'difference',
+              header: t('estimates.difference'),
+              nowrap: true,
+              cell: (x) => {
+                const diff = x.attributedMicros - x.estimated!.expected;
+                const within = x.attributedMicros >= x.estimated!.low && x.attributedMicros <= x.estimated!.high;
+                return (
+                  <>
+                    {`${diff > 0 ? '+' : ''}${money(diff, x.currency)}`}
+                    <Text size="xs" c="dimmed">
+                      {within ? t('estimates.withinRange') : diff > 0 ? t('estimates.above') : t('estimates.below')}
+                    </Text>
+                  </>
+                );
+              },
+            },
+          ]}
+        />
       )}
     </Section>
   );

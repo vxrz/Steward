@@ -9,6 +9,7 @@ import { canViewCatalogue } from '../records/access.js';
 import { parseJson } from '../util.js';
 import { domainAccess, elementAccess, elementScopeSql, objectAccess, productAccess } from './access.js';
 import { domainNotFound } from './common.js';
+import { identitiesOf } from './consumers-actual.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import { productsSteps } from './steps.js';
 import { ratingsByItem } from './ratings.js';
@@ -235,6 +236,7 @@ export function objectivesFile(o: DataObjectives): NonNullable<PortFile['objecti
   if (o.freshnessMinutes != null) out.freshness_minutes = o.freshnessMinutes;
   if (o.availabilityPct != null) out.availability_pct = o.availabilityPct;
   if (o.completeness != null && o.completeness !== '') out.completeness = o.completeness;
+  if (o.completenessPct != null) out.completeness_pct = o.completenessPct;
   if (o.updateSchedule != null && o.updateSchedule !== '') out.update_schedule = o.updateSchedule;
   if (o.retention != null && o.retention !== '') out.retention = o.retention;
   return out;
@@ -340,7 +342,7 @@ function runnerFile(s: Snapshot, raw: DataStepRunner | null): RunnerFile | null 
   return name ? { kind: raw.kind, name } : undefined;
 }
 
-function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number]): ConsumerFile | null {
+function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number], identities: readonly string[] = []): ConsumerFile | null {
   const kind = c.consumer_kind as ConsumerFile['kind'];
   const base = {
     purpose: c.purpose,
@@ -348,6 +350,8 @@ function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number]): C
     end_date: c.end_date,
     agreement: parseJson<ConsumerFile['agreement']>(c.agreement, null),
     contacts: strings(c.contacts),
+    // the platform identities of the registration (0.24.0): only when it names some
+    ...(identities.length ? { identities: [...identities] } : {}),
   };
   if (kind === 'team' || kind === 'user') {
     const subject = strings(c.consumer_subjects)[0];
@@ -380,6 +384,8 @@ export interface ProductFacts {
   bindings: Map<string, ReturnType<typeof bindingsOf>>;
   declared: Map<string, ReturnType<typeof portObjectsOf>>;
   consumers: Map<string, ReturnType<typeof consumersOf>>;
+  /** The platform identities each registration names (0.24.0) */
+  identities: Map<string, string[]>;
   sourcePorts: Map<string, PortRow>;
   steps: Map<string, DataStep[]>;
 }
@@ -434,6 +440,8 @@ export function productFacts(s: Snapshot, productIds: readonly string[]): Produc
   );
   return {
     ratings: ratingsByItem('product', productIds),
+    // the platform identities of the registrations (0.24.0), in bulk
+    identities: consumers.length ? identitiesOf(consumers.map((c) => c.id)) : new Map<string, string[]>(),
     environments: groupBy(environmentsOf(productIds), (e) => e.product_id),
     members: groupBy(members, (m) => m.product_id),
     ports: groupBy(ports, (p) => p.product_id),
@@ -455,6 +463,7 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
   const bindings = ports.flatMap((x) => facts.bindings.get(x.id) ?? []).filter((b) => environment === undefined || b.environment === environment);
   const declared = ports.flatMap((x) => facts.declared.get(x.id) ?? []);
   const consumers = ports.flatMap((x) => facts.consumers.get(x.id) ?? []);
+  const identities = facts.identities;
   const steps = facts.steps.get(p.id) ?? [];
   const sourcePorts = facts.sourcePorts;
   const byId = new Map(ports.map((x) => [x.id, x]));
@@ -514,7 +523,7 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
         x.direction === 'output'
           ? consumers
               .filter((c) => c.port_id === x.id)
-              .map((c) => consumerFile(s, c))
+              .map((c) => consumerFile(s, c, identities.get(c.id)))
               .filter((c): c is ConsumerFile => !!c)
           : [],
     };

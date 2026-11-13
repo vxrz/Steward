@@ -6,6 +6,8 @@ import {
   DATA_AGREEMENT_KINDS,
   DATA_CLASSIFICATIONS,
   DATA_CONSUMER_KINDS,
+  DATA_GOVERNANCE_LIMITS,
+  DATA_IDENTITY_RE,
   DATA_ELEMENT_KINDS,
   DATA_ENVIRONMENT_STATES,
   DATA_MEMBER_ROLES,
@@ -125,11 +127,15 @@ const objectivesSchema = z
       .optional(),
     availability_pct: z.number().min(0).max(100).nullable().optional(),
     completeness: text(L.short).nullable().optional(),
+    completeness_pct: z.number().min(0).max(100).nullable().optional(),
     update_schedule: text(L.short).nullable().optional(),
     retention: text(L.short).nullable().optional(),
   })
   .strict()
-  .meta({ id: 'Objectives', description: 'Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention' });
+  .meta({
+    id: 'Objectives',
+    description: 'Objectives (SLO): freshness in minutes, availability and completeness in percent over 30 days, an update schedule and retention',
+  });
 const objectives = () => objectivesSchema;
 
 const ratingLevel = z
@@ -235,6 +241,12 @@ const consumerSchema = z
       .nullable()
       .optional(),
     contacts: list(L.subjects, subject()).optional(),
+    identities: list(
+      DATA_GOVERNANCE_LIMITS.identitiesPerConsumer,
+      z.string().max(DATA_GOVERNANCE_LIMITS.identity).regex(DATA_IDENTITY_RE, 'user:<name>, role:<name> or group:<name>'),
+    )
+      .optional()
+      .describe('The platform identities the registration names (user:, role:, group:), matched to who really reads the port (0.24.0)'),
   })
   .strict()
   .meta({ id: 'PortConsumer' });

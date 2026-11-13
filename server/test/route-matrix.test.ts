@@ -473,6 +473,27 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/data-products/discovery-sources/:id': DESIGN,
   'POST /api/data-products/discovery-sources/:id/run': DESIGN,
   'GET /api/data-products/discovery-sources/:id/runs': SEE_PLATFORM,
+  // lineage from tools (0.24.0, ADR 0036 phase 2): sources and the inbox are seen by every user of the module (the matrix
+  // source has no owning teams), set up and decided by the module's managers – and who may change the step's products
+  'GET /api/data-products/lineage-sources': ALL,
+  'POST /api/data-products/lineage-sources': DESIGN,
+  'GET /api/data-products/lineage-sources/:id': ALL,
+  'PUT /api/data-products/lineage-sources/:id': DESIGN,
+  'DELETE /api/data-products/lineage-sources/:id': DESIGN,
+  'GET /api/data-products/lineage-sources/:id/tokens': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/tokens': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/tokens/:tokenId/rotate': DESIGN,
+  'DELETE /api/data-products/lineage-sources/:id/tokens/:tokenId': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/dbt/manifest': DESIGN,
+  'POST /api/data-products/lineage-sources/:id/dbt/run-results': DESIGN,
+  'GET /api/data-products/lineage-proposals': ALL,
+  'GET /api/data-products/lineage-proposals/:id': ALL,
+  'POST /api/data-products/lineage-proposals/:id/accept': DESIGN,
+  'POST /api/data-products/lineage-proposals/:id/reject': DESIGN,
+  'POST /api/hooks/data-lineage/:sourceId': HOOK,
+  'POST /api/hooks/data-lineage/:sourceId/api/v1/lineage': HOOK,
+  'POST /api/hooks/data-lineage/:sourceId/dbt/manifest': HOOK,
+  'POST /api/hooks/data-lineage/:sourceId/dbt/run-results': HOOK,
   'GET /api/data-elements': ALL,
   'POST /api/data-elements': DESIGN,
   'GET /api/data-elements/:id': ALL,
@@ -501,6 +522,16 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/cost-allocations': ALL,
   'PUT /api/data-products/cost-allocations': ADMIN,
   'GET /api/data-products/:id/scorecard': ALL,
+  // 0.24.0 (ADR 0036 phase 2): the scorecard over time, personal fields from contracts, quality results
+  'GET /api/data-products/:id/scorecard/history': ALL,
+  'GET /api/data-products/:id/personal-fields': ALL,
+  'GET /api/data-elements/:id/personal-fields': ALL,
+  'GET /api/data-objects/:id/personal-fields': ALL,
+  'GET /api/data-elements/:id/quality': ALL,
+  // phase 2 (package D): estimated against attributed – read like the product (estimates as their owner's plan allows)
+  'GET /api/data-products/:id/estimates': ALL,
+  // the Ossie export of the data objects the caller may see (phase 2)
+  'GET /api/data-objects/semantic-model': ALL,
   // the list's maturity and last month's costs of a page (WP8)
   'GET /api/data-products/facts': ALL,
   // import and export, ODPS (WP7): exports read like the products they hold; the preview shows anyone what an import
@@ -509,8 +540,39 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/export': ALL,
   'GET /api/data-products/:id/export': ALL,
   'GET /api/data-products/:id/odps': ALL,
+  'GET /api/data-products/import-origins': ALL,
   'POST /api/data-products/import/preview': ALL,
   'POST /api/data-products/import': DESIGN,
+  // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
+  // decides requests (the owners, else who manages the product) decides; reading the platforms, reviews, promotion and
+  // endorsement (the domain's owners, else the module's managers) change – the Art. 30 view lists what the reader sees
+  'GET /api/data-products/records-of-processing': ALL,
+  'GET /api/data-products/records-of-processing.csv': ALL,
+  'GET /api/data-products/records-of-processing.pdf': ALL,
+  'GET /api/data-products/access-requests': ALL,
+  'GET /api/data-products/access-requests/:requestId': ALL,
+  'POST /api/data-products/access-requests/:requestId/decision': DESIGN,
+  'POST /api/data-products/access-requests/:requestId/withdraw': ADMIN,
+  'GET /api/data-products/:id/access-requests': ALL,
+  'POST /api/data-products/:id/ports/:portId/access-requests': ALL,
+  'GET /api/data-products/:id/access-settings': ALL,
+  'PUT /api/data-products/:id/access-settings': DESIGN,
+  'GET /api/data-products/:id/ports/:portId/actual': ALL,
+  'POST /api/data-products/:id/ports/:portId/actual/read': DESIGN,
+  'PUT /api/data-products/:id/ports/:portId/consumers/:consumerId/identities': DESIGN,
+  'GET /api/data-products/:id/port-reviews': ALL,
+  'POST /api/data-products/:id/ports/:portId/reviews': DESIGN,
+  'GET /api/data-products/port-reviews/:reviewId': ALL,
+  'GET /api/data-products/port-reviews/:reviewId/verify': ALL,
+  'PUT /api/data-products/port-reviews/:reviewId/decisions': DESIGN,
+  'POST /api/data-products/port-reviews/:reviewId/submit': DESIGN,
+  'POST /api/data-products/port-reviews/:reviewId/approval': ['admin', 'designer', 'approver'],
+  'GET /api/data-products/:id/promotion': ALL,
+  'POST /api/data-products/:id/promotion': DESIGN,
+  'GET /api/data-products/:id/promotions': ALL,
+  'GET /api/data-products/:id/endorsement': ALL,
+  'PUT /api/data-products/:id/endorsement': DESIGN,
+  'DELETE /api/data-products/:id/endorsement': DESIGN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1126,6 +1188,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/data-elements/:elementId': ALL,
   'GET /api/v1/data-objects': ALL,
   'GET /api/v1/data-objects/:objectId': ALL,
+  // phase 2: the data objects the token owner may see as an Ossie model
+  'GET /api/v1/data-objects/semantic-model': ALL,
   'GET /api/v1/plant/sites': PLANT,
   'GET /api/v1/plant/sites/:siteId': PLANT,
   'GET /api/v1/plant/assets': PLANT,
@@ -1569,11 +1633,34 @@ const SESSION_ONLY = [
   'PUT /api/data-products/discovery-sources/:id',
   'DELETE /api/data-products/discovery-sources/:id',
   'POST /api/data-products/discovery-sources/:id/run',
+  // lineage sources, their push tokens (secrets that outlive an API token), dbt uploads and the decisions on proposals
+  // ("confirmed by a person", 0.24.0)
+  'POST /api/data-products/lineage-sources',
+  'PUT /api/data-products/lineage-sources/:id',
+  'DELETE /api/data-products/lineage-sources/:id',
+  'POST /api/data-products/lineage-sources/:id/tokens',
+  'POST /api/data-products/lineage-sources/:id/tokens/:tokenId/rotate',
+  'POST /api/data-products/lineage-sources/:id/dbt/manifest',
+  'POST /api/data-products/lineage-sources/:id/dbt/run-results',
+  'POST /api/data-products/lineage-proposals/:id/accept',
+  'POST /api/data-products/lineage-proposals/:id/reject',
   // splitting a platform's costs between data products (ADR 0036 WP4)
   'PUT /api/data-products/cost-allocations',
   // imports of data products files: a person decides, in a session (ADR 0036 security notes)
+  'GET /api/data-products/import-origins',
   'POST /api/data-products/import/preview',
   'POST /api/data-products/import',
+  // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
+  'POST /api/data-products/access-requests/:requestId/decision',
+  'PUT /api/data-products/:id/access-settings',
+  'POST /api/data-products/:id/ports/:portId/actual/read',
+  'POST /api/data-products/:id/ports/:portId/reviews',
+  'PUT /api/data-products/port-reviews/:reviewId/decisions',
+  'POST /api/data-products/port-reviews/:reviewId/submit',
+  'POST /api/data-products/port-reviews/:reviewId/approval',
+  'POST /api/data-products/:id/promotion',
+  'PUT /api/data-products/:id/endorsement',
+  'DELETE /api/data-products/:id/endorsement',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2054,6 +2141,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
     },
     harmless: { files: [{ name: 'r.yaml', content: 'version: 1\nremove: []\n' }], mode: 'update' },
   },
+  // a data products import that replaces an earlier one and removes more than one entry (dataproduct.bulkChange)
+  'POST /api/data-products/import': {
+    sensitive: { files: [{ name: 'empty.yaml', content: 'version: 1\n' }], mode: 'replace', origin: 'matrix-origin' },
+    harmless: { files: [{ name: 'p.yaml', content: 'version: 1\ndata_products:\n  - { key: matrix-harmless, name: Harmless }\n' }], mode: 'update' },
+  },
 };
 
 /** The step-up table of named owners and responsibles from outside the owning teams (#195). */
@@ -2285,11 +2377,16 @@ function fill(url: string): string {
       .replace(/^\/api\/data-contracts\/:id\/runs\/:runId/, `/api/data-contracts/${fx.contract}/runs/${fx.contractRun}`)
       // data products (ADR 0036): the fixtures' discovery source; the product, its port, consumer, step and member element
       .replace(/^\/api\/data-products\/discovery-sources\/:id/, `/api/data-products/discovery-sources/${fx.discoverySource}`)
+      // lineage from tools (0.24.0): the fixtures' OpenLineage source and its open proposal
+      .replace(/^\/api\/data-products\/lineage-sources\/:id/, `/api/data-products/lineage-sources/${fx.lineageSource}`)
+      .replace(/^\/api\/data-products\/lineage-proposals\/:id/, `/api/data-products/lineage-proposals/${fx.lineageProposal}`)
       .replace(/^\/api\/data-products\/:id\/steps\/:stepId/, `/api/data-products/${fx.dataProduct}/steps/${fx.dataStep}`)
       .replace(/:productId/g, fx.dataProduct!)
       .replace(/:objectId/g, fx.dataObject!)
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
+      .replace(/:requestId/g, fx.dataRequest!)
+      .replace(/^\/api\/data-products\/port-reviews\/:reviewId/, `/api/data-products/port-reviews/${fx.dataReview}`)
       .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
       .replace(/:environment/g, 'prod')
@@ -2440,6 +2537,8 @@ function fill(url: string): string {
 
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
+  'GET /api/data-products/:id/ports/:portId/actual': '?environment=prod',
+  'GET /api/data-products/:id/promotion': '?from=prod&to=dev',
   'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/plant/assets/:assetId/collection-sources/diff': '?from=pcs_matrix&to=pcs_matrix',
   'GET /api/plant/documents': '?kind=device-profile&id=matrix-profile',
@@ -3090,10 +3189,56 @@ beforeAll(async () => {
   await a('PUT', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/bindings/prod`, { elementIds: [curated] });
   fx.dataConsumer = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/consumers`, { kind: 'text', text: 'Matrix consumer' })).id;
   fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
+  // an open access request (asked by the administrator) and an open port access review of the port (0.24.0)
+  fx.dataRequest = (
+    await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/access-requests`, {
+      environment: 'prod',
+      consumer: { kind: 'text', text: 'Matrix consumer' },
+      purpose: 'Matrix',
+    })
+  ).id;
+  fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
+  // phase 2: an import of two products under an origin – replacing it with an empty file removes both (step-up)
+  await a('POST', '/data-products/import', {
+    files: [
+      {
+        name: 'origin.yaml',
+        content: 'version: 1\ndata_products:\n  - { key: matrix-origin-a, name: Origin A }\n  - { key: matrix-origin-b, name: Origin B }\n',
+      },
+    ],
+    mode: 'update',
+    origin: 'matrix-origin',
+  });
   // a discovery source of the demo Snowflake account, never read (disabled)
   fx.discoverySource = (
     await a('POST', '/data-products/discovery-sources', { name: 'Matrix discovery', platformId: snowflake, scope: ['SHOP'], enabled: false })
   ).id;
+  // an OpenLineage source with a push token, and the proposal of one job: the curated table → the matrix element
+  fx.lineageSource = (await a('POST', '/data-products/lineage-sources', { name: 'Matrix lineage', kind: 'openlineage', teamIds: [] })).id;
+  {
+    const t = (await a('POST', `/data-products/lineage-sources/${fx.lineageSource}/tokens`, { name: 'Matrix CI' })).token as string;
+    const { db } = await import('../src/db.js');
+    const ns = 'matrix://lineage';
+    db().run('UPDATE dp_elements SET ol_namespace = ?, ol_name = name_norm WHERE id IN (?, ?)', ns, fx.dataElement!, curated);
+    const names = db().all<{ id: string; ol_name: string }>('SELECT id, ol_name FROM dp_elements WHERE id IN (?, ?)', fx.dataElement!, curated);
+    const nameOf = (id: string) => names.find((x) => x.id === id)!.ol_name;
+    const res = await fetch(`${s.base}/api/hooks/data-lineage/${fx.lineageSource}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${t}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        eventType: 'COMPLETE',
+        eventTime: new Date().toISOString(),
+        run: { runId: 'matrix-run' },
+        job: { namespace: 'matrix', name: 'back-fill' },
+        inputs: [{ namespace: ns, name: nameOf(curated) }],
+        outputs: [{ namespace: ns, name: nameOf(fx.dataElement!) }],
+        producer: 'https://example.com/matrix',
+        schemaURL: 'https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent',
+      }),
+    });
+    if (res.status !== 200) throw new Error(`matrix lineage push: ${res.status} ${await res.text()}`);
+    fx.lineageProposal = db().get<{ id: string }>('SELECT id FROM dp_lineage_proposals WHERE source_id = ?', fx.lineageSource)!.id;
+  }
   QUERY['GET /api/v1/platforms/:platformId/schema/compare'] = `?from=${dbSnap}&to=${dbSnap}`;
   QUERY['GET /api/v1/systems/:systemId/schema/compare'] = `?from=${sysSnap}&to=${sysSnap}`;
   QUERY['GET /api/access/explain'] = `?kind=process&id=${fx.process}`;

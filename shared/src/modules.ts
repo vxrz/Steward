@@ -391,7 +391,7 @@ export const MODULES: readonly ModuleDef[] = [
     maturity: 'preview',
     defaultOn: false,
     switchable: true,
-    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery'],
+    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery', 'dataAccessRequests', 'dataRecordsOfProcessing'],
     pages: ['/data-products', '/data-elements', '/data-objects', '/data-domains'],
     routes: [
       '/api/data-products',
@@ -401,11 +401,13 @@ export const MODULES: readonly ModuleDef[] = [
       '/api/v1/data-products',
       '/api/v1/data-elements',
       '/api/v1/data-objects',
+      // 0.24.0: the push of OpenLineage events and dbt files to lineage sources (their push tokens)
+      '/api/hooks/data-lineage',
     ],
-    jobs: ['data-products'],
+    jobs: ['data-products', 'data-products-scorecard', 'data-products-governance'],
     // module access (ADR 0034 phase 1): restrictable to selected teams and users; within it the core roles give the
     // module roles (designer → manager, other working roles → viewer – dataproducts/access.ts). Contributors as a
-    // module role of their own and a report section follow in phase 2; the instance export has no part of it yet.
+    // module role of their own follow in phase 2 (the report section came in 0.24.0); the instance export has no part of it yet.
     access: {
       restrictable: true,
       // ADR 0036 part 12 with ADR 0034 phase 2 (0.23.0): the core roles give what 0.22.0 gave (designer → manager, other
@@ -423,7 +425,18 @@ export const MODULES: readonly ModuleDef[] = [
         },
       },
       fromCoreRoles: { admin: 'manager', designer: 'manager', operator: 'viewer', approver: 'viewer', auditor: 'viewer', viewer: 'viewer' },
-      events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed'],
+      events: [
+        'dataproduct.deprecated',
+        'dataproduct.elements_missing',
+        'dataproduct.discovery_failed',
+        'dataproduct.contract_breaking',
+        'dataproduct.access_requested',
+        'dataproduct.access_decided',
+        'dataproduct.endorsement_review',
+        'dataproduct.access_review_due',
+      ],
+      // 0.24.0 (ADR 0036 phase 2): maturity, health and quality per product
+      reportSections: ['dataProducts'],
       mcpTools: [
         'list_data_products',
         'get_data_product',
@@ -434,6 +447,9 @@ export const MODULES: readonly ModuleDef[] = [
         'get_data_product_costs',
         'list_data_objects',
         'get_data_object',
+        // 0.24.0 (phase 2): the format and the proposals of assistants (applied by a person)
+        'get_data_products_format',
+        'propose_data_product_changes',
       ],
       // owning-team kinds and link kinds: a link from a core item to one is counted, not named, for who does not use it
       itemKinds: ['data_product', 'data_object', 'data_element', 'data_domain', 'data-product', 'data-object'],

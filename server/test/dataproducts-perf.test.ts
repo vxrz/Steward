@@ -258,7 +258,8 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
     for (const [name, url] of reads) after.push(record(`${name} (grown)`, await measure(url)).statements);
     expect(after).toEqual(before);
     // the product page: at most 26 beyond what every request costs (ADR 0036; 0.23.0 adds one read of the module
-    // roles granted – module_access and module_grants in one statement per request, ADR 0034 phase 2)
+    // roles granted – module_access and module_grants in one statement per request, ADR 0034 phase 2 – and reads
+    // the Restricted scopes of shares once per request, ADR 0033)
     expect(report['product page (grown)']!.statements - (await overhead())).toBeLessThanOrEqual(26);
   }, 300_000);
 
@@ -287,7 +288,8 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
 
   it('the map and lineage four steps deep stay within their statements and time; the map does not grow with the products', async () => {
     const lineage = record('lineage, 4 steps', await measure(`/data-elements/${ids.chainEnd[Math.floor(V.products / 2)]}/lineage?depth=4`));
-    // one statement per depth level and direction, beside the reads of what the levels found
+    // one statement per depth level and direction, beside the reads of what the levels found (0.24.0: and the open
+    // proposals of the lineage sources around them – one statement when there are none, whatever the depth)
     expect(lineage.statements).toBeLessThanOrEqual(40);
     const map = record('product map', await measure('/data-products/map'));
     expect(map.statements).toBeLessThanOrEqual(MAP_STATEMENTS);

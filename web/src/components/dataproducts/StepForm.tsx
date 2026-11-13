@@ -7,6 +7,7 @@ import {
   DATA_PRODUCT_LIMITS as L,
   DATA_RUNNER_KINDS,
   DATA_RUNNER_TOOLS,
+  DATA_RUNNER_TOOL_LABEL_KEYS,
   DATA_STEP_KINDS,
   DATA_TRANSFORM_KINDS,
   type ApplicationSummary,
@@ -219,7 +220,18 @@ export function StepForm({
                   />
                 )}
                 {runnerKind === 'tool' && (
-                  <Autocomplete label={t('steps.tool')} data={[...DATA_RUNNER_TOOLS]} value={tool} onChange={setTool} maxLength={L.short} />
+                  <Autocomplete
+                    label={t('steps.tool')}
+                    data={[...DATA_RUNNER_TOOLS]}
+                    // the stored value is the tool's English name; a few are said in the person's language
+                    renderOption={({ option }) => {
+                      const key = DATA_RUNNER_TOOL_LABEL_KEYS[option.value as keyof typeof DATA_RUNNER_TOOL_LABEL_KEYS];
+                      return key ? t(`steps.runnerTools.${key as 'nodeRed'}`) : option.value;
+                    }}
+                    value={tool}
+                    onChange={setTool}
+                    maxLength={L.short}
+                  />
                 )}
               </SimpleGrid>
               {runnerKind === 'element' && (

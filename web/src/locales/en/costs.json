@@ -1238,6 +1238,12 @@
       "title": "Earlier results",
       "line": "{{at}} by {{by}}: {{monthly}} a month, {{oneOff}} one-off"
     },
+    "forProduct": {
+      "label": "For a data product",
+      "hint": "Its Costs tab sets this estimate against what is attributed to it.",
+      "hidden": "a data product you may not see",
+      "none": "No data product found"
+    },
     "foundBy": {
       "list": "List price of {{book}} (v{{version}})",
       "contracted": "Contracted prices: {{book}} (v{{version}})",

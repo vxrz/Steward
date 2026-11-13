@@ -1,5 +1,6 @@
 import {
   DATA_DISCOVERY_LIMITS,
+  DATA_LINEAGE_LIMITS,
   discoveryKeeps,
   environmentByRules,
   openLineageDataset,
@@ -12,6 +13,7 @@ import { buildUrl } from '../../platforms/http.js';
 import { assertOutboundAllowed } from '../../platforms/outbound.js';
 import { outboundContext } from '../../platforms/policyContext.js';
 import { DiscoveryError, num, short, type DiscoveryContext } from './common.js';
+import { DATA_DOMAINS as DEPENDENCY_DOMAINS } from '../lineage/snowflake.js';
 
 /**
  * Snowflake discovery (ADR 0036 part 5, decision 12): databases, schemas, tables, views, dynamic tables, streams,
@@ -42,6 +44,8 @@ export const SNOWFLAKE_DISCOVERY_STATEMENTS: readonly RegExp[] = [
   /^\/\* steward:dp-(schemata|secure-views|tables) \*\/ SELECT [A-Z_, ()."'\-:+0-9]+ FROM IDENTIFIER\(\?\) WHERE /,
   /^\/\* steward:dp-au-(databases|schemata|secure-views|tables) \*\/ SELECT [A-Z_, ()."'\-:+0-9]+ FROM SNOWFLAKE\.ACCOUNT_USAGE\.(DATABASES|SCHEMATA|VIEWS|TABLES) WHERE /,
   /^\/\* steward:dp-show \*\/ SHOW (DYNAMIC TABLES|STREAMS|TASKS|STAGES|PIPES) IN (DATABASE "[A-Z0-9_$]+"|SCHEMA "[A-Z0-9_$]+"\."[A-Z0-9_$]+")$/,
+  // 0.24.0 (ADR 0036 phase 2): which objects of the scope reference which – proposed steps after a complete run
+  /^\/\* steward:dp-au-dependencies \*\/ SELECT [A-Z_, ]+ FROM SNOWFLAKE\.ACCOUNT_USAGE\.OBJECT_DEPENDENCIES WHERE /,
 ];
 
 /** A quoted identifier for SHOW (the name is checked before: letters, digits, _ and $; `"` would be doubled). */
@@ -324,6 +328,33 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
     for (const d of names) {
       const left = new Map([...dynamic].filter(([k]) => k.startsWith(`${d}.`)));
       for await (const part of shown(d, scope.get(d) ?? null, left)) yield part.map(element);
+    }
+    // the dependencies of the objects in scope (phase 2): read once the elements are, handed to the job, which proposes
+    // steps from them after a complete run (lineage/snowflake.ts)
+    if (ctx.dependencies) {
+      const domains = [...DEPENDENCY_DOMAINS].map((x) => `'${x}'`).join(', ');
+      const rows = await all(
+        `/* steward:dp-au-dependencies */ SELECT REFERENCED_DATABASE, REFERENCED_SCHEMA, REFERENCED_OBJECT_NAME, REFERENCING_DATABASE, REFERENCING_SCHEMA, REFERENCING_OBJECT_NAME, REFERENCING_OBJECT_DOMAIN FROM ${AU}.OBJECT_DEPENDENCIES WHERE REFERENCED_OBJECT_DOMAIN IN (${domains}) AND REFERENCING_OBJECT_DOMAIN IN (${domains}) AND ${scopeSql('REFERENCING_DATABASE', 'REFERENCING_SCHEMA')} LIMIT ${DATA_LINEAGE_LIMITS.dependencies}`,
+        [...dbList, ...pairList],
+      );
+      ctx.dependencies(
+        rows.flatMap((r) =>
+          r.REFERENCED_DATABASE &&
+          r.REFERENCED_SCHEMA &&
+          r.REFERENCED_OBJECT_NAME &&
+          r.REFERENCING_DATABASE &&
+          r.REFERENCING_SCHEMA &&
+          r.REFERENCING_OBJECT_NAME
+            ? [
+                {
+                  referenced: `${r.REFERENCED_DATABASE}.${r.REFERENCED_SCHEMA}.${r.REFERENCED_OBJECT_NAME}`.slice(0, 1_000),
+                  referencing: `${r.REFERENCING_DATABASE}.${r.REFERENCING_SCHEMA}.${r.REFERENCING_OBJECT_NAME}`.slice(0, 1_000),
+                  referencingDomain: String(r.REFERENCING_OBJECT_DOMAIN ?? '').slice(0, 40),
+                },
+              ]
+            : [],
+        ),
+      );
     }
     return;
   }

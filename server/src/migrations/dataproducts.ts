@@ -388,4 +388,310 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.24.0 (ADR 0036 phase 2, package A): lineage from tools – lineage sources (OpenLineage push, dbt) with push tokens,
+    // proposed steps from OpenLineage jobs, dbt models and Snowflake OBJECT_DEPENDENCIES with their matched elements and
+    // the last run per job, the tests of a dbt manifest, and the index that matches OpenLineage datasets to elements (dbt
+    // test results go to package B's dp_quality_results through recordQualityResults)
+    name: 'dataproducts-005a-lineage',
+    sql: `
+      CREATE TABLE dp_lineage_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        platform_id TEXT,
+        namespace_aliases TEXT NOT NULL DEFAULT '[]',
+        team_ids TEXT NOT NULL DEFAULT '[]',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        received INTEGER NOT NULL DEFAULT 0,
+        refused INTEGER NOT NULL DEFAULT 0,
+        last_event_at TEXT,
+        last_error TEXT,
+        last_error_at TEXT,
+        last_import TEXT,
+        revision INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE dp_lineage_tokens (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        prefix TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        allowed_cidrs TEXT NOT NULL DEFAULT '[]',
+        rate_limit_per_minute INTEGER NOT NULL,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        rotated_at TEXT,
+        last_used_at TEXT,
+        last_used_ip TEXT,
+        revoked_at TEXT,
+        revoked_by TEXT
+      );
+      CREATE UNIQUE INDEX dp_lineage_tokens_hash ON dp_lineage_tokens(hash);
+      CREATE INDEX dp_lineage_tokens_source ON dp_lineage_tokens(source_id);
+      CREATE TABLE dp_lineage_proposals (
+        id TEXT PRIMARY KEY,
+        origin TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        job_key TEXT NOT NULL,
+        name TEXT NOT NULL,
+        step_kind TEXT NOT NULL DEFAULT 'transform',
+        tool TEXT NOT NULL DEFAULT '',
+        ends_hash TEXT NOT NULL DEFAULT '',
+        unmatched TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'open',
+        changed INTEGER NOT NULL DEFAULT 0,
+        step_id TEXT,
+        last_run_id TEXT,
+        last_run_state TEXT,
+        last_run_at TEXT,
+        last_complete_at TEXT,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at TEXT
+      );
+      CREATE UNIQUE INDEX dp_lineage_proposals_key ON dp_lineage_proposals(source_id, origin, job_key);
+      CREATE INDEX dp_lineage_proposals_status ON dp_lineage_proposals(status, last_seen_at);
+      CREATE INDEX dp_lineage_proposals_step ON dp_lineage_proposals(step_id);
+      CREATE TABLE dp_lineage_proposal_elements (
+        proposal_id TEXT NOT NULL,
+        element_id TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        PRIMARY KEY (proposal_id, element_id, direction)
+      );
+      CREATE INDEX dp_lineage_proposal_elements_element ON dp_lineage_proposal_elements(element_id);
+      CREATE TABLE dp_lineage_tests (
+        source_id TEXT NOT NULL,
+        test_key TEXT NOT NULL,
+        element_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        test_name TEXT NOT NULL DEFAULT '',
+        column_name TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (source_id, test_key, element_id)
+      );
+      CREATE INDEX dp_elements_ol ON dp_elements(ol_namespace, ol_name);
+    `,
+  },
+  {
+    // 0.24.0 (ADR 0036 phase 2, package B): quality results of elements (dbt tests, Data Metric Function results,
+    // contract tests, the data-element check's volume and quality modes) – at most one row per element, source, name
+    // and hour, kept 400 days; volume readings of the data-element check (the reading before); daily scorecard
+    // snapshots per product and environment (kept 400 days)
+    name: 'dataproducts-005b-quality-scorecard-history',
+    sql: `
+      CREATE TABLE dp_quality_results (
+        id TEXT PRIMARY KEY,
+        element_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        name TEXT NOT NULL,
+        dimension TEXT,
+        status TEXT NOT NULL,
+        value REAL,
+        message TEXT NOT NULL DEFAULT '',
+        run_ref TEXT,
+        bucket TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        recorded_by TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX dp_quality_results_key ON dp_quality_results(element_id, source, name, bucket);
+      CREATE INDEX dp_quality_results_element ON dp_quality_results(element_id, observed_at);
+      CREATE INDEX dp_quality_results_observed ON dp_quality_results(observed_at);
+      CREATE TABLE dp_volume_readings (
+        element_id TEXT NOT NULL,
+        measure TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        value REAL NOT NULL,
+        PRIMARY KEY (element_id, measure, read_at)
+      );
+      CREATE TABLE dp_scorecard_snapshots (
+        product_id TEXT NOT NULL,
+        environment TEXT NOT NULL DEFAULT '',
+        day TEXT NOT NULL,
+        maturity INTEGER NOT NULL,
+        states TEXT NOT NULL DEFAULT '{}',
+        taken_at TEXT NOT NULL,
+        PRIMARY KEY (product_id, environment, day)
+      );
+      CREATE INDEX dp_scorecard_snapshots_day ON dp_scorecard_snapshots(day);
+    `,
+  },
+  // 0.24.0 (ADR 0036 phase 2, package C): consumers, access and governance – platform identities of registrations,
+  // what platforms say who reads a port (ACCESS_HISTORY, consumer groups: read again on a target, not moved), access
+  // requests with their settings, port access reviews, promotions between environments and endorsements
+  {
+    name: 'dataproducts-005c-governance',
+    sql: `
+      CREATE TABLE dp_consumer_identities (
+        consumer_id TEXT NOT NULL,
+        identity TEXT NOT NULL,
+        PRIMARY KEY (consumer_id, identity)
+      );
+      CREATE TABLE dp_actual_reads (
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT NOT NULL DEFAULT '',
+        window_days INTEGER NOT NULL DEFAULT 30,
+        objects INTEGER NOT NULL DEFAULT 0,
+        read_at TEXT NOT NULL,
+        read_by TEXT NOT NULL,
+        PRIMARY KEY (port_id, environment, platform_id)
+      );
+      CREATE INDEX dp_actual_reads_at ON dp_actual_reads(read_at);
+      CREATE TABLE dp_actual_consumers (
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        name TEXT NOT NULL,
+        objects TEXT NOT NULL DEFAULT '[]',
+        reads INTEGER,
+        last_seen TEXT,
+        detail TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (port_id, environment, platform_id, kind, name)
+      );
+      CREATE TABLE dp_access_settings (
+        product_id TEXT PRIMARY KEY,
+        process_id TEXT,
+        ticket_source TEXT,
+        review_months INTEGER,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE dp_access_requests (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        requester TEXT NOT NULL,
+        consumer_kind TEXT NOT NULL,
+        ref_id TEXT,
+        consumer_subjects TEXT NOT NULL DEFAULT '[]',
+        consumer_text TEXT NOT NULL DEFAULT '',
+        purpose TEXT NOT NULL DEFAULT '',
+        until_date TEXT,
+        agreement TEXT,
+        identities TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'pending',
+        four_eyes INTEGER NOT NULL DEFAULT 0,
+        approvals TEXT NOT NULL DEFAULT '[]',
+        decided_by TEXT,
+        decided_at TEXT,
+        decision_comment TEXT NOT NULL DEFAULT '',
+        consumer_id TEXT,
+        ticket_id TEXT,
+        run_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX dp_access_requests_product ON dp_access_requests(product_id, status);
+      CREATE INDEX dp_access_requests_port ON dp_access_requests(port_id, status);
+      CREATE INDEX dp_access_requests_requester ON dp_access_requests(requester, created_at);
+      CREATE INDEX dp_access_requests_status ON dp_access_requests(status, created_at);
+      CREATE TABLE dp_port_reviews (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        port_id TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        four_eyes INTEGER NOT NULL DEFAULT 1,
+        check_info TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        submitted_by TEXT,
+        submitted_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        approval_comment TEXT NOT NULL DEFAULT '',
+        seal_hash TEXT
+      );
+      CREATE INDEX dp_port_reviews_port ON dp_port_reviews(port_id, environment, status);
+      CREATE INDEX dp_port_reviews_product ON dp_port_reviews(product_id, created_at);
+      CREATE TABLE dp_port_review_items (
+        id TEXT PRIMARY KEY,
+        review_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        consumer_id TEXT,
+        label TEXT NOT NULL,
+        finding TEXT NOT NULL DEFAULT '',
+        detail TEXT NOT NULL DEFAULT '',
+        decision TEXT,
+        comment TEXT NOT NULL DEFAULT '',
+        decided_by TEXT,
+        decided_at TEXT
+      );
+      CREATE INDEX dp_port_review_items_review ON dp_port_review_items(review_id, seq);
+      CREATE TABLE dp_promotions (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        from_env TEXT NOT NULL,
+        to_env TEXT NOT NULL,
+        members INTEGER NOT NULL DEFAULT 0,
+        bindings INTEGER NOT NULL DEFAULT 0,
+        missing INTEGER NOT NULL DEFAULT 0,
+        evidence TEXT,
+        note TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX dp_promotions_product ON dp_promotions(product_id, created_at);
+      CREATE TABLE dp_endorsements (
+        product_id TEXT PRIMARY KEY,
+        endorsed_by TEXT NOT NULL,
+        endorsed_at TEXT NOT NULL,
+        review_date TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        review_reason TEXT,
+        review_flagged_at TEXT
+      );
+      CREATE INDEX dp_endorsements_review ON dp_endorsements(review_date);
+    `,
+  },
+  {
+    // phase 2, package D (0.24.0): cost splitting by measured use – what a platform's allocation measures and the
+    // quantities read (dp_cost_usage: per platform, measure, scope, month and subject; subject '' is the scope's total);
+    // the origins of imported entries (an import's or a Git sync source's name), which _replace_ removes from
+    name: 'dataproducts-005d-measured-use-origins',
+    sql: `
+      ALTER TABLE dp_cost_allocations ADD COLUMN measure TEXT;
+      ALTER TABLE dp_cost_allocations ADD COLUMN subjects TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE dp_cost_allocations ADD COLUMN read_at TEXT;
+      ALTER TABLE dp_cost_allocations ADD COLUMN read_error TEXT;
+      CREATE TABLE dp_cost_usage (
+        platform_id TEXT NOT NULL,
+        measure TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        month TEXT NOT NULL,
+        subject TEXT NOT NULL DEFAULT '',
+        quantity TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        PRIMARY KEY (platform_id, measure, scope, month, subject)
+      );
+      CREATE TABLE dp_import_origins (
+        origin TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (origin, kind, item_id)
+      );
+      CREATE INDEX dp_import_origins_item ON dp_import_origins(kind, item_id);
+    `,
+  },
+  {
+    // 0.24.0 (release review): what a port access review froze of each entry as structured facts (JSON) instead of an
+    // English text – entries frozen before keep their text (detail) and their seal
+    name: 'dataproducts-005e-port-review-facts',
+    sql: `
+      ALTER TABLE dp_port_review_items ADD COLUMN facts TEXT;
+    `,
+  },
 ];

@@ -1,5 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Code, CopyButton, FileButton, Group, Modal, NumberInput, Select, Stack, Table, Tabs, Text, TextInput, Textarea } from '@mantine/core';
+import {
+  Alert,
+  Button,
+  Code,
+  CopyButton,
+  FileButton,
+  Group,
+  Modal,
+  NumberInput,
+  Select,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  TextInput,
+  Textarea,
+  VisuallyHidden,
+} from '@mantine/core';
 import { IconCheck, IconCopy, IconUpload } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -30,9 +47,20 @@ export function CopyBlock({ label, text }: { label: string; text: string }) {
         </Text>
         <CopyButton value={text}>
           {({ copied, copy }) => (
-            <Button size="compact-xs" variant="subtle" leftSection={copied ? <IconCheck size={12} /> : <IconCopy size={12} />} onClick={copy}>
-              {copied ? t('copied') : t('copy')}
-            </Button>
+            <>
+              {/* named after the block: a dialog often has several (a token, its configuration) */}
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                leftSection={copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                onClick={copy}
+                aria-label={t('copyNamed', { name: label })}
+              >
+                {copied ? t('copied') : t('copy')}
+              </Button>
+              {/* said by screen readers: a changed button label alone is not announced */}
+              <VisuallyHidden role="status">{copied ? t('copiedNamed', { name: label }) : ''}</VisuallyHidden>
+            </>
           )}
         </CopyButton>
       </Group>

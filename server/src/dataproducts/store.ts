@@ -876,6 +876,10 @@ export function deleteElementRows(ids: readonly string[]): void {
   d.run(`DELETE FROM dp_check_links WHERE element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM dp_cost_matches WHERE element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM dp_members WHERE element_id IN (${m})`, ...ids);
+  // 0.24.0: lineage proposals name it no more (they keep their other ends), its quality results go
+  d.run(`DELETE FROM dp_lineage_proposal_elements WHERE element_id IN (${m})`, ...ids);
+  d.run(`DELETE FROM dp_lineage_tests WHERE element_id IN (${m})`, ...ids);
+  d.run(`DELETE FROM dp_quality_results WHERE element_id IN (${m})`, ...ids);
   d.run(`UPDATE dp_ports SET source_element_id = NULL, source_kind = NULL WHERE source_element_id IN (${m})`, ...ids);
   d.run(`DELETE FROM resource_teams WHERE kind = 'data_element' AND resource_id IN (${m})`, ...ids);
   d.run(`DELETE FROM dp_elements WHERE id IN (${m})`, ...ids);

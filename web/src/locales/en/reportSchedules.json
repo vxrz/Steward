@@ -75,6 +75,10 @@
     "contracts": {
       "title": "Data contracts",
       "hint": "The tests of the report period per contract (passed, warnings, failed), the last test, Steward’s findings and the versions saved – the contracts the owner may see"
+    },
+    "dataProducts": {
+      "title": "Data products",
+      "hint": "Per data product its maturity now and at the start of the period, the scorecard parts met, the health, the quality tests of its output elements and breaking contract versions – the products the owner may see"
     }
   },
   "runNow": "Generate now",

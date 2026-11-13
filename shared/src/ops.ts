@@ -47,7 +47,12 @@ export const NOTIFICATION_EVENTS = [
   'dataproduct.deprecated',
   'dataproduct.elements_missing',
   'dataproduct.discovery_failed',
+  'dataproduct.contract_breaking',
   'cost.estimate_changed',
+  'dataproduct.access_requested',
+  'dataproduct.access_decided',
+  'dataproduct.endorsement_review',
+  'dataproduct.access_review_due',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -63,6 +68,7 @@ export const NOTIFICATION_DECISION_EVENTS: readonly NotificationEvent[] = [
   'duty.exception',
   'plant.change_proposed',
   'soa.approval_waiting',
+  'dataproduct.access_requested',
 ];
 const ALERT_EVENTS: readonly NotificationEvent[] = [
   'run.failed',
@@ -134,8 +140,15 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
     'A data product or port you consume was deprecated (registered consumers and the owners of products that use it), with its sunset date and successor',
   'dataproduct.elements_missing': 'A discovery run no longer found elements of a data product you own (once per product and run)',
   'dataproduct.discovery_failed': 'A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)',
+  'dataproduct.contract_breaking':
+    'A new version of the data contract of an output port you consume has breaking changes (registered consumers and the owners of products that use it; once per version)',
   'cost.estimate_changed':
     'An estimate of a service or platform you own was recalculated with new prices and its monthly total moved by the threshold (Accept new prices to make them current)',
+  'dataproduct.access_requested': 'Someone asks for access to an output port of a data product you own (or manage), and you decide',
+  'dataproduct.access_decided': 'Your request for access to a data product’s port was approved or refused',
+  'dataproduct.endorsement_review':
+    'An endorsement of a data product you own or endorsed is due for its review (or a breaking change or a rating below the floor needs one)',
+  'dataproduct.access_review_due': 'The periodic access review of a port of a data product you own is due',
 };
 
 /**

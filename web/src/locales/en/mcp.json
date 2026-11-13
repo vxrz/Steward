@@ -104,7 +104,8 @@
     "kinds": {
       "catalogue": "Control catalogue",
       "mappings": "Control mappings",
-      "plant": "Plant registry"
+      "plant": "Plant registry",
+      "dataProducts": "Data products"
     },
     "acceptProposal_one": "Accept {{count}} entry",
     "acceptProposal_other": "Accept {{count}} entries",
@@ -277,5 +278,12 @@
     "warnings": "Warnings",
     "checks": "What Steward checks once it is applied",
     "result": "{{added}} added, {{changed}} changed."
+  },
+  "dpProposal": {
+    "changes": "What the proposal adds and changes",
+    "onlyAddChange": "A proposal only adds and changes – nothing is removed. Applying imports it as you, with your rights.",
+    "incomplete_one": "The assistant is still sending this proposal ({{n}} part so far) – it can be reviewed once the last part is in.",
+    "incomplete_other": "The assistant is still sending this proposal ({{n}} parts so far) – it can be reviewed once the last part is in.",
+    "applied": "Applied: {{add}} added, {{change}} changed"
   }
 }

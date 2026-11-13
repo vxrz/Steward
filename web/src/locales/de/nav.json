@@ -53,7 +53,9 @@
     "dataObjects": "Datenobjekte",
     "dataDomains": "Domänen",
     "dataMap": "Produktkarte",
-    "dataDiscovery": "Erkennung"
+    "dataDiscovery": "Erkennung",
+    "dataAccessRequests": "Zugriffsanträge",
+    "dataRecordsOfProcessing": "Verarbeitungs\u00adtätigkeiten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
