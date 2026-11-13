@@ -122,7 +122,7 @@ test('deleting a team that alone owns a process asks where the process goes', as
     await expect(dialog.getByTestId('team-delete-kinds')).toContainText('1');
     await expect(dialog.getByTestId('team-delete-submit')).toBeDisabled();
     await expectAccessible(page, 'team deletion dialog');
-    await dialog.getByRole('textbox', { name: 'Move them to' }).click();
+    await dialog.getByRole('combobox', { name: 'Move them to' }).click({ force: true });
     await page.getByRole('option', { name: keepName, exact: true }).click();
     await dialog.getByTestId('team-delete-submit').click();
     await expect(dialog).toBeHidden();
