@@ -1,4 +1,12 @@
-import { worstStatus, type CatalogueEnvironment, type DataHealthStatus, type ElementHealth, type MonitorStatus, type ProductHealth } from '@sm/shared';
+import {
+  worseHealth,
+  worstStatus,
+  type CatalogueEnvironment,
+  type DataHealthStatus,
+  type ElementHealth,
+  type MonitorStatus,
+  type ProductHealth,
+} from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { environmentList } from '../catalogue/environments.js';
 import { db } from '../db.js';
@@ -137,10 +145,6 @@ export function elementHealthOf(u: AuthUser | null, elementIds: readonly string[
   const ids = [...new Set(elementIds)];
   return healthFromLinks(u, ids, checkLinksOf(ids)).health;
 }
-
-const RANK: Record<string, number> = { noData: -2, off: -1, up: 0, maintenance: 1, blocked: 2, unknown: 3, degraded: 4, down: 5 };
-/** The worse of two health statuses (No data is the least: any status of a check says more). */
-export const worseHealth = (a: DataHealthStatus, b: DataHealthStatus): DataHealthStatus => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a);
 
 /** Internal elements only degrade a product (ADR 0036 part 10). */
 const capped = (s: DataHealthStatus): DataHealthStatus => (s === 'down' ? 'degraded' : s);

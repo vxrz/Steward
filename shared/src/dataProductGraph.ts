@@ -1,5 +1,6 @@
 import {
   DATA_PRODUCT_LIMITS,
+  worstHealth,
   type DataElementKind,
   type DataHealthStatus,
   type DataMemberRole,
@@ -218,18 +219,6 @@ export interface GraphHealth {
 
 export const dataElementPath = (id: string): string => `/data-elements/${encodeURIComponent(id)}`;
 export const dataProductPath = (id: string): string => `/data-products/${encodeURIComponent(id)}`;
-
-/** Health from worst to best: a collapsed node shows the worst of what it stands for. */
-export const DATA_HEALTH_ORDER: readonly DataHealthStatus[] = ['down', 'degraded', 'blocked', 'unknown', 'noData', 'maintenance', 'off', 'up'];
-export const worstHealth = (xs: readonly (DataHealthStatus | null | undefined)[]): DataHealthStatus | null => {
-  let best = -1;
-  for (const x of xs) {
-    if (!x) continue;
-    const i = DATA_HEALTH_ORDER.indexOf(x);
-    if (i >= 0 && (best < 0 || i < best)) best = i;
-  }
-  return best < 0 ? null : DATA_HEALTH_ORDER[best]!;
-};
 
 /** Hidden things get ids of their own per response (`hidden-1` …): never the real id, so nothing can be looked up. */
 class Anonymiser {

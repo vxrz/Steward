@@ -2,6 +2,7 @@ import {
   CIA_DIMENSIONS,
   ISO_25012_DIMENSIONS,
   maturityLevel,
+  worstHealth,
   type DataHealthStatus,
   type DataObjectives,
   type DataProductScorecard,
@@ -74,8 +75,8 @@ const ev = (key: string, values?: Record<string, string | number>): Evidence[num
 const share = (done: number, of: number, none: DataScorecardState = 'notMet'): DataScorecardState =>
   of === 0 ? none : done === of ? 'met' : done === 0 ? 'notMet' : 'partial';
 
-const WORST: readonly DataHealthStatus[] = ['down', 'degraded', 'blocked', 'unknown', 'maintenance', 'off', 'noData', 'up'];
-const worst = (xs: DataHealthStatus[]): DataHealthStatus => (xs.length ? [...xs].sort((a, b) => WORST.indexOf(a) - WORST.indexOf(b))[0]! : 'noData');
+/** The worst of the output elements' health, in the module's one order (DATA_HEALTH_ORDER: No data is the least). */
+const worst = (xs: DataHealthStatus[]): DataHealthStatus => worstHealth(xs) ?? 'noData';
 
 const healthState = (s: DataHealthStatus): DataScorecardState => (s === 'up' ? 'met' : s === 'degraded' ? 'partial' : s === 'down' ? 'notMet' : 'noEvidence');
 

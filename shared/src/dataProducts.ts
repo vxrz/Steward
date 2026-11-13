@@ -1024,6 +1024,23 @@ export interface DataCheckLink {
 /** Health of an element or a product: a monitor status, or no linked check at all (never OK without one). */
 export type DataHealthStatus = MonitorStatus | 'noData';
 
+/**
+ * Health from worst to best – the one order of the module (product health, the scorecard, collapsed nodes of the
+ * pictures, legends). It is the monitors' ranking (shared/src/monitors.ts: `off` below `up`, so a switched-off check
+ * does not make a product off) with _No data_ last: any status of a check says more than none.
+ */
+export const DATA_HEALTH_ORDER: readonly DataHealthStatus[] = ['down', 'degraded', 'unknown', 'blocked', 'maintenance', 'up', 'off', 'noData'];
+const HEALTH_RANK = new Map(DATA_HEALTH_ORDER.map((s, i) => [s, i]));
+/** The worse of two health statuses. */
+export const worseHealth = (a: DataHealthStatus, b: DataHealthStatus): DataHealthStatus =>
+  (HEALTH_RANK.get(b) ?? DATA_HEALTH_ORDER.length) < (HEALTH_RANK.get(a) ?? DATA_HEALTH_ORDER.length) ? b : a;
+/** The worst of a list (missing entries ignored; null when nothing is left). */
+export function worstHealth(xs: readonly (DataHealthStatus | null | undefined)[]): DataHealthStatus | null {
+  let out: DataHealthStatus | null = null;
+  for (const x of xs) if (x && HEALTH_RANK.has(x)) out = out ? worseHealth(out, x) : x;
+  return out;
+}
+
 export interface ElementHealth {
   elementId: string;
   status: DataHealthStatus;
@@ -1208,6 +1225,19 @@ export interface DataProductScorecard {
   /** The parts (group part), then the ISO/IEC 25012 dimensions (group iso25012) */
   parts: DataScorecardPart[];
   maturity: DataMaturityLevel;
+}
+
+/**
+ * GET /api/data-products/facts?ids=&environment=: what the product list shows beside a page of products, read in bulk
+ * (a fixed number of statements for the page) – the maturity and last month's attributed costs, in the environment
+ * asked for or each product's default (production first). Products the reader may not see are left out.
+ */
+export interface DataProductListFacts {
+  productId: string;
+  environment: string | null;
+  maturity: DataMaturityLevel;
+  /** Last month's attributed costs per currency, or null when no line is attributed; `incomplete`: a part is not shown */
+  lastMonth: { month: string; totals: { currency: string; amountMicros: number }[]; incomplete: boolean } | null;
 }
 
 /** Maturity levels: 0 not yet documented, 1 documented, 2 observed, 3 contracted, 4 reliable, 5 endorsed (phase 2). */
