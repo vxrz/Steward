@@ -157,3 +157,22 @@ describe('changing who uses a module', () => {
     }
   });
 });
+
+describe('the shares a reader may not see', () => {
+  it('count towards the limit of an item when the reader saves (no growth beyond it through kept shares)', async () => {
+    const users = await import('../src/auth/users.js');
+    for (let i = 0; i < 110; i++) users.saveTeam({ name: `Invented crew ${String(i).padStart(3, '0')}` });
+    const svc = (await s.api('POST', '/services', { name: 'Invented shared desk', owners: [] })).id as string;
+    const team = (i: number) => ({ subject: `team:invented crew ${String(i).padStart(3, '0')}`, level: 'view' });
+    // Vic manages it by a share; the 60 team shares the administrator gives are not his to see (a viewer)
+    await s.api('PUT', `/access/service/${svc}/shares`, { shares: [{ subject: 'user:vic', level: 'manage' }, ...Array.from({ length: 60 }, (_, i) => team(i))] });
+    const v = await vic('GET', `/access/service/${svc}/shares`);
+    expect(v.hidden).toBe(60);
+    const mine = [{ subject: 'user:vic', level: 'manage' }, ...Array.from({ length: 50 }, (_, i) => team(60 + i))];
+    expect(await code(vic('PUT', `/access/service/${svc}/shares`, { shares: mine }))).toBe('LIMIT_REACHED');
+    expect((await s.api('GET', `/access/service/${svc}/shares`)).shares).toHaveLength(61);
+    // within the limit it works as before
+    expect(await code(vic('PUT', `/access/service/${svc}/shares`, { shares: mine.slice(0, 30) }))).toBe('ok');
+    expect((await s.api('GET', `/access/service/${svc}/shares`)).shares).toHaveLength(90);
+  });
+});
