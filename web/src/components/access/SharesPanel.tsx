@@ -230,7 +230,9 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                           <Select
                             label={t('shares.level')}
                             data={levelData}
-                            value={s.level}
+                            // a Custom share has no level of its own: the field says so until one is chosen
+                            value={s.custom ? null : s.level}
+                            placeholder={s.custom ? t('shares.customShort') : undefined}
                             onChange={(l) => l && update(i, { level: l as ShareLevel })}
                             allowDeselect={false}
                             w={140}

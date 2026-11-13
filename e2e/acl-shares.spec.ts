@@ -39,6 +39,9 @@ test('a process: its access list is shares with a Custom one, the owner above th
 
     // changing the Custom share replaces it with its level; reset brings it back
     const vera = panel.getByTestId('share-row').filter({ has: page.getByTestId('share-custom') });
+    // a Custom share has no level: its level field says Custom, not View
+    await expect(vera.getByRole('combobox', { name: /^Level for / })).toHaveValue('');
+    await expect(vera.getByRole('combobox', { name: /^Level for / })).toHaveAttribute('placeholder', 'Custom');
     await vera.getByRole('combobox', { name: /^Level for / }).click();
     await page.getByRole('option', { name: 'Edit' }).click();
     await expect(panel.getByTestId('share-custom')).toHaveCount(0);
