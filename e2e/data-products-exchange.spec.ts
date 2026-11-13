@@ -223,7 +223,11 @@ test.describe('exchange', () => {
     // Import says what it removes before it runs; cancelled, nothing happens
     await page.getByTestId('import-run').click();
     await expect(page.getByTestId('import-remove-list')).toContainText(`${k}-two`);
-    await page.getByRole('button', { name: 'Cancel' }).last().click();
+    await page
+      .getByRole('dialog')
+      .filter({ has: page.getByTestId('confirm-dialog-message') })
+      .getByRole('button', { name: 'Cancel' })
+      .click();
     await expect(page.getByTestId('import-remove-list')).toHaveCount(0);
     await page.getByTestId('import-run').click();
     await page.getByTestId('confirm-dialog-confirm').click();

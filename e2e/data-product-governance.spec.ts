@@ -206,7 +206,11 @@ test.describe('governance of data products', () => {
     const requests = page.getByTestId('product-access-requests');
     await requests.getByTestId('request-withdraw').click();
     await expect(page.getByTestId('confirm-dialog-message')).toContainText('Withdraw your request for orders · prod?');
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page
+      .getByRole('dialog')
+      .filter({ has: page.getByTestId('confirm-dialog-message') })
+      .getByRole('button', { name: 'Cancel' })
+      .click();
     await expect(requests.getByTestId('request-status-pending')).toBeVisible();
     await requests.getByTestId('request-withdraw').click();
     await page.getByTestId('confirm-dialog-confirm').click();
