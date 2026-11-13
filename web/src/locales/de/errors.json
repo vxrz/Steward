@@ -1199,6 +1199,7 @@
     "DATA_LINEAGE_API_TOKEN": "Diese Adresse nimmt ein Lineage-Push-Token (sdl_…) an, kein API-Token.",
     "DATA_LINEAGE_PUSH_SESSION": "Anmeldesitzungen werden hier nicht angenommen – senden Sie ein Push-Token ohne das Sitzungscookie.",
     "DATA_LINEAGE_RATE": "Zu viele Sendungen mit diesem Token – versuchen Sie es in einer Minute wieder.",
+    "DATA_LINEAGE_DBT_RATE": "Zu viele dbt-Dateien für diese Lineage-Quelle – höchstens {{max}} pro Minute, gesendet und hochgeladen zusammen. Versuchen Sie es in einer Minute wieder.",
     "DATA_LINEAGE_PUSH_TYPE": "Senden Sie JSON (Content-Type: application/json).",
     "DATA_LINEAGE_EVENT_INVALID": "Kein OpenLineage-2-0-x-Ereignis: Prüfen Sie „{{where}}“.",
     "DATA_LINEAGE_DBT_INVALID": "Keine dbt-Datei, die Steward liest.",

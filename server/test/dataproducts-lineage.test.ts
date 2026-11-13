@@ -602,6 +602,24 @@ describe('dbt', () => {
     expect((await dana('GET', `/data-products/lineage-sources/${src}`)).lastImport).toMatchObject({ file: 'runResults', by: 'dana' });
   });
 
+  it('takes few dbt files a minute per source, pushed and uploaded together – whatever the token’s own limit', async () => {
+    const { resetLineagePushState } = await import('../src/dataproducts/lineage/push.js');
+    const { DATA_LINEAGE_LIMITS } = await import('@sm/shared');
+    resetLineagePushState();
+    // refused bodies count too: the slot is taken before the body is read
+    for (let i = 0; i < DATA_LINEAGE_LIMITS.dbtFilesPerMinute; i++)
+      expect((await push(src, token, {}, { path: i % 2 ? '/dbt/manifest' : '/dbt/run-results' })).status).toBe(400);
+    const r = await push(src, token, {}, { path: '/dbt/manifest' });
+    expect(r).toMatchObject({ status: 429, body: { code: 'DATA_LINEAGE_DBT_RATE', params: { max: DATA_LINEAGE_LIMITS.dbtFilesPerMinute } } });
+    expect(await fail(dana('POST', `/data-products/lineage-sources/${src}/dbt/run-results`, runResults()))).toMatchObject({
+      status: 429,
+      code: 'DATA_LINEAGE_DBT_RATE',
+    });
+    // OpenLineage events are not dbt files: the token's own limit applies to them
+    expect((await push(src, token, runEvent({ job: 'x' }))).body).toMatchObject({ code: 'DATA_LINEAGE_SOURCE_KIND' });
+    resetLineagePushState();
+  });
+
   it('forgets the dbt results that came through the source when it is deleted, and keeps those of other sources', async () => {
     const staged = await el('SHOP.STAGED.ORDERS');
     const { recordQualityResults } = await import('../src/dataproducts/quality.js');

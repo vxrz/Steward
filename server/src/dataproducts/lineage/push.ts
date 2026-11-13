@@ -65,8 +65,34 @@ export const REFUSED: PushResponse = {
 const MODULE_IS_OFF: PushResponse = { status: 404, body: { error: 'This area is switched off', code: 'MODULE_OFF', params: { module: 'dataProducts' } } };
 
 const calls = new Map<string, number[]>();
+/** dbt files per source (pushes and uploads together) */
+const dbtCalls = new Map<string, number[]>();
 export function resetLineagePushState(): void {
   calls.clear();
+  dbtCalls.clear();
+}
+
+/**
+ * Takes a slot for a dbt file of the source (DATA_LINEAGE_LIMITS.dbtFilesPerMinute, pushes and uploads together) – null,
+ * or the 429 answer with its Retry-After when the source had its files this minute.
+ */
+export function takeDbtSlot(sourceId: string, now = Date.now()): PushResponse | null {
+  const recent = (dbtCalls.get(sourceId) ?? []).filter((t) => now - t < 60_000);
+  if (recent.length >= LL.dbtFilesPerMinute) {
+    dbtCalls.set(sourceId, recent);
+    return {
+      status: 429,
+      body: {
+        error: `More than ${LL.dbtFilesPerMinute} dbt files a minute for this lineage source`,
+        code: 'DATA_LINEAGE_DBT_RATE',
+        params: { max: LL.dbtFilesPerMinute },
+      },
+      headers: { 'retry-after': String(Math.max(1, Math.ceil((60_000 - (now - recent[0]!)) / 1000))) },
+    };
+  }
+  recent.push(now);
+  dbtCalls.set(sourceId, recent);
+  return null;
 }
 
 /** The largest body a path takes. */
@@ -122,6 +148,11 @@ export function authorizeLineagePush(req: PushHead): { ok: true; token: Verified
   }
   recent.push(now);
   calls.set(r.id, recent);
+  // dbt files: a low limit of their own per source (each is parsed in one piece)
+  if (req.file !== 'openlineage') {
+    const busy = takeDbtSlot(r.source_id, now);
+    if (busy) return no(busy);
+  }
   const ct = (req.contentType ?? '').split(';')[0]!.trim().toLowerCase();
   if (ct !== 'application/json') return no({ status: 415, body: { error: 'Send JSON (Content-Type: application/json)', code: 'DATA_LINEAGE_PUSH_TYPE' } });
   const max = pushLimit(req.file);

@@ -71,6 +71,11 @@ export const DATA_LINEAGE_LIMITS = {
   cidrs: 20,
   expiresInDays: 730,
   rateLimitPerMinute: { default: 120, max: 1_200 },
+  /**
+   * dbt files (manifest.json, run_results.json) per source and minute, pushed and uploaded together – each is parsed in
+   * one piece (up to 40 MB), so far fewer than events, whatever a token's own limit
+   */
+  dbtFilesPerMinute: 6,
   /** A page of proposals */
   page: 100,
   /** Proposals written per transaction (dbt, Snowflake), with a turn of the event loop between */
