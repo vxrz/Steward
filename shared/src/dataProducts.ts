@@ -911,8 +911,11 @@ export const DATA_DISCOVERY_LIMITS = {
   prefixes: 100,
   environmentRules: 20,
   elementTeams: 20,
-  /** Elements written per transaction, with a yield between batches */
-  batch: 500,
+  /**
+   * Elements written per transaction, with a yield to the event loop between batches: 250 keep one batch well below
+   * 100 ms on PostgreSQL (each statement is a hop to the database), so the event loop's lag stays below 200 ms
+   */
+  batch: 250,
   /** A run stops after this long and says truncated */
   timeBudgetMs: 10 * 60_000,
   /** The Snowflake SQL API's statement timeout (seconds) */

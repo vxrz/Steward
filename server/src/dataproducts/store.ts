@@ -571,8 +571,8 @@ const readoutJson = (r: DiscoveredElement['readout']): string | null => {
   return s.length <= DATA_PRODUCT_LIMITS.readoutBytes ? s : null;
 };
 
-/** Rows written per multi-row statement (well below the bind parameter limits of SQLite and PostgreSQL). */
-const ROWS_PER_INSERT = 100;
+/** Rows written per multi-row statement (a whole batch of discovery; well below the bind parameter limits of SQLite and PostgreSQL). */
+const ROWS_PER_INSERT = 250;
 
 /** INSERT of many rows in statements of ROWS_PER_INSERT (`head` names the table and columns; `tail` an ON CONFLICT). */
 function insertRows(head: string, rows: readonly unknown[][], tail = ''): void {
@@ -588,7 +588,8 @@ function insertRows(head: string, rows: readonly unknown[][], tail = ''): void {
  * name, kind flags, external id, parent, OpenLineage dataset – and their readout; people's fields (description, layer,
  * owner application, data objects, links) are never overwritten. A known external id under a new name is a rename
  * (`renamed` lists them for the audit entry of the run). An element found again loses its missing mark. Batches of at
- * most 500, parents before children (a parent in the same batch is found). The instance's element limit is kept:
+ * most 500 (discovery writes 250: DATA_DISCOVERY_LIMITS.batch), parents before children (a parent in the same batch is
+ * found). The instance's element limit is kept:
  * beyond it nothing is added (`skipped`). New elements, their owning teams and the readouts are written with multi-row
  * statements, so a batch costs a few dozen statements, not three per element (WP2: 50,000 elements within the event
  * loop's budget on PostgreSQL too).
