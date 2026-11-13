@@ -67,6 +67,7 @@ import { SupplierPicker, SupplierText, useSupplierChoice, useSupplierOptions } f
 import { ScheduleBadge } from './ContractPayments';
 import { ChangesPanel, PrepaidRows, ProposalsPanel } from './ContractLines';
 import { ServiceContracts } from './Commitments';
+import { EstimateBadge, EstimatesSection } from './Estimates';
 import { VolumesSection } from './Volumes';
 import { EntryImportDialog, EntryImports } from './EntryImport';
 import { FormModal, FormModalCancel } from '../FormModal';
@@ -295,6 +296,7 @@ function CostPlan({ owner }: { owner: PlanOwner }) {
         </Stack>
       )}
       <ServiceContracts owner={owner} canEdit={d.canEdit} />
+      <EstimatesSection owner={owner} canEdit={d.canEdit} />
       {(d.lines.length > 0 || d.entries.length > 0) && (
         <EntriesSection d={d} onEdit={(e) => setEntryDialog(e)} onRemove={removeEntry} unplanned={unplanned.length} />
       )}
@@ -624,6 +626,7 @@ function ContractHints({ l }: { l: CostPlanLine }) {
   return (
     <>
       {l.schedule && <ScheduleBadge changed={l.schedule.changed} title={l.schedule.title} />}
+      {l.estimate && <EstimateBadge estimate={l.estimate} />}
       {l.volume && (
         <Badge size="xs" variant="light" color="grape" data-testid="plan-volume-badge">
           {t(`volumes.billing.${l.volume.billing}`)}

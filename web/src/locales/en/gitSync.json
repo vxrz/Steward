@@ -62,7 +62,8 @@
       "process": "Processes",
       "dashboard": "Dashboards",
       "monitor": "Monitors",
-      "recordType": "Document types"
+      "recordType": "Document types",
+      "costCalculator": "Cost calculators"
     },
     "token": "Access token",
     "tokenHint": "Read-only access to the repository contents. Stored encrypted in the vault, never shown again. Empty for public repositories.",

@@ -3,7 +3,7 @@ import { Alert, Anchor, Button, Group, Modal, Paper, SegmentedControl, Select, S
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconCalendarDollar, IconCoin, IconEyeOff, IconSettings } from '@tabler/icons-react';
+import { IconBook, IconCalculator, IconCalendarDollar, IconCoin, IconEyeOff, IconSettings } from '@tabler/icons-react';
 import { COST_SCOPES, type CostOverview, type CostOverviewRow, type CostScope, type CostSettings, type FiscalYearChange } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../api';
 import { EmptyState, QueryState } from '../components/common';
@@ -138,6 +138,19 @@ export function CostsPage() {
       description={t('description')}
       actions={
         <Group gap="xs">
+          <Button size="xs" variant="default" component={Link} to="/costs/price-books" leftSection={<IconBook size={14} />} data-testid="price-books-link">
+            {t('prices.title')}
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            component={Link}
+            to="/costs/calculators"
+            leftSection={<IconCalculator size={14} />}
+            data-testid="calculators-link"
+          >
+            {t('calculators.title')}
+          </Button>
           <Button
             size="xs"
             variant="default"
