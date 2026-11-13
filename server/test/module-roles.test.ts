@@ -457,7 +457,7 @@ describe('single sign-on (ADR 0034 part 6)', () => {
     });
     mock.setMockIdentity('mira', { preferred_username: 'mira@contoso.example', idToken: { roles: ['SM.PlantManagers'] } });
     expect((await signIn('mira')).error).toBeUndefined();
-    const name = db().get<{ username: string }>("SELECT username FROM users WHERE username LIKE 'mira%'")!.username;
+    const name = ((await s.api('GET', '/users')) as { username: string }[]).find((u) => u.username.startsWith('mira'))!.username;
     const grants = () =>
       db().all<{ role: string; source: string }>("SELECT role, source FROM module_grants WHERE module_id = 'plant' AND subject = ?", `user:${name}`);
     expect(grants()).toEqual([{ role: 'manager', source: 'sso' }]);
