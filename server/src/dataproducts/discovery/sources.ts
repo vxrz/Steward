@@ -300,6 +300,9 @@ export function createSource(body: unknown): DataDiscoverySource {
 
 export function updateSource(id: string, body: unknown): DataDiscoverySource {
   const { row, u } = manageableSource(id);
+  // a run reads the source's scope and teams as it goes: a change waits for its end, as a deletion does
+  if (isRunning(row.id))
+    throw new HttpError(409, `Discovery source "${row.name}" is reading – wait for its run to end`, 'DATA_DISCOVERY_RUNNING', { name: row.name });
   const input = dataDiscoverySourceInput.parse(body);
   if (input.platformId !== row.platform_id)
     throw new HttpError(400, 'A discovery source keeps its platform – set up a new source for another platform', 'DATA_DISCOVERY_PLATFORM', {

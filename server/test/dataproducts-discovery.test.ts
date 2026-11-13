@@ -309,6 +309,35 @@ describe('Snowflake (information schema)', () => {
     expect((await dana('GET', `/data-products/discovery-sources/${id}/runs`))[0].status).toBe('succeeded');
   });
 
+  it('refuses a change to a source while it reads, as a deletion', async () => {
+    const { runAs } = await import('../src/auth/context.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    const sources = await import('../src/dataproducts/discovery/sources.js');
+    const src = await dana('GET', `/data-products/discovery-sources/${id}`);
+    const body = {
+      name: src.name,
+      platformId: src.platformId,
+      scope: src.scope,
+      includePrefixes: src.includePrefixes,
+      excludePrefixes: src.excludePrefixes,
+      environmentRules: src.environmentRules,
+      mode: src.mode,
+      identityId: src.identityId,
+      elementTeamIds: src.elementTeamIds,
+      intervalMinutes: src.intervalMinutes,
+      enabled: src.enabled,
+    };
+    const asDana = <T>(f: () => T) => runAs(toAuthUser(findUserByName('dana')!), f);
+    const { done } = job.startRun(id, { trigger: 'manual' });
+    try {
+      expect(() => asDana(() => sources.updateSource(id, body))).toThrow(/is reading/);
+      expect(() => asDana(() => sources.deleteSource(id))).toThrow(/is reading/);
+    } finally {
+      await done;
+    }
+    expect((await dana('PUT', `/data-products/discovery-sources/${id}`, body)).name).toBe(src.name);
+  });
+
   it('fails a run the outbound policy blocks, and keeps what it found', async () => {
     const settings = await s.api('GET', '/settings');
     try {
