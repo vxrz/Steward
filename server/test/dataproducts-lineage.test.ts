@@ -306,6 +306,20 @@ describe('the OpenLineage push', () => {
       await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
     }
   });
+  it('says so when an event names more namespaces than it matches – in the answer and the audit entry', async () => {
+    const { DATA_LINEAGE_LIMITS } = await import('@sm/shared');
+    const n = DATA_LINEAGE_LIMITS.namespacesPerEvent + 50;
+    const inputs = Array.from({ length: n }, (_, i) => ({ namespace: `kafka://invented-broker-${i}.example:9092`, name: `topic-${i}` }));
+    const r = await push(src, token, runEvent({ job: 'many_namespaces', runId: '0190c3d4-3333-7000-8000-000000000001', inputs }));
+    expect(r.status).toBe(200);
+    expect(r.body.warnings).toEqual([expect.stringMatching(/^50 dataset namespace\(s\) beyond 200 per event were not matched/)]);
+    const { db } = await import('../src/db.js');
+    const a = db().get<{ details: string }>(
+      "SELECT details FROM audit_log WHERE action = 'datalineage.pushed' AND entity_id = ? ORDER BY seq DESC LIMIT 1",
+      src,
+    )!;
+    expect(JSON.parse(a.details).warnings).toEqual(r.body.warnings);
+  });
 });
 
 describe('the inbox of proposed steps', () => {

@@ -231,19 +231,20 @@ export function pushOpenLineage(token: VerifiedLineageToken, req: { raw: Buffer 
     const out = db().tx(() => {
       const r = applyOlEvents(src.id, aliases, events);
       count(src.id, null, events.length);
-      // a push that proposes something new is in the audit log (runs of known jobs are not: they come every few minutes)
-      if (r.proposals.created || r.proposals.changed)
+      // a push that proposes something new, or was not read as sent, is in the audit log (runs of known jobs are not:
+      // they come every few minutes)
+      if (r.proposals.created || r.proposals.changed || r.warnings.length)
         audit({
           actor: `push token "${token.name}"`.slice(0, 120),
           action: 'datalineage.pushed',
           entityType: 'data_lineage_source',
           entityId: src.id,
-          summary: `Lineage source "${src.name}": ${r.proposals.created} job(s) proposed, ${r.proposals.changed} changed`,
-          details: { tokenId: token.id, ip: req.ip, events: r.events, ...r.proposals },
+          summary: `Lineage source "${src.name}": ${r.proposals.created} job(s) proposed, ${r.proposals.changed} changed${r.warnings.length ? ` – ${r.warnings.join('; ')}` : ''}`.slice(0, 500),
+          details: { tokenId: token.id, ip: req.ip, events: r.events, ...r.proposals, ...(r.warnings.length ? { warnings: r.warnings } : {}) },
         });
       return r;
     });
-    return { status: 200, body: { accepted: out.events, proposals: out.proposals } };
+    return { status: 200, body: { accepted: out.events, proposals: out.proposals, ...(out.warnings.length ? { warnings: out.warnings } : {}) } };
   } catch (e) {
     if (e instanceof HttpError) {
       count(src.id, e);
