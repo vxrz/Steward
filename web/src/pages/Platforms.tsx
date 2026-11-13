@@ -127,13 +127,13 @@ function PlatformCard({ p }: { p: Platform }) {
         <Text size="xs" c="dimmed">
           {t('card.secrets', { count: p.secretKeys.length })}
         </Text>
-        {p.acl.length > 0 && (
+        {p.restricted && (
           <Badge size="xs" variant="light" color="orange" ml="auto">
             {t('card.restricted')}
           </Badge>
         )}
         {!p.permissions.includes('use') && (
-          <Badge size="xs" variant="light" color="gray" ml={p.acl.length ? undefined : 'auto'}>
+          <Badge size="xs" variant="light" color="gray" ml={p.restricted ? undefined : 'auto'}>
             {t('card.noAccess')}
           </Badge>
         )}
@@ -229,7 +229,7 @@ export function PlatformsPage() {
           <Text size="xs" c="dimmed" className="nowrap">
             {t('card.secrets', { count: p.secretKeys.length })}
           </Text>
-          {p.acl.length > 0 && (
+          {p.restricted && (
             <Badge size="xs" variant="light" color="orange">
               {t('card.restricted')}
             </Badge>

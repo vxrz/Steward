@@ -28,7 +28,7 @@ import { ExpressionInput } from './ExpressionInput';
 import { useProcesses } from './editorApi';
 import i18n from '../../i18n';
 import { browserActionLabel, type LocalizedField } from '../../i18n/meta';
-import { subjectOptionLabel } from '../AccessEditor';
+import { subjectOptionLabel } from '../SubjectsInput';
 import { AiContextEditor, AiModelField, PromptField } from './AiStepFields';
 import { SqlField, SqlParamsField } from './QueryStepFields';
 

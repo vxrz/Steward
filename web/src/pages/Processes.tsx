@@ -163,7 +163,7 @@ export function ProcessesPage() {
     <>
       <GitOriginBadge kind="process" id={p.id} size="xs" />
       <LibraryOriginBadge kind="process" id={p.id} size="xs" />
-      {p.acl.length > 0 && (
+      {p.restricted && (
         <Badge size="xs" variant="light" color="orange" title={t('card.restrictedHint')}>
           {t('card.restricted')}
         </Badge>

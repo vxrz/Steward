@@ -293,3 +293,38 @@ export async function withRefusalReason(s: TestServer, location: string): Promis
   const entries = (await s.api('GET', '/audit?action=auth.login_failed&limit=50')) as { summary: string }[];
   return `${text} | ${entries.find((e) => e.summary.includes(`reference ${ref}`))?.summary ?? 'no audit entry'}`;
 }
+
+/**
+ * Stores an access list of a process, platform, identity, monitor or site the way the migration of 0.23.0 does (ADR
+ * 0033: shares, and Restricted when the list has entries) – directly in the database, without audit, for tests that
+ * plant a state. An empty list removes the shares and the scope.
+ */
+export async function storeAcl(
+  kind: 'process' | 'platform' | 'platform_identity' | 'monitor' | 'site',
+  id: string,
+  acl: { subject: string; permissions: string[] }[],
+): Promise<void> {
+  const { db } = await import('../src/db.js');
+  const { aclToShares } = await import('../src/auth/acl-shares.js');
+  const { sharesChanged } = await import('../src/auth/share-store.js');
+  const at = new Date().toISOString();
+  db().tx(() => {
+    db().run('DELETE FROM resource_shares WHERE kind = ? AND resource_id = ?', kind, id);
+    db().run('DELETE FROM resource_restrictions WHERE kind = ? AND resource_id = ?', kind, id);
+    for (const s of aclToShares(kind, acl))
+      db().run(
+        'INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, rights, created_by, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)',
+        kind,
+        id,
+        s.subject,
+        s.level,
+        JSON.stringify(s.actions ?? []),
+        s.rights ? JSON.stringify(s.rights) : null,
+        'test',
+        at,
+      );
+    if (kind !== 'platform_identity' && acl.length)
+      db().run('INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?)', kind, id, 'test', at);
+  });
+  sharesChanged();
+}

@@ -6,6 +6,7 @@ import {
   type AclEntry,
   type OwnedKind,
   type ResourceShare,
+  type Role,
   type ShareAction,
   type ShareLevel,
 } from '@sm/shared';
@@ -14,7 +15,10 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { HttpError } from '../util.js';
 import { currentStore } from './context.js';
-import { cleanAcl } from './permissions.js';
+import { DEFAULT_PLATFORM, DEFAULT_PROCESS, cleanAcl } from './permissions.js';
+import { gainedRights } from './access-change.js';
+import { MONITOR_DEFAULTS } from '../monitors/model.js';
+import { DEFAULT_PLANT } from '../plant/access.js';
 import {
   IDENTITY_SHARE_MODEL,
   MONITOR_SHARE_MODEL,
@@ -26,7 +30,7 @@ import {
   type ShareModel,
 } from './policy.js';
 import { isRestricted, sharesOf, shareActive, toShare, type ShareRow } from './share-store.js';
-import { setRestricted, setShares, shareGains, type ShareWrite } from './shares.js';
+import { setRestricted, setShares, type ShareWrite } from './shares.js';
 
 /**
  * The access lists of processes, platforms, platform identities, monitors and plant sites, migrated to shares
@@ -92,7 +96,10 @@ export function entryToShare(kind: AclKind, permissions: readonly string[]): Sha
   }
 }
 
-/** An access list as shares: one per subject (several entries of one subject add up), entries without rights dropped. */
+/**
+ * An access list as shares: one per subject (several entries of one subject add up), entries without rights and
+ * `role:admin` entries dropped.
+ */
 export function aclToShares(kind: AclKind, acl: readonly AclEntry[]): ShareWrite[] {
   const bySubject = new Map<string, Set<string>>();
   for (const e of acl) {
@@ -105,6 +112,8 @@ export function aclToShares(kind: AclKind, acl: readonly AclEntry[]): ShareWrite
   }
   const out: ShareWrite[] = [];
   for (const [subject, perms] of bySubject) {
+    // administrators have every right anyway (and a share cannot name them)
+    if (subject === 'role:admin') continue;
     const t = entryToShare(kind, [...perms]);
     if (t) out.push({ subject, level: t.level, actions: t.actions, expiresAt: null, rights: t.rights });
   }
@@ -168,12 +177,50 @@ export function aliasTarget(kind: AclKind, aclInput: unknown): { shares: ShareWr
   return { shares: aclToShares(kind, acl), restricted: kind === 'platform_identity' ? undefined : listed.length > 0 };
 }
 
-/** Whether a deprecated route's body gives anyone a right (its step-up rule); throws on a body the route refuses. */
-export function aliasWidens(kind: AclKind, id: string, aclInput: unknown): boolean {
+/** The rights each role has on an item of the kind while it is not Restricted (identities: none, ADR 0009). */
+const ROLE_DEFAULTS: Record<AclKind, Partial<Record<Role, readonly string[]>>> = {
+  process: DEFAULT_PROCESS,
+  platform: DEFAULT_PLATFORM,
+  platform_identity: {},
+  monitor: MONITOR_DEFAULTS,
+  site: DEFAULT_PLANT,
+};
+/** The rights a right includes on each kind (as the kinds' access functions close them). */
+const closeRights = (kind: AclKind, rights: Iterable<string>): string[] => {
+  const out = new Set(rights);
+  if (kind === 'platform' && out.has('manage')) out.add('use');
+  if (kind === 'monitor' && out.has('manage')) ['edit', 'acknowledge'].forEach((x) => out.add(x));
+  if (kind === 'site' && out.has('manage')) ['view', 'propose'].forEach((x) => out.add(x));
+  if (out.size && kind !== 'platform_identity') out.add('view');
+  return KIND[kind].perms.filter((p) => out.has(p));
+};
+
+/**
+ * Who holds which rights on an item, by subject, as an access list decided them (the step-up rules of 0.22): the role
+ * defaults while it is not Restricted, the shares, auditors' view (processes, monitors, sites), the owner's every right.
+ * Administrators are left out (they hold everything). Owning teams are left out as they were: a list on an owned item
+ * was compared the same way.
+ */
+function effectiveGrants(kind: AclKind, st: { restricted: boolean; shares: readonly ResourceShare[] }, owner?: string | null): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  const add = (subject: string, rights: Iterable<string>) => {
+    if (subject === 'role:admin') return;
+    const set = out.get(subject) ?? new Set<string>();
+    for (const r of closeRights(kind, rights)) set.add(r);
+    if (set.size) out.set(subject, set);
+  };
+  if (!st.restricted) for (const [role, rights] of Object.entries(ROLE_DEFAULTS[kind])) add(`role:${role}`, rights ?? []);
+  for (const sh of st.shares) if (shareActive(sh)) add(sh.subject, shareRights(kind, sh));
+  if (kind === 'process' || kind === 'monitor' || kind === 'site') add('role:auditor', ['view']);
+  if (owner?.trim()) add(`user:${owner.trim().toLowerCase()}`, KIND[kind].perms);
+  return out;
+}
+
+/** The state a deprecated route's body asks for: its shares (as stored) and its scope. */
+function aliasState(kind: AclKind, id: string, aclInput: unknown): { restricted: boolean; shares: ResourceShare[] } {
   const t = aliasTarget(kind, aclInput);
-  const before = { restricted: isRestricted(kind, id), shares: sharesOf(kind, id) };
-  const after = {
-    restricted: t.restricted ?? before.restricted,
+  return {
+    restricted: t.restricted ?? isRestricted(kind, id),
     shares: t.shares.map((s) => ({
       subject: s.subject,
       level: s.level,
@@ -184,7 +231,18 @@ export function aliasWidens(kind: AclKind, id: string, aclInput: unknown): boole
       createdAt: '',
     })),
   };
-  return shareGains(before, after).length > 0;
+}
+
+/**
+ * Whether a deprecated route's body gives anyone a right (its step-up rule, and again before writing): compared as the
+ * access list was – a new subject with a right, a raised right, an emptied list on a Restricted item (the role defaults
+ * come back), a new owner. A list that only keeps or narrows what the role defaults gave does not ask. Throws on a
+ * body the route refuses. `owner`: the owner before and after (processes, monitors).
+ */
+export function aliasWidens(kind: AclKind, id: string, aclInput: unknown, owner?: { before: string | null; after: string | null }): boolean {
+  const before = { restricted: isRestricted(kind, id), shares: sharesOf(kind, id) };
+  const after = aclInput === undefined ? before : aliasState(kind, id, aclInput);
+  return gainedRights(effectiveGrants(kind, before, owner?.before), effectiveGrants(kind, after, owner?.after)).length > 0;
 }
 
 /**
@@ -194,10 +252,12 @@ export function aliasWidens(kind: AclKind, id: string, aclInput: unknown): boole
 export function writeAlias(c: { kind: AliasKind; id: string; aclInput: unknown; held: HeldShare | 'all'; label: string }): void {
   if (!managesShares(c.held)) throw new HttpError(403, 'Only who manages this item may change its access', 'FORBIDDEN', { context: 'right_manage' });
   const t = aliasTarget(c.kind, c.aclInput);
+  // the widening is decided as the access list decided it (the role defaults an emptied list gives back count)
+  const widens = aliasWidens(c.kind, c.id, c.aclInput);
   db().tx(() => {
     if (t.restricted === true) setRestricted({ kind: c.kind, id: c.id, restricted: true, held: c.held, label: c.label });
-    setShares({ kind: c.kind, id: c.id, held: c.held, shares: t.shares, label: c.label });
-    if (t.restricted === false) setRestricted({ kind: c.kind, id: c.id, restricted: false, held: c.held, label: c.label });
+    setShares({ kind: c.kind, id: c.id, held: c.held, shares: t.shares, label: c.label, widens });
+    if (t.restricted === false) setRestricted({ kind: c.kind, id: c.id, restricted: false, held: c.held, label: c.label, widens });
   });
   aclChanged(c.kind);
 }

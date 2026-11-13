@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 import { timeLimit } from './time.js';
 
 /**
@@ -52,7 +52,7 @@ async function newPlatform(name: string): Promise<string> {
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' } },
     })
   ).id;
-  db().run('UPDATE platforms SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:olivia', permissions: ['use', 'manage'] }]), id);
+  await storeAcl('platform', id, [{ subject: 'user:olivia', permissions: ['use', 'manage'] }]);
   return id;
 }
 

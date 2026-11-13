@@ -212,6 +212,13 @@
       "roleDefaults": "die Standardrechte ihrer Rollen"
     },
     "stepUpHint": "Wenn Sie Zugriff geben, bestätigen Sie anschließend, dass Sie es sind.",
-    "confirm": "Speichern"
-  }
+    "confirm": "Speichern",
+    "custom": "Individuell: {{rights}} – genau die Rechte des früheren Eintrags der Zugriffsliste. Wird der Eintrag geändert, gilt stattdessen seine Stufe.",
+    "customShort": "Individuell",
+    "customRight": "{{right}} (individuell)"
+  },
+  "ownerSave": "Eigentümer speichern",
+  "ownerSaved": "Eigentümer gespeichert",
+  "ownerNotSaved": "Der Eigentümer konnte nicht gespeichert werden",
+  "ownerNotYours": "Wer diesen Eintrag verwaltet, ändert seinen Eigentümer."
 }

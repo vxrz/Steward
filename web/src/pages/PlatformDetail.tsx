@@ -31,11 +31,10 @@ import {
   IconServer2,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { CHANGEDETECTION_KIND, CONFLUENT_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type AclEntry, type Platform } from '@sm/shared';
+import { CHANGEDETECTION_KIND, CONFLUENT_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type Platform } from '@sm/shared';
 import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { CopyId } from '../components/CopyId';
-import { AccessEditor } from '../components/AccessEditor';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
 import { useMe } from '../auth';
 import { DetailState, JsonView } from '../components/common';
 import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
@@ -138,16 +137,6 @@ export function PlatformDetailPage() {
     p.config.auth?.type === 'jwt' ||
     (p.config.auth?.type === 'aws_sigv4' && !!p.config.auth.aws?.roleArn);
 
-  const saveAccess = async (acl: AclEntry[]) => {
-    try {
-      await put(`/platforms/${p.id}/access`, { acl });
-      await qc.invalidateQueries({ queryKey: platformKeys.detail(id) });
-      await qc.invalidateQueries({ queryKey: platformKeys.all });
-      notifyOk(t('detail.accessSaved'));
-    } catch (e) {
-      notifyError(e, t('detail.accessNotSaved'));
-    }
-  };
 
   const runTest = async () => {
     setTesting(true);
@@ -526,8 +515,8 @@ export function PlatformDetailPage() {
           </Tabs.Panel>
         )}
         <Tabs.Panel value="access">
-          <OwningTeams kind="platform" id={p.id} />
-          <AccessEditor kind="platform" acl={p.acl} onSave={(acl) => saveAccess(acl)} readOnly={!canManage} />
+          {/* 0.23.0 (ADR 0033 phase 2): the access list became shares; an identity's are on its own page (Identities) */}
+          <AccessTab kind="platform" id={p.id} />
         </Tabs.Panel>
         <Tabs.Panel value="mcp">
           <McpGatewayTab platform={p} readOnly={!canManage} />

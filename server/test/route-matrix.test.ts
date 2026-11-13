@@ -1443,6 +1443,12 @@ const SESSION_ONLY = [
   'PUT /api/access/:kind/:id/shares',
   'PUT /api/access/:kind/:id/scope',
   'POST /api/access/:kind/:id/preview',
+  // the deprecated access-list routes (0.23.0): they write shares
+  'PUT /api/processes/:id/access',
+  'PUT /api/platforms/:id/access',
+  'PUT /api/platforms/:id/identities/:identityId/access',
+  'PUT /api/monitors/:id/access',
+  'PUT /api/plant/sites/:siteId/access',
   // module access (ADR 0034): tokens act with their owner's module access, they never change it
   'GET /api/settings/modules/:id/access',
   'PUT /api/settings/modules/:id/access',
@@ -1730,7 +1736,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   // an access list of a plant registry site gives rights to others (#218)
-  'PUT /api/plant/sites/:siteId/access': 'always',
+  // deprecated since 0.23.0 (shares): only a widening asks, as on every kind
+  'PUT /api/plant/sites/:siteId/access': { sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] }, harmless: { acl: 'not a list' } },
   // 0.14: where Steward reads security advisories from (plant.advisorySources)
   'POST /api/plant/advisory-sources': 'always',
   'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',

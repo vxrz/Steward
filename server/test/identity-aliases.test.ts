@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, type TestServer, storeAcl } from './helpers.js';
 
 /**
  * Former names of imported accounts (server/src/auth/aliases.ts): imported content keeps the source's names,
@@ -40,7 +40,7 @@ describe('identity aliases of imported accounts', () => {
   it('grants what an imported access list gave the former name', async () => {
     const { db } = await import('../src/db.js');
     const p = (await s.api('GET', '/processes'))[0];
-    db().run('UPDATE processes SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:laptop-olivia', permissions: ['view', 'run'] }]), p.id);
+    await storeAcl('process', p.id, [{ subject: 'user:laptop-olivia', permissions: ['view', 'run'] }]);
     const olivia = await s.as('olivia', 'Demo-password-1');
     expect((await olivia('GET', `/processes/${p.id}`)).id).toBe(p.id);
     const vera = await s.as('vera', 'Demo-password-1');

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 import { csaf } from './advisories-helpers.js';
 
 /**
@@ -253,7 +253,7 @@ describe('uploads and matches on the demo enterprise', () => {
 
   it('readers see only the sites they may see: matches elsewhere are counted, not named', async () => {
     const d = await db();
-    d.run('UPDATE plant_sites SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:admin', permissions: ['view', 'manage'] }]), 'hillcrest');
+    await storeAcl('site', 'hillcrest', [{ subject: 'user:admin', permissions: ['view', 'manage'] }]);
     try {
       const a = (await users.vera!('GET', '/plant/advisories?q=EXPM')).items[0];
       expect(a).toMatchObject({ affectedAssets: 0, possibleMatches: 0, sites: [] });
@@ -267,7 +267,7 @@ describe('uploads and matches on the demo enterprise', () => {
       const v1 = await users.vera!('GET', `/v1/plant/advisories/${a.id}`).catch(() => null);
       if (v1) expect(v1.matches).toEqual([]);
     } finally {
-      d.run("UPDATE plant_sites SET acl = '[]' WHERE id = ?", 'hillcrest');
+      await storeAcl('site', 'hillcrest', []);
     }
   });
 

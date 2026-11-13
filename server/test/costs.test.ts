@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fromMicros, toMicros } from '@sm/shared';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 import { timeLimit } from './time.js';
 
 /**
@@ -315,12 +315,12 @@ describe('push from CI', () => {
     const dana = await s.as('dana', PW);
     // designers may use platforms but not manage them: the access list gives dana the manage right
     const { db } = await import('../src/db.js');
-    db().run('UPDATE platforms SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:dana', permissions: ['use', 'manage'] }]), platform);
+    await storeAcl('platform', platform, [{ subject: 'user:dana', permissions: ['use', 'manage'] }]);
     const t = await dana('POST', `/costs/platform/${platform}/push-tokens`, { name: 'dana', rateLimitPerMinute: 1 });
     expect((await push(t.token, csv('5'), {}, platform, '?mode=add')).status).toBe(200);
     expect((await push(t.token, csv('6'), {}, platform, '?mode=add')).status).toBe(429);
     (await import('../src/costs/push.js')).resetCostPushState();
-    db().run('UPDATE platforms SET acl = ? WHERE id = ?', '[]', platform);
+    await storeAcl('platform', platform, []);
     expect((await push(t.token, csv('7'), {}, platform, '?mode=add')).json.code).toBe('COST_PUSH_TOKEN_INVALID');
   });
 });

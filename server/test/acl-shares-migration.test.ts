@@ -52,6 +52,7 @@ const LISTS = {
     [e('team:gone', 'view')],
     [e('user:vera')],
     [e('user:nobody', 'view'), e('role:approver', 'approve')],
+    [e('role:admin', 'view', 'edit', 'manage'), e('user:dana', 'view')],
   ],
   monitor: [
     [],

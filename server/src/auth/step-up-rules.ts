@@ -144,18 +144,21 @@ export function changesTeamMembers(req: FastifyRequest): boolean {
  * an emptied list on a Restricted item (the role defaults come back). A new owner of a process or monitor has every
  * right on it: a widening too. A body the route refuses asks for nothing (the route answers it).
  */
-const aliasRule = (kind: AclKind, owner?: (req: FastifyRequest) => boolean) => (req: FastifyRequest) => {
-  try {
-    const acl = body(req).acl;
-    return (acl !== undefined && aliasWidens(kind, id(req), acl)) || !!owner?.(req);
-  } catch (e) {
-    if ((e as { statusCode?: number }).statusCode === 400) return false;
-    throw e;
-  }
-};
-/** Whether the body names a new owner (a person who did not own it; clearing the owner narrows). */
-const newOwner = (before: string | null | undefined, next: unknown): boolean =>
-  typeof next === 'string' && !!next.trim() && next.trim().toLowerCase() !== (before ?? '').trim().toLowerCase();
+const aliasRule =
+  (kind: AclKind, owner?: (req: FastifyRequest) => { before: string | null; after: string | null }) =>
+  (req: FastifyRequest): boolean => {
+    try {
+      return aliasWidens(kind, id(req), body(req).acl, owner?.(req));
+    } catch (e) {
+      if ((e as { statusCode?: number }).statusCode === 400) return false;
+      throw e;
+    }
+  };
+/** The owner a body leaves (processes: null clears it; monitors: an empty one keeps the current). */
+const ownerChange = (before: string | null | undefined, next: unknown, clears: boolean) => ({
+  before: before ?? null,
+  after: typeof next === 'string' && next.trim() ? next.trim() : next === null && clears ? null : (before ?? null),
+});
 
 /** Access lists: who the route serves (its own right) and which changes give anyone a right (a new share, a raise, the defaults, an owner). */
 export const platformAccess = {
@@ -164,10 +167,10 @@ export const platformAccess = {
 };
 export const processAccess = {
   who: (req: FastifyRequest) => permissionsFor(id(req)).includes('manage'),
-  when: aliasRule('process', (req) => newOwner(getProcess(id(req)).owner, body(req).owner)),
+  when: aliasRule('process', (req) => ownerChange(getProcess(id(req)).owner, body(req).owner, true)),
 };
 export const monitorAccess = {
   who: (req: FastifyRequest) => !!requireMonitor(id(req), 'manage'),
   // (an empty owner keeps the current one, see monitors/service.ts setAccess)
-  when: aliasRule('monitor', (req) => newOwner(requireMonitor(id(req), 'manage').owner, body(req).owner)),
+  when: aliasRule('monitor', (req) => ownerChange(requireMonitor(id(req), 'manage').owner, body(req).owner, false)),
 };

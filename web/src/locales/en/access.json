@@ -212,6 +212,13 @@
       "roleDefaults": "the defaults of their roles"
     },
     "stepUpHint": "Giving access asks you to confirm it is you.",
-    "confirm": "Save"
-  }
+    "confirm": "Save",
+    "custom": "Custom: {{rights}} – exactly the rights of its former access-list entry. Changing the share replaces them with its level.",
+    "customShort": "Custom",
+    "customRight": "{{right}} (custom)"
+  },
+  "ownerSave": "Save owner",
+  "ownerSaved": "Owner saved",
+  "ownerNotSaved": "The owner could not be saved",
+  "ownerNotYours": "Who manages this item changes its owner."
 }

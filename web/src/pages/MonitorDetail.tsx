@@ -33,7 +33,8 @@ import { CopyId } from '../components/CopyId';
 import { DetailState, JsonView } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { LibraryOriginBadge } from '../components/libraries/parts';
-import { AccessEditor } from '../components/AccessEditor';
+import { AccessTab } from '../components/access/AccessTab';
+import { OwnerField } from '../components/access/OwnerField';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
@@ -45,7 +46,6 @@ import { MaintenanceDetailModal, MaintenanceFormModal, TargetBadges, useRepeatLa
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
-import { OwningTeams } from '../components/OwningTeams';
 import { DetailHeader } from '../components/page/DetailPage';
 import { monitorKeys } from '../queryKeys';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
@@ -392,21 +392,9 @@ export function MonitorDetailPage() {
           </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="access">
-          <OwningTeams kind="monitor" id={m.id} />
-          <AccessEditor
-            kind="monitor"
-            acl={m.acl}
-            owner={m.owner}
-            onSave={async (acl, owner) => {
-              try {
-                await put(`/monitors/${m.id}/access`, { acl, owner: owner ?? undefined });
-                notifyOk(t('detail.accessSaved'));
-                refresh();
-              } catch (e) {
-                notifyError(e);
-              }
-            }}
-          />
+          {/* 0.23.0 (ADR 0033 phase 2): the access list became shares – the Access tab, the owner beside it */}
+          <OwnerField kind="monitor" id={m.id} owner={m.owner} canChange={m.permissions.includes('manage')} onSaved={refresh} />
+          <AccessTab kind="monitor" id={m.id} />
         </Tabs.Panel>
       </Tabs>
       {maint && (

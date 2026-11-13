@@ -184,6 +184,13 @@ export interface Resources {
     'shares.change.roleDefaults': string;
     'shares.stepUpHint': string;
     'shares.confirm': string;
+    'shares.custom': string;
+    'shares.customShort': string;
+    'shares.customRight': string;
+    ownerSave: string;
+    ownerSaved: string;
+    ownerNotSaved: string;
+    ownerNotYours: string;
   };
   applications: {
     title: string;
@@ -6693,6 +6700,7 @@ export interface Resources {
     'codes.SHARE_EXCEEDS_OWN_RIGHTS': string;
     'codes.SHARE_EXPIRY_INVALID': string;
     'codes.SHARE_ACTION_UNKNOWN': string;
+    'codes.SHARE_LEVEL_UNAVAILABLE': string;
     'codes.COST_PRICE_BOOK_NOT_FOUND': string;
     'codes.COST_PRICE_BOOK_LIMIT': string;
     'codes.COST_PRICE_BOOK_KIND': string;

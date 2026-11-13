@@ -9,7 +9,8 @@ import type { NamedMigration } from '../db.js';
  *   resource_shares.rights: _Custom_ – the exact rights of an entry that no level and action rights express (a process
  *     entry with `manage` but not `edit`), JSON array in the kind's own rights; NULL for every other share.
  *   One share per subject of every `acl` entry with at least one right (several entries of one subject add up, as they
- *   did when deciding; entries without rights are dropped, as `setSiteAccess` dropped them):
+ *   did when deciding; entries without rights are dropped, as `setSiteAccess` dropped them, and so are `role:admin`
+ *   entries – administrators have every right anyway, and a share cannot name them):
  *   - process  `view/run/edit/approve/manage`: any right sees it; Manage when `manage` and `edit`, Edit when `edit`,
  *     else View; `run`, `approve` as action rights; `manage` without `edit` is Custom (its exact rights).
  *   - monitor  `view/acknowledge/edit/manage`: `manage` includes the others (Manage with `acknowledge`), Edit when
@@ -121,7 +122,7 @@ function convert(k: AclKind, d: Dialect): string {
   const shares = `INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, created_by, created_at, rights)
     SELECT '${k.kind}', rid, subj, ${k.level}, ${jsonList(k.actions)}, NULL, 'system', ${NOW[d]}, ${k.rights ?? 'NULL'}
     FROM (SELECT e.rid, e.subj, ${has} FROM (${entries(k, d)}) e GROUP BY e.rid, e.subj) x
-    WHERE ${any} > 0 AND (subj LIKE 'user:_%' OR subj LIKE 'team:_%' OR subj LIKE 'role:_%')
+    WHERE ${any} > 0 AND (subj LIKE 'user:_%' OR subj LIKE 'team:_%' OR subj LIKE 'role:_%') AND subj <> 'role:admin'
     ON CONFLICT DO NOTHING;`;
   if (!k.restrict) return shares;
   const listed =

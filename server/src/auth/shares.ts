@@ -273,6 +273,11 @@ export interface ShareChange {
   shares: readonly ShareWrite[];
   /** The item for audit summaries, e.g. `service "Order intake"` (default: the kind's name for it) */
   label?: string;
+  /**
+   * Whether the change widens access, when the caller decided it in its own terms (the deprecated access-list routes
+   * compare the role defaults an emptied list gave back, auth/acl-shares.ts); default: any share gain
+   */
+  widens?: boolean;
 }
 
 /**
@@ -323,7 +328,7 @@ export function setShares(c: ShareChange): ResourceShare[] {
         throw new HttpError(403, `You cannot share more than you hold yourself (${s.subject})`, 'SHARE_EXCEEDS_OWN_RIGHTS', { subject: s.subject });
     }
   }
-  if (gains.length) requireAccessGrant();
+  if (c.widens ?? gains.length > 0) requireAccessGrant();
   const d = db();
   const ts = nowIso();
   const actor = currentActor();
@@ -393,12 +398,20 @@ export function setShares(c: ShareChange): ResourceShare[] {
  * holders, administrators). Switching it off gives the role defaults back and asks for the step-up; switching it on
  * narrows. Audited as `access.scope_changed`. Returns whether anything changed.
  */
-export function setRestricted(c: { kind: OwnedKind; id: string; restricted: boolean; held: HeldShare | 'all'; label?: string }): boolean {
+export function setRestricted(c: {
+  kind: OwnedKind;
+  id: string;
+  restricted: boolean;
+  held: HeldShare | 'all';
+  label?: string;
+  /** Whether opening it widens access, when the caller decided it (see ShareChange.widens); default: always */
+  widens?: boolean;
+}): boolean {
   if (!managesShares(c.held)) throw forbidden();
   const before = isRestricted(c.kind, c.id);
   if (before === c.restricted) return false;
   const label = c.label ?? labelOf(c.kind, c.id);
-  if (!c.restricted) requireAccessGrant();
+  if (!c.restricted && c.widens !== false) requireAccessGrant();
   const teams = owningTeams(c.kind, c.id).map((t) => t.name);
   db().tx(() => {
     if (c.restricted)
