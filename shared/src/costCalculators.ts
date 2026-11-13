@@ -310,8 +310,15 @@ export const costCalculationInput = z
   .strict();
 export type CostCalculationInput = z.input<typeof costCalculationInput>;
 
+/**
+ * What an estimate is for: an application or system of the service, a platform, or – with the data products module
+ * (ADR 0035 part 6, ADR 0036 part 11) – a data product the estimate's editor may see.
+ */
+export const COST_ESTIMATE_TARGET_KINDS = ['application', 'system', 'platform', 'dataProduct'] as const;
+export type CostEstimateTargetKind = (typeof COST_ESTIMATE_TARGET_KINDS)[number];
+
 export const costEstimateTarget = z
-  .object({ kind: z.enum(['application', 'system', 'platform']), id: z.string().trim().min(1).max(100) })
+  .object({ kind: z.enum(COST_ESTIMATE_TARGET_KINDS), id: z.string().trim().min(1).max(100) })
   .strict()
   .nullable()
   .default(null);
@@ -422,7 +429,7 @@ export interface CostEstimate {
   title: string;
   description: string;
   owner: { kind: CostEstimateOwnerKind; id: string; name: string };
-  for: { kind: 'application' | 'system' | 'platform'; id: string; name: string; visible: boolean } | null;
+  for: { kind: CostEstimateTargetKind; id: string; name: string; visible: boolean } | null;
   calculator: { id: string; name: string; version: number; latest: number } | null;
   inputs: { key: string; value: CostInputValue }[];
   lines: CostEstimateHandLine[];
@@ -448,7 +455,7 @@ export interface CostEstimateSummary {
   id: string;
   title: string;
   owner: { kind: CostEstimateOwnerKind; id: string; name: string };
-  for: { kind: 'application' | 'system' | 'platform'; id: string; name: string } | null;
+  for: { kind: CostEstimateTargetKind; id: string; name: string } | null;
   calculator: { id: string; name: string } | null;
   currency: string;
   appliesFrom: string;

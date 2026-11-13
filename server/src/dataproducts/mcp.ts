@@ -24,6 +24,7 @@ import { healthOf, productHealthByEnvironment } from './health.js';
 import { lineageView } from './views.js';
 import { productSteps } from './steps.js';
 import { elementDetail, productDetail, productLineage } from './api-v1.js';
+import { productEstimates } from './estimates.js';
 import { productCosts } from './costs.js';
 import type { ObjectRow, ProductRow } from './store.js';
 
@@ -331,13 +332,14 @@ export const dataProductTools: ToolDef[] = [
     name: 'get_data_product_costs',
     title: 'Get the costs of a data product',
     description:
-      'The costs attributed to a product (showback, never a budget): per month and currency, direct lines and shares by their allocation rule – what you may see; incomplete when a part is hidden from you. Compare products of a similar kind to discuss price ranges.',
+      'The costs attributed to a product (showback, never a budget): per month and currency, direct lines and shares by their allocation rule (equal, weight, measured use) – what you may see; incomplete when a part is hidden from you – and, with the Costs module, the estimates made for the product with estimated against attributed per month. Compare products of a similar kind to discuss price ranges (calculate_cost_estimate can name a product to compare with).',
     input: z.object({ productId: idOrKey('Data product'), environment: env, months: z.number().int().min(1).max(24).default(3) }).strict(),
     visible,
     handler: (a) =>
       read(() => {
         const { row } = svc.visibleProduct(productIdOf(a.productId));
         const c = productCosts(row.id, { environment: a.environment, months: a.months });
+        const est = productEstimates(row.id, { environment: a.environment, months: a.months });
         const amount = (micros: number) => (micros / 1e6).toFixed(2);
         return {
           product: { id: row.id, key: row.key, name: row.name },
@@ -359,9 +361,32 @@ export const dataProductTools: ToolDef[] = [
               currency: l.currency,
               match: l.match,
               sharedWith: l.products - 1,
+              ...(l.measured ? { measured: l.measured } : {}),
             })),
           })),
           value: c.value,
+          // phase 2: the estimates for this product (as their owners' plans let you read them) against what is attributed
+          estimates: est.available
+            ? est.estimates.slice(0, 50).map((e) => ({
+                id: e.id,
+                title: e.title,
+                owner: e.owner,
+                currency: e.currency,
+                appliesFrom: e.appliesFrom,
+                monthly: e.monthly,
+                atListPrice: e.atListPrice,
+              }))
+            : null,
+          estimatedAgainstAttributed: est.comparison
+            .filter((x) => x.estimated)
+            .map((x) => ({
+              month: x.month,
+              currency: x.currency,
+              attributed: amount(x.attributedMicros),
+              incomplete: x.incomplete,
+              estimated: { low: amount(x.estimated!.low), expected: amount(x.estimated!.expected), high: amount(x.estimated!.high) },
+              difference: amount(x.attributedMicros - x.estimated!.expected),
+            })),
         };
       }),
   }),

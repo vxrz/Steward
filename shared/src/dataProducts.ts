@@ -1,5 +1,6 @@
 import { CIA_DIMENSIONS, levelRank, type ApplicationRating, type CiaDimension, type CiaLevel, type CiaColor } from './catalogue.js';
 import type { MonitorStatus } from './monitors.js';
+import type { CostEstimateSummary } from './costCalculators.js';
 
 /**
  * The data products module (0.22.0, ADR 0036, docs/DATA-PRODUCTS.md): data objects say what the business data is, how
@@ -1199,6 +1200,31 @@ export interface DataCostAllocation {
   canEdit: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
+}
+
+/**
+ * Estimated against attributed (phase 2, ADR 0035 part 6 / ADR 0036 part 11; GET /api/data-products/:id/estimates):
+ * the estimates _for_ the product the reader may see (each belongs to a service or a platform, as cost plans) and per
+ * month and currency the attributed costs beside the sum of the estimates that apply in that month (low, expected,
+ * high). Amounts in micros; nothing is netted or booked.
+ */
+export interface DataProductEstimates {
+  productId: string;
+  environment: string | null;
+  /** The Costs module is on (estimates belong to it); off: no estimates and no comparison */
+  available: boolean;
+  estimates: CostEstimateSummary[];
+  comparison: {
+    month: string;
+    currency: string;
+    attributedMicros: number;
+    /** A part of the attributed costs is hidden from the reader */
+    incomplete: boolean;
+    /** The estimates of the currency that apply in the month (null: none, or their amounts are hidden from the reader) */
+    estimated: { low: number; expected: number; high: number } | null;
+    /** An estimate is shown at list prices to this reader (rates they may not see) */
+    atListPrice: boolean;
+  }[];
 }
 
 // ---------- scorecard and maturity (part 13; WP4) ----------
