@@ -14256,6 +14256,13 @@
           "platformHidden": {
             "type": "boolean"
           },
+          "iemDeviceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "0.25.0: its device id in Industrial Edge Management (an external reference)"
+          },
           "applicationCount": {
             "type": "integer",
             "description": "Applications that run on the system"
@@ -14710,6 +14717,7 @@
           "attributes",
           "platform",
           "platformHidden",
+          "iemDeviceId",
           "applicationCount",
           "environments",
           "eol",
@@ -28260,6 +28268,63 @@
                 "domain": {
                   "type": "string"
                 },
+                "system": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "0.25.0: the Steward system this device is (null also when the reader may not see it)"
+                },
+                "systemRef": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "systemHidden": {
+                  "type": "boolean"
+                },
                 "purpose": {
                   "type": "string"
                 },
@@ -28555,6 +28620,9 @@
                 "id",
                 "hostname",
                 "domain",
+                "system",
+                "systemRef",
+                "systemHidden",
                 "purpose",
                 "mac",
                 "serial",
@@ -29575,6 +29643,63 @@
                 "domain": {
                   "type": "string"
                 },
+                "system": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "0.25.0: the Steward system this device is (null also when the reader may not see it)"
+                },
+                "systemRef": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "application",
+                            "platform",
+                            "process",
+                            "dataset",
+                            "job"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "Its name (empty when the token owner may not see it)"
+                        },
+                        "path": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "label",
+                        "path",
+                        "visible"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "systemHidden": {
+                  "type": "boolean"
+                },
                 "purpose": {
                   "type": "string"
                 },
@@ -29870,6 +29995,9 @@
                 "id",
                 "hostname",
                 "domain",
+                "system",
+                "systemRef",
+                "systemHidden",
                 "purpose",
                 "mac",
                 "serial",
@@ -43899,7 +44027,8 @@
               "api.endpoint",
               "files.path",
               "insightsHub.aspect",
-              "other"
+              "other",
+              "mqtt.topic"
             ]
           },
           "qualifiedName": {
@@ -44020,7 +44149,8 @@
               "api.endpoint",
               "files.path",
               "insightsHub.aspect",
-              "other"
+              "other",
+              "mqtt.topic"
             ]
           },
           "qualifiedName": {
@@ -45186,7 +45316,8 @@
                     "api.endpoint",
                     "files.path",
                     "insightsHub.aspect",
-                    "other"
+                    "other",
+                    "mqtt.topic"
                   ]
                 },
                 "layer": {
@@ -58336,7 +58467,8 @@
                 "api.endpoint",
                 "files.path",
                 "insightsHub.aspect",
-                "other"
+                "other",
+                "mqtt.topic"
               ]
             },
             "in": "query",

@@ -492,7 +492,8 @@
             "api.endpoint",
             "files.path",
             "insightsHub.aspect",
-            "other"
+            "other",
+            "mqtt.topic"
           ]
         },
         "qualified_name": {
@@ -559,7 +560,8 @@
             "api.endpoint",
             "files.path",
             "insightsHub.aspect",
-            "other"
+            "other",
+            "mqtt.topic"
           ]
         },
         "qualified_name": {

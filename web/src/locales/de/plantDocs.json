@@ -351,7 +351,7 @@
     "topicRequired": "Nennen Sie das Topic",
     "platform": "MQTT-Broker-Plattform",
     "platformHint": "Leer lassen für einen Broker, der keine Plattform in Steward ist, etwa den Databus eines Edge-Geräts.",
-    "broker": "Broker (host:port)",
+    "broker": "Broker (Host:Port)",
     "brokerHint": "Der Industrial-Edge-Databus ist ie-databus:1883 auf seinem Gerät. Daraus ergibt sich der OpenLineage-Namespace mqtt://host:port.",
     "environment": "Umgebung",
     "create": "Element anlegen",

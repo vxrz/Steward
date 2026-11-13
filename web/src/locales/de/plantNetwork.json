@@ -459,7 +459,7 @@
       "unknown": "Kein Bericht",
       "notOnboarded": "Nicht eingebunden"
     },
-    "firmware": "Firmware {{firmware}}",
+    "firmware": "Firmware-Version {{firmware}}",
     "lastReport": "letzter Bericht {{date}}",
     "rule": "online innerhalb {{interval}} min + {{grace}} min"
   }
