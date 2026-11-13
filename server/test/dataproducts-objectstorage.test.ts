@@ -210,7 +210,7 @@ describe('checks, links and file ports', () => {
     expect((doc.data_product ?? doc.data_products[0]).ports.find((x: { name: string }) => x.name === 'daily sales files')).toMatchObject({ file_format: 'csv', partitioning: ['dt'] });
     const token = (await dana('POST', '/me/tokens', { name: 'api dana', scope: 'read' })).token as string;
     const v1 = (await (await fetch(`${s.base}/api/v1/data-products/${p.id}`, { headers: { authorization: `Bearer ${token}` } })).json()) as {
-      ports: Record<string, unknown>[];
+      ports: { name: string }[];
     };
     expect(v1.ports.find((x: { name: string }) => x.name === 'daily sales files')).toMatchObject({ fileFormat: 'csv', partitioning: ['dt'] });
     // a change of the port keeps them when it leaves them out, and takes new ones

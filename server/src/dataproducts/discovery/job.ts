@@ -196,7 +196,7 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
   let missing: string[] = [];
   let removed = 0;
   let platformName = '';
-  let platformKind = '';
+  let platformKind: string | undefined;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budget);
   timer.unref?.();

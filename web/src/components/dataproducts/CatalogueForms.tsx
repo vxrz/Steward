@@ -28,6 +28,7 @@ import {
   DATA_PRODUCT_LIMITS as L,
   DEFAULT_DATA_LAYERS,
   elementKindFits,
+  S3_DISCOVERY_SCOPE_RE,
   type DataDiscoveryMode,
   type DataDiscoverySource,
   type DataDiscoverySourceInput,
@@ -48,7 +49,8 @@ import { FormButtons, isHttpUrl, useBusy } from './form';
 const enc = encodeURIComponent;
 
 /** The platforms discovery reads (Confluent Cloud clusters are read as Kafka platforms). */
-export const DISCOVERABLE_PLATFORM_KINDS = ['snowflake', 'kafka', 'database'] as const;
+// 0.25.0: an AWS account platform reads S3 prefixes (files.path elements)
+export const DISCOVERABLE_PLATFORM_KINDS = ['snowflake', 'kafka', 'database', 'aws'] as const;
 
 /**
  * An element of the catalogue entered by hand (ADR 0036 part 5) – for what discovery does not read (APIs, file paths,
@@ -280,7 +282,9 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     platform: !platformId && t('common:validation.required'),
-    scope: kind === 'snowflake' && !scope.length && t('discovery.scopeSnowflakeRequired'),
+    scope:
+      (kind === 'snowflake' && !scope.length && t('discovery.scopeSnowflakeRequired')) ||
+      (kind === 'aws' && scope.some((x) => !S3_DISCOVERY_SCOPE_RE.test(x.trim())) && t('discovery.scopeS3Invalid')),
     rules: rules.some((r) => !r.value.trim() || !r.environment.trim()) && t('discovery.rulesIncomplete'),
   });
   const save = () =>

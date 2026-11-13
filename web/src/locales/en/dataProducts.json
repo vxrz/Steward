@@ -262,6 +262,13 @@
     "type": "Type",
     "version": "Version",
     "versionHint": "E.g. v2 – a new version is a new port; deprecate the older one.",
+    "fileFormat": "Format of the files",
+    "fileFormatHint": "What the port’s files are – discovery reads it from the bound files.",
+    "partitioning": "Partitioned by",
+    "partitioningHint": "Partition keys in their order (dt, region) – Hive style key=value folders; Enter after each.",
+    "files": "Files",
+    "filesFormat": "{{format}} files",
+    "partitionedBy": "partitioned by {{keys}}",
     "lifecycle": "Lifecycle of the port",
     "successor": "Successor port",
     "sunset": "sunset on {{date}}",
@@ -301,6 +308,7 @@
     "elementsIn": "Elements it reads",
     "elementsHint": "Elements of {{environment}}, at most {{max}}. They become members of the product with the port's role.",
     "contract": "Data contract",
+    "objectStorage": "Object storage (ODCS server s3)",
     "contractLabel": "Contract",
     "contractHint": "The ODCS contract the port is held to in this environment.",
     "noContract": "No contract",
@@ -915,6 +923,14 @@
     "retentionDays_one": "{{count}} day",
     "retentionDays_other": "{{count}} days",
     "schemaVersion": "Schema version",
+    "objects": "Objects",
+    "fileFormat": "Format",
+    "partitionKeys": "Partitioned by",
+    "prefixes": "Folders one level down",
+    "stageUrl": "Reads from",
+    "pipeStage": "Reads the stage",
+    "pipeTarget": "Loads into",
+    "readoutTruncated": "A limit of the discovery run cut this read: the figures count a part of the objects.",
     "noReadout": "Only discovered elements have a readout.",
     "noReadoutYet": "Not read yet.",
     "facts": "Facts",
@@ -1111,9 +1127,11 @@
     "scopeHints": {
       "snowflake": "Databases, or DATABASE.SCHEMA – Enter after each.",
       "kafka": "Topic prefixes; empty: every topic (internal ones left out).",
-      "database": "Schema names; empty: the whole snapshot."
+      "database": "Schema names; empty: the whole snapshot.",
+      "aws": "S3 prefixes as s3://bucket/prefix/ – only these are listed (a bucket’s root only as s3://bucket/); empty: the files.path elements of products on this platform."
     },
     "scopeSnowflakeRequired": "Name at least one Snowflake database",
+    "scopeS3Invalid": "Name S3 prefixes as s3://bucket/prefix/",
     "allScope": "Everything",
     "include": "Include prefixes",
     "includeHint": "Only names starting with one of these – plain comparisons, no patterns.",
@@ -1435,5 +1453,16 @@
     "days_other": "{{count}} days",
     "hours_one": "{{count}} hour",
     "hours_other": "{{count}} hours"
+  },
+  "fileFormats": {
+    "parquet": "Parquet",
+    "csv": "CSV",
+    "json": "JSON",
+    "avro": "Avro",
+    "orc": "ORC",
+    "iceberg": "Iceberg",
+    "delta": "Delta Lake",
+    "mixed": "Mixed",
+    "other": "Other"
   }
 }

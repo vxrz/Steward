@@ -5238,6 +5238,13 @@ export interface Resources {
     'ports.type': string;
     'ports.version': string;
     'ports.versionHint': string;
+    'ports.fileFormat': string;
+    'ports.fileFormatHint': string;
+    'ports.partitioning': string;
+    'ports.partitioningHint': string;
+    'ports.files': string;
+    'ports.filesFormat': string;
+    'ports.partitionedBy': string;
     'ports.lifecycle': string;
     'ports.successor': string;
     'ports.sunset': string;
@@ -5273,6 +5280,7 @@ export interface Resources {
     'bindings.elementsIn': string;
     'bindings.elementsHint': string;
     'bindings.contract': string;
+    'bindings.objectStorage': string;
     'bindings.contractLabel': string;
     'bindings.contractHint': string;
     'bindings.noContract': string;
@@ -5777,6 +5785,13 @@ export interface Resources {
     'elements.retentionDays_one': string;
     'elements.retentionDays_other': string;
     'elements.schemaVersion': string;
+    'elements.fileFormat': string;
+    'elements.partitionKeys': string;
+    'elements.prefixes': string;
+    'elements.stageUrl': string;
+    'elements.pipeStage': string;
+    'elements.pipeTarget': string;
+    'elements.readoutTruncated': string;
     'elements.noReadout': string;
     'elements.noReadoutYet': string;
     'elements.facts': string;
@@ -5949,7 +5964,9 @@ export interface Resources {
     'discovery.scopeHints.snowflake': string;
     'discovery.scopeHints.kafka': string;
     'discovery.scopeHints.database': string;
+    'discovery.scopeHints.aws': string;
     'discovery.scopeSnowflakeRequired': string;
+    'discovery.scopeS3Invalid': string;
     'discovery.allScope': string;
     'discovery.include': string;
     'discovery.includeHint': string;
@@ -6217,6 +6234,15 @@ export interface Resources {
     'duration.days_other': string;
     'duration.hours_one': string;
     'duration.hours_other': string;
+    'fileFormats.parquet': string;
+    'fileFormats.csv': string;
+    'fileFormats.json': string;
+    'fileFormats.avro': string;
+    'fileFormats.orc': string;
+    'fileFormats.iceberg': string;
+    'fileFormats.delta': string;
+    'fileFormats.mixed': string;
+    'fileFormats.other': string;
   };
   debug: {
     simulated: string;

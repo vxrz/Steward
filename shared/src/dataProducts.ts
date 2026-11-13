@@ -973,7 +973,7 @@ export const DATA_DISCOVERY_LIMITS = {
  * bucket as S3 names it (3–63 lower-case letters, digits, `.` and `-`), the prefix a key prefix ending in `/` (empty: the
  * bucket's root, read only when a scope names it so). A discovery source of an AWS account names such prefixes.
  */
-export const S3_DISCOVERY_SCOPE_RE = /^s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\/([^\s\\{}^%`\[\]"<>#|~]{0,900}\/)?$/;
+export const S3_DISCOVERY_SCOPE_RE = /^s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\/([^\s\\{}^%`[\]"<>#|~]{0,900}\/)?$/;
 
 /** The parts of an object storage URL (`s3://bucket/prefix/`; a prefix as written – a folder ends in `/`), or null. */
 export function parseObjectStorageUrl(url: string): { scheme: 's3'; bucket: string; prefix: string } | null {

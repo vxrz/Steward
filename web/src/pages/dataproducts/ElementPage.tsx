@@ -11,6 +11,7 @@ import {
   type DataContractDraft,
   type DataCostMatch,
   type DataElement,
+  type DataFileFormat,
   type DataElementCheck,
   type DataObjectSummary,
   type DataPage,
@@ -33,7 +34,7 @@ import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { ElementLineageView, HealthBadge } from './views';
 import { dpKeys, useElement, useElementChecks, useElementCostMatches, useInvalidateDataProducts } from './api';
 import { CostMatchForm, MatchTable, useMatchText } from './ProductCosts';
-import { CardTable, Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
+import { Breakable, CardTable, Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
 import { MissingBadge } from './ElementsPage';
 import { ElementQualityPanel, PersonalFieldsPanel } from './ProductQuality';
 
@@ -186,6 +187,11 @@ function ElementOverview({ e }: { e: DataElement }) {
           </Section>
           <ObjectsOfElement e={e} />
           <Section title={t('elements.readout')} testId="element-readout">
+            {r?.truncated === true && (
+              <Alert color="yellow" variant="light" mb="xs" data-testid="element-readout-truncated">
+                {t('elements.readoutTruncated')}
+              </Alert>
+            )}
             {r ? (
               <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="sm">
                 <Fact label={t('elements.readAt')}>{fmtDate(r.readAt)}</Fact>
@@ -197,6 +203,32 @@ function ElementOverview({ e }: { e: DataElement }) {
                   <Fact label={t('elements.retention')}>{t('elements.retentionDays', { count: Math.round(r.retentionMs / 86_400_000) })}</Fact>
                 )}
                 {r.schemaVersion !== undefined && r.schemaVersion !== null && <Fact label={t('elements.schemaVersion')}>{fmtNumber(r.schemaVersion)}</Fact>}
+                {/* 0.25.0: files on object storage, a stage's location, a pipe's ends */}
+                {typeof r.objects === 'number' && <Fact label={t('elements.objects')}>{fmtNumber(r.objects)}</Fact>}
+                {typeof r.format === 'string' && <Fact label={t('elements.fileFormat')}>{t(`fileFormats.${r.format as DataFileFormat}`)}</Fact>}
+                {typeof r.partitionKeys === 'string' && r.partitionKeys && (
+                  <Fact label={t('elements.partitionKeys')}>
+                    <span className="mono">{r.partitionKeys.split(',').join(', ')}</span>
+                  </Fact>
+                )}
+                {typeof r.prefixes === 'number' && <Fact label={t('elements.prefixes')}>{fmtNumber(r.prefixes)}</Fact>}
+                {typeof r.url === 'string' && (
+                  <Fact label={t('elements.stageUrl')}>
+                    <span className="mono">
+                      <Breakable text={r.url} />
+                    </span>
+                  </Fact>
+                )}
+                {typeof r.stage === 'string' && (
+                  <Fact label={t('elements.pipeStage')}>
+                    <span className="mono">{r.stage}</span>
+                  </Fact>
+                )}
+                {typeof r.target === 'string' && (
+                  <Fact label={t('elements.pipeTarget')}>
+                    <span className="mono">{r.target}</span>
+                  </Fact>
+                )}
               </SimpleGrid>
             ) : (
               <Text size="sm" c="dimmed">

@@ -43630,6 +43630,35 @@
                 },
                 "consumesDeprecated": {
                   "type": "boolean"
+                },
+                "fileFormat": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "parquet",
+                        "csv",
+                        "json",
+                        "avro",
+                        "orc",
+                        "iceberg",
+                        "delta",
+                        "mixed",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "0.25.0: a file port’s format (Parquet, CSV, JSON, Avro, ORC, Iceberg …)"
+                },
+                "partitioning": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "0.25.0: a file port’s partition keys, in their order"
                 }
               },
               "required": [
@@ -43647,7 +43676,9 @@
                 "objects",
                 "bindings",
                 "consumers",
-                "consumesDeprecated"
+                "consumesDeprecated",
+                "fileFormat",
+                "partitioning"
               ],
               "additionalProperties": false
             }
