@@ -366,6 +366,8 @@ export const dataContractDraftInput = z.discriminatedUnion('source', [
     .strict(),
   z.object({ source: z.literal('recording'), platformId: id, recordingId: id }).strict(),
   z.object({ source: z.literal('dataset'), dataset: id }).strict(),
+  /** An element of the data products catalogue (ADR 0036 part 7): a Snowflake table's columns, a Kafka topic's schema, a database table */
+  z.object({ source: z.literal('element'), elementId: id }).strict(),
   z
     .object({
       source: z.literal('table'),
