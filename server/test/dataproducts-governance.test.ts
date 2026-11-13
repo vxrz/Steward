@@ -268,7 +268,20 @@ describe('access requests', () => {
   });
 
   it('needs two people for a product rated high, never the requester, and refusals give a reason', async () => {
+    // asked while the product was not rated high: four eyes all the same when it is rated high at the decision
+    const before = await vera('POST', `/data-products/${product}/ports/${port}/access-requests`, {
+      environment: 'prod',
+      consumer: { kind: 'text', text: 'Invented early report' },
+      purpose: 'Report',
+    });
+    expect(before.fourEyes).toBe(false);
     await dana('PUT', `/data-products/${product}/rating`, { confidentiality: { level: 'high', justification: 'Customer orders' } });
+    expect(await dana('POST', `/data-products/access-requests/${before.id}/decision`, { decision: 'approve' })).toMatchObject({
+      status: 'pending',
+      fourEyes: true,
+      approvals: [expect.objectContaining({ by: 'dana' })],
+    });
+    expect((await s.api('POST', `/data-products/access-requests/${before.id}/decision`, { decision: 'approve' })).status).toBe('approved');
     const r = await vera('POST', `/data-products/${product}/ports/${port}/access-requests`, {
       environment: 'prod',
       consumer: { kind: 'text', text: 'Invented dashboard' },
