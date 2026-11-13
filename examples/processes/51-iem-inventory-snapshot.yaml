@@ -9,7 +9,8 @@ description: |
   - Onboarding: `deviceStatus` of the paged device list `GET /portal/api/v1/devices`
     (ACTIVE, PENDING = not onboarded yet; DELETED devices are left out).
   - Online and last seen: the newest key of `GET /portal/api/v1/devices/{id}/statistics`
-    (epoch milliseconds of the last report). Online = reported within
+    (epoch milliseconds of the last report). Online = reported within the
+    device's report interval (`SystemInfo.Period`, usually 60 minutes) plus
     `onlineWithinMinutes`; no statistics = unknown, not offline.
   - Firmware: `deviceVersion` of `GET /portal/api/v1/devices/{id}`, e.g.
     `ied-os-2.4.0-12-amd64`. The version number in it (2.4.0) is compared with
@@ -35,7 +36,7 @@ inputs:
     type: string
     default: 2.3.0
   - name: onlineWithinMinutes
-    label: Online when the last report is at most this old (minutes)
+    label: Grace after the device's report interval before it counts as offline (minutes)
     type: number
     default: 15
   - name: offlineCriticalHours
@@ -97,7 +98,10 @@ steps:
               $times := vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)];
               $last := $max($times.$number($));
               $minutes := $exists($last) ? ($toMillis($now()) - $last) / 60000;
-              $online := $exists($last) and $minutes <= $inputs.onlineWithinMinutes;
+              $report := $exists($last) ? $string($lookup(vars.stats.body.data, $string($last)));
+              $p := $match($report, /Period\W+([0-9.]+) *(minute|hour)/)[0];
+              $interval := $p ? $number($p.groups[0]) * ($p.groups[1] = 'hour' ? 60 : 1) : 60;
+              $online := $exists($last) and $minutes <= $interval + $inputs.onlineWithinMinutes;
               {
                 'id': vars.device.id,
                 'name': vars.device.name,
