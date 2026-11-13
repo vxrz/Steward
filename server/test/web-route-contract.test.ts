@@ -60,10 +60,6 @@ const API_ONLY: Record<string, string> = {
   'GET /api/docs': 'Swagger UI of the public API (linked from the URL /api/public-api returns)',
   'GET /api/costs/calculators/:calculatorId/versions/:n':
     'a published version of a cost calculator, for scripts and reviews (0.21.0); the editor shows the current one',
-  'GET /api/data-products/schema': 'data products API, pages to come (ADR 0036 WP5); the file format for scripts',
-  'GET /api/data-products/export': 'data products API, pages to come (ADR 0036 WP5)',
-  'GET /api/data-products/:id/export': 'data products API, pages to come (ADR 0036 WP5)',
-  'GET /api/data-products/:id/odps': 'data products API, pages to come (ADR 0036 WP5)',
   'POST /api/data-products/import/preview': 'data products API, pages to come (ADR 0036 WP5)',
   'POST /api/data-products/import': 'data products API, pages to come (ADR 0036 WP5)',
   // the data products module (ADR 0036): the web app reads a domain with the list
