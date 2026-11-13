@@ -72,6 +72,8 @@ export function qualityDimensionOf(hint: string | null | undefined, name?: strin
   // by the model (not_null_orders_id) – the first known word wins
   const words: [string, DataQualityDimension][] = [
     ['not_null', 'completeness'],
+    // dbt_expectations: expect_column_values_to_not_be_null (before expect_column_values)
+    ['not_be_null', 'completeness'],
     ['null_values', 'completeness'],
     ['missing_values', 'completeness'],
     ['invalid_values', 'accuracy'],

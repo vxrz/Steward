@@ -84,6 +84,8 @@ describe('quality results', () => {
     expect(qualityDimensionOf(null, 'SNOWFLAKE.CORE.NULL_COUNT(EMAIL)')).toBe('completeness');
     expect(qualityDimensionOf(null, 'SNOWFLAKE.CORE.DUPLICATE_COUNT')).toBe('consistency');
     expect(qualityDimensionOf(null, 'nullValues')).toBe('completeness');
+    expect(qualityDimensionOf(null, 'dbt_expectations_expect_column_values_to_not_be_null_orders_email')).toBe('completeness');
+    expect(qualityDimensionOf(null, 'dbt_expectations_expect_column_values_to_be_in_set_orders_status')).toBe('accuracy');
     expect(qualityDimensionOf(null, 'something_else')).toBeNull();
   });
 
