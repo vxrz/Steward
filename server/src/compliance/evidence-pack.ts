@@ -49,6 +49,7 @@ import type { PackPdfModel } from './pack-pdf.js';
 import { drawPdf } from '../reports/pdf/pool.js';
 import { getBranding, logo } from '../reports/branding.js';
 import { assuranceReportJson, collectAssuranceReport, renderAssurancePdf } from './assurance-report.js';
+import { moduleAccessEvidence } from '../modules/access-evidence.js';
 import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
 import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
 import { env } from '../config.js';
@@ -802,6 +803,15 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
     if (capabilities(u).viewAudit) auditInfo = await addAuditExcerpt(b, from, to);
     else b.omitted.push('Audit log excerpt: only auditors and administrators may export the audit log');
 
+    // 4a. module access (ADR 0034): who uses each restricted module now and its changes in the period – an access
+    // layer of its own, instance-wide, so auditors and administrators only (as the audit log excerpt)
+    let moduleAccessInfo: Record<string, unknown> = { included: false };
+    if (capabilities(u).viewAudit) {
+      const ma = moduleAccessEvidence(from, to);
+      await b.json('access/module-access.json', { format: 'steward-module-access', version: 1, from, to, ...ma });
+      moduleAccessInfo = { included: true, files: ['access/module-access.json'], restricted: ma.current.length, changes: ma.changes.length };
+    } else b.omitted.push('Module access: only auditors and administrators may export who uses each module');
+
     // 4b. the assurance report of the period (#210): PDF/A and JSON, listed in the signed manifest like every file
     let assuranceInfo: Record<string, unknown> = { included: false };
     if (opts.assurance && capabilities(u).viewAudit) {
@@ -856,6 +866,7 @@ async function buildPack(id: string, lang: ReportLang, opts: { assurance?: boole
         : {}),
       ...(soas.length ? { statementsOfApplicability: soas } : {}),
       audit: auditInfo,
+      moduleAccess: moduleAccessInfo,
       assurance: assuranceInfo,
       omitted: b.omitted,
       files: b.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),

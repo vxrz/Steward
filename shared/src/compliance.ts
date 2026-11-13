@@ -5,6 +5,7 @@
  * and web: field definitions, API shapes and the access snapshot format.
  */
 import type { RecordFieldDef, RecordTypeDefinition } from './records.js';
+import type { ModuleUse } from './modules.js';
 
 // ---------- access change entries (a built-in record type) ----------
 
@@ -451,6 +452,11 @@ export interface PersonReview {
   canApprove: boolean;
   /** Re-read the platforms to confirm the removals (approved or closed reviews) */
   canRecheck: boolean;
+  /**
+   * A Steward user: the restricted modules of Steward and whether they use each, and through what (ADR 0034) – read
+   * now, not frozen into the review (who uses a module is changed in Settings → Modules, not on a platform)
+   */
+  modules?: ModuleUse[];
 }
 
 export interface PersonReviewSummary {

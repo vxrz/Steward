@@ -187,7 +187,8 @@ export const MODULES: readonly ModuleDef[] = [
     routes: ['/api/data-contracts'],
     jobs: [],
     platformKinds: ['datacontract'],
-    access: { restrictable: true, events: ['contract.failed'], reportSections: ['contracts'] },
+    // its data contracts have owning teams (owning-team kind `contract`): the access preview names those without it
+    access: { restrictable: true, events: ['contract.failed'], reportSections: ['contracts'], itemKinds: ['contract'] },
   },
   {
     id: 'ai',
@@ -407,6 +408,36 @@ export interface ModuleAccessPreview {
   loses: { username: string; displayName: string }[];
   /** Teams that own items of the module but would not use it */
   owningTeamsWithout: string[];
+}
+
+/**
+ * Why a person uses a module (ADR 0034 part 7: access reviews, _Why do I have access?_, the test sign-in): everyone
+ * signed in (an open module), as an administrator or auditor, named on its list, or through a team on its list.
+ */
+export interface ModuleUseReason {
+  source: 'everyone' | 'admin' | 'auditor' | 'user' | 'team';
+  /** source team: the team's name as stored on the list */
+  team?: string;
+}
+
+/** Whether a person uses a module that is on, and through what (empty `through`: they do not use it). */
+export interface ModuleUse {
+  module: ModuleId;
+  /** Whether the module is switched on */
+  enabled: boolean;
+  /** Whether it is restricted to selected teams and users */
+  restricted: boolean;
+  uses: boolean;
+  through: ModuleUseReason[];
+}
+
+/**
+ * POST /api/report-schedules/recipients-preview (ADR 0034 decision 12): per restricted module whose sections a
+ * schedule holds, the recipients who get the report without them – named users, teams not on the module's list (their
+ * members get it only when they use the module otherwise) and the number of e-mail addresses outside Steward.
+ */
+export interface ReportModuleRecipients {
+  modules: { module: ModuleId; ownerUses: boolean; users: string[]; teams: string[]; emails: number }[];
 }
 
 /** On/off per module, as the web app gets it (Capabilities.modules; a module missing there is on). */

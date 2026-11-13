@@ -2,6 +2,7 @@ import { CONTROL_POINTS, controlPoint, type ReportLang } from '@sm/shared';
 import { ReportWriter } from '../reports/pdf/engine.js';
 import { translator } from '../reports/i18n.js';
 import { PRODUCT, chrome, langTag, type BrandingInput } from '../reports/common.js';
+import type { ModuleAccessEvidence } from '../modules/access-evidence.js';
 
 /**
  * The assurance report as PDF/A (#210, compliance/assurance-report.ts collects the model): the policy in force in a
@@ -32,6 +33,8 @@ export interface AssuranceReportModel {
   /** Audit entries read, and entries that failed their check (left out) */
   audit: { entries: number; rejected: number };
   truncated: boolean;
+  /** Who uses each restricted module now, and the changes of module access in the period (ADR 0034) */
+  moduleAccess?: Pick<ModuleAccessEvidence, 'current' | 'changes'>;
 }
 
 /** Labels of the control points in the report's language (the web app has its own, web/src/locales/<lang>/assurance.json). */
@@ -195,6 +198,21 @@ const TEXTS = {
       mfaMissing: 'Without MFA where required',
       loosening: 'Loosened (second administrator)',
     } as Record<string, string>,
+    modules: 'Module access',
+    modulesText:
+      'Who uses the modules restricted to selected teams and users at the end of the period, and every change of module access in it (access.module_access_changed). Every other module is used by everyone signed in; administrators and auditors use every module. Widening is confirmed with a step-up (Give rights in an access list), narrowing in the dialog.',
+    module: 'Module',
+    usedBy: 'Used by',
+    noRestricted: 'No module is restricted: everyone signed in uses every module that is on.',
+    noModuleChanges: 'Module access did not change in the period.',
+    moduleChanges: 'Changes in the period',
+    mode: { everyone: 'everyone signed in', selected: 'selected teams and users' } as Record<string, string>,
+    granted: 'Added',
+    removed: 'Removed',
+    confirmedStepUp: 'step-up',
+    confirmedDialog: 'dialog',
+    nobody: 'administrators and auditors only',
+    moduleNames: {} as Record<string, string>,
     integrity: 'Basis',
     integrityText:
       'Built from {n} authentic entries of the audit log (HMAC chain with signed checkpoints, ADR 0003). {rejected} entries did not pass their check and are left out. The audit log export of the same period lets an auditor check every count.',
@@ -255,6 +273,32 @@ const TEXTS = {
       mfaRefused: 'Abgelehnt: keine MFA',
       mfaMissing: 'Ohne MFA, wo verlangt',
       loosening: 'Gelockert (zweiter Administrator)',
+    } as Record<string, string>,
+    modules: 'Modulzugriff',
+    modulesText:
+      'Wer die auf ausgewählte Teams und Benutzer beschränkten Module am Ende des Zeitraums nutzt, und jede Änderung des Modulzugriffs im Zeitraum (access.module_access_changed). Alle anderen Module nutzen alle angemeldeten Personen; Administratoren und Auditoren nutzen jedes Modul. Eine Erweiterung wird mit einer erneuten Bestätigung bestätigt (Rechte in einer Zugriffsliste vergeben), eine Einschränkung im Dialog.',
+    module: 'Modul',
+    usedBy: 'Genutzt von',
+    noRestricted: 'Kein Modul ist beschränkt: Alle angemeldeten Personen nutzen jedes eingeschaltete Modul.',
+    noModuleChanges: 'Der Modulzugriff hat sich im Zeitraum nicht geändert.',
+    moduleChanges: 'Änderungen im Zeitraum',
+    mode: { everyone: 'alle angemeldeten Personen', selected: 'ausgewählte Teams und Benutzer' } as Record<string, string>,
+    granted: 'Hinzugefügt',
+    removed: 'Entfernt',
+    confirmedStepUp: 'Bestätigung',
+    confirmedDialog: 'Dialog',
+    nobody: 'nur Administratoren und Auditoren',
+    moduleNames: {
+      compliance: 'Compliance und Nachweise',
+      scorecard: 'Scorecard',
+      costs: 'Kosten',
+      dataContracts: 'Datenverträge',
+      ai: 'KI-Modelle',
+      teamsBot: 'Freigaben in Microsoft Teams',
+      libraries: 'Gemeinsame Prozessbibliotheken',
+      versionWatch: 'Versionsbeobachtung und Lebensende',
+      changedetection: 'changedetection.io',
+      plant: 'Werksregister',
     } as Record<string, string>,
     integrity: 'Grundlage',
     integrityText:
@@ -381,6 +425,51 @@ export async function drawAssurancePdf(m: AssuranceReportModel, brand: BrandingI
         .slice(0, MAX_ROWS)
         .map((e) => [{ text: L.kinds[e.kind] ?? e.kind, tone: e.kind === 'loosening' ? 'info' : 'warning' }, tr.dateTime(e.at), e.actor, e.text]),
     );
+
+  if (m.moduleAccess) {
+    const ma = m.moduleAccess;
+    const moduleName = (id: string, name: string) => L.moduleNames[id] ?? name;
+    const subjects = (xs: string[]) => xs.join(', ') || '–';
+    w.section(`${++n}. ${L.modules}`);
+    w.paragraph(L.modulesText, { tone: 'muted', size: 8 });
+    if (!ma.current.length) w.paragraph(L.noRestricted, { size: 9 });
+    else
+      w.table(
+        [
+          { header: L.module, width: 3 },
+          { header: L.usedBy, width: 6 },
+          { header: L.at, width: 2 },
+        ],
+        ma.current.map((c) => [moduleName(c.module, c.name), c.subjects.join(', ') || L.nobody, c.updatedAt ? `${tr.dateTime(c.updatedAt)}${c.updatedBy ? ` (${c.updatedBy})` : ''}` : '–']),
+      );
+    w.subheading(L.moduleChanges);
+    if (!ma.changes.length) w.paragraph(L.noModuleChanges, { size: 9 });
+    else
+      w.table(
+        [
+          { header: L.at, width: 2 },
+          { header: L.actor, width: 2 },
+          { header: L.module, width: 2 },
+          { header: L.what, width: 5 },
+          { header: L.stepUp, width: 1 },
+        ],
+        ma.changes
+          .slice(0, MAX_ROWS)
+          .map((c) => [
+            tr.dateTime(c.at),
+            c.actor,
+            moduleName(c.module, c.name),
+            [
+              c.before !== c.after ? `${L.mode[c.before] ?? c.before} → ${L.mode[c.after] ?? c.after}` : (L.mode[c.after] ?? c.after),
+              c.granted.length ? `${L.granted}: ${subjects(c.granted)}` : '',
+              c.removed.length ? `${L.removed}: ${subjects(c.removed)}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n'),
+            c.confirmed ? L.confirmedStepUp : L.confirmedDialog,
+          ]),
+      );
+  }
 
   w.section(`${n + 1}. ${L.integrity}`);
   w.paragraph(fill(L.integrityText, { n: m.audit.entries, rejected: m.audit.rejected }), { size: 8.5 });

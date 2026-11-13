@@ -6,6 +6,7 @@ import {
   REPORT_LANGS,
   REPORT_SCHEDULE_PRESETS,
   type ReportRecord,
+  type ReportModuleRecipients,
   type ReportRecipients,
   type ReportSchedule,
   type ReportSchedulePreset,
@@ -23,9 +24,9 @@ import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.
 import { notify, titleName } from '../notifications/service.js';
 import { assertEmailsAllowed } from '../notifications/domains.js';
 import { formatDateTime, t } from '../i18n/index.js';
-import { generateScheduledReport, reportSectionsFor } from './service.js';
+import { generateScheduledReport, reportSectionsFor, restrictableModulesOf } from './service.js';
 import { moduleAccessMode } from '../modules/registry.js';
-import { usesModule } from '../modules/access.js';
+import { subjectUsesModule, usesModule } from '../modules/access.js';
 import { asBackgroundPdf } from './pdf/pool.js';
 import { parseSections, reportSection } from './sections.js';
 import { me } from '../auth/access.js';
@@ -255,6 +256,42 @@ export const scheduleInputSchema = z.object({
   team: z.string().trim().min(1).max(100).nullable().default(null),
 });
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
+
+/** POST /report-schedules/recipients-preview: the sections chosen and the recipients, as the form holds them. */
+export const recipientsPreviewSchema = z
+  .object({
+    /** An existing schedule: its owner's module access counts instead of the caller's */
+    id: z.string().trim().min(1).max(100).optional(),
+    sections: z.array(z.string().trim().min(1).max(64)).max(100),
+    recipients: scheduleInputSchema.shape.recipients,
+  })
+  .strict();
+
+/**
+ * Who gets a schedule's report without the sections of a restricted module (ADR 0034 decision 12), for the form:
+ * named users who do not use it, teams that are not on its list (their members get the copy unless they use the module
+ * otherwise) and the e-mail addresses outside Steward (they never use a restricted module). `ownerUses`: false when the
+ * owner does not use it – the sections are then left out for everyone. Nothing for a module open to everyone.
+ */
+export function reportModuleRecipients(input: z.infer<typeof recipientsPreviewSchema>): ReportModuleRecipients {
+  const u = me();
+  const row = input.id ? db().get<Row>('SELECT * FROM report_schedules WHERE id = ?', input.id) : undefined;
+  if (input.id && (!row || !canEdit(u, row))) throw new HttpError(404, `Report schedule ${input.id} not found`, 'REPORT_SCHEDULE_NOT_FOUND', { id: input.id });
+  if (!row && !canCreateReportSchedules(u))
+    throw new HttpError(403, 'You are not allowed to create report schedules', 'FORBIDDEN', { context: 'createReportSchedule' });
+  const ownerInfo = row ? findUserByName(row.owner) : undefined;
+  const owner = ownerInfo ? toAuthUser(ownerInfo) : u;
+  const modules = restrictableModulesOf(input.sections).filter((m) => moduleAccessMode(accessModule(m)) === 'selected');
+  return {
+    modules: modules.map((m) => ({
+      module: m,
+      ownerUses: usesModule(owner, m),
+      users: [...new Set(input.recipients.users.filter((n) => !subjectUsesModule(`user:${n}`, m)))],
+      teams: [...new Set(input.recipients.teams.filter((n) => !subjectUsesModule(`team:${n}`, m)))],
+      emails: new Set(input.recipients.emails).size,
+    })),
+  };
+}
 
 /**
  * A report is a PDF that may be mailed with an attachment: at most once an hour. Five fields only (no
