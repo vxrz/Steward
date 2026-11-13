@@ -255,6 +255,11 @@ export function CoverageMatrix({ embedded }: { embedded?: boolean }) {
                 </Text>
               </Group>
             )}
+            {!!c.hiddenKpis && (
+              <Text size="xs" c="dimmed" data-testid="coverage-hidden-kpis">
+                {t('plant:catalogueAccess.coverageHidden', { count: c.hiddenKpis })}
+              </Text>
+            )}
             <CoverageLegend />
           </>
         )
@@ -406,7 +411,7 @@ function MatrixRow({
   onFocus: (col: number) => void;
   cellText: ReturnType<typeof useCellText>;
 }) {
-  const { t } = useTranslation('plantViews');
+  const { t } = useTranslation(['plantViews', 'plant']);
   const nameOf = useNameOf();
   return (
     <>
@@ -425,7 +430,9 @@ function MatrixRow({
             {row.asset.name}
           </Anchor>
           <Text size="xs" c="dimmed" lineClamp={1}>
-            {[row.area ? nameOf(row.area) : null, row.profile?.name ?? t('coverage.noProfile')].filter(Boolean).join(' · ')}
+            {[row.area ? nameOf(row.area) : null, row.profile ? (row.profile.hidden ? t('plant:catalogueAccess.hiddenProfile') : row.profile.name) : t('coverage.noProfile')]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
         </th>
         {row.cells.map((c, j) => {
@@ -514,7 +521,7 @@ function CoverageList({
   kpiIds: string[];
   cellText: ReturnType<typeof useCellText>;
 }) {
-  const { t } = useTranslation('plantViews');
+  const { t } = useTranslation(['plantViews', 'plant']);
   const nameOf = useNameOf();
   const label = usePlantLabel();
   return (
@@ -527,7 +534,13 @@ function CoverageList({
                 {r.asset.name}
               </Anchor>
               <Text size="xs" c="dimmed">
-                {[nameOf(r.asset.site), r.area ? nameOf(r.area) : null, r.profile?.name ?? t('coverage.noProfile')].filter(Boolean).join(' · ')}
+                {[
+                  nameOf(r.asset.site),
+                  r.area ? nameOf(r.area) : null,
+                  r.profile ? (r.profile.hidden ? t('plant:catalogueAccess.hiddenProfile') : r.profile.name) : t('coverage.noProfile'),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
             </div>
             <Stack gap={4} role="list" aria-label={t('coverage.kpisOf', { name: r.asset.name, type: label('asset', false, true) })}>

@@ -960,5 +960,28 @@
     "done": "Gerät {{id}} als Kopie hinzugefügt"
   },
   "selectedDevices_one": "{{count}} Gerät ausgewählt",
-  "selectedDevices_other": "{{count}} Geräte ausgewählt"
+  "selectedDevices_other": "{{count}} Geräte ausgewählt",
+  "catalogueAccess": {
+    "hiddenProfile": "ein Geräteprofil, das Sie nicht sehen dürfen",
+    "hiddenKpi": "eine KPI-Definition, die Sie nicht sehen dürfen",
+    "hiddenBase": "ein Basisprofil, das Sie nicht sehen dürfen",
+    "inheritedFromHidden": "Geerbt von einem Basisprofil, das Sie nicht sehen dürfen",
+    "modelOfAsset": "Modell dieser Anlage",
+    "modelOfAssetHint": "Diese Anlage hat ein Geräteprofil, das Sie nicht sehen dürfen. Die Schnittstellen und Datenpunkte, die sie liefert, werden als eigenes Modell der Anlage gezeigt.",
+    "modelPoints": "Datenpunkte des Modells dieser Anlage",
+    "modelPointsHelp": "Was das Gerät liefert, aus einem Geräteprofil, das Sie nicht sehen dürfen.",
+    "baseHidden": "Basis verborgen",
+    "baseHiddenHint": "Dieses Profil erweitert ein Basisprofil, das Sie nicht sehen dürfen: Was es erbt, wird als sein eigenes gezeigt, ohne den Namen der Basis.",
+    "keepsHidden": "Das Geräteprofil behalten, das Sie nicht sehen dürfen",
+    "profilesHidden_one": "und {{count}} Geräteprofil, das Sie nicht sehen dürfen",
+    "profilesHidden_other": "und {{count}} Geräteprofile, die Sie nicht sehen dürfen",
+    "kpisHidden_one": "und {{count}} KPI-Definition, die Sie nicht sehen dürfen",
+    "kpisHidden_other": "und {{count}} KPI-Definitionen, die Sie nicht sehen dürfen",
+    "extendedByHidden_one": "und {{count}} Profil, das Sie nicht sehen dürfen",
+    "extendedByHidden_other": "und {{count}} Profile, die Sie nicht sehen dürfen",
+    "exploreHidden_one": "Auch {{count}} Geräteprofil, das Sie nicht sehen dürfen, hat passende Datenpunkte.",
+    "exploreHidden_other": "Auch {{count}} Geräteprofile, die Sie nicht sehen dürfen, haben passende Datenpunkte.",
+    "coverageHidden_one": "{{count}} KPI-Definition, die Sie nicht sehen dürfen, wird nicht gezeigt.",
+    "coverageHidden_other": "{{count}} KPI-Definitionen, die Sie nicht sehen dürfen, werden nicht gezeigt."
+  }
 }

@@ -960,5 +960,28 @@
     "done": "Device {{id}} added as a copy"
   },
   "selectedDevices_one": "{{count}} device selected",
-  "selectedDevices_other": "{{count}} devices selected"
+  "selectedDevices_other": "{{count}} devices selected",
+  "catalogueAccess": {
+    "hiddenProfile": "a device profile you may not see",
+    "hiddenKpi": "a KPI definition you may not see",
+    "hiddenBase": "a base profile you may not see",
+    "inheritedFromHidden": "Inherited from a base profile you may not see",
+    "modelOfAsset": "Model of this asset",
+    "modelOfAssetHint": "This asset has a device profile you may not see. The interfaces and data points it delivers are shown as the asset’s own model.",
+    "modelPoints": "Data points of this asset’s model",
+    "modelPointsHelp": "What the device delivers, from a device profile you may not see.",
+    "baseHidden": "Base hidden",
+    "baseHiddenHint": "This profile extends a base profile you may not see: what it inherits is shown as its own, without the base’s name.",
+    "keepsHidden": "Keep the device profile you may not see",
+    "profilesHidden_one": "and {{count}} device profile you may not see",
+    "profilesHidden_other": "and {{count}} device profiles you may not see",
+    "kpisHidden_one": "and {{count}} KPI definition you may not see",
+    "kpisHidden_other": "and {{count}} KPI definitions you may not see",
+    "extendedByHidden_one": "and {{count}} profile you may not see",
+    "extendedByHidden_other": "and {{count}} profiles you may not see",
+    "exploreHidden_one": "{{count}} device profile you may not see has matching data points, too.",
+    "exploreHidden_other": "{{count}} device profiles you may not see have matching data points, too.",
+    "coverageHidden_one": "{{count}} KPI definition you may not see is not shown.",
+    "coverageHidden_other": "{{count}} KPI definitions you may not see are not shown."
+  }
 }

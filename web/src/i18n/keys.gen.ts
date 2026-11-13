@@ -6194,6 +6194,7 @@ export interface Resources {
     'codes.PLANT_NODE_NOT_FOUND': string;
     'codes.PLANT_BUILDING_NOT_FOUND': string;
     'codes.PLANT_ID_TAKEN': string;
+    'codes.PLANT_ID_UNAVAILABLE': string;
     'codes.PLANT_ID_ALIAS': string;
     'codes.PLANT_ID_FORMAT': string;
     'codes.PLANT_ID_SAME': string;
@@ -9774,6 +9775,27 @@ export interface Resources {
     'duplicateDevice.done': string;
     selectedDevices_one: string;
     selectedDevices_other: string;
+    'catalogueAccess.hiddenProfile': string;
+    'catalogueAccess.hiddenKpi': string;
+    'catalogueAccess.hiddenBase': string;
+    'catalogueAccess.inheritedFromHidden': string;
+    'catalogueAccess.modelOfAsset': string;
+    'catalogueAccess.modelOfAssetHint': string;
+    'catalogueAccess.modelPoints': string;
+    'catalogueAccess.modelPointsHelp': string;
+    'catalogueAccess.baseHidden': string;
+    'catalogueAccess.baseHiddenHint': string;
+    'catalogueAccess.keepsHidden': string;
+    'catalogueAccess.profilesHidden_one': string;
+    'catalogueAccess.profilesHidden_other': string;
+    'catalogueAccess.kpisHidden_one': string;
+    'catalogueAccess.kpisHidden_other': string;
+    'catalogueAccess.extendedByHidden_one': string;
+    'catalogueAccess.extendedByHidden_other': string;
+    'catalogueAccess.exploreHidden_one': string;
+    'catalogueAccess.exploreHidden_other': string;
+    'catalogueAccess.coverageHidden_one': string;
+    'catalogueAccess.coverageHidden_other': string;
   };
   plantAdvisories: {
     title: string;

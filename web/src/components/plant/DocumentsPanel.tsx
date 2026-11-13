@@ -1,3 +1,4 @@
+import { isPlantHidden } from '@sm/shared';
 import { useState } from 'react';
 import { Anchor, Badge, Box, Button, FileButton, Group, Modal, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -209,8 +210,10 @@ function ConfirmationLine({ confirmation, review }: { confirmation: PlantDocConf
 }
 
 function InheritedGroup({ group, within, confirm }: { group: PlantDocGroup; within: PlantDocKind; confirm?: ConfirmProps }) {
-  const { t } = useTranslation('plantDocs');
+  const { t } = useTranslation(['plantDocs', 'plant']);
   const from = group.from!;
+  // 0.21.0 (#293): files follow the profile – one the reader may not see is not named, its documents are counted
+  const hidden = isPlantHidden(from.label);
   const key =
     from.kind === 'device-profile' ? (within === 'device-profile' ? 'fromBase' : 'fromProfile') : from.kind === 'data-sink' ? 'fromSink' : 'fromCollection';
   const id = `plant-docs-from-${from.kind}-${from.id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
@@ -223,9 +226,9 @@ function InheritedGroup({ group, within, confirm }: { group: PlantDocGroup; with
             {from.label}
           </Anchor>
         ) : (
-          from.label
+          hidden ? t('plant:catalogueAccess.hiddenProfile') : from.label
         )}
-        {from.kind === 'device-profile' && (
+        {from.kind === 'device-profile' && !hidden && (
           <Text span size="xs" c="dimmed" className="mono">
             {' '}
             ({from.id})
