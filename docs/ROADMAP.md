@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.23.0 (November 2026)._
+_Last reviewed for 0.24.0 (November 2026)._
 
 ## What Steward is for
 
@@ -82,10 +82,10 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.21.0:** one access model, phase 1 – shares with an _Access_ tab on services, applications, systems, suppliers, device profiles and KPI definitions, owners as implied shares, _Restricted_ items; who may use a module; price books, calculators and estimates with ranges, variants and the MCP dry run; Snowflake cost estimate and waste check examples; a security review of the access changes.
 - **0.22.0:** the data products module, phase 1 (preview, off by default) – data objects, products with ratings, lifecycle and environments, an element catalogue with discovery from Snowflake, Kafka and schema snapshots, ports bound to data contracts, health from monitor checks, attributed costs, a scorecard, pictures of pipeline, map and lineage, shares, file exchange with ODPS, `/api/v1` and MCP.
 - **0.23.0:** one access model, phase 2 – access lists of processes, platforms, identities, monitors and plant sites became shares, shares on records, credentials, ticket references, dashboards and data contracts – and module roles (#297); price books phase 2: contract conditions, derived books, rate sheets read from Snowflake and Confluent, estimates recalculated on new prices; the fixes of a release review.
+- **0.24.0:** data products, phase 2 – lineage proposed from OpenLineage, dbt and Snowflake's access history; quality results with the ISO/IEC 25012 dimensions; the scorecard over time; who really reads a product; access requests and sealed port access reviews; promotion between environments and endorsement; personal data in fields and the records of processing (GDPR Art. 30); costs by measured use and estimates; ODPS import, replace imports, Git sync and the Ossie export; the fixes of a release review.
 
 ## Next
 
-- **0.24.0:** data products, phase 2 ([ADR 0036](adr/0036-data-products-module.md#phases)).
 - **0.25.0:** data products, phase 3 ([ADR 0037](adr/0037-data-products-connectors-files-edge.md)) – generic parts and bridges with one technology list for technologies Steward does not know yet; lineage from Debezium, Kafka Connect and Confluent connectors; file-based products on object storage; edge devices linked to their systems with the applications that run on them and an Industrial Edge readout that suggests, never decides; semantic models (Apache Ossie) as governed records; an OpenLineage export; large data product imports (20,000 elements) as a background job instead of one blocking transaction.
   - dbt `manifest.json` and `run_results.json` parsed in a worker thread (today a 40 MB file holds the server for about a second; the rate limit of dbt files keeps that rare).
   - The GDPR Art. 30 view: transfers to third countries with their safeguards (Art. 30(1)(e)), a reference to the technical and organisational measures (Art. 30(1)(g)), and a flag when the list is cut at 5,000 data objects.
