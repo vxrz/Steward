@@ -164,6 +164,11 @@ async function runJob(id: string, u: AuthUser, planned: Parameters<typeof commit
           description: row.description,
           type_label: row.type_label,
           api_ref: row.api_ref,
+          // 0.25.0: a generic part's technology, namespace and properties (an mqtt.topic's broker) – people's fields too
+          technology: row.technology ?? null,
+          properties: row.properties ?? '[]',
+          ol_namespace: row.ol_namespace,
+          ol_name: row.ol_name,
           revision: Number(row.revision),
           updated_at: row.updated_at,
           updated_by: row.updated_by,
@@ -248,6 +253,10 @@ async function undo(id: string, actor: string, error: DataProductImportJob['erro
             description: string;
             type_label: string;
             api_ref: string | null;
+            technology?: string | null;
+            properties?: string;
+            ol_namespace?: string | null;
+            ol_name?: string | null;
             revision: number;
             updated_at: string;
             updated_by: string;
@@ -255,13 +264,18 @@ async function undo(id: string, actor: string, error: DataProductImportJob['erro
           // only when the import's own change is the last one (its update raised the revision by one)
           const n = b
             ? db().run(
-                `UPDATE dp_elements SET display_name = ?, layer = ?, description = ?, type_label = ?, api_ref = ?, revision = revision + 1, updated_at = ?, updated_by = ?
+                `UPDATE dp_elements SET display_name = ?, layer = ?, description = ?, type_label = ?, api_ref = ?, technology = ?, properties = ?, ol_namespace = ?,
+                   ol_name = ?, revision = revision + 1, updated_at = ?, updated_by = ?
                  WHERE id = ? AND revision = ?`,
                 b.display_name,
                 b.layer,
                 b.description,
                 b.type_label,
                 b.api_ref,
+                b.technology ?? null,
+                b.properties ?? '[]',
+                b.ol_namespace ?? null,
+                b.ol_name ?? null,
                 nowIso(),
                 actor,
                 r.element_id,

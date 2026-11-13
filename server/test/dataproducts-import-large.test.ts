@@ -150,6 +150,41 @@ describe('large imports', () => {
     });
   }, 600_000);
 
+  it('a failed job gives a generic part back its technology, namespace and properties (0.25.0, packages A and C)', async () => {
+    const generic = (technology: string, namespace: string, value: string) => ({
+      kind: 'generic.dataset',
+      qualified_name: 'INVENTED.UNDOG.FEED',
+      environment: 'prod',
+      technology,
+      namespace,
+      properties: [{ key: 'flow', value }],
+    });
+    await dana('POST', '/data-products/import', {
+      files: [{ name: 'g.json', content: JSON.stringify({ version: 1, elements: [generic('postgresql', 'postgres://db-a.invented.example:5432', 'a')] }) }],
+      mode: 'add',
+    });
+    const others = Array.from({ length: 1_200 }, (_, i) => ({ kind: 'other', qualified_name: `INVENTED.UNDOG.T${i}`, environment: 'prod' }));
+    const content = JSON.stringify({
+      version: 1,
+      elements: [generic('mysql', 'mysql://db-b.invented.example:3306', 'b'), ...others],
+      // an active product without an owner and an output port: refused in the last transaction
+      data_products: [{ key: 'invented-undog', name: 'Invented undo generic', lifecycle: 'active' }],
+    });
+    const r = await dana('POST', '/data-products/import', { files: [{ name: 'undog.json', content }], mode: 'update' });
+    expect(r.job.state).toBe('running');
+    const job = await until(r.job.id);
+    expect(job).toMatchObject({ state: 'failed', undone: { removed: 1_200, restored: 1, kept: 0 } });
+    const { db } = await import('../src/db.js');
+    expect(
+      db().get("SELECT technology, properties, ol_namespace, ol_name FROM dp_elements WHERE kind = 'generic.dataset' AND name_norm = 'invented.undog.feed'"),
+    ).toEqual({
+      technology: 'postgresql',
+      properties: JSON.stringify([{ key: 'flow', value: 'a' }]),
+      ol_namespace: 'postgres://db-a.invented.example:5432',
+      ol_name: 'INVENTED.UNDOG.FEED',
+    });
+  }, 600_000);
+
   it('a job a stopped server left running is taken back by the next run of the job', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();
