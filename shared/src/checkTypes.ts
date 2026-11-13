@@ -223,6 +223,15 @@ const DEFS: Defs = {
     module: 'dataContracts',
     defaults: { contract: '', mode: 'test', testedWithinDays: 7, failAs: 'down', warningAs: 'degraded' },
   },
+  'data-element': {
+    label: 'Data element',
+    help: 'An element of a data product (a Snowflake table, dynamic table, task or schema, a Kafka topic or bundle): its data is fresh by metadata, or its columns match the data contract of its output port',
+    defaultName: 'Data element fresh',
+    platform: 'none',
+    active: true,
+    module: 'dataProducts',
+    defaults: { element: '', mode: 'freshness', maxAgeMinutes: 1440, each: 'any', failAs: 'down', warningAs: 'degraded' },
+  },
   'dependency-track': {
     label: 'Vulnerabilities (Dependency-Track)',
     help: 'A Dependency-Track project has no more open critical (or high) findings than allowed and no failing policy violation',

@@ -4395,6 +4395,7 @@
               "db-schema",
               "cost",
               "data-contract",
+              "data-element",
               "dependency-track",
               "version-behind",
               "entra",
@@ -5196,6 +5197,7 @@
                     "db-schema",
                     "cost",
                     "data-contract",
+                    "data-element",
                     "dependency-track",
                     "version-behind",
                     "entra",
@@ -37643,9 +37645,10 @@
             "type": "string",
             "enum": [
               "list",
-              "contracted"
+              "contracted",
+              "derived"
             ],
-            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)"
+            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only); derived: a provider's customer prices computed from a base book with its terms and fee (the customer prices only – base, discount and fee are never part of this API)"
           },
           "provider": {
             "type": "string"
@@ -37729,7 +37732,8 @@
             "type": "string",
             "enum": [
               "manual",
-              "csv"
+              "csv",
+              "derived"
             ]
           },
           "reviewDays": {
@@ -37810,9 +37814,10 @@
             "type": "string",
             "enum": [
               "list",
-              "contracted"
+              "contracted",
+              "derived"
             ],
-            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)"
+            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only); derived: a provider's customer prices computed from a base book with its terms and fee (the customer prices only – base, discount and fee are never part of this API)"
           },
           "provider": {
             "type": "string"
@@ -37896,7 +37901,8 @@
             "type": "string",
             "enum": [
               "manual",
-              "csv"
+              "csv",
+              "derived"
             ]
           },
           "reviewDays": {
@@ -37954,7 +37960,8 @@
                     "manual",
                     "csv",
                     "migration",
-                    "source"
+                    "source",
+                    "derived"
                   ]
                 },
                 "entries": {
@@ -38705,7 +38712,8 @@
                                   "type": "string",
                                   "enum": [
                                     "list",
-                                    "contracted"
+                                    "contracted",
+                                    "derived"
                                   ]
                                 },
                                 "version": {
@@ -38906,6 +38914,229 @@
                           "type": "boolean",
                           "description": "Priced with rates the token owner may not see – shown at list price (or left out)"
                         },
+                        "foundBy": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "list",
+                                    "contracted",
+                                    "derived",
+                                    "negotiated",
+                                    "percentOff",
+                                    "commitment"
+                                  ]
+                                },
+                                "percent": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "The percentage off the list price (percentOff, commitment)"
+                                },
+                                "contract": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "reference": {
+                                          "type": "string"
+                                        },
+                                        "inherited": {
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "title",
+                                        "reference",
+                                        "inherited"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The contract whose conditions applied (only for who sees them)"
+                                },
+                                "conditionIgnored": {
+                                  "type": "boolean",
+                                  "description": "A percentage of the contract was left out: the contracted book already includes the discount"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "percent",
+                                "contract",
+                                "conditionIgnored"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "How the price was found, as far as the token owner may see it"
+                        },
+                        "breakdown": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "base": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "version": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "version"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "baseAmount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "markup": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "fee": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discountPct": {
+                                  "type": "string"
+                                },
+                                "markupPct": {
+                                  "type": "string"
+                                },
+                                "feePerBlock": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base",
+                                "baseAmount",
+                                "discount",
+                                "markup",
+                                "fee",
+                                "discountPct",
+                                "markupPct",
+                                "feePerBlock"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Priced from a derived book: base, discount, markup and fee – only for who sees the provider's terms and the base book"
+                        },
                         "missing": {
                           "anyOf": [
                             {
@@ -38947,6 +39178,8 @@
                         "fixedMoved",
                         "amount",
                         "priceHidden",
+                        "foundBy",
+                        "breakdown",
                         "missing"
                       ],
                       "additionalProperties": false
@@ -39123,7 +39356,8 @@
                           "type": "string",
                           "enum": [
                             "list",
-                            "contracted"
+                            "contracted",
+                            "derived"
                           ]
                         },
                         "version": {
@@ -39146,6 +39380,34 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "contracts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference",
+                        "provider"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "The contracts whose conditions priced it – those whose conditions the token owner sees"
                   },
                   "rates": {
                     "type": "array",
@@ -39197,6 +39459,7 @@
                   "totals",
                   "months",
                   "books",
+                  "contracts",
                   "rates",
                   "missing",
                   "atListPrice",
@@ -39381,7 +39644,8 @@
                                   "type": "string",
                                   "enum": [
                                     "list",
-                                    "contracted"
+                                    "contracted",
+                                    "derived"
                                   ]
                                 },
                                 "version": {
@@ -39582,6 +39846,229 @@
                           "type": "boolean",
                           "description": "Priced with rates the token owner may not see – shown at list price (or left out)"
                         },
+                        "foundBy": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "list",
+                                    "contracted",
+                                    "derived",
+                                    "negotiated",
+                                    "percentOff",
+                                    "commitment"
+                                  ]
+                                },
+                                "percent": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "The percentage off the list price (percentOff, commitment)"
+                                },
+                                "contract": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "reference": {
+                                          "type": "string"
+                                        },
+                                        "inherited": {
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "title",
+                                        "reference",
+                                        "inherited"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The contract whose conditions applied (only for who sees them)"
+                                },
+                                "conditionIgnored": {
+                                  "type": "boolean",
+                                  "description": "A percentage of the contract was left out: the contracted book already includes the discount"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "percent",
+                                "contract",
+                                "conditionIgnored"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "How the price was found, as far as the token owner may see it"
+                        },
+                        "breakdown": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "base": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "version": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "version"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "baseAmount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "markup": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "fee": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discountPct": {
+                                  "type": "string"
+                                },
+                                "markupPct": {
+                                  "type": "string"
+                                },
+                                "feePerBlock": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base",
+                                "baseAmount",
+                                "discount",
+                                "markup",
+                                "fee",
+                                "discountPct",
+                                "markupPct",
+                                "feePerBlock"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Priced from a derived book: base, discount, markup and fee – only for who sees the provider's terms and the base book"
+                        },
                         "missing": {
                           "anyOf": [
                             {
@@ -39623,6 +40110,8 @@
                         "fixedMoved",
                         "amount",
                         "priceHidden",
+                        "foundBy",
+                        "breakdown",
                         "missing"
                       ],
                       "additionalProperties": false
@@ -39799,7 +40288,8 @@
                           "type": "string",
                           "enum": [
                             "list",
-                            "contracted"
+                            "contracted",
+                            "derived"
                           ]
                         },
                         "version": {
@@ -39822,6 +40312,34 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "contracts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference",
+                        "provider"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "The contracts whose conditions priced it – those whose conditions the token owner sees"
                   },
                   "rates": {
                     "type": "array",
@@ -39879,6 +40397,7 @@
                   "totals",
                   "months",
                   "books",
+                  "contracts",
                   "rates",
                   "missing",
                   "atListPrice",
@@ -41792,6 +42311,3054 @@
           "serviceId",
           "contracts",
           "uncovered"
+        ],
+        "additionalProperties": false
+      },
+      "DataProductEntry": {
+        "title": "DataProductEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Unique key (the file format’s and ODPS id)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sourceAligned",
+                  "aggregate",
+                  "consumerAligned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hidden": {
+                    "type": "boolean",
+                    "description": "Something the token owner may not see: no id, key or name"
+                  }
+                },
+                "required": [
+                  "id",
+                  "key",
+                  "name",
+                  "hidden"
+                ],
+                "additionalProperties": false,
+                "description": "A domain, product, data object or contract – or one the token owner may not see"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A domain, product, data object or contract – or one the token owner may not see"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "draft",
+              "active",
+              "deprecated",
+              "retired"
+            ]
+          },
+          "sunsetDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Support tier 1–3"
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential",
+                  "strictly_confidential"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratingBelowObjects": {
+            "type": "boolean",
+            "description": "Rated below the data objects it exposes without a reason"
+          },
+          "valueTier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Production first"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Product owners: user:<name> or team:<name>"
+          },
+          "owningTeams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "string"
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "environment": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "up",
+                      "degraded",
+                      "down",
+                      "blocked",
+                      "unknown",
+                      "maintenance",
+                      "off",
+                      "noData"
+                    ],
+                    "description": "From the linked checks; noData without one (never OK without a check)"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "monitor",
+                      "elements",
+                      "none"
+                    ]
+                  }
+                },
+                "required": [
+                  "environment",
+                  "status",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In the product’s default environment (production, else its first)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "type",
+          "domain",
+          "lifecycle",
+          "sunsetDate",
+          "criticality",
+          "tier",
+          "rating",
+          "classification",
+          "ratingBelowObjects",
+          "valueTier",
+          "environments",
+          "owners",
+          "owningTeams",
+          "tags",
+          "version",
+          "health",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "DataProductDetail": {
+        "title": "DataProductDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Unique key (the file format’s and ODPS id)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sourceAligned",
+                  "aggregate",
+                  "consumerAligned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hidden": {
+                    "type": "boolean",
+                    "description": "Something the token owner may not see: no id, key or name"
+                  }
+                },
+                "required": [
+                  "id",
+                  "key",
+                  "name",
+                  "hidden"
+                ],
+                "additionalProperties": false,
+                "description": "A domain, product, data object or contract – or one the token owner may not see"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A domain, product, data object or contract – or one the token owner may not see"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "draft",
+              "active",
+              "deprecated",
+              "retired"
+            ]
+          },
+          "sunsetDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Support tier 1–3"
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential",
+                  "strictly_confidential"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratingBelowObjects": {
+            "type": "boolean",
+            "description": "Rated below the data objects it exposes without a reason"
+          },
+          "valueTier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Production first"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Product owners: user:<name> or team:<name>"
+          },
+          "owningTeams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "string"
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "environment": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "up",
+                      "degraded",
+                      "down",
+                      "blocked",
+                      "unknown",
+                      "maintenance",
+                      "off",
+                      "noData"
+                    ],
+                    "description": "From the linked checks; noData without one (never OK without a check)"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "monitor",
+                      "elements",
+                      "none"
+                    ]
+                  }
+                },
+                "required": [
+                  "environment",
+                  "status",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In the product’s default environment (production, else its first)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "support": {
+            "type": "object",
+            "properties": {
+              "channel": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "hours": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "url",
+              "hours"
+            ],
+            "additionalProperties": false
+          },
+          "lifecycleDates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "When each lifecycle state was reached"
+          },
+          "successor": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hidden": {
+                    "type": "boolean",
+                    "description": "Something the token owner may not see: no id, key or name"
+                  }
+                },
+                "required": [
+                  "id",
+                  "key",
+                  "name",
+                  "hidden"
+                ],
+                "additionalProperties": false,
+                "description": "A domain, product, data object or contract – or one the token owner may not see"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A domain, product, data object or contract – or one the token owner may not see"
+          },
+          "valueStatement": {
+            "type": "string"
+          },
+          "valueAmount": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A yearly amount as a decimal in valueCurrency"
+          },
+          "valueCurrency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "environmentDetails": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "environment": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "available",
+                    "withdrawn"
+                  ]
+                },
+                "production": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "environment",
+                "state",
+                "production"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "input",
+                    "output"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "table",
+                    "topic",
+                    "api",
+                    "file",
+                    "other"
+                  ]
+                },
+                "version": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "lifecycle": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "active",
+                    "deprecated",
+                    "retired"
+                  ]
+                },
+                "sunsetDate": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "successorId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "objectives": {
+                  "type": "object",
+                  "properties": {
+                    "freshnessMinutes": {
+                      "type": [
+                        "null",
+                        "number"
+                      ]
+                    },
+                    "availabilityPct": {
+                      "type": [
+                        "null",
+                        "number"
+                      ]
+                    },
+                    "completeness": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "updateSchedule": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "retention": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false,
+                  "description": "Objectives (SLO): freshness in minutes, availability in percent over 30 days, an update schedule and retention"
+                },
+                "source": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "port",
+                            "element",
+                            "text"
+                          ]
+                        },
+                        "portId": {
+                          "type": "string"
+                        },
+                        "product": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "key": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "hidden": {
+                              "type": "boolean",
+                              "description": "Something the token owner may not see: no id, key or name"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "key",
+                            "name",
+                            "hidden"
+                          ],
+                          "additionalProperties": false,
+                          "description": "A domain, product, data object or contract – or one the token owner may not see"
+                        },
+                        "portName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "version": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "elementId": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Input ports: another product’s output port, an element of a source system, or a text"
+                },
+                "objects": {
+                  "type": "object",
+                  "properties": {
+                    "declared": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "key": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "name": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "description": "Something the token owner may not see: no id, key or name"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "key",
+                          "name",
+                          "hidden"
+                        ],
+                        "additionalProperties": false,
+                        "description": "A domain, product, data object or contract – or one the token owner may not see"
+                      }
+                    },
+                    "throughElements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "key": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "name": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "hidden": {
+                            "type": "boolean",
+                            "description": "Something the token owner may not see: no id, key or name"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "key",
+                          "name",
+                          "hidden"
+                        ],
+                        "additionalProperties": false,
+                        "description": "A domain, product, data object or contract – or one the token owner may not see"
+                      }
+                    }
+                  },
+                  "required": [
+                    "declared",
+                    "throughElements"
+                  ],
+                  "additionalProperties": false
+                },
+                "bindings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "environment": {
+                        "type": "string"
+                      },
+                      "contractId": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "Steward’s id of the data contract (null: none, or one the token owner may not see)"
+                      },
+                      "contractKey": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "The contract’s ODCS id"
+                      },
+                      "contract": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "key": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "description": "Something the token owner may not see: no id, key or name"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "key",
+                              "name",
+                              "hidden"
+                            ],
+                            "additionalProperties": false,
+                            "description": "A domain, product, data object or contract – or one the token owner may not see"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "A domain, product, data object or contract – or one the token owner may not see"
+                      },
+                      "contractVersion": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The version it is held to (null: the current one)"
+                      },
+                      "contractServer": {
+                        "type": [
+                          "null",
+                          "string"
+                        ]
+                      },
+                      "objectives": {
+                        "type": "object",
+                        "properties": {
+                          "freshnessMinutes": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "availabilityPct": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "completeness": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "updateSchedule": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "retention": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Objectives that differ from the port’s"
+                      },
+                      "elementIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "environment",
+                      "contractId",
+                      "contractKey",
+                      "contract",
+                      "contractVersion",
+                      "contractServer",
+                      "objectives",
+                      "elementIds"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "consumers": {
+                  "type": "object",
+                  "properties": {
+                    "registered": {
+                      "type": "integer"
+                    },
+                    "derived": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "registered",
+                    "derived"
+                  ],
+                  "additionalProperties": false
+                },
+                "consumesDeprecated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "direction",
+                "name",
+                "type",
+                "version",
+                "description",
+                "lifecycle",
+                "sunsetDate",
+                "successorId",
+                "objectives",
+                "source",
+                "objects",
+                "bindings",
+                "consumers",
+                "consumesDeprecated"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "memberCounts": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "integer"
+              },
+              "internal": {
+                "type": "integer"
+              },
+              "output": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "input",
+              "internal",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "key": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "Something the token owner may not see: no id, key or name"
+                }
+              },
+              "required": [
+                "id",
+                "key",
+                "name",
+                "hidden"
+              ],
+              "additionalProperties": false,
+              "description": "A domain, product, data object or contract – or one the token owner may not see"
+            },
+            "description": "Data objects its output ports expose (declared or through their elements)"
+          },
+          "healthByEnvironment": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "environment": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "degraded",
+                    "down",
+                    "blocked",
+                    "unknown",
+                    "maintenance",
+                    "off",
+                    "noData"
+                  ],
+                  "description": "From the linked checks; noData without one (never OK without a check)"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "monitor",
+                    "elements",
+                    "none"
+                  ]
+                }
+              },
+              "required": [
+                "environment",
+                "status",
+                "source"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scorecard": {
+            "type": "object",
+            "properties": {
+              "environment": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "maturity": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Computed from the scorecard, never typed: 0 not yet documented … 4 reliable"
+              },
+              "parts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "group": {
+                      "type": "string",
+                      "enum": [
+                        "part",
+                        "iso25012"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "partial",
+                        "notMet",
+                        "noEvidence",
+                        "notApplicable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "group",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "environment",
+              "maturity",
+              "parts"
+            ],
+            "additionalProperties": false,
+            "description": "The scorecard in the default environment, summed up: each part and ISO/IEC 25012 dimension with its state"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "type",
+          "domain",
+          "lifecycle",
+          "sunsetDate",
+          "criticality",
+          "tier",
+          "rating",
+          "classification",
+          "ratingBelowObjects",
+          "valueTier",
+          "environments",
+          "owners",
+          "owningTeams",
+          "tags",
+          "version",
+          "health",
+          "updatedAt",
+          "description",
+          "purpose",
+          "support",
+          "lifecycleDates",
+          "successor",
+          "valueStatement",
+          "valueAmount",
+          "valueCurrency",
+          "externalRefs",
+          "environmentDetails",
+          "ports",
+          "memberCounts",
+          "objects",
+          "healthByEnvironment",
+          "scorecard"
+        ],
+        "additionalProperties": false
+      },
+      "DataElementEntry": {
+        "title": "DataElementEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "platformId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null: no platform, or one the token owner may not see (platformHidden)"
+          },
+          "platformName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platformHidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "snowflake.database",
+              "snowflake.schema",
+              "snowflake.table",
+              "snowflake.view",
+              "snowflake.dynamicTable",
+              "snowflake.stream",
+              "snowflake.task",
+              "snowflake.stage",
+              "snowflake.pipe",
+              "kafka.topic",
+              "kafka.topicBundle",
+              "sql.schema",
+              "sql.table",
+              "sql.view",
+              "api.openapi",
+              "api.asyncapi",
+              "api.graphql",
+              "api.endpoint",
+              "files.path",
+              "insightsHub.aspect",
+              "other"
+            ]
+          },
+          "qualifiedName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "entered",
+              "discovered",
+              "imported"
+            ]
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "missingSince": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "products": {
+            "type": "object",
+            "properties": {
+              "visible": {
+                "type": "integer"
+              },
+              "hidden": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "visible",
+              "hidden"
+            ],
+            "additionalProperties": false,
+            "description": "Products it is part of (those the token owner may not see counted)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "platformId",
+          "platformName",
+          "platformHidden",
+          "kind",
+          "qualifiedName",
+          "displayName",
+          "environment",
+          "layer",
+          "source",
+          "parentId",
+          "missingSince",
+          "products",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "DataElementDetail": {
+        "title": "DataElementDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "platformId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null: no platform, or one the token owner may not see (platformHidden)"
+          },
+          "platformName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platformHidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "snowflake.database",
+              "snowflake.schema",
+              "snowflake.table",
+              "snowflake.view",
+              "snowflake.dynamicTable",
+              "snowflake.stream",
+              "snowflake.task",
+              "snowflake.stage",
+              "snowflake.pipe",
+              "kafka.topic",
+              "kafka.topicBundle",
+              "sql.schema",
+              "sql.table",
+              "sql.view",
+              "api.openapi",
+              "api.asyncapi",
+              "api.graphql",
+              "api.endpoint",
+              "files.path",
+              "insightsHub.aspect",
+              "other"
+            ]
+          },
+          "qualifiedName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "entered",
+              "discovered",
+              "imported"
+            ]
+          },
+          "parentId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "missingSince": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "products": {
+            "type": "object",
+            "properties": {
+              "visible": {
+                "type": "integer"
+              },
+              "hidden": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "visible",
+              "hidden"
+            ],
+            "additionalProperties": false,
+            "description": "Products it is part of (those the token owner may not see counted)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "typeLabel": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "olNamespace": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "olName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "apiRef": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "operations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "owningTeams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "productRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "key": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "name": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "hidden": {
+                      "type": "boolean",
+                      "description": "Something the token owner may not see: no id, key or name"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "name",
+                    "hidden"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A domain, product, data object or contract – or one the token owner may not see"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "input",
+                    "internal",
+                    "output"
+                  ]
+                }
+              },
+              "required": [
+                "product",
+                "role"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "key": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "Something the token owner may not see: no id, key or name"
+                }
+              },
+              "required": [
+                "id",
+                "key",
+                "name",
+                "hidden"
+              ],
+              "additionalProperties": false,
+              "description": "A domain, product, data object or contract – or one the token owner may not see"
+            }
+          },
+          "readout": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the last discovery read (metadata: row count, bytes, last altered …; never data)"
+          },
+          "health": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "degraded",
+                  "down",
+                  "blocked",
+                  "unknown",
+                  "maintenance",
+                  "off",
+                  "noData"
+                ]
+              },
+              "checks": {
+                "type": "object",
+                "properties": {
+                  "visible": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "visible",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "status",
+              "checks"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "platformId",
+          "platformName",
+          "platformHidden",
+          "kind",
+          "qualifiedName",
+          "displayName",
+          "environment",
+          "layer",
+          "source",
+          "parentId",
+          "missingSince",
+          "products",
+          "updatedAt",
+          "description",
+          "typeLabel",
+          "externalId",
+          "olNamespace",
+          "olName",
+          "apiRef",
+          "flags",
+          "owningTeams",
+          "productRefs",
+          "objects",
+          "readout",
+          "health"
+        ],
+        "additionalProperties": false
+      },
+      "DataObjectEntry": {
+        "title": "DataObjectEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hidden": {
+                    "type": "boolean",
+                    "description": "Something the token owner may not see: no id, key or name"
+                  }
+                },
+                "required": [
+                  "id",
+                  "key",
+                  "name",
+                  "hidden"
+                ],
+                "additionalProperties": false,
+                "description": "A domain, product, data object or contract – or one the token owner may not see"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A domain, product, data object or contract – or one the token owner may not see"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "deprecated",
+              "retired"
+            ]
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential",
+                  "strictly_confidential"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "personalData": {
+            "type": "string",
+            "enum": [
+              "none",
+              "personal",
+              "special"
+            ]
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "domain",
+          "lifecycle",
+          "classification",
+          "personalData",
+          "rating",
+          "owner",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "DataObjectDetail": {
+        "title": "DataObjectDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hidden": {
+                    "type": "boolean",
+                    "description": "Something the token owner may not see: no id, key or name"
+                  }
+                },
+                "required": [
+                  "id",
+                  "key",
+                  "name",
+                  "hidden"
+                ],
+                "additionalProperties": false,
+                "description": "A domain, product, data object or contract – or one the token owner may not see"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A domain, product, data object or contract – or one the token owner may not see"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "deprecated",
+              "retired"
+            ]
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential",
+                  "strictly_confidential"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "personalData": {
+            "type": "string",
+            "enum": [
+              "none",
+              "personal",
+              "special"
+            ]
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A level of the instance’s CIA scale (GET /cia-scale); null: not rated"
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "definition": {
+            "type": "string"
+          },
+          "synonyms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "specialCategories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "legalBasis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "consent",
+                  "contract",
+                  "legalObligation",
+                  "vitalInterests",
+                  "publicTask",
+                  "legitimateInterests"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legalNote": {
+            "type": "string"
+          },
+          "purposes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "retention": {
+            "type": "string"
+          },
+          "deletionRule": {
+            "type": "string"
+          },
+          "regulatoryFlags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "personal": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "personal"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "stewards": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "custodians": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "externalRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "owningTeams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "elements": {
+            "type": "object",
+            "properties": {
+              "visible": {
+                "type": "integer"
+              },
+              "hidden": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "visible",
+              "hidden"
+            ],
+            "additionalProperties": false,
+            "description": "Elements that implement it"
+          },
+          "products": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "key": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "name": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "hidden": {
+                      "type": "boolean",
+                      "description": "Something the token owner may not see: no id, key or name"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "name",
+                    "hidden"
+                  ],
+                  "additionalProperties": false,
+                  "description": "A domain, product, data object or contract – or one the token owner may not see"
+                }
+              },
+              "hidden": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "items",
+              "hidden"
+            ],
+            "additionalProperties": false,
+            "description": "Products that expose or process it"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "domain",
+          "lifecycle",
+          "classification",
+          "personalData",
+          "rating",
+          "owner",
+          "updatedAt",
+          "definition",
+          "synonyms",
+          "categories",
+          "specialCategories",
+          "subjects",
+          "legalBasis",
+          "legalNote",
+          "purposes",
+          "retention",
+          "deletionRule",
+          "regulatoryFlags",
+          "attributes",
+          "stewards",
+          "custodians",
+          "externalRefs",
+          "owningTeams",
+          "elements",
+          "products"
+        ],
+        "additionalProperties": false
+      },
+      "DataLineage": {
+        "title": "DataLineage",
+        "type": "object",
+        "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "lineage",
+              "pipeline"
+            ],
+            "description": "lineage: around an element (?element); pipeline: the product with its neighbours"
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "environment": {
+            "type": "string"
+          },
+          "element": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "qualifiedName": {
+                    "type": "string"
+                  },
+                  "environment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "qualifiedName",
+                  "environment"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "element",
+                    "step",
+                    "product",
+                    "domain",
+                    "collapsed",
+                    "plant"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Empty when hidden"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "parent": {
+                  "type": "string"
+                },
+                "group": {
+                  "type": "boolean"
+                },
+                "health": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "up",
+                        "degraded",
+                        "down",
+                        "blocked",
+                        "unknown",
+                        "maintenance",
+                        "off",
+                        "noData"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "elementKind": {
+                  "type": "string",
+                  "enum": [
+                    "snowflake.database",
+                    "snowflake.schema",
+                    "snowflake.table",
+                    "snowflake.view",
+                    "snowflake.dynamicTable",
+                    "snowflake.stream",
+                    "snowflake.task",
+                    "snowflake.stage",
+                    "snowflake.pipe",
+                    "kafka.topic",
+                    "kafka.topicBundle",
+                    "sql.schema",
+                    "sql.table",
+                    "sql.view",
+                    "api.openapi",
+                    "api.asyncapi",
+                    "api.graphql",
+                    "api.endpoint",
+                    "files.path",
+                    "insightsHub.aspect",
+                    "other"
+                  ]
+                },
+                "layer": {
+                  "type": "string"
+                },
+                "environment": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "input",
+                    "internal",
+                    "output"
+                  ]
+                },
+                "outside": {
+                  "type": "boolean"
+                },
+                "products": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "hiddenProducts": {
+                  "type": "integer"
+                },
+                "missing": {
+                  "type": "boolean"
+                },
+                "distance": {
+                  "type": "integer",
+                  "description": "Lineage: steps from the element (negative: upstream)"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "label",
+                "detail",
+                "health"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "labels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "hidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "from",
+                "to",
+                "labels",
+                "count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "runner": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "inputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "hidden": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "kind",
+                "runner",
+                "inputs",
+                "outputs",
+                "hidden"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "integer"
+              },
+              "upstream": {
+                "type": "integer"
+              },
+              "downstream": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "nodes",
+              "upstream",
+              "downstream"
+            ],
+            "additionalProperties": false,
+            "description": "Left out by the node limit (200 in a lineage)"
+          },
+          "hidden": {
+            "type": "object",
+            "properties": {
+              "elements": {
+                "type": "integer"
+              },
+              "products": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "elements",
+              "products"
+            ],
+            "additionalProperties": false,
+            "description": "Counted, never named"
+          }
+        },
+        "required": [
+          "view",
+          "product",
+          "environment",
+          "element",
+          "depth",
+          "nodes",
+          "edges",
+          "steps",
+          "truncated",
+          "hidden"
         ],
         "additionalProperties": false
       }
@@ -53822,7 +57389,8 @@
               "type": "string",
               "enum": [
                 "list",
-                "contracted"
+                "contracted",
+                "derived"
               ]
             },
             "in": "query",
@@ -54285,6 +57853,837 @@
           }
         }
       }
+    },
+    "/data-products": {
+      "get": {
+        "operationId": "listDataProducts",
+        "summary": "List data products",
+        "tags": [
+          "Data products"
+        ],
+        "description": "Data products the token owner may see, ordered by name, with their rating, lifecycle, environments and health in the default environment. Filter by domain (its sub-domains included), lifecycle, type, environment or owning team. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "domain",
+            "required": false,
+            "description": "A domain’s id (its sub-domains’ products too)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "draft",
+                "active",
+                "deprecated",
+                "retired"
+              ]
+            },
+            "in": "query",
+            "name": "lifecycle",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sourceAligned",
+                "aggregate",
+                "consumerAligned"
+              ]
+            },
+            "in": "query",
+            "name": "type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "description": "Products that exist in this environment"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "team",
+            "required": false,
+            "description": "An owning team’s id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of data products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of data products",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DataProductEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-products/{productId}": {
+      "get": {
+        "operationId": "getDataProduct",
+        "summary": "Get a data product",
+        "tags": [
+          "Data products"
+        ],
+        "description": "A product with its ports – bindings per environment with their data contract (Steward's id and the ODCS id), objectives, data objects and consumer counts –, member counts, the data objects it exposes, health per environment and the scorecard summary. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "description": "Data product id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataProductDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-products/{productId}/odps": {
+      "get": {
+        "operationId": "getDataProductOdps",
+        "summary": "Get a data product as ODPS v1.0.0",
+        "tags": [
+          "Data products"
+        ],
+        "description": "The product as an Open Data Product Standard v1.0.0 document (JSON): ports with versions and the contract ids of one environment's bindings (production unless asked), team, support, tags and Steward's extras under customProperties. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "description": "Whose bindings give the ports’ contracts (default: production)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "description": "Data product id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An ODPS v1.0.0 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "An ODPS v1.0.0 document",
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-products/{productId}/lineage": {
+      "get": {
+        "operationId": "getDataProductLineage",
+        "summary": "Get the lineage of a data product",
+        "tags": [
+          "Data products"
+        ],
+        "description": "The product's pipeline in an environment (its elements by layer, the steps between them and the neighbouring elements of other products), or with ?element= the lineage of one of its elements 1–4 steps up and down (at most 200 nodes, the rest counted). What the token owner may not see has no name and is counted. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "description": "The pipeline’s environment (default: production)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "element",
+            "required": false,
+            "description": "An element of the product: its lineage instead of the product’s pipeline"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4,
+              "default": 2
+            },
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "description": "Steps up and down around the element (1–4)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "description": "Data product id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataLineage"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-elements": {
+      "get": {
+        "operationId": "listDataElements",
+        "summary": "List elements of the data catalogue",
+        "tags": [
+          "Data products"
+        ],
+        "description": "Tables, views, topics, APIs and paths on platforms the token owner may see, ordered by qualified name, with the products they are part of (hidden ones counted). Filter by platform, kind, environment or a prefix of the qualified name. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "platformId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "snowflake.database",
+                "snowflake.schema",
+                "snowflake.table",
+                "snowflake.view",
+                "snowflake.dynamicTable",
+                "snowflake.stream",
+                "snowflake.task",
+                "snowflake.stage",
+                "snowflake.pipe",
+                "kafka.topic",
+                "kafka.topicBundle",
+                "sql.schema",
+                "sql.table",
+                "sql.view",
+                "api.openapi",
+                "api.asyncapi",
+                "api.graphql",
+                "api.endpoint",
+                "files.path",
+                "insightsHub.aspect",
+                "other"
+              ]
+            },
+            "in": "query",
+            "name": "kind",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "in": "query",
+            "name": "prefix",
+            "required": false,
+            "description": "Qualified names starting with this (case-insensitive)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of elements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of elements",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DataElementEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-elements/{elementId}": {
+      "get": {
+        "operationId": "getDataElement",
+        "summary": "Get an element of the data catalogue",
+        "tags": [
+          "Data products"
+        ],
+        "description": "An element with its readout (metadata only), the products it is part of with its role, the data objects it implements and its health from linked checks. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "elementId",
+            "required": true,
+            "description": "Element id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataElementDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-objects": {
+      "get": {
+        "operationId": "listDataObjects",
+        "summary": "List data objects",
+        "tags": [
+          "Data products"
+        ],
+        "description": "The business data – Customer, Order – the token owner may see, ordered by name, with rating, classification and personal data. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "domain",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "active",
+                "deprecated",
+                "retired"
+              ]
+            },
+            "in": "query",
+            "name": "lifecycle",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "public",
+                "internal",
+                "confidential",
+                "strictly_confidential"
+              ]
+            },
+            "in": "query",
+            "name": "classification",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "none",
+                "personal",
+                "special"
+              ]
+            },
+            "in": "query",
+            "name": "personalData",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of data objects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of data objects",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DataObjectEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-objects/{objectId}": {
+      "get": {
+        "operationId": "getDataObject",
+        "summary": "Get a data object",
+        "tags": [
+          "Data products"
+        ],
+        "description": "A data object with its definition, rating, classification, personal data, legal basis, retention, roles, the elements that implement it (counted) and the products that expose it. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "objectId",
+            "required": true,
+            "description": "Data object id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataObjectDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -54377,6 +58776,10 @@
     {
       "name": "Suppliers",
       "description": "Suppliers of SaaS, managed platforms, software and services: contracts with notice-by dates, SLA and contractual RTO/RPO, certificates, and what links them – contacts without e-mail or phone"
+    },
+    {
+      "name": "Data products",
+      "description": "Data products (opt-in module): products with their ports, bindings per environment and data contracts, health and lineage, ODPS v1.0.0 documents; the element catalogue (tables, views, topics, APIs) and data objects"
     }
   ],
   "externalDocs": {

@@ -1358,6 +1358,14 @@ export const CHECK_RUNNERS: { [T in ActiveType]: CheckRunner<T> } = {
   'db-schema': { run: checkDbSchema },
   cost: { run: checkCost },
   'data-contract': { run: checkDataContract },
+  // a data product's element (0.22.0, ADR 0036 part 10): freshness by metadata, schema against the bound contract
+  'data-element': {
+    run: async (c, ctx) => {
+      const t0 = Date.now();
+      const { dataElementCheck } = await import('../dataproducts/checks/element.js');
+      return { ...(await dataElementCheck(c, ctx)), durationMs: Date.now() - t0 };
+    },
+  },
   'dependency-track': { run: checkDtrack },
   'version-behind': { run: checkVersionBehind },
   entra: { run: checkEntra },

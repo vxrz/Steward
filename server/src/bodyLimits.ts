@@ -84,6 +84,8 @@ export const LARGE_BODIES = {
   catalogueImport: { routes: ['POST /api/compliance/catalogues/import'], bytes: jsonText(CATALOGUE_LIMITS.importBytes, 16 * KIB) },
   /** Plant registry files (YAML or JSON, #218): PLANT_LIMITS.importBytes (8 MB) together */
   plantImport: { routes: ['POST /api/plant/import', 'POST /api/plant/import/preview'], bytes: jsonText(PLANT_LIMITS.importBytes) },
+  /** 0.22.0: data products files (YAML or JSON, ADR 0036 part 15): DATA_PRODUCT_IMPORT_LIMITS.bytes (8 MB) together */
+  dataProductImport: { routes: ['POST /api/data-products/import', 'POST /api/data-products/import/preview'], bytes: jsonText(8 * MIB) },
   /** A collector's configuration files and a mapping file (0.11.0): PLANT_COLLECTION_LIMITS.fileBytes (4 MB) together, plus the decisions */
   plantCollectionImport: {
     routes: ['POST /api/plant/assets/:assetId/collections/import', 'POST /api/plant/assets/:assetId/collections/import/preview'],

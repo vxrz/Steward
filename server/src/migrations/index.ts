@@ -39,6 +39,7 @@ import { NOTIFICATION_MIGRATIONS } from './notifications.js';
 import { CONFLUENT_MIGRATIONS } from './confluent.js';
 import { SUPPLIER_MIGRATIONS } from './suppliers.js';
 import { MODULE_MIGRATIONS } from './modules.js';
+import { DATA_PRODUCT_MIGRATIONS } from './dataproducts.js';
 import { ACCESS_MIGRATIONS } from './access.js';
 
 /**
@@ -88,6 +89,7 @@ export const MIGRATION_LISTS: readonly (readonly NamedMigration[])[] = [
   CONFLUENT_MIGRATIONS,
   SUPPLIER_MIGRATIONS,
   MODULE_MIGRATIONS,
+  DATA_PRODUCT_MIGRATIONS,
   ACCESS_MIGRATIONS,
 ];
 

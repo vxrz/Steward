@@ -385,7 +385,8 @@ describe('migration costs-006-price-books', () => {
       const dialect = target.kind === 'sqlite' ? 'sqlite' : 'postgres';
       const before = namedMigrations(dialect)
         .map((m) => m.name)
-        .filter((n) => n !== 'costs-006-price-books' && n !== 'costs-007-calculators-estimates');
+        // costs-006 and every later migration of the list (they build on its tables)
+        .filter((n) => !(n.startsWith('costs-') && Number(n.slice(6, 9)) >= 6));
       const old = new Db(target, { upTo: { core: coreMigrations(dialect).length, named: before }, quiet: true });
       const at = '2026-10-01T00:00:00.000Z';
       old.run(

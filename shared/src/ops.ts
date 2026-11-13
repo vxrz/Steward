@@ -44,6 +44,10 @@ export const NOTIFICATION_EVENTS = [
   'cost.booking_due',
   'cost.volume',
   'cost.price_review_due',
+  'dataproduct.deprecated',
+  'dataproduct.elements_missing',
+  'dataproduct.discovery_failed',
+  'cost.estimate_changed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -77,6 +81,7 @@ const ALERT_EVENTS: readonly NotificationEvent[] = [
   'cost.volume',
   'contract.failed',
   'plant.advisory_matched',
+  'dataproduct.discovery_failed',
 ];
 export const notificationCategory = (event: string): NotificationCategory =>
   (NOTIFICATION_DECISION_EVENTS as readonly string[]).includes(event) ? 'decision' : (ALERT_EVENTS as readonly string[]).includes(event) ? 'alert' : 'update';
@@ -125,6 +130,12 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'cost.volume':
     'A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum',
   'cost.price_review_due': 'A price book you maintain by hand is due for its review (Mark as checked when its prices are still right)',
+  'dataproduct.deprecated':
+    'A data product or port you consume was deprecated (registered consumers and the owners of products that use it), with its sunset date and successor',
+  'dataproduct.elements_missing': 'A discovery run no longer found elements of a data product you own (once per product and run)',
+  'dataproduct.discovery_failed': 'A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)',
+  'cost.estimate_changed':
+    'An estimate of a service or platform you own was recalculated with new prices and its monthly total moved by the threshold (Accept new prices to make them current)',
 };
 
 /**

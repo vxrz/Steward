@@ -63,6 +63,10 @@
     "plantMap": {
       "name": "Map of sites",
       "description": "The sites of the plant registry on a map, with tiles served through {{brand}}."
+    },
+    "dataProducts": {
+      "name": "Data products",
+      "description": "Data products, data objects and the catalogue of elements on your data platforms, with ports, contracts and consumers."
     }
   },
   "maturity": {

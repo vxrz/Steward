@@ -68,4 +68,19 @@ The words Steward uses, in English and German. The web app has the same list und
 | Collector        | Kollektor              | Who reads or moves an asset's data: a Steward application, platform or process, or a job elsewhere by name.                                                |
 | Raw item         | Roher Eintrag          | An item of a data collection that is not mapped to a data point of the asset.                                                                              |
 
+## Data products
+
+| Term             | German            | Meaning                                                                                                                                                  |
+| ---------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domain           | Domäne            | A business domain (_Sales_) or a sub-domain (_Sales → Orders_) that products and data objects belong to ([DATA-PRODUCTS.md](DATA-PRODUCTS.md)).          |
+| Data object      | Datenobjekt       | What the business data **is** – _Customer_, _Order_ – with its definition, CIA rating, classification and personal data; the module's business glossary. |
+| Data product     | Datenprodukt      | What a domain **offers**: made of elements, with ports, owners, a rating, a lifecycle and environments. An optional module.                              |
+| Element          | Element           | A concrete thing on a platform in one environment – a table, view, topic, API or path – discovered or entered, in the element catalogue.                 |
+| Port             | Port              | A product's interface: an output port others read (bound per environment to elements and a data contract), or an input port it reads.                    |
+| Consumer         | Nutzer            | A registration on an output port: who reads it, for what, since when, under which agreement.                                                             |
+| Step             | Schritt           | How data moves from elements to elements, with a runner and transformation notes – documentation, Steward runs nothing (not a step of a process).        |
+| Discovery source | Erkennungsquelle  | What Steward reads from a platform's metadata (Snowflake, Kafka, schema snapshots) to fill the element catalogue, how often and as whom.                 |
+| Rating floor     | Mindesteinstufung | A product's rating should be at least that of the data objects it exposes; lower only with a reason.                                                     |
+| Maturity         | Reife             | Computed from the scorecard (1 documented and rated, 2 observed, 3 contracted, 4 objectives met) – never typed.                                          |
+
 The German terms of the UI in more detail: [I18N.md](I18N.md#german-glossary).

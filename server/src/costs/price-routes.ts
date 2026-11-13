@@ -4,7 +4,21 @@ import { COST_ESTIMATE_OWNER_KINDS, FISCAL_YEAR_MAX, FISCAL_YEAR_MIN } from '@sm
 import { ACCESS } from '../auth/access.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
-import { checkBook, createBook, getBook, getVersion, importBook, listBooks, previewImport, removeBook, saveEntries, updateBook } from './price-books.js';
+import {
+  checkBook,
+  createBook,
+  getBook,
+  getVersion,
+  importBook,
+  listBooks,
+  previewImport,
+  removeBook,
+  saveEntries,
+  setBookTerms,
+  updateBook,
+} from './price-books.js';
+import { readBookNow, setBookSource } from './price-sources.js';
+import { conditionContracts, getContractConditions, setContractConditions } from './contract-conditions.js';
 import { createCalculator, exportCalculator, getCalculator, listCalculators, removeCalculator, saveCalculator, calculatorVersion } from './calculators.js';
 import {
   acceptEstimate,
@@ -32,6 +46,12 @@ import { listRates, removeRate, setRate } from './fx.js';
  *   GET  /api/costs/price-books/:bookId/versions/:n          a version with its difference to the one before
  *   POST /api/costs/price-books/:bookId/import/preview | …/import    a CSV file (nothing stored by the preview)
  *   POST /api/costs/price-books/:bookId/check                "Mark as checked"
+ *   PUT  /api/costs/price-books/:bookId/source | POST …/read   a platform's contracted book read from a source (0.23.0)
+ *   PUT  /api/costs/price-books/:bookId/terms                a rate card's own terms (0.23.0: a derived book without a contract)
+ *   GET  /api/costs/contracts                                the contracts whose conditions the caller sees (an estimate's choice)
+ *   GET|PUT /api/costs/contracts/:contractId/conditions      a supplier contract's "Prices" (0.23.0: who sees it with its amounts;
+ *                                                            changed by who may change the contract) – under /api/costs, so it
+ *                                                            switches off with the Costs module like the rest of the section
  *   GET|POST /api/costs/calculators, GET|PUT|DELETE …/:calculatorId, GET …/export, GET …/versions/:n
  *   POST /api/costs/calculate                                the dry run: up to five variants, nothing stored
  *   GET  /api/costs/estimates?ownerKind=&ownerId=, POST /api/costs/estimates, GET|PUT|DELETE …/:estimateId
@@ -65,6 +85,16 @@ export async function priceRoutes(app: FastifyInstance): Promise<void> {
   app.post('/costs/price-books/:bookId/import/preview', priceImport, async (req) => previewImport(bookId(req), req.body));
   app.post('/costs/price-books/:bookId/import', priceImport, async (req) => importBook(bookId(req), req.body));
   app.post('/costs/price-books/:bookId/check', session, async (req) => checkBook(bookId(req)));
+  app.put('/costs/price-books/:bookId/terms', session, async (req) => setBookTerms(bookId(req), req.body));
+  // a platform's contracted book read from a source (0.23.0): set it, read it now
+  app.put('/costs/price-books/:bookId/source', session, async (req) => setBookSource(bookId(req), req.body));
+  app.post('/costs/price-books/:bookId/read', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.heavy } }, async (req) => readBookNow(bookId(req)));
+
+  // ---------- contract conditions (0.23.0) ----------
+  const contractId = (req: FastifyRequest) => z.object({ contractId: z.string().min(1).max(100) }).parse(req.params).contractId;
+  app.get('/costs/contracts', async () => conditionContracts());
+  app.get('/costs/contracts/:contractId/conditions', async (req) => getContractConditions(contractId(req)));
+  app.put('/costs/contracts/:contractId/conditions', session, async (req) => setContractConditions(contractId(req), req.body));
 
   // ---------- calculators ----------
   app.get('/costs/calculators', async () => listCalculators());

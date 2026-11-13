@@ -48,6 +48,8 @@ import { protectOpening } from '../suppliers/shared.js';
 import { canManageSuppliers, contractPlatformNamesOutsiders, contractScopeTeams } from '../suppliers/service.js';
 import { uncoveredSubjects } from './named-grants.js';
 import { isRestricted } from './share-store.js';
+import { domainAccess, elementAccess, objectAccess, productAccess } from '../dataproducts/access.js';
+import { moduleEnabled } from '../modules/registry.js';
 import type { AuthUser } from './context.js';
 import { bookRights, bookRow } from '../costs/price-books.js';
 import { calculatorRights } from '../costs/calculators.js';
@@ -78,6 +80,7 @@ interface ResourceRow {
   owner_subjects?: string;
   archived?: number;
   responsible?: string;
+  stewards?: string;
 }
 
 const CATALOGUE_TABLES = { service: 'services', application: 'applications', system: 'systems', supplier: 'suppliers' } as const;
@@ -97,6 +100,14 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   if (kind === 'site') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name, acl FROM plant_sites WHERE id = ?', id) : undefined;
   // data contracts (#221)
   if (kind === 'contract') return db().get<ResourceRow>('SELECT id, name FROM data_contracts WHERE id = ?', id);
+  // the data products module (0.22.0, ADR 0036): only while the module is on
+  if (kind === 'data_product' || kind === 'data_object' || kind === 'data_element' || kind === 'data_domain') {
+    if (!moduleEnabled('dataProducts')) return undefined;
+    if (kind === 'data_product') return db().get<ResourceRow>('SELECT id, name, owners FROM dp_products WHERE id = ?', id);
+    if (kind === 'data_object') return db().get<ResourceRow>('SELECT id, name, owner, stewards FROM dp_objects WHERE id = ?', id);
+    if (kind === 'data_domain') return db().get<ResourceRow>('SELECT id, name, owners FROM dp_domains WHERE id = ?', id);
+    return db().get<ResourceRow>('SELECT id, qualified_name AS name FROM dp_elements WHERE id = ?', id);
+  }
   // platform identities (0.13.0, ADR 0009): name and access list; the platform decides who sees them
   if (kind === 'platform_identity')
     return db().get<ResourceRow & { platform_id?: string }>('SELECT id, name, acl, platform_id FROM platform_identities WHERE id = ?', id);
@@ -125,6 +136,14 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   if (kind === 'ticket') return ticketAccess(u, { id: r.id, responsible: r.responsible ?? '[]' });
   if (kind === 'site') return siteAccess(u, { id: r.id, acl: r.acl ?? '[]' });
   if (kind === 'contract') return contractAccess(u, { id: r.id });
+  if (kind === 'data_product') return productAccess(u, { id: r.id, owners: r.owners ?? '[]' });
+  if (kind === 'data_domain') return domainAccess(u, { id: r.id, owners: r.owners ?? '[]' });
+  if (kind === 'data_object') return objectAccess(u, { id: r.id, owner: r.owner ?? null, stewards: r.stewards ?? '[]' });
+  if (kind === 'data_element')
+    return elementAccess(
+      u,
+      owningTeams('data_element', r.id).map((t) => t.id),
+    );
   if (kind === 'platform_identity') {
     // who sees the platform sees its identities (ADR 0009); `use` as identityAccess decides it
     const pid = (r as ResourceRow & { platform_id?: string }).platform_id ?? '';
@@ -139,8 +158,8 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   }
   if (kind === 'cost_price_book') {
     const row = bookRow(r.id);
-    const b = row ? bookRights(row, u) : { view: false, edit: false };
-    return { permissions: [...(b.view ? ['view'] : []), ...(b.edit ? ['edit'] : [])], reasons: [] };
+    const b = row ? bookRights(row, u) : { view: false, edit: false, manage: false };
+    return { permissions: [...(b.view ? ['view'] : []), ...(b.edit ? ['edit'] : []), ...(b.manage ? ['manage'] : [])], reasons: [] };
   }
   if (kind === 'cost_calculator') {
     const c = calculatorRights({ id: r.id }, u);
@@ -179,6 +198,10 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   cost_calculator: ['Calculator not found', 'COST_CALCULATOR_NOT_FOUND'],
   device_profile: ['Device profile not found', 'PLANT_PROFILE_NOT_FOUND'],
   kpi_definition: ['KPI definition not found', 'PLANT_KPI_NOT_FOUND'],
+  data_product: ['Data product not found', 'DATA_PRODUCT_NOT_FOUND'],
+  data_object: ['Data object not found', 'DATA_OBJECT_NOT_FOUND'],
+  data_element: ['Data element not found', 'DATA_ELEMENT_NOT_FOUND'],
+  data_domain: ['Data domain not found', 'DATA_DOMAIN_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
 /** 404 for an item of a kind, like one that does not exist (the Access tab's routes, auth/share-routes.ts). */

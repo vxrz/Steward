@@ -39,6 +39,7 @@ import { ADVISORY_COMPONENTS } from '../../plant/advisories/api-schemas.js';
 import { DB_SCHEMA_COMPONENTS } from '../../dbschema/api-schemas.js';
 import { COST_COMPONENTS } from '../../costs/api-schemas.js';
 import { SUPPLIER_COMPONENTS } from '../../suppliers/api-schemas.js';
+import { DATA_PRODUCT_COMPONENTS } from '../../dataproducts/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
 export const RUN_OUTCOMES = [...RUN_STATUSES, 'findings'] as const satisfies readonly RunOutcome[];
@@ -679,6 +680,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...DB_SCHEMA_COMPONENTS,
   ...COST_COMPONENTS,
   ...SUPPLIER_COMPONENTS,
+  ...DATA_PRODUCT_COMPONENTS,
 };
 
 /** Example values shown in the documentation. */

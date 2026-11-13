@@ -86,6 +86,49 @@ export class SnowflakeClient {
     }
     return rows.slice(0, MAX_ROWS).map((row) => Object.fromEntries(names.map((n, i) => [n, row[i] ?? null])));
   }
+
+  /**
+   * Runs one statement and hands its rows over partition by partition (data products discovery, ADR 0036 part 5): the
+   * caller writes each partition before the next is fetched, so a large catalogue is never held whole. Stops after
+   * `maxRows` rows (the caller asks for one more than its limit to know it was cut). `timeoutSeconds`: the SQL API's
+   * statement timeout.
+   */
+  async *queryPartitions(statement: string, bindings: (string | number)[] = [], maxRows = MAX_ROWS, timeoutSeconds = 60): AsyncGenerator<Row[]> {
+    const v = this.p.config.variables ?? {};
+    let r = await this.call('POST', '/api/v2/statements', {
+      statement,
+      timeout: timeoutSeconds,
+      ...(v.warehouse ? { warehouse: String(v.warehouse) } : {}),
+      ...(v.role ? { role: String(v.role) } : {}),
+      ...(bindings.length
+        ? {
+            bindings: Object.fromEntries(
+              bindings.map((b, i) => [String(i + 1), typeof b === 'number' ? { type: 'FIXED', value: String(b) } : { type: 'TEXT', value: b }]),
+            ),
+          }
+        : {}),
+    });
+    const started = Date.now();
+    while (r.status === 202 && r.body.statementHandle) {
+      if (Date.now() - started > timeoutSeconds * 1000) throw new Error(`The Snowflake statement did not finish within ${timeoutSeconds} s`);
+      await new Promise((res) => setTimeout(res, POLL_MS));
+      r = await this.call('GET', `/api/v2/statements/${encodeURIComponent(r.body.statementHandle)}`);
+    }
+    const names = (r.body.resultSetMetaData?.rowType ?? []).map((c) => c.name);
+    const toRows = (data: (string | null)[][] | undefined, room: number): Row[] =>
+      (data ?? []).slice(0, room).map((row) => Object.fromEntries(names.map((n, i) => [n, row[i] ?? null])));
+    let read = 0;
+    const first = toRows(r.body.data, maxRows);
+    read += first.length;
+    if (first.length) yield first;
+    const partitions = r.body.resultSetMetaData?.partitionInfo?.length ?? 1;
+    for (let i = 1; i < partitions && read < maxRows; i++) {
+      const part = await this.call('GET', `/api/v2/statements/${encodeURIComponent(r.body.statementHandle ?? '')}?partition=${i}`);
+      const rows = toRows(part.body.data, maxRows - read);
+      read += rows.length;
+      if (rows.length) yield rows;
+    }
+  }
 }
 
 /** A Snowflake identifier as the views store it: unquoted names in upper case. */

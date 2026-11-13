@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.21.0 (November 2026)._
+_Last reviewed for 0.22.0 (November 2026)._
 
 ## What Steward is for
 
@@ -80,11 +80,12 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.19.0:** platform cost plans and contract volumes (prepaid or by use, with a minimum or a ceiling), costs and contracts of applications and systems; plant imports that keep what people changed in Steward, Revert of removed entries and proposals from CI; named owners from outside the owning teams confirmed and audited; the fixes of a review of security, performance, UI and accessibility.
 - **0.20.0:** a review of the whole application (bugs, security, performance, architecture, UI/UX and accessibility) with its fixes; Industrial Edge examples on the real IEM fields; data paths that follow the direction of the data (receive transfers, applications and platforms as peers, systems and platforms in zones); off beyond the maximum as Down (#288); Git sync rate limits and an all-or-nothing fetch; decision records for shares, module access, price books and data products.
 - **0.21.0:** one access model, phase 1 – shares with an _Access_ tab on services, applications, systems, suppliers, device profiles and KPI definitions, owners as implied shares, _Restricted_ items; who may use a module; price books, calculators and estimates with ranges, variants and the MCP dry run; Snowflake cost estimate and waste check examples; a security review of the access changes.
+- **0.22.0:** the data products module, phase 1 (preview, off by default) – data objects, products with ratings, lifecycle and environments, an element catalogue with discovery from Snowflake, Kafka and schema snapshots, ports bound to data contracts, health from monitor checks, attributed costs, a scorecard, pictures of pipeline, map and lineage, shares, file exchange with ODPS, `/api/v1` and MCP.
 
 ## Next
 
-- **0.22.0:** the data products module, phase 1 ([ADR 0036](adr/0036-data-products-module.md)).
-- **Then:** the access model phase 2 and module roles (#297), price books phase 2, data products phase 2.
+- **0.23.0:** the access model, phase 2 – access lists of processes, platforms, monitors and plant sites become shares, shares on more kinds – and module roles (#297); price books phase 2: contract conditions, derived books for providers with a fee on top, rate sheets read from Snowflake and Confluent, estimates recalculated on new prices.
+- **0.24.0:** data products, phase 2 ([ADR 0036](adr/0036-data-products-module.md#phases)).
 
 ## Later
 

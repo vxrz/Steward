@@ -44,13 +44,18 @@ export interface OwningTeam {
   name: string;
 }
 
+/** Kinds whose owning teams are not part of the per-request index (too many rows). */
+const PER_ROW_KINDS: ReadonlySet<OwnedKind> = new Set<OwnedKind>(['data_element']);
+
 /**
  * The owning teams of a resource (none: it belongs to the whole instance). Within a request (or job run) all owning
  * teams are read once, so filtering a long list costs one query.
  */
 export function owningTeams(kind: OwnedKind, id: string): OwningTeam[] {
   const store = currentStore();
-  if (!store)
+  // elements of the data products' catalogue (ADR 0036) can be hundreds of thousands: read one at a time, never into
+  // the index every request builds (the module reads them in bulk itself, dataproducts/access.ts)
+  if (!store || PER_ROW_KINDS.has(kind))
     return db().all<OwningTeam>(
       'SELECT t.id, t.name FROM resource_teams r JOIN teams t ON t.id = r.team_id WHERE r.kind = ? AND r.resource_id = ? ORDER BY t.name',
       kind,
@@ -59,7 +64,7 @@ export function owningTeams(kind: OwnedKind, id: string): OwningTeam[] {
   if (!store.teamIndex) {
     const index = new Map<string, OwningTeam[]>();
     for (const r of db().all<{ kind: string; resource_id: string; id: string; name: string }>(
-      'SELECT r.kind, r.resource_id, t.id, t.name FROM resource_teams r JOIN teams t ON t.id = r.team_id ORDER BY t.name',
+      `SELECT r.kind, r.resource_id, t.id, t.name FROM resource_teams r JOIN teams t ON t.id = r.team_id WHERE r.kind NOT IN (${[...PER_ROW_KINDS].map((k) => `'${k}'`).join(', ')}) ORDER BY t.name`,
     )) {
       const key = `${r.kind}:${r.resource_id}`;
       const list = index.get(key) ?? [];

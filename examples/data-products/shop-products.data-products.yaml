@@ -1,0 +1,243 @@
+# The data products of the invented shop (docs/DATA-PRODUCTS.md, ADR 0036): Orders (source-aligned: the topic
+# orders.v1 → RAW → STAGED → CURATED in dev and prod), Customer 360 (aggregate, rated below its data object with a
+# reason) and Sales mart (consumer-aligned: input ports on both, an output table and an API) – plus a draft product.
+# The elements come from the discovery sources of the demo (shop-catalogue.data-products.yaml says which).
+version: 1
+
+data_products:
+  - key: orders
+    name: Orders
+    type: sourceAligned
+    domain: orders
+    description: Every confirmed order of the shop, from the event on the topic to a curated table – in dev and prod.
+    purpose: One trusted list of orders for fulfilment, finance and the sales mart.
+    owners: [user:dana]
+    support: { channel: "#orders-data (invented)", url: "https://wiki.example/orders-data", hours: "Mo–Fr 08–17" }
+    criticality: high
+    tier: 1
+    version: "2.1"
+    value_statement: Fulfilment and invoicing run on it; the sales figures start here.
+    value_tier: high
+    value_amount: 250000
+    value_currency: EUR
+    tags: [shop, orders]
+    lifecycle: active
+    rating:
+      confidentiality: { level: normal, justification: Order figures without customer data }
+      integrity: { level: high, justification: Revenue and invoices are computed from it }
+      availability: { level: high, justification: Fulfilment stops without current orders }
+      classification: internal
+    environments:
+      - { environment: prod, state: available }
+      - { environment: dev, state: available }
+    members:
+      - { element: { platform: Kafka (demo), kind: kafka.topic, qualified_name: orders.v1, environment: prod }, role: input }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.SALES.CUSTOMERS, environment: prod }, role: input }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }, role: internal }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.STAGED.ORDERS, environment: prod }, role: internal }
+      - { element: { platform: Snowflake (demo), kind: snowflake.task, qualified_name: SHOP.STAGED.LOAD_ORDERS, environment: prod }, role: internal }
+      - { element: { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP.CURATED.ORDERS, environment: prod }, role: output }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.RAW.ORDERS_RAW, environment: dev }, role: internal }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.STAGED.ORDERS, environment: dev }, role: internal }
+      - { element: { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP_DEV.CURATED.ORDERS, environment: dev }, role: output }
+    ports:
+      - direction: output
+        name: orders
+        version: v2
+        type: table
+        description: Curated orders, one row per order, updated hourly.
+        data_objects: [order]
+        objectives: { freshness_minutes: 120, availability_pct: 99.5, update_schedule: hourly }
+        bindings:
+          - environment: prod
+            elements: [{ platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP.CURATED.ORDERS, environment: prod }]
+            contract: shop-orders # the data contract's ODCS id (examples/data-contracts)
+          - environment: dev
+            elements: [{ platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP_DEV.CURATED.ORDERS, environment: dev }]
+        consumers:
+          - { kind: team, subject: team:service desk, purpose: Answers questions about orders, since: "2026-01-15" }
+          - {
+              kind: text,
+              text: Finance controlling (invented),
+              purpose: Monthly close,
+              agreement: { kind: url, ref: "https://wiki.example/agreements/orders-finance", label: Agreement },
+            }
+      - direction: output
+        name: orders
+        version: v1
+        type: table
+        description: The staged table as the first version exposed it – replaced by v2.
+        lifecycle: deprecated
+        sunset_date: "2027-06-30"
+        successor: { name: orders, version: v2 }
+        data_objects: [order]
+        bindings:
+          - environment: prod
+            elements: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.STAGED.ORDERS, environment: prod }]
+    steps:
+      - name: Ingest orders
+        kind: ingest
+        runner: { kind: connector, platform: Kafka Connect (demo), name: orders-snowflake-sink }
+        schedule: continuous
+        description: The Snowflake sink connector writes every event of orders.v1 into the raw table.
+        inputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: orders.v1, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
+      - name: Stage orders
+        kind: stage
+        runner: { kind: tool, tool: dbt, text: model stg_orders }
+        schedule: hourly
+        notes:
+          - { kind: filter, text: Test orders of the shop's QA accounts are left out }
+          - { kind: rename, text: camelCase fields of the events become snake_case columns }
+        inputs:
+          - { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }
+          - { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.SALES.CUSTOMERS, environment: prod }
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.STAGED.ORDERS, environment: prod }]
+      - name: Curate orders
+        kind: curate
+        runner: { kind: element, element: { platform: Snowflake (demo), kind: snowflake.task, qualified_name: SHOP.STAGED.LOAD_ORDERS, environment: prod } }
+        schedule: "0 * * * *"
+        notes:
+          - { kind: aggregate, text: One row per order with its positions summed }
+          - { kind: compute, text: Net and gross amounts in EUR }
+        inputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.STAGED.ORDERS, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP.CURATED.ORDERS, environment: prod }]
+      - name: Stage orders (dev)
+        kind: stage
+        runner: { kind: tool, tool: dbt, text: "model stg_orders, target dev" }
+        inputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.RAW.ORDERS_RAW, environment: dev }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.STAGED.ORDERS, environment: dev }]
+      - name: Curate orders (dev)
+        kind: curate
+        runner: { kind: tool, tool: Snowflake dynamic table }
+        inputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.STAGED.ORDERS, environment: dev }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP_DEV.CURATED.ORDERS, environment: dev }]
+
+  - key: customer-360
+    name: Customer 360
+    type: aggregate
+    domain: customer
+    description: One record per customer with their orders and the channels they use – names and e-mails pseudonymised.
+    purpose: Segmentation and service without access to the customer master data itself.
+    owners: [user:dana]
+    criticality: medium
+    tier: 2
+    value_statement: Campaigns and the service desk use it instead of copies of the CRM.
+    value_tier: medium
+    lifecycle: active
+    rating:
+      confidentiality: { level: high, justification: Pseudonymised – the customer number remains }
+      integrity: { level: high, justification: Segments are built from it }
+      availability: { level: normal, justification: A day without it delays a campaign }
+      classification: confidential
+      reasons:
+        confidentiality: Names and e-mail addresses are hashed in SHOP.CURATED.CUSTOMERS, so the product stays below Very high of the data object Customer.
+    environments:
+      - { environment: prod, state: available }
+    members:
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.SALES.CUSTOMERS, environment: prod }, role: input }
+      - { element: { platform: Kafka (demo), kind: kafka.topicBundle, qualified_name: shop-events.*, environment: prod }, role: input }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.CUSTOMERS, environment: prod }, role: output }
+    ports:
+      - direction: output
+        name: customer
+        version: v1
+        type: table
+        data_objects: [customer]
+        objectives: { freshness_minutes: 1440, availability_pct: 99 }
+        bindings:
+          - environment: prod
+            elements: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.CUSTOMERS, environment: prod }]
+            contract: shop-customers
+    steps:
+      - name: Build customer 360
+        kind: curate
+        runner: { kind: tool, tool: Snowflake task, text: CALL BUILD_CUSTOMER_360() }
+        schedule: daily at 02:00
+        notes:
+          - { kind: enrich, text: Channels from the shop's event topics }
+          - { kind: format, text: Names and e-mails hashed (SHA-256 with a secret salt) }
+        inputs:
+          - { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.SALES.CUSTOMERS, environment: prod }
+          - { platform: Kafka (demo), kind: kafka.topicBundle, qualified_name: shop-events.*, environment: prod }
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.CUSTOMERS, environment: prod }]
+
+  - key: sales-mart
+    name: Sales mart
+    type: consumerAligned
+    domain: sales
+    description: Daily sales per region for the finance tools and the management report – a table and an API.
+    owners: [user:dana]
+    criticality: medium
+    value_statement: The monthly management report reads it.
+    value_tier: medium
+    lifecycle: active
+    rating:
+      confidentiality: { level: normal, justification: Aggregates without customer data }
+      integrity: { level: high, justification: Management decisions are based on it }
+      availability: { level: high, justification: The management report waits for it at 06:00 }
+      classification: internal
+    environments:
+      - { environment: prod, state: available }
+    members:
+      - { element: { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP.CURATED.ORDERS, environment: prod }, role: input }
+      - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.CUSTOMERS, environment: prod }, role: input }
+      - { element: { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }, role: output }
+      - { element: { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.ORDERS_BY_REGION, environment: prod }, role: internal }
+      - { element: { kind: api.openapi, qualified_name: sales-api/v1, environment: prod }, role: output }
+    ports:
+      - direction: input
+        name: orders
+        source: { product: orders, port: orders, version: v2 }
+      - direction: input
+        name: customers
+        source: { product: customer-360, port: customer, version: v1 }
+      - direction: input
+        name: orders (legacy)
+        description: Still reads the deprecated v1 for the region report – to be moved to v2 before its sunset.
+        source: { product: orders, port: orders, version: v1 }
+      - direction: output
+        name: daily sales
+        version: v1
+        type: table
+        data_objects: [order]
+        objectives: { freshness_minutes: 1440, update_schedule: daily at 05:00 }
+        bindings:
+          - environment: prod
+            elements: [{ platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }]
+        consumers:
+          - { kind: text, text: Management report (invented), purpose: Monthly management review }
+      - direction: output
+        name: sales api
+        version: v1
+        type: api
+        description: The daily sales as JSON for the finance tools.
+        bindings:
+          - environment: prod
+            elements: [{ kind: api.openapi, qualified_name: sales-api/v1, environment: prod }]
+    steps:
+      - name: Region report
+        kind: transform
+        runner: { kind: tool, tool: dbt, text: model orders_by_region }
+        schedule: daily at 04:30
+        inputs:
+          - { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP.CURATED.ORDERS, environment: prod }
+          - { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.CURATED.CUSTOMERS, environment: prod }
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.ORDERS_BY_REGION, environment: prod }]
+      - name: Daily sales
+        kind: publish
+        runner: { kind: tool, tool: dbt, text: model daily_sales }
+        schedule: daily at 05:00
+        notes:
+          - { kind: aggregate, text: Net sales per day and region }
+        inputs: [{ platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.ORDERS_BY_REGION, environment: prod }]
+        outputs:
+          - { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }
+          - { kind: api.openapi, qualified_name: sales-api/v1, environment: prod }
+
+  - key: machine-measurements
+    name: Machine measurements
+    type: sourceAligned
+    domain: manufacturing
+    description: The measurements of the invented plant's machines – planned for the next quarter.
+    lifecycle: draft

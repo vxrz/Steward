@@ -29,6 +29,7 @@ const CODED_AREAS = [
   'plant/',
   'dbschema/',
   'datacontracts/',
+  'dataproducts/',
   'suppliers/',
   'routes/reports.ts',
   'routes/report-schedules.ts',

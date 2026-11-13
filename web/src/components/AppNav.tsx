@@ -55,6 +55,12 @@ import {
   type Icon,
   IconGitPullRequest,
   IconTruckDelivery,
+  IconPackages,
+  IconTable,
+  IconCategory,
+  IconFolders,
+  IconTopologyStar3,
+  IconRadar,
 } from '@tabler/icons-react';
 import type { Capabilities, VisibilitySummary } from '@sm/shared';
 import { useOwnLabel } from './plant/labels';
@@ -75,6 +81,12 @@ export type NavKey =
   | 'monitors'
   | 'platforms'
   | 'dataContracts'
+  | 'dataProducts'
+  | 'dataElements'
+  | 'dataObjects'
+  | 'dataDomains'
+  | 'dataMap'
+  | 'dataDiscovery'
   | 'records'
   | 'services'
   | 'applications'
@@ -113,7 +125,7 @@ export type NavKey =
  * The areas of the sidebar (v0.4.0; Registers since 0.11.0): Home has no heading; Plant only while its module is on
  * (#218).
  */
-export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'registers' | 'plant' | 'compliance' | 'admin';
+export type NavGroupKey = 'home' | 'operate' | 'automate' | 'catalogue' | 'data' | 'registers' | 'plant' | 'compliance' | 'admin';
 
 interface NavItemDef {
   to: string;
@@ -131,6 +143,8 @@ const automation = (c: Capabilities) => c.viewAutomation !== false;
 const credentialsRegister = (c: Capabilities) => c.viewCredentials !== false;
 // the plant registry module (#218): only while it is on
 const plant = (c: Capabilities) => c.plant === true;
+// the data products module (ADR 0036): Data in the sidebar; data contracts move there while it is on
+const dataProducts = (c: Capabilities) => c.modules?.dataProducts === true;
 
 /**
  * Processes, Schedules, Triggers and Git sync: one sidebar entry ("Processes"), the others are tabs of it
@@ -190,7 +204,21 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       // suppliers (0.17.0, ADR 0029): who runs, backs up and recovers what the services use
       { to: '/suppliers', key: 'suppliers', icon: IconTruckDelivery },
       { to: '/platforms', key: 'platforms', icon: IconServer },
-      { to: '/data-contracts', key: 'dataContracts', icon: IconContract },
+      { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: (c) => !dataProducts(c) },
+    ],
+  },
+  {
+    // the data products module (0.22.0, ADR 0036 part 13): products, the element catalogue, data objects, domains, the
+    // map and discovery – with the data contracts beside them while both modules are on
+    key: 'data',
+    items: [
+      { to: '/data-products', key: 'dataProducts', icon: IconPackages },
+      { to: '/data-elements', key: 'dataElements', icon: IconTable },
+      { to: '/data-objects', key: 'dataObjects', icon: IconCategory },
+      { to: '/data-domains', key: 'dataDomains', icon: IconFolders },
+      { to: '/data-products/map', key: 'dataMap', icon: IconTopologyStar3 },
+      { to: '/data-products/discovery', key: 'dataDiscovery', icon: IconRadar },
+      { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: dataProducts },
     ],
   },
   {

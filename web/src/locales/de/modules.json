@@ -63,6 +63,10 @@
     "plantMap": {
       "name": "Standortkarte",
       "description": "Die Standorte des Werksregisters auf einer Karte, mit Kacheln über {{brand}}."
+    },
+    "dataProducts": {
+      "name": "Datenprodukte",
+      "description": "Datenprodukte, Datenobjekte und der Katalog der Elemente Ihrer Datenplattformen, mit Ports, Verträgen und Konsumenten."
     }
   },
   "maturity": {

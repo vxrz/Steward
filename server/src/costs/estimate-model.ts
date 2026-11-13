@@ -1,7 +1,7 @@
 import { fiscalYearMonths, formatMicros, planMonths, roundToCurrency, fromMicrosIn, type CostPlanProposalLine, type CostPriceCharge } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
-import type { StoredResult } from './pricing.js';
+import type { StoredLine, StoredResult } from './pricing.js';
 
 /**
  * Plan lines from estimates (0.21.0, ADR 0035 part 6, decision 13) – the pure part, read by the cost plan without
@@ -31,10 +31,28 @@ export interface EstimateBasis {
   list: boolean;
 }
 
-/** Amount (expected) of a stored line for a view: its own, or at list price when `canSee` says no. */
-function shownExpected(l: StoredResult['lines'][number], canSee: (bookId: string) => boolean): { v: number | null; hidden: boolean } {
+/**
+ * What a reader may see of the prices behind an estimate (ADR 0035 part 8): the books they may read, the contracts whose
+ * conditions they see (with the amounts), and the derived books whose terms they see (0.23.0).
+ */
+export interface PriceSight {
+  book(bookId: string): boolean;
+  conditions(contractId: string): boolean;
+  terms(bookId: string): boolean;
+}
+/** Jobs, audit texts and the editor's own calculation: everything. */
+export const SEE_ALL: PriceSight = { book: () => true, conditions: () => true, terms: () => true };
+
+/**
+ * Whether a stored line is priced with rates the reader may not see: a book they may not read, or a contract's
+ * conditions they may not see. Such a line is shown at its list price (priceHidden) – nothing is derived from the rate.
+ */
+export const lineHidden = (l: StoredLine, s: PriceSight): boolean => !!l.book && !l.missing && (!s.book(l.book.id) || (!!l.cid && !s.conditions(l.cid)));
+
+/** Amount (expected) of a stored line for a view: its own, or at list price when the view may not see its rates. */
+function shownExpected(l: StoredLine, canSee: PriceSight): { v: number | null; hidden: boolean } {
   if (!l.a) return { v: null, hidden: false };
-  if (l.book && !canSee(l.book.id)) return { v: l.l ? l.l.a[1] : null, hidden: true };
+  if (lineHidden(l, canSee)) return { v: l.l ? l.l.a[1] : null, hidden: true };
   return { v: l.a[1], hidden: false };
 }
 
@@ -44,7 +62,7 @@ export function proposalsOf(
   title: string,
   fiscalYear: number,
   startMonth: number,
-  canSee: (bookId: string) => boolean,
+  canSee: PriceSight,
 ): { lines: ProposalPart[]; hidden: boolean } {
   const months = fiscalYearMonths(fiscalYear, startMonth);
   const first = months.findIndex((m) => m >= r.appliesFrom);
@@ -117,11 +135,12 @@ export function proposalsOf(
   return { lines: out, hidden };
 }
 
-/** A view that sees list books only (for a basis made from list prices). */
-export const listOnly =
-  (r: StoredResult) =>
-  (bookId: string): boolean =>
-    r.books.find((b) => b.id === bookId)?.kind === 'list';
+/** A view that sees list books only and no contract's conditions (for a basis made from list prices). */
+export const listOnly = (r: StoredResult): PriceSight => ({
+  book: (bookId) => r.books.find((b) => b.id === bookId)?.kind === 'list',
+  conditions: () => false,
+  terms: () => false,
+});
 
 /**
  * Whether plan lines made from estimates still match them (Estimate changed): one statement for the estimates of all
@@ -155,7 +174,7 @@ export function estimateLineStates(
       const ck = `${e.id}|${l.fiscal_year}|${basis.list}`;
       let props = cache.get(ck);
       if (!props) {
-        props = proposalsOf(stored, e.title, Number(l.fiscal_year), startMonth, basis.list ? listOnly(stored) : () => true).lines;
+        props = proposalsOf(stored, e.title, Number(l.fiscal_year), startMonth, basis.list ? listOnly(stored) : SEE_ALL).lines;
         cache.set(ck, props);
       }
       const now = props.find((p) => p.key === basis.key);
