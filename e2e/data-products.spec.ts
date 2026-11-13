@@ -283,6 +283,20 @@ test.describe('the data products pages', () => {
     await expect(loadMore).toHaveCount(0);
   });
 
+  test('a dialog opened from a menu gives the focus back to the menu’s button', async ({ page }) => {
+    await page.goto('/data-products');
+    const menu = page.getByTestId('products-transfer');
+    await menu.click();
+    await page.getByTestId('products-import').click();
+    const dialog = page.getByRole('dialog', { name: 'Import data products' });
+    await expect(dialog).toBeVisible();
+    // the menu has closed: the item that opened the dialog is gone
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(menu).toBeFocused();
+  });
+
   test('team scope: a viewer neither sees a team’s product nor its name on a shared element', async ({ loginAs }) => {
     const vera = await loginAs('vera');
     await vera.goto(`/data-products?q=${s.token}`);
