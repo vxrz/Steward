@@ -37,6 +37,54 @@ _To come: discovery from Snowflake, Kafka and SQL schema snapshots (WP2)._ An el
 
 An output port is bound per environment to up to 20 elements of that environment and optionally to a **data contract** (the version it is held to and its ODCS server). Bound elements become members with the port's role. An input port names where its data comes from: another product's output port, an element of a source system, or a text. Consumers register on output ports; deprecating a port tells them (_to come_).
 
+## Checks and health
+
+Steward watches data products with its **monitors** ([MONITORS.md](MONITORS.md)): checks are linked to elements, a product gets a monitor with root causes along its pipeline, and health is read from the stored check states – a page never calls a platform.
+
+### The check type _Data element_
+
+The monitor check type `data-element` reads an element of the catalogue on its platform with the **monitor owner's use right** and the platform's default identity, like every platform check; the owner must see the element. It reads **metadata only** – never a data value, never a `SELECT` on a table (decision 13 of the ADR).
+
+| Mode          | Snowflake                                                                                                                                                                                                                                                                                                                                                                        | Kafka                                                                                                                                                                                                 | SQL database                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **freshness** | table or view: `LAST_ALTERED` of `<db>.INFORMATION_SCHEMA.TABLES`; dynamic table: the data timestamp of its last successful refresh (`DYNAMIC_TABLE_REFRESH_HISTORY`; a failed last refresh is a warning); task: its last successful run (`TASK_HISTORY`, the last 7 days; a failed last run is a warning); schema or database: the newest table (_any_) or the oldest (_every_) | topic: the newest message's time (Kafka 3.0+; else when the end offsets last moved), optionally a consumer group's lag (degraded above `maxLag`); bundle: its topics, the newest (_any_) or every one | – (link a check of your own)             |
+| **schema**    | `INFORMATION_SCHEMA.COLUMNS` of the table against the contract                                                                                                                                                                                                                                                                                                                   | the subject `<topic>-value` (latest, or a pinned `schemaVersion`): Avro record fields or JSON Schema properties; Protobuf is not compared (unknown)                                                   | the latest schema snapshot (no new read) |
+
+Fields: `element` (Steward's id), `mode`, `maxAgeMinutes` (default 1440), `each` (`any` or `every`, for a schema, database or bundle), `group` and `maxLag` (a Kafka topic), `schemaVersion` (Kafka schema mode), `failAs` (down or degraded), `warningAs` (degraded or up).
+
+- **Freshness is metadata.** `LAST_ALTERED` also moves on DDL and background maintenance (automatic clustering): the check says _changed_, not _loaded_. For the newest value of a timestamp column, write a `database` check of your own (query mode) and link it to the element.
+- **Schema** compares the element with the schema object of the ODCS contract its **output port** is bound to in the element's environment (the binding's version, else the current one) – matched by physical name, else by name, else the contract's only object – with the [contract comparison](DATA-CONTRACTS.md#breaking-changes) on names (case ignored), logical types and required fields: a field of the contract that is missing or of another type family **fails** (`failAs`); required ↔ nullable and columns the contract does not name are **warnings** (`warningAs`). Without a bound contract the check is unknown.
+- **Saving or trying** the check needs the editor to see the element and use its platform (one they may not see answers like a missing one: `DATA_ELEMENT_NOT_FOUND`); a mode the element's kind does not support is refused (`DATA_ELEMENT_CHECK_MODE`). The editor offers the type while the module is on.
+
+### Checks linked to an element
+
+An element shows the checks that watch it (`GET /api/data-elements/{id}/checks`), with their stored status:
+
+- **made** by _Create monitor_, **linked** by a person (_Link_ – who may change the element or a product it is part of; at most 100 per element), or **found** – a check whose fields name the element: a `data-element` check, a `snowflake` freshness or tasks check on its name, a `kafka` check on its topic. Found checks are offered until someone links them; _Create monitor_ links them.
+- A check of a monitor the reader may not see is shown by **its status only** – _a check you may not see_: no monitor, check name, message or author.
+
+### Health
+
+- **An element:** the worst status of its linked checks that run (an enabled monitor and check; maintenance counts as up); checks the reader may not see count by their status. No running check: **No data** – never OK.
+- **A product, per environment:** its monitor's status while that monitor runs (a disabled draft does not count yet); else the worst of its **output-port elements** there, **internal elements at most degrading** (a down internal element makes the product degraded); input elements are other products' or sources'. Nothing linked: **No data**.
+- Health is computed **in bulk** from the stored states: a fixed number of statements whatever the number of products (`GET /api/data-products/health?ids=…&environment=…` for a page, `GET /api/data-products/{id}/health` per environment, production first).
+
+### Create monitor and Update monitor
+
+_Create monitor_ on a product (`GET /api/data-products/{id}/monitor` shows the proposal, `POST` applies it; per environment, production first) makes a **disabled draft monitor** for review – Steward never enables it:
+
+- a `data-element` **freshness** check per element that has one: output-port elements are **critical** with the port's freshness objective as maximum age (the binding's objective overrides the port's); the pipeline's internal and input elements only degrade the monitor (`aggregate.rule: critical`), with the smallest output objective (else a day);
+- a **schema** check per element of an output binding with a contract, and a `data-contract` check in `findings` mode per contract (while the data contracts module is on);
+- elements already watched elsewhere (linked or found) are **not repeated**, elements without a supported kind are left out, elements the person may not see are left out and counted, never named;
+- **soft links along the steps**: an element's check → the next checked element downstream (through elements without a check of their own), so a stale raw table is the **root cause** of a stale mart and only the root cause alerts;
+- at most 100 checks: beyond, the output ports and the layer before them first; the proposal says what was left out and why.
+
+The product remembers the monitor per environment. **Update monitor** – the same action once the product has a monitor – proposes the checks for elements added since, with soft links to the existing checks, and adds them when a person applies it (it never rewires what is there). It needs the right to change the product and to create (or edit) the monitor; audited as `dataproduct.monitor_created`.
+
+### Contract drafts from an element
+
+A contract draft from an element (`POST /api/data-contracts/draft` with `{ "source": "element", "elementId": … }`; in the app with the port pages, _to come_) is made from a Snowflake table's columns (`INFORMATION_SCHEMA.COLUMNS`, read now, with a `snowflake` server), a Kafka topic's latest `<topic>-value` schema (with a `kafka` server), or a database table's latest schema snapshot – for whoever sees the element and may use its platform.
+
 ## Who may do what
 
 | Who                                             | Rights                                                                      |
@@ -55,4 +103,4 @@ Documents, records and ticket references link data products and data objects (li
 
 ## To come
 
-Discovery, health and _Create monitor_, costs and the scorecard, the pages and pictures, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
+Discovery, costs and the scorecard, the pages and pictures, MCP tools, `/api/v1`, import and export with ODPS – see the work packages of [ADR 0036](adr/0036-data-products-module.md#implementation-plan-phase-1).
