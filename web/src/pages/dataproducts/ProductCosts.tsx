@@ -35,6 +35,7 @@ import { ErrorState, useFieldErrors } from '../../components/common';
 import { confirmDanger } from '../../components/confirm';
 import { FormModal } from '../../components/FormModal';
 import { TableScroll } from '../../components/TableScroll';
+import { useLevel } from '../../components/catalogue/cia';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
 import { fmtNumber, numberFormat } from '../../format';
 import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts } from './api';
@@ -600,13 +601,21 @@ const STATE_ICON: Record<DataScorecardState, { icon: Icon; color: string }> = {
 
 /** The scorecard of a product in an environment (ADR 0036 part 13): its parts and ISO/IEC 25012 dimensions with their evidence, and the maturity they give. */
 export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductScorecard> }) {
-  const { t } = useTranslation(['dataProducts', 'dataProductViews']);
+  const { t } = useTranslation(['dataProducts', 'dataProductViews', 'applications']);
   const s = query.data;
+  const level = useLevel();
   const evidence = (e: { key: string; values?: Record<string, string | number> }) => {
     const values: Record<string, string | number> = { ...(e.values ?? {}) };
     // a health status in words (healthy.status)
     if (typeof values.status === 'string') values.status = t(`dataProductViews:health.${values.status as 'up'}`);
     if (typeof values.source === 'string') values.source = t(`scorecard.sources.${values.source as 'monitor'}`);
+    // a CIA level and dimensions by their labels, never their keys (confidentiality.rated, rated.belowFloor)
+    if (typeof values.level === 'string') values.level = level('confidentiality', values.level)?.label ?? values.level;
+    if (typeof values.dimensions === 'string')
+      values.dimensions = values.dimensions
+        .split(', ')
+        .map((d) => t(`applications:cia.dimensions.${d as 'integrity'}`, { defaultValue: d }))
+        .join(', ');
     return t(`scorecard.${e.key}` as 'scorecard.title', { ...values, defaultValue: '' });
   };
   return (

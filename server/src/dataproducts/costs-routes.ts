@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { dataCostAllocationsQuery, dataProductCostsQuery, dataProductScorecardQuery } from '@sm/shared';
-import { ACCESS } from '../auth/access.js';
+import { dataCostAllocationsQuery, dataHealthQuery, dataProductCostsQuery, dataProductScorecardQuery } from '@sm/shared';
+import { ACCESS, me } from '../auth/access.js';
 import * as costs from './costs.js';
 import { productScorecard } from './scorecard.js';
+import { listFacts } from './list-facts.js';
 
 /**
  * Costs and the scorecard of data products in the internal API (ADR 0036 parts 11, 13, 19). Rights in the services: a
@@ -17,6 +18,7 @@ import { productScorecard } from './scorecard.js';
  *   GET        /api/data-products/cost-allocations?platformId=            shared lines and how they are split
  *   PUT        /api/data-products/cost-allocations                         equal or by weight (session only)
  *   GET        /api/data-products/:id/scorecard?environment=              the scorecard and the maturity
+ *   GET        /api/data-products/facts?ids=&environment=                 maturity and last month's costs of a page of products
  */
 
 const param = (req: FastifyRequest, name: string): string => {
@@ -25,6 +27,11 @@ const param = (req: FastifyRequest, name: string): string => {
 };
 
 export async function dataProductCostRoutes(app: FastifyInstance): Promise<void> {
+  // the list's facts of a page of products, in bulk (those the caller may not see are left out)
+  app.get('/data-products/facts', async (req) => {
+    const q = dataHealthQuery.parse(req.query);
+    return listFacts(me(), q.ids, q.environment);
+  });
   app.get('/data-products/cost-allocations', async (req) => costs.listAllocations(dataCostAllocationsQuery.parse(req.query)));
   app.put('/data-products/cost-allocations', { config: { access: ACCESS.session } }, async (req) => costs.setAllocation(req.body));
 

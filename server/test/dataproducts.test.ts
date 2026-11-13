@@ -439,6 +439,8 @@ describe('team scope', () => {
       expect(elements.total, `${who} element count`).toBe(sees ? 1 : 0);
       if (!sees) {
         expect((await fail(c('GET', `/data-products/${p.id}`))).code).toBe('DATA_PRODUCT_NOT_FOUND');
+        // the list's facts leave it out, as the health of a page does
+        expect(await c('GET', `/data-products/facts?ids=${p.id}`)).toEqual([]);
         expect((await fail(c('GET', `/data-objects/${o.id}`))).code).toBe('DATA_OBJECT_NOT_FOUND');
         expect((await fail(c('GET', `/data-elements/${e.id}`))).code).toBe('DATA_ELEMENT_NOT_FOUND');
         // the shared element counts the hidden product, never names it
@@ -546,11 +548,30 @@ describe('statements per request', () => {
         await dana('POST', `/data-products/${p.id}/ports/${port.id}/consumers`, { kind: 'text', text: `Consumer ${i}` });
       }
     };
+    // the list's facts (maturity, last month's costs) of the page: one request, in bulk
+    const facts = async () => {
+      const ids = ((await dana('GET', '/data-products?limit=100')) as { items: { id: string }[] }).items.map((x) => x.id).join(',');
+      return statements(`/data-products/facts?ids=${ids}`);
+    };
     await grow(2, 'a');
-    const before = { list: await statements('/data-products'), read: await statements(`/data-products/${p.id}`), elements: await statements('/data-elements') };
+    const before = {
+      list: await statements('/data-products'),
+      read: await statements(`/data-products/${p.id}`),
+      elements: await statements('/data-elements'),
+      facts: await facts(),
+    };
     await grow(5, 'b');
-    const after = { list: await statements('/data-products'), read: await statements(`/data-products/${p.id}`), elements: await statements('/data-elements') };
+    const after = {
+      list: await statements('/data-products'),
+      read: await statements(`/data-products/${p.id}`),
+      elements: await statements('/data-elements'),
+      facts: await facts(),
+    };
     expect(after).toEqual(before);
+    const page = ((await dana('GET', '/data-products?limit=100')) as { items: { id: string }[] }).items;
+    const listed = await dana('GET', `/data-products/facts?ids=${page.map((x) => x.id).join(',')}`);
+    expect(listed.length).toBe(page.length);
+    expect(listed.find((x: { productId: string }) => x.productId === p.id)).toMatchObject({ productId: p.id, maturity: expect.any(Number), lastMonth: null });
     // a fixed number: at most 25 for the product page itself (ADR 0036), beyond what every request costs (the
     // sign-in, a product that is not found: one statement)
     await dana('GET', '/data-products/dpr_none').catch(() => undefined);

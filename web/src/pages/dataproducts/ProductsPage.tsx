@@ -13,9 +13,11 @@ import { ListPage } from '../../components/page/ListPage';
 import { RatingBadges } from '../../components/catalogue/cia';
 import { useEnvironmentList } from '../../components/catalogue/environments';
 import { ProductForm, domainOptions } from '../../components/dataproducts/ProductForm';
+import { ImportDialog, TransferMenu } from '../../components/dataproducts/Transfer';
 import { fmtRelative } from '../../format';
 import { HealthBadge } from './views';
-import { pagesOf, qs, useDomains, useInvalidateDataProducts, useListHealth, useProductList } from './api';
+import { pagesOf, qs, useDomains, useInvalidateDataProducts, useListFacts, useListHealth, useProductList } from './api';
+import { money } from './ProductCosts';
 import { ClassificationBadge, LifecycleBadge, TypeBadge } from './parts';
 import { useCanCreate } from './rights';
 
@@ -35,6 +37,7 @@ export function DataProductsPage() {
   const [search, setSearch] = useState(params.get('q') ?? '');
   const [q] = useDebouncedValue(search.trim(), 300);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   useCreateParam(canCreate, () => setCreating(true));
   const f = {
     domain: params.get('domain') ?? '',
@@ -59,6 +62,21 @@ export function DataProductsPage() {
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const health = useListHealth(ids, f.environment);
   const healthOf = useMemo(() => new Map((health.data ?? []).map((h) => [h.productId, h.status])), [health.data]);
+  // maturity and last month's costs of the page, in one request
+  const facts = useListFacts(ids, f.environment);
+  const factsOf = useMemo(() => new Map((facts.data ?? []).map((x) => [x.productId, x])), [facts.data]);
+  const costCell = (p: DataProductSummary) => {
+    const c = factsOf.get(p.id)?.lastMonth;
+    if (!c) return '–';
+    const text = c.totals.map((x) => money(x.amountMicros, x.currency)).join(' + ');
+    return c.incomplete ? (
+      <Tooltip label={t('products.costsIncomplete')}>
+        <span>{text ? `${text} *` : t('products.costsHidden')}</span>
+      </Tooltip>
+    ) : (
+      text
+    );
+  };
   const shown = f.health ? rows.filter((r) => healthOf.get(r.id) === f.health) : rows;
   const total = list.data?.pages[0]?.total ?? 0;
   const none = list.isSuccess && !query && total === 0;
@@ -86,11 +104,14 @@ export function DataProductsPage() {
         )
       }
       actions={
-        !none && (
-          <Button size="xs" variant="default" leftSection={<IconTopologyStar3 size={14} />} component={Link} to="/data-products/map">
-            {t('products.map')}
-          </Button>
-        )
+        <>
+          {!none && (
+            <Button size="xs" variant="default" leftSection={<IconTopologyStar3 size={14} />} component={Link} to="/data-products/map">
+              {t('products.map')}
+            </Button>
+          )}
+          {(!none || canCreate) && <TransferMenu domain={f.domain || undefined} canImport={canCreate} onImport={() => setImporting(true)} />}
+        </>
       }
       search={
         none
@@ -225,6 +246,17 @@ export function DataProductsPage() {
                     {t('products.inEnvironments', { list: p.environments.join(', ') })}
                   </Text>
                 )}
+                {factsOf.has(p.id) && (
+                  <Text size="xs" c="dimmed">
+                    {t('scorecard.maturityShort', { level: factsOf.get(p.id)!.maturity })}
+                    {factsOf.get(p.id)!.lastMonth && (
+                      <>
+                        {' '}
+                        · {t('products.costsLastMonth')}: {costCell(p)}
+                      </>
+                    )}
+                  </Text>
+                )}
               </Stack>
             </Paper>
           )}
@@ -283,6 +315,23 @@ export function DataProductsPage() {
               cell: (p) => (p.classification ? <ClassificationBadge value={p.classification} size="xs" /> : '–'),
             },
             {
+              key: 'maturity',
+              header: t('products.maturity'),
+              sortValue: (p) => factsOf.get(p.id)?.maturity ?? null,
+              nowrap: true,
+              cell: (p) => {
+                const m = factsOf.get(p.id)?.maturity;
+                return m === undefined ? '–' : <Text size="sm">{t('scorecard.maturityShort', { level: m })}</Text>;
+              },
+            },
+            {
+              key: 'costs',
+              header: t('products.costsLastMonth'),
+              sortValue: (p) => factsOf.get(p.id)?.lastMonth?.totals[0]?.amountMicros ?? null,
+              nowrap: true,
+              cell: costCell,
+            },
+            {
               key: 'value',
               header: t('products.value'),
               sortValue: (p) => (p.valueTier ? ['low', 'medium', 'high'].indexOf(p.valueTier) : null),
@@ -300,6 +349,15 @@ export function DataProductsPage() {
               loading={list.isFetchingNextPage}
             />
           }
+        />
+      )}
+      {importing && (
+        <ImportDialog
+          onClose={() => setImporting(false)}
+          onDone={() => {
+            invalidate();
+            setImporting(false);
+          }}
         />
       )}
       {creating && (
