@@ -313,7 +313,8 @@ export function dataProductApiRoutes(get: Get): void {
       params: { productId: 'Data product id' },
       query: DataProductOpenLineageQuery,
       response: {
-        content: { 'application/x-ndjson': { schema: { type: 'string', description: 'One OpenLineage event (JSON) per line' } } },
+        // JSON Lines: one OpenLineage event (a JSON object) per line – no schema of its own (each line is an OpenLineage event)
+        content: { 'application/x-ndjson': { schema: { description: 'One OpenLineage event (JSON) per line; empty when the product has no element' } } },
       },
     },
     async (req, reply) => {

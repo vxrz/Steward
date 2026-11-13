@@ -11,7 +11,6 @@ import { ConnectorStepModal } from '../../components/dataproducts/ConnectorStep'
 import { TechnologyBadge } from '../../components/dataproducts/GenericParts';
 import type { PickedElement } from '../../components/dataproducts/ElementPicker';
 import { HealthBadge, PipelineView } from './views';
-import { openLineageHref } from './generic';
 import { usePipelineView } from './views/queries';
 import { pagesOf, qs, useInvalidateDataProducts, useMembers, useSteps } from './api';
 import { Breakable, CardTable, Section } from './parts';
@@ -96,7 +95,7 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
               size="xs"
               variant="default"
               component="a"
-              href={apiUrl(openLineageHref(p.id, { environment }))}
+              href={apiUrl(`/data-products/${enc(p.id)}/openlineage${environment ? `?environment=${enc(environment)}` : ''}`)}
               leftSection={<IconDownload size={14} />}
               data-testid="steps-openlineage"
             >
@@ -182,7 +181,7 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
                         variant="subtle"
                         color="gray"
                         component="a"
-                        href={apiUrl(openLineageHref(p.id, { stepId: s.id }))}
+                        href={apiUrl(`/data-products/${enc(p.id)}/steps/${enc(s.id)}/openlineage`)}
                         aria-label={t('openLineage.exportStepNamed', { name: s.name })}
                         data-testid="step-openlineage"
                       >

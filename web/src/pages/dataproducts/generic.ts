@@ -62,9 +62,3 @@ export const useConnectorDraft = (productId: string, platformId: string | null, 
     enabled: !!platformId && !!connector,
     retry: false,
   });
-
-/** The address of the OpenLineage export of a product (or one of its steps) for a download link. */
-export const openLineageHref = (productId: string, opts: { environment?: string | null; stepId?: string } = {}): string =>
-  opts.stepId
-    ? `/data-products/${enc(productId)}/steps/${enc(opts.stepId)}/openlineage${opts.environment ? `?environment=${enc(opts.environment)}` : ''}`
-    : `/data-products/${enc(productId)}/openlineage${opts.environment ? `?environment=${enc(opts.environment)}` : ''}`;
