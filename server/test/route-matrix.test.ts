@@ -3105,7 +3105,7 @@ beforeAll(async () => {
     await a('POST', '/data-products/discovery-sources', { name: 'Matrix discovery', platformId: snowflake, scope: ['SHOP'], enabled: false })
   ).id;
   // an OpenLineage source with a push token, and the proposal of one job: the curated table → the matrix element
-  fx.lineageSource = (await a('POST', '/data-products/lineage-sources', { name: 'Matrix lineage', kind: 'openlineage' })).id;
+  fx.lineageSource = (await a('POST', '/data-products/lineage-sources', { name: 'Matrix lineage', kind: 'openlineage', teamIds: [] })).id;
   {
     const t = (await a('POST', `/data-products/lineage-sources/${fx.lineageSource}/tokens`, { name: 'Matrix CI' })).token as string;
     const { db } = await import('../src/db.js');

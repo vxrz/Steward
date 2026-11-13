@@ -123,6 +123,8 @@ A discovery source of the data products module ([DATA-PRODUCTS.md](DATA-PRODUCTS
 
 In both modes `SHOW DYNAMIC TABLES`, `SHOW STREAMS`, `SHOW TASKS`, `SHOW STAGES` and `SHOW PIPES` `IN DATABASE` (or `IN SCHEMA` for a schema in the scope) add what the views do not hold; of their output Steward keeps metadata columns only – never a definition. **Account usage** suits large accounts: one statement per view for all databases, and the `TABLE_ID` makes a renamed table the same element (people's descriptions, memberships and links stay). Its wider view is the whole account's metadata – `IMPORTED PRIVILEGES` shows every database's objects to the role; Steward still keeps only the scope. In **information schema** mode a role sees only the objects it has a privilege on, and there is no `TABLE_ID`: a renamed table is a new element and the old one goes missing.
 
+**Object dependencies** (0.24.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#lineage-from-tools)): in **account usage** mode, after a complete run, the source reads `SNOWFLAKE.ACCOUNT_USAGE.OBJECT_DEPENDENCIES` once – which table-like object of its scope (a view, a materialized or dynamic table, a stream) references which – and proposes a step per referencing object in _Data → Discovery → Proposed steps_, for a person to accept; ways the documented steps say already are marked _already documented_. Metadata, as the catalogue views: no definition, no query text. Information schema mode has no such view and proposes nothing.
+
 Grants for **information schema** mode – metadata, not data (`REFERENCES` shows a table's or view's definition of columns, never its rows; `MONITOR` shows a dynamic table, task or pipe):
 
 ```sql

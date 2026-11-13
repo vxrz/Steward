@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { DATA_LINEAGE_LIMITS as LL, dbtTestDimension, type DataLineageImport, type DataLineageRunState, type DataQualityResultStatus } from '@sm/shared';
+import {
+  DATA_LINEAGE_LIMITS as LL,
+  boundedRecord,
+  dbtTestDimension,
+  type DataLineageImport,
+  type DataLineageRunState,
+  type DataQualityResultStatus,
+} from '@sm/shared';
 import { db } from '../../db.js';
 import { HttpError, nowIso } from '../../util.js';
 import { recordQualityResult } from '../quality-results.js';
@@ -49,8 +56,8 @@ type Node = z.infer<typeof node>;
 
 const manifest = z.object({
   metadata: z.object({ dbt_schema_version: z.string().regex(MANIFEST_RE, 'a dbt manifest schema'), adapter_type: s(60).optional() }),
-  nodes: z.record(z.string(), z.unknown()),
-  sources: z.record(z.string(), z.unknown()).default({}),
+  nodes: boundedRecord(z.unknown(), LL.dbtNodes),
+  sources: boundedRecord(z.unknown(), LL.dbtNodes).default({}),
 });
 
 const runResults = z.object({

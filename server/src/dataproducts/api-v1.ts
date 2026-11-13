@@ -185,8 +185,26 @@ function graphOut(g: DataGraph, head: Record<string, unknown>) {
       ...(n.distance !== undefined ? { distance: n.distance } : {}),
       ...(n.count !== undefined ? { count: n.count } : {}),
     })),
-    edges: g.edges.map((e) => ({ id: e.id, from: e.from, to: e.to, labels: e.labels, count: e.count, ...(e.hidden ? { hidden: true } : {}) })),
-    steps: g.steps.map((s) => ({ id: s.id, name: s.name, kind: s.kind, runner: s.runner, inputs: s.inputs, outputs: s.outputs, hidden: s.hidden })),
+    // 0.24.0: ways a lineage source proposes are marked, never passed off as documented
+    edges: g.edges.map((e) => ({
+      id: e.id,
+      from: e.from,
+      to: e.to,
+      labels: e.labels,
+      count: e.count,
+      ...(e.hidden ? { hidden: true } : {}),
+      ...(e.proposed ? { proposed: true } : {}),
+    })),
+    steps: g.steps.map((s) => ({
+      id: s.id,
+      name: s.name,
+      kind: s.kind,
+      runner: s.runner,
+      inputs: s.inputs,
+      outputs: s.outputs,
+      hidden: s.hidden,
+      ...(s.proposed ? { proposed: true } : {}),
+    })),
     truncated: g.truncated,
     hidden: g.hidden,
   };

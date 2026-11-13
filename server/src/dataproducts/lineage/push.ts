@@ -62,7 +62,7 @@ export const REFUSED: PushResponse = {
   headers: { 'www-authenticate': 'Bearer realm="Steward data lineage"' },
 };
 
-const NOT_FOUND: PushResponse = { status: 404, body: { error: 'Not found', code: 'NOT_FOUND' } };
+const MODULE_IS_OFF: PushResponse = { status: 404, body: { error: 'This area is switched off', code: 'MODULE_OFF', params: { module: 'dataProducts' } } };
 
 const calls = new Map<string, number[]>();
 export function resetLineagePushState(): void {
@@ -77,7 +77,7 @@ export const pushLimit = (file: PushHead['file']): number =>
 export function authorizeLineagePush(req: PushHead): { ok: true; token: VerifiedLineageToken } | { ok: false; res: PushResponse } {
   const no = (res: PushResponse) => ({ ok: false as const, res });
   // a switched-off module: as if the address did not exist
-  if (!moduleEnabled('dataProducts')) return no(NOT_FOUND);
+  if (!moduleEnabled('dataProducts')) return no(MODULE_IS_OFF);
   if (readCookie(header(req.headers, 'cookie'), SESSION_COOKIE) !== undefined)
     return no({
       status: 400,
