@@ -350,11 +350,10 @@ function checkPlatform(kind: ElementRow['kind'], platformId: string | null, know
  */
 function enteredDataset(kind: string, platformId: string, namespace: string | null, qualifiedName: string): { namespace: string; name: string } | null {
   if (kind !== 'mqtt.topic') return null;
-  let broker: string | null = null;
-  if (platformId) {
-    const cfg = db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', platformId);
-    broker = mqttBroker(mqttUrl(parseJson<{ variables?: Record<string, unknown> }>(cfg?.config, {}).variables?.url)?.href ?? null);
-  } else broker = mqttBroker(namespace);
+  const platformUrl = () =>
+    parseJson<{ variables?: Record<string, unknown> }>(db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', platformId)?.config, {})
+      .variables?.url;
+  const broker = platformId ? mqttBroker(mqttUrl(platformUrl())?.href ?? null) : mqttBroker(namespace);
   return broker ? openLineageDataset('mqtt.topic', broker, qualifiedName.trim()) : null;
 }
 
