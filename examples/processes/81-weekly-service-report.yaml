@@ -8,7 +8,8 @@ description: |
   Industrial Edge: the device list (`GET /portal/api/v1/devices`, paged) gives
   the onboarded devices; a device counts as online when the newest key of its
   statistics (`GET /portal/api/v1/devices/{id}/statistics`, the time of its
-  last report) is at most `onlineWithinMinutes` old. Calls to IEM: one per 100
+  last report) is at most its report interval (`SystemInfo.Period`, usually 60
+  minutes) plus `onlineWithinMinutes` old. Calls to IEM: one per 100
   devices plus one per onboarded device, 4 at a time.
 
   Recommended schedule: weekly (Monday 07:00). Read-only.
@@ -20,7 +21,7 @@ connections:
     kind: industrial-edge-management
 inputs:
   - name: onlineWithinMinutes
-    label: Edge device online when its last report is at most this old (minutes)
+    label: Grace after an edge device's report interval before it counts as offline (minutes)
     type: number
     default: 15
 steps:
@@ -82,7 +83,10 @@ steps:
           seen: >-
             {{ (
               $last := $max((vars.stats.status = 200 ? $keys(vars.stats.body.data)[$contains($, /^[0-9]+$/)]).$number($));
-              $not($exists($last)) ? 'unknown' : (($toMillis($now()) - $last) / 60000 <= $inputs.onlineWithinMinutes ? 'online' : 'offline')
+              $report := $exists($last) ? $string($lookup(vars.stats.body.data, $string($last)));
+              $p := $match($report, /Period\W+([0-9.]+) *(minute|hour)/)[0];
+              $interval := $p ? $number($p.groups[0]) * ($p.groups[1] = 'hour' ? 60 : 1) : 60;
+              $not($exists($last)) ? 'unknown' : (($toMillis($now()) - $last) / 60000 <= $interval + $inputs.onlineWithinMinutes ? 'online' : 'offline')
             ) }}
           stats: "{{ null }}"
   - id: summarise

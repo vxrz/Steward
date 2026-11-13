@@ -58,7 +58,7 @@ const LABEL: Record<CostPriceSourceKind, string> = {
   snowflakeRateSheet: 'Snowflake rate sheet',
   confluentObserved: 'Observed: Confluent Costs API',
 };
-const PLATFORM_KIND: Record<CostPriceSourceKind, string> = { snowflakeRateSheet: SNOWFLAKE_KIND, confluentObserved: CONFLUENT_KIND };
+const SOURCE_PLATFORM_KIND: Record<CostPriceSourceKind, string> = { snowflakeRateSheet: SNOWFLAKE_KIND, confluentObserved: CONFLUENT_KIND };
 const DAY = 86_400_000;
 
 export const settingsOf = (r: Pick<BookRow, 'source_settings'>): SourceSettings => parseJson<SourceSettings>(r.source_settings ?? '{}', {});
@@ -352,8 +352,8 @@ export function setBookSource(id: string, body: unknown): CostPriceBookDetail {
   const x = costPriceSourceInput.parse(body);
   if (x.source) {
     const kind = row.platform_id ? db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', row.platform_id)?.kind : undefined;
-    if (row.kind !== 'contracted' || kind !== PLATFORM_KIND[x.source])
-      throw new HttpError(400, `${LABEL[x.source]} is read into a contracted book of a ${PLATFORM_KIND[x.source]} platform`, 'COST_PRICE_BOOK_KIND');
+    if (row.kind !== 'contracted' || kind !== SOURCE_PLATFORM_KIND[x.source])
+      throw new HttpError(400, `${LABEL[x.source]} is read into a contracted book of a ${SOURCE_PLATFORM_KIND[x.source]} platform`, 'COST_PRICE_BOOK_KIND');
   }
   const before = settingsOf(row);
   const next: SourceSettings = x.source ? { kind: x.source, savedBy: currentActor(), lastReadAt: null, lastError: null, lastNote: null, lastMonth: null } : {};

@@ -208,7 +208,7 @@ function seed() {
     iemDevice('dev-003', 'edge-paint-shop', 'ACTIVE', 'ied-os-2.1.3-7-amd64', [3 * 1440]), // offline for three days
     iemDevice('dev-004', 'edge-warehouse', 'ACTIVE', 'ied-os-1.9.0-21-amd64', [5]), // online, old firmware
     iemDevice('dev-005', 'edge-lab', 'PENDING', undefined, []), // created, not onboarded yet
-    iemDevice('dev-006', 'edge-press-hall', 'ACTIVE', 'ied-os-2.2.1-4-amd64', [4]),
+    iemDevice('dev-006', 'edge-press-hall', 'ACTIVE', 'ied-os-2.2.1-4-amd64', [110, 50]), // reports hourly (Period 60 minutes): online
     iemDevice('dev-007', 'edge-old-line-7', 'ACTIVE', 'ied-os-1.9.4-2-amd64', [45 * 1440]), // stopped reporting 45 days ago
     iemDevice('dev-008', 'edge-test-bench', 'ACTIVE', 'ied-os-2.4.0-12-amd64-develop', [10 * 60], 'core.ievd'), // stopped reporting hours ago
     iemDevice('dev-009', 'edge-qa', 'ACTIVE', 'ied-os-2.3.0-9-amd64', []), // onboarded, no statistics (404)
@@ -570,7 +570,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
         DeviceId: d.deviceId,
         InternetStatus: { Connected: true },
         StorageInfo: { DataSpaceFree: '25.4 GB', DataSpacePercentage: '5.92%' },
-        SystemInfo: { CpuPercentage: '3.10', GetUptime: '12 days, 4 hours, 7 minutes', MemoryPercentage: '41.84' },
+        SystemInfo: { CpuPercentage: '3.10', GetUptime: '12 days, 4 hours, 7 minutes', MemoryPercentage: '41.84', Period: '60 minutes' },
       });
     }
     return { data };

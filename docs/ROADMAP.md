@@ -86,6 +86,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 - **0.23.0:** the access model, phase 2 – access lists of processes, platforms, monitors and plant sites become shares, shares on more kinds – and module roles (#297); price books phase 2: contract conditions, derived books for providers with a fee on top, rate sheets read from Snowflake and Confluent, estimates recalculated on new prices.
 - **0.24.0:** data products, phase 2 ([ADR 0036](adr/0036-data-products-module.md#phases)).
+- **0.25.0:** data products, phase 3 ([ADR 0037](adr/0037-data-products-connectors-files-edge.md)) – generic parts and bridges with one technology list for technologies Steward does not know yet; lineage from Debezium, Kafka Connect and Confluent connectors; file-based products on object storage; edge devices linked to their systems with the applications that run on them and an Industrial Edge readout that suggests, never decides; semantic models (Apache Ossie) as governed records; an OpenLineage export.
 
 ## Later
 
