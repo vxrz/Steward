@@ -1379,6 +1379,7 @@
     "SHARE_EXCEEDS_OWN_RIGHTS": "Sie können nicht mehr teilen, als Sie selbst haben ({{subject}}).",
     "SHARE_EXPIRY_INVALID": "Das Enddatum muss in der Zukunft und höchstens ein Jahr entfernt liegen.",
     "SHARE_ACTION_UNKNOWN": "Diese Art von Eintrag hat kein Recht „{{action}}“, das geteilt werden kann.",
+    "SHARE_LEVEL_UNAVAILABLE": "Diese Art von Eintrag kann nicht mit dieser Stufe geteilt werden: Plattformen und Anlagenstandorte bieten Ansehen und Verwalten, Plattform-Identitäten Ansehen mit „use“.",
     "COST_PRICE_BOOK_NOT_FOUND": "Preisbuch nicht gefunden.",
     "COST_PRICE_BOOK_LIMIT": "Zu viele Preisbücher oder Einträge – höchstens {{max}}.",
     "COST_PRICE_BOOK_KIND": "Das Preisbuch einer Plattform enthält die Preise ihres Vertrags (Art: vertraglich), und seine Plattform lässt sich nicht ändern.",

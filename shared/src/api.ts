@@ -423,6 +423,8 @@ export interface AccessReason {
   level?: ShareLevel;
   actions?: ShareAction[];
   expiresAt?: string | null;
+  /** source share: a Custom share (a migrated access-list entry no level expresses) – it gives exactly `permissions` */
+  custom?: boolean;
   permissions: string[];
 }
 

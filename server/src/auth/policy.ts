@@ -231,7 +231,11 @@ export function shareReasons<P extends string>(u: AuthUser, r: { kind: OwnedKind
     level: s.level,
     ...(s.actions.length ? { actions: [...s.actions] } : {}),
     ...(s.expiresAt ? { expiresAt: s.expiresAt } : {}),
-    permissions: [...new Set<string>([...model.levels[s.level], ...s.actions.flatMap((a) => model.actions?.[a] ?? [])])],
+    // Custom (a migrated access-list entry no level expresses): exactly its rights
+    permissions: s.rights?.length
+      ? [...new Set(s.rights)]
+      : [...new Set<string>([...model.levels[s.level], ...s.actions.flatMap((a) => model.actions?.[a] ?? [])])],
+    ...(s.rights?.length ? { custom: true } : {}),
   }));
 }
 

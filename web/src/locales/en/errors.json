@@ -1379,6 +1379,7 @@
     "SHARE_EXCEEDS_OWN_RIGHTS": "You cannot share more than you hold yourself ({{subject}}).",
     "SHARE_EXPIRY_INVALID": "The end date of a share must be in the future and at most a year ahead.",
     "SHARE_ACTION_UNKNOWN": "This kind of item has no right “{{action}}” to share.",
+    "SHARE_LEVEL_UNAVAILABLE": "A share of this kind of item cannot have this level: platforms and plant sites offer View and Manage, platform identities View with “use”.",
     "COST_PRICE_BOOK_NOT_FOUND": "Price book not found.",
     "COST_PRICE_BOOK_LIMIT": "Too many price books or entries – at most {{max}}.",
     "COST_PRICE_BOOK_KIND": "A platform’s price book holds the prices of its contract (kind contracted), and its platform cannot change.",

@@ -30,8 +30,9 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   credential: [],
   ticket: [],
   dashboard: [],
-  // identities keep their own `use` right, managed on the platform's Access tab (ADR 0033 part 1)
-  platform_identity: [],
+  // identities keep their own `use` right, managed on the platform's Access tab (ADR 0033 part 1): a share of an
+  // identity is View with `use` (0.23.0, the identity's access list migrated)
+  platform_identity: ['use'],
   // 0.21.0 (ADR 0035): price books and calculators – the levels only
   cost_price_book: [],
   cost_calculator: [],
@@ -39,6 +40,20 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   device_profile: ['propose'],
   kpi_definition: ['propose'],
 };
+
+/**
+ * The levels a kind offers (default: all three). A platform's and a site's Edit is not split from Manage yet – today one
+ * right (`manage`) changes their configuration and their access – so they offer View and Manage only; an identity has
+ * only View with its action right `use` (0.23.0, ADR 0033 phase 2).
+ */
+export const SHARE_KIND_LEVELS: Partial<Record<OwnedKind, readonly ShareLevel[]>> = {
+  platform: ['view', 'manage'],
+  site: ['view', 'manage'],
+  platform_identity: ['view'],
+};
+
+/** The levels a share of `kind` may have. */
+export const shareLevelsOf = (kind: OwnedKind): readonly ShareLevel[] => SHARE_KIND_LEVELS[kind] ?? SHARE_LEVELS;
 
 /** Kinds of the plant registry: the only ones a plant viewer (role `plant`) may be given a share on (ADR 0033 security notes). */
 export const PLANT_SHARE_KINDS: readonly OwnedKind[] = ['site', 'device_profile', 'kpi_definition'];
@@ -67,6 +82,12 @@ export interface ResourceShare {
   actions: ShareAction[];
   /** When the share ends (ISO), or null */
   expiresAt: string | null;
+  /**
+   * _Custom_ (0.23.0): the exact rights of a migrated access-list entry that no level and action rights express (a
+   * process entry with `manage` but not `edit`), in the kind's own rights; the share gives these instead of its level.
+   * Kept while the share is left as it is; changing its level, action rights or end date replaces it. Null: none
+   */
+  rights?: string[] | null;
   createdBy: string;
   createdAt: string;
 }
@@ -128,6 +149,8 @@ export interface ResourceAccessView {
   implied: ImpliedShare[];
   /** The action rights the kind offers beside the level */
   actions: ShareAction[];
+  /** The levels the kind offers (a platform and a site: View and Manage; an identity: View) */
+  levels: ShareLevel[];
   /** What the reader holds: nobody shares more (administrators: all) */
   held: HeldShareView;
   /** Whether the reader may change the shares (Manage) */

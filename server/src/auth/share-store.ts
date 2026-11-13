@@ -20,6 +20,8 @@ export interface ShareRow {
   level: string;
   actions: string;
   expires_at: string | null;
+  /** Custom (0.23.0): the exact rights of a migrated access-list entry, JSON; NULL for a share of a level */
+  rights?: string | null;
   reminded_at?: string | null;
   created_by: string;
   created_at: string;
@@ -35,6 +37,7 @@ export function toShare(r: ShareRow): ResourceShare {
     level: (LEVELS.has(r.level) ? r.level : 'view') as ShareLevel,
     actions: parseJson<unknown[]>(r.actions, []).filter((a): a is ShareAction => typeof a === 'string' && ACTIONS.has(a)),
     expiresAt: r.expires_at,
+    ...(r.rights ? { rights: parseJson<unknown[]>(r.rights, []).filter((x): x is string => typeof x === 'string') } : {}),
     createdBy: r.created_by,
     createdAt: r.created_at,
   };
@@ -43,7 +46,7 @@ export function toShare(r: ShareRow): ResourceShare {
 /** Whether a share still counts at `now`: an end date in the past ends it at once, before the job removes it. */
 export const shareActive = (s: Pick<ResourceShare, 'expiresAt'>, now: number = Date.now()): boolean => !s.expiresAt || Date.parse(s.expiresAt) > now;
 
-const SELECT = 'SELECT kind, resource_id, subject, level, actions, expires_at, created_by, created_at FROM resource_shares';
+const SELECT = 'SELECT kind, resource_id, subject, level, actions, expires_at, rights, created_by, created_at FROM resource_shares';
 
 function index(): ShareIndex | undefined {
   const store = currentStore();

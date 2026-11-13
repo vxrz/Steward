@@ -39,6 +39,7 @@ import { NOTIFICATION_MIGRATIONS } from './notifications.js';
 import { CONFLUENT_MIGRATIONS } from './confluent.js';
 import { SUPPLIER_MIGRATIONS } from './suppliers.js';
 import { MODULE_MIGRATIONS } from './modules.js';
+import { ACCESS_MIGRATIONS } from './access.js';
 
 /**
  * The named migrations, in the order they run on a new database (db.ts). Each feature owns its list (its manifest
@@ -87,6 +88,7 @@ export const MIGRATION_LISTS: readonly (readonly NamedMigration[])[] = [
   CONFLUENT_MIGRATIONS,
   SUPPLIER_MIGRATIONS,
   MODULE_MIGRATIONS,
+  ACCESS_MIGRATIONS,
 ];
 
 export const NAMED_MIGRATIONS: readonly NamedMigration[] = MIGRATION_LISTS.flat();
