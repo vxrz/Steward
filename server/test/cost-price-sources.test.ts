@@ -300,6 +300,38 @@ describe('recalculation in the background', () => {
     expect(JSON.stringify(seen)).not.toContain('465.00');
   });
 
+  it('notifies many estimates with statements that do not grow with users × estimates', async () => {
+    const { recalculateDue } = await import('../src/costs/estimate-notices.js');
+    const { requestDbStats } = await import('../src/database/timing.js');
+    const users = await import('../src/auth/users.js');
+    const book = (await s.api('POST', '/costs/price-books', { name: 'Recalc many', kind: 'list', provider: 'Invented Many AG', currency: 'EUR' })).id;
+    let price = 1;
+    const reprice = () =>
+      s.api('PUT', `/costs/price-books/${book}/entries`, { entries: [{ sku: 'vm', name: 'VM', unit: 'h', price: String((price *= 2)), currency: 'EUR' }] });
+    await reprice();
+    for (let i = 0; i < 12; i++)
+      await s.api('POST', '/costs/estimates', {
+        title: `Invented many ${i}`,
+        ownerKind: 'service',
+        ownerId: svc,
+        currency: 'EUR',
+        lines: [{ key: 'v', provider: 'Invented Many AG', sku: 'vm', quantity: '100', unit: 'h' }],
+      });
+    const run = async () => {
+      await reprice();
+      const stats = { statements: 0, ms: 0 };
+      const r = await requestDbStats.run(stats, () => recalculateDue());
+      expect(r).toMatchObject({ recalculated: 12, notified: 12 });
+      return stats.statements;
+    };
+    const before = await run();
+    for (let i = 0; i < 25; i++) users.createUser({ username: `many${i}`, roles: ['viewer'], password: PW, mustChangePassword: false });
+    const after = await run();
+    // 25 more people are asked once per run (whose estimate it is, what they see) – less than a statement per person and
+    // estimate (before: about seven)
+    expect(after - before, `${before} → ${after}`).toBeLessThan(12 * 25);
+  });
+
   it('the threshold is a setting; below it nothing is notified', async () => {
     const { recalculateDue } = await import('../src/costs/estimate-notices.js');
     await fin('POST', `/costs/estimates/${est.id}/accept`);
