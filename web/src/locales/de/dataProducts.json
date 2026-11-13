@@ -787,7 +787,7 @@
         "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Verantwortliche, Prüfer und Administratoren"
       }
     },
-    "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Lineage und Karte zeigen es ohne Namen."
+    "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Datenherkunft und Produktkarte zeigen es ohne Namen."
   },
   "links": {
     "title": "Verknüpfungen",
@@ -910,7 +910,7 @@
     "externalId": "Plattform-ID",
     "openLineage": "OpenLineage-Dataset",
     "updated": "Geändert",
-    "lineagePage": "Lineage im ganzen Fenster",
+    "lineagePage": "Datenherkunft im ganzen Fenster",
     "draftContract": "Vertrag entwerfen",
     "draftTitle": "Vertragsentwurf aus {{name}}",
     "draftHelp": "Steward liest die Spalten oder das Schema des Elements – nur Metadaten – und entwirft einen ODCS-Vertrag. Prüfen Sie ihn; er wird erst ein Vertrag, wenn Sie ihn anlegen.",

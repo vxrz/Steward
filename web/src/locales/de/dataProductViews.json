@@ -17,8 +17,8 @@
     "matches": "Passt zu den Filtern"
   },
   "lineage": {
-    "title": "Herkunft von {{name}}",
-    "titlePlain": "Herkunft",
+    "title": "Datenherkunft von {{name}}",
+    "titlePlain": "Datenherkunft",
     "help": "Woher die Daten dieses Elements kommen und wohin sie gehen, über Produkte hinweg.",
     "elements": "Elemente",
     "this": "Dieses Element"
