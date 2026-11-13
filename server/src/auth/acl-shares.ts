@@ -26,6 +26,7 @@ import {
   PROCESS_SHARE_MODEL,
   SITE_SHARE_MODEL,
   managesShares,
+  owningTeams,
   type HeldShare,
   type ShareModel,
 } from './policy.js';
@@ -197,10 +198,16 @@ const closeRights = (kind: AclKind, rights: Iterable<string>): string[] => {
 /**
  * Who holds which rights on an item, by subject, as an access list decided them (the step-up rules of 0.22): the role
  * defaults while it is not Restricted, the shares, auditors' view (processes, monitors, sites), the owner's every right.
- * Administrators are left out (they hold everything). Owning teams are left out as they were: a list on an owned item
- * was compared the same way.
+ * Administrators are left out (they hold everything). On an item of owning teams the role defaults are left out: they
+ * reach its members whatever the list says, so a `role:` entry there is a widening (0.23.0 review: as the Access tab
+ * decides it – 0.22 compared it as on an item of the whole instance).
  */
-function effectiveGrants(kind: AclKind, st: { restricted: boolean; shares: readonly ResourceShare[] }, owner?: string | null): Map<string, Set<string>> {
+function effectiveGrants(
+  kind: AclKind,
+  st: { restricted: boolean; shares: readonly ResourceShare[] },
+  owner?: string | null,
+  owned = false,
+): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   const add = (subject: string, rights: Iterable<string>) => {
     if (subject === 'role:admin') return;
@@ -208,7 +215,9 @@ function effectiveGrants(kind: AclKind, st: { restricted: boolean; shares: reado
     for (const r of closeRights(kind, rights)) set.add(r);
     if (set.size) out.set(subject, set);
   };
-  if (!st.restricted) for (const [role, rights] of Object.entries(ROLE_DEFAULTS[kind])) add(`role:${role}`, rights ?? []);
+  // an item of owning teams: the role defaults reach its members only, whatever the list says – a `role:` entry is a
+  // widening there (as on the Access tab), and an emptied list gives nobody anything back
+  if (!st.restricted && !owned) for (const [role, rights] of Object.entries(ROLE_DEFAULTS[kind])) add(`role:${role}`, rights ?? []);
   for (const sh of st.shares) if (shareActive(sh)) add(sh.subject, shareRights(kind, sh));
   if (kind === 'process' || kind === 'monitor' || kind === 'site') add('role:auditor', ['view']);
   if (owner?.trim()) add(`user:${owner.trim().toLowerCase()}`, KIND[kind].perms);
@@ -241,7 +250,8 @@ function aliasState(kind: AclKind, id: string, aclInput: unknown): { restricted:
 export function aliasWidens(kind: AclKind, id: string, aclInput: unknown, owner?: { before: string | null; after: string | null }): boolean {
   const before = { restricted: isRestricted(kind, id), shares: sharesOf(kind, id) };
   const after = aclInput === undefined ? before : aliasState(kind, id, aclInput);
-  return gainedRights(effectiveGrants(kind, before, owner?.before), effectiveGrants(kind, after, owner?.after)).length > 0;
+  const owned = owningTeams(kind, id).length > 0;
+  return gainedRights(effectiveGrants(kind, before, owner?.before, owned), effectiveGrants(kind, after, owner?.after, owned)).length > 0;
 }
 
 /**

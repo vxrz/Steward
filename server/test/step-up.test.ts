@@ -481,6 +481,37 @@ describe('after the security review', () => {
     expect(await asks('PUT', `/monitors/${monitor.id}/access`, { acl: [{ subject: 'user:vera', permissions: ['view', 'manage'] }] })).toBe('grantAccess');
   });
 
+  const asksOf = (c: Client) => async (method: string, url: string, b: unknown) => {
+    const r = await refusal(c(method, url, b));
+    return r.code === 'STEP_UP_REQUIRED' ? r.body.stepUp.action : r.status;
+  };
+  /** A process owned by a new team, for one test. */
+  const teamProcess = async (fn: (id: string) => Promise<void>) => {
+    const team = await s.api('POST', '/teams', { name: 'Alias owners', members: ['dana'] });
+    const proc = ((await s.api('GET', '/processes')) as { id: string }[]).find((p) => p.id !== 'ih-health-check')!;
+    await s.api('PUT', `/owning-teams/process/${proc.id}`, { teamIds: [team.id] });
+    try {
+      await fn(proc.id);
+    } finally {
+      await s.api('PUT', `/access/process/${proc.id}/shares`, { shares: [] });
+      await s.api('PUT', `/processes/${proc.id}/access`, { acl: [] });
+      await s.api('PUT', `/owning-teams/process/${proc.id}`, { teamIds: [] });
+      await s.api('DELETE', `/teams/${team.id}`);
+    }
+  };
+
+  it('M2b: a role entry on a team’s item through a deprecated access-list route asks for the step-up, as on the Access tab', async () => {
+    const asks = asksOf(await unconfirmed());
+    await teamProcess(async (id) => {
+      // the role's defaults reach the team's members only: a `role:` entry gives everyone with the role outside it a right
+      expect(await asks('PUT', `/processes/${id}/access`, { acl: [{ subject: 'role:viewer', permissions: ['view'] }] })).toBe('grantAccess');
+      expect((await s.api('GET', `/access/process/${id}/shares`)).shares).toEqual([]);
+      // emptying the list on a team's item gives nobody anything back
+      await s.api('PUT', `/processes/${id}/access`, { acl: [{ subject: 'user:vera', permissions: ['view'] }] });
+      expect(await asks('PUT', `/processes/${id}/access`, { acl: [] })).toBe(200);
+    });
+  });
+
   it('L1: the audit log and credential register exports, the audit anchoring and turning the four-eyes rule off need a step-up', async () => {
     await s.api('PUT', '/settings', { findingDismissFourEyes: true });
     const c = await unconfirmed();
