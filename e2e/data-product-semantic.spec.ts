@@ -169,10 +169,14 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(modal.getByTestId('port-recording-link')).toBeFocused();
   });
 
-  test('the peek of a topic element: masked, for the platform’s manager', async ({ loginAs, apiAs }) => {
+  test('the peek of a topic element: masked, for the platform’s manager', async ({ page: dana, loginAs, apiAs }) => {
     const admin = await apiAs('admin');
     const found = await json<{ items: { id: string }[] }>(await admin.get('/api/data-elements?prefix=orders.v1&kind=kafka.topic&environment=prod'));
     test.skip(!found.items.length, 'the data products demo is not loaded');
+    // who does not manage the platform gets no eye
+    await dana.goto(`/data-elements/${found.items[0]!.id}`);
+    await expect(dana.getByTestId('element-readout')).toBeVisible();
+    await expect(dana.getByTestId('element-peek')).toHaveCount(0);
     const page = await loginAs('admin');
     await page.goto(`/data-elements/${found.items[0]!.id}`);
     await page.getByTestId('element-peek').click();

@@ -242,6 +242,8 @@ export function elementDetail(id: string) {
     createdAt: _ca,
     createdBy: _cb,
     updatedBy: _ub,
+    // the Kafka peek is offered only in the app (session only), never here or over MCP
+    mayPeek: _mp,
     ...rest
   } = e;
   return {

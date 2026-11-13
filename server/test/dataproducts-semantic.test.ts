@@ -480,6 +480,19 @@ describe('previews', () => {
       '      - { name: ordered_at, logicalType: timestamp }\n      - name: loyalty\n        logicalType: string\n        customProperties: [{ property: personalData, value: true }]',
     );
     await dana('POST', `/data-contracts/${contract}/versions`, { yaml });
+    // the reads say who may peek: the platform's manager on a topic – not dana, not a table
+    expect((await s.api('GET', `/data-elements/${topic}`)).mayPeek).toBe(true);
+    expect((await dana('GET', `/data-elements/${topic}`)).mayPeek).toBe(false);
+    expect((await s.api('GET', `/data-elements/${table}`)).mayPeek).toBe(false);
+    const peekable = async (c: Client) =>
+      Object.fromEntries(
+        ((await c('GET', `/data-products/${product}/members`)) as { items: { elementId: string; element: { mayPeek: boolean } }[] }).items.map((m) => [
+          m.elementId,
+          m.element.mayPeek,
+        ]),
+      );
+    expect(await peekable(s.api)).toMatchObject({ [topic]: true, [table]: false });
+    expect((await peekable(dana))[topic]).toBe(false);
     const r = await s.api('POST', `/data-elements/${topic}/peek`, { count: 5 });
     expect(r.messages).toHaveLength(1);
     const value = JSON.parse(r.messages[0].value);
