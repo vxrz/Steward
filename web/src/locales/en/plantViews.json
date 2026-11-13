@@ -139,6 +139,8 @@
     "instances_other": "{{count}} jobs",
     "liveSentence": "{{source}}: {{status}}",
     "docOnly": "Documentation only",
+    "moreLines_one": "and {{count}} more",
+    "moreLines_other": "and {{count}} more",
     "opens": "Enter opens its page."
   },
   "edge": {

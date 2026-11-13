@@ -1,5 +1,6 @@
 import type { PlantFlowGraph } from '@sm/shared';
 import { clip, cssColor, escapeXml, exportTheme, svgDocument } from './exportImage';
+import { detailLines } from './flowText';
 import { NODE_W, edgeWidth, flowLayout, nodeHeight } from './FlowGraph';
 
 /**
@@ -102,7 +103,13 @@ export function flowSvg(
       `<text x="${p.x + 14}" y="${p.y + 20}" font-size="9.5" font-weight="600" letter-spacing="0.5" fill="${th.dimmed}">${escapeXml(o.kind(n).toUpperCase())}</text>`,
       `<text x="${p.x + 14}" y="${p.y + 40}" font-size="13" font-weight="600" fill="${th.text}">${escapeXml(clip(n.hidden ? o.hidden : n.label, 30))}</text>`,
       n.detail && !n.small
-        ? `<text x="${p.x + 14}" y="${p.y + 58}" font-size="10.5" font-family="ui-monospace, monospace" fill="${th.dimmed}">${escapeXml(clip(n.detail.split('\n')[0]!, 36))}</text>`
+        ? `<text x="${p.x + 14}" y="${p.y + 58}" font-size="10.5" font-family="ui-monospace, monospace" fill="${th.dimmed}">${escapeXml(
+            detailLines(
+              n.detail,
+              (count) => `(+${count})`,
+              (line, max) => clip(line, max),
+            ).replace(/\n/g, ' '),
+          )}</text>`
         : '',
       `<text x="${p.x + 14}" y="${p.y + p.h - 14}" font-size="10.5" fill="${n.live ? live[n.live.state] : n.checks.length ? problem : th.dimmed}">${escapeXml(clip(o.status(n), 38))}</text>`,
       `</g>`,
