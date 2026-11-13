@@ -470,7 +470,7 @@ export function debeziumMatches(src: DebeziumSource, db: { dialect: string; host
  * The only configuration keys a Kafka Connect or Confluent readout keeps per connector – named, non-secret keys that
  * say what a connector reads and writes: the class, its topics, the Debezium topic prefix (and the older server name)
  * and table or collection lists, the Snowflake sink's database, schema and topic-to-table map, the S3 sink's bucket,
- * directory, format and flush size. Topic routing transforms add `transforms` (their names) and, per name,
+ * directory, format (Confluent's managed sink: `output.data.format`) and flush size. Topic routing transforms add `transforms` (their names) and, per name,
  * `transforms.<name>.regex` / `.replacement` (Kafka's RegexRouter) and `.topic.regex` / `.topic.replacement`
  * (Debezium's ByLogicalTableRouter). Everything else – passwords, keys, URLs with credentials, user names – is never
  * stored (server/test/connector-lineage.test.ts asserts the list).
@@ -490,6 +490,8 @@ export const CONNECT_CONFIG_KEYS = [
   's3.bucket.name',
   'topics.dir',
   'format.class',
+  // Confluent Cloud's managed S3 sink names its format here (AVRO, JSON, PARQUET, BYTES) – 0.25.0
+  'output.data.format',
   'flush.size',
 ] as const;
 
