@@ -816,9 +816,17 @@ function writeElements(run: Run): void {
     );
     return row?.id ?? null;
   };
-  for (let round = 0; pending.length && round < 12; round++) {
-    for (let i = 0; i < pending.length;) {
-      const e = pending[i]!;
+  // what the import reads once for all its elements (the room in the catalogue, the creator's teams, the platforms)
+  const batch = el.elementBatch();
+  // pending new elements by their (lower-case) qualified name: a parent this import adds is waited for (counted, so the
+  // check costs nothing per element – 20,000 elements must not compare 20,000 × 20,000 names)
+  const adding = new Map<string, number>();
+  const named = (e: Entry<ElementFile, ElementRow>) => e.merged.qualified_name.toLowerCase();
+  for (const e of pending) if (!e.row) adding.set(named(e), (adding.get(named(e)) ?? 0) + 1);
+  let todo = pending;
+  for (let round = 0; todo.length && round < 12; round++) {
+    const later: typeof todo = [];
+    for (const e of todo) {
       const m = e.merged;
       const entry = label('elements', e.key);
       if (e.row) {
@@ -832,35 +840,39 @@ function writeElements(run: Run): void {
             ...(m.api_ref !== undefined ? { apiRef: m.api_ref ? { ...(api ?? {}), ...m.api_ref } : null } : {}),
           });
         });
-        pending.splice(i, 1);
         continue;
       }
       const parentId = parentOf(e);
       // the parent is added by this import, later in the list: next round
-      if (m.parent && !parentId && pending.some((x) => x !== e && !x.row && x.merged.qualified_name.toLowerCase() === m.parent!.toLowerCase()) && round < 11) {
-        i++;
+      const parent = m.parent?.toLowerCase();
+      if (parent && !parentId && round < 11 && (adding.get(parent) ?? 0) - (parent === named(e) ? 1 : 0) > 0) {
+        later.push(e);
         continue;
       }
       step(run, e.file, entry, '', () => {
         const p = r.platform(m);
-        const created = el.createElement({
-          platformId: p && typeof p !== 'string' ? p.id : null,
-          kind: m.kind,
-          qualifiedName: m.qualified_name,
-          displayName: m.display_name ?? '',
-          environment: m.environment ?? '',
-          parentId,
-          layer: m.layer ?? '',
-          description: m.description ?? '',
-          typeLabel: m.type_label ?? '',
-          apiRef: m.api_ref ?? null,
-          flags: Object.entries(m.flags ?? {}).map(([name, value]) => ({ name, value })),
-        });
-        db().run("UPDATE dp_elements SET source = 'imported' WHERE id = ?", created.id);
-        r.elementIds.set(elementKey(m), created.id);
+        const id = el.insertElement(
+          {
+            platformId: p && typeof p !== 'string' ? p.id : null,
+            kind: m.kind,
+            qualifiedName: m.qualified_name,
+            displayName: m.display_name ?? '',
+            environment: m.environment ?? '',
+            parentId,
+            layer: m.layer ?? '',
+            description: m.description ?? '',
+            typeLabel: m.type_label ?? '',
+            apiRef: m.api_ref ?? null,
+            flags: Object.entries(m.flags ?? {}).map(([name, value]) => ({ name, value })),
+          },
+          'imported',
+          batch,
+        );
+        r.elementIds.set(elementKey(m), id);
       });
-      pending.splice(i, 1);
+      adding.set(named(e), (adding.get(named(e)) ?? 1) - 1);
     }
+    todo = later;
   }
 }
 

@@ -39,8 +39,18 @@ const preview = (c: Client, files: { name: string; content: string }[], mode: 'a
 const importFiles = (c: Client, files: { name: string; content: string }[], mode: 'add' | 'update' = 'update', fingerprint?: string) =>
   c('POST', '/data-products/import', { files, mode, ...(fingerprint ? { fingerprint } : {}) });
 
+/** Statements per request (the guards of imports and exports at volume) */
+const counted = new Map<string, number>();
+
 beforeAll(async () => {
-  s = await startTestServer();
+  s = await startTestServer({
+    routes: (app) =>
+      app.addHook('onSend', async (req, _reply, payload) => {
+        const { requestDbTotals } = await import('../src/http-observability.js');
+        counted.set(req.url.split('?')[0]!, requestDbTotals(req)?.statements ?? -1);
+        return payload;
+      }),
+  });
   await setup(s);
   await s.api('POST', '/demo/setup', {});
   await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
@@ -424,4 +434,24 @@ describe('ODPS', () => {
     expect(v1.status).toBe(200);
     expect(odpsProblems(await v1.json())).toEqual([]);
   });
+});
+
+describe('at volume', () => {
+  it('imports thousands of elements with a few statements each – the catalogue is counted once, not per element', async () => {
+    const run = async (n: number) => {
+      const elements = Array.from({ length: n }, (_, i) => ({ kind: 'other', qualified_name: `volume${n}.item.${String(i).padStart(5, '0')}` }));
+      const files = [file({ version: 1, elements }, `volume-${n}.yaml`)];
+      const p = await preview(dana, files, 'add');
+      expect(p.problems).toEqual([]);
+      const preview_ = counted.get('/api/data-products/import/preview')!;
+      expect((await importFiles(dana, files, 'add', p.fingerprint)).counts.add).toBe(n);
+      return { preview: preview_, apply: counted.get('/api/data-products/import')! };
+    };
+    const small = await run(500);
+    const large = await run(2_000);
+    // per element: its look-up in the plan, the uniqueness check, the row, its owning teams and its audit entry
+    const perElement = (a: number, b: number) => (b - a) / 1_500;
+    expect(perElement(small.apply, large.apply), JSON.stringify({ small, large })).toBeLessThanOrEqual(6);
+    expect(perElement(small.preview, large.preview), JSON.stringify({ small, large })).toBeLessThanOrEqual(5);
+  }, 120_000);
 });

@@ -27,7 +27,7 @@ import { audit } from '../audit.js';
 import { forbid, me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { platformAccess } from '../auth/policy.js';
-import { assignCreatorTeams } from '../auth/policy.js';
+import { assignCreatorTeams, creatorTeams } from '../auth/policy.js';
 import { likeEscape } from '../database/sql.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canCreate, elementAccess, elementScopeSql, objectAccess, productAccess } from './access.js';
@@ -261,13 +261,14 @@ export function getElement(id: string): DataElement {
 }
 
 /** A platform an element may live on: one the caller may see, of a kind that fits (null: none, where the kind allows it). */
-function checkPlatform(kind: ElementRow['kind'], platformId: string | null): void {
+function checkPlatform(kind: ElementRow['kind'], platformId: string | null, known?: Map<string, { name: string | null; kind: string } | undefined>): void {
   if (!platformId) {
     if (!elementKindFits(kind, null))
       throw new HttpError(400, `A ${kind} element lives on a platform`, 'DATA_ELEMENT_PLATFORM', { context: 'needsPlatform', kind });
     return;
   }
-  const p = platformNames(me(), [platformId]).get(platformId);
+  if (known && !known.has(platformId)) known.set(platformId, platformNames(me(), [platformId]).get(platformId));
+  const p = known ? known.get(platformId) : platformNames(me(), [platformId]).get(platformId);
   if (!p?.name) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
   if (!elementKindFits(kind, p.kind))
     throw new HttpError(400, `A ${kind} element cannot live on a ${p.kind} platform`, 'DATA_ELEMENT_PLATFORM', { kind, platformKind: p.kind });
@@ -296,23 +297,47 @@ function refuseExisting(platformId: string, kind: string, environment: string, n
     throw new HttpError(409, 'An element with this platform, kind, environment and name exists already', 'DATA_ELEMENT_EXISTS', { kind, environment });
 }
 
+/**
+ * What the elements of one import share, read once instead of once per element: the room left in the catalogue, the
+ * creator's teams and the platforms looked up (an import of 20,000 elements must not count the catalogue 20,000 times).
+ */
+export interface ElementBatch {
+  room: number;
+  teams: string[];
+  platforms: Map<string, { name: string | null; kind: string } | undefined>;
+}
+
+export function elementBatch(): ElementBatch {
+  return {
+    room: L.elements - Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements')!.n),
+    teams: [...new Set(creatorTeams(me()))],
+    platforms: new Map(),
+  };
+}
+
 export function createElement(body: unknown): DataElement {
+  return getElement(insertElement(body));
+}
+
+/** Adds an element to the catalogue (entered, or imported) and returns its id; `batch`: an import's shared reads. */
+export function insertElement(body: unknown, source: 'entered' | 'imported' = 'entered', batch?: ElementBatch): string {
   const u = me();
   if (!canCreate(u)) forbid('add elements to the catalogue', 'dataProducts');
   const input = dataElementInput.parse(body);
   const platformId = input.platformId ?? '';
-  checkPlatform(input.kind, input.platformId);
+  checkPlatform(input.kind, input.platformId, batch?.platforms);
   const norm = elementNameNorm(input.qualifiedName);
   refuseExisting(platformId, input.kind, input.environment, norm);
   checkParent(input.kind, platformId, input.environment, input.parentId, null);
-  if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements')!.n) >= L.elements) throw limitReached('elements', L.elements);
+  const room = batch ? batch.room : L.elements - Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements')!.n);
+  if (room <= 0) throw limitReached('elements', L.elements);
   const id = newId(DATA_PRODUCT_ID_PREFIX.element);
   const now = nowIso();
   db().tx(() => {
     db().run(
       `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, layer, description, type_label, source,
          application_id, component_id, plant_sink, api_ref, flags, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'entered', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       platformId,
       input.kind,
@@ -324,6 +349,7 @@ export function createElement(body: unknown): DataElement {
       input.layer,
       input.description,
       input.typeLabel,
+      source,
       input.applicationId,
       input.componentId,
       input.plantSink ? json(input.plantSink) : null,
@@ -334,7 +360,11 @@ export function createElement(body: unknown): DataElement {
       now,
       u.username,
     );
-    assignCreatorTeams('data_element', id, u);
+    // elements are not in the request's index of owning teams (auth/policy.ts): the batch writes the rows directly
+    if (!batch) assignCreatorTeams('data_element', id, u);
+    else
+      for (const t of batch.teams)
+        db().run('INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES (?, ?, ?, ?)', 'data_element', id, t, now);
     audit({
       action: 'dataelement.created',
       entityType: 'data_element',
@@ -343,7 +373,8 @@ export function createElement(body: unknown): DataElement {
       details: { kind: input.kind, platformId: input.platformId, environment: input.environment },
     });
   });
-  return getElement(id);
+  if (batch) batch.room--;
+  return id;
 }
 
 /**
