@@ -48,6 +48,34 @@ export const SNOWFLAKE_DISCOVERY_STATEMENTS: readonly RegExp[] = [
   /^\/\* steward:dp-au-dependencies \*\/ SELECT [A-Z_, ]+ FROM SNOWFLAKE\.ACCOUNT_USAGE\.OBJECT_DEPENDENCIES WHERE /,
 ];
 
+/** An external stage's URL as kept (an object storage address without credentials or query), or null. */
+export function stageUrl(v: string | null | undefined): string | null {
+  const u = String(v ?? '').trim();
+  const m = /^(s3|s3gov|gcs|azure):\/\/[^\s?#@]{1,1000}$/i.exec(u);
+  return m ? u.replace(/^s3gov:/i, 's3:') : null;
+}
+
+const SF_IDENT = String.raw`(?:"[^"]{1,255}"|[A-Za-z_][A-Za-z0-9_$]{0,254})`;
+const SF_NAME = String.raw`${SF_IDENT}(?:\.${SF_IDENT}){0,2}`;
+const COPY_RE = new RegExp(String.raw`^\s*copy\s+into\s+(${SF_NAME})[\s\S]*?\bfrom\s+(?:\(\s*select[\s\S]*?\bfrom\s+)?@(${SF_NAME})`, 'i');
+
+/** A name of a COPY statement as the catalogue keeps it: unquoted parts upper case, completed with the pipe's database and schema. */
+function qualify(name: string, database: string, schema: string): string {
+  const parts = (name.match(new RegExp(SF_IDENT, 'g')) ?? []).map((p) => (p.startsWith('"') ? p.slice(1, -1) : p.toUpperCase()));
+  const full = parts.length === 3 ? parts : parts.length === 2 ? [database, ...parts] : [database, schema, ...parts];
+  return full.join('.');
+}
+
+/**
+ * The stage a pipe reads and the table it loads (0.25.0, ADR 0037 part 2): from `COPY INTO <table> FROM @<stage>` (or
+ * a `SELECT … FROM @<stage>` inside it) – the two names only; nothing else of the statement is read or kept.
+ */
+export function pipeEnds(definition: string | null | undefined, database: string, schema: string): { stage: string | null; target: string | null } {
+  const m = COPY_RE.exec(String(definition ?? '').slice(0, 20_000));
+  if (!m) return { stage: null, target: null };
+  return { target: qualify(m[1]!, database, schema).slice(0, 1_000), stage: qualify(m[2]!.split('/')[0]!, database, schema).slice(0, 1_000) };
+}
+
 /** A quoted identifier for SHOW (the name is checked before: letters, digits, _ and $; `"` would be doubled). */
 const quoted = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 
@@ -242,7 +270,8 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
                   .toUpperCase()
                   .startsWith('EXTERNAL'),
               },
-              readout: { stageType: short(r.type, 40), cloud: short(r.cloud, 40), region: short(r.region, 60) },
+              // 0.25.0: the location an external stage reads (s3://bucket/prefix/) – the link to its files.path element
+              readout: { stageType: short(r.type, 40), cloud: short(r.cloud, 40), region: short(r.region, 60), url: stageUrl(r.url) },
             },
           ]
         : [];
@@ -258,6 +287,9 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
               parent: `${database}.${r.schema_name}`,
               env,
               flags: { autoIngest: !!r.notification_channel },
+              // 0.25.0: which stage it reads and which table it loads – the names only, from its COPY statement (the
+              // statement itself is never kept)
+              readout: pipeEnds(r.definition, database, String(r.schema_name)),
             },
           ]
         : [];

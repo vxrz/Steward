@@ -15,6 +15,8 @@ import {
   DATA_PORT_DIRECTIONS,
   DATA_PORT_LIFECYCLES,
   DATA_PORT_TYPES,
+  DATA_FILE_FORMATS,
+  DATA_PORT_PARTITION_KEYS,
   DATA_PRODUCT_CRITICALITIES,
   DATA_PRODUCT_KEY_RE,
   DATA_PRODUCT_LIFECYCLES,
@@ -308,6 +310,11 @@ const portSchema = z
       .optional()
       .describe('The port of this product that follows a deprecated one'),
     objectives: objectives().optional(),
+    // 0.25.0: a file port's format and partition keys (ADR 0037 part 2)
+    file_format: z.enum(DATA_FILE_FORMATS).nullable().optional().describe('A file port: the format of its files'),
+    partitioning: list(DATA_PORT_PARTITION_KEYS, z.string().trim().min(1).max(100))
+      .optional()
+      .describe('A file port: its partition keys in their order (Hive style key=value folders)'),
     source: sourceSchema.nullable().optional(),
     data_objects: list(L.objectsPerPort, key('A data object')).optional(),
     bindings: z.array(bindingSchema).max(50).optional(),

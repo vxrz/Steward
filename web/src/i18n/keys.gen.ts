@@ -5437,6 +5437,13 @@ export interface Resources {
     'ports.type': string;
     'ports.version': string;
     'ports.versionHint': string;
+    'ports.fileFormat': string;
+    'ports.fileFormatHint': string;
+    'ports.partitioning': string;
+    'ports.partitioningHint': string;
+    'ports.files': string;
+    'ports.filesFormat': string;
+    'ports.partitionedBy': string;
     'ports.lifecycle': string;
     'ports.successor': string;
     'ports.sunset': string;
@@ -5472,6 +5479,7 @@ export interface Resources {
     'bindings.elementsIn': string;
     'bindings.elementsHint': string;
     'bindings.contract': string;
+    'bindings.objectStorage': string;
     'bindings.contractLabel': string;
     'bindings.contractHint': string;
     'bindings.noContract': string;
@@ -5988,6 +5996,13 @@ export interface Resources {
     'elements.retentionDays_one': string;
     'elements.retentionDays_other': string;
     'elements.schemaVersion': string;
+    'elements.fileFormat': string;
+    'elements.partitionKeys': string;
+    'elements.prefixes': string;
+    'elements.stageUrl': string;
+    'elements.pipeStage': string;
+    'elements.pipeTarget': string;
+    'elements.readoutTruncated': string;
     'elements.noReadout': string;
     'elements.noReadoutYet': string;
     'elements.facts': string;
@@ -6160,7 +6175,9 @@ export interface Resources {
     'discovery.scopeHints.snowflake': string;
     'discovery.scopeHints.kafka': string;
     'discovery.scopeHints.database': string;
+    'discovery.scopeHints.aws': string;
     'discovery.scopeSnowflakeRequired': string;
+    'discovery.scopeS3Invalid': string;
     'discovery.allScope': string;
     'discovery.include': string;
     'discovery.includeHint': string;
@@ -6279,6 +6296,13 @@ export interface Resources {
     'transfer.modeHints.replace': string;
     'transfer.preview': string;
     'transfer.run': string;
+    'transfer.jobElements': string;
+    'transfer.jobEntries': string;
+    'transfer.jobUndo': string;
+    'transfer.jobSucceeded': string;
+    'transfer.jobFailed': string;
+    'transfer.jobUndone_one': string;
+    'transfer.jobUndone_other': string;
     'transfer.previewFailed': string;
     'transfer.failed': string;
     'transfer.done': string;
@@ -6512,6 +6536,15 @@ export interface Resources {
     'technologies.delete': string;
     'technologies.deleteNamed': string;
     'technologies.deleteConfirm': string;
+    'fileFormats.parquet': string;
+    'fileFormats.csv': string;
+    'fileFormats.json': string;
+    'fileFormats.avro': string;
+    'fileFormats.orc': string;
+    'fileFormats.iceberg': string;
+    'fileFormats.delta': string;
+    'fileFormats.mixed': string;
+    'fileFormats.other': string;
   };
   debug: {
     simulated: string;
@@ -8690,6 +8723,10 @@ export interface Resources {
     'codes.DATA_PRODUCT_IMPORT_SECRET': string;
     'codes.DATA_PRODUCT_IMPORT_TOO_LARGE': string;
     'codes.DATA_PRODUCT_IMPORT_CHANGED': string;
+    'codes.DATA_PRODUCT_IMPORT_RUNNING': string;
+    'codes.DATA_PRODUCT_IMPORT_JOB_NOT_FOUND': string;
+    'codes.DATA_PRODUCT_IMPORT_FAILED': string;
+    'codes.DATA_PRODUCT_IMPORT_FAILED_interrupted': string;
     'codes.DATA_PRODUCT_LIMIT_domains': string;
     'codes.DATA_PRODUCT_LIMIT_objects': string;
     'codes.DATA_PRODUCT_LIMIT_products': string;
@@ -8763,6 +8800,8 @@ export interface Resources {
     'codes.DATA_DISCOVERY_SCOPE_snowflake': string;
     'codes.DATA_DISCOVERY_SCOPE_kafka': string;
     'codes.DATA_DISCOVERY_SCOPE_sql': string;
+    'codes.DATA_DISCOVERY_SCOPE_s3': string;
+    'codes.DATA_DISCOVERY_SCOPE_s3Empty': string;
     'codes.DATA_DISCOVERY_PLATFORM': string;
     'codes.DATA_DISCOVERY_PLATFORM_kind': string;
     'codes.DATA_DISCOVERY_PLATFORM_use': string;
@@ -8773,6 +8812,8 @@ export interface Resources {
     'codes.DATA_DISCOVERY_TOO_LARGE_instance': string;
     'codes.DATA_DISCOVERY_TOO_LARGE_time': string;
     'codes.DATA_DISCOVERY_TOO_LARGE_snapshot': string;
+    'codes.DATA_DISCOVERY_TOO_LARGE_s3Keys': string;
+    'codes.DATA_DISCOVERY_TOO_LARGE_s3Prefixes': string;
     'codes.DATA_DISCOVERY_FAILED': string;
     'codes.DATA_DISCOVERY_FAILED_snowflakeDatabase': string;
     'codes.DATA_DISCOVERY_FAILED_interrupted': string;

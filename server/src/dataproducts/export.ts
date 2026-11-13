@@ -510,6 +510,8 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
       sunset_date: x.sunset_date,
       successor: succ ? { name: succ.name, version: succ.version } : null,
       objectives: objectivesFile(parseJson<DataObjectives>(x.objectives, {})),
+      file_format: (x.file_format as PortFile['file_format']) ?? null,
+      partitioning: parseJson<string[]>(x.partitioning ?? '[]', []),
       ...(keepSource ? { source } : {}),
       data_objects: objects,
       bindings: bindings

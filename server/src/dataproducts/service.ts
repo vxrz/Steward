@@ -41,7 +41,7 @@ import { currentScale } from '../catalogue/cia.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canCreate, canManageModule, domainAccess, elementScopeSql, objectAccess, productAccess } from './access.js';
 import { HIDDEN, L, actorName, domainNotFound, json, limitReached, objectNotFound, pageOf, productNotFound, refOf, refs } from './common.js';
-import { deleteRatings, floorsOf, needsRerating, productsOfObjects, ratingsByItem, writeRating } from './ratings.js';
+import { deleteRatings, floorsOf, needsRerating, productsOfObjects, ratingsByItem, writeRating, type ProductReads } from './ratings.js';
 import {
   chunks,
   consumersOf,
@@ -49,6 +49,7 @@ import {
   environmentsOf,
   marks,
   objectsByIds,
+  membersOf,
   portsOf,
   productRow,
   productsByIds,
@@ -603,6 +604,8 @@ interface SummaryData {
   items: DataProductSummary[];
   floors: Map<string, RatingFloor & { objectIds: string[] }>;
   objects: Map<string, ObjectRow>;
+  /** What the floors read (ports, bindings, members …): the product page reads them once (0.25.0) */
+  read: ProductReads;
   envRows: ProductEnvironmentRow[];
   list: CatalogueEnvironment[];
 }
@@ -610,11 +613,11 @@ interface SummaryData {
 /** The summaries of these products as `u` sees them (bulk: a fixed number of statements for the page), with what they read. */
 function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): SummaryData {
   const list = environmentList();
-  if (!rows.length) return { items: [], floors: new Map(), objects: new Map(), envRows: [], list };
+  if (!rows.length) return { items: [], floors: new Map(), objects: new Map(), read: {}, envRows: [], list };
   const scale = currentScale();
   const ids = rows.map((r) => r.row.id);
   const ratings = ratingsByItem('product', ids, scale);
-  const read: { objects?: Map<string, ObjectRow> } = {};
+  const read: ProductReads = {};
   const floors = floorsOf(
     rows.map((r) => r.row),
     ratings,
@@ -647,7 +650,7 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     permissions: perms,
     updatedAt: p.updated_at,
   }));
-  return { items, floors, objects: read.objects ?? new Map(), envRows, list };
+  return { items, floors, objects: read.objects ?? new Map(), read, envRows, list };
 }
 
 const summaries = (u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): DataProductSummary[] => summaryData(u, rows).items;
@@ -754,10 +757,10 @@ export function getProduct(id: string): DataProduct {
   const data = summaryData(u, [{ row: p, perms }]);
   const summary = data.items[0];
   const { list, envRows } = data;
-  const ports = portViews(u, p.id, data.objects);
+  const ports = portViews(u, p.id, data.objects, data.read);
+  // the members the floor read (all of the product's: one statement fewer than counting them again)
   const counts: Record<DataMemberRole, number> = { input: 0, internal: 0, output: 0 };
-  for (const r of db().all<{ role: DataMemberRole; n: number }>('SELECT role, COUNT(*) AS n FROM dp_members WHERE product_id = ? GROUP BY role', p.id))
-    counts[r.role] = Number(r.n);
+  for (const m of data.read.members ?? membersOf([p.id])) counts[m.role]++;
   const floor = data.floors.get(p.id)!;
   const objectRefs = floor.objectIds
     .map((oid) => data.objects.get(oid))

@@ -31,6 +31,8 @@ const FRESHNESS_KINDS: readonly DataElementKind[] = [
   'snowflake.database',
   'kafka.topic',
   'kafka.topicBundle',
+  // 0.25.0: the newest object below an S3 prefix
+  'files.path',
 ];
 
 /** Element kinds whose columns or fields the `data-element` check compares with a contract. */
@@ -40,7 +42,7 @@ const SCHEMA_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.
  * Element kinds whose volume the `data-element` check reads (phase 2): Snowflake `ROW_COUNT` and `BYTES` from the same
  * metadata as freshness, a Kafka topic's end offsets (messages added per window).
  */
-const VOLUME_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.dynamicTable', 'kafka.topic'];
+const VOLUME_KINDS: readonly DataElementKind[] = ['snowflake.table', 'snowflake.dynamicTable', 'kafka.topic', 'files.path'];
 
 /**
  * Element kinds whose quality the `data-element` check judges (phase 2): Snowflake Data Metric Function results, and

@@ -168,7 +168,7 @@ describe('demo services', () => {
     await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
     try {
       const list = (await s.api('GET', '/data-products')) as { items: { id: string; key: string; lifecycle: string }[]; total: number };
-      expect(list.items.map((p) => p.key).sort()).toEqual(['customer-360', 'machine-measurements', 'orders', 'sales-mart']);
+      expect(list.items.map((p) => p.key).sort()).toEqual(['customer-360', 'machine-measurements', 'orders', 'sales-files', 'sales-mart']);
       const orders = list.items.find((p) => p.key === 'orders')!;
       const p = await s.api('GET', `/data-products/${orders.id}`);
       expect(p).toMatchObject({ lifecycle: 'active', type: 'sourceAligned' });

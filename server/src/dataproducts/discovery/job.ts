@@ -3,6 +3,7 @@ import {
   DATA_LINEAGE_LIMITS,
   DATA_PRODUCT_ID_PREFIX,
   DATA_PRODUCT_LIMITS,
+  AWS_KIND,
   DATABASE_KIND,
   KAFKA_KIND,
   SNOWFLAKE_KIND,
@@ -23,7 +24,9 @@ import { DiscoveryError, parseSource, type DiscoveryContext, type DiscoveryProbl
 import { readSnowflake } from './snowflake.js';
 import { readKafka } from './kafka.js';
 import { readSqlSnapshot } from './dbschema.js';
+import { readS3 } from './s3.js';
 import { proposeDependencies, type SnowflakeDependency } from '../lineage/snowflake.js';
+import { proposeStageLinks } from '../lineage/stages.js';
 
 /**
  * Discovery runs (ADR 0036 part 5, _Performance_): the job `data-products` reads the sources that are due, one at a
@@ -48,6 +51,8 @@ const READERS: Readonly<Record<string, DiscoveryReader>> = {
   [SNOWFLAKE_KIND]: readSnowflake,
   [KAFKA_KIND]: readKafka,
   [DATABASE_KIND]: readSqlSnapshot,
+  // 0.25.0 (ADR 0037 part 2): S3 prefixes through an AWS account platform
+  [AWS_KIND]: readS3,
 };
 
 /** Platform kinds discovery reads (Confluent Cloud clusters are read as Kafka platforms, docs/KAFKA.md). */
@@ -191,6 +196,7 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
   let missing: string[] = [];
   let removed = 0;
   let platformName = '';
+  let platformKind: string | undefined;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budget);
   timer.unref?.();
@@ -210,6 +216,7 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
       });
     const { platform, secrets } = platformFor(src.runAs, src.platformId, src.identityId);
     platformName = platform.name;
+    platformKind = platform.kind;
     const read = READERS[platform.kind];
     if (!read)
       throw new DiscoveryError({
@@ -283,6 +290,14 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
       removed = removeLongMissing(new Date(Date.now() - DL.missingDays * 86_400_000).toISOString(), src.id);
       // the steps the platform's dependencies suggest (only after a complete run: the elements are all there)
       if (dependencies.length) proposed = await proposeDependencies(src.id, src.platformId, dependencies);
+      // 0.25.0: external stages read their S3 location, pipes copy from their stage into their table
+      if (platformKind === SNOWFLAKE_KIND) {
+        const links = await proposeStageLinks(src.id, src.platformId);
+        if (links.created + links.changed + links.skipped)
+          proposed = proposed
+            ? { created: proposed.created + links.created, changed: proposed.changed + links.changed, skipped: proposed.skipped + links.skipped }
+            : links;
+      }
     }
   } catch (e) {
     failure =
@@ -372,6 +387,13 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
 export async function runDataProductsJob(now = Date.now()): Promise<{ read: number; failed: number } | null> {
   // links to monitors deleted since the last run (no secrets needed)
   pruneCheckLinks();
+  // 0.25.0: background imports a stopped server left running are taken back
+  try {
+    const { recoverInterrupted } = await import('../import-jobs.js');
+    await recoverInterrupted();
+  } catch (err) {
+    logger.warn({ err }, 'an interrupted import of data products could not be taken back');
+  }
   if (!vault().unlocked) return null;
   closeInterrupted();
   const due = db().all<{ id: string }>(

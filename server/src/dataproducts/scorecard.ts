@@ -21,9 +21,9 @@ import { currentScale } from '../catalogue/cia.js';
 import { statusPointsOf, upAndDown, uptimeHundredths } from '../monitors/stats.js';
 import { parseJson } from '../util.js';
 import { elementHealthOf } from './health.js';
-import { personalFieldCounts } from './personal-fields.js';
+import { personalFieldCounts, type ContractHead } from './personal-fields.js';
 import { completenessCounts, latestQualityResults, summariseQuality } from './quality.js';
-import { floorsOf, ratingsByItem } from './ratings.js';
+import { floorsOf, ratingsByItem, type ProductReads } from './ratings.js';
 import { validEndorsements } from './endorsements.js';
 import { reviewedProducts } from './port-reviews.js';
 import { sortEnvironments, visibleProduct } from './service.js';
@@ -42,6 +42,7 @@ import {
   type ElementRow,
   type ObjectRow,
   type PortRow,
+  type CheckLinkRow,
 } from './store.js';
 import { technologyOf } from './technologies.js';
 
@@ -66,8 +67,8 @@ import { technologyOf } from './technologies.js';
  * The health of elements (each lives in one environment), as `u` may see it: the scorecard's one dependency on the
  * module's health (health.ts) – never OK without a check.
  */
-export function scorecardElementHealth(u: AuthUser | null, elementIds: readonly string[]): Map<string, ElementHealth> {
-  return elementHealthOf(u, elementIds);
+export function scorecardElementHealth(u: AuthUser | null, elementIds: readonly string[], links?: CheckLinkRow[]): Map<string, ElementHealth> {
+  return elementHealthOf(u, elementIds, links);
 }
 
 // ---------- helpers ----------
@@ -115,7 +116,8 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   if (!ids.length) return out;
   const scale = currentScale();
   const ratings = ratingsByItem('product', ids, scale);
-  const read: { objects?: Map<string, ObjectRow> } = {};
+  // the floors read the ports, bindings and members: read once for the whole scorecard (ProductReads)
+  const read: ProductReads = {};
   const floors = floorsOf([...products.values()], ratings, scale, read);
   // maturity 5 (0.24.0): a valid endorsement on top of level 4; the confidentiality evidence: an approved port access
   // review within 12 months (one statement each for the page)
@@ -123,9 +125,9 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   const reviewed = reviewedProducts([...products.keys()], new Date(now - 365 * 24 * 3600_000).toISOString());
   const objects = read.objects ?? new Map<string, ObjectRow>();
   const envRows = environmentsOf(ids);
-  const ports = portsOf(ids);
-  const bindings = bindingsOf(ports.map((p) => p.id));
-  const members = membersOf(ids);
+  const ports = read.ports ?? portsOf(ids);
+  const bindings = read.bindings ?? bindingsOf(ports.map((p) => p.id));
+  const members = read.members ?? membersOf(ids);
   // where input ports' data comes from: the lifecycle of the source ports
   const sourceIds = ports.flatMap((p) => (p.direction === 'input' && p.source_port_id ? [p.source_port_id] : []));
   const sources = new Map(
@@ -133,11 +135,14 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   );
   // contracts of the output bindings: lint errors (of the version held to) and the last test
   const contractIds = bindings.flatMap((b) => (b.contract_id ? [b.contract_id] : []));
-  const contracts = new Map(
-    rowsIn<{ id: string; lint_errors: number }>((m) => `SELECT id, lint_errors FROM data_contracts WHERE id IN (${m})`, contractIds).map((r) => [
-      r.id,
-      Number(r.lint_errors),
-    ]),
+  // with what the personal fields need of them (0.25.0: one read of the contracts, not two)
+  const contractRows = rowsIn<ContractHead & { lint_errors: number }>(
+    (m) => `SELECT id, lint_errors, contract_key, name, current_version FROM data_contracts WHERE id IN (${m})`,
+    contractIds,
+  );
+  const contracts = new Map(contractRows.map((r) => [r.id, Number(r.lint_errors)]));
+  const contractHeads = new Map(
+    contractRows.map((r) => [r.id, { id: r.id, contract_key: r.contract_key, name: r.name, current_version: Number(r.current_version) }]),
   );
   const versionLint = new Map(
     rowsIn<{ contract_id: string; version: number; lint_errors: number }>(
@@ -155,7 +160,9 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   // output elements of every binding, their freshness links and those checks' last 30 days
   const outputPortIds = new Set(ports.filter((p) => p.direction === 'output').map((p) => p.id));
   const outputElementIds = [...new Set(bindings.filter((b) => outputPortIds.has(b.port_id)).flatMap((b) => b.elementIds))];
-  const links = checkLinksOf(outputElementIds).filter((l) => l.purpose === 'freshness');
+  // every link of the output elements: their health below reads them too (0.25.0: once)
+  const allLinks = outputElementIds.length ? checkLinksOf(outputElementIds) : [];
+  const links = allLinks.filter((l) => l.purpose === 'freshness');
   const since = new Date(Math.floor((now - WINDOW) / 3600_000) * 3600_000).toISOString();
   const samples = new Map(
     rowsIn<{ monitor_id: string; check_id: string; first: string; ok: number | string; down: number | string }>(
@@ -181,20 +188,30 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
   );
   const elementMatches = rowsIn<{ element_id: string }>((m) => `SELECT element_id FROM dp_cost_matches WHERE element_id IN (${m})`, memberIds);
   const elements = elementsByIds([...new Set([...outputElementIds, ...elementMatches.map((r) => r.element_id), ...members.map((m) => m.element_id)])]);
-  // lineage of the output elements, for traceability (one statement per level and direction)
+  // lineage of the output elements, for traceability: upstream only (one statement per level)
   const lineage = outputElementIds.length
-    ? stepsAround(outputElementIds, undefined, 2_000)
+    ? stepsAround(outputElementIds, undefined, 2_000, ['up'])
     : { steps: [], elements: [], truncated: { upstream: 0, downstream: 0 } };
   const writers = new Map<string, string[]>();
   for (const s of lineage.steps) for (const o of s.outputs) writers.set(o, [...(writers.get(o) ?? []), ...s.inputs]);
 
   // the health of every output element, read once for all products (never per product)
-  const outputHealth = outputElementIds.length ? scorecardElementHealth(u, outputElementIds) : new Map<string, ElementHealth>();
+  const outputHealth = outputElementIds.length ? scorecardElementHealth(u, outputElementIds, allLinks) : new Map<string, ElementHealth>();
   // 0.24.0: quality results of the output elements (the latest per test, 30 days), completeness results for the
   // completeness objectives, personal fields of the bound contracts – one statement each per chunk
   const quality = outputElementIds.length ? latestQualityResults(outputElementIds, since) : [];
-  const completeness = outputElementIds.length ? completenessCounts(outputElementIds, since) : new Map<string, { passed: number; total: number }>();
-  const personalByBinding = personalFieldCounts(bindings.filter((b) => outputPortIds.has(b.port_id)));
+  // 0.25.0: the completeness results only of the bindings whose port (or the binding) sets a completeness objective
+  const portById = new Map(ports.map((p) => [p.id, p]));
+  const completenessElementIds = [
+    ...new Set(
+      bindings.filter((b) => outputPortIds.has(b.port_id) && (objectivesOf(portById.get(b.port_id)!, b).completenessPct ?? 0) > 0).flatMap((b) => b.elementIds),
+    ),
+  ];
+  const completeness = completenessElementIds.length ? completenessCounts(completenessElementIds, since) : new Map<string, { passed: number; total: number }>();
+  const personalByBinding = personalFieldCounts(
+    bindings.filter((b) => outputPortIds.has(b.port_id)),
+    contractHeads,
+  );
 
   for (const p of products.values()) {
     const envs = sortEnvironments(envRows.filter((e) => e.product_id === p.id).map((e) => e.environment));

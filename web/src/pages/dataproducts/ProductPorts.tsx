@@ -240,6 +240,17 @@ function PortCard({
             {port.description}
           </Text>
         )}
+        {port.type === 'file' && (port.fileFormat || port.partitioning.length > 0) && (
+          <Text size="sm" data-testid="port-files">
+            {t('ports.files')}:{' '}
+            {[
+              port.fileFormat ? t('ports.filesFormat', { format: t(`fileFormats.${port.fileFormat}`) }) : '',
+              port.partitioning.length ? t('ports.partitionedBy', { keys: port.partitioning.join(', ') }) : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        )}
         {port.lifecycle === 'deprecated' && port.sunsetDate && (
           <Text size="sm" c="orange">
             {capFirst(t('ports.sunset', { date: fmtDay(port.sunsetDate) }))}
@@ -355,6 +366,18 @@ function PortCard({
                     })
                   : '–'}
               </Text>
+              {/* 0.25.0: the S3 locations of a file port's bound elements – the ODCS server of type s3 */}
+              {binding.elementIds.some((id) => names.get(id)?.label.startsWith('s3://')) && (
+                <Text size="sm" style={{ overflowWrap: 'anywhere' }} data-testid="binding-object-storage">
+                  {t('bindings.objectStorage')}:{' '}
+                  <span className="mono">
+                    {binding.elementIds
+                      .map((id) => names.get(id)?.label ?? '')
+                      .filter((l) => l.startsWith('s3://'))
+                      .join(', ')}
+                  </span>
+                </Text>
+              )}
               {port.direction === 'output' && (
                 <Text size="sm" data-testid="binding-contract-line">
                   {t('bindings.contract')}:{' '}

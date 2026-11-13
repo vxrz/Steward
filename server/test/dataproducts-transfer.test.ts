@@ -460,10 +460,11 @@ describe('at volume', () => {
       expect((await importFiles(dana, files, 'add', p.fingerprint)).counts.add).toBe(n);
       return { preview: preview_, apply: counted.get('/api/data-products/import')! };
     };
-    const small = await run(500);
-    const large = await run(2_000);
+    // (0.25.0: up to 1,000 elements an import is written at once – more run as a background job, dataproducts-import-large)
+    const small = await run(250);
+    const large = await run(1_000);
     // per element: its look-up in the plan, the uniqueness check, the row, its owning teams and its audit entry
-    const perElement = (a: number, b: number) => (b - a) / 1_500;
+    const perElement = (a: number, b: number) => (b - a) / 750;
     expect(perElement(small.apply, large.apply), JSON.stringify({ small, large })).toBeLessThanOrEqual(6);
     expect(perElement(small.preview, large.preview), JSON.stringify({ small, large })).toBeLessThanOrEqual(5);
   }, 120_000);

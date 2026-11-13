@@ -83,7 +83,7 @@ export function judgeVolume(
   };
 }
 
-function finish(c: Check, el: ElementRow, measure: string, unit: string, what: string, value: number, now: number): CheckResult {
+export function finish(c: Check, el: ElementRow, measure: string, unit: string, what: string, value: number, now: number): CheckResult {
   const { before, recent } = readingsOf(el.id, measure, now, (c.windowMinutes ?? 60) * MINUTE);
   const r = judgeVolume(c, what, unit, value, before);
   store(el.id, measure, value, now, recent);

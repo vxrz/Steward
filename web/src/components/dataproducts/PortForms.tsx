@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, MultiSelect, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Alert, MultiSelect, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, TagsInput, Text, Textarea, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,6 +7,9 @@ import {
   DATA_CONSUMER_KINDS,
   DATA_PORT_LIFECYCLES,
   DATA_PORT_TYPES,
+  DATA_FILE_FORMATS,
+  DATA_PORT_PARTITION_KEYS,
+  type DataFileFormat,
   DATA_PRODUCT_LIMITS as L,
   type ApplicationSummary,
   type DataAgreementKind,
@@ -140,6 +143,9 @@ export function PortForm({
   const [successor, setSuccessor] = useState<string | null>(x?.successorId ?? null);
   const [objectives, setObjectives] = useState<DataObjectives>(x?.objectives ?? {});
   const [objectIds, setObjectIds] = useState<string[]>(x?.objects.declared.filter((o) => !o.hidden).map((o) => o.id!) ?? []);
+  // 0.25.0: a file port's format and partition keys
+  const [fileFormat, setFileFormat] = useState<DataFileFormat | null>(x?.fileFormat ?? null);
+  const [partitioning, setPartitioning] = useState<string[]>(x?.partitioning ?? []);
   const src = x?.source;
   const [sourceKind, setSourceKind] = useState<SourceKind>(src?.kind ?? 'port');
   const [sourceProduct, setSourceProduct] = useState<string | null>(src?.kind === 'port' && !src.product.hidden ? src.product.id : null);
@@ -187,6 +193,7 @@ export function PortForm({
                 ? { kind: 'element', elementId: sourceElement[0]!.id }
                 : { kind: 'text', text: sourceText.trim() },
         objectIds,
+        ...(type === 'file' ? { fileFormat, partitioning } : {}),
       };
       if (x) await put(`/data-products/${enc(productId)}/ports/${enc(x.id)}`, body);
       else await post(`/data-products/${enc(productId)}/ports`, body);
@@ -235,6 +242,29 @@ export function PortForm({
               data-testid="port-version"
             />
           </SimpleGrid>
+          {type === 'file' && (
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <Select
+                label={t('ports.fileFormat')}
+                description={t('ports.fileFormatHint')}
+                data={DATA_FILE_FORMATS.map((f) => ({ value: f, label: t(`fileFormats.${f}`) }))}
+                value={fileFormat}
+                onChange={(f) => setFileFormat((f as DataFileFormat | null) ?? null)}
+                clearable
+                data-testid="port-file-format"
+              />
+              <TagsInput
+                label={t('ports.partitioning')}
+                description={t('ports.partitioningHint')}
+                value={partitioning}
+                onChange={(v) => setPartitioning(v.map((k) => k.trim()).filter(Boolean))}
+                maxTags={DATA_PORT_PARTITION_KEYS}
+                clearable
+                classNames={{ input: 'mono' }}
+                data-testid="port-partitioning"
+              />
+            </SimpleGrid>
+          )}
           <Textarea
             label={t('form.description')}
             autosize

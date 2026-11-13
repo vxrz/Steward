@@ -1195,6 +1195,38 @@
         "objectives": {
           "$ref": "#/$defs/Objectives"
         },
+        "file_format": {
+          "description": "A file port: the format of its files",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "parquet",
+                "csv",
+                "json",
+                "avro",
+                "orc",
+                "iceberg",
+                "delta",
+                "mixed",
+                "other"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partitioning": {
+          "description": "A file port: its partition keys in their order (Hive style key=value folders)",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
         "source": {
           "anyOf": [
             {

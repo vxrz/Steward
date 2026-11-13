@@ -554,6 +554,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/import-origins': ALL,
   'POST /api/data-products/import/preview': ALL,
   'POST /api/data-products/import': DESIGN,
+  // 0.25.0: a background import's progress – the person who started it (others: 404)
+  'GET /api/data-products/import/jobs/:id': ALL,
   // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
   // decides requests (the owners, else who manages the product) decides; reading the platforms, reviews, promotion and
   // endorsement (the domain's owners, else the module's managers) change – the Art. 30 view lists what the reader sees
@@ -1696,6 +1698,7 @@ const SESSION_ONLY = [
   'GET /api/data-products/import-origins',
   'POST /api/data-products/import/preview',
   'POST /api/data-products/import',
+  'GET /api/data-products/import/jobs/:id',
   // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
   'POST /api/data-products/access-requests/:requestId/decision',
   'PUT /api/data-products/:id/access-settings',
@@ -2339,6 +2342,8 @@ const STEP_UP_BY_POLICY = [
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // 0.25.0: a background import's progress – only its starter's (and the fixtures start none: 404)
+  'GET /api/data-products/import/jobs/:id',
   // the Teams app package needs the bot's app id (none in the fixtures: 409)
   'GET /api/settings/teams-bot/package',
   // OAuth sign-in for MCP clients is off in the fixtures (#12)

@@ -9,6 +9,7 @@ import {
   DATA_PORT_DIRECTIONS,
   DATA_PORT_LIFECYCLES,
   DATA_PORT_TYPES,
+  DATA_FILE_FORMATS,
   DATA_PRODUCT_CRITICALITIES,
   DATA_PRODUCT_LIFECYCLES,
   DATA_PRODUCT_TYPES,
@@ -123,6 +124,8 @@ const Port = z.object({
   bindings: z.array(Binding),
   consumers: z.object({ registered: z.number().int(), derived: z.number().int() }),
   consumesDeprecated: z.boolean(),
+  fileFormat: z.enum(DATA_FILE_FORMATS).nullable().describe('0.25.0: a file port’s format (Parquet, CSV, JSON, Avro, ORC, Iceberg …)'),
+  partitioning: z.array(z.string()).describe('0.25.0: a file port’s partition keys, in their order'),
 });
 
 export const DataProductDetail = DataProductEntry.extend({
