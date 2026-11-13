@@ -26,6 +26,7 @@ import {
   IconCoin,
   IconContract,
   IconCloudDataConnection,
+  IconTableHeart,
 } from '@tabler/icons-react';
 import { CHECK_TYPE_DEFS, type CheckDef, type CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -52,6 +53,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   'db-schema': IconSchema,
   cost: IconCoin,
   'data-contract': IconContract,
+  'data-element': IconTableHeart,
   'dependency-track': IconShieldCheck,
   'version-behind': IconArrowBigUpLines,
   entra: IconUserShield,

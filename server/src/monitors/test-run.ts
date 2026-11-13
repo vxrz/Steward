@@ -11,6 +11,7 @@ import { requireVisibleSystem } from '../dbschema/check.js';
 import { requireVisibleApplication } from '../versions/check.js';
 import { requireVisibleCostScope } from '../costs/check.js';
 import { requireVisibleContract } from '../datacontracts/check.js';
+import { requireUsableElement } from '../dataproducts/checks/element.js';
 
 /**
  * Test run of a monitor (#105): its platform checks answered from the platforms' recorded responses, nothing stored
@@ -116,6 +117,7 @@ export async function previewCheck(input: { monitorId?: string; check: unknown; 
   if (c.type === 'version-behind') requireVisibleApplication(c.name, c.application);
   if (c.type === 'cost') requireVisibleCostScope(c.name, c);
   if (c.type === 'data-contract') requireVisibleContract(c.name, c.contract);
+  if (c.type === 'data-element') requireUsableElement(c.name, c, currentUser());
   const started = Date.now();
   const res = await runActiveCheck(c, {
     owner,

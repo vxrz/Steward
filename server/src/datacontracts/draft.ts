@@ -377,8 +377,45 @@ function fromTables(input: { subjectKind: 'platform' | 'system'; subjectId: stri
   return finish(doc, links, warnings);
 }
 
+// ---------- from an element of the data products catalogue (ADR 0036 part 7) ----------
+
+/**
+ * A Snowflake table's columns (INFORMATION_SCHEMA.COLUMNS, read now), a Kafka topic's schema (the Schema Registry's
+ * latest `<topic>-value`), or a database table (its latest schema snapshot, as the table source). The caller must see
+ * the element and may use its platform; metadata only.
+ */
+async function fromElement(input: { elementId: string }): Promise<DataContractDraft> {
+  const { moduleEnabled } = await import('../modules/registry.js');
+  const { elementFor } = await import('../dataproducts/checks/element.js');
+  const el = moduleEnabled('dataProducts') ? elementFor(me(), input.elementId) : null;
+  if (!el?.platform_id) throw new HttpError(400, `Data element ${input.elementId} not found`, 'DATA_CONTRACT_DRAFT_SOURCE', { id: input.elementId });
+  let p;
+  try {
+    p = getPlatform(el.platform_id);
+  } catch {
+    p = null;
+  }
+  if (!p?.permissions.includes('use'))
+    throw new HttpError(400, `Data element ${input.elementId} not found`, 'DATA_CONTRACT_DRAFT_SOURCE', { id: input.elementId });
+  if (el.kind === 'sql.table' || el.kind === 'sql.view') return fromTables({ subjectKind: 'platform', subjectId: el.platform_id, tables: [el.qualified_name] });
+  const { readActualSchema } = await import('../dataproducts/checks/schema.js');
+  const { getConnection } = await import('../platforms/service.js');
+  const actual = await readActualSchema(el, p, getConnection(p.id).secrets);
+  if ('unknown' in actual) throw new HttpError(400, actual.unknown, 'DATA_CONTRACT_DRAFT_EMPTY');
+  const warnings: string[] = [];
+  const name = el.display_name || el.qualified_name;
+  const doc = skeleton(`${p.name} ${name}`.trim(), `${el.qualified_name} on ${p.name} (drafted from ${actual.source})`);
+  doc.schema = [actual.object];
+  if (actual.server) {
+    doc.servers = [{ ...actual.server, server: slugify(el.environment || 'production') || 'production' }];
+    warnings.push('Steward does not test Snowflake and Kafka servers yet – the server is documentation until then');
+  }
+  warnings.push('Types come from the platform’s metadata – review them, and add descriptions and quality rules');
+  return finish(doc, [], warnings);
+}
+
 /** A draft from one of the sources (the caller must be signed in; each source checks its own rights). */
-export function draftContract(body: unknown): DataContractDraft {
+export function draftContract(body: unknown): DataContractDraft | Promise<DataContractDraft> {
   me();
   const input = dataContractDraftInput.parse(body);
   switch (input.source) {
@@ -390,5 +427,7 @@ export function draftContract(body: unknown): DataContractDraft {
       return fromDataset(input);
     case 'table':
       return fromTables(input);
+    case 'element':
+      return fromElement(input);
   }
 }
