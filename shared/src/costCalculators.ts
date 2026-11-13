@@ -60,7 +60,13 @@ const unitCode = z
   .refine((s) => parseUnit(s) !== null, 'a unit such as GBy, h, GBy.mo, MBy/s or {request}');
 
 const tableColumn = z
-  .object({ key: calculatorKey, label, type: z.enum(['number', 'text']).default('number'), unit: unitCode.optional(), default: z.union([z.number(), z.string().max(200)]).optional() })
+  .object({
+    key: calculatorKey,
+    label,
+    type: z.enum(['number', 'text']).default('number'),
+    unit: unitCode.optional(),
+    default: z.union([z.number(), z.string().max(200)]).optional(),
+  })
   .strict();
 
 export const costCalculatorInput = z
@@ -73,7 +79,10 @@ export const costCalculatorInput = z
     default: z.union([z.number(), z.boolean(), z.string().max(200)]).optional(),
     min: z.number().optional(),
     max: z.number().optional(),
-    options: z.array(z.union([z.string().trim().min(1).max(100), z.number()])).max(COST_CALCULATOR_LIMITS.options).optional(),
+    options: z
+      .array(z.union([z.string().trim().min(1).max(100), z.number()]))
+      .max(COST_CALCULATOR_LIMITS.options)
+      .optional(),
     /** number and integer: may be given as low, expected and high unless false (a count of clusters, say) */
     range: z.boolean().optional(),
     columns: z.array(tableColumn).max(COST_CALCULATOR_LIMITS.tableColumns).optional(),
@@ -179,7 +188,10 @@ export function normaliseCalculatorFile(raw: unknown): unknown {
   const o = raw as Record<string, unknown>;
   const lets = o.let;
   if (lets && typeof lets === 'object' && !Array.isArray(lets))
-    return { ...o, let: Object.entries(lets as Record<string, unknown>).map(([key, value]) => ({ key, value: typeof value === 'number' ? String(value) : value })) };
+    return {
+      ...o,
+      let: Object.entries(lets as Record<string, unknown>).map(([key, value]) => ({ key, value: typeof value === 'number' ? String(value) : value })),
+    };
   return raw;
 }
 

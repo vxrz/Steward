@@ -380,7 +380,9 @@ export function entriesPage(row: BookRow, q: { cursor?: string; limit: number; q
 /** Every entry of a version (writing a new version, the CSV preview). */
 function entriesOf(versionId: string | null): CostPriceEntry[] {
   if (!versionId) return [];
-  return db().all<ItemRow>(`SELECT ${ITEM_COLUMNS} FROM cost_price_items WHERE version_id = ? ORDER BY sku_id, sku_price_id, valid_from`, versionId).map(entryOfRow);
+  return db()
+    .all<ItemRow>(`SELECT ${ITEM_COLUMNS} FROM cost_price_items WHERE version_id = ? ORDER BY sku_id, sku_price_id, valid_from`, versionId)
+    .map(entryOfRow);
 }
 
 /** The entries of the given SKUs in a version – one statement (a calculation reads each book once per round). */
@@ -552,7 +554,13 @@ export interface VersionWritten {
  * Writes a new version when the entries differ from the current one (SHA-256 of the normalised entries); an unchanged
  * save writes nothing. Audited with the counts and the prices changed, before and after.
  */
-export function writeVersion(row: BookRow, unsorted: CostPriceEntry[], source: CostPriceVersionSource, note: string, extra: Record<string, unknown> = {}): VersionWritten {
+export function writeVersion(
+  row: BookRow,
+  unsorted: CostPriceEntry[],
+  source: CostPriceVersionSource,
+  note: string,
+  extra: Record<string, unknown> = {},
+): VersionWritten {
   // stored in the order of their key: pages of items follow the row id
   const entries = [...unsorted].sort((a, b) => (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : entryKey(a) < entryKey(b) ? -1 : entryKey(a) > entryKey(b) ? 1 : 0));
   refuseProblems(entries);
@@ -621,7 +629,9 @@ function checkBookInput(x: ReturnType<typeof costPriceBookInput.parse>): void {
     throw new HttpError(404, 'Supplier not found', 'SUPPLIER_NOT_FOUND', { id: x.supplierId });
 }
 
-const snapshot = (r: Pick<BookRow, 'name' | 'kind' | 'provider' | 'currency' | 'platform_id' | 'supplier_id' | 'supplier_contract_id' | 'review_days' | 'description'>) => ({
+const snapshot = (
+  r: Pick<BookRow, 'name' | 'kind' | 'provider' | 'currency' | 'platform_id' | 'supplier_id' | 'supplier_contract_id' | 'review_days' | 'description'>,
+) => ({
   name: r.name,
   kind: r.kind,
   provider: r.provider,
@@ -669,7 +679,9 @@ export function createBook(body: unknown): CostPriceBookDetail {
       entityType: 'cost_price_book',
       entityId: id,
       summary: `Price book "${x.name}" (${x.kind}, ${x.provider}, ${x.currency}) added`,
-      details: { after: snapshot({ ...x, platform_id: x.platformId, supplier_id: x.supplierId, supplier_contract_id: x.supplierContractId, review_days: x.reviewDays }) },
+      details: {
+        after: snapshot({ ...x, platform_id: x.platformId, supplier_id: x.supplierId, supplier_contract_id: x.supplierContractId, review_days: x.reviewDays }),
+      },
     });
   });
   return getBook(id);
@@ -839,7 +851,11 @@ function parseFile(x: ReturnType<typeof costPriceImportInput.parse>, bookCurrenc
     const fail = (message: string) => problems.length < 500 && problems.push({ row: index, line, message });
     const charge = cell('charge') ? CHARGES.get(cell('charge').toLowerCase()) : 'usage';
     if (!charge) return void fail(`Charge "${cell('charge').slice(0, 40)}" is not usage, recurring or one-off`);
-    const block = BLOCKS.get(cell('block').toLowerCase().replace(/[.,\s]/g, ''));
+    const block = BLOCKS.get(
+      cell('block')
+        .toLowerCase()
+        .replace(/[.,\s]/g, ''),
+    );
     if (!block) return void fail(`Block "${cell('block').slice(0, 40)}" is not 1, 1000 or 1000000`);
     let tiers: { from: string; price: string }[] | null = null;
     if (cell('tiers')) {

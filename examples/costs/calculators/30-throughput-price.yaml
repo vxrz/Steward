@@ -9,25 +9,25 @@ name: Throughput × price
 description: >-
   One line per item: a rate over a month of 730 hours (or the hours a day it runs), priced with the item of the book
   that has it – requests, messages, tokens, gigabytes or anything else a price book counts.
-checked: '2026-11-12'
+checked: "2026-11-12"
 inputs:
   - key: items
     label: Items
     type: table
     maxRows: 50
-    help: 'Rate per s, min, h or d; the unit counted, e.g. {request}, {msg}, {token} or GBy.'
+    help: "Rate per s, min, h or d; the unit counted, e.g. {request}, {msg}, {token} or GBy."
     columns:
       - { key: provider, label: Provider, type: text }
       - { key: sku, label: SKU, type: text }
       - { key: rate, label: Rate, type: number, default: 1 }
       - { key: per, label: Per, type: text, default: s }
       - { key: hoursPerDay, label: Hours a day, type: number, default: 24 }
-      - { key: unit, label: Unit counted, type: text, default: '{request}' }
+      - { key: unit, label: Unit counted, type: text, default: "{request}" }
 lines:
   - key: item
     label: Item
     each: items
-    item: { provider: '{{ row.provider }}', sku: '{{ row.sku }}' }
+    item: { provider: "{{ row.provider }}", sku: "{{ row.sku }}" }
     # the rate per hour × the hours a month it runs
     quantity: "row.rate * $lookup({'s': 3600, 'min': 60, 'h': 1, 'd': 1 / 24}, row.per) * const.hoursPerMonth * row.hoursPerDay / 24"
-    unit: '{{ row.unit }}'
+    unit: "{{ row.unit }}"

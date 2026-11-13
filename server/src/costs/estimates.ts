@@ -258,7 +258,13 @@ function platformOf(o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | n
 /** Keeps who added an adjustment and when; a new or changed one is the current person's. */
 function stampAdjustments(next: readonly CostAdjustment[], before: readonly StoredAdjustment[], found: Map<string, string>): StoredAdjustment[] {
   const same = (a: CostAdjustment, b: CostAdjustment) =>
-    a.line === b.line && a.kind === b.kind && a.percent === b.percent && a.price === b.price && a.currency === b.currency && a.block === b.block && a.reason === b.reason;
+    a.line === b.line &&
+    a.kind === b.kind &&
+    a.percent === b.percent &&
+    a.price === b.price &&
+    a.currency === b.currency &&
+    a.block === b.block &&
+    a.reason === b.reason;
   const now = nowIso();
   return next.map((a) => {
     const old = before.find((b) => same(a, b));
@@ -273,13 +279,16 @@ function fixedFound(adj: readonly StoredAdjustment[]): Map<string, string> {
 
 function recordBooks(id: string, versionIds: readonly string[], keep: readonly string[] = []): void {
   db().run('DELETE FROM cost_estimate_books WHERE estimate_id = ?', id);
-  for (const v of new Set([...versionIds, ...keep])) db().run('INSERT INTO cost_estimate_books (estimate_id, version_id) VALUES (?, ?) ON CONFLICT DO NOTHING', id, v);
+  for (const v of new Set([...versionIds, ...keep]))
+    db().run('INSERT INTO cost_estimate_books (estimate_id, version_id) VALUES (?, ?) ON CONFLICT DO NOTHING', id, v);
 }
 
 function keepHistory(id: string, result: string | null): void {
   if (!result) return;
   db().run('INSERT INTO cost_estimate_results (estimate_id, result, replaced_at, replaced_by) VALUES (?, ?, ?, ?)', id, result, nowIso(), currentActor());
-  const old = db().all<{ id: number }>('SELECT id FROM cost_estimate_results WHERE estimate_id = ? ORDER BY id DESC', id).slice(COST_ESTIMATE_LIMITS.resultsKept);
+  const old = db()
+    .all<{ id: number }>('SELECT id FROM cost_estimate_results WHERE estimate_id = ? ORDER BY id DESC', id)
+    .slice(COST_ESTIMATE_LIMITS.resultsKept);
   for (const o of old) db().run('DELETE FROM cost_estimate_results WHERE id = ?', o.id);
 }
 
@@ -289,14 +298,21 @@ const totalsText = (s: StoredResult): string => {
   return `${m.expected} ${s.currency}/month${s.ranged ? ` (${m.low}–${m.high})` : ''}${v.totals.oneOff.expected !== '0.00' ? ` + ${v.totals.oneOff.expected} ${s.currency} one-off` : ''}`;
 };
 const adjustmentsOf = (a: readonly StoredAdjustment[]) =>
-  a.map((x) => ({ line: x.line, kind: x.kind, value: x.kind === 'percent' ? x.percent : x.price, currency: x.currency ?? null, reason: x.reason, by: x.by, at: x.at }));
+  a.map((x) => ({
+    line: x.line,
+    kind: x.kind,
+    value: x.kind === 'percent' ? x.percent : x.price,
+    currency: x.currency ?? null,
+    reason: x.reason,
+    by: x.by,
+    at: x.at,
+  }));
 
 export async function createEstimate(body: unknown): Promise<CostEstimate> {
   const x = costEstimateInput.parse(body);
   const o: OwnerRef = { kind: x.ownerKind, id: x.ownerId };
   const info = requireScope(o.kind, o.id);
-  if (!info.canEditPlan)
-    throw new HttpError(403, `You are not allowed to change the estimates of "${info.name}"`, 'FORBIDDEN', { context: 'costEstimate' });
+  if (!info.canEditPlan) throw new HttpError(403, `You are not allowed to change the estimates of "${info.name}"`, 'FORBIDDEN', { context: 'costEstimate' });
   checkFor(o, x.for);
   const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_estimates WHERE owner_kind = ? AND owner_id = ?', o.kind, o.id)?.n ?? 0);
   if (n >= COST_ESTIMATE_LIMITS.perOwner)
@@ -576,11 +592,16 @@ export function confirmEstimateProposals(id: string, body: unknown): { added: nu
   const col = o.kind === 'service' ? 'service_id' : 'platform_id';
   const have = Number(db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM cost_plan_lines WHERE ${col} = ? AND fiscal_year = ?`, o.id, x.fiscalYear)?.n ?? 0);
   if (have + chosen.length > COST_PLAN_LIMITS.linesPerYear)
-    throw new HttpError(409, `These proposals add ${chosen.length} plan lines; the year can take ${COST_PLAN_LIMITS.linesPerYear - have} more`, 'COST_PROPOSAL_LIMIT', {
-      adding: chosen.length,
-      left: COST_PLAN_LIMITS.linesPerYear - have,
-      max: COST_PLAN_LIMITS.linesPerYear,
-    });
+    throw new HttpError(
+      409,
+      `These proposals add ${chosen.length} plan lines; the year can take ${COST_PLAN_LIMITS.linesPerYear - have} more`,
+      'COST_PROPOSAL_LIMIT',
+      {
+        adding: chosen.length,
+        left: COST_PLAN_LIMITS.linesPerYear - have,
+        max: COST_PLAN_LIMITS.linesPerYear,
+      },
+    );
   const now = nowIso();
   const ids: string[] = [];
   const note = `From the estimate “${row.title}”${s.adjusted ? ' – with ad-hoc adjustments' : ''}${p.hidden ? ' – at list prices for some lines' : ''}`;
@@ -625,7 +646,14 @@ export function confirmEstimateProposals(id: string, body: unknown): { added: nu
         estimateId: id,
         fiscalYear: x.fiscalYear,
         hiddenRatesConfirmed: x.confirmHidden,
-        lines: chosen.map((l, i) => ({ lineId: ids[i], title: l.title, cadence: l.cadence, amount: microsText(l.micros, row.currency), from: l.fromMonth, to: l.toMonth })),
+        lines: chosen.map((l, i) => ({
+          lineId: ids[i],
+          title: l.title,
+          cadence: l.cadence,
+          amount: microsText(l.micros, row.currency),
+          from: l.fromMonth,
+          to: l.toMonth,
+        })),
       },
     });
   });

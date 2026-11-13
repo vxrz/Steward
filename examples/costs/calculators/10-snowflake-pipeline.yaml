@@ -11,7 +11,7 @@ description: >-
   A batch pipeline on a virtual warehouse: warehouse size × runtime × runs per day, serverless credits, data kept and,
   optionally, data transferred out. The warehouse sizes are priced in credits per hour by the book; the credit's price
   is the book's (or your contract's).
-checked: '2026-11-12'
+checked: "2026-11-12"
 inputs:
   - key: size
     label: Warehouse size
@@ -21,7 +21,7 @@ inputs:
     help: A size doubles the credits per hour of the one before.
   - { key: minutes, label: Runtime per run, type: number, unit: min, default: 12, min: 0, max: 1440 }
   - { key: runs, label: Runs per day, type: integer, default: 24, min: 0, max: 1440 }
-  - { key: serverless, label: Serverless credits per month, type: number, unit: '{credit}', default: 0, min: 0 }
+  - { key: serverless, label: Serverless credits per month, type: number, unit: "{credit}", default: 0, min: 0 }
   - { key: stored, label: Data kept, type: number, unit: GBy, default: 500, min: 0 }
   - { key: transfer, label: Data transferred out per month, type: number, unit: GBy, default: 0, min: 0 }
 let:
@@ -38,7 +38,7 @@ lines:
     label: Serverless features
     item: { provider: Snowflake, sku: serverless-credit }
     quantity: inputs.serverless
-    unit: '{credit}'
+    unit: "{credit}"
     group: Compute
   - key: storage
     label: Storage

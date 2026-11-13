@@ -23,13 +23,19 @@ interface RateRow {
   set_by: string;
 }
 
-const toRate = (r: RateRow): CostFxRate => ({ date: r.rate_date, base: r.base, quote: r.quote, rate: r.rate, source: r.source, setAt: r.set_at, setBy: r.set_by });
+const toRate = (r: RateRow): CostFxRate => ({
+  date: r.rate_date,
+  base: r.base,
+  quote: r.quote,
+  rate: r.rate,
+  source: r.source,
+  setAt: r.set_at,
+  setBy: r.set_by,
+});
 
 export function listRates(): CostFxRate[] {
   if (!usesCosts(currentUser())) return [];
-  return db()
-    .all<RateRow>('SELECT * FROM cost_fx_rates ORDER BY rate_date DESC, base, quote LIMIT ?', COST_PRICE_LIMITS.fxRates)
-    .map(toRate);
+  return db().all<RateRow>('SELECT * FROM cost_fx_rates ORDER BY rate_date DESC, base, quote LIMIT ?', COST_PRICE_LIMITS.fxRates).map(toRate);
 }
 
 const requireManager = () => {
@@ -66,7 +72,9 @@ export function setRate(body: unknown): CostFxRate {
       details: { date: x.date, base: x.base, quote: x.quote, before: before?.rate ?? null, after: rate },
     });
   });
-  return toRate(db().get<RateRow>("SELECT * FROM cost_fx_rates WHERE rate_date = ? AND base = ? AND quote = ? AND source = 'manual'", x.date, x.base, x.quote)!);
+  return toRate(
+    db().get<RateRow>("SELECT * FROM cost_fx_rates WHERE rate_date = ? AND base = ? AND quote = ? AND source = 'manual'", x.date, x.base, x.quote)!,
+  );
 }
 
 export const fxRateKey = z

@@ -1,12 +1,4 @@
-import {
-  fiscalYearMonths,
-  formatMicros,
-  planMonths,
-  roundToCurrency,
-  fromMicrosIn,
-  type CostPlanProposalLine,
-  type CostPriceCharge,
-} from '@sm/shared';
+import { fiscalYearMonths, formatMicros, planMonths, roundToCurrency, fromMicrosIn, type CostPlanProposalLine, type CostPriceCharge } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import type { StoredResult } from './pricing.js';
@@ -40,10 +32,7 @@ export interface EstimateBasis {
 }
 
 /** Amount (expected) of a stored line for a view: its own, or at list price when `canSee` says no. */
-function shownExpected(
-  l: StoredResult['lines'][number],
-  canSee: (bookId: string) => boolean,
-): { v: number | null; hidden: boolean } {
+function shownExpected(l: StoredResult['lines'][number], canSee: (bookId: string) => boolean): { v: number | null; hidden: boolean } {
   if (!l.a) return { v: null, hidden: false };
   if (l.book && !canSee(l.book.id)) return { v: l.l ? l.l.a[1] : null, hidden: true };
   return { v: l.a[1], hidden: false };
@@ -85,7 +74,7 @@ export function proposalsOf(
       return roundToCurrency(v, r.currency);
     });
     let seg = 0;
-    for (let i = first; i < 12; ) {
+    for (let i = first; i < 12;) {
       let j = i;
       while (j + 1 < 12 && series[j + 1] === series[i]) j++;
       if (series[i] !== 0) {

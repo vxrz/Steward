@@ -478,7 +478,10 @@ export const PriceBookItem = z.object({
   block: z.number().int().describe('1, 1000 or 1000000 units'),
   currency: z.string().nullable(),
   creditSku: z.string().nullable(),
-  tiers: z.array(z.object({ from: z.string(), price: z.string() })).nullable().describe('Bands of the quantity per month (after the included quantity)'),
+  tiers: z
+    .array(z.object({ from: z.string(), price: z.string() }))
+    .nullable()
+    .describe('Bands of the quantity per month (after the included quantity)'),
   tierMode: z.enum(['graduated', 'volume']),
   included: z.string().nullable().describe('Free per month'),
   minimum: z.string().nullable().describe('At least per month (when anything is used)'),
@@ -593,8 +596,13 @@ const EstimateResult = z.object({
   adjusted: z.boolean(),
   lines: z.array(EstimateLine),
   totals: z.object({ monthly: CostRange, usage: CostRange, recurring: CostRange, oneOff: CostRange }),
-  months: z.array(z.object({ month: z.string(), monthly: CostRange })).nullable().describe('The next 36 months, only when a price changes within them'),
-  books: z.array(z.object({ id: z.string(), name: z.string(), kind: z.enum(COST_PRICE_BOOK_KINDS), version: z.number().int(), provider: z.string(), hidden: z.boolean() })),
+  months: z
+    .array(z.object({ month: z.string(), monthly: CostRange }))
+    .nullable()
+    .describe('The next 36 months, only when a price changes within them'),
+  books: z.array(
+    z.object({ id: z.string(), name: z.string(), kind: z.enum(COST_PRICE_BOOK_KINDS), version: z.number().int(), provider: z.string(), hidden: z.boolean() }),
+  ),
   rates: z.array(z.object({ from: z.string(), to: z.string(), rate: z.string(), date: z.string() })),
   missing: z.number().int(),
   atListPrice: z.boolean(),

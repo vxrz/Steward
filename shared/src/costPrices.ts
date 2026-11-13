@@ -476,8 +476,7 @@ export const costPriceEntryInput = z
     if (e.tiers?.length) {
       const from = e.tiers.map((t) => parseQuantity(t.from)!);
       if (from[0] !== 0n) ctx.addIssue({ code: 'custom', path: ['tiers', 0, 'from'], message: 'the first band starts at 0' });
-      for (let i = 1; i < from.length; i++)
-        if (from[i]! <= from[i - 1]!) ctx.addIssue({ code: 'custom', path: ['tiers', i, 'from'], message: 'bands rise' });
+      for (let i = 1; i < from.length; i++) if (from[i]! <= from[i - 1]!) ctx.addIssue({ code: 'custom', path: ['tiers', i, 'from'], message: 'bands rise' });
     }
     if (e.validFrom && e.validTo && e.validTo < e.validFrom) ctx.addIssue({ code: 'custom', path: ['validTo'], message: 'on or after the first day' });
     const keys = new Set<string>();
@@ -671,7 +670,15 @@ export const costPriceEntriesInput = z
     mode: z.enum(['merge', 'replace']).default('merge'),
     entries: z.array(costPriceEntryInput).max(COST_PRICE_LIMITS.entriesPerVersion).default([]),
     remove: z
-      .array(z.object({ sku: text(COST_PRICE_LIMITS.skuChars).min(1), priceId: text(COST_PRICE_LIMITS.skuChars).default(''), validFrom: dateText.nullable().default(null) }).strict())
+      .array(
+        z
+          .object({
+            sku: text(COST_PRICE_LIMITS.skuChars).min(1),
+            priceId: text(COST_PRICE_LIMITS.skuChars).default(''),
+            validFrom: dateText.nullable().default(null),
+          })
+          .strict(),
+      )
       .max(COST_PRICE_LIMITS.entriesPerVersion)
       .default([]),
     note: text(500).default(''),

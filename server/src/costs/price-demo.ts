@@ -77,10 +77,36 @@ export async function setupPriceDemo(now = Date.now()): Promise<number> {
         note: 'Demo prices (invented)',
         entries: [
           ...warehouses('compute-credit'),
-          { sku: 'compute-credit', name: 'Compute credit', service: 'Compute', driver: 'credits', unit: '{credit}', price: '3.10', currency: 'USD', sourceNote: INVENTED },
-          { sku: 'serverless-credit', name: 'Serverless credit', service: 'Serverless', driver: 'credits', unit: '{credit}', price: '1', creditSku: 'compute-credit' },
+          {
+            sku: 'compute-credit',
+            name: 'Compute credit',
+            service: 'Compute',
+            driver: 'credits',
+            unit: '{credit}',
+            price: '3.10',
+            currency: 'USD',
+            sourceNote: INVENTED,
+          },
+          {
+            sku: 'serverless-credit',
+            name: 'Serverless credit',
+            service: 'Serverless',
+            driver: 'credits',
+            unit: '{credit}',
+            price: '1',
+            creditSku: 'compute-credit',
+          },
           { sku: 'storage', name: 'Storage', service: 'Storage', driver: 'storage', unit: 'TBy.mo', price: '23', currency: 'USD', sourceNote: INVENTED },
-          { sku: 'data-transfer', name: 'Data transfer out', service: 'Transfer', driver: 'data transfer', unit: 'TBy', price: '20', currency: 'USD', sourceNote: INVENTED },
+          {
+            sku: 'data-transfer',
+            name: 'Data transfer out',
+            service: 'Transfer',
+            driver: 'data transfer',
+            unit: 'TBy',
+            price: '20',
+            currency: 'USD',
+            sourceNote: INVENTED,
+          },
         ],
       }),
     );
@@ -110,14 +136,38 @@ export async function setupPriceDemo(now = Date.now()): Promise<number> {
             ],
           },
           { sku: 'storage', name: 'Storage', service: 'Kafka', driver: 'storage', unit: 'GBy.mo', price: '0.10', currency: 'USD' },
-          { sku: 'partition-hour', name: 'Partitions', service: 'Kafka', driver: 'partition-hours', unit: '{partition}.h', price: '0.0015', currency: 'USD', included: '36500' },
+          {
+            sku: 'partition-hour',
+            name: 'Partitions',
+            service: 'Kafka',
+            driver: 'partition-hours',
+            unit: '{partition}.h',
+            price: '0.0015',
+            currency: 'USD',
+            included: '36500',
+          },
           { sku: 'connector-task-hour', name: 'Connector tasks', service: 'Connect', driver: 'task-hours', unit: '{task}.h', price: '0.03', currency: 'USD' },
-          { sku: 'connector-throughput', name: 'Connector throughput', service: 'Connect', driver: 'GB processed', unit: 'GBy', price: '0.025', currency: 'USD' },
+          {
+            sku: 'connector-throughput',
+            name: 'Connector throughput',
+            service: 'Connect',
+            driver: 'GB processed',
+            unit: 'GBy',
+            price: '0.025',
+            currency: 'USD',
+          },
         ],
       }),
     );
   const saas = await step('SaaS list book', () =>
-    createBook({ name: 'Invented Messaging AG price list (demo)', kind: 'list', provider: 'Invented Messaging AG', currency: 'EUR', description: INVENTED, reviewDays: 30 }),
+    createBook({
+      name: 'Invented Messaging AG price list (demo)',
+      kind: 'list',
+      provider: 'Invented Messaging AG',
+      currency: 'EUR',
+      description: INVENTED,
+      reviewDays: 30,
+    }),
   );
   if (saas)
     await step('SaaS prices', () =>
@@ -145,7 +195,10 @@ export async function setupPriceDemo(now = Date.now()): Promise<number> {
       }),
     );
   // ---- the demo Snowflake platform's contracted book, with a price change ahead ----
-  const snowflake = db().get<{ id: string; name: string }>("SELECT id, name FROM platforms WHERE kind = ? AND name LIKE '%(demo)' ORDER BY name LIMIT 1", SNOWFLAKE_KIND);
+  const snowflake = db().get<{ id: string; name: string }>(
+    "SELECT id, name FROM platforms WHERE kind = ? AND name LIKE '%(demo)' ORDER BY name LIMIT 1",
+    SNOWFLAKE_KIND,
+  );
   if (snowflake) {
     const contracted =
       db().get<{ id: string }>("SELECT id FROM cost_price_books WHERE platform_id = ? AND kind = 'contracted'", snowflake.id) ??
@@ -169,9 +222,35 @@ export async function setupPriceDemo(now = Date.now()): Promise<number> {
           note: 'Demo contract (invented)',
           entries: [
             ...warehouses('compute-credit'),
-            { sku: 'compute-credit', name: 'Compute credit', service: 'Compute', driver: 'credits', unit: '{credit}', price: '2.65', currency: 'USD', validTo: dayBefore },
-            { sku: 'compute-credit', name: 'Compute credit', service: 'Compute', driver: 'credits', unit: '{credit}', price: '2.85', currency: 'USD', validFrom: rise },
-            { sku: 'serverless-credit', name: 'Serverless credit', service: 'Serverless', driver: 'credits', unit: '{credit}', price: '1', creditSku: 'compute-credit' },
+            {
+              sku: 'compute-credit',
+              name: 'Compute credit',
+              service: 'Compute',
+              driver: 'credits',
+              unit: '{credit}',
+              price: '2.65',
+              currency: 'USD',
+              validTo: dayBefore,
+            },
+            {
+              sku: 'compute-credit',
+              name: 'Compute credit',
+              service: 'Compute',
+              driver: 'credits',
+              unit: '{credit}',
+              price: '2.85',
+              currency: 'USD',
+              validFrom: rise,
+            },
+            {
+              sku: 'serverless-credit',
+              name: 'Serverless credit',
+              service: 'Serverless',
+              driver: 'credits',
+              unit: '{credit}',
+              price: '1',
+              creditSku: 'compute-credit',
+            },
             { sku: 'storage', name: 'Storage', service: 'Storage', driver: 'storage', unit: 'TBy.mo', price: '20', currency: 'USD' },
           ],
         }),

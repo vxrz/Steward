@@ -77,11 +77,15 @@ describe('calculators', () => {
     expect(v1).toMatchObject({ version: 1, hasDraft: false });
     // the same definition again: no new version
     expect((await dana('PUT', `/costs/calculators/${c.id}`, { definition: CALC, publish: true })).version).toBe(1);
-    await expect(dana('PUT', `/costs/calculators/${c.id}`, { definition: CALC.replace('inputs.rate * 3600', 'inputs.rate * (3600'), publish: true })).rejects.toMatchObject({
+    await expect(
+      dana('PUT', `/costs/calculators/${c.id}`, { definition: CALC.replace('inputs.rate * 3600', 'inputs.rate * (3600'), publish: true }),
+    ).rejects.toMatchObject({
       status: 400,
       body: { code: 'COST_CALCULATOR_FORMULA', params: { line: 'let.perMonth' } },
     });
-    await expect(dana('PUT', `/costs/calculators/${c.id}`, { definition: CALC.replace('id: test-throughput', 'id: other'), publish: true })).rejects.toMatchObject({
+    await expect(
+      dana('PUT', `/costs/calculators/${c.id}`, { definition: CALC.replace('id: test-throughput', 'id: other'), publish: true }),
+    ).rejects.toMatchObject({
       status: 400,
       body: { code: 'COST_CALCULATOR_DEFINITION' },
     });
@@ -94,7 +98,8 @@ describe('calculators', () => {
 
   it('runs formulas within limits: no clock, no endless sequences, quantities only and never below zero', async () => {
     const run = (def: string) => dana('POST', '/costs/calculate', { variants: [{ definition: def, currency: 'EUR' }] });
-    const line = (q: string) => `kind: costCalculator\nid: x\nname: X\nlines:\n  - { item: { provider: Invented Messaging AG, sku: seat }, quantity: "${q}", unit: '{seat}.mo' }\n`;
+    const line = (q: string) =>
+      `kind: costCalculator\nid: x\nname: X\nlines:\n  - { item: { provider: Invented Messaging AG, sku: seat }, quantity: "${q}", unit: '{seat}.mo' }\n`;
     await expect(run(line('$now()'))).rejects.toMatchObject({ body: { code: 'COST_CALCULATOR_FORMULA' } });
     await expect(run(line('$millis()'))).rejects.toMatchObject({ body: { code: 'COST_CALCULATOR_FORMULA' } });
     await expect(run(line('$count([1..100000000])'))).rejects.toMatchObject({ body: { code: 'COST_CALCULATOR_FORMULA' } });
@@ -173,19 +178,34 @@ describe('the dry run', () => {
     });
     const plain = ((await dana('POST', '/costs/calculate', body([]))) as CostDryRunResult).variants[0]!.result;
     expect(plain.totals.monthly.expected).toBe('356.00');
-    const adj = ((await dana('POST', '/costs/calculate', body([
-      { kind: 'percent', percent: '-15', reason: 'Negotiation target' },
-      { line: 'store', kind: 'price', price: '20', currency: 'USD', reason: 'Offer not signed yet' },
-    ]))) as CostDryRunResult).variants[0]!.result;
+    const adj = (
+      (await dana(
+        'POST',
+        '/costs/calculate',
+        body([
+          { kind: 'percent', percent: '-15', reason: 'Negotiation target' },
+          { line: 'store', kind: 'price', price: '20', currency: 'USD', reason: 'Offer not signed yet' },
+        ]),
+      )) as CostDryRunResult
+    ).variants[0]!.result;
     const credits = adj.lines.find((l) => l.key === 'credits')!;
-    expect(credits).toMatchObject({ adjustment: { scope: 'estimate', kind: 'percent', value: '-15', reason: 'Negotiation target' }, found: { expected: '310.00' } });
+    expect(credits).toMatchObject({
+      adjustment: { scope: 'estimate', kind: 'percent', value: '-15', reason: 'Negotiation target' },
+      found: { expected: '310.00' },
+    });
     expect(credits.amount!.expected).toBe('263.50');
-    expect(adj.lines.find((l) => l.key === 'store')).toMatchObject({ adjustment: { scope: 'line', kind: 'price', reason: 'Offer not signed yet' }, amount: { expected: '40.00' } });
+    expect(adj.lines.find((l) => l.key === 'store')).toMatchObject({
+      adjustment: { scope: 'line', kind: 'price', reason: 'Offer not signed yet' },
+      amount: { expected: '40.00' },
+    });
     expect(adj.adjusted).toBe(true);
     await expect(dana('POST', '/costs/calculate', body([{ kind: 'percent', percent: '-95', reason: 'x' }]))).rejects.toMatchObject({ status: 400 });
     await expect(dana('POST', '/costs/calculate', body([{ kind: 'percent', percent: '10', reason: '' }]))).rejects.toMatchObject({ status: 400 });
     // another currency needs a rate
-    await expect(dana('POST', '/costs/calculate', body([], 'CHF'))).rejects.toMatchObject({ status: 400, body: { code: 'COST_FX_RATE_MISSING', params: { from: 'USD', to: 'CHF' } } });
+    await expect(dana('POST', '/costs/calculate', body([], 'CHF'))).rejects.toMatchObject({
+      status: 400,
+      body: { code: 'COST_FX_RATE_MISSING', params: { from: 'USD', to: 'CHF' } },
+    });
     await expect(vera('PUT', '/costs/fx-rates', { date: '2026-01-01', base: 'USD', quote: 'CHF', rate: '0.8' })).rejects.toMatchObject({ status: 403 });
     await dana('PUT', '/costs/fx-rates', { date: '2026-01-01', base: 'CHF', quote: 'USD', rate: '1.25' });
     const chf = ((await dana('POST', '/costs/calculate', body([], 'CHF'))) as CostDryRunResult).variants[0]!.result;
@@ -196,24 +216,34 @@ describe('the dry run', () => {
   });
 
   it('refuses a unit that cannot become the item’s, ranges out of order, and marks items without a price', async () => {
-    const line = (l: Record<string, unknown>) => ({ variants: [{ currency: 'USD', lines: [{ provider: 'Snowflake', sku: 'storage', quantity: '1', unit: 'GBy.mo', ...l }] }] });
+    const line = (l: Record<string, unknown>) => ({
+      variants: [{ currency: 'USD', lines: [{ provider: 'Snowflake', sku: 'storage', quantity: '1', unit: 'GBy.mo', ...l }] }],
+    });
     await expect(dana('POST', '/costs/calculate', line({ unit: '{request}' }))).rejects.toMatchObject({ body: { code: 'COST_PRICE_UNIT_MISMATCH' } });
-    await expect(dana('POST', '/costs/calculate', line({ quantity: { low: '3', expected: '2', high: '4' } }))).rejects.toMatchObject({ body: { code: 'COST_RANGE_ORDER' } });
+    await expect(dana('POST', '/costs/calculate', line({ quantity: { low: '3', expected: '2', high: '4' } }))).rejects.toMatchObject({
+      body: { code: 'COST_RANGE_ORDER' },
+    });
     await expect(
-      dana('POST', '/costs/calculate', { variants: [{ calculatorId: pipeline, currency: 'USD', inputs: [{ key: 'minutes', value: { low: 5, expected: 4, high: 6 } }] }] }),
+      dana('POST', '/costs/calculate', {
+        variants: [{ calculatorId: pipeline, currency: 'USD', inputs: [{ key: 'minutes', value: { low: 5, expected: 4, high: 6 } }] }],
+      }),
     ).rejects.toMatchObject({ body: { code: 'COST_RANGE_ORDER' } });
     const r = ((await dana('POST', '/costs/calculate', line({ sku: 'no-such-item' }))) as CostDryRunResult).variants[0]!.result;
     expect(r.lines[0]).toMatchObject({ missing: 'noItem', amount: null });
     expect(r.missing).toBe(1);
     const nobook = ((await dana('POST', '/costs/calculate', line({ provider: 'Nobody AG' }))) as CostDryRunResult).variants[0]!.result;
     expect(nobook.lines[0]).toMatchObject({ missing: 'noBook', book: null });
-    await expect(dana('POST', '/costs/calculate', { variants: Array.from({ length: 6 }, () => ({ currency: 'USD', lines: [] })) })).rejects.toMatchObject({ status: 400 });
+    await expect(dana('POST', '/costs/calculate', { variants: Array.from({ length: 6 }, () => ({ currency: 'USD', lines: [] })) })).rejects.toMatchObject({
+      status: 400,
+    });
   });
 
   it('projects 36 months when a price changes within them (the contracted credit price rises)', async () => {
-    const r = ((await dana('POST', '/costs/calculate', {
-      variants: [{ currency: 'USD', lines: [{ provider: 'Snowflake', sku: 'compute-credit', quantity: '100', unit: '{credit}' }] }],
-    })) as CostDryRunResult).variants[0]!.result;
+    const r = (
+      (await dana('POST', '/costs/calculate', {
+        variants: [{ currency: 'USD', lines: [{ provider: 'Snowflake', sku: 'compute-credit', quantity: '100', unit: '{credit}' }] }],
+      })) as CostDryRunResult
+    ).variants[0]!.result;
     // the admin's (and dana's) default for Snowflake: the platform's contracted book
     expect(r.lines[0]!.book?.kind).toBe('contracted');
     expect(r.months).toHaveLength(36);
@@ -277,7 +307,12 @@ describe('estimates', () => {
     expect(mine.every((l) => !l.estimate!.changed)).toBe(true);
     expect(mine[0]!.note).toContain('with ad-hoc adjustments');
     // the estimate changes: its lines say so, Update lines brings them up to date (a line changed by hand keeps its amount)
-    await dana('PUT', `/costs/estimates/${est.id}`, { title: est.title, currency: 'EUR', calculatorId: est.calculator!.id, inputs: [{ key: 'seats', value: 5 }] });
+    await dana('PUT', `/costs/estimates/${est.id}`, {
+      title: est.title,
+      currency: 'EUR',
+      calculatorId: est.calculator!.id,
+      inputs: [{ key: 'seats', value: 5 }],
+    });
     const after = (await dana('GET', `/costs/plans/${shop}?fiscalYear=${proposals.fiscalYear}`)) as CostPlanYear;
     expect(after.lines.filter((l) => l.estimate?.id === est.id).some((l) => l.estimate!.changed)).toBe(true);
     const upd = await dana('POST', `/costs/estimates/${est.id}/update-lines`, { fiscalYear: proposals.fiscalYear });
@@ -291,7 +326,9 @@ describe('estimates', () => {
     const same = (await dana('POST', `/costs/estimates/${est.id}/recalculate`)) as CostEstimate;
     expect(same.pending).toBeNull();
     await s.api('PUT', `/costs/price-books/${saasBook}/entries`, {
-      entries: [{ sku: 'seat', name: 'Console seat', service: 'Console', driver: 'seats', unit: '{seat}.mo', charge: 'recurring', price: '15', currency: 'EUR' }],
+      entries: [
+        { sku: 'seat', name: 'Console seat', service: 'Console', driver: 'seats', unit: '{seat}.mo', charge: 'recurring', price: '15', currency: 'EUR' },
+      ],
     });
     const r = (await dana('POST', `/costs/estimates/${est.id}/recalculate`)) as CostEstimate;
     expect(r.pending).not.toBeNull();
@@ -319,7 +356,11 @@ describe('estimates', () => {
     expect(JSON.stringify(seen)).not.toContain('2.65');
     expect(seen.result!.books.every((b) => b.kind === 'list')).toBe(true);
     // the list of the service says it too
-    const list = (await vera('GET', `/costs/estimates?ownerKind=service&ownerId=${shop}`)) as { id: string; atListPrice: boolean; monthly: { expected: string } }[];
+    const list = (await vera('GET', `/costs/estimates?ownerKind=service&ownerId=${shop}`)) as {
+      id: string;
+      atListPrice: boolean;
+      monthly: { expected: string };
+    }[];
     expect(list.find((x) => x.id === e.id)).toMatchObject({ atListPrice: true, monthly: { expected: '310.00' } });
     // plan lines from it ask first
     const p = await s.api('GET', `/costs/estimates/${e.id}/proposals`);
@@ -369,7 +410,14 @@ describe('estimates', () => {
           ownerKind: 'service',
           ownerId: shop,
           currency: 'USD',
-          lines: Array.from({ length: n }, (_, i) => ({ key: `x${i}`, provider: 'Snowflake', sku: 'storage', quantity: String(i + 1), unit: 'GBy.mo', group: `G${i % 7}` })),
+          lines: Array.from({ length: n }, (_, i) => ({
+            key: `x${i}`,
+            provider: 'Snowflake',
+            sku: 'storage',
+            quantity: String(i + 1),
+            unit: 'GBy.mo',
+            group: `G${i % 7}`,
+          })),
         })
       ).id as string;
     const one = await mk(1);
@@ -460,7 +508,9 @@ describe('estimates', () => {
     expect(fy).toBeGreaterThan(2000);
     await dana('DELETE', `/costs/estimates/${est.id}`);
     await expect(dana('GET', `/costs/estimates/${est.id}`)).rejects.toMatchObject({ status: 404 });
-    const lines = Number((await import('../src/db.js')).db().get<{ n: number }>("SELECT COUNT(*) AS n FROM cost_plan_lines WHERE note LIKE 'From the estimate “Messaging%'")!.n);
+    const lines = Number(
+      (await import('../src/db.js')).db().get<{ n: number }>("SELECT COUNT(*) AS n FROM cost_plan_lines WHERE note LIKE 'From the estimate “Messaging%'")!.n,
+    );
     expect(lines).toBeGreaterThan(0);
   });
 });

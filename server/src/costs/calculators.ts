@@ -134,7 +134,9 @@ export function parseCalculator(text: string): ParsedCalculator {
     return { ok: false, definition: null, errors: [`A calculator has at most ${COST_CALCULATOR_LIMITS.definitionBytes / 1024} KB`] };
   let raw: unknown;
   try {
-    raw = text.trimStart().startsWith('{') ? JSON.parse(text) : parseYaml(text, { schema: 'core', customTags: [], maxBytes: COST_CALCULATOR_LIMITS.definitionBytes });
+    raw = text.trimStart().startsWith('{')
+      ? JSON.parse(text)
+      : parseYaml(text, { schema: 'core', customTags: [], maxBytes: COST_CALCULATOR_LIMITS.definitionBytes });
   } catch (e) {
     return { ok: false, definition: null, errors: [`Cannot parse: ${(e as Error).message.slice(0, 300)}`] };
   }
@@ -586,9 +588,15 @@ export async function evaluate(def: CostCalculatorDefinition, scenario: Scenario
       const provider = await text('item.provider', l.item.provider);
       const unit = await text('unit', l.unit);
       if (!provider || provider.length > 120)
-        throw new HttpError(400, `lines.${key}: the provider is empty or too long`, 'COST_CALCULATOR_OUTPUT', { line: key, message: 'the provider is empty or too long' });
+        throw new HttpError(400, `lines.${key}: the provider is empty or too long`, 'COST_CALCULATOR_OUTPUT', {
+          line: key,
+          message: 'the provider is empty or too long',
+        });
       if (!parseUnit(unit))
-        throw new HttpError(400, `lines.${key}: "${unit.slice(0, 60)}" is not a unit`, 'COST_CALCULATOR_OUTPUT', { line: key, message: `"${unit.slice(0, 60)}" is not a unit` });
+        throw new HttpError(400, `lines.${key}: "${unit.slice(0, 60)}" is not a unit`, 'COST_CALCULATOR_OUTPUT', {
+          line: key,
+          message: `"${unit.slice(0, 60)}" is not a unit`,
+        });
       try {
         q = await evalExpr(l.quantity, ctx, bindings, opts());
       } catch (e) {
@@ -596,7 +604,10 @@ export async function evaluate(def: CostCalculatorDefinition, scenario: Scenario
       }
       if (q === undefined || q === null) q = 0;
       if (typeof q !== 'number' || !Number.isFinite(q))
-        throw new HttpError(400, `lines.${key}: the quantity is not a number`, 'COST_CALCULATOR_OUTPUT', { line: key, message: 'the quantity is not a number' });
+        throw new HttpError(400, `lines.${key}: the quantity is not a number`, 'COST_CALCULATOR_OUTPUT', {
+          line: key,
+          message: 'the quantity is not a number',
+        });
       if (q < 0)
         throw new HttpError(400, `lines.${key}: the quantity is below 0`, 'COST_CALCULATOR_OUTPUT', {
           line: key,
@@ -606,7 +617,10 @@ export async function evaluate(def: CostCalculatorDefinition, scenario: Scenario
       if (micros === null)
         throw new HttpError(400, `lines.${key}: the quantity is too large`, 'COST_CALCULATOR_OUTPUT', { line: key, message: 'the quantity is too large' });
       if (!sku.trim() || sku.length > 100)
-        throw new HttpError(400, `lines.${key}: the SKU is empty or too long`, 'COST_CALCULATOR_OUTPUT', { line: key, message: 'the SKU is empty or too long' });
+        throw new HttpError(400, `lines.${key}: the SKU is empty or too long`, 'COST_CALCULATOR_OUTPUT', {
+          line: key,
+          message: 'the SKU is empty or too long',
+        });
       out.push({
         key: lineKey,
         label: l.label ? (row && l.each ? `${l.label} ${n + 1}` : l.label) : '',

@@ -247,8 +247,7 @@ export async function calculateOne(input: unknown, o: CalcOptions = {}): Promise
     if (chosen.has(k)) return chosen.get(k)!;
     const list = (byProvider.get(k) ?? []).filter((b) => Number(b.current_version) > 0);
     const contracted = list.filter((b) => b.kind === 'contracted');
-    const pickBook =
-      contracted.find((b) => o.platformId && b.platform_id === o.platformId) ?? contracted[0] ?? list.find((b) => b.kind === 'list') ?? null;
+    const pickBook = contracted.find((b) => o.platformId && b.platform_id === o.platformId) ?? contracted[0] ?? list.find((b) => b.kind === 'list') ?? null;
     chosen.set(k, pickBook);
     return pickBook;
   };
@@ -311,10 +310,22 @@ export async function calculateOne(input: unknown, o: CalcOptions = {}): Promise
         high: formatQuantity(q[2]!),
       });
     if (q[0] !== q[2]) ranged = true;
-    lines.set(key, { key, label: h.label ?? '', group: h.group ?? '', provider: h.provider, sku: h.sku, priceId: h.priceId ?? '', unit: h.unit, q: q as [bigint, bigint, bigint] });
+    lines.set(key, {
+      key,
+      label: h.label ?? '',
+      group: h.group ?? '',
+      provider: h.provider,
+      sku: h.sku,
+      priceId: h.priceId ?? '',
+      unit: h.unit,
+      q: q as [bigint, bigint, bigint],
+    });
   }
   if (lines.size > COST_ESTIMATE_LIMITS.lines)
-    throw new HttpError(400, `An estimate has at most ${COST_ESTIMATE_LIMITS.lines} lines`, 'COST_ESTIMATE_LIMIT', { max: COST_ESTIMATE_LIMITS.lines, what: 'lines' });
+    throw new HttpError(400, `An estimate has at most ${COST_ESTIMATE_LIMITS.lines} lines`, 'COST_ESTIMATE_LIMIT', {
+      max: COST_ESTIMATE_LIMITS.lines,
+      what: 'lines',
+    });
 
   // the entries: one statement per book (and round of credit items)
   const skusByVersion = new Map<string, Set<string>>();
@@ -357,7 +368,11 @@ export async function calculateOne(input: unknown, o: CalcOptions = {}): Promise
     ratesUsed.set(`${currency}>${x.currency}`, use);
     return { micros: micros.map((m) => convertAmount(m, r.rate)) as [bigint, bigint, bigint], fx: { from: currency, rate: use.rate, date: r.date } };
   };
-  const adjust = (l: LineQ, entryUnit: string, micros: [bigint, bigint, bigint]): { micros: [bigint, bigint, bigint]; a: CostAdjustment | null; scope: 'line' | 'estimate' | null } => {
+  const adjust = (
+    l: LineQ,
+    entryUnit: string,
+    micros: [bigint, bigint, bigint],
+  ): { micros: [bigint, bigint, bigint]; a: CostAdjustment | null; scope: 'line' | 'estimate' | null } => {
     const a = perLine.get(l.key) ?? whole[0] ?? null;
     if (!a) return { micros, a: null, scope: null };
     const scope = perLine.has(l.key) ? 'line' : 'estimate';
@@ -409,10 +424,24 @@ export async function calculateOne(input: unknown, o: CalcOptions = {}): Promise
     const p = priceIn(entries, vid, l, appliesFrom);
     if (p === 'unit') {
       const e = pick(entries.get(vid, l.sku), l.priceId, appliesFrom) as CostPriceEntry;
-      throw new HttpError(400, `Line ${l.key}: ${l.unit} cannot become ${e.unit}`, 'COST_PRICE_UNIT_MISMATCH', { line: l.key, from: l.unit, to: e.unit, sku: l.sku });
+      throw new HttpError(400, `Line ${l.key}: ${l.unit} cannot become ${e.unit}`, 'COST_PRICE_UNIT_MISMATCH', {
+        line: l.key,
+        from: l.unit,
+        to: e.unit,
+        sku: l.sku,
+      });
     }
     if (typeof p === 'string') {
-      out.push({ ...base, missing: p, book: { id: b.id, name: b.name, kind: b.kind, version: Number(b.current_version) }, q: qText, cr: null, f: null, a: null, l: null });
+      out.push({
+        ...base,
+        missing: p,
+        book: { id: b.id, name: b.name, kind: b.kind, version: Number(b.current_version) },
+        q: qText,
+        cr: null,
+        f: null,
+        a: null,
+        l: null,
+      });
       for (const s of sigs) s.push('-');
       continue;
     }

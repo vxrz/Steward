@@ -188,7 +188,9 @@ describe('price books', () => {
       ],
     });
     expect(v1).toMatchObject({ version: 1, entries: 2, written: { created: true, diff: { added: 2, changed: 0, removed: 0 } } });
-    const same = await dana('PUT', `/costs/price-books/${b.id}/entries`, { entries: [{ sku: 'hot', name: 'Hot storage', unit: 'GBy.mo', price: '0.02', currency: 'EUR' }] });
+    const same = await dana('PUT', `/costs/price-books/${b.id}/entries`, {
+      entries: [{ sku: 'hot', name: 'Hot storage', unit: 'GBy.mo', price: '0.02', currency: 'EUR' }],
+    });
     expect(same.written).toMatchObject({ created: false });
     const v2 = await dana('PUT', `/costs/price-books/${b.id}/entries`, {
       entries: [{ sku: 'hot', name: 'Hot storage', unit: 'GBy.mo', price: '0.023', currency: 'EUR' }],
@@ -219,13 +221,25 @@ describe('price books', () => {
     const mapping = { sku: 'Item', name: 'Name', unit: 'Unit', price: 'Price', block: 'Per', tiers: 'Tiers', included: 'Included', decimal: ',' };
     const preview = await dana('POST', `/costs/price-books/${b.id}/import/preview`, { csv, fileName: 'queue.csv', mapping });
     expect(preview).toMatchObject({ rows: 2, entries: 2, problems: [], diff: { added: 2 } });
-    expect(preview.sample[0]).toMatchObject({ sku: 'msg', price: '0.40', block: 1_000_000, tiers: [{ from: '0', price: '0.40' }, { from: '1000000', price: '0.30' }], included: '1000' });
+    expect(preview.sample[0]).toMatchObject({
+      sku: 'msg',
+      price: '0.40',
+      block: 1_000_000,
+      tiers: [
+        { from: '0', price: '0.40' },
+        { from: '1000000', price: '0.30' },
+      ],
+      included: '1000',
+    });
     // nothing stored by the preview
     expect((await dana('GET', `/costs/price-books/${b.id}`)).version).toBe(0);
     const done = await dana('POST', `/costs/price-books/${b.id}/import`, { csv, fileName: 'queue.csv', mapping });
     expect(done).toMatchObject({ version: 1, entries: 2, source: 'csv' });
     const bad = 'Item;Name;Unit;Price\nx;X;nope;1\ny;Y;h;abc\n';
-    const p2 = await dana('POST', `/costs/price-books/${b.id}/import/preview`, { csv: bad, mapping: { sku: 'Item', name: 'Name', unit: 'Unit', price: 'Price' } });
+    const p2 = await dana('POST', `/costs/price-books/${b.id}/import/preview`, {
+      csv: bad,
+      mapping: { sku: 'Item', name: 'Name', unit: 'Unit', price: 'Price' },
+    });
     expect(p2.problems.map((p: { line: number }) => p.line)).toEqual([2, 3]);
     await expect(
       dana('POST', `/costs/price-books/${b.id}/import`, { csv: bad, mapping: { sku: 'Item', name: 'Name', unit: 'Unit', price: 'Price' } }),
@@ -237,7 +251,19 @@ describe('price books', () => {
     const tech = fs.readFileSync(path.resolve(import.meta.dirname, '../../examples/costs/price-books/snowflake-technical-factors.csv'), 'utf8');
     const ex = await dana('POST', `/costs/price-books/${b.id}/import/preview`, {
       csv: tech,
-      mapping: { sku: 'sku', name: 'name', service: 'service', driver: 'driver', unit: 'unit', charge: 'charge', price: 'price', block: 'block', currency: 'currency', creditSku: 'credit_item', sourceNote: 'source_note' },
+      mapping: {
+        sku: 'sku',
+        name: 'name',
+        service: 'service',
+        driver: 'driver',
+        unit: 'unit',
+        charge: 'charge',
+        price: 'price',
+        block: 'block',
+        currency: 'currency',
+        creditSku: 'credit_item',
+        sourceNote: 'source_note',
+      },
     });
     expect(ex.problems).toEqual([]);
     expect(ex.entries).toBe(12);
@@ -250,7 +276,9 @@ describe('price books', () => {
     const contracted = ((await s.api('GET', '/costs/price-books')) as { id: string; kind: string }[]).find((b) => b.kind === 'contracted')!.id;
     await expect(vera('GET', `/costs/price-books/${contracted}`)).rejects.toMatchObject({ status: 404 });
     // viewers and operators do not maintain instance books
-    const list = ((await s.api('GET', '/costs/price-books')) as { id: string; kind: string; name: string }[]).find((b) => b.name === 'Snowflake list prices (demo)')!.id;
+    const list = ((await s.api('GET', '/costs/price-books')) as { id: string; kind: string; name: string }[]).find(
+      (b) => b.name === 'Snowflake list prices (demo)',
+    )!.id;
     await expect(olivia('POST', `/costs/price-books/${list}/check`)).rejects.toMatchObject({ status: 403 });
     await expect(vera('POST', '/costs/price-books', { name: 'X', kind: 'list', provider: 'X', currency: 'EUR' })).rejects.toMatchObject({ status: 403 });
     // a team book: its owning team's designers maintain it, the others read a list book but not a contracted one
@@ -313,7 +341,13 @@ describe('price books', () => {
     const small = await s.api('POST', '/costs/price-books', { name: 'Small', kind: 'list', provider: 'Invented Size AG', currency: 'EUR' });
     await s.api('PUT', `/costs/price-books/${small.id}/entries`, { entries: [{ sku: 'a', name: 'A', unit: 'h', price: '1', currency: 'EUR' }] });
     const big = await s.api('POST', '/costs/price-books', { name: 'Big', kind: 'list', provider: 'Invented Size AG', currency: 'EUR' });
-    const many = Array.from({ length: 3000 }, (_, i) => ({ sku: `sku-${String(i).padStart(5, '0')}`, name: `Item ${i}`, unit: 'h', price: '0.5', currency: 'EUR' }));
+    const many = Array.from({ length: 3000 }, (_, i) => ({
+      sku: `sku-${String(i).padStart(5, '0')}`,
+      name: `Item ${i}`,
+      unit: 'h',
+      price: '0.5',
+      currency: 'EUR',
+    }));
     const t0 = Date.now();
     await s.api('PUT', `/costs/price-books/${big.id}/entries`, { entries: many });
     expect(Date.now() - t0).toBeLessThan(20_000);
@@ -337,7 +371,12 @@ describe('migration costs-006-price-books', () => {
   const targets = (): { name: string; target: any }[] => [
     { name: 'SQLite', target: { kind: 'sqlite', file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sm-cpb-')), 'db.sqlite') } },
     ...(PG_TEST_URL
-      ? [{ name: 'PostgreSQL', target: { kind: 'postgres', url: PG_TEST_URL, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_cpb${process.pid}` } }]
+      ? [
+          {
+            name: 'PostgreSQL',
+            target: { kind: 'postgres', url: PG_TEST_URL, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_cpb${process.pid}` },
+          },
+        ]
       : []),
   ];
   it("moves the Snowflake fallback's price per credit into the platform's contracted book as version 1", async () => {

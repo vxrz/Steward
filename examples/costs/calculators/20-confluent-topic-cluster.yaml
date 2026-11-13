@@ -10,7 +10,7 @@ name: Confluent topic and cluster
 description: >-
   A topic on a Confluent Cloud cluster: elastic capacity (eCKU-hours) or a dedicated cluster (CKU-hours), ingress and
   egress from the throughput, storage from throughput × retention, partitions, and optionally a connector.
-checked: '2026-11-12'
+checked: "2026-11-12"
 inputs:
   - { key: cluster, label: Cluster, type: select, options: [elastic, dedicated], default: elastic }
   - { key: eckus, label: Elastic capacity (eCKU), type: number, default: 1, min: 0, max: 100, help: The average eCKUs the cluster scales to. }
@@ -18,7 +18,16 @@ inputs:
   - { key: ingress, label: Throughput in, type: number, unit: MBy/s, default: 1, min: 0 }
   - { key: fanOut, label: Consumers reading everything, type: number, default: 2, min: 0, max: 100, help: Egress is the throughput in times this. }
   - { key: retention, label: Retention, type: number, unit: h, default: 168, min: 0 }
-  - { key: copies, label: Copies billed, type: integer, default: 1, min: 1, max: 5, range: false, help: How many copies of the data the provider bills – see your contract. }
+  - {
+      key: copies,
+      label: Copies billed,
+      type: integer,
+      default: 1,
+      min: 1,
+      max: 5,
+      range: false,
+      help: How many copies of the data the provider bills – see your contract.,
+    }
   - { key: partitions, label: Partitions, type: integer, default: 6, min: 0, max: 10000 }
   - { key: tasks, label: Connector tasks, type: integer, default: 0, min: 0, max: 1000 }
   - { key: connectorThroughput, label: Connector throughput, type: number, unit: MBy/s, default: 0, min: 0 }
@@ -32,14 +41,14 @@ lines:
     label: Elastic cluster capacity
     item: { provider: Confluent, sku: ecku-hour }
     quantity: inputs.eckus * const.hoursPerMonth
-    unit: '{eCKU}.h'
+    unit: "{eCKU}.h"
     group: Cluster
     when: inputs.cluster = 'elastic'
   - key: dedicated
     label: Dedicated cluster capacity
     item: { provider: Confluent, sku: cku-hour }
     quantity: inputs.ckus * const.hoursPerMonth
-    unit: '{CKU}.h'
+    unit: "{CKU}.h"
     group: Cluster
     when: inputs.cluster = 'dedicated'
   - { key: ingress, label: Ingress, item: { provider: Confluent, sku: network-ingress }, quantity: let.ingressGB, unit: GBy, group: Throughput }
@@ -49,13 +58,13 @@ lines:
     label: Partitions
     item: { provider: Confluent, sku: partition-hour }
     quantity: inputs.partitions * const.hoursPerMonth
-    unit: '{partition}.h'
+    unit: "{partition}.h"
     group: Cluster
   - key: tasks
     label: Connector tasks
     item: { provider: Confluent, sku: connector-task-hour }
     quantity: inputs.tasks * const.hoursPerMonth
-    unit: '{task}.h'
+    unit: "{task}.h"
     group: Connectors
     when: inputs.tasks > 0
   - key: connectorThroughput
