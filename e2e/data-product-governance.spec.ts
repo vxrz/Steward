@@ -64,7 +64,7 @@ async function seed(admin: APIRequestContext): Promise<Seed> {
       retention: 'P10Y',
     })
   ).id;
-  await post(admin, `/api/data-objects/${object}/elements`, { elementId: prod });
+  expect((await admin.post(`/api/data-objects/${object}/elements`, { data: { elementId: prod } })).ok()).toBe(true);
   return { token, product, object };
 }
 
@@ -149,7 +149,7 @@ test.describe('governance of data products', () => {
     await adam.getByTestId('endorse').click();
     await adam.getByTestId('endorse-note').fill('Reliable');
     await adam.getByTestId('endorse-save').click();
-    await expect(adam.getByTestId('product-endorsed-badge')).toContainText('Endorsed');
+    await expect(adam.getByTestId('product-endorsement').getByTestId('product-endorsed-badge')).toContainText('Endorsed');
     await expect(adam.getByTestId('endorsement-line')).toContainText('Endorsed by adam');
     await expectAccessible(adam, 'endorsed product');
   });
