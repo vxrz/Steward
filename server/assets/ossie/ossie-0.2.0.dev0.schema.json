@@ -1,5 +1,5 @@
 {
-  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. The ASF licenses this file to you under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0). Unmodified copy (except this $comment) of https://github.com/apache/ossie/blob/fae8f416babfe9c996591bccf9515ecac482cc7e/core-spec/ossie-schema.json (main, 2026-10-21). Used by the lint of semantic models of data products (server/src/dataproducts/semantic-lint.ts).",
+  "$comment": "Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. The ASF licenses this file to you under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0). Unmodified copy (except this $comment) of https://github.com/apache/ossie/blob/fae8f416babfe9c996591bccf9515ecac482cc7e/core-spec/ossie-schema.json (main, 2026-10-21). Used by the lint of semantic models of data products (server/src/dataproducts/semantic-lint.ts) and the tests of the Ossie exports.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/apache/ossie/core-spec/ossie-schema.json",
   "title": "Apache Ossie Core Metadata Specification",

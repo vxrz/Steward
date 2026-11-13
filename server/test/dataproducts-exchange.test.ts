@@ -464,7 +464,7 @@ describe('Git sync of products and data objects', () => {
 });
 
 describe('the Ossie export of data objects', () => {
-  const schema = (v: string) => JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'ossie', `ossie-${v}.schema.json`), 'utf8'));
+  const schema = (v: string) => JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'assets', 'ossie', `ossie-${v}.schema.json`), 'utf8'));
   it('validates against both Ossie revisions, with key attributes as fields and relationships between objects', async () => {
     await dana('POST', '/data-products/import', {
       files: [
