@@ -35,7 +35,7 @@ import {
 type StepInput = ReturnType<typeof dataStepInput.parse>;
 
 /** Whether `u` may change a step with these outputs (bulk-friendly: memberships and products read once per call). */
-function canEditStep(u: AuthUser | null, outputs: readonly string[]): boolean {
+export function canEditStep(u: AuthUser | null, outputs: readonly string[]): boolean {
   if (!u || !outputs.length) return false;
   const ms = membershipsOfElements(outputs);
   if (ms.length) {
@@ -106,6 +106,8 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
       hiddenInputs: ins.filter((id) => !visible.get(id)).length,
       hiddenOutputs: outs.filter((id) => !visible.get(id)).length,
       canEdit,
+      // 0.24.0: the last run a lineage source reported (OpenLineage, dbt run results)
+      lastRun: parseJson<DataStep['lastRun']>(s.last_run, null),
       revision: s.revision,
       createdAt: s.created_at,
       createdBy: s.created_by,
@@ -145,7 +147,7 @@ function checkEnds(productId: string, input: StepInput, keptHidden: Set<string>)
   }
 }
 
-function writeEnds(stepId: string, inputs: string[], outputs: string[]): void {
+export function writeEnds(stepId: string, inputs: string[], outputs: string[]): void {
   db().run('DELETE FROM dp_step_elements WHERE step_id = ?', stepId);
   for (const e of new Set(inputs)) db().run("INSERT INTO dp_step_elements (step_id, element_id, direction) VALUES (?, ?, 'in')", stepId, e);
   for (const e of new Set(outputs)) db().run("INSERT INTO dp_step_elements (step_id, element_id, direction) VALUES (?, ?, 'out')", stepId, e);

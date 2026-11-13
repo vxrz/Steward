@@ -130,6 +130,11 @@ export interface DataGraphEdge {
   hidden?: boolean;
   /** Map: an input port consumes a deprecated or retired output port */
   deprecated?: boolean;
+  /**
+   * Lineage (0.24.0): a way a tool reports (OpenLineage, dbt, Snowflake object dependencies) that no step documents yet –
+   * an open proposal; drawn dashed and named _proposed_, never merged with a documented way
+   */
+  proposed?: boolean;
 }
 
 /** A step as the table lists it: its ends as node ids of the graph (hidden ones counted). */
@@ -142,6 +147,8 @@ export interface DataGraphStep {
   inputs: string[];
   outputs: string[];
   hidden: boolean;
+  /** An open proposal of a lineage source, not a documented step (0.24.0) */
+  proposed?: boolean;
 }
 
 export interface DataGraph {
@@ -210,6 +217,8 @@ export interface GraphStepInput {
   runner: string | null;
   inputs: string[];
   outputs: string[];
+  /** An open proposal of a lineage source (0.24.0): its ways are drawn as proposed */
+  proposed?: boolean;
 }
 
 export interface GraphHealth {
@@ -239,12 +248,13 @@ class Anonymiser {
 /** Edges between nodes, merged per pair: the step (or port) names they carry, counted. */
 class EdgeSet {
   private map = new Map<string, DataGraphEdge>();
-  add(from: string, to: string, label: string, o: { stepKind?: DataStepKind | null; hidden?: boolean; deprecated?: boolean } = {}): void {
+  add(from: string, to: string, label: string, o: { stepKind?: DataStepKind | null; hidden?: boolean; deprecated?: boolean; proposed?: boolean } = {}): void {
     if (from === to) return;
-    const id = `${from}>${to}`;
+    // a proposed way is an edge of its own beside a documented one between the same nodes
+    const id = `${from}>${to}${o.proposed ? '~proposed' : ''}`;
     let e = this.map.get(id);
     if (!e) {
-      e = { id, from, to, labels: [], count: 0, stepKind: o.stepKind ?? null, hidden: !!o.hidden };
+      e = { id, from, to, labels: [], count: 0, stepKind: o.stepKind ?? null, hidden: !!o.hidden, ...(o.proposed ? { proposed: true } : {}) };
       this.map.set(id, e);
     }
     e.count++;
@@ -278,13 +288,23 @@ function stepWays(
     const ins = [...new Set(s.inputs.map(nodeOf).filter((x): x is string => !!x))];
     const outs = [...new Set(s.outputs.map(nodeOf).filter((x): x is string => !!x))];
     const show = named(s);
+    const o = { stepKind: s.kind, hidden: !show, ...(s.proposed ? { proposed: true } : {}) };
     if (ins.length * outs.length > DATA_GRAPH_LIMITS.stepFan) {
       const hub = stepNode(s, ins, outs);
-      for (const i of ins) edges.add(i, hub, show ? s.name : '', { stepKind: s.kind, hidden: !show });
-      for (const o of outs) edges.add(hub, o, show ? s.name : '', { stepKind: s.kind, hidden: !show });
-    } else for (const i of ins) for (const o of outs) edges.add(i, o, show ? s.name : '', { stepKind: s.kind, hidden: !show });
+      for (const i of ins) edges.add(i, hub, show ? s.name : '', o);
+      for (const x of outs) edges.add(hub, x, show ? s.name : '', o);
+    } else for (const i of ins) for (const x of outs) edges.add(i, x, show ? s.name : '', o);
     if (ins.length || outs.length)
-      out.push({ id: show ? s.id : '', name: show ? s.name : '', kind: s.kind, runner: show ? s.runner : null, inputs: ins, outputs: outs, hidden: !show });
+      out.push({
+        id: show ? s.id : '',
+        name: show ? s.name : '',
+        kind: s.kind,
+        runner: show ? s.runner : null,
+        inputs: ins,
+        outputs: outs,
+        hidden: !show,
+        ...(s.proposed ? { proposed: true } : {}),
+      });
   }
   return out;
 }
@@ -656,7 +676,7 @@ export function mergeNodes(g: Pick<DataGraph, 'nodes' | 'edges'>, rep: ReadonlyM
     const from = target(e.from);
     const to = target(e.to);
     if (from === to) continue;
-    const id = `${from}>${to}`;
+    const id = `${from}>${to}${e.proposed ? '~proposed' : ''}`;
     const cur = edges.get(id);
     if (!cur) edges.set(id, { ...e, id, from, to, labels: [...e.labels] });
     else {

@@ -49,6 +49,7 @@ import {
   type StepRow,
 } from './store.js';
 import { elementHealth, productHealth } from './views-health.js';
+import { openProposalsAround } from './lineage/proposals.js';
 
 /**
  * The pictures of the data products module (ADR 0036 part 13, WP6): the pipeline of a product, the product map and the
@@ -362,7 +363,18 @@ export async function lineageView(elementId: string, depth: number): Promise<Dat
   if (!focus || !elementAccess(u, elementTeamIds([focus.id]).get(focus.id) ?? []).permissions.length) throw elementNotFound(elementId);
   const d = Math.max(1, Math.min(depth, DATA_GRAPH_LIMITS.lineageDepth));
   const around = stepsAround([focus.id], d, DATA_GRAPH_LIMITS.lineageNodes);
-  const rows = elementsByIds(around.elements.map((e) => e.id));
+  // 0.24.0: open proposals of lineage sources between these elements, and their other ends one step further – drawn as
+  // proposed ways beside the documented ones (sources the reader may not see are left out; elements as for steps)
+  const distances = new Map(around.elements.map((e) => [e.id, e.distance]));
+  const proposed = openProposalsAround([...distances.keys()]);
+  for (const p of proposed)
+    for (const o of p.outputs)
+      for (const i of p.inputs) {
+        if (distances.size >= DATA_GRAPH_LIMITS.lineageNodes) break;
+        if (distances.has(o) && !distances.has(i) && Math.abs(distances.get(o)! - 1) <= d) distances.set(i, distances.get(o)! - 1);
+        if (distances.has(i) && !distances.has(o) && Math.abs(distances.get(i)! + 1) <= d) distances.set(o, distances.get(i)! + 1);
+      }
+  const rows = elementsByIds([...distances.keys()]);
   const elements = graphElements(u, rows);
   const stepRows = inChunks<Pick<StepRow, 'id' | 'runner'>>(
     (m) => `SELECT id, runner FROM dp_steps WHERE id IN (${m})`,
@@ -376,9 +388,20 @@ export async function lineageView(elementId: string, depth: number): Promise<Dat
   );
   const graph = lineageGraph({
     focus: focus.id,
-    distances: new Map(around.elements.map((e) => [e.id, e.distance])),
+    distances,
     elements,
-    steps: around.steps.map((s) => ({ ...s, runner: runners.get(s.id) ?? null })),
+    steps: [
+      ...around.steps.map((s) => ({ ...s, runner: runners.get(s.id) ?? null })),
+      ...proposed.map((p) => ({
+        id: `proposal:${p.id}`,
+        name: p.name,
+        kind: 'transform' as const,
+        runner: p.tool,
+        inputs: p.inputs,
+        outputs: p.outputs,
+        proposed: true,
+      })),
+    ],
     health,
     plant: await plantSinks(rows.values()),
     truncated: around.truncated,

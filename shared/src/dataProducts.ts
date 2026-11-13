@@ -991,6 +991,11 @@ export interface DataStep {
   hiddenOutputs: number;
   /** The reader may change it (edit on a product of its output elements) */
   canEdit: boolean;
+  /**
+   * 0.24.0 (ADR 0036 phase 2): the last run a lineage source reported for it – an OpenLineage job or a dbt model it was
+   * accepted from: the state, when, and the last complete run (freshness evidence of its outputs); null: none reported
+   */
+  lastRun?: { state: string; at: string; completeAt: string | null; origin: string; sourceId: string } | null;
   revision: number;
   createdAt: string;
   createdBy: string;

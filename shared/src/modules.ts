@@ -353,6 +353,8 @@ export const MODULES: readonly ModuleDef[] = [
       '/api/v1/data-products',
       '/api/v1/data-elements',
       '/api/v1/data-objects',
+      // 0.24.0: the push of OpenLineage events and dbt files to lineage sources (their push tokens)
+      '/api/hooks/data-lineage',
     ],
     jobs: ['data-products'],
     // module access (ADR 0034 phase 1): restrictable to selected teams and users; within it the core roles give the

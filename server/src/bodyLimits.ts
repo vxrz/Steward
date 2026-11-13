@@ -22,6 +22,7 @@ import {
   COST_LIMITS,
   COST_PRICE_LIMITS,
   DATA_CONTRACT_LIMITS,
+  DATA_LINEAGE_LIMITS,
   DEBUG_LIMITS,
   DB_SCHEMA_LIMITS,
   LIBRARY_LIMITS,
@@ -183,6 +184,18 @@ export const LARGE_BODIES = {
   priceBookImport: {
     routes: ['POST /api/costs/price-books/:bookId/import/preview', 'POST /api/costs/price-books/:bookId/import', 'PUT /api/costs/price-books/:bookId/entries'],
     bytes: jsonText(COST_PRICE_LIMITS.csvBytes, 16 * KIB),
+  },
+  /**
+   * 0.24.0 (ADR 0036 phase 2): a dbt manifest.json and run_results.json of a lineage source – the file itself as the body,
+   * uploaded in the app or pushed from CI with the source's push token (checked before the body is read)
+   */
+  dataLineageManifest: {
+    routes: ['POST /api/data-products/lineage-sources/:id/dbt/manifest', 'POST /api/hooks/data-lineage/:sourceId/dbt/manifest'],
+    bytes: DATA_LINEAGE_LIMITS.manifestBytes,
+  },
+  dataLineageRunResults: {
+    routes: ['POST /api/data-products/lineage-sources/:id/dbt/run-results', 'POST /api/hooks/data-lineage/:sourceId/dbt/run-results'],
+    bytes: DATA_LINEAGE_LIMITS.runResultsBytes,
   },
   /** A library release as a .zip (0.10.0, #238): LIBRARY_LIMITS.maxUploadBytes (8 MB) as base64 in a JSON body */
   libraryUpload: {

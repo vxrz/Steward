@@ -634,6 +634,42 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
           ]),
       };
     }
+    case 'dp-au-dependencies': {
+      // 0.24.0: which object of the catalogue references which (the demo's pipeline, and one source outside it)
+      const inScope = scopeOf(args);
+      const has = (q: string) => objects().some((o) => `${o.database}.${o.schema}.${o.name}` === q);
+      const domain = (q: string) => {
+        const t = objects().find((o) => `${o.database}.${o.schema}.${o.name}` === q)?.type ?? 'BASE TABLE';
+        return t === 'BASE TABLE' ? 'TABLE' : t;
+      };
+      const rows: Cell[][] = [];
+      const dep = (referenced: string, referencing: string) => {
+        const [rd, rs, rn] = referenced.split('.') as [string, string, string];
+        const [fd, fs, fn] = referencing.split('.') as [string, string, string];
+        if (!has(referencing) || !inScope({ database: fd, schema: fs })) return;
+        rows.push([rd, rs, rn, fd, fs, fn, domain(referencing)]);
+      };
+      for (const db of ['SHOP', 'SHOP_DEV']) {
+        dep(`${db}.STAGED.ORDERS`, `${db}.CURATED.ORDERS`);
+        dep(`${db}.CURATED.ORDERS`, `${db}.MART.DAILY_SALES`);
+        dep(`${db}.CURATED.CUSTOMERS`, `${db}.MART.DAILY_SALES`);
+        dep(`${db}.CURATED.ORDERS`, `${db}.MART.ORDERS_BY_REGION`);
+      }
+      dep('SHOP.SALES.ORDERS', 'SHOP.REPORTING.DAILY_REVENUE');
+      dep('FINANCE.PUBLIC.FX_RATES', 'SHOP.REPORTING.DAILY_REVENUE');
+      return {
+        names: [
+          'REFERENCED_DATABASE',
+          'REFERENCED_SCHEMA',
+          'REFERENCED_OBJECT_NAME',
+          'REFERENCING_DATABASE',
+          'REFERENCING_SCHEMA',
+          'REFERENCING_OBJECT_NAME',
+          'REFERENCING_OBJECT_DOMAIN',
+        ],
+        rows: rows.slice(0, limit),
+      };
+    }
     case 'dp-show': {
       // SHOW <WHAT> IN DATABASE "DB" | IN SCHEMA "DB"."S" – quoted identifiers, as discovery sends them
       const m = /SHOW (DYNAMIC TABLES|STREAMS|TASKS|STAGES|PIPES) IN (DATABASE|SCHEMA) "([A-Z0-9_$]+)"(?:\."([A-Z0-9_$]+)")?$/.exec(

@@ -1,5 +1,6 @@
 import {
   DATA_DISCOVERY_LIMITS as DL,
+  DATA_LINEAGE_LIMITS,
   DATA_PRODUCT_ID_PREFIX,
   DATA_PRODUCT_LIMITS,
   DATABASE_KIND,
@@ -22,6 +23,7 @@ import { DiscoveryError, parseSource, type DiscoveryContext, type DiscoveryProbl
 import { readSnowflake } from './snowflake.js';
 import { readKafka } from './kafka.js';
 import { readSqlSnapshot } from './dbschema.js';
+import { proposeDependencies, type SnowflakeDependency } from '../lineage/snowflake.js';
 
 /**
  * Discovery runs (ADR 0036 part 5, _Performance_): the job `data-products` reads the sources that are due, one at a
@@ -182,6 +184,8 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
   const seen = new Set<string>();
   const renames: { id: string; from: string; to: string }[] = [];
   const warnings: DiscoveryProblem[] = [];
+  const dependencies: SnowflakeDependency[] = [];
+  let proposed: { created: number; changed: number; skipped: number } | null = null;
   let failure: DiscoveryProblem | null = null;
   let cut: DiscoveryProblem | null = null;
   let missing: string[] = [];
@@ -213,7 +217,16 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
         code: 'DATA_DISCOVERY_PLATFORM',
         params: { context: 'kind', kind: platform.kind },
       });
-    const ctx: DiscoveryContext = { source: src, platform, secrets, max: limit + 1, signal: controller.signal, warn: (w) => warnings.push(w) };
+    const ctx: DiscoveryContext = {
+      source: src,
+      platform,
+      secrets,
+      max: limit + 1,
+      signal: controller.signal,
+      warn: (w) => warnings.push(w),
+      // 0.24.0: Snowflake OBJECT_DEPENDENCIES in account usage mode – proposed steps after a complete run
+      dependencies: (d) => dependencies.push(...d.slice(0, DATA_LINEAGE_LIMITS.dependencies - dependencies.length)),
+    };
     let buffer: DiscoveredElement[] = [];
     let count = 0;
     const flush = async () => {
@@ -268,6 +281,8 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
       const at = nowIso();
       missing = markMissing(src.id, seen, at);
       removed = removeLongMissing(new Date(Date.now() - DL.missingDays * 86_400_000).toISOString(), src.id);
+      // the steps the platform's dependencies suggest (only after a complete run: the elements are all there)
+      if (dependencies.length) proposed = await proposeDependencies(src.id, src.platformId, dependencies);
     }
   } catch (e) {
     failure =
@@ -323,7 +338,7 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
       src.id,
       src.id,
     );
-    const changedSomething = totals.added + totals.renamed + missing.length + removed > 0;
+    const changedSomething = totals.added + totals.renamed + missing.length + removed + (proposed ? proposed.created + proposed.changed : 0) > 0;
     if (opts.trigger === 'manual' || failure || changedSomething)
       audit({
         actor,
@@ -342,6 +357,7 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
           missing: missing.length,
           removed,
           ...(renames.length ? { renames } : {}),
+          ...(proposed ? { proposedSteps: proposed } : {}),
           ...(problem ? { problem: problem.code, message: problem.message } : {}),
         },
       });
