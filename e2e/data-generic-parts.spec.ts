@@ -1,8 +1,8 @@
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { expectAccessible } from './support/axe';
-import { chooseOption, expectNoHorizontalScroll, json } from './support/helpers';
+import { animationsDone, expectAccessible } from './support/axe';
+import { expectNoHorizontalScroll, json } from './support/helpers';
 
 /**
  * Generic parts, bridges and connectors (0.25.0, ADR 0037 package A): a designer enters a generic part with its
@@ -24,6 +24,13 @@ async function settle(page: Page) {
   await page.waitForLoadState('networkidle');
 }
 
+/** An option of a select in the open dialog (the page behind it has selects of the same name). */
+async function choose(page: Page, label: RegExp, option: string | RegExp, scope: Locator = page.getByRole('dialog')) {
+  await scope.getByRole('combobox', { name: label }).click();
+  await animationsDone(page);
+  await page.getByRole('option', { name: option }).click();
+}
+
 test.describe('generic parts and bridges', () => {
   test.use({ storageState: authFile('dana') });
   test.beforeEach(async ({ apiAs }) => {
@@ -38,7 +45,7 @@ test.describe('generic parts and bridges', () => {
   test('a generic part with technology, namespace and properties, converted to a specific kind', async ({ page }) => {
     await page.goto('/data-elements');
     await page.getByTestId('element-new').click();
-    await chooseOption(page, /^Kind/, 'Stream (generic)');
+    await choose(page, /^Kind/, 'Stream (generic)');
     await page.getByTestId('element-name').fill(`invented/${token.toLowerCase()}/telemetry`);
     await expect(page.getByTestId('element-generic')).toBeVisible();
     // the technology from the list, its namespace pattern as the hint
@@ -60,13 +67,15 @@ test.describe('generic parts and bridges', () => {
     // Convert to …: a Kafka topic of Kafka (demo) – the same element, discovery looks after it from then on
     await page.getByTestId('detail-actions').click();
     await page.getByTestId('element-convert').click();
-    await chooseOption(page, /^Kind/, 'Kafka topic');
-    await chooseOption(page, /^Platform/, 'Kafka (demo)');
+    await choose(page, /^Kind/, 'Kafka topic');
+    await choose(page, /^Platform/, 'Kafka (demo)');
     await page.getByTestId('convert-name').fill(`telemetry.${token.toLowerCase()}`);
     await expectAccessible(page, 'convert to');
     await page.getByTestId('convert-save').click();
     await expect(page.getByText('Converted to Kafka topic')).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(`telemetry.${token.toLowerCase()}`);
+    // the same page, now a Kafka topic named as the platform names it (its display name is the last part)
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(token.toLowerCase());
+    await expect(page.getByText(`telemetry.${token.toLowerCase()} · Kafka (demo)`, { exact: false })).toBeVisible();
     await expect(page.getByTestId('element-generic-section')).toHaveCount(0);
   });
 
@@ -88,8 +97,8 @@ test.describe('generic parts and bridges', () => {
 
     // Create step from connector: the Snowflake sink of Kafka Connect (demo)
     await page.getByTestId('step-from-connector').click();
-    await chooseOption(page, /^Platform/, 'Kafka Connect (demo)');
-    await chooseOption(page, /^Connector/, /^orders-snowflake-sink/);
+    await choose(page, /^Platform/, 'Kafka Connect (demo)');
+    await choose(page, /^Connector/, /^orders-snowflake-sink/);
     const draft = page.getByTestId('connector-draft');
     await expect(draft.getByTestId('connector-draft-outputs')).toContainText('SHOP.RAW.ORDERS_RAW');
     await expect(draft.getByTestId('connector-draft-inputs')).toContainText('shop.public.orders');
@@ -99,17 +108,19 @@ test.describe('generic parts and bridges', () => {
     await expect(steps.getByTestId(`step-Sink ${token}`)).toContainText('Kafka Connect');
   });
 
-  test('the technology list in the settings; an administrator adds an entry', async ({ page, browser }) => {
-    await page.goto('/settings/catalogue');
-    const list = page.getByTestId('data-technologies');
-    await expect(list.getByTestId('technology-debezium')).toContainText('Debezium');
-    // a designer reads it, changes nothing
-    await expect(list.getByTestId('technology-add')).toHaveCount(0);
-    await expectAccessible(page, 'technology list');
+  test('the technology list in the settings; an administrator adds an entry', async ({ browser, apiAs }) => {
+    // every reader of the module reads the list (the API); the settings page is the administrators'
+    const vera = await apiAs('vera');
+    const read = await vera.get('/api/data-products/technologies');
+    expect(read.ok()).toBe(true);
+    expect((await json<{ key: string }[]>(read)).map((x) => x.key)).toContain('debezium');
     const ctx = await browser.newContext({ storageState: authFile('admin') });
     const admin = await ctx.newPage();
     try {
       await admin.goto('/settings/catalogue');
+      const list = admin.getByTestId('data-technologies');
+      await expect(list.getByTestId('technology-debezium')).toContainText('Debezium');
+      await expectAccessible(admin, 'technology list');
       await admin.getByTestId('technology-add').click();
       await admin.getByTestId('technology-name').fill(`Invented Bus ${token}`);
       await admin.getByTestId('technology-key').fill(`invented-bus-${token.toLowerCase()}`);
@@ -134,8 +145,5 @@ test.describe('generic parts and bridges', () => {
     await expect(page.getByTestId('element-generic-facts')).toContainText('https://returns.invented.example');
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'a generic part on a phone');
-    await page.goto('/settings/catalogue');
-    await expect(page.getByTestId('data-technologies')).toBeVisible();
-    await expectNoHorizontalScroll(page);
   });
 });
