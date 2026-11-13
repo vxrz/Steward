@@ -781,7 +781,7 @@
         "personalFieldsUndocumented_other": "{{count}} personenbezogene Felder in den gebundenen Verträgen, aber kein bereitgestelltes Datenobjekt enthält personenbezogene Daten"
       },
       "quality": {
-        "results": "{{tests}} Tests: {{passed}} bestanden, {{warning}} warnen, {{failed}} fehlgeschlagen (jeweils der neueste, 30 Tage)",
+        "results": "Tests: {{tests}} – {{passed}} bestanden, {{warning}} mit Warnung, {{failed}} fehlgeschlagen (jeweils der neueste, 30 Tage)",
         "none": "Keine Qualitätsergebnisse in 30 Tagen"
       }
     }
@@ -1389,7 +1389,8 @@
       "source": "Quelle",
       "status": "Ergebnis",
       "when": "Wann",
-      "showAll": "Alle {{count}} anzeigen"
+      "showAll": "Alle {{count}} anzeigen",
+      "value": "Wert"
     },
     "sources": {
       "dbt": "dbt",
@@ -1399,9 +1400,9 @@
       "other": "Sonstiges"
     },
     "statuses": {
-      "passed": "bestanden",
+      "passed": "Bestanden",
       "warning": "Warnung",
-      "failed": "fehlgeschlagen",
+      "failed": "Fehlgeschlagen",
       "error": "Fehler"
     }
   }

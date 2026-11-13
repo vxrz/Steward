@@ -6164,6 +6164,7 @@ export interface Resources {
     'quality.element.status': string;
     'quality.element.when': string;
     'quality.element.showAll': string;
+    'quality.element.value': string;
     'quality.sources.dbt': string;
     'quality.sources.dmf': string;
     'quality.sources.contract': string;

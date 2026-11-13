@@ -765,7 +765,7 @@
         "personalFieldsUndocumented_other": "{{count}} personal fields in the bound contracts, but no exposed data object holds personal data"
       },
       "quality": {
-        "results": "{{tests}} tests: {{passed}} passed, {{warning}} warn, {{failed}} failed (latest of each, 30 days)",
+        "results": "Tests: {{tests}} – {{passed}} passed, {{warning}} with a warning, {{failed}} failed (the latest of each, 30 days)",
         "none": "No quality results in 30 days"
       }
     }
@@ -1389,7 +1389,8 @@
       "source": "Source",
       "status": "Result",
       "when": "When",
-      "showAll": "Show all {{count}}"
+      "showAll": "Show all {{count}}",
+      "value": "Value"
     },
     "sources": {
       "dbt": "dbt",
@@ -1399,10 +1400,10 @@
       "other": "Other"
     },
     "statuses": {
-      "passed": "passed",
-      "warning": "warning",
-      "failed": "failed",
-      "error": "error"
+      "passed": "Passed",
+      "warning": "Warning",
+      "failed": "Failed",
+      "error": "Error"
     }
   }
 }

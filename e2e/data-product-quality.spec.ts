@@ -85,6 +85,9 @@ test.describe('quality of data products', () => {
     const quality = page.getByTestId('element-quality');
     await expect(quality).toContainText('volume:rows');
     await expect(quality).toContainText('Completeness');
+    // each result with what was measured (the row count of the volume reading)
+    await expect(quality.getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await expect(quality.getByTestId('quality-result').filter({ hasText: 'volume:rows' }).getByRole('cell').nth(3)).toHaveText(/^[\d,]+$/);
     await expect(page.getByTestId('personal-fields')).toContainText('orders.customer_email');
     await settle(page);
     await expectAccessible(page, 'element quality');
@@ -107,7 +110,8 @@ test.describe('quality of data products', () => {
     await expect(page.getByTestId('personal-fields')).toBeVisible();
     await expectNoHorizontalScroll(page);
     await page.goto(`/data-elements/${s.element}`);
-    await expect(page.getByTestId('element-quality')).toBeVisible();
+    // a card per result on a phone
+    await expect(page.getByTestId('element-quality').getByTestId('quality-result').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
 });

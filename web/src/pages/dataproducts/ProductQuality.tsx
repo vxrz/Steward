@@ -8,9 +8,9 @@ import type { DataElementQuality, DataPersonalFields, DataQualityStatus, DataSco
 import { get } from '../../api';
 import { ErrorState } from '../../components/common';
 import { TableScroll } from '../../components/TableScroll';
-import { fmtDay, fmtRelative } from '../../format';
+import { fmtDate, fmtDay, fmtNumber, fmtRelative } from '../../format';
 import { dpKeys } from './api';
-import { Section } from './parts';
+import { CardTable, Section } from './parts';
 
 /**
  * Quality, personal fields and the scorecard over time on the pages of the data products module (0.24.0, ADR 0036
@@ -267,34 +267,47 @@ export function ElementQualityPanel({ elementId }: { elementId: string }) {
                 </Badge>
               ))}
           </Group>
-          <TableScroll>
-            <Table fz="sm" striped withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th scope="col">{t('quality.element.test')}</Table.Th>
-                  <Table.Th scope="col">{t('quality.element.source')}</Table.Th>
-                  <Table.Th scope="col">{t('quality.element.status')}</Table.Th>
-                  <Table.Th scope="col">{t('quality.element.when')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {d.results.slice(0, all ? undefined : SHOWN).map((r) => (
-                  <Table.Tr key={r.id}>
-                    <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
+          <CardTable
+            ariaLabel={t('quality.element.title')}
+            rows={d.results.slice(0, all ? undefined : SHOWN)}
+            rowKey={(r) => r.id}
+            rowTestId={() => 'quality-result'}
+            columns={[
+              {
+                key: 'test',
+                header: t('quality.element.test'),
+                cell: (r) => (
+                  <>
+                    <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
                       {r.name}
-                    </Table.Td>
-                    <Table.Td>{t(`quality.sources.${r.source}`)}</Table.Td>
-                    <Table.Td>
-                      <Badge size="sm" variant="light" color={STATUS_COLOR[r.status]} tt="none">
-                        {t(`quality.statuses.${r.status}`)}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>{fmtRelative(r.observedAt)}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableScroll>
+                    </Text>
+                    {/* what the tool said: why a test failed or warned */}
+                    {r.message && (
+                      <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                        {r.message}
+                      </Text>
+                    )}
+                  </>
+                ),
+              },
+              { key: 'source', header: t('quality.element.source'), cell: (r) => t(`quality.sources.${r.source}`) },
+              {
+                key: 'status',
+                header: t('quality.element.status'),
+                cell: (r) => (
+                  <Badge size="sm" variant="light" color={STATUS_COLOR[r.status]} tt="none">
+                    {t(`quality.statuses.${r.status}`)}
+                  </Badge>
+                ),
+              },
+              { key: 'value', header: t('quality.element.value'), cell: (r) => (r.value === null ? '–' : fmtNumber(r.value)) },
+              {
+                key: 'when',
+                header: t('quality.element.when'),
+                cell: (r) => <span title={fmtDate(r.observedAt)}>{fmtRelative(r.observedAt)}</span>,
+              },
+            ]}
+          />
           {!all && d.results.length > SHOWN && (
             <Anchor component="button" size="sm" onClick={() => setAll(true)}>
               {t('quality.element.showAll', { count: d.results.length })}
