@@ -608,6 +608,21 @@ describe('shares (ADR 0033)', () => {
     expect(view).toMatchObject({ restricted: true });
     expect(JSON.stringify(await s.api('GET', `/audit?entityId=${r.id}`))).toContain('access.share_added');
   });
+
+  it('go with a deleted product: no share or Restricted mark is left for the share job to remind of', async () => {
+    const { db } = await import('../src/db.js');
+    const p = await s.api('POST', '/data-products', { key: 'shared-then-deleted', name: 'Shared then deleted' });
+    await s.api('PUT', `/access/data_product/${p.id}/scope`, { restricted: true });
+    const soon = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    await s.api('PUT', `/access/data_product/${p.id}/shares`, { shares: [{ subject: 'user:olivia', level: 'view', expiresAt: soon }] });
+    const left = (table: string) =>
+      Number(db().get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WHERE kind = 'data_product' AND resource_id = ?`, p.id)!.n);
+    expect(left('resource_shares')).toBe(1);
+    expect(left('resource_restrictions')).toBe(1);
+    await s.api('DELETE', `/data-products/${p.id}`);
+    expect(left('resource_shares')).toBe(0);
+    expect(left('resource_restrictions')).toBe(0);
+  });
 });
 
 describe('module access (ADR 0034)', () => {

@@ -35,6 +35,7 @@ import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
 import { forbid, me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, type OwningTeam } from '../auth/policy.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
+import { forgetShares } from '../auth/shares.js';
 import { environmentList } from '../catalogue/environments.js';
 import { currentScale } from '../catalogue/cia.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -950,6 +951,8 @@ export function deleteProduct(id: string): void {
     deleteRatings('product', row.id);
     db().run('DELETE FROM dp_products WHERE id = ?', row.id);
     forgetOwningTeams('data_product', row.id);
+    // its shares and Restricted mark go with it (else the share job reminds and expires shares of a deleted product)
+    forgetShares('data_product', row.id);
     audit({
       action: 'dataproduct.deleted',
       entityType: 'data_product',
