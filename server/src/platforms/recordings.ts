@@ -236,7 +236,11 @@ export function updateRecording(platformId: string, id: string, input: z.infer<t
 export function deleteRecording(platformId: string, id: string): void {
   const p = platformFor(platformId, 'manage', 'remove recorded responses of this platform');
   const r = getRow(platformId, id);
-  db().run('DELETE FROM platform_recordings WHERE id = ? AND platform_id = ?', id, platformId);
+  db().tx(() => {
+    db().run('DELETE FROM platform_recordings WHERE id = ? AND platform_id = ?', id, platformId);
+    // 0.25.0: its links to data product ports (their previews) go with it
+    db().run('DELETE FROM dp_port_recordings WHERE recording_id = ?', id);
+  });
   audit({
     action: 'platform.recording_removed',
     entityType: 'platform',

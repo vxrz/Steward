@@ -91,7 +91,8 @@ export function getImportJob(id: string): DataProductImportJob {
 
 /** Refuses an import while a background import runs (its journal could not take back what another one changed). */
 export function refuseWhileRunning(): void {
-  recoverInterrupted();
+  // started here, awaited by nobody: a failure is logged (the job data-products tries again), never an unhandled rejection
+  recoverInterrupted()?.catch((err: unknown) => logger.warn({ err }, 'an interrupted import of data products could not be taken back'));
   const r = db().get<{ id: string; created_by: string }>("SELECT id, created_by FROM dp_import_jobs WHERE state = 'running' LIMIT 1");
   if (r)
     throw new HttpError(409, `An import of ${r.created_by} is running – try again when it has ended`, 'DATA_PRODUCT_IMPORT_RUNNING', {
@@ -133,7 +134,11 @@ export function startImport(
     db().run('DELETE FROM dp_import_job_elements WHERE job_id NOT IN (SELECT id FROM dp_import_jobs)');
   });
   Object.assign(lastJobTimes, { planMs: Math.round(planMs), longestBatchMs: 0, restMs: 0 });
-  const done = runAs(u, () => runJob(id, u, p.planned)).finally(() => running.delete(id));
+  // nobody awaits the job: a failure of its undo is logged, never an unhandled rejection – the job stays running, so the
+  // next run of the job data-products (or the next import) takes it back as an interrupted one
+  const done = runAs(u, () => runJob(id, u, p.planned))
+    .catch((err: unknown) => logger.error({ err, job: id }, 'a background import of data products could not be taken back'))
+    .finally(() => running.delete(id));
   running.set(id, done);
   return { status: 202, job: toJob(jobRow(id)!) };
 }
@@ -176,7 +181,7 @@ async function runJob(id: string, u: AuthUser, planned: Parameters<typeof commit
       ),
   };
   try {
-    const result = await commitPlannedStepwise(planned, journal, {
+    await commitPlannedStepwise(planned, journal, {
       batchMs: BATCH_MS,
       job: id,
       batch: (done, total, ms) => {
@@ -185,10 +190,16 @@ async function runJob(id: string, u: AuthUser, planned: Parameters<typeof commit
       },
       beforeRest: () => db().run("UPDATE dp_import_jobs SET phase = 'entries' WHERE id = ?", id),
       rest: (ms) => (lastJobTimes.restMs = Math.round(ms)),
-    });
-    db().tx(() => {
-      db().run("UPDATE dp_import_jobs SET state = 'succeeded', phase = 'done', result = ?, finished_at = ? WHERE id = ?", JSON.stringify(result), nowIso(), id);
-      db().run('DELETE FROM dp_import_job_elements WHERE job_id = ?', id);
+      // in the entries' transaction: a server that stops right after it finds the job succeeded, never half taken back
+      committing: (result) => {
+        db().run(
+          "UPDATE dp_import_jobs SET state = 'succeeded', phase = 'done', result = ?, finished_at = ? WHERE id = ?",
+          JSON.stringify(result),
+          nowIso(),
+          id,
+        );
+        db().run('DELETE FROM dp_import_job_elements WHERE job_id = ?', id);
+      },
     });
   } catch (e) {
     if (!(e instanceof HttpError)) logger.warn({ err: e, job: id }, 'a background import of data products failed');
@@ -213,7 +224,8 @@ async function undo(id: string, actor: string, error: DataProductImportJob['erro
     if (!rows.length) break;
     db().tx(() => {
       const ids = rows.map((r) => r.element_id);
-      // an element used meanwhile stays (a member, a port's element, a step's end, a check, a data object's element)
+      // an element used meanwhile stays (a member, a port's element, a step's end, a check, a data object's element, a
+      // cost match or an input port's source someone added – none of them can be from the job: its entries were taken back)
       const used = new Set(
         db()
           .all<{ id: string }>(
@@ -222,8 +234,12 @@ async function undo(id: string, actor: string, error: DataProductImportJob['erro
              UNION SELECT element_id FROM dp_step_elements WHERE element_id IN (${marks(ids.length)})
              UNION SELECT element_id FROM dp_check_links WHERE element_id IN (${marks(ids.length)})
              UNION SELECT element_id FROM dp_object_elements WHERE element_id IN (${marks(ids.length)})
+             UNION SELECT element_id FROM dp_cost_matches WHERE element_id IN (${marks(ids.length)})
+             UNION SELECT source_element_id FROM dp_ports WHERE source_element_id IN (${marks(ids.length)})
              UNION SELECT parent_id FROM dp_elements WHERE parent_id IN (${marks(ids.length)})
                AND id NOT IN (SELECT element_id FROM dp_import_job_elements WHERE job_id = ? AND before IS NULL)`,
+            ...ids,
+            ...ids,
             ...ids,
             ...ids,
             ...ids,

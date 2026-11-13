@@ -200,6 +200,74 @@ describe('checks, links and file ports', () => {
     }
   });
 
+  it('a listing the key limit cuts proves freshness, never staleness – S3 lists the oldest partitions first', async () => {
+    const el = await element('s3://invented-shop-lake.example/exports/daily-sales/');
+    const { dataElementCheck } = await import('../src/dataproducts/checks/element.js');
+    const { setMockS3Bucket } = await import('../src/mock/mockAws.js');
+    const { DATA_DISCOVERY_LIMITS } = await import('@sm/shared');
+    const limits = DATA_DISCOVERY_LIMITS as { s3CheckKeys: number };
+    const check = (maxAgeMinutes: number) =>
+      dataElementCheck({ element: el.id, mode: 'freshness', maxAgeMinutes, failAs: 'down', warningAs: 'degraded' } as never, {
+        owner: 'admin',
+        now: () => Date.now(),
+      });
+    const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+    // five daily partitions, the newest today: the first three keys (the limit) are the oldest
+    setMockS3Bucket(
+      'invented-shop-lake.example',
+      [5, 4, 3, 2, 0].map((d, i) => ({ key: `exports/daily-sales/dt=2026-11-0${i + 1}/daily-sales.csv`, size: 10, lastModified: day(d) })),
+    );
+    const before = limits.s3CheckKeys;
+    limits.s3CheckKeys = 3;
+    try {
+      expect(await check(1440)).toMatchObject({ status: 'unknown', message: expect.stringContaining('newer ones may follow') });
+      // a recent object among the keys read is proof enough
+      expect(await check(4 * 1440)).toMatchObject({ status: 'up', message: expect.stringContaining('the first 3 keys') });
+    } finally {
+      limits.s3CheckKeys = before;
+      setMockS3Bucket('invented-shop-lake.example', null);
+    }
+    expect(await check(1440)).toMatchObject({ status: 'up' });
+  });
+
+  it('a listing the key limit cuts judges no growth or change of the volume; an absolute minimum it reaches passes', async () => {
+    const el = await element('s3://invented-shop-lake.example/exports/daily-sales/');
+    const { dataElementCheck } = await import('../src/dataproducts/checks/element.js');
+    const { setMockS3Bucket } = await import('../src/mock/mockAws.js');
+    const { DATA_DISCOVERY_LIMITS } = await import('@sm/shared');
+    const { db } = await import('../src/db.js');
+    const limits = DATA_DISCOVERY_LIMITS as { s3CheckKeys: number };
+    const check = (extra: Record<string, unknown>) =>
+      dataElementCheck({ element: el.id, mode: 'volume', failAs: 'down', warningAs: 'degraded', ...extra } as never, {
+        owner: 'admin',
+        now: () => Date.now(),
+      });
+    const readings = () => Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_volume_readings WHERE element_id = ?', el.id)!.n);
+    setMockS3Bucket(
+      'invented-shop-lake.example',
+      Array.from({ length: 6 }, (_, i) => ({
+        key: `exports/daily-sales/dt=2026-11-0${i + 1}/daily-sales.csv`,
+        size: 10,
+        lastModified: new Date().toISOString(),
+      })),
+    );
+    const before = limits.s3CheckKeys;
+    limits.s3CheckKeys = 3;
+    const stored = readings();
+    try {
+      // growth and change: a cut count says nothing of them – unknown, with the hint, and no reading kept
+      expect(await check({ minGrowth: 1 })).toMatchObject({ status: 'unknown', message: expect.stringContaining('name a narrower prefix') });
+      expect(await check({ maxChangePct: 10 })).toMatchObject({ status: 'unknown', message: expect.stringContaining('growth and change are not judged') });
+      // a minimum: the three keys read reach two – up; five they do not prove – unknown
+      expect(await check({ minRows: 2 })).toMatchObject({ status: 'up', message: expect.stringContaining('at least 3 objects') });
+      expect(await check({ minRows: 5 })).toMatchObject({ status: 'unknown' });
+      expect(readings()).toBe(stored);
+    } finally {
+      limits.s3CheckKeys = before;
+      setMockS3Bucket('invented-shop-lake.example', null);
+    }
+  });
+
   it('proposes S3 prefix → stage and stage → table through the pipe after the Snowflake run', async () => {
     const items = [
       ...(await dana('GET', '/data-products/lineage-proposals?origin=snowflake&status=open')).items,
@@ -263,6 +331,9 @@ describe('checks, links and file ports', () => {
     const draft = await s.api('POST', '/data-contracts/draft', { source: 'element', elementId: el.id });
     const odcs = YAML.parse(draft.yaml);
     expect(odcs.servers[0]).toMatchObject({ type: 's3', format: 'csv', location: 's3://invented-shop-lake.example/exports/daily-sales/**/*.csv' });
+    // valid against the ODCS 3 schema: its s3 server knows no CSV delimiter (delimiter is JSON's: new_line or array)
+    expect(odcs.servers[0].delimiter).toBeUndefined();
+    expect((draft.warnings as string[]).filter((w) => w.startsWith('/servers'))).toEqual([]);
   });
 });
 

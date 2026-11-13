@@ -435,8 +435,8 @@ async function fromFiles(el: { qualified_name: string; display_name: string; env
       server: slugify(el.environment || 'production') || 'production',
       type: 's3',
       location: `s3://${u.bucket}/${u.prefix}${keys ? '**/' : ''}${glob}`,
+      // ODCS 3's delimiter is JSON's only (new_line or array) – a CSV file's separator has no place in the s3 server
       ...(format ? { format } : {}),
-      ...(format === 'csv' ? { delimiter: 'comma' } : {}),
       ...(keys ? { customProperties: [{ property: 'partitionKeys', value: keys }] } : {}),
     },
   ];

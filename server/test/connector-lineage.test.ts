@@ -205,6 +205,60 @@ describe('lineage from connectors', () => {
     });
     expect(s3).toMatchObject({ family: 's3Sink', technology: 'confluent' });
     expect(s3.outputs).toEqual([{ kind: 's3', bucket: 'invented-lake', path: 'raw/orders', text: 's3://invented-lake/raw/orders/ (parquet)' }]);
+    expect(cdc.reasons).toEqual([{ reason: 'tablePattern', ends: 'skipped', count: 1 }]);
+  });
+
+  it('never guesses: Confluent’s managed S3 sink names its format, a CDC source without a host says why', async () => {
+    const m = await import('../src/dataproducts/connector-lineage.js');
+    // the managed S3 sink's output format is kept by the allow-list and names the files.path format
+    expect(allowedConnectorConfig({ 'connector.class': 'S3_SINK', 'output.data.format': 'PARQUET', 'aws.secret.access.key': 'x' })).toEqual({
+      'connector.class': 'S3_SINK',
+      'output.data.format': 'PARQUET',
+    });
+    const base = { platformId: 'p', platformKind: 'confluent-cloud', key: 'c', name: 'c', state: 'RUNNING', topics: [] as string[], kafkaPlatformId: 'k' };
+    const s3 = m.connectorDraft({
+      ...base,
+      type: 'sink',
+      class: 'S3_SINK',
+      topics: ['orders'],
+      config: { 's3.bucket.name': 'invented-lake', 'output.data.format': 'PARQUET' },
+      debezium: null,
+    });
+    expect(s3.outputs.map((o) => o.text)).toEqual(['s3://invented-lake/topics/orders/ (parquet)']);
+    // a managed CDC source keeps no database host: its tables are named, unmatched, with the reason – never matched by name
+    const cdc = m.connectorDraft(
+      {
+        ...base,
+        type: 'source',
+        class: 'PostgresCdcSourceV2',
+        config: { 'topic.prefix': 'shop', 'table.include.list': 'public.orders' },
+        debezium: null,
+      },
+      ['dbp'],
+    );
+    expect(cdc.inputs).toEqual([
+      { kind: 'table', databasePlatformIds: [], name: 'public.orders', text: "public.orders (no database host in the connector's configuration)" },
+    ]);
+    expect(cdc.outputs.map((o) => o.text)).toEqual(['shop.public.orders']);
+    expect(cdc.reasons).toEqual([{ reason: 'noDatabaseHost', ends: 'unmatched', count: 1 }]);
+    expect(m.matchEnds(cdc)).toMatchObject({ inputs: [], unmatchedInputs: ["public.orders (no database host in the connector's configuration)"] });
+  });
+
+  it('skips the topics of a SQL Server source of several databases, with the reason – the table list does not say the database', async () => {
+    const m = await import('../src/dataproducts/connector-lineage.js');
+    const base = { platformId: 'p', platformKind: 'kafka-connect', key: 'c', name: 'c', state: 'RUNNING', topics: [] as string[], kafkaPlatformId: 'k' };
+    const several = m.connectorDraft(
+      {
+        ...base,
+        type: 'source',
+        class: 'io.debezium.connector.sqlserver.SqlServerConnector',
+        config: { 'topic.prefix': 'erp', 'table.include.list': 'dbo.orders,dbo.lines' },
+        topics: ['erp.sales.dbo.orders', 'erp.billing.dbo.lines'],
+        debezium: { dbms: 'sqlserver', host: 'erp.invented.example', port: 1433, databases: ['sales', 'billing'] },
+      },
+      ['dbp'],
+    );
+    expect(several).toMatchObject({ inputs: [], outputs: [], skipped: 2, reasons: [{ reason: 'sqlServerDatabases', ends: 'skipped', count: 2 }] });
   });
 
   it('proposes table → topic → table and topic → files as proposals, never applied on their own', async () => {

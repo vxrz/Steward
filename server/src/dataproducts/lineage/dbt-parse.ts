@@ -11,7 +11,7 @@ import { sha256 } from '../../util.js';
  * schemas of dbt.ts and writes them in batches. Pulling (instead of the worker posting everything) keeps the main
  * thread from deserialising every part in one turn.
  *
- * The worker gets a copy of the body and a heap limit; when it cannot start (an unusual runtime), the same reading runs
+ * The worker gets a copy of the body and a heap limit, and at most DBT_WORKERS run at a time; when it cannot start (an unusual runtime), the same reading runs
  * on the main thread (`stripDbt` below – the worker's source is that function's twin, the tests compare both).
  */
 
@@ -217,6 +217,28 @@ export function readDbtInThread(file: DbtFileKind, raw: Buffer): DbtReader {
   };
 }
 
+/**
+ * Worker threads at a time, server-wide: each may take WORKER_HEAP_MB, and the files of one source already wait for each
+ * other (push.ts) – files of several sources wait here for a free worker instead of each starting one.
+ */
+export const DBT_WORKERS = 2;
+let busy = 0;
+const queued: (() => void)[] = [];
+
+/** A worker slot (waits for one); the function given back frees it (once – a freed slot goes to the next waiting). */
+async function workerSlot(): Promise<() => void> {
+  if (busy < DBT_WORKERS) busy++;
+  else await new Promise<void>((resolve) => queued.push(resolve)); // the slot is handed over as it is freed
+  let freed = false;
+  return () => {
+    if (freed) return;
+    freed = true;
+    const next = queued.shift();
+    if (next) next();
+    else busy--;
+  };
+}
+
 /** For the tests: start no worker (the fallback path). */
 let workerOff = false;
 export function setDbtWorkerOff(off: boolean): void {
@@ -229,6 +251,7 @@ export function setDbtWorkerOff(off: boolean): void {
  */
 export async function openDbtFile(file: DbtFileKind, raw: Buffer): Promise<DbtReader> {
   if (workerOff) return readDbtInThread(file, raw);
+  const release = await workerSlot();
   let worker: Worker;
   try {
     // a copy of the body for the worker (the caller's buffer may be a slice of a larger one)
@@ -242,6 +265,7 @@ export async function openDbtFile(file: DbtFileKind, raw: Buffer): Promise<DbtRe
       resourceLimits: { maxOldGenerationSizeMb: WORKER_HEAP_MB },
     });
   } catch (err) {
+    release();
     logger.warn({ err }, 'the dbt parse worker could not start: parsing on the main thread');
     return readDbtInThread(file, raw);
   }
@@ -274,6 +298,7 @@ export async function openDbtFile(file: DbtFileKind, raw: Buffer): Promise<DbtRe
   const close = () => {
     worker.removeAllListeners('exit');
     void worker.terminate();
+    release();
   };
   let first: FromWorker;
   try {

@@ -178,4 +178,21 @@ describe('apps on this device and collects data from', () => {
     expect(p.edgeDevices).toEqual([{ asset: 'rvs-mill-02', device: 'edge', system: edge, apps: ['Invented Modbus import client'], hiddenApps: 1 }]);
     expect(JSON.stringify(p)).not.toContain(secretSystem);
   });
+
+  it('a deleted system leaves no device linked to it: cleared, named in the deletion’s audit entry', async () => {
+    const gone = (await s.api('POST', '/systems', { name: 'Invented retired edge box', kind: 'appliance' })).id as string;
+    await s.api('POST', '/plant/assets/rvs-mill-02/devices', { id: 'retired', hostname: 'retired-01', system: gone });
+    expect((await device('rvs-mill-02', 'retired')).system).toBe(gone);
+    await s.api('DELETE', `/systems/${gone}`);
+    const { db } = await import('../src/db.js');
+    expect(db().get<{ system_id: string | null }>("SELECT system_id FROM plant_devices WHERE asset_id = 'rvs-mill-02' AND id = 'retired'")).toEqual({
+      system_id: null,
+    });
+    expect(await device('rvs-mill-02', 'retired')).toMatchObject({ system: null, systemHidden: false });
+    const entry = db().get<{ details: string }>(
+      "SELECT details FROM audit_log WHERE action = 'system.deleted' AND entity_id = ? ORDER BY seq DESC LIMIT 1",
+      gone,
+    )!;
+    expect(JSON.parse(entry.details)).toMatchObject({ plantDevices: [{ assetId: 'rvs-mill-02', deviceId: 'retired' }], plantDevicesCleared: 1 });
+  });
 });

@@ -16,7 +16,7 @@ import { platformAccess } from '../auth/policy.js';
 import { HttpError, parseJson } from '../util.js';
 import { elementAccess } from './access.js';
 import { connectorStepHealth } from './connector-health.js';
-import { connectorsOf, draftOf, familyOf, matchEnds, type ConnectorFamily } from './connector-lineage.js';
+import { connectorsOf, draftOf, familyOf, matchEnds, type ConnectorFamily, type ConnectorSkip } from './connector-lineage.js';
 import { elementTeamIds, elementsByIds } from './store.js';
 import { createStep } from './steps.js';
 
@@ -54,6 +54,9 @@ export interface ConnectorStepDraft {
   hiddenOutputs: number;
   unmatchedInputs: string[];
   unmatchedOutputs: string[];
+  /** Ends the configuration does not name plainly enough – left out, never guessed – and why (with the unmatched ones) */
+  skipped: number;
+  reasons: ConnectorSkip[];
   health: DataStep['health'];
 }
 
@@ -127,6 +130,8 @@ export function connectorStepDraft(query: unknown): ConnectorStepDraft {
     hiddenOutputs: m.outputs.length - outputs.length,
     unmatchedInputs: m.unmatchedInputs.slice(0, 20),
     unmatchedOutputs: m.unmatchedOutputs.slice(0, 20),
+    skipped: d.skipped,
+    reasons: d.reasons,
     health: connectorStepHealth(u, [{ id: 'draft', runner }]).get('draft') ?? null,
   };
 }

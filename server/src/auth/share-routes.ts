@@ -110,6 +110,8 @@ export function accessView(def: ShareKindDef, id: string, u: AuthUser): Resource
       ...x,
       // outside the owning teams – or any subject on a Restricted item without teams: naming it was a widening
       outside: teams.length ? uncoveredSubjects(teams, [], [x.subject]).length > 0 : restricted,
+      // the owner field gives a share, it never scopes the item: only an owning team does (0.25.0, the Access tab's hint)
+      owningTeam: teams.some((t) => `team:${t.name.toLowerCase()}` === x.subject.toLowerCase()),
     })),
     actions: [...SHARE_ACTIONS[def.kind]],
     levels: [...shareLevelsOf(def.kind)],

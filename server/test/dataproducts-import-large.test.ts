@@ -185,6 +185,111 @@ describe('large imports', () => {
     });
   }, 600_000);
 
+  it('a job ends succeeded in the transaction of its entries: never products without the elements it took back', async () => {
+    const { db } = await import('../src/db.js');
+    const { vi } = await import('vitest');
+    // the job's end fails (as a server that stops right after the entries were written): nothing of the import may stay
+    const d = db();
+    const run = d.run.bind(d);
+    const spy = vi.spyOn(d, 'run').mockImplementation((sql: string, ...params: unknown[]) => {
+      if (sql.includes("SET state = 'succeeded'")) throw new Error('invented failure at the end of the job');
+      return run(sql, ...params);
+    });
+    try {
+      const r = await dana('POST', '/data-products/import', { files: [{ name: 'end.json', content: bigFile('END', 1_200, 1, 10) }], mode: 'update' });
+      expect(r.job.state).toBe('running');
+      const job = await until(r.job.id);
+      expect(job).toMatchObject({ state: 'failed', undone: { removed: 1_200, kept: 0 } });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(db().get("SELECT 1 FROM dp_products WHERE key = 'invented-end-0'")).toBeUndefined();
+    expect(await elementCount('END')).toBe(0);
+  }, 600_000);
+
+  it('an undo that fails is logged, never an unhandled rejection – the next run of the job takes the import back', async () => {
+    const { db } = await import('../src/db.js');
+    const { vi } = await import('vitest');
+    const d = db();
+    const run = d.run.bind(d);
+    // the import fails in its last transaction (an active product without owner and output port), and so does its undo
+    const spy = vi.spyOn(d, 'run').mockImplementation((sql: string, ...params: unknown[]) => {
+      if (sql.includes("SET phase = 'undo'")) throw new Error('invented failure of the undo');
+      return run(sql, ...params);
+    });
+    let id: string | undefined;
+    try {
+      const files = [{ name: 'undo2.json', content: bigFile('UNDOFAIL', 1_200, 1, 10, { lifecycle: 'active' }) }];
+      id = (await dana('POST', '/data-products/import', { files, mode: 'update' })).job.id as string;
+      const { importJobDone } = await import('../src/dataproducts/import-jobs.js');
+      await importJobDone(id);
+      // the job is left running: another import starts taking it back, which fails again – logged, refused with 409
+      expect(await fail(dana('POST', '/data-products/import', { files: [{ name: 'x.json', content: '{"version":1}' }], mode: 'add' }))).toMatchObject({
+        status: 409,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await dana('GET', `/data-products/import/jobs/${id}`)).toMatchObject({ state: 'running' });
+    const { runDataProductsJob } = await import('../src/dataproducts/discovery/job.js');
+    await runDataProductsJob();
+    expect(await dana('GET', `/data-products/import/jobs/${id}`)).toMatchObject({ state: 'failed', undone: { removed: 1_200 } });
+    expect(await elementCount('UNDOFAIL')).toBe(0);
+  }, 600_000);
+
+  it('the undo keeps an added element that someone gave a cost match or made an input port’s source meanwhile', async () => {
+    const { db } = await import('../src/db.js');
+    const now = new Date().toISOString();
+    const product = db().get<{ id: string }>('SELECT id FROM dp_products ORDER BY created_at LIMIT 1')!.id;
+    const platform = db().get<{ id: string }>('SELECT id FROM platforms ORDER BY name LIMIT 1')!.id;
+    db().tx(() => {
+      db().run(
+        "INSERT INTO dp_import_jobs (id, state, phase, done, total, mode, created_by, created_at) VALUES ('dpj_used', 'running', 'elements', 3, 1200, 'add', 'dana', ?)",
+        now,
+      );
+      for (const i of [1, 2, 3]) {
+        db().run(
+          `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, source, created_at, created_by, updated_at, updated_by)
+           VALUES (?, '', 'other', ?, ?, 'x', 'prod', 'imported', ?, 'dana', ?, 'dana')`,
+          `dpe_used${i}`,
+          `INVENTED.USED.T${i}`,
+          `invented.used.t${i}`,
+          now,
+          now,
+        );
+        db().run('INSERT INTO dp_import_job_elements (job_id, element_id, before) VALUES (?, ?, NULL)', 'dpj_used', `dpe_used${i}`);
+      }
+      // meanwhile someone matched a cost line to the first and made the second an input port's source
+      db().run(
+        "INSERT INTO dp_cost_matches (id, product_id, element_id, environment, platform_id, match_kind, match_value, created_at, created_by) VALUES ('dcm_used', ?, 'dpe_used1', 'prod', ?, 'resource', 'invented', ?, 'vera')",
+        product,
+        platform,
+        now,
+      );
+      db().run(
+        `INSERT INTO dp_ports (id, product_id, direction, name, source_kind, source_element_id, created_at, created_by, updated_at, updated_by)
+         VALUES ('dpp_used', ?, 'input', 'invented used', 'element', 'dpe_used2', ?, 'vera', ?, 'vera')`,
+        product,
+        now,
+        now,
+      );
+    });
+    try {
+      const { runDataProductsJob } = await import('../src/dataproducts/discovery/job.js');
+      await runDataProductsJob();
+      expect(await dana('GET', '/data-products/import/jobs/dpj_used')).toMatchObject({ state: 'failed', undone: { removed: 1, kept: 2 } });
+      expect(
+        db()
+          .all<{ id: string }>("SELECT id FROM dp_elements WHERE name_norm LIKE 'invented.used.%' ORDER BY id")
+          .map((r) => r.id),
+      ).toEqual(['dpe_used1', 'dpe_used2']);
+    } finally {
+      db().run("DELETE FROM dp_cost_matches WHERE id = 'dcm_used'");
+      db().run("DELETE FROM dp_ports WHERE id = 'dpp_used'");
+    }
+  }, 120_000);
+
   it('a job a stopped server left running is taken back by the next run of the job', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();

@@ -1915,7 +1915,15 @@ export function commitPlanned({ plan }: PlannedImport): DataProductImportResult 
 export async function commitPlannedStepwise(
   { plan }: PlannedImport,
   journal: ElementJournal,
-  o: { batchMs: number; batch: (done: number, total: number, ms: number) => void; beforeRest?: () => void; rest?: (ms: number) => void; job?: string },
+  o: {
+    batchMs: number;
+    batch: (done: number, total: number, ms: number) => void;
+    beforeRest?: () => void;
+    rest?: (ms: number) => void;
+    job?: string;
+    /** In the transaction of the entries, last: the job's own success (its end and its journal go with the entries) */
+    committing?: (result: DataProductImportResult) => void;
+  },
 ): Promise<DataProductImportResult> {
   if (!plan.r) return resultOf(plan);
   const run: Run = { dry: false, r: plan.r, plan, failed: new Set() };
@@ -1945,6 +1953,7 @@ export async function commitPlannedStepwise(
       writeObjects(run);
       writeRest(run);
       auditImport(plan, o.job);
+      o.committing?.(resultOf(plan));
     }),
   );
   o.rest?.(performance.now() - t1);
