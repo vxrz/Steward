@@ -3,6 +3,8 @@
   "remove": "Entfernen",
   "copy": "Kopieren",
   "copied": "Kopiert",
+  "copyNamed": "{{name}} kopieren",
+  "copiedNamed": "{{name}} kopiert",
   "copyId": {
     "label": "ID",
     "copy": "ID kopieren"

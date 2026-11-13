@@ -103,7 +103,19 @@
       "decide": "Nichts wartet auf Ihre Entscheidung.",
       "mine": "Sie haben noch keinen Zugriff beantragt – öffnen Sie dazu den Port eines Datenprodukts.",
       "all": "Keine Zugriffsanträge zu Datenprodukten, die Sie sehen dürfen."
-    }
+    },
+    "sent": "Antrag gesendet – Sie verfolgen ihn unter Daten → Zugriffsanträge",
+    "approved": "Antrag genehmigt",
+    "refused": "Antrag abgelehnt",
+    "withdrawnDone": "Antrag zurückgezogen",
+    "approveNamed": "Antrag von {{who}} genehmigen",
+    "refuseNamed": "Antrag von {{who}} ablehnen",
+    "withdrawNamed": "Antrag von {{who}} zurückziehen",
+    "approvedFirst": "Erste Genehmigung erfasst – eine zweite Person entscheidet",
+    "withdrawConfirm": "Ihren Antrag für {{port}} zurückziehen? Er lässt sich nicht erneut senden – stellen Sie später bei Bedarf einen neuen.",
+    "statusFilter": "Status",
+    "allStatuses": "Alle Status",
+    "emptyStatus": "Kein Antrag mit diesem Status – leeren Sie den Status, um alle zu sehen."
   },
   "reviews": {
     "title": "Zugriffsprüfungen der Ports",
@@ -157,7 +169,17 @@
     "sealed": "Freigegeben von {{user}}, {{date}} – versiegelt:",
     "verify": "Siegel prüfen",
     "verifyOk": "Das Siegel passt zur Prüfung.",
-    "verifyBad": "Das Siegel passt nicht – die Prüfung wurde in der Datenbank geändert."
+    "verifyBad": "Das Siegel passt nicht – die Prüfung wurde in der Datenbank geändert.",
+    "openNamed": "Zugriffsprüfung von {{port}} in {{environment}} öffnen",
+    "facts": {
+      "until": "bis {{date}}",
+      "identities": "Identitäten {{list}}",
+      "seenAs": "gesehen als {{list}}",
+      "reads_one": "{{n}} Lesezugriff",
+      "reads_other": "{{n}} Lesezugriffe",
+      "lastSeen": "zuletzt {{date}}",
+      "subjectType": "Typ {{type}}"
+    }
   },
   "settings": {
     "title": "Zugriffseinstellungen",
@@ -243,7 +265,7 @@
       "belowFloor": "Die Einstufung liegt ohne Begründung unter der seiner Datenobjekte: Bestätigen Sie es nach einer Prüfung erneut."
     },
     "none": "Nicht bestätigt. Die Verantwortlichen der Domäne bestätigen ein Produkt, auf das man sich verlassen kann; Reifegrad 5 zählt eine gültige Bestätigung zusätzlich zu Reifegrad 4.",
-    "endorsers": "Bestätigt von den Verantwortlichen der Domäne: {{list}}.",
+    "endorsers": "Wer es bestätigen darf: die Verantwortlichen der Domäne – {{list}}.",
     "managers": "Die Domäne hat keine Verantwortlichen: Die Verwaltenden des Moduls bestätigen.",
     "ownProduct": "Niemand bestätigt ein Produkt, das er selbst verantwortet.",
     "formTitle": "{{name}} bestätigen",
@@ -253,11 +275,12 @@
     "note": "Notiz"
   },
   "ropa": {
-    "title": "Verarbeitungstätigkeiten",
+    "title": "Verarbeitungs\u00adtätigkeiten",
     "help": "Datenobjekte mit personenbezogenen Daten und wo sie verarbeitet werden (DSGVO Art. 30): Produkte, Zwecke, Rechtsgrundlage, Kategorien, Empfänger, Aufbewahrung und die Plattformen mit ihren Lieferanten.",
     "disclaimer": "Eine Arbeitsansicht aus den Datenprodukten für die bzw. den Datenschutzbeauftragten – nicht das Verzeichnis der Verarbeitungstätigkeiten selbst. Was Sie nicht sehen dürfen, wird gezählt, nie benannt.",
     "search": "Datenobjekte suchen",
     "domain": "Domäne",
+    "allDomains": "Alle Domänen",
     "personalData": "Personenbezogene Daten",
     "all": "Alle",
     "csv": "CSV",
@@ -281,6 +304,8 @@
       "inPlace": "AVV vorhanden",
       "missing": "AVV fehlt",
       "unknown": "AVV nicht erfasst"
-    }
+    },
+    "csvNamed": "Verarbeitungstätigkeiten als CSV herunterladen",
+    "pdfNamed": "Verarbeitungstätigkeiten als PDF herunterladen"
   }
 }

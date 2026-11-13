@@ -1525,6 +1525,8 @@ export interface Resources {
     remove: string;
     copy: string;
     copied: string;
+    copyNamed: string;
+    copiedNamed: string;
     'copyId.label': string;
     'copyId.copy': string;
     name: string;
@@ -4655,6 +4657,18 @@ export interface Resources {
     'requests.empty.decide': string;
     'requests.empty.mine': string;
     'requests.empty.all': string;
+    'requests.sent': string;
+    'requests.approved': string;
+    'requests.refused': string;
+    'requests.withdrawnDone': string;
+    'requests.approveNamed': string;
+    'requests.refuseNamed': string;
+    'requests.withdrawNamed': string;
+    'requests.approvedFirst': string;
+    'requests.withdrawConfirm': string;
+    'requests.statusFilter': string;
+    'requests.allStatuses': string;
+    'requests.emptyStatus': string;
     'reviews.title': string;
     'reviews.help': string;
     'reviews.start': string;
@@ -4703,6 +4717,14 @@ export interface Resources {
     'reviews.verify': string;
     'reviews.verifyOk': string;
     'reviews.verifyBad': string;
+    'reviews.openNamed': string;
+    'reviews.facts.until': string;
+    'reviews.facts.identities': string;
+    'reviews.facts.seenAs': string;
+    'reviews.facts.reads_one': string;
+    'reviews.facts.reads_other': string;
+    'reviews.facts.lastSeen': string;
+    'reviews.facts.subjectType': string;
     'settings.title': string;
     'settings.editTitle': string;
     'settings.process': string;
@@ -4785,6 +4807,7 @@ export interface Resources {
     'ropa.disclaimer': string;
     'ropa.search': string;
     'ropa.domain': string;
+    'ropa.allDomains': string;
     'ropa.personalData': string;
     'ropa.all': string;
     'ropa.csv': string;
@@ -4807,6 +4830,8 @@ export interface Resources {
     'ropa.dpa.inPlace': string;
     'ropa.dpa.missing': string;
     'ropa.dpa.unknown': string;
+    'ropa.csvNamed': string;
+    'ropa.pdfNamed': string;
   };
   dataProductViews: {
     'nav.products': string;
@@ -6085,6 +6110,16 @@ export interface Resources {
     'transfer.odpsRead_one': string;
     'transfer.odpsRead_other': string;
     'transfer.stepUp': string;
+    'transfer.removeTitle': string;
+    'transfer.removeConfirm': string;
+    'transfer.removeItems_one': string;
+    'transfer.removeItems_other': string;
+    'transfer.removeMore_one': string;
+    'transfer.removeMore_other': string;
+    'transfer.removeButton': string;
+    'transfer.originsLabel': string;
+    'transfer.originEntries_one': string;
+    'transfer.originEntries_other': string;
     'measured.help': string;
     'measured.measure': string;
     'measured.measures.snowflakeWarehouse': string;
@@ -6146,6 +6181,7 @@ export interface Resources {
     'quality.personal.more_other': string;
     'quality.personal.hidden_one': string;
     'quality.personal.hidden_other': string;
+    'quality.personal.fieldsOf': string;
     'quality.element.title': string;
     'quality.element.none': string;
     'quality.element.dimension': string;
@@ -6154,6 +6190,7 @@ export interface Resources {
     'quality.element.status': string;
     'quality.element.when': string;
     'quality.element.showAll': string;
+    'quality.element.value': string;
     'quality.sources.dbt': string;
     'quality.sources.dmf': string;
     'quality.sources.contract': string;
@@ -6163,6 +6200,16 @@ export interface Resources {
     'quality.statuses.warning': string;
     'quality.statuses.failed': string;
     'quality.statuses.error': string;
+    'duration.years_one': string;
+    'duration.years_other': string;
+    'duration.months_one': string;
+    'duration.months_other': string;
+    'duration.weeks_one': string;
+    'duration.weeks_other': string;
+    'duration.days_one': string;
+    'duration.days_other': string;
+    'duration.hours_one': string;
+    'duration.hours_other': string;
   };
   debug: {
     simulated: string;
@@ -8429,6 +8476,7 @@ export interface Resources {
     'codes.DATA_LINEAGE_API_TOKEN': string;
     'codes.DATA_LINEAGE_PUSH_SESSION': string;
     'codes.DATA_LINEAGE_RATE': string;
+    'codes.DATA_LINEAGE_DBT_RATE': string;
     'codes.DATA_LINEAGE_PUSH_TYPE': string;
     'codes.DATA_LINEAGE_EVENT_INVALID': string;
     'codes.DATA_LINEAGE_DBT_INVALID': string;

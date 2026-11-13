@@ -103,7 +103,19 @@
       "decide": "Nothing waits for your decision.",
       "mine": "You have not asked for access yet – open a data product’s port to ask.",
       "all": "No access requests of data products you may see."
-    }
+    },
+    "sent": "Request sent – you can follow it under Data → Access requests",
+    "approved": "Request approved",
+    "refused": "Request refused",
+    "withdrawnDone": "Request withdrawn",
+    "approveNamed": "Approve the request of {{who}}",
+    "refuseNamed": "Refuse the request of {{who}}",
+    "withdrawNamed": "Withdraw the request of {{who}}",
+    "approvedFirst": "First approval recorded – a second person decides",
+    "withdrawConfirm": "Withdraw your request for {{port}}? It cannot be sent again – ask anew if you need access later.",
+    "statusFilter": "Status",
+    "allStatuses": "All statuses",
+    "emptyStatus": "No request of this status – clear the status to see all."
   },
   "reviews": {
     "title": "Port access reviews",
@@ -157,7 +169,17 @@
     "sealed": "Approved by {{user}}, {{date}} – sealed:",
     "verify": "Verify the seal",
     "verifyOk": "The seal matches the review.",
-    "verifyBad": "The seal does not match – the review was changed in the database."
+    "verifyBad": "The seal does not match – the review was changed in the database.",
+    "openNamed": "Open the access review of {{port}} in {{environment}}",
+    "facts": {
+      "until": "until {{date}}",
+      "identities": "identities {{list}}",
+      "seenAs": "seen as {{list}}",
+      "reads_one": "{{n}} read",
+      "reads_other": "{{n}} reads",
+      "lastSeen": "last {{date}}",
+      "subjectType": "type {{type}}"
+    }
   },
   "settings": {
     "title": "Access settings",
@@ -243,7 +265,7 @@
       "belowFloor": "The rating is below its data objects without a reason: endorse it again after a review."
     },
     "none": "Not endorsed. The owners of its domain endorse a product they trust; maturity level 5 counts a valid endorsement on top of level 4.",
-    "endorsers": "Endorsed by the owners of its domain: {{list}}.",
+    "endorsers": "Who may endorse it: the owners of its domain – {{list}}.",
     "managers": "Its domain has no owners: the module’s managers endorse it.",
     "ownProduct": "Nobody endorses a product they own.",
     "formTitle": "Endorse {{name}}",
@@ -258,6 +280,7 @@
     "disclaimer": "A working view for the data protection officer from the data products – not the record of processing activities itself. What you may not see is counted, never named.",
     "search": "Search data objects",
     "domain": "Domain",
+    "allDomains": "All domains",
     "personalData": "Personal data",
     "all": "All",
     "csv": "CSV",
@@ -281,6 +304,8 @@
       "inPlace": "DPA in place",
       "missing": "DPA missing",
       "unknown": "DPA not recorded"
-    }
+    },
+    "csvNamed": "Download the records of processing as CSV",
+    "pdfNamed": "Download the records of processing as PDF"
   }
 }

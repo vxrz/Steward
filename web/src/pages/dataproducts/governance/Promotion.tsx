@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Badge, Group, Select, SimpleGrid, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Group, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { IconArrowRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,11 +13,10 @@ import {
 } from '@sm/shared';
 import { post } from '../../../api';
 import { QueryState } from '../../../components/common';
-import { FormModal } from '../../../components/FormModal';
-import { TableScroll } from '../../../components/TableScroll';
+import { FormModal, FormModalCancel } from '../../../components/FormModal';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate } from '../../../format';
-import { useSortedEnvironments } from '../parts';
+import { CardTable, useSortedEnvironments } from '../parts';
 import { useInvalidateGovernance, usePromotionPreview, usePromotions } from './api';
 
 const enc = encodeURIComponent;
@@ -35,41 +34,45 @@ function StateBadge({ state }: { state: DataPromotionState }) {
 function Rows({ rows, label }: { rows: (DataPromotionElement & { role?: DataMemberRole })[]; label: string }) {
   const { t } = useTranslation('dataProductGovernance');
   return (
-    <TableScroll>
-      <Table fz="sm" aria-label={label}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th scope="col">{t('promotion.source')}</Table.Th>
-            <Table.Th scope="col">{t('promotion.target')}</Table.Th>
-            <Table.Th scope="col">{t('promotion.state')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.map((e) => (
-            <Table.Tr key={e.sourceId} data-testid={`promotion-row-${e.state}`}>
-              <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
+    <CardTable
+      ariaLabel={label}
+      rows={rows}
+      rowKey={(e) => e.sourceId}
+      rowTestId={(e) => `promotion-row-${e.state}`}
+      columns={[
+        {
+          key: 'source',
+          header: t('promotion.source'),
+          cell: (e) => (
+            <>
+              <span className="mono" style={{ overflowWrap: 'anywhere' }}>
                 {e.sourceName}
-                {e.role && (
-                  <Text size="xs" c="dimmed">
-                    {t(`promotion.roles.${e.role}`)}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                {e.targetName ?? (
-                  <Text size="xs" c="dimmed">
-                    {t('promotion.lookedFor', { names: e.candidates.join(', ') })}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td>
-                <StateBadge state={e.state} />
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </TableScroll>
+              </span>
+              {e.role && (
+                <Text size="xs" c="dimmed">
+                  {t(`promotion.roles.${e.role}`)}
+                </Text>
+              )}
+            </>
+          ),
+        },
+        {
+          key: 'target',
+          header: t('promotion.target'),
+          cell: (e) =>
+            e.targetName ? (
+              <span className="mono" style={{ overflowWrap: 'anywhere' }}>
+                {e.targetName}
+              </span>
+            ) : (
+              <Text size="xs" c="dimmed">
+                {t('promotion.lookedFor', { names: e.candidates.join(', ') })}
+              </Text>
+            ),
+        },
+        { key: 'state', header: t('promotion.state'), cell: (e) => <StateBadge state={e.state} /> },
+      ]}
+    />
   );
 }
 
@@ -107,7 +110,8 @@ export function PromotionForm({ p, onClose }: { p: DataProduct; onClose: () => v
     });
   const options = p.environments.map((e) => ({ value: e, label: e }));
   return (
-    <FormModal onClose={onClose} size="xl" title={t('promotion.title', { name: p.name })}>
+    // promoted: nothing entered is lost any more – close without asking
+    <FormModal onClose={onClose} dirty={done ? false : undefined} size="xl" title={t('promotion.title', { name: p.name })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -210,8 +214,19 @@ export function PromotionForm({ p, onClose }: { p: DataProduct; onClose: () => v
               {t('promotion.done')}
             </Alert>
           )}
-          {p.permissions.includes('edit') && !done && pv && pv.counts.found > 0 && (
+          {p.permissions.includes('edit') && !done && pv && pv.counts.found > 0 ? (
             <FormButtons busy={busy} submit={t('promotion.promote')} testId="promotion-save" />
+          ) : (
+            // nothing to promote, no right to, or done: a way out besides the ✕
+            <Group justify="flex-end" mt="sm">
+              {done ? (
+                <Button variant="default" onClick={onClose} data-testid="promotion-close">
+                  {t('common:close')}
+                </Button>
+              ) : (
+                <FormModalCancel data-testid="promotion-close">{t('common:close')}</FormModalCancel>
+              )}
+            </Group>
           )}
           {(history.data ?? []).length > 0 && (
             <Stack gap={2}>

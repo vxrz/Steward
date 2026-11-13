@@ -18,6 +18,7 @@ import { readMeasuredUse } from './measured.js';
 import { applyMonitor } from './monitor-draft.js';
 import { addConsumer } from './ports.js';
 import { recordQualityResults } from './quality.js';
+import { takeScorecardSnapshots } from './scorecard-history.js';
 
 /**
  * The data products of the demo (0.22.0, ADR 0036 "Demo", docs/DATA-PRODUCTS.md): invented, on the simulated platforms.
@@ -42,7 +43,8 @@ import { recordQualityResults } from './quality.js';
  *      "Region report" documents already, one proposed (orders → daily sales); quality results of the curated orders
  *      (dbt tests) and customers (Data Metric Functions); on Orders' output port a registration the platform sees
  *      (role REPORTING) and one that stays silent, read once from ACCESS_HISTORY; an open access request for
- *      Customer 360's port.
+ *      Customer 360's port; 30 days of scorecard history behind today's snapshot (a maturity that rose twice), so
+ *      the trend has something to draw.
  *
  * Loaded with the service half of the demo (Home → Load demo, the UI tests), whether the module is on or off: switched
  * on, it is there. Once – a domain "sales" means it was loaded.
@@ -154,6 +156,11 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
     logger.warn({ err: (err as Error).message }, 'demo quality results not recorded');
   }
   try {
+    scorecardHistoryDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo scorecard history not written');
+  }
+  try {
     await consumersDemo(orders, product('customer-360'));
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo consumers and access request not set up');
@@ -190,6 +197,48 @@ function lineageDemo(el: ElementOf): void {
   db().tx(() => {
     applyOlEvents(source.id, [], events);
     db().run('UPDATE dp_lineage_sources SET received = received + ?, last_event_at = ? WHERE id = ?', events.length, nowIso(), source.id);
+  });
+}
+
+const DAY = 24 * HOUR;
+const HISTORY_DAYS = 30;
+
+/**
+ * The scorecard over time: today's snapshots (as the daily job takes them), and behind them 30 days of history – a
+ * level lower 8 to 20 days ago, two lower before that (never below 0), with as many parts more not met – so the
+ * maturity trend draws two steps up. Invented like the rest; the daily job adds a day each day.
+ */
+function scorecardHistoryDemo(now = Date.now()): void {
+  takeScorecardSnapshots(now, true);
+  const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+  const today = db().all<{ product_id: string; environment: string; maturity: number; states: string }>(
+    'SELECT product_id, environment, maturity, states FROM dp_scorecard_snapshots WHERE day = ?',
+    day(now),
+  );
+  const taken = nowIso();
+  db().tx(() => {
+    for (const r of today)
+      for (let d = 1; d <= HISTORY_DAYS; d++) {
+        const maturity = Math.max(0, r.maturity - (d > 20 ? 2 : d > 7 ? 1 : 0));
+        const states = JSON.parse(r.states) as Record<string, string>;
+        // each level less: two parts that are met today were not met then
+        let lower = (r.maturity - maturity) * 2;
+        for (const key of Object.keys(states).reverse())
+          if (lower > 0 && states[key] === 'met') {
+            states[key] = 'notMet';
+            lower--;
+          }
+        db().run(
+          `INSERT INTO dp_scorecard_snapshots (product_id, environment, day, maturity, states, taken_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (product_id, environment, day) DO NOTHING`,
+          r.product_id,
+          r.environment,
+          day(now - d * DAY),
+          maturity,
+          JSON.stringify(states),
+          taken,
+        );
+      }
   });
 }
 

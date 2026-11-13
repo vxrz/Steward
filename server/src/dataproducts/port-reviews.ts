@@ -7,6 +7,7 @@ import {
   dataPortReviewInput,
   type DataPortReview,
   type DataPortReviewDue,
+  type DataPortReviewFacts,
   type DataPortReviewItem,
   type DataPortReviewItemKind,
   type DataPortReviewStatus,
@@ -68,6 +69,8 @@ interface ItemRow {
   label: string;
   finding: string;
   detail: string;
+  /** JSON of DataPortReviewFacts (entries frozen before: null, their text in detail) */
+  facts: string | null;
   decision: 'keep' | 'remove' | null;
   comment: string;
   decided_by: string | null;
@@ -79,8 +82,10 @@ const reviewState = (message: string, context: string, extra: Record<string, str
   new HttpError(409, message, 'DATA_PORT_REVIEW_STATE', { context, ...extra });
 
 const mayDecide = (u: AuthUser, r: ReviewRow, p: ProductRow) => r.status === 'open' && decidesFor(u, p);
-const mayApprove = (u: AuthUser, r: ReviewRow, p: ProductRow) =>
-  r.status === 'submitted' && (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) && !samePerson(r.submitted_by, u);
+/** Whether `u` decided an entry of the review (four eyes: who decided or submitted never approves). */
+const decidedAny = (u: AuthUser, items: readonly Pick<ItemRow, 'decided_by'>[]) => items.some((i) => !!i.decided_by && samePerson(i.decided_by, u));
+const mayApprove = (u: AuthUser, r: ReviewRow, p: ProductRow, items: readonly Pick<ItemRow, 'decided_by'>[]) =>
+  r.status === 'submitted' && (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) && !samePerson(r.submitted_by, u) && !decidedAny(u, items);
 
 function summary(r: ReviewRow, port: PortRow | undefined, counts: { items: number; removals: number }): DataPortReviewSummary {
   return {
@@ -107,6 +112,7 @@ const itemView = (i: ItemRow): DataPortReviewItem => ({
   label: i.label,
   finding: i.finding,
   detail: i.detail,
+  facts: i.facts === null || i.facts === undefined ? null : parseJson<DataPortReviewFacts | null>(i.facts, null),
   decision: i.decision,
   comment: i.comment,
   decidedBy: i.decided_by,
@@ -199,7 +205,7 @@ export function getReview(id: string): DataPortReview {
     check: parseJson<DataPortReview['check']>(r.check_info, null),
     entries: items.map(itemView),
     mayDecide: mayDecide(u, r, p),
-    mayApprove: mayApprove(u, r, p),
+    mayApprove: mayApprove(u, r, p, items),
   };
 }
 
@@ -208,7 +214,7 @@ interface Frozen {
   consumerId: string | null;
   label: string;
   finding: string;
-  detail: string;
+  facts: DataPortReviewFacts;
 }
 
 /** The grants of an access check on the port's objects (the check read now as for person reviews, else its last snapshot). */
@@ -225,7 +231,13 @@ async function grantsOf(checkId: string, objects: string[]): Promise<{ items: Fr
   for (const s of read.subjects) {
     const rights = scoped ? s.rights : s.rights.filter(mentions);
     if (!rights.length) continue;
-    items.push({ kind: 'grant', consumerId: null, label: s.name || s.id, finding: rights.join(', ').slice(0, 2_000), detail: s.type ?? '' });
+    items.push({
+      kind: 'grant',
+      consumerId: null,
+      label: s.name || s.id,
+      finding: rights.join(', ').slice(0, 2_000),
+      facts: s.type ? { subjectType: s.type.slice(0, 100) } : {},
+    });
   }
   return { items, check: { id: check.id, name: check.name, origin: read.origin, takenAt: read.takenAt, error: read.error } };
 }
@@ -249,10 +261,13 @@ export async function startReview(productId: string, portId: string, body: unkno
       consumerId: d.consumerId,
       label: d.label ?? `(${d.kind})`,
       finding: d.state,
-      detail: [d.purpose, d.endDate ? `until ${d.endDate}` : '', d.identities.join(', '), d.seenAs.length ? `seen as ${d.seenAs.join(', ')}` : '']
-        .filter(Boolean)
-        .join(' · ')
-        .slice(0, 2_000),
+      // facts, not text: shown in the reader's language
+      facts: {
+        purpose: d.purpose.slice(0, 1_000),
+        until: d.endDate,
+        identities: d.identities.slice(0, 50),
+        seenAs: d.seenAs.slice(0, 50),
+      },
     });
   for (const a of actual.actual.filter((x) => !x.registeredAs.length))
     frozen.push({
@@ -260,10 +275,7 @@ export async function startReview(productId: string, portId: string, body: unkno
       consumerId: null,
       label: `${a.kind}:${a.name}`,
       finding: 'notRegistered',
-      detail: [a.platformName, a.objects.join(', '), a.reads !== null ? `${a.reads} reads` : '', a.lastSeen ? `last ${a.lastSeen.slice(0, 10)}` : '']
-        .filter(Boolean)
-        .join(' · ')
-        .slice(0, 2_000),
+      facts: { platform: a.platformName ?? null, objects: a.objects.slice(0, 50), reads: a.reads, lastSeen: a.lastSeen },
     });
   let check: DataPortReview['check'] = null;
   if (input.checkId) {
@@ -290,7 +302,7 @@ export async function startReview(productId: string, portId: string, body: unkno
     );
     frozen.forEach((f, i) =>
       db().run(
-        'INSERT INTO dp_port_review_items (id, review_id, seq, kind, consumer_id, label, finding, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        "INSERT INTO dp_port_review_items (id, review_id, seq, kind, consumer_id, label, finding, detail, facts) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)",
         newId(DATA_GOVERNANCE_ID_PREFIX.reviewItem),
         id,
         i + 1,
@@ -298,7 +310,7 @@ export async function startReview(productId: string, portId: string, body: unkno
         f.consumerId,
         f.label.slice(0, 500),
         f.finding,
-        f.detail,
+        JSON.stringify(f.facts),
       ),
     );
     audit({
@@ -346,7 +358,11 @@ export function decideItems(id: string, body: unknown): DataPortReview {
   return getReview(id);
 }
 
-/** The seal: SHA-256 over the canonical review and its decisions. */
+/**
+ * The seal: SHA-256 over the canonical review and its decisions – everything the evidence says: four eyes or not, the
+ * approver's comment, and per entry what was frozen (its detail too: purposes, identities, who was seen) and who
+ * decided it when.
+ */
 function sealOf(r: ReviewRow, items: ItemRow[]): string {
   return sha256(
     canonicalJson({
@@ -354,12 +370,14 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
       productId: r.product_id,
       portId: r.port_id,
       environment: r.environment,
+      fourEyes: !!Number(r.four_eyes),
       createdBy: r.created_by,
       createdAt: r.created_at,
       submittedBy: r.submitted_by,
       submittedAt: r.submitted_at,
       approvedBy: r.approved_by,
       approvedAt: r.approved_at,
+      approvalComment: r.approval_comment,
       check: parseJson(r.check_info, null),
       items: items.map((i) => ({
         seq: Number(i.seq),
@@ -367,9 +385,13 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
         consumerId: i.consumer_id,
         label: i.label,
         finding: i.finding,
+        detail: i.detail,
+        // the facts of entries frozen since they are structured (entries frozen before have none: their seal holds)
+        ...(i.facts === null || i.facts === undefined ? {} : { facts: parseJson<unknown>(i.facts, null) }),
         decision: i.decision,
         comment: i.comment,
         decidedBy: i.decided_by,
+        decidedAt: i.decided_at,
       })),
     }),
   );
@@ -437,8 +459,10 @@ export function approveReview(id: string, body: unknown): DataPortReview {
   const { r, p } = visibleReview(id, u);
   const input = dataPortReviewApprovalInput.parse(body);
   if (r.status !== 'submitted') throw reviewState('The review is not submitted', 'notSubmitted');
-  if (samePerson(r.submitted_by, u)) throw reviewState('A second person approves', 'secondPerson');
-  if (!mayApprove(u, r, p)) forbid('approve this access review', 'dataProducts');
+  const items = db().all<ItemRow>('SELECT * FROM dp_port_review_items WHERE review_id = ?', r.id);
+  if (samePerson(r.submitted_by, u) || decidedAny(u, items))
+    throw reviewState('A second person approves – not who decided or submitted the review', 'secondPerson');
+  if (!mayApprove(u, r, p, items)) forbid('approve this access review', 'dataProducts');
   if (!input.approve && !input.comment) throw reviewState('Say why it goes back', 'comment');
   db().tx(() => {
     if (input.approve) seal(r, p, u.username, input.comment);

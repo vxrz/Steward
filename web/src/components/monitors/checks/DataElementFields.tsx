@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Group, NumberInput, Select, TextInput } from '@mantine/core';
+import { Group, NumberInput, Select, SimpleGrid, TextInput } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -144,7 +144,8 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
               onChange={(v) => set({ windowMinutes: num(v) } as Partial<CheckDef>)}
             />
           </Group>
-          <Group grow align="flex-start">
+          {/* three limits: one below the other on a phone, beside each other from small screens up */}
+          <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="sm">
             <NumberInput
               data-field="minRows"
               label={t(topic ? 'form.dataElementMinMessages' : 'form.dataElementMinRows')}
@@ -172,7 +173,7 @@ export function DataElementFields({ c, set, disabled, err }: CheckFieldsProps<'d
               value={c.maxChangePct ?? ''}
               onChange={(v) => set({ maxChangePct: num(v) } as Partial<CheckDef>)}
             />
-          </Group>
+          </SimpleGrid>
         </>
       )}
       {mode === 'quality' && (

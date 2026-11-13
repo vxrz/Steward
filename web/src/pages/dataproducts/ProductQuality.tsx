@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Anchor, Badge, Group, Loader, SegmentedControl, Stack, Table, Text } from '@mantine/core';
+import { Anchor, Badge, Group, Loader, SegmentedControl, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -7,10 +7,9 @@ import { useTranslation } from 'react-i18next';
 import type { DataElementQuality, DataPersonalFields, DataQualityStatus, DataScorecardHistory } from '@sm/shared';
 import { get } from '../../api';
 import { ErrorState } from '../../components/common';
-import { TableScroll } from '../../components/TableScroll';
-import { fmtDay, fmtRelative } from '../../format';
+import { fmtDate, fmtDay, fmtNumber, fmtRelative } from '../../format';
 import { dpKeys } from './api';
-import { Section } from './parts';
+import { CardTable, Section } from './parts';
 
 /**
  * Quality, personal fields and the scorecard over time on the pages of the data products module (0.24.0, ADR 0036
@@ -69,27 +68,25 @@ export function ScorecardTrend({ productId, environment }: { productId: string; 
           {shown === 'picture' && points.length > 1 ? (
             <TrendPicture points={points} />
           ) : (
-            <TableScroll>
-              <Table striped withTableBorder fz="sm" data-testid="scorecard-trend-table">
-                <Table.Caption>{t('quality.trend.caption')}</Table.Caption>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th scope="col">{t('quality.trend.day')}</Table.Th>
-                    <Table.Th scope="col">{t('quality.trend.maturity')}</Table.Th>
-                    <Table.Th scope="col">{t('quality.trend.parts')}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {[...points].reverse().map((p) => (
-                    <Table.Tr key={p.day}>
-                      <Table.Td>{fmtDay(p.day)}</Table.Td>
-                      <Table.Td>{t('scorecard.maturity', { level: p.maturity, name: t(`scorecard.levels.${p.maturity}`) })}</Table.Td>
-                      <Table.Td>{t('quality.trend.counts', { met: p.met, partial: p.partial, notMet: p.notMet })}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </TableScroll>
+            <CardTable
+              ariaLabel={t('quality.trend.caption')}
+              testId="scorecard-trend-table"
+              rows={[...points].reverse()}
+              rowKey={(p) => p.day}
+              columns={[
+                { key: 'day', header: t('quality.trend.day'), cell: (p) => fmtDay(p.day) },
+                {
+                  key: 'maturity',
+                  header: t('quality.trend.maturity'),
+                  cell: (p) => t('scorecard.maturity', { level: p.maturity, name: t(`scorecard.levels.${p.maturity}`) }),
+                },
+                {
+                  key: 'parts',
+                  header: t('quality.trend.parts'),
+                  cell: (p) => t('quality.trend.counts', { met: p.met, partial: p.partial, notMet: p.notMet }),
+                },
+              ]}
+            />
           )}
         </Stack>
       )}
@@ -182,36 +179,36 @@ export function PersonalFieldsPanel({ kind, id }: { kind: keyof typeof PERSONAL_
                   {g.ports.length > 0 && ` · ${g.ports.map((p) => `${p.portName}${p.environment ? ` (${p.environment})` : ''}`).join(', ')}`}
                 </Text>
               </Group>
-              <TableScroll>
-                <Table fz="sm" withTableBorder mt={4}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th scope="col">{t('quality.personal.field')}</Table.Th>
-                      <Table.Th scope="col">{t('quality.personal.classification')}</Table.Th>
-                      <Table.Th scope="col">{t('quality.personal.personal')}</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {g.fields.map((f) => (
-                      <Table.Tr key={`${f.schema}.${f.field}`}>
-                        <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                          {f.schema}.{f.field}
-                        </Table.Td>
-                        <Table.Td>{f.classification ?? '–'}</Table.Td>
-                        <Table.Td>
-                          {f.personal ? (
-                            <Badge size="sm" variant="light" color="grape" tt="none">
-                              {t('quality.personal.yes')}
-                            </Badge>
-                          ) : (
-                            t('quality.personal.no')
-                          )}
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </TableScroll>
+              <CardTable
+                ariaLabel={t('quality.personal.fieldsOf', { name: g.contract.name })}
+                rows={g.fields}
+                rowKey={(f) => `${f.schema}.${f.field}`}
+                rowTestId={() => 'personal-field'}
+                columns={[
+                  {
+                    key: 'field',
+                    header: t('quality.personal.field'),
+                    cell: (f) => (
+                      <span className="mono" style={{ overflowWrap: 'anywhere' }}>
+                        {f.schema}.{f.field}
+                      </span>
+                    ),
+                  },
+                  { key: 'classification', header: t('quality.personal.classification'), cell: (f) => f.classification ?? '–' },
+                  {
+                    key: 'personal',
+                    header: t('quality.personal.personal'),
+                    cell: (f) =>
+                      f.personal ? (
+                        <Badge size="sm" variant="light" color="grape" tt="none">
+                          {t('quality.personal.yes')}
+                        </Badge>
+                      ) : (
+                        t('quality.personal.no')
+                      ),
+                  },
+                ]}
+              />
               {g.more > 0 && (
                 <Text size="xs" c="dimmed">
                   {t('quality.personal.more', { count: g.more })}
@@ -267,34 +264,47 @@ export function ElementQualityPanel({ elementId }: { elementId: string }) {
                 </Badge>
               ))}
           </Group>
-          <TableScroll>
-            <Table fz="sm" striped withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th scope="col">{t('quality.element.test')}</Table.Th>
-                  <Table.Th scope="col">{t('quality.element.source')}</Table.Th>
-                  <Table.Th scope="col">{t('quality.element.status')}</Table.Th>
-                  <Table.Th scope="col">{t('quality.element.when')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {d.results.slice(0, all ? undefined : SHOWN).map((r) => (
-                  <Table.Tr key={r.id}>
-                    <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
+          <CardTable
+            ariaLabel={t('quality.element.title')}
+            rows={d.results.slice(0, all ? undefined : SHOWN)}
+            rowKey={(r) => r.id}
+            rowTestId={() => 'quality-result'}
+            columns={[
+              {
+                key: 'test',
+                header: t('quality.element.test'),
+                cell: (r) => (
+                  <>
+                    <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
                       {r.name}
-                    </Table.Td>
-                    <Table.Td>{t(`quality.sources.${r.source}`)}</Table.Td>
-                    <Table.Td>
-                      <Badge size="sm" variant="light" color={STATUS_COLOR[r.status]} tt="none">
-                        {t(`quality.statuses.${r.status}`)}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>{fmtRelative(r.observedAt)}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableScroll>
+                    </Text>
+                    {/* what the tool said: why a test failed or warned */}
+                    {r.message && (
+                      <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+                        {r.message}
+                      </Text>
+                    )}
+                  </>
+                ),
+              },
+              { key: 'source', header: t('quality.element.source'), cell: (r) => t(`quality.sources.${r.source}`) },
+              {
+                key: 'status',
+                header: t('quality.element.status'),
+                cell: (r) => (
+                  <Badge size="sm" variant="light" color={STATUS_COLOR[r.status]} tt="none">
+                    {t(`quality.statuses.${r.status}`)}
+                  </Badge>
+                ),
+              },
+              { key: 'value', header: t('quality.element.value'), cell: (r) => (r.value === null ? '–' : fmtNumber(r.value)) },
+              {
+                key: 'when',
+                header: t('quality.element.when'),
+                cell: (r) => <span title={fmtDate(r.observedAt)}>{fmtRelative(r.observedAt)}</span>,
+              },
+            ]}
+          />
           {!all && d.results.length > SHOWN && (
             <Anchor component="button" size="sm" onClick={() => setAll(true)}>
               {t('quality.element.showAll', { count: d.results.length })}

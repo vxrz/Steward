@@ -197,6 +197,35 @@ describe('declared against actual consumers', () => {
     setMockAccessHistoryAvailable(true);
   });
 
+  it('reads now only the platforms the person may use – the others keep their last read, not marked failed', async () => {
+    const { db } = await import('../src/db.js');
+    const before = db().get<{ status: string; read_at: string; read_by: string }>(
+      'SELECT status, read_at, read_by FROM dp_actual_reads WHERE port_id = ? AND environment = ? AND platform_id = ?',
+      port,
+      'prod',
+      kafka,
+    )!;
+    expect(before.status).toBe('ok');
+    // the Kafka platform becomes a team's that dana is not in
+    const team = (await s.api('POST', '/teams', { name: 'Invented Kafka team', members: ['adam'] })).id;
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('platform', ?, ?, ?)", kafka, team, new Date().toISOString());
+    try {
+      const v = await dana('POST', `/data-products/${product}/ports/${port}/actual/read`, { environment: 'prod' });
+      const after = db().get<{ status: string; read_at: string; read_by: string }>(
+        'SELECT status, read_at, read_by FROM dp_actual_reads WHERE port_id = ? AND environment = ? AND platform_id = ?',
+        port,
+        'prod',
+        kafka,
+      )!;
+      expect(after).toEqual(before);
+      // what the last read found stays (dana sees it counted, not named: the platform is no longer hers to see)
+      expect(v.reads.map((r: { platformKind: string }) => r.platformKind)).toContain('snowflake');
+      expect(db().get("SELECT 1 FROM dp_actual_consumers WHERE port_id = ? AND platform_id = ? AND name = 'gov-billing'", port, kafka)).toBeTruthy();
+    } finally {
+      db().run("DELETE FROM resource_teams WHERE kind = 'platform' AND resource_id = ? AND team_id = ?", kafka, team);
+    }
+  });
+
   it('reads the comparison with a fixed number of statements, however many registrations there are', async () => {
     const url = `/data-products/${product}/ports/${port}/actual?environment=prod`;
     await dana('GET', url);
@@ -268,7 +297,20 @@ describe('access requests', () => {
   });
 
   it('needs two people for a product rated high, never the requester, and refusals give a reason', async () => {
+    // asked while the product was not rated high: four eyes all the same when it is rated high at the decision
+    const before = await vera('POST', `/data-products/${product}/ports/${port}/access-requests`, {
+      environment: 'prod',
+      consumer: { kind: 'text', text: 'Invented early report' },
+      purpose: 'Report',
+    });
+    expect(before.fourEyes).toBe(false);
     await dana('PUT', `/data-products/${product}/rating`, { confidentiality: { level: 'high', justification: 'Customer orders' } });
+    expect(await dana('POST', `/data-products/access-requests/${before.id}/decision`, { decision: 'approve' })).toMatchObject({
+      status: 'pending',
+      fourEyes: true,
+      approvals: [expect.objectContaining({ by: 'dana' })],
+    });
+    expect((await s.api('POST', `/data-products/access-requests/${before.id}/decision`, { decision: 'approve' })).status).toBe('approved');
     const r = await vera('POST', `/data-products/${product}/ports/${port}/access-requests`, {
       environment: 'prod',
       consumer: { kind: 'text', text: 'Invented dashboard' },
@@ -322,6 +364,30 @@ describe('access requests', () => {
     await adam('POST', `/data-products/${hidden}/ports`, { direction: 'output', name: 'secret', type: 'table' });
     const all = await olivia('GET', '/data-products/access-requests?scope=all');
     expect(all.items.every((x: { product: { id: string } }) => x.product.id !== hidden)).toBe(true);
+  });
+
+  it('starts the platform team’s process as the approver, and two approvals at once register one consumer', async () => {
+    const processId = ((await s.api('GET', '/processes')) as { id: string }[])[0]!.id;
+    await s.api('PUT', `/data-products/${product}/access-settings`, { processId });
+    try {
+      const r = await olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, {
+        environment: 'prod',
+        consumer: { kind: 'text', text: 'Invented twice approved' },
+        purpose: 'Race',
+      });
+      const out = await Promise.allSettled([
+        dana('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }),
+        s.api('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }),
+      ]);
+      expect(out.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+      const consumers = (await dana('GET', `/data-products/${product}/ports/${port}/consumers`)) as { text: string }[];
+      expect(consumers.filter((c) => c.text === 'Invented twice approved')).toHaveLength(1);
+      const done = await dana('GET', `/data-products/access-requests/${r.id}`);
+      expect(done.status).toBe('approved');
+      expect(done.runId ?? done.decisionComment).toBeTruthy();
+    } finally {
+      await s.api('PUT', `/data-products/${product}/access-settings`, { processId: null });
+    }
   });
 });
 

@@ -1,18 +1,18 @@
 {
   "section": {
-    "title": "Lineage aus Werkzeugen",
+    "title": "Datenherkunft aus Werkzeugen",
     "description": "OpenLineage-Ereignisse aus Airflow, dbt, Spark und ähnlichen Werkzeugen sowie Manifest und Laufergebnisse von dbt schlagen Schritte zwischen den Elementen des Katalogs vor. Nichts wird geändert, bevor jemand einen Vorschlag annimmt.",
-    "new": "Neue Lineage-Quelle",
-    "emptyTitle": "Noch keine Lineage-Quelle",
-    "emptyText": "Eine Lineage-Quelle gibt einem Werkzeug eine Adresse und ein Push-Token: Seine Jobs werden zu vorgeschlagenen Schritten, ihre Läufe zu den letzten Läufen der Schritte.",
-    "whoCanAct": "Die Verwalter des Moduls richten Lineage-Quellen ein."
+    "new": "Neue Herkunftsquelle",
+    "emptyTitle": "Noch keine Herkunftsquelle",
+    "emptyText": "Eine Herkunftsquelle gibt einem Werkzeug eine Adresse und ein Push-Token: Seine Jobs werden zu vorgeschlagenen Schritten, ihre Läufe zu den letzten Läufen der Schritte.",
+    "whoCanAct": "Die Verwalter des Moduls richten Herkunftsquellen ein."
   },
   "kinds": {
     "openlineage": "OpenLineage",
     "dbt": "dbt"
   },
   "kindHints": {
-    "openlineage": "Laufereignisse (Spezifikation 2-0-x), gesendet von Airflow, dbt-ol, Spark, Flink und anderen OpenLineage-Clients. Datensätze werden Elementen über den OpenLineage-Namensraum und -Namen zugeordnet, den die Erkennung ihnen gibt.",
+    "openlineage": "Laufereignisse (Spezifikation 2-0-x), gesendet von Airflow, dbt-ol, Spark, Flink und anderen OpenLineage-Clients. Datenquellen werden Elementen über den OpenLineage-Namensraum und -Namen zugeordnet, den die Erkennung ihnen gibt.",
     "dbt": "manifest.json und run_results.json, hier hochgeladen oder aus der CI gesendet. Modelle und Quellen werden Elementen der Plattform über Datenbank, Schema und Namen zugeordnet."
   },
   "columns": {
@@ -28,8 +28,8 @@
   "openCount_one": "{{count}} offen",
   "openCount_other": "{{count}} offen",
   "form": {
-    "newTitle": "Neue Lineage-Quelle",
-    "editTitle": "Lineage-Quelle {{name}} ändern",
+    "newTitle": "Neue Herkunftsquelle",
+    "editTitle": "Herkunftsquelle {{name}} ändern",
     "name": "Name",
     "kind": "Art",
     "platform": "Plattform",
@@ -46,7 +46,7 @@
     "teamsHint": "Wer die Quelle, ihre Push-Tokens und ihre Vorschläge sieht. Keine: alle, die das Modul verwenden. Eine neue Quelle gehört standardmäßig Ihren Teams.",
     "enabled": "Nimmt Sendungen an",
     "enabledHint": "Pausiert werden Sendungen abgewiesen (409) und nichts ändert sich.",
-    "notSaved": "Die Lineage-Quelle wurde nicht gespeichert"
+    "notSaved": "Die Herkunftsquelle wurde nicht gespeichert"
   },
   "page": {
     "settings": "Einstellungen",
@@ -62,9 +62,9 @@
     "pushHintOpenlineage": "OpenLineage-Clients senden ihre Ereignisse hierher (ein Ereignis oder ein Array von bis zu 100, höchstens 1 MB) mit einem Push-Token. Clients, die ihren Standard-Endpunkt (api/v1/lineage) an die Adresse anhängen, verwenden sie mit einem Schrägstrich am Ende.",
     "pushHintDbt": "Die CI sendet manifest.json an …/dbt/manifest und run_results.json an …/dbt/run-results mit einem Push-Token.",
     "lastError": "Zuletzt abgewiesene Sendung ({{when}}): {{error}}",
-    "delete": "Lineage-Quelle löschen",
-    "deleteConfirm": "Die Lineage-Quelle „{{name}}“ mit ihren Push-Tokens und Vorschlägen löschen? Die Schritte aus ihren Vorschlägen bleiben.",
-    "deleted": "Lineage-Quelle gelöscht"
+    "delete": "Herkunftsquelle löschen",
+    "deleteConfirm": "Die Herkunftsquelle „{{name}}“ mit ihren Push-Tokens und Vorschlägen löschen? Die Schritte aus ihren Vorschlägen bleiben.",
+    "deleted": "Herkunftsquelle gelöscht"
   },
   "tokens": {
     "title": "Push-Tokens",
@@ -105,7 +105,7 @@
   },
   "dbt": {
     "title": "dbt-Dateien",
-    "help": "Laden Sie die Dateien eines dbt-Laufs hoch (zuerst target/manifest.json, dann target/run_results.json). Nur was die Dateien über Lineage und Ergebnisse sagen, wird behalten – nie Code, Beschreibungen oder Meldungen.",
+    "help": "Laden Sie die Dateien eines dbt-Laufs hoch (zuerst target/manifest.json, dann target/run_results.json). Nur was die Dateien über Datenherkunft und Ergebnisse sagen, wird behalten – nie Code, Beschreibungen oder Meldungen.",
     "manifest": "manifest.json hochladen",
     "runResults": "run_results.json hochladen",
     "uploaded": "{{file}} gelesen",
@@ -133,7 +133,7 @@
   },
   "proposals": {
     "title": "Vorgeschlagene Schritte",
-    "help": "Was die Werkzeuge darüber sagen, wie Daten fließen – es wartet auf eine Person. Annehmen legt einen Schritt an (dokumentiert dort, wo sein Ergebnis liegt); Ablehnen hält den Vorschlag fern, bis der Job andere Datensätze nennt.",
+    "help": "Was die Werkzeuge darüber sagen, wie Daten fließen – es wartet auf eine Person. Annehmen legt einen Schritt an (dokumentiert dort, wo sein Ergebnis liegt); Ablehnen hält den Vorschlag fern, bis der Job andere Datenquellen nennt.",
     "statuses": {
       "open": "Offen",
       "accepted": "Angenommen",
@@ -160,10 +160,10 @@
     "acceptNamed": "Vorschlag {{name}} annehmen",
     "reject": "Ablehnen",
     "rejectNamed": "Vorschlag {{name}} ablehnen",
-    "rejectConfirm": "Den Vorschlag „{{name}}“ ablehnen? Er bleibt abgelehnt, bis der Job andere Datensätze nennt.",
+    "rejectConfirm": "Den Vorschlag „{{name}}“ ablehnen? Er bleibt abgelehnt, bis der Job andere Datenquellen nennt.",
     "acceptTitle": "{{name}} annehmen",
     "acceptHelp": "Ein Schritt von {{inputs}} Eingabe(n) zu {{outputs}} Ausgabe(n) wird angelegt, mit dem Werkzeug als Ausführendem. Er gehört zu den Produkten seiner Ausgaben.",
-    "acceptChangeHelp": "Der Schritt, zu dem dieser Vorschlag wurde, wird auf die Datensätze geändert, die das Werkzeug jetzt nennt. Eingaben und Ausgaben, die Sie nicht sehen dürfen, bleiben.",
+    "acceptChangeHelp": "Der Schritt, zu dem dieser Vorschlag wurde, wird auf die Datenquellen geändert, die das Werkzeug jetzt nennt. Eingaben und Ausgaben, die Sie nicht sehen dürfen, bleiben.",
     "stepName": "Name des Schritts",
     "stepKind": "Art",
     "accepted": "Schritt gespeichert",
@@ -171,9 +171,9 @@
     "notDecided": "Über den Vorschlag wurde nicht entschieden",
     "hidden_one": "{{count}} Element, das Sie nicht sehen dürfen",
     "hidden_other": "{{count}} Elemente, die Sie nicht sehen dürfen",
-    "unmatched_one": "{{count}} Datensatz nicht im Katalog",
-    "unmatched_other": "{{count}} Datensätze nicht im Katalog",
-    "unmatchedTitle": "Datensätze nicht im Katalog",
+    "unmatched_one": "{{count}} Datenquelle nicht im Katalog",
+    "unmatched_other": "{{count}} Datenquellen nicht im Katalog",
+    "unmatchedTitle": "Datenquellen nicht im Katalog",
     "nothing": "Nichts im Katalog",
     "changed": "Ändert einen dokumentierten Schritt",
     "documentedBy": "Durch einen Schritt dokumentiert",

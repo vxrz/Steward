@@ -129,7 +129,7 @@ export function LineageSourceForm({ source, onClose, onSaved }: { source?: DataL
                     value={a.from}
                     onChange={(e) => setAlias(i, { from: e.currentTarget.value })}
                     style={{ flex: '1 1 200px' }}
-                    className="mono"
+                    classNames={{ input: 'mono' }}
                   />
                   <TextInput
                     size="xs"
@@ -139,7 +139,7 @@ export function LineageSourceForm({ source, onClose, onSaved }: { source?: DataL
                     value={a.to}
                     onChange={(e) => setAlias(i, { to: e.currentTarget.value })}
                     style={{ flex: '1 1 200px' }}
-                    className="mono"
+                    classNames={{ input: 'mono' }}
                   />
                   <Tooltip label={t('form.aliasRemove')}>
                     <ActionIcon

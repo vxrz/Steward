@@ -87,6 +87,9 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.23.0:** the access model, phase 2 – access lists of processes, platforms, monitors and plant sites become shares, shares on more kinds – and module roles (#297); price books phase 2: contract conditions, derived books for providers with a fee on top, rate sheets read from Snowflake and Confluent, estimates recalculated on new prices.
 - **0.24.0:** data products, phase 2 ([ADR 0036](adr/0036-data-products-module.md#phases)).
 - **0.25.0:** data products, phase 3 ([ADR 0037](adr/0037-data-products-connectors-files-edge.md)) – generic parts and bridges with one technology list for technologies Steward does not know yet; lineage from Debezium, Kafka Connect and Confluent connectors; file-based products on object storage; edge devices linked to their systems with the applications that run on them and an Industrial Edge readout that suggests, never decides; semantic models (Apache Ossie) as governed records; an OpenLineage export.
+  - dbt `manifest.json` and `run_results.json` parsed in a worker thread (today a 40 MB file holds the server for about a second; the rate limit of dbt files keeps that rare).
+  - The GDPR Art. 30 view: transfers to third countries with their safeguards (Art. 30(1)(e)), a reference to the technical and organisational measures (Art. 30(1)(g)), and a flag when the list is cut at 5,000 data objects.
+  - Fewer statements for the scorecard (52) and the product page (26): the completeness results read only for ports with a completeness objective, the quality and personal-field reads folded into the reads of the output elements.
 
 ## Later
 

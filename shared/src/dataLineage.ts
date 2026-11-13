@@ -53,6 +53,8 @@ export const DATA_LINEAGE_LIMITS = {
   eventsPerPush: 100,
   /** Datasets of one event's inputs and outputs each (more is refused as not a run event Steward takes) */
   datasetsPerEvent: 500,
+  /** Namespaces (as sent and as aliased) one event's datasets are matched in; datasets of further ones stay unmatched, with a warning */
+  namespacesPerEvent: 200,
   /** Matched elements per side of a proposal (a step's ends) */
   ends: DATA_PRODUCT_LIMITS.stepEnds,
   /** Unmatched dataset names kept per side of a proposal (the rest counted) */
@@ -71,6 +73,11 @@ export const DATA_LINEAGE_LIMITS = {
   cidrs: 20,
   expiresInDays: 730,
   rateLimitPerMinute: { default: 120, max: 1_200 },
+  /**
+   * dbt files (manifest.json, run_results.json) per source and minute, pushed and uploaded together – each is parsed in
+   * one piece (up to 40 MB), so far fewer than events, whatever a token's own limit
+   */
+  dbtFilesPerMinute: 6,
   /** A page of proposals */
   page: 100,
   /** Proposals written per transaction (dbt, Snowflake), with a turn of the event loop between */

@@ -36,23 +36,32 @@ export const statesOf = (s: DataProductScorecard): Record<string, DataScorecardS
   Object.fromEntries(s.parts.map((p) => [p.group === 'part' ? p.id : `iso:${p.id}`, p.state]));
 
 /**
- * Takes today's snapshots (UTC day) unless they were taken: every product that is not retired, in each of its
+ * Takes today's snapshots (UTC day) that were not taken yet: every product that is not retired, in each of its
  * environments (a product without one: once, without an environment), in bulk – a fixed number of statements per 200
- * products and environment. Then removes what is older than 400 days. Returns the number of snapshots written.
+ * products and environment. What a run that stopped half-way (a crash, a restart) left out is taken by the next one; a
+ * product added later in the day gets its snapshot then too. Then removes what is older than 400 days. Returns the
+ * number of snapshots written (`force`: all of today's again).
  */
 export function takeScorecardSnapshots(now = Date.now(), force = false): number {
   const day = dayOf(now);
-  if (!force && db().get('SELECT 1 FROM dp_scorecard_snapshots WHERE day = ? LIMIT 1', day)) return 0;
   const products = db()
     .all<{ id: string }>("SELECT id FROM dp_products WHERE lifecycle <> 'retired' ORDER BY id")
     .map((r) => r.id);
   const envs = environmentsOf(products);
+  const taken = force
+    ? new Set<string>()
+    : new Set(
+        db()
+          .all<{ product_id: string; environment: string }>('SELECT product_id, environment FROM dp_scorecard_snapshots WHERE day = ?', day)
+          .map((r) => `${r.product_id}\u0000${r.environment}`),
+      );
   const byEnv = new Map<string, string[]>();
   for (const p of products) {
     const mine = envs.filter((e) => e.product_id === p).map((e) => e.environment);
-    for (const e of mine.length ? mine : ['']) byEnv.set(e, [...(byEnv.get(e) ?? []), p]);
+    for (const e of mine.length ? mine : ['']) if (!taken.has(`${p}\u0000${e}`)) byEnv.set(e, [...(byEnv.get(e) ?? []), p]);
   }
-  const taken = nowIso();
+  if (!byEnv.size) return 0;
+  const takenAt = nowIso();
   let written = 0;
   for (const [env, ids] of byEnv)
     for (const part of chunks(ids, CHUNK)) {
@@ -67,7 +76,7 @@ export function takeScorecardSnapshots(now = Date.now(), force = false): number 
             day,
             c.maturity,
             JSON.stringify(statesOf(c)),
-            taken,
+            takenAt,
           ).changes;
         }
       });

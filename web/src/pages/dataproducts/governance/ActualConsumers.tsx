@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Badge, Button, Collapse, Group, Stack, Table, TagsInput, Text, VisuallyHidden } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Collapse, Group, Stack, TagsInput, Text } from '@mantine/core';
 import { IconChevronDown, IconEye, IconEyeOff, IconHelpCircle, IconPencil, IconRefresh, IconUserQuestion } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,11 +13,10 @@ import {
 } from '@sm/shared';
 import { post, put } from '../../../api';
 import { FormModal } from '../../../components/FormModal';
-import { TableScroll } from '../../../components/TableScroll';
 import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate, fmtDay, fmtNumber } from '../../../format';
-import { HiddenCount } from '../parts';
+import { CardTable, HiddenCount } from '../parts';
 import { useActual, useInvalidateGovernance } from './api';
 
 const enc = encodeURIComponent;
@@ -88,7 +87,9 @@ export function ActualConsumers({ p, port, environment }: { p: DataProduct; port
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         data-testid="port-actual-toggle"
+        // grows with a wrapped summary, never below the 24 px of a target (WCAG 2.5.8)
         h="auto"
+        mih={26}
         maw="100%"
         styles={{ label: { whiteSpace: 'normal', textAlign: 'left' } }}
       >
@@ -123,54 +124,65 @@ export function ActualConsumers({ p, port, environment }: { p: DataProduct; port
               </Group>
             )}
             {v && v.declared.length > 0 && (
-              <TableScroll>
-                <Table fz="sm" aria-label={t('actual.declaredTitle', { name: port.name })}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th scope="col">{t('actual.who')}</Table.Th>
-                      <Table.Th scope="col">{t('actual.state')}</Table.Th>
-                      <Table.Th scope="col">{t('actual.identities')}</Table.Th>
-                      {canEdit && (
-                        <Table.Th scope="col">
-                          <VisuallyHidden>{t('actual.actions')}</VisuallyHidden>
-                        </Table.Th>
-                      )}
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {v.declared.map((d) => (
-                      <Table.Tr key={d.consumerId} data-testid="actual-declared-row">
-                        <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                          {who(d)}
-                          {d.endDate && (
-                            <Text size="xs" c="dimmed">
-                              {t('actual.until', { date: fmtDay(d.endDate) })}
-                            </Text>
-                          )}
-                        </Table.Td>
-                        <Table.Td>
-                          <DeclaredStateBadge state={d.state} />
-                          {d.seenAs.length > 0 && (
-                            <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                              {d.seenAs.join(', ')}
-                            </Text>
-                          )}
-                        </Table.Td>
-                        <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                          {d.identities.join(', ') || '–'}
-                        </Table.Td>
-                        {canEdit && (
-                          <Table.Td>
+              <CardTable
+                ariaLabel={t('actual.declaredTitle', { name: port.name })}
+                rows={v.declared}
+                rowKey={(d) => d.consumerId}
+                rowTestId={() => 'actual-declared-row'}
+                columns={[
+                  {
+                    key: 'who',
+                    header: t('actual.who'),
+                    cell: (d) => (
+                      <>
+                        <span style={{ overflowWrap: 'anywhere' }}>{who(d)}</span>
+                        {d.endDate && (
+                          <Text size="xs" c="dimmed">
+                            {t('actual.until', { date: fmtDay(d.endDate) })}
+                          </Text>
+                        )}
+                      </>
+                    ),
+                  },
+                  {
+                    key: 'state',
+                    header: t('actual.state'),
+                    cell: (d) => (
+                      <>
+                        <DeclaredStateBadge state={d.state} />
+                        {d.seenAs.length > 0 && (
+                          <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                            {d.seenAs.join(', ')}
+                          </Text>
+                        )}
+                      </>
+                    ),
+                  },
+                  {
+                    key: 'identities',
+                    header: t('actual.identities'),
+                    cell: (d) => (
+                      <span className="mono" style={{ overflowWrap: 'anywhere' }}>
+                        {d.identities.join(', ') || '–'}
+                      </span>
+                    ),
+                  },
+                  ...(canEdit
+                    ? [
+                        {
+                          key: 'actions',
+                          header: t('actual.actions'),
+                          actions: true,
+                          cell: (d: DataDeclaredConsumer) => (
                             <ActionIcon variant="subtle" color="gray" aria-label={t('actual.editIdentities', { name: who(d) })} onClick={() => setEditing(d)}>
                               <IconPencil size={14} />
                             </ActionIcon>
-                          </Table.Td>
-                        )}
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </TableScroll>
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             )}
             {v && (notRegistered.length > 0 || v.hiddenActual > 0) && (
               <>
@@ -178,40 +190,41 @@ export function ActualConsumers({ p, port, environment }: { p: DataProduct; port
                   {t('actual.notRegisteredTitle')}
                 </Text>
                 {notRegistered.length > 0 && (
-                  <TableScroll>
-                    <Table fz="sm" aria-label={t('actual.notRegisteredTitle')}>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th scope="col">{t('actual.reader')}</Table.Th>
-                          <Table.Th scope="col">{t('actual.platform')}</Table.Th>
-                          <Table.Th scope="col">{t('actual.objects')}</Table.Th>
-                          <Table.Th scope="col">{t('actual.reads')}</Table.Th>
-                          <Table.Th scope="col">{t('actual.lastSeen')}</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {notRegistered.map((a) => (
-                          <Table.Tr key={`${a.platformId}:${a.kind}:${a.name}`} data-testid="actual-unregistered-row">
-                            <Table.Td>
-                              <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                                {a.name}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {t(`actual.kinds.${a.kind}`)}
-                                {a.detail && ` · ${a.detail}`}
-                              </Text>
-                            </Table.Td>
-                            <Table.Td>{a.platformName}</Table.Td>
-                            <Table.Td className="mono" style={{ overflowWrap: 'anywhere' }}>
-                              {a.objects.join(', ')}
-                            </Table.Td>
-                            <Table.Td className="nowrap">{a.reads === null ? '–' : fmtNumber(a.reads)}</Table.Td>
-                            <Table.Td className="nowrap">{a.lastSeen ? fmtDate(a.lastSeen) : '–'}</Table.Td>
-                          </Table.Tr>
-                        ))}
-                      </Table.Tbody>
-                    </Table>
-                  </TableScroll>
+                  <CardTable
+                    ariaLabel={t('actual.notRegisteredTitle')}
+                    rows={notRegistered}
+                    rowKey={(a) => `${a.platformId}:${a.kind}:${a.name}`}
+                    rowTestId={() => 'actual-unregistered-row'}
+                    columns={[
+                      {
+                        key: 'reader',
+                        header: t('actual.reader'),
+                        cell: (a) => (
+                          <>
+                            <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                              {a.name}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {t(`actual.kinds.${a.kind}`)}
+                              {a.detail && ` · ${a.detail}`}
+                            </Text>
+                          </>
+                        ),
+                      },
+                      { key: 'platform', header: t('actual.platform'), cell: (a) => a.platformName },
+                      {
+                        key: 'objects',
+                        header: t('actual.objects'),
+                        cell: (a) => (
+                          <span className="mono" style={{ overflowWrap: 'anywhere' }}>
+                            {a.objects.join(', ')}
+                          </span>
+                        ),
+                      },
+                      { key: 'reads', header: t('actual.reads'), nowrap: true, cell: (a) => (a.reads === null ? '–' : fmtNumber(a.reads)) },
+                      { key: 'lastSeen', header: t('actual.lastSeen'), nowrap: true, cell: (a) => (a.lastSeen ? fmtDate(a.lastSeen) : '–') },
+                    ]}
+                  />
                 )}
                 <HiddenCount count={v.hiddenActual} />
                 {canEdit && (

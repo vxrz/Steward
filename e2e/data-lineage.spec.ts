@@ -84,6 +84,11 @@ test.describe('lineage from tools', () => {
     await expect(page).toHaveURL(/\/data-products\/lineage\/dpl_/);
     const sourceId = /\/data-products\/lineage\/(dpl_[^/?#]+)/.exec(page.url())![1]!;
     await expect(page.getByRole('heading', { level: 1 })).toContainText(`Airflow ${token}`);
+    // the source's page belongs to Discovery in the navigation, not to the product list
+    await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Discovery', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
 
     // a push token, shown once
     await page.getByTestId('lineage-token-new').click();
@@ -94,6 +99,10 @@ test.describe('lineage from tools', () => {
     const pushToken = ((await secret.locator('pre, code').first().textContent()) ?? '').trim();
     expect(pushToken).toMatch(/^sdl_/);
     await expect(secret).toContainText('OPENLINEAGE_API_KEY');
+    // a click beside the dialog does not lose the token; each copy button names its block
+    await page.mouse.click(5, 5);
+    await expect(secret).toBeVisible();
+    await expect(secret.getByRole('button', { name: 'Copy Token', exact: true })).toBeVisible();
     await page.getByTestId('lineage-token-done').click();
     await expect(page.getByTestId('lineage-token')).toHaveCount(1);
     await expectAccessible(page, 'lineage source');
@@ -184,7 +193,12 @@ test.describe('lineage from tools', () => {
     await expect(page.getByTestId('lineage-sources')).toBeVisible();
     await expect(page.getByTestId('proposal-card').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'discovery with lineage on a phone');
+    // the four statuses one below the other: the filter stays inside the page, none is cut off at the edge
+    const filter = page.getByTestId('lineage-inbox').getByTestId('proposal-status');
+    await expect(filter).toHaveAttribute('data-orientation', 'vertical');
+    const box = await filter.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await expectAccessible(page, 'discovery with lineage on a phone', { wcag22: true });
     await page.goto(`/data-products/lineage/${src.id}`);
     await expect(page.getByTestId('proposal-card').filter({ hasText: `phone_${token}` })).toBeVisible();
     await expectNoHorizontalScroll(page);

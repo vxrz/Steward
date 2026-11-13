@@ -75,6 +75,7 @@ export interface MeasuredAllocationRow {
   subjects: string;
   read_at: string | null;
   read_error: string | null;
+  updated_at: string;
   updated_by: string;
 }
 
@@ -136,8 +137,10 @@ async function readSnowflake(
   const c = snowflakeClient(platform, secrets);
   const r: Reading = { byMonth: new Map() };
   const wanted = new Set(subjects.map((s) => s.toUpperCase()));
+  // months in UTC (as the cost lines and the window): START_TIME is TIMESTAMP_LTZ – the session's time zone (an
+  // account's default is America/Los_Angeles) would move the first hours of a month into the one before
   const warehouses = await c.query(
-    `/* steward:costs-measure-warehouses */ SELECT WAREHOUSE_NAME, TO_VARCHAR(START_TIME, 'YYYY-MM') AS MONTH, TO_VARCHAR(SUM(CREDITS_USED)) AS CREDITS
+    `/* steward:costs-measure-warehouses */ SELECT WAREHOUSE_NAME, TO_VARCHAR(CONVERT_TIMEZONE('UTC', START_TIME), 'YYYY-MM') AS MONTH, TO_VARCHAR(SUM(CREDITS_USED)) AS CREDITS
      FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY WHERE START_TIME >= TO_TIMESTAMP_LTZ(?) GROUP BY 1, 2 ORDER BY 2, 1 LIMIT ${MAX_ROWS}`,
     [from],
   );
@@ -153,7 +156,7 @@ async function readSnowflake(
     // the declared tags as bind parameters, never in the statement's text
     const tags = subjects.slice(0, 500);
     const rows = await c.query(
-      `/* steward:costs-measure-tags */ SELECT QUERY_TAG, TO_VARCHAR(START_TIME, 'YYYY-MM') AS MONTH, TO_VARCHAR(SUM(CREDITS_ATTRIBUTED_COMPUTE)) AS CREDITS
+      `/* steward:costs-measure-tags */ SELECT QUERY_TAG, TO_VARCHAR(CONVERT_TIMEZONE('UTC', START_TIME), 'YYYY-MM') AS MONTH, TO_VARCHAR(SUM(CREDITS_ATTRIBUTED_COMPUTE)) AS CREDITS
        FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY WHERE START_TIME >= TO_TIMESTAMP_LTZ(?) AND QUERY_TAG IN (${tags.map(() => '?').join(', ')})
        GROUP BY 1, 2 ORDER BY 2, 1 LIMIT ${MAX_ROWS}`,
       [from, ...tags],
@@ -308,7 +311,7 @@ async function readGroup(group: MeasuredAllocationRow[], now: number): Promise<v
   const ids = group.map((x) => x.id);
   try {
     // the person who last set the allocation (a platform manager) – their use right is checked before every read
-    const owner = [...group].sort((x, y) => (x.updated_by < y.updated_by ? -1 : 1))[0]!.updated_by;
+    const owner = [...group].sort((x, y) => (y.updated_at > x.updated_at ? 1 : y.updated_at < x.updated_at ? -1 : x.id < y.id ? -1 : 1))[0]!.updated_by;
     const kind = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', a.platform_id)?.kind ?? '';
     if (!MEASURE_PLATFORM_KINDS[measure].includes(kind)) throw new Error(`the platform is not of kind ${MEASURE_PLATFORM_KINDS[measure].join(' or ')}`);
     const readerId = measure === 'confluentTopic' ? confluentReader(a.platform_id, kind) : a.platform_id;

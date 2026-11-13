@@ -375,8 +375,6 @@ export function rejectProposal(id: string): DataLineageProposal {
 export function openProposalsAround(elementIds: readonly string[]): { id: string; name: string; tool: string; inputs: string[]; outputs: string[] }[] {
   const ids = [...new Set(elementIds)];
   if (!ids.length) return [];
-  const u = me();
-  const sources = visibleSources(u);
   const proposalIds = new Set<string>();
   for (const part of chunks(ids))
     for (const r of db().all<{ proposal_id: string }>(
@@ -385,7 +383,9 @@ export function openProposalsAround(elementIds: readonly string[]): { id: string
       ...part,
     ))
       proposalIds.add(r.proposal_id);
+  // the sources the reader sees only when there are open proposals around (most lineage pictures have none)
   if (!proposalIds.size) return [];
+  const sources = visibleSources(me());
   const rows = chunks([...proposalIds]).flatMap((part) =>
     db().all<ProposalRow>(`SELECT * FROM dp_lineage_proposals WHERE id IN (${marks(part.length)}) ORDER BY id`, ...part),
   );

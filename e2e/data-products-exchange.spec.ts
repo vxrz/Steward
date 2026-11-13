@@ -101,6 +101,9 @@ test.describe('costs: estimates and measured use', () => {
     await expect(section).toBeVisible();
     await expect(section.getByRole('link', { name: /^Pipeline / })).toBeVisible();
     await expect(page.getByTestId('estimates-against-attributed')).toBeVisible();
+    // months and amounts in the UI language, not as stored ("2026-11", "1.5 USD")
+    await expect(page.getByTestId('estimates-against-attributed')).not.toContainText(/\b\d{4}-\d{2}\b/);
+    await expect(section.getByTestId('product-estimate').first()).not.toContainText(/\b\d{4}-\d{2}\b| USD\b/);
     await expect(
       page
         .getByTestId('estimates-against-attributed')
@@ -129,13 +132,30 @@ test.describe('costs: estimates and measured use', () => {
     await expect(page.getByTestId('estimate-for-product')).toBeVisible();
     await expect(page.getByTestId('estimate-for-product')).toHaveValue(/Measured /);
     await expectAccessible(page, 'estimate for a data product');
+    // the picker asks the server once typing pauses, not for every key
+    const asked: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/data-products?limit=20')) asked.push(r.url());
+    });
+    const picker = page.getByTestId('estimate-for-product');
+    await picker.clear();
+    await picker.pressSequentially('Other', { delay: 30 });
+    await expect(page.getByRole('option', { name: /^Other / }).first()).toBeVisible();
+    expect(asked.length).toBeLessThanOrEqual(2);
   });
 
   test('estimated against attributed on a phone @mobile', async ({ page }) => {
     await page.goto(`/data-products/${s.product}/costs`);
     await expect(page.getByTestId('product-estimates')).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'estimates on a phone');
+    await expectAccessible(page, 'estimates on a phone', { wcag22: true });
+    // the split's three rules one below the other: "By measured use" is not cut off
+    await page.getByTestId('allocation-edit').first().click();
+    await animationsDone(page);
+    const rule = page.getByTestId('allocation-rule');
+    await expect(rule).toHaveAttribute('data-orientation', 'vertical');
+    const box = (await rule.getByText('By measured use').boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   });
 });
 
@@ -190,11 +210,44 @@ test.describe('exchange', () => {
     await page.getByTestId('import-mode').getByText('Replace an earlier import').click();
     await page.locator('input[type="file"]').setInputFiles({ name: 'next.yaml', mimeType: 'application/yaml', buffer: Buffer.from(doc(['one'])) });
     await expect(page.getByText('Replacing needs the origin of the earlier import.')).toBeVisible();
-    await page.getByTestId('import-origin').fill(`e2e-${k}`);
+    // the earlier import's origin is suggested with its entries
+    await page.getByTestId('import-origin').fill(`e2e-${k}`.slice(0, 8));
+    const suggested = page.getByRole('option').filter({ hasText: `e2e-${k}` });
+    await expect(suggested).toContainText('2 entries');
+    await suggested.click();
+    await expect(page.getByTestId('import-origin')).toHaveValue(`e2e-${k}`);
     await page.getByTestId('import-preview-run').click();
     await expect(page.getByTestId('import-count-remove')).toHaveText('1 to remove');
     await expect(page.getByTestId('import-preview').getByText(`${k}-two`)).toBeVisible();
     await expectAccessible(page, 'import replace preview');
+    // Import says what it removes before it runs; cancelled, nothing happens
+    await page.getByTestId('import-run').click();
+    await expect(page.getByTestId('import-remove-list')).toContainText(`${k}-two`);
+    await page
+      .getByRole('dialog')
+      .filter({ has: page.getByTestId('confirm-dialog-message') })
+      .getByRole('button', { name: 'Cancel' })
+      .click();
+    await expect(page.getByTestId('import-remove-list')).toHaveCount(0);
+    await page.getByTestId('import-run').click();
+    await page.getByTestId('confirm-dialog-confirm').click();
+    await expect(page.getByText(/1 removed/).first()).toBeVisible();
+  });
+
+  test('the import preview on a phone @mobile', async ({ page }) => {
+    const k = tag().toLowerCase();
+    await page.goto('/data-products');
+    await page.getByTestId('products-transfer').click();
+    await page.getByTestId('products-import').click();
+    await animationsDone(page);
+    const doc = ['version: 1', 'data_products:', `  - key: ${k}-phone`, `    name: Phone ${k}`].join('\n') + '\n';
+    await page.locator('input[type="file"]').setInputFiles({ name: 'phone.yaml', mimeType: 'application/yaml', buffer: Buffer.from(doc) });
+    await page.getByTestId('import-preview-run').click();
+    // a card per change, no table
+    await expect(page.getByTestId('import-preview').getByText(`${k}-phone`)).toBeVisible();
+    await expect(page.getByTestId('import-preview').locator('table')).toHaveCount(0);
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'import preview on a phone', { wcag22: true });
   });
 
   test('the data objects export as an Ossie model', async ({ page }) => {

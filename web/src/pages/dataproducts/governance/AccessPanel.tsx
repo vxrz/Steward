@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Radio, Select, Stack, Table, Text, TextInput, Textarea, VisuallyHidden } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Radio, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconClipboardCheck, IconSettings, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { DataPortReview, DataPortReviewItem, DataProduct } from '@sm/shared';
+import type { DataPortReview, DataPortReviewFacts, DataPortReviewItem, DataProduct } from '@sm/shared';
 import { get, getOptional, post, put } from '../../../api';
 import { QueryState, useFieldErrors } from '../../../components/common';
 import { FormModal } from '../../../components/FormModal';
-import { TableScroll } from '../../../components/TableScroll';
+import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
-import { fmtDate, fmtDay } from '../../../format';
-import { Section } from '../parts';
+import { fmtDate, fmtDay, fmtNumber } from '../../../format';
+import { CardTable, Section, useSortedEnvironments } from '../parts';
 import { ProductRequests } from './AccessRequests';
 import { useAccessSettings, useInvalidateGovernance, useProductReviews, useReview } from './api';
 
@@ -78,44 +79,55 @@ function PortReviews({ p }: { p: DataProduct }) {
         </Text>
       )}
       {(q.data?.items ?? []).length > 0 && (
-        <TableScroll>
-          <Table fz="sm" aria-label={t('reviews.title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th scope="col">{t('reviews.port')}</Table.Th>
-                <Table.Th scope="col">{t('reviews.status')}</Table.Th>
-                <Table.Th scope="col">{t('reviews.entries')}</Table.Th>
-                <Table.Th scope="col">{t('reviews.started')}</Table.Th>
-                <Table.Th scope="col">
-                  <VisuallyHidden>{t('reviews.open')}</VisuallyHidden>
-                </Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {q.data!.items.map((r) => (
-                <Table.Tr key={r.id} data-testid="review-row">
-                  <Table.Td className="mono">
-                    {r.portName} · {r.environment}
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge size="sm" variant="light" tt="none" color={r.status === 'approved' ? 'green' : r.status === 'submitted' ? 'violet' : 'yellow'}>
-                      {t(`reviews.statuses.${r.status}`)}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td className="nowrap">{t('reviews.entriesCount', { count: r.items, removals: r.removals })}</Table.Td>
-                  <Table.Td className="nowrap">
-                    {fmtDay(r.createdAt)} · {r.createdBy}
-                  </Table.Td>
-                  <Table.Td>
-                    <Button size="compact-xs" variant="subtle" onClick={() => setOpen(r.id)} data-testid="review-open">
-                      {t('reviews.open')}
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </TableScroll>
+        <CardTable
+          ariaLabel={t('reviews.title')}
+          rows={q.data!.items}
+          rowKey={(r) => r.id}
+          rowTestId={() => 'review-row'}
+          columns={[
+            {
+              key: 'port',
+              header: t('reviews.port'),
+              cell: (r) => (
+                <span className="mono">
+                  {r.portName} · {r.environment}
+                </span>
+              ),
+            },
+            {
+              key: 'status',
+              header: t('reviews.status'),
+              cell: (r) => (
+                <Badge size="sm" variant="light" tt="none" color={r.status === 'approved' ? 'green' : r.status === 'submitted' ? 'violet' : 'yellow'}>
+                  {t(`reviews.statuses.${r.status}`)}
+                </Badge>
+              ),
+            },
+            { key: 'entries', header: t('reviews.entries'), nowrap: true, cell: (r) => t('reviews.entriesCount', { count: r.items, removals: r.removals }) },
+            {
+              key: 'started',
+              header: t('reviews.started'),
+              nowrap: true,
+              cell: (r) => `${fmtDay(r.createdAt)} · ${r.createdBy}`,
+            },
+            {
+              key: 'open',
+              header: t('reviews.open'),
+              actions: true,
+              cell: (r) => (
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  onClick={() => setOpen(r.id)}
+                  aria-label={t('reviews.openNamed', { port: r.portName, environment: r.environment })}
+                  data-testid="review-open"
+                >
+                  {t('reviews.open')}
+                </Button>
+              ),
+            },
+          ]}
+        />
       )}
       {starting && (
         <StartReviewForm
@@ -135,9 +147,20 @@ function PortReviews({ p }: { p: DataProduct }) {
 
 function StartReviewForm({ p, onClose, onStarted }: { p: DataProduct; onClose: () => void; onStarted: (id: string) => void }) {
   const { t } = useTranslation(['dataProductGovernance', 'common']);
+  // production first (the review that matters most is the default), as the environment switches order them
+  const order = useSortedEnvironments(p.environments);
+  const rank = (e: string) => (order.indexOf(e) < 0 ? order.length : order.indexOf(e));
   const options = p.ports
     .filter((x) => x.direction === 'output')
-    .flatMap((x) => x.bindings.map((b) => ({ value: `${x.id}|${b.environment}`, label: `${x.name}${x.version ? ` ${x.version}` : ''} · ${b.environment}` })));
+    .flatMap((x) =>
+      x.bindings.map((b) => ({
+        env: b.environment,
+        value: `${x.id}|${b.environment}`,
+        label: `${x.name}${x.version ? ` ${x.version}` : ''} · ${b.environment}`,
+      })),
+    )
+    .sort((x, y) => rank(x.env) - rank(y.env))
+    .map(({ value, label }) => ({ value, label }));
   const [which, setWhich] = useState<string | null>(options[0]?.value ?? null);
   const [checkId, setCheckId] = useState<string | null>(null);
   const [fourEyes, setFourEyes] = useState('yes');
@@ -200,6 +223,23 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
   const [busy, run] = useBusy();
   const [comment, setComment] = useState('');
   const [verified, setVerified] = useState<boolean | null>(null);
+  const phone = useMediaQuery('(max-width: 48em)') ?? false;
+  const subject = useSubjectLabel();
+  // a registration of a Steward user or team is frozen with its subject (team:…): its name, as everywhere else
+  const entryLabel = (i: DataPortReviewItem) => (i.kind === 'registered' && /^(user|team):/.test(i.label) ? subject(i.label) : i.label);
+  /** The facts an entry was frozen with, in the reader's words, dates and numbers. */
+  const factsText = (f: DataPortReviewFacts): string[] =>
+    [
+      f.purpose || '',
+      f.until ? t('reviews.facts.until', { date: fmtDay(f.until) }) : '',
+      f.identities?.length ? t('reviews.facts.identities', { list: f.identities.join(', ') }) : '',
+      f.seenAs?.length ? t('reviews.facts.seenAs', { list: f.seenAs.join(', ') }) : '',
+      f.platform === null ? t('actual.hiddenPlatform') : (f.platform ?? ''),
+      f.objects?.length ? f.objects.join(', ') : '',
+      typeof f.reads === 'number' ? t('reviews.facts.reads', { count: f.reads, n: fmtNumber(f.reads) }) : '',
+      f.lastSeen ? t('reviews.facts.lastSeen', { date: fmtDate(f.lastSeen) }) : '',
+      f.subjectType ? t('reviews.facts.subjectType', { type: f.subjectType }) : '',
+    ].filter(Boolean);
   const r = q.data;
   const decide = (item: DataPortReviewItem, decision: 'keep' | 'remove' | null, note = item.comment) =>
     run(async () => {
@@ -217,7 +257,14 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
       setVerified(x.ok);
     });
   return (
-    <Modal opened onClose={onClose} size="xl" title={r ? t('reviews.modalTitle', { port: r.portName, environment: r.environment }) : t('reviews.title')}>
+    <Modal
+      opened
+      onClose={onClose}
+      size="xl"
+      // a card per entry on a phone, the whole screen for them
+      fullScreen={phone}
+      title={r ? t('reviews.modalTitle', { port: r.portName, environment: r.environment }) : t('reviews.title')}
+    >
       <QueryState query={q} />
       {r && (
         <Stack gap="sm" data-testid="review-modal">
@@ -236,69 +283,79 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
               {t(r.check.origin === 'live' ? 'reviews.checkLive' : 'reviews.checkSnapshot', { name: r.check.name, date: fmtDate(r.check.takenAt) })}
             </Text>
           )}
-          <TableScroll>
-            <Table fz="sm" aria-label={t('reviews.entriesLabel')}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th scope="col">{t('reviews.entry')}</Table.Th>
-                  <Table.Th scope="col">{t('reviews.finding')}</Table.Th>
-                  <Table.Th scope="col">{t('reviews.decision')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {r.entries.map((i) => (
-                  <Table.Tr key={i.id} data-testid="review-entry">
-                    <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                      <Text size="sm" fw={500}>
-                        {i.label}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {t(`reviews.kinds.${i.kind}`)}
-                        {i.detail && ` · ${i.detail}`}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                      {i.kind === 'grant' ? i.finding : t(`actual.states.${i.finding}`, { defaultValue: i.finding })}
-                    </Table.Td>
-                    <Table.Td>
-                      {r.mayDecide ? (
-                        <Stack gap={4}>
-                          <Select
-                            size="xs"
-                            aria-label={t('reviews.decisionFor', { name: i.label })}
-                            data={[
-                              { value: 'keep', label: t('reviews.keep') },
-                              { value: 'remove', label: t('reviews.remove') },
-                            ]}
-                            value={i.decision}
-                            placeholder={t('reviews.undecided')}
-                            onChange={(d) => void decide(i, d as 'keep' | 'remove' | null, d === 'remove' ? i.comment || '' : i.comment)}
-                            disabled={busy}
-                            data-testid="review-decision"
-                          />
-                          {i.decision === 'remove' && (
-                            <TextInput
-                              size="xs"
-                              aria-label={t('reviews.reasonFor', { name: i.label })}
-                              placeholder={t('reviews.reason')}
-                              defaultValue={i.comment}
-                              onBlur={(e) => e.currentTarget.value !== i.comment && void decide(i, 'remove', e.currentTarget.value)}
-                              data-testid="review-reason"
-                            />
-                          )}
-                        </Stack>
-                      ) : (
-                        <Text size="sm">
-                          {i.decision ? t(`reviews.${i.decision}`) : t('reviews.undecided')}
-                          {i.comment && ` – ${i.comment}`}
-                        </Text>
+          <CardTable
+            ariaLabel={t('reviews.entriesLabel')}
+            rows={r.entries}
+            rowKey={(i) => i.id}
+            rowTestId={() => 'review-entry'}
+            columns={[
+              {
+                key: 'entry',
+                header: t('reviews.entry'),
+                cell: (i) => (
+                  <div style={{ overflowWrap: 'anywhere' }}>
+                    <Text size="sm" fw={500}>
+                      {entryLabel(i)}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {t(`reviews.kinds.${i.kind}`)}
+                      {/* frozen facts in the reader's language; entries sealed before them carry their text as it was */}
+                      {(i.facts ? factsText(i.facts) : [i.detail])
+                        .filter(Boolean)
+                        .map((x) => ` · ${x}`)
+                        .join('')}
+                    </Text>
+                  </div>
+                ),
+              },
+              {
+                key: 'finding',
+                header: t('reviews.finding'),
+                cell: (i) => (
+                  <span style={{ overflowWrap: 'anywhere' }}>
+                    {i.kind === 'grant' ? i.finding : t(`actual.states.${i.finding}`, { defaultValue: i.finding })}
+                  </span>
+                ),
+              },
+              {
+                key: 'decision',
+                header: t('reviews.decision'),
+                cell: (i) =>
+                  r.mayDecide ? (
+                    <Stack gap={4}>
+                      <Select
+                        size="xs"
+                        aria-label={t('reviews.decisionFor', { name: entryLabel(i) })}
+                        data={[
+                          { value: 'keep', label: t('reviews.keep') },
+                          { value: 'remove', label: t('reviews.remove') },
+                        ]}
+                        value={i.decision}
+                        placeholder={t('reviews.undecided')}
+                        onChange={(d) => void decide(i, d as 'keep' | 'remove' | null, d === 'remove' ? i.comment || '' : i.comment)}
+                        disabled={busy}
+                        data-testid="review-decision"
+                      />
+                      {i.decision === 'remove' && (
+                        <TextInput
+                          size="xs"
+                          aria-label={t('reviews.reasonFor', { name: entryLabel(i) })}
+                          placeholder={t('reviews.reason')}
+                          defaultValue={i.comment}
+                          onBlur={(e) => e.currentTarget.value !== i.comment && void decide(i, 'remove', e.currentTarget.value)}
+                          data-testid="review-reason"
+                        />
                       )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </TableScroll>
+                    </Stack>
+                  ) : (
+                    <Text size="sm">
+                      {i.decision ? t(`reviews.${i.decision}`) : t('reviews.undecided')}
+                      {i.comment && ` – ${i.comment}`}
+                    </Text>
+                  ),
+              },
+            ]}
+          />
           {r.mayDecide && (
             <Group justify="flex-end">
               <Button onClick={() => void step('submit')} loading={busy} data-testid="review-submit">

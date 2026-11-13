@@ -143,9 +143,9 @@ function EndorseForm({ p, onClose, onSaved }: { p: DataProduct; onClose: () => v
             {t('endorsement.formHelp')}
           </Text>
           <TextInput
+            type="date"
             label={t('endorsement.reviewDate')}
             description={t('endorsement.reviewDateHelp')}
-            placeholder="2027-11-30"
             value={reviewDate}
             onChange={(e) => setReviewDate(e.currentTarget.value)}
             error={v.error('reviewDate')}

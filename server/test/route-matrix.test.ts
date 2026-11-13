@@ -540,6 +540,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/export': ALL,
   'GET /api/data-products/:id/export': ALL,
   'GET /api/data-products/:id/odps': ALL,
+  'GET /api/data-products/import-origins': ALL,
   'POST /api/data-products/import/preview': ALL,
   'POST /api/data-products/import': DESIGN,
   // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
@@ -1646,6 +1647,7 @@ const SESSION_ONLY = [
   // splitting a platform's costs between data products (ADR 0036 WP4)
   'PUT /api/data-products/cost-allocations',
   // imports of data products files: a person decides, in a session (ADR 0036 security notes)
+  'GET /api/data-products/import-origins',
   'POST /api/data-products/import/preview',
   'POST /api/data-products/import',
   // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)

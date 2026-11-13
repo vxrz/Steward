@@ -127,6 +127,23 @@ describe('import mode replace', () => {
     expect(p.origin).toBe('inventory-files');
   });
 
+  it('suggests the origins of earlier imports – counting, never naming, what the caller may not see', async () => {
+    const { db } = await import('../src/db.js');
+    const hidden = db().get<{ id: string }>("SELECT id FROM dp_products WHERE key = 'inv-secret'")!.id;
+    db().run(
+      "INSERT INTO dp_import_origins (origin, kind, item_id, recorded_at) VALUES ('secret-only', 'dataProduct', ?, ?)",
+      hidden,
+      new Date().toISOString(),
+    );
+    const mine = await dana('GET', '/data-products/import-origins');
+    // the hidden product of inventory-files is not counted; an origin with nothing dana sees is not listed
+    expect(mine.items.find((o: any) => o.origin === 'inventory-files')).toMatchObject({ entries: 8 });
+    expect(JSON.stringify(mine)).not.toContain('secret-only');
+    const admin = await s.api('GET', '/data-products/import-origins');
+    expect(admin.items.map((o: any) => o.origin)).toEqual(expect.arrayContaining(['inventory-files', 'secret-only']));
+    expect(admin.items.find((o: any) => o.origin === 'inventory-files').entries).toBe(9);
+  });
+
   it('asks for the step-up above one removal, then removes in one transaction – the hidden product stays', async () => {
     const next = FULL();
     next.data_objects = next.data_objects.filter((o) => o.key !== 'warehouse');
@@ -153,6 +170,37 @@ describe('import mode replace', () => {
     // imported again: nothing changes
     const again = await dana('POST', '/data-products/import/preview', body);
     expect(again.counts).toMatchObject({ add: 0, change: 0, remove: 0 });
+  });
+
+  it('keeps a port the files leave out while it has consumers the importer may not see – counted as kept', async () => {
+    const { db } = await import('../src/db.js');
+    const stock = db().get<{ id: string }>("SELECT id FROM dp_products WHERE key = 'inv-stock'")!;
+    const port = db().get<{ id: string }>('SELECT id FROM dp_ports WHERE product_id = ?', stock.id)!;
+    const secret = db().get<{ id: string }>("SELECT id FROM dp_products WHERE key = 'inv-secret'")!;
+    const now = new Date().toISOString();
+    // a consuming product dana may not see: the export of inv-stock leaves its registration out
+    db().run(
+      `INSERT INTO dp_consumers (id, port_id, consumer_kind, ref_id, consumer_subjects, consumer_text, purpose, since, end_date, agreement, contacts, created_at, created_by, updated_at, updated_by)
+       VALUES ('dpc_inv_hidden', ?, 'product', ?, '[]', '', 'Hidden use', ?, NULL, NULL, '[]', ?, 'admin', ?, 'admin')`,
+      port.id,
+      secret.id,
+      now.slice(0, 10),
+      now,
+      now,
+    );
+    const next = FULL();
+    next.data_objects = next.data_objects.filter((o) => o.key !== 'warehouse');
+    next.data_products = [{ ...next.data_products[0]!, members: [next.data_products[0]!.members[0]!], ports: [], steps: [] }];
+    next.elements = next.elements.filter((e) => e.qualified_name !== 'INV.REPORT');
+    const body = { files: [file(next)], mode: 'replace', origin: 'inventory-files' };
+    const p = await dana('POST', '/data-products/import/preview', body);
+    expect(p.problems).toEqual([]);
+    expect(JSON.stringify(p.changes)).not.toContain('ports[output stock v1]');
+    // the hidden product, its registration and the port kept for it
+    expect(p.counts).toMatchObject({ remove: 0, removedItems: 0, keptHidden: 3 });
+    await dana('POST', '/data-products/import', body);
+    expect(db().get('SELECT 1 FROM dp_ports WHERE id = ?', port.id)).toBeTruthy();
+    expect(db().get("SELECT 1 FROM dp_consumers WHERE id = 'dpc_inv_hidden'")).toBeTruthy();
   });
 });
 
@@ -431,6 +479,9 @@ describe('the Ossie export of data objects', () => {
               attributes: [{ name: 'warehouse_id', description: 'Key' }],
             },
             { key: 'ossie-hidden', name: 'Hidden object', attributes: [{ name: 'id' }] },
+            // keys that differ only in . - _ are different datasets
+            { key: 'ossie.item', name: 'Item (dotted)' },
+            { key: 'ossie-item', name: 'Item (dashed)' },
           ],
         }),
       ],
@@ -452,6 +503,8 @@ describe('the Ossie export of data objects', () => {
       const names = model.datasets.map((d: any) => d.name);
       expect(names).toEqual(expect.arrayContaining(['stock_item', 'warehouse']));
       expect(names).not.toContain('ossie_hidden');
+      expect(new Set(names).size).toBe(names.length);
+      expect(names).toEqual(expect.arrayContaining(['ossie_item', 'ossie_item_']));
       expect(JSON.stringify(doc)).not.toContain('Hidden object');
       const wh = model.datasets.find((d: any) => d.name === 'warehouse');
       expect(wh.primary_key).toEqual(['warehouse_id']);

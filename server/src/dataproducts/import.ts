@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   CIA_DIMENSIONS,
   DATA_PRODUCT_IMPORT_MODES,
+  DATA_PRODUCT_IMPORT_ORIGINS_LISTED,
   DATA_PRODUCT_IMPORT_ORIGIN_RE,
   DATA_PRODUCT_IMPORT_REMOVALS_WITHOUT_STEP_UP,
   elementNameNorm,
@@ -12,12 +13,14 @@ import {
   type DataProductImportField,
   type DataProductImportKind,
   type DataProductImportMode,
+  type DataProductImportOrigin,
   type DataProductImportPreview,
   type DataProductImportProblem,
   type DataProductImportResult,
   type PlatformPermission,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { me } from '../auth/access.js';
 import { audit, withoutAudit } from '../audit.js';
 import { holdingNotices } from './notices.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
@@ -710,7 +713,18 @@ function buildPlan(input: ImportInput, o: ImportOptions = {}): Plan {
       // replace: what the product holds that the reader may not see is kept (counted) – members on hidden platforms,
       // consumers they may not see
       if (row && plan.replaceLists) plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + hiddenItems(row, current!);
-      record('dataProduct', plan.products, { file: f.name, key: p.key, row, incoming, current }, undefined, plan.replaceLists ? replacedLists : undefined);
+      // ports the files leave out that hold consumers the importer may not see stay (and count as kept)
+      const keepPorts = row && plan.replaceLists ? portsWithHiddenConsumers(row, current!) : new Set<string>();
+      const kept = (incoming.ports ?? []).map((x) => portIdentity(x));
+      const keptHiddenPorts = [...keepPorts].filter((id) => !kept.includes(id));
+      if (keptHiddenPorts.length) plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + keptHiddenPorts.length;
+      record(
+        'dataProduct',
+        plan.products,
+        { file: f.name, key: p.key, row, incoming, current },
+        undefined,
+        plan.replaceLists ? (cur, inc) => replacedLists(cur, inc, keepPorts) : undefined,
+      );
     }
   }
   if (input.mode === 'replace' && input.origin) planRemovals(plan, input.origin, s);
@@ -728,13 +742,33 @@ function hiddenItems(row: ProductRow, current: ProductFile): number {
   return Math.max(0, membersOf([row.id]).length - (current.members?.length ?? 0)) + Math.max(0, consumers.length - shownConsumers);
 }
 
+/**
+ * Output ports of the product with consumers the export leaves out (the reader may not see them): a replace that leaves
+ * such a port out keeps it – removing the port would remove those consumers with it.
+ */
+function portsWithHiddenConsumers(row: ProductRow, current: ProductFile): Set<string> {
+  const out = new Set<string>();
+  const ports = portsOf([row.id]).filter((p) => p.direction === 'output');
+  const consumers = consumersOf(ports.map((p) => p.id));
+  for (const port of ports) {
+    const id = portIdentity(port);
+    const shown = (current.ports ?? []).find((x) => portIdentity(x) === id)?.consumers?.length ?? 0;
+    if (consumers.filter((c) => c.port_id === port.id).length > shown) out.add(id);
+  }
+  return out;
+}
+
 const listName = (x: string) => x.split('\u0000').filter(Boolean).join(' ');
 
 /**
  * The product as the files say it, its lists included: members, ports, steps and the consumers of each port are those
  * of the file (an item the file leaves out is removed); other fields as add and update (a key left out keeps its value).
  */
-function replacedLists(cur: ProductFile, inc: ProductFile): { merged: ProductFile; removed: DataProductImportField[] } {
+function replacedLists(
+  cur: ProductFile,
+  inc: ProductFile,
+  keepPorts: ReadonlySet<string> = new Set(),
+): { merged: ProductFile; removed: DataProductImportField[] } {
   const merged = overlay(cur, inc);
   const removed: DataProductImportField[] = [];
   const keep = <T>(field: string, list: T[] | undefined, wanted: T[] | undefined, id: (x: T) => string): T[] => {
@@ -747,9 +781,11 @@ function replacedLists(cur: ProductFile, inc: ProductFile): { merged: ProductFil
     return out;
   };
   merged.members = keep('members', merged.members, inc.members, (x) => elementKey(x.element));
-  merged.ports = keep('ports', merged.ports, inc.ports, (x) => portIdentity(x)).map((port) => {
+  const wantedPorts = [...(inc.ports ?? []), ...(merged.ports ?? []).filter((x) => keepPorts.has(portIdentity(x)))];
+  merged.ports = keep('ports', merged.ports, wantedPorts, (x) => portIdentity(x)).map((port) => {
     const want = (inc.ports ?? []).find((x) => portIdentity(x) === portIdentity(port));
-    if (port.direction !== 'output') return port;
+    // a port kept for consumers the importer may not see keeps its consumers as they are
+    if (port.direction !== 'output' || !want) return port;
     return { ...port, consumers: keep(`ports[${portIdentity(port)}].consumers`, port.consumers, want?.consumers, (c) => consumerIdentity(c)) };
   });
   merged.steps = keep('steps', merged.steps, inc.steps, (x) => x.name.toLowerCase());
@@ -1638,4 +1674,39 @@ export function applyImport(body: unknown, o: ImportOptions = {}): DataProductIm
     }),
   );
   return { mode: plan.mode, counts: plan.counts, warnings: [...new Set(plan.warnings)].slice(0, 100) };
+}
+
+/**
+ * GET /api/data-products/import-origins – the origins of earlier imports, each with the entries under it the caller
+ * may see, the newest first (DATA_PRODUCT_IMPORT_ORIGINS_LISTED): the suggestions of _Replace an earlier import_. An
+ * origin whose entries the caller may not see is neither listed nor counted.
+ */
+export function importOrigins(): { items: DataProductImportOrigin[] } {
+  const u = me();
+  const seen = new Map<string, { entries: number; lastAt: string }>();
+  const count = (origin: string, at: string) => {
+    const o = seen.get(origin) ?? { entries: 0, lastAt: at };
+    o.entries += 1;
+    if (at > o.lastAt) o.lastAt = at;
+    seen.set(origin, o);
+  };
+  type Joined<T> = T & { origin: string; recorded_at: string };
+  const joined = <T>(table: string, kind: string) =>
+    db().all<Joined<T>>(
+      `SELECT t.*, o.origin AS origin, o.recorded_at AS recorded_at FROM dp_import_origins o JOIN ${table} t ON t.id = o.item_id WHERE o.kind = ?`,
+      kind,
+    );
+  for (const r of joined<ProductRow>('dp_products', 'dataProduct')) if (productAccess(u, r).permissions.length) count(r.origin, r.recorded_at);
+  for (const r of joined<ObjectRow>('dp_objects', 'dataObject')) if (objectAccess(u, r).permissions.length) count(r.origin, r.recorded_at);
+  for (const r of joined<DomainRow>('dp_domains', 'domain')) if (domainAccess(u, r).permissions.length) count(r.origin, r.recorded_at);
+  const elements = db().all<{ origin: string; recorded_at: string; item_id: string }>(
+    "SELECT o.origin, o.recorded_at, o.item_id FROM dp_import_origins o JOIN dp_elements e ON e.id = o.item_id WHERE o.kind = 'element'",
+  );
+  const teams = elementTeamIds([...new Set(elements.map((e) => e.item_id))]);
+  for (const r of elements) if (elementAccess(u, teams.get(r.item_id) ?? []).permissions.length) count(r.origin, r.recorded_at);
+  const items = [...seen]
+    .map(([origin, o]) => ({ origin, entries: o.entries, lastAt: o.lastAt }))
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt) || a.origin.localeCompare(b.origin))
+    .slice(0, DATA_PRODUCT_IMPORT_ORIGINS_LISTED);
+  return { items };
 }

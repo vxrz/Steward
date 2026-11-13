@@ -765,7 +765,7 @@
         "personalFieldsUndocumented_other": "{{count}} personal fields in the bound contracts, but no exposed data object holds personal data"
       },
       "quality": {
-        "results": "{{tests}} tests: {{passed}} passed, {{warning}} warn, {{failed}} failed (latest of each, 30 days)",
+        "results": "Tests: {{tests}} – {{passed}} passed, {{warning}} with a warning, {{failed}} failed (the latest of each, 30 days)",
         "none": "No quality results in 30 days"
       }
     }
@@ -1301,7 +1301,17 @@
     "doneReplace": "Imported: {{add}} added, {{change}} changed, {{unchanged}} unchanged, {{remove}} removed, {{items}} list items removed",
     "odpsRead_one": "{{count}} ODPS document read as a data product.",
     "odpsRead_other": "{{count}} ODPS documents read as data products.",
-    "stepUp": "The import removes more than one entry or list item: importing asks you to confirm it is you."
+    "stepUp": "The import removes more than one entry or list item: importing asks you to confirm it is you.",
+    "removeTitle": "Remove what the files no longer hold?",
+    "removeConfirm": "Replacing the import of {{origin}} removes:",
+    "removeItems_one": "and {{count}} list item of entries that stay (members, ports, steps, consumers)",
+    "removeItems_other": "and {{count}} list items of entries that stay (members, ports, steps, consumers)",
+    "removeMore_one": "… and {{count}} more",
+    "removeMore_other": "… and {{count}} more",
+    "removeButton": "Import and remove",
+    "originsLabel": "Earlier imports",
+    "originEntries_one": "{{count}} entry",
+    "originEntries_other": "{{count}} entries"
   },
   "measured": {
     "help": "Each product takes its measured use of the line: credits of its warehouses or query tags, or the bytes written to its topics – priced with the platform’s contracted price book where it has a price, else as its share of everything measured. Read once a day; never more than the line together.",
@@ -1379,7 +1389,8 @@
       "more_one": "… and {{count}} more field",
       "more_other": "… and {{count}} more fields",
       "hidden_one": "{{count}} bound contract you may not see",
-      "hidden_other": "{{count}} bound contracts you may not see"
+      "hidden_other": "{{count}} bound contracts you may not see",
+      "fieldsOf": "Personal and classified fields of {{name}}"
     },
     "element": {
       "title": "Quality",
@@ -1389,7 +1400,8 @@
       "source": "Source",
       "status": "Result",
       "when": "When",
-      "showAll": "Show all {{count}}"
+      "showAll": "Show all {{count}}",
+      "value": "Value"
     },
     "sources": {
       "dbt": "dbt",
@@ -1399,10 +1411,22 @@
       "other": "Other"
     },
     "statuses": {
-      "passed": "passed",
-      "warning": "warning",
-      "failed": "failed",
-      "error": "error"
+      "passed": "Passed",
+      "warning": "Warning",
+      "failed": "Failed",
+      "error": "Error"
     }
+  },
+  "duration": {
+    "years_one": "{{count}} year",
+    "years_other": "{{count}} years",
+    "months_one": "{{count}} month",
+    "months_other": "{{count}} months",
+    "weeks_one": "{{count}} week",
+    "weeks_other": "{{count}} weeks",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "hours_one": "{{count}} hour",
+    "hours_other": "{{count}} hours"
   }
 }

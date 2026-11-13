@@ -445,7 +445,8 @@ function Tokens({ source }: { source: DataLineageSource }) {
         />
       )}
       {shown && (
-        <Modal opened onClose={() => setShown(null)} size="lg" title={t('tokens.secretTitle', { name: shown.name })}>
+        // shown once: a stray click beside the dialog must not lose it (as the other secrets' dialogs)
+        <Modal opened onClose={() => setShown(null)} size="lg" title={t('tokens.secretTitle', { name: shown.name })} closeOnClickOutside={false}>
           <Stack gap="sm" data-testid="lineage-token-secret">
             <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
               {t('tokens.secretOnce')}

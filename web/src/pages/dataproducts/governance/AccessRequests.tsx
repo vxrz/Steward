@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { IconCheck, IconKey, IconUsersGroup, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  DATA_ACCESS_REQUEST_STATUSES,
   DATA_GOVERNANCE_LIMITS,
   DATA_IDENTITY_RE,
   type DataAccessRequest,
@@ -14,7 +15,8 @@ import {
   type DataProduct,
   type Subject,
 } from '@sm/shared';
-import { getOptional, post } from '../../../api';
+import { getOptional, notifyError, notifyOk, post } from '../../../api';
+import { confirmDanger } from '../../../components/confirm';
 import { useMe } from '../../../auth';
 import { QueryState, useFieldErrors } from '../../../components/common';
 import { DataTable } from '../../../components/DataTable';
@@ -158,8 +160,8 @@ export function RequestAccessForm({
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput
+              type="date"
               label={t('requests.until')}
-              placeholder="2027-12-31"
               value={until}
               onChange={(e) => setUntil(e.currentTarget.value)}
               error={v.error('until')}
@@ -197,6 +199,7 @@ function DecideForm({ r, approve, onClose, onSaved }: { r: DataAccessRequest; ap
   const [ticket, setTicket] = useState('');
   const [busy, run] = useBusy();
   const v = useFieldErrors({ comment: !approve && !comment.trim() && t('requests.reasonRequired') });
+  const last = !r.fourEyes || r.approvals.length > 0;
   const save = () =>
     run(async () => {
       await post(`/data-products/access-requests/${enc(r.id)}/decision`, {
@@ -204,9 +207,9 @@ function DecideForm({ r, approve, onClose, onSaved }: { r: DataAccessRequest; ap
         comment: comment.trim(),
         ticket: approve && ticket.trim() ? { externalNumber: ticket.trim() } : null,
       });
+      notifyOk(!approve ? t('requests.refused') : last ? t('requests.approved') : t('requests.approvedFirst'));
       onSaved();
     });
-  const last = !r.fourEyes || r.approvals.length > 0;
   return (
     <FormModal onClose={onClose} title={approve ? t('requests.approveTitle') : t('requests.refuseTitle')}>
       <form
@@ -255,7 +258,23 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
   const subject = useSubjectLabel();
   const invalidate = useInvalidateGovernance();
   const [deciding, setDeciding] = useState<{ r: DataAccessRequest; approve: boolean } | null>(null);
-  const [busy, run] = useBusy();
+  const portName = (r: DataAccessRequest) => `${r.portName}${r.portVersion ? ` ${r.portVersion}` : ''} · ${r.environment}`;
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
+  /** Withdrawing asks first: the request cannot be sent again, a new one would be. */
+  const withdraw = async (r: DataAccessRequest) => {
+    if (!(await confirmDanger({ action: 'confirm', message: t('requests.withdrawConfirm', { port: portName(r) }), confirmLabel: t('requests.withdraw') })))
+      return;
+    setWithdrawing(r.id);
+    try {
+      await post(`/data-products/access-requests/${enc(r.id)}/withdraw`);
+      notifyOk(t('requests.withdrawnDone'));
+      invalidate();
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setWithdrawing(null);
+    }
+  };
   const who = (r: DataAccessRequest) =>
     r.consumer.label === null ? t('actual.hiddenConsumer') : r.consumer.subject ? subject(r.consumer.subject) : r.consumer.label;
   const actions = (r: DataAccessRequest) => (
@@ -268,6 +287,7 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
             color="green"
             leftSection={<IconCheck size={12} />}
             onClick={() => setDeciding({ r, approve: true })}
+            aria-label={t('requests.approveNamed', { who: who(r) })}
             data-testid="request-approve"
           >
             {t('requests.approve')}
@@ -278,6 +298,7 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
             color="red"
             leftSection={<IconX size={12} />}
             onClick={() => setDeciding({ r, approve: false })}
+            aria-label={t('requests.refuseNamed', { who: who(r) })}
             data-testid="request-refuse"
           >
             {t('requests.refuse')}
@@ -288,13 +309,11 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
         <Button
           size="compact-xs"
           variant="subtle"
-          loading={busy}
-          onClick={() =>
-            void run(async () => {
-              await post(`/data-products/access-requests/${enc(r.id)}/withdraw`);
-              invalidate();
-            })
-          }
+          // busy is this row's only: the other requests' buttons stay as they are
+          loading={withdrawing === r.id}
+          disabled={withdrawing !== null && withdrawing !== r.id}
+          onClick={() => void withdraw(r)}
+          aria-label={t('requests.withdrawNamed', { who: who(r) })}
           data-testid="request-withdraw"
         >
           {t('requests.withdraw')}
@@ -302,7 +321,33 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
       )}
     </Group>
   );
-  const portName = (r: DataAccessRequest) => `${r.portName}${r.portVersion ? ` ${r.portVersion}` : ''} · ${r.environment}`;
+  const decision = (r: DataAccessRequest) => (
+    <>
+      {r.fourEyes && (
+        <Group gap={2} wrap="nowrap">
+          <IconUsersGroup size={12} aria-hidden />
+          <Text size="xs" c="dimmed">
+            {t('requests.fourEyes')}
+          </Text>
+        </Group>
+      )}
+      {r.decidedBy && (
+        <Text size="xs" c="dimmed">
+          {t('requests.decidedBy', { user: r.decidedBy, date: fmtDate(r.decidedAt) })}
+        </Text>
+      )}
+      {r.runId && (
+        <Anchor component={Link} to={`/runs/${enc(r.runId)}`} size="xs">
+          {t('requests.run')}
+        </Anchor>
+      )}
+      {r.ticketId && (
+        <Anchor component={Link} to={`/tickets/${enc(r.ticketId)}`} size="xs">
+          {t('requests.ticketLink')}
+        </Anchor>
+      )}
+    </>
+  );
   return (
     <>
       <DataTable
@@ -351,29 +396,7 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
             cell: (r) => (
               <Stack gap={2}>
                 <RequestStatusBadge r={r} />
-                {r.fourEyes && (
-                  <Group gap={2} wrap="nowrap">
-                    <IconUsersGroup size={12} aria-hidden />
-                    <Text size="xs" c="dimmed">
-                      {t('requests.fourEyes')}
-                    </Text>
-                  </Group>
-                )}
-                {r.decidedBy && (
-                  <Text size="xs" c="dimmed">
-                    {t('requests.decidedBy', { user: r.decidedBy, date: fmtDate(r.decidedAt) })}
-                  </Text>
-                )}
-                {r.runId && (
-                  <Anchor component={Link} to={`/runs/${enc(r.runId)}`} size="xs">
-                    {t('requests.run')}
-                  </Anchor>
-                )}
-                {r.ticketId && (
-                  <Anchor component={Link} to={`/tickets/${enc(r.ticketId)}`} size="xs">
-                    {t('requests.ticketLink')}
-                  </Anchor>
-                )}
+                {decision(r)}
               </Stack>
             ),
             sortValue: (r) => r.status,
@@ -396,9 +419,16 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
               <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
                 {r.purpose}
               </Text>
+              {r.until && (
+                <Text size="xs" c="dimmed">
+                  {t('actual.until', { date: fmtDay(r.until) })}
+                </Text>
+              )}
               <Text size="xs" c="dimmed">
                 {t('requests.askedBy', { user: r.requester, date: fmtDate(r.createdAt) })}
               </Text>
+              {/* what the table's status column says: four eyes, who decided, the run and the ticket */}
+              {decision(r)}
               {actions(r)}
             </Stack>
           </Paper>
@@ -419,6 +449,17 @@ export function RequestList({ rows, showProduct, testId }: { rows: DataAccessReq
   );
 }
 
+/** The newest page of requests is shown: say so when there are more (the list is not cut off silently). */
+function ShownOf({ shown, total }: { shown: number; total: number }) {
+  const { t } = useTranslation('common');
+  if (total <= shown) return null;
+  return (
+    <Text size="xs" c="dimmed" mt="xs" data-testid="requests-shown-of">
+      {t('table.showingOf', { shown, total })}
+    </Text>
+  );
+}
+
 /** The product's requests (its Access tab). */
 export function ProductRequests({ p }: { p: DataProduct }) {
   const { t } = useTranslation('dataProductGovernance');
@@ -433,6 +474,7 @@ export function ProductRequests({ p }: { p: DataProduct }) {
         </Text>
       )}
       {rows.length > 0 && <RequestList rows={rows} showProduct={false} testId="product-requests" />}
+      <ShownOf shown={rows.length} total={q.data?.total ?? 0} />
     </Stack>
   );
 }
@@ -441,30 +483,49 @@ export function ProductRequests({ p }: { p: DataProduct }) {
 export function AccessRequestsPage() {
   const { t } = useTranslation('dataProductGovernance');
   const [scope, setScope] = useState<RequestScope>('decide');
-  const q = useAccessRequests(scope, '');
+  const [status, setStatus] = useState<DataAccessRequestStatus | null>(null);
+  // what waits for a decision is pending by definition: the status filter is for the other views
+  const q = useAccessRequests(scope, scope === 'decide' ? '' : (status ?? ''));
   const rows = q.data?.items ?? [];
   return (
     <ListPage
       title={t('requests.pageTitle')}
       description={t('requests.pageHelp')}
+      activeFilters={scope !== 'decide' && status ? 1 : 0}
       filters={
-        <SegmentedControl
-          size="xs"
-          value={scope}
-          onChange={(v) => setScope(v as RequestScope)}
-          data={(['decide', 'mine', 'all'] as const).map((s) => ({ value: s, label: t(`requests.scopes.${s}`) }))}
-          aria-label={t('requests.scopeLabel')}
-          data-testid="requests-scope"
-        />
+        <Group gap="xs" wrap="wrap" align="flex-end">
+          <SegmentedControl
+            size="xs"
+            value={scope}
+            onChange={(v) => setScope(v as RequestScope)}
+            data={(['decide', 'mine', 'all'] as const).map((s) => ({ value: s, label: t(`requests.scopes.${s}`) }))}
+            aria-label={t('requests.scopeLabel')}
+            data-testid="requests-scope"
+          />
+          {scope !== 'decide' && (
+            <Select
+              size="xs"
+              label={t('requests.statusFilter')}
+              placeholder={t('requests.allStatuses')}
+              data={DATA_ACCESS_REQUEST_STATUSES.map((x) => ({ value: x, label: t(`requests.statuses.${x}`) }))}
+              value={status}
+              onChange={(v) => setStatus(v as DataAccessRequestStatus | null)}
+              clearable
+              w={{ base: '100%', xs: 200 }}
+              data-testid="requests-status"
+            />
+          )}
+        </Group>
       }
     >
       <QueryState query={q} />
       {q.isSuccess && !rows.length && (
         <Text size="sm" c="dimmed" data-testid="requests-empty">
-          {t(`requests.empty.${scope}`)}
+          {scope !== 'decide' && status ? t('requests.emptyStatus') : t(`requests.empty.${scope}`)}
         </Text>
       )}
       {rows.length > 0 && <RequestList rows={rows} showProduct testId="requests-table" />}
+      <ShownOf shown={rows.length} total={q.data?.total ?? 0} />
     </ListPage>
   );
 }
@@ -489,6 +550,7 @@ export function RequestAccessButton({ p, port, onRequested }: { p: DataProduct; 
           onClose={() => setOpen(false)}
           onSaved={() => {
             setOpen(false);
+            notifyOk(t('requests.sent'));
             invalidate();
             onRequested?.();
           }}
