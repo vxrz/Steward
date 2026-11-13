@@ -86,6 +86,9 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await page.goto(`/data-products/${s.product}/semantic-model`);
     await expect(page.getByTestId('semantic-none')).toBeVisible();
     await page.getByTestId('semantic-new').click();
+    // an empty document is not saved, and the field says why
+    await page.getByTestId('semantic-save').click();
+    await expect(page.getByRole('dialog').getByText('Required', { exact: true })).toBeVisible();
     await page.getByTestId('semantic-start-from').click();
     await expect(page.getByTestId('semantic-drafted')).toContainText('1 dataset');
     expect(await page.getByTestId('semantic-document-input').inputValue()).toContain(`source: ${s.token}.SALES.ORDERS`);

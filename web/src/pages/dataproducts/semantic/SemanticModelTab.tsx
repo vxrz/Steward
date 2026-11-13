@@ -386,6 +386,8 @@ function VersionForm({ p, current, onClose, onSaved }: { p: DataProduct; current
   const [environment, setEnvironment] = useState<string | null>(envs[0] ?? null);
   const [revision, setRevision] = useState<OssieRevision>('0.1.1');
   const [drafted, setDrafted] = useState<number | null>(null);
+  // an empty document is not saved: the field says so after a try (it said nothing before)
+  const [tried, setTried] = useState(false);
   const [busy, run] = useBusy();
   const text = document ?? latest.data?.document ?? '';
   const startFrom = () =>
@@ -416,6 +418,7 @@ function VersionForm({ p, current, onClose, onSaved }: { p: DataProduct; current
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
+          setTried(true);
           if (text.trim()) void save();
         }}
       >
@@ -469,6 +472,7 @@ function VersionForm({ p, current, onClose, onSaved }: { p: DataProduct; current
             minRows={12}
             maxRows={28}
             required
+            error={tried && !text.trim() ? t('common:validation.required') : undefined}
             styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 12 } }}
             data-testid="semantic-document-input"
           />
