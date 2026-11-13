@@ -34,12 +34,14 @@ export function DataProductsProposalReview({
   const { t } = useTranslation('mcp');
   const [confirmed, setConfirmed] = useState(false);
   const now = p.now;
+  // 0.25.0: semantic models that differ from their product's newest version count as changes too
+  const semanticChanges = (p.semanticModels ?? []).filter((m) => m.product && !m.unchanged).length;
   useEffect(() => {
-    const count = now?.ok ? now.counts.add + now.counts.change : 0;
+    const count = now?.ok ? now.counts.add + now.counts.change + semanticChanges : 0;
     if (!now) onChange({}, 0);
     else if (p.changedSince) onChange(confirmed ? { dataProducts: { fingerprint: now.fingerprint } } : {}, confirmed ? count : 0);
     else onChange({ dataProducts: { fingerprint: now.fingerprint } }, count);
-  }, [now, p.changedSince, confirmed, onChange]);
+  }, [now, p.changedSince, confirmed, onChange, semanticChanges]);
   if (p.incomplete)
     return (
       <Stack gap="sm" data-testid="dp-proposal">
@@ -117,6 +119,7 @@ export function DataProductsProposalReview({
         {now ? t('plantProposal.previewNow') : t('plantProposal.previewProposed')}
       </Title>
       <Changes changes={shown.changes} testId="dp-proposal-preview" />
+      {p.semanticModels && p.semanticModels.length > 0 && <SemanticModels models={p.semanticModels} />}
       {shown.warnings.length > 0 && (
         <Alert color="yellow" variant="light" p="xs" title={t('plantProposal.warnings')}>
           <List size="sm" spacing={2}>
@@ -128,6 +131,45 @@ export function DataProductsProposalReview({
           </List>
         </Alert>
       )}
+    </Stack>
+  );
+}
+
+/** 0.25.0 (ADR 0037 part 4): the semantic models of the proposal – each a new version of its product's model when applied. */
+function SemanticModels({ models }: { models: NonNullable<McpDataProductsProposal['semanticModels']> }) {
+  const { t } = useTranslation('dataProductSemantic');
+  return (
+    <Stack gap="xs" data-testid="dp-proposal-semantic">
+      <Title order={2} fz="h4">
+        {t('proposal.title')}
+      </Title>
+      {models.map((m, i) => (
+        <Paper key={`${m.sha256}${i}`} withBorder p="sm">
+          <Stack gap={4}>
+            <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere' }}>
+              {!m.product ? t('proposal.hiddenProduct') : m.product.id ? m.product.name : t('proposal.newProduct', { key: m.product.key })}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {[
+                m.unchanged && m.currentVersion ? t('proposal.unchanged', { n: m.currentVersion }) : t('proposal.becomes', { n: (m.currentVersion ?? 0) + 1 }),
+                t('proposal.lint', { count: m.lintFindings, revision: m.revision }),
+                t('proposal.size', { bytes: fmtNumber(m.bytes) }),
+                m.note,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+            {m.document && (
+              <details>
+                <summary style={{ cursor: 'pointer', fontSize: 'var(--mantine-font-size-sm)' }}>{t('proposal.show')}</summary>
+                <pre className="mono" tabIndex={0} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 12, maxHeight: 360, overflow: 'auto' }}>
+                  {m.document}
+                </pre>
+              </details>
+            )}
+          </Stack>
+        </Paper>
+      ))}
     </Stack>
   );
 }

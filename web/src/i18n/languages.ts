@@ -63,6 +63,7 @@ export const NAMESPACES = [
   'dataLineage',
   'dataProducts',
   'dataProductGovernance',
+  'dataProductSemantic',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
