@@ -64,6 +64,8 @@ async function seed(admin: APIRequestContext): Promise<Seed> {
   await post(admin, `/api/data-products/${publicProduct}/members`, { elementIds: [shared], role: 'input' });
   await post(admin, `/api/data-products/${secretProduct}/members`, { elementIds: [shared], role: 'input' });
   const team = (await post(admin, '/api/teams', { name: `Data team ${token}`, members: ['dana'] })).id;
+  // the team takes no new items of its members: dana's items in the other specs stay the whole instance's
+  expect((await admin.put(`/api/teams/${team}/settings`, { data: { newResources: 'never' } })).ok()).toBe(true);
   expect((await admin.put(`/api/owning-teams/data_product/${secretProduct}`, { data: { teamIds: [team] } })).ok()).toBe(true);
   return { token, raw, curated, shared, contract, publicProduct, secretProduct };
 }
