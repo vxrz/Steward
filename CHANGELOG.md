@@ -34,6 +34,8 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **Esc in a dialog opened inside another dialog** closes only that one and gives the focus back to its button; it closed the dialog around it as well.
+- **Data product cards on phones** (steps, versions, ports) keep links in rows one below the other 24 px apart (WCAG 2.2 target size).
 - **An estimate's _For a data product_** no longer puts back the chosen product's name over what you type when the server's answer to an earlier search comes late.
 - **Records of processing** counted its limit of 5,000 data objects before the team filter, so a reader could get a short or empty list; the limit now counts only what the reader may see, and a list cut there says so in the view, the CSV and the PDF.
 
