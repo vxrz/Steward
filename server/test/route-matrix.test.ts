@@ -3078,7 +3078,12 @@ beforeAll(async () => {
   fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
   // phase 2: an import of two products under an origin – replacing it with an empty file removes both (step-up)
   await a('POST', '/data-products/import', {
-    files: [{ name: 'origin.yaml', content: 'version: 1\ndata_products:\n  - { key: matrix-origin-a, name: Origin A }\n  - { key: matrix-origin-b, name: Origin B }\n' }],
+    files: [
+      {
+        name: 'origin.yaml',
+        content: 'version: 1\ndata_products:\n  - { key: matrix-origin-a, name: Origin A }\n  - { key: matrix-origin-b, name: Origin B }\n',
+      },
+    ],
     mode: 'update',
     origin: 'matrix-origin',
   });
