@@ -710,7 +710,18 @@ function buildPlan(input: ImportInput, o: ImportOptions = {}): Plan {
       // replace: what the product holds that the reader may not see is kept (counted) – members on hidden platforms,
       // consumers they may not see
       if (row && plan.replaceLists) plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + hiddenItems(row, current!);
-      record('dataProduct', plan.products, { file: f.name, key: p.key, row, incoming, current }, undefined, plan.replaceLists ? replacedLists : undefined);
+      // ports the files leave out that hold consumers the importer may not see stay (and count as kept)
+      const keepPorts = row && plan.replaceLists ? portsWithHiddenConsumers(row, current!) : new Set<string>();
+      const kept = (incoming.ports ?? []).map((x) => portIdentity(x));
+      const keptHiddenPorts = [...keepPorts].filter((id) => !kept.includes(id));
+      if (keptHiddenPorts.length) plan.counts.keptHidden = (plan.counts.keptHidden ?? 0) + keptHiddenPorts.length;
+      record(
+        'dataProduct',
+        plan.products,
+        { file: f.name, key: p.key, row, incoming, current },
+        undefined,
+        plan.replaceLists ? (cur, inc) => replacedLists(cur, inc, keepPorts) : undefined,
+      );
     }
   }
   if (input.mode === 'replace' && input.origin) planRemovals(plan, input.origin, s);
@@ -728,13 +739,29 @@ function hiddenItems(row: ProductRow, current: ProductFile): number {
   return Math.max(0, membersOf([row.id]).length - (current.members?.length ?? 0)) + Math.max(0, consumers.length - shownConsumers);
 }
 
+/**
+ * Output ports of the product with consumers the export leaves out (the reader may not see them): a replace that leaves
+ * such a port out keeps it – removing the port would remove those consumers with it.
+ */
+function portsWithHiddenConsumers(row: ProductRow, current: ProductFile): Set<string> {
+  const out = new Set<string>();
+  const ports = portsOf([row.id]).filter((p) => p.direction === 'output');
+  const consumers = consumersOf(ports.map((p) => p.id));
+  for (const port of ports) {
+    const id = portIdentity(port);
+    const shown = (current.ports ?? []).find((x) => portIdentity(x) === id)?.consumers?.length ?? 0;
+    if (consumers.filter((c) => c.port_id === port.id).length > shown) out.add(id);
+  }
+  return out;
+}
+
 const listName = (x: string) => x.split('\u0000').filter(Boolean).join(' ');
 
 /**
  * The product as the files say it, its lists included: members, ports, steps and the consumers of each port are those
  * of the file (an item the file leaves out is removed); other fields as add and update (a key left out keeps its value).
  */
-function replacedLists(cur: ProductFile, inc: ProductFile): { merged: ProductFile; removed: DataProductImportField[] } {
+function replacedLists(cur: ProductFile, inc: ProductFile, keepPorts: ReadonlySet<string> = new Set()): { merged: ProductFile; removed: DataProductImportField[] } {
   const merged = overlay(cur, inc);
   const removed: DataProductImportField[] = [];
   const keep = <T>(field: string, list: T[] | undefined, wanted: T[] | undefined, id: (x: T) => string): T[] => {
@@ -747,9 +774,11 @@ function replacedLists(cur: ProductFile, inc: ProductFile): { merged: ProductFil
     return out;
   };
   merged.members = keep('members', merged.members, inc.members, (x) => elementKey(x.element));
-  merged.ports = keep('ports', merged.ports, inc.ports, (x) => portIdentity(x)).map((port) => {
+  const wantedPorts = [...(inc.ports ?? []), ...(merged.ports ?? []).filter((x) => keepPorts.has(portIdentity(x)))];
+  merged.ports = keep('ports', merged.ports, wantedPorts, (x) => portIdentity(x)).map((port) => {
     const want = (inc.ports ?? []).find((x) => portIdentity(x) === portIdentity(port));
-    if (port.direction !== 'output') return port;
+    // a port kept for consumers the importer may not see keeps its consumers as they are
+    if (port.direction !== 'output' || !want) return port;
     return { ...port, consumers: keep(`ports[${portIdentity(port)}].consumers`, port.consumers, want?.consumers, (c) => consumerIdentity(c)) };
   });
   merged.steps = keep('steps', merged.steps, inc.steps, (x) => x.name.toLowerCase());

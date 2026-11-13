@@ -154,6 +154,37 @@ describe('import mode replace', () => {
     const again = await dana('POST', '/data-products/import/preview', body);
     expect(again.counts).toMatchObject({ add: 0, change: 0, remove: 0 });
   });
+
+  it('keeps a port the files leave out while it has consumers the importer may not see – counted as kept', async () => {
+    const { db } = await import('../src/db.js');
+    const stock = db().get<{ id: string }>("SELECT id FROM dp_products WHERE key = 'inv-stock'")!;
+    const port = db().get<{ id: string }>('SELECT id FROM dp_ports WHERE product_id = ?', stock.id)!;
+    const secret = db().get<{ id: string }>("SELECT id FROM dp_products WHERE key = 'inv-secret'")!;
+    const now = new Date().toISOString();
+    // a consuming product dana may not see: the export of inv-stock leaves its registration out
+    db().run(
+      `INSERT INTO dp_consumers (id, port_id, consumer_kind, ref_id, consumer_subjects, consumer_text, purpose, since, end_date, agreement, contacts, created_at, created_by, updated_at, updated_by)
+       VALUES ('dpc_inv_hidden', ?, 'product', ?, '[]', '', 'Hidden use', ?, NULL, NULL, '[]', ?, 'admin', ?, 'admin')`,
+      port.id,
+      secret.id,
+      now.slice(0, 10),
+      now,
+      now,
+    );
+    const next = FULL();
+    next.data_objects = next.data_objects.filter((o) => o.key !== 'warehouse');
+    next.data_products = [{ ...next.data_products[0]!, members: [next.data_products[0]!.members[0]!], ports: [], steps: [] }];
+    next.elements = next.elements.filter((e) => e.qualified_name !== 'INV.REPORT');
+    const body = { files: [file(next)], mode: 'replace', origin: 'inventory-files' };
+    const p = await dana('POST', '/data-products/import/preview', body);
+    expect(p.problems).toEqual([]);
+    expect(JSON.stringify(p.changes)).not.toContain('ports[output stock v1]');
+    // the hidden product, its registration and the port kept for it
+    expect(p.counts).toMatchObject({ remove: 0, removedItems: 0, keptHidden: 3 });
+    await dana('POST', '/data-products/import', body);
+    expect(db().get('SELECT 1 FROM dp_ports WHERE id = ?', port.id)).toBeTruthy();
+    expect(db().get("SELECT 1 FROM dp_consumers WHERE id = 'dpc_inv_hidden'")).toBeTruthy();
+  });
 });
 
 describe('ODPS import', () => {
