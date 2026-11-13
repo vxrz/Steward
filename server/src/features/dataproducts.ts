@@ -3,6 +3,7 @@ import { dataProductRoutes } from '../dataproducts/routes.js';
 import { dataProductHealthRoutes } from '../dataproducts/health-routes.js';
 import { dataProductViewRoutes } from '../dataproducts/views-routes.js';
 import { discoveryRoutes } from '../dataproducts/discovery/routes.js';
+import { dataProductCostRoutes } from '../dataproducts/costs-routes.js';
 import { DATA_PRODUCT_LINK_KIND_RESOLVERS } from '../dataproducts/links.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
@@ -15,8 +16,8 @@ export default defineFeature({
   name: 'dataproducts',
   module: 'dataProducts',
   // the discovery sources first: /data-products/discovery-sources is not a product id; checks and health (WP3); the
-  // pictures (WP6): the pipeline of a product, the product map, the lineage of an element
-  routes: [discoveryRoutes, dataProductRoutes, dataProductHealthRoutes, dataProductViewRoutes],
+  // pictures (WP6): the pipeline of a product, the product map, the lineage of an element; costs and scorecard (WP4)
+  routes: [discoveryRoutes, dataProductRoutes, dataProductHealthRoutes, dataProductViewRoutes, dataProductCostRoutes],
   // ADR 0036 part 17: documents, records and ticket references link products and data objects
   linkKinds: [...DATA_PRODUCT_LINK_KIND_RESOLVERS],
   migrations: [DATA_PRODUCT_MIGRATIONS],

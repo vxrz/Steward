@@ -22,6 +22,7 @@ import { canViewCatalogue } from '../records/access.js';
 import { factsOf, parseContract } from '../datacontracts/odcs.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
+import { onLifecycleChanged, onPortDeleted } from './notices.js';
 import { HIDDEN, L, actorName, elementNotFound, json, limitReached, objectNotFound, portNotFound, productNotFound, refOf } from './common.js';
 import {
   bindingsOf,
@@ -323,6 +324,8 @@ export function updatePort(productId: string, productName: string, portId: strin
       details: { portId: cur.id, lifecycle: input.lifecycle, sunsetDate: input.sunsetDate, successorId: input.successorId },
     });
   });
+  // deprecated: the consumers are told once (notices.ts, WP4)
+  onLifecycleChanged('port', cur.id, { from: cur.lifecycle, to: input.lifecycle, sunsetDate: input.sunsetDate, sunsetBefore: cur.sunset_date });
   return portViews(me(), productId).find((p) => p.id === cur.id)!;
 }
 
@@ -341,6 +344,7 @@ export function deletePort(productId: string, productName: string, portId: strin
       cur.id,
     );
     db().run('DELETE FROM dp_ports WHERE id = ?', cur.id);
+    onPortDeleted(cur.id);
     audit({
       action: 'dataproduct.port_removed',
       entityType: 'data_product',

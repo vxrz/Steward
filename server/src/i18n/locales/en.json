@@ -651,5 +651,33 @@
     "runsOutOn": "Estimated to be used up on {{date}}.",
     "estimateNote": "The estimate is linear from the use of the recent months and changes when the use does.",
     "stateOnly": "The figures are not shown: the volume is also used by services or platforms you may not see."
+  },
+  "dataProducts": {
+    "deprecated": {
+      "productTitle": "Data product deprecated: {{product}}",
+      "portTitle": "Port {{port}} of {{product}} deprecated",
+      "productBody": "The data product “{{product}}” is deprecated. Plan to move away from it before its sunset date.",
+      "portBody": "The port “{{port}}” of the data product “{{product}}” is deprecated. Plan to move away from it before its sunset date.",
+      "sunset": "Sunset date: {{date}}.",
+      "noSunset": "No sunset date is set yet.",
+      "successor": "Successor: {{successor}}.",
+      "registered": "You are registered as a consumer of: {{ports}}.",
+      "consuming": "Your data products that use it: {{products}}.",
+      "hint": "You get this because you are a registered consumer or you own a data product that uses it."
+    },
+    "missing": {
+      "title_one": "Data product {{product}}: {{count}} element missing",
+      "title_other": "Data product {{product}}: {{count}} elements missing",
+      "body_one": "The last discovery run of “{{source}}” no longer found {{count}} element of the data product “{{product}}”:",
+      "body_other": "The last discovery run of “{{source}}” no longer found {{count}} elements of the data product “{{product}}”:",
+      "more_one": "… and {{count}} more",
+      "more_other": "… and {{count}} more",
+      "hint": "Elements are removed after 30 days missing unless they are part of a product. Check whether they were renamed or dropped, and update the product."
+    },
+    "discoveryFailed": {
+      "title": "Discovery failing: {{source}}",
+      "body": "The discovery source “{{source}}” on {{platform}} failed and fails since {{since}}: {{error}}",
+      "hint": "You get this once until it succeeds again, because you set up the source or manage the platform."
+    }
   }
 }

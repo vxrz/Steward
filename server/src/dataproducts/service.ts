@@ -59,6 +59,7 @@ import {
   type ProductRow,
 } from './store.js';
 import { portViews } from './ports.js';
+import { onLifecycleChanged } from './notices.js';
 
 /**
  * Domains, data objects and data products (ADR 0036 parts 1–4, 12, 17): reading with team scope (a reader never sees,
@@ -1060,6 +1061,8 @@ export function changeLifecycle(id: string, body: unknown): DataProduct {
       details: { from: row.lifecycle, to: input.lifecycle, sunsetDate: sunset, successorId: successor, consumers },
     });
   });
+  // deprecated: the consumers are told once (notices.ts, WP4)
+  onLifecycleChanged('product', row.id, { from: row.lifecycle, to: input.lifecycle, sunsetDate: sunset, sunsetBefore: row.sunset_date });
   return getProduct(row.id);
 }
 
