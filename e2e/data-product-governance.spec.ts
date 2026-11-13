@@ -214,6 +214,9 @@ test.describe('governance of data products', () => {
     await expect(table.getByRole('link', { name: `Customer ${s.token}` })).toBeVisible();
     await expect(table).toContainText(`Governed orders ${s.token}`);
     await expect(table).toContainText('Contract – Art. 6(1)(b)');
+    // the retention P10Y as people read it
+    await expect(table).toContainText('10 years');
+    await expect(table).not.toContainText('P10Y');
     const csv = page.getByTestId('ropa-csv');
     await expect(csv).toHaveAttribute('href', /records-of-processing\.csv\?q=/);
     const res = await page.request.get((await csv.getAttribute('href'))!);

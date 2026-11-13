@@ -6191,6 +6191,16 @@ export interface Resources {
     'quality.statuses.warning': string;
     'quality.statuses.failed': string;
     'quality.statuses.error': string;
+    'duration.years_one': string;
+    'duration.years_other': string;
+    'duration.months_one': string;
+    'duration.months_other': string;
+    'duration.weeks_one': string;
+    'duration.weeks_other': string;
+    'duration.days_one': string;
+    'duration.days_other': string;
+    'duration.hours_one': string;
+    'duration.hours_other': string;
   };
   debug: {
     simulated: string;

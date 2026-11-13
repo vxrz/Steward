@@ -10,7 +10,7 @@ import { DataTable } from '../../../components/DataTable';
 import { ListPage } from '../../../components/page/ListPage';
 import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { qs, useDomains } from '../api';
-import { HiddenCount, PersonalDataBadge, RefLink } from '../parts';
+import { HiddenCount, PersonalDataBadge, RefLink, useRetentionText } from '../parts';
 import { useRopa } from './api';
 
 const enc = encodeURIComponent;
@@ -31,6 +31,7 @@ export function RecordsOfProcessingPage() {
   const q = useRopa(query);
   const domains = useDomains();
   const subject = useSubjectLabel();
+  const retention = useRetentionText();
   const set = (k: string, v: string) => {
     const next = new URLSearchParams(params);
     if (v) next.set(k, v);
@@ -216,7 +217,7 @@ export function RecordsOfProcessingPage() {
               header: t('ropa.retention'),
               cell: (e) => (
                 <Stack gap={2}>
-                  <Text size="sm">{e.retention || '–'}</Text>
+                  <Text size="sm">{retention(e.retention) || '–'}</Text>
                   {e.deletionRule && (
                     <Text size="xs" c="dimmed">
                       {e.deletionRule}
@@ -262,7 +263,7 @@ export function RecordsOfProcessingPage() {
                 </Text>
                 <HiddenCount count={e.hiddenProcessors} />
                 <Text size="xs">
-                  {t('ropa.retention')}: {e.retention || '–'}
+                  {t('ropa.retention')}: {retention(e.retention) || '–'}
                   {e.deletionRule && ` – ${e.deletionRule}`}
                 </Text>
               </Stack>
