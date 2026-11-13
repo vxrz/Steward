@@ -1,6 +1,6 @@
 # 0034. Who may use a module: module access and module roles
 
-- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); nothing is built yet
+- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); built in 0.21.0 (phase 1: who may use a module; module roles are phase 2)
 - **Date:** 2026-11-12
 - **Since:** 0.21.0 at the earliest (phase 1, see _Phases_); builds on [ADR 0016](0016-module-registry.md) and [ADR 0033](0033-one-access-model.md)
 

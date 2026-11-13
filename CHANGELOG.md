@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-13
+
+Steward 0.21.0 brings one access model, phase 1 ([ADR 0033](docs/adr/0033-one-access-model.md)): an item can be **shared** with a user, a team or a role – View, Edit or Manage, with an end date – from its new _Access_ tab, with a preview of who gains and loses what and the step-up before anyone gains access; services, applications, systems, suppliers, device profiles and KPI definitions take part, owners count as an implied Edit share, and an item can be _Restricted_ to its shares. **Who may use a module** ([ADR 0034](docs/adr/0034-module-access.md)) restricts a module to chosen teams and users, everywhere: pages, API, MCP, notifications, search and reports. **Price books, calculators and estimates** ([ADR 0035](docs/adr/0035-price-books-and-calculators.md), phase 1) keep prices per unit of any driver with versions, credit chains and tiers, calculate estimates with ranges and ad-hoc adjustments, and let an assistant compare up to five pipeline variants through MCP without storing anything. Two new Snowflake examples estimate this month's costs and look for waste. A security review of these changes found and fixed one high and six medium findings before the release. Nobody gains or loses access on upgrade. Migrations are additive (`teams-005-shares`, `modules-001-access`, `modules-002-report-modules`, `costs-006-price-books`, `costs-007-calculators-estimates`).
+
 ### Added
 
 - **Shares – the core of one access model** ([ADR 0033](docs/adr/0033-one-access-model.md)): one table of shares (a user, a team or a role given _View_, _Edit_ or _Manage_ and the kind's action rights, with an optional end date at most a year ahead) and a _Restricted_ scope per resource, read in bulk per request by the policy module; one widening check – a change that gives anyone a right they did not have asks for the step-up (`access.grant`, API tokens refused), narrowing never asks – and one audit family (`access.share_added`, `share_changed`, `share_removed`, `share_expired`, `scope_changed`) in the assurance report and evidence packs; ended shares stop at once and are removed by a job, and who manages the item is reminded 7 days before (`access.share_expiring`). _Why do I have access?_ names a share. Migration `teams-004-shares`. No kind uses shares yet – the _Access_ tab and the kinds follow.
@@ -1471,7 +1475,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/vxrz/steward/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/vxrz/steward/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/vxrz/steward/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/vxrz/steward/compare/v0.17.0...v0.18.0
