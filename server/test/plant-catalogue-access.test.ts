@@ -409,3 +409,25 @@ describe('performance', () => {
     expect(many).toBeLessThan(60);
   });
 });
+
+describe('security review 0.21.0', () => {
+  it('the import preview flags fields changed in Steward without naming a hidden profile', async () => {
+    const file = (profile: string) => ({
+      name: 'mill.plant.yaml',
+      content: YAML.stringify({ version: 1, assignments: [{ asset: 'rvs-mill-01', profile }] }),
+    });
+    // the last import gave the mill the team's profile; then someone gave it the derived one in Steward
+    await s.api('POST', '/plant/import', { files: [file(C80)], mode: 'update' });
+    const a = await s.api('GET', '/plant/assets/rvs-mill-01/assignment');
+    await s.api('PUT', '/plant/assets/rvs-mill-01/assignment', { ...a.assignment, profileId: 'example-c80-plus' });
+    // Dana (who may not see the team's profile) sends it back by its placeholder
+    const pre = await dana('POST', '/plant/import/preview', { files: [file('~hidden-1')], mode: 'update' });
+    const flag = pre.changedInSteward?.flags.find((f: { path: string }) => f.path === 'profileId');
+    expect(flag).toMatchObject({ lastImport: '~hidden-1', steward: 'example-c80-plus', file: '~hidden-1' });
+    unnamed(pre);
+    // who sees it reads the real id
+    const own = await tom('POST', '/plant/import/preview', { files: [file(C80)], mode: 'update' });
+    expect(own.changedInSteward?.flags.find((f: { path: string }) => f.path === 'profileId')).toMatchObject({ lastImport: C80, file: C80 });
+    await s.api('PUT', '/plant/assets/rvs-mill-01/assignment', { ...a.assignment, profileId: C80 });
+  });
+});
