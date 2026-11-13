@@ -42,6 +42,9 @@ export const NOTIFICATION_EVENTS = [
   'soa.approval_waiting',
   'cost.booking_due',
   'cost.volume',
+  'dataproduct.deprecated',
+  'dataproduct.elements_missing',
+  'dataproduct.discovery_failed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -75,6 +78,7 @@ const ALERT_EVENTS: readonly NotificationEvent[] = [
   'cost.volume',
   'contract.failed',
   'plant.advisory_matched',
+  'dataproduct.discovery_failed',
 ];
 export const notificationCategory = (event: string): NotificationCategory =>
   (NOTIFICATION_DECISION_EVENTS as readonly string[]).includes(event) ? 'decision' : (ALERT_EVENTS as readonly string[]).includes(event) ? 'alert' : 'update';
@@ -121,6 +125,10 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'cost.booking_due': 'Contract payments of last month of a service you own have no cost entry yet (off by default: turn it on in your profile)',
   'cost.volume':
     'A contract volume your service or platform pays runs out, is used up, passes its ceiling or is expected to end well below its committed minimum',
+  'dataproduct.deprecated':
+    'A data product or port you consume was deprecated (registered consumers and the owners of products that use it), with its sunset date and successor',
+  'dataproduct.elements_missing': 'A discovery run no longer found elements of a data product you own (once per product and run)',
+  'dataproduct.discovery_failed': 'A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)',
 };
 
 /**

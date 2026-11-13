@@ -651,5 +651,33 @@
     "runsOutOn": "Voraussichtlich aufgebraucht am {{date}}.",
     "estimateNote": "Die Schätzung ist linear aus der Nutzung der letzten Monate und ändert sich, wenn sich die Nutzung ändert.",
     "stateOnly": "Die Zahlen werden nicht gezeigt: Das Volumen nutzen auch Services oder Plattformen, die Sie nicht sehen dürfen."
+  },
+  "dataProducts": {
+    "deprecated": {
+      "productTitle": "Datenprodukt abgekündigt: {{product}}",
+      "portTitle": "Port {{port}} von {{product}} abgekündigt",
+      "productBody": "Das Datenprodukt „{{product}}“ ist abgekündigt. Planen Sie den Wechsel vor dem Abschaltdatum.",
+      "portBody": "Der Port „{{port}}“ des Datenprodukts „{{product}}“ ist abgekündigt. Planen Sie den Wechsel vor dem Abschaltdatum.",
+      "sunset": "Abschaltdatum: {{date}}.",
+      "noSunset": "Ein Abschaltdatum ist noch nicht gesetzt.",
+      "successor": "Nachfolger: {{successor}}.",
+      "registered": "Sie sind als Nutzer registriert für: {{ports}}.",
+      "consuming": "Ihre Datenprodukte, die es nutzen: {{products}}.",
+      "hint": "Sie erhalten diese Nachricht, weil Sie als Nutzer registriert sind oder ein Datenprodukt besitzen, das es nutzt."
+    },
+    "missing": {
+      "title_one": "Datenprodukt {{product}}: {{count}} Element fehlt",
+      "title_other": "Datenprodukt {{product}}: {{count}} Elemente fehlen",
+      "body_one": "Der letzte Erkennungslauf von „{{source}}“ hat {{count}} Element des Datenprodukts „{{product}}“ nicht mehr gefunden:",
+      "body_other": "Der letzte Erkennungslauf von „{{source}}“ hat {{count}} Elemente des Datenprodukts „{{product}}“ nicht mehr gefunden:",
+      "more_one": "… und {{count}} weiteres",
+      "more_other": "… und {{count}} weitere",
+      "hint": "Elemente werden nach 30 Tagen entfernt, wenn sie zu keinem Produkt gehören. Prüfen Sie, ob sie umbenannt oder gelöscht wurden, und passen Sie das Produkt an."
+    },
+    "discoveryFailed": {
+      "title": "Erkennung schlägt fehl: {{source}}",
+      "body": "Die Erkennungsquelle „{{source}}“ auf {{platform}} ist fehlgeschlagen, seit {{since}}: {{error}}",
+      "hint": "Sie erhalten diese Nachricht einmal, bis die Erkennung wieder gelingt, weil Sie die Quelle eingerichtet haben oder die Plattform verwalten."
+    }
   }
 }
