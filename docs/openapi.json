@@ -37644,9 +37644,10 @@
             "type": "string",
             "enum": [
               "list",
-              "contracted"
+              "contracted",
+              "derived"
             ],
-            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)"
+            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only); derived: a provider's customer prices computed from a base book with its terms and fee (the customer prices only – base, discount and fee are never part of this API)"
           },
           "provider": {
             "type": "string"
@@ -37730,7 +37731,8 @@
             "type": "string",
             "enum": [
               "manual",
-              "csv"
+              "csv",
+              "derived"
             ]
           },
           "reviewDays": {
@@ -37811,9 +37813,10 @@
             "type": "string",
             "enum": [
               "list",
-              "contracted"
+              "contracted",
+              "derived"
             ],
-            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only)"
+            "description": "list: published prices (everyone reads them); contracted: the prices of a contract (its readers only); derived: a provider's customer prices computed from a base book with its terms and fee (the customer prices only – base, discount and fee are never part of this API)"
           },
           "provider": {
             "type": "string"
@@ -37897,7 +37900,8 @@
             "type": "string",
             "enum": [
               "manual",
-              "csv"
+              "csv",
+              "derived"
             ]
           },
           "reviewDays": {
@@ -37955,7 +37959,8 @@
                     "manual",
                     "csv",
                     "migration",
-                    "source"
+                    "source",
+                    "derived"
                   ]
                 },
                 "entries": {
@@ -38706,7 +38711,8 @@
                                   "type": "string",
                                   "enum": [
                                     "list",
-                                    "contracted"
+                                    "contracted",
+                                    "derived"
                                   ]
                                 },
                                 "version": {
@@ -38907,6 +38913,229 @@
                           "type": "boolean",
                           "description": "Priced with rates the token owner may not see – shown at list price (or left out)"
                         },
+                        "foundBy": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "list",
+                                    "contracted",
+                                    "derived",
+                                    "negotiated",
+                                    "percentOff",
+                                    "commitment"
+                                  ]
+                                },
+                                "percent": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "The percentage off the list price (percentOff, commitment)"
+                                },
+                                "contract": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "reference": {
+                                          "type": "string"
+                                        },
+                                        "inherited": {
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "title",
+                                        "reference",
+                                        "inherited"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The contract whose conditions applied (only for who sees them)"
+                                },
+                                "conditionIgnored": {
+                                  "type": "boolean",
+                                  "description": "A percentage of the contract was left out: the contracted book already includes the discount"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "percent",
+                                "contract",
+                                "conditionIgnored"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "How the price was found, as far as the token owner may see it"
+                        },
+                        "breakdown": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "base": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "version": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "version"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "baseAmount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "markup": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "fee": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discountPct": {
+                                  "type": "string"
+                                },
+                                "markupPct": {
+                                  "type": "string"
+                                },
+                                "feePerBlock": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base",
+                                "baseAmount",
+                                "discount",
+                                "markup",
+                                "fee",
+                                "discountPct",
+                                "markupPct",
+                                "feePerBlock"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Priced from a derived book: base, discount, markup and fee – only for who sees the provider's terms and the base book"
+                        },
                         "missing": {
                           "anyOf": [
                             {
@@ -38948,6 +39177,8 @@
                         "fixedMoved",
                         "amount",
                         "priceHidden",
+                        "foundBy",
+                        "breakdown",
                         "missing"
                       ],
                       "additionalProperties": false
@@ -39124,7 +39355,8 @@
                           "type": "string",
                           "enum": [
                             "list",
-                            "contracted"
+                            "contracted",
+                            "derived"
                           ]
                         },
                         "version": {
@@ -39147,6 +39379,34 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "contracts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference",
+                        "provider"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "The contracts whose conditions priced it – those whose conditions the token owner sees"
                   },
                   "rates": {
                     "type": "array",
@@ -39198,6 +39458,7 @@
                   "totals",
                   "months",
                   "books",
+                  "contracts",
                   "rates",
                   "missing",
                   "atListPrice",
@@ -39382,7 +39643,8 @@
                                   "type": "string",
                                   "enum": [
                                     "list",
-                                    "contracted"
+                                    "contracted",
+                                    "derived"
                                   ]
                                 },
                                 "version": {
@@ -39583,6 +39845,229 @@
                           "type": "boolean",
                           "description": "Priced with rates the token owner may not see – shown at list price (or left out)"
                         },
+                        "foundBy": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "list",
+                                    "contracted",
+                                    "derived",
+                                    "negotiated",
+                                    "percentOff",
+                                    "commitment"
+                                  ]
+                                },
+                                "percent": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "The percentage off the list price (percentOff, commitment)"
+                                },
+                                "contract": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "type": "string"
+                                        },
+                                        "reference": {
+                                          "type": "string"
+                                        },
+                                        "inherited": {
+                                          "type": "boolean"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "title",
+                                        "reference",
+                                        "inherited"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The contract whose conditions applied (only for who sees them)"
+                                },
+                                "conditionIgnored": {
+                                  "type": "boolean",
+                                  "description": "A percentage of the contract was left out: the contracted book already includes the discount"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "percent",
+                                "contract",
+                                "conditionIgnored"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "How the price was found, as far as the token owner may see it"
+                        },
+                        "breakdown": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "base": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "version": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "version"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "baseAmount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discount": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "markup": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "fee": {
+                                  "type": "object",
+                                  "properties": {
+                                    "low": {
+                                      "type": "string",
+                                      "description": "Low – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "expected": {
+                                      "type": "string",
+                                      "description": "Expected – a decimal (e.g. \"1840.00\")"
+                                    },
+                                    "high": {
+                                      "type": "string",
+                                      "description": "High – a decimal (e.g. \"1840.00\")"
+                                    }
+                                  },
+                                  "required": [
+                                    "low",
+                                    "expected",
+                                    "high"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Low, expected and high: three calculations with every ranged input at its low, expected and high value – a span of the inputs, not a probability. Without ranges all three are equal."
+                                },
+                                "discountPct": {
+                                  "type": "string"
+                                },
+                                "markupPct": {
+                                  "type": "string"
+                                },
+                                "feePerBlock": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "base",
+                                "baseAmount",
+                                "discount",
+                                "markup",
+                                "fee",
+                                "discountPct",
+                                "markupPct",
+                                "feePerBlock"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Priced from a derived book: base, discount, markup and fee – only for who sees the provider's terms and the base book"
+                        },
                         "missing": {
                           "anyOf": [
                             {
@@ -39624,6 +40109,8 @@
                         "fixedMoved",
                         "amount",
                         "priceHidden",
+                        "foundBy",
+                        "breakdown",
                         "missing"
                       ],
                       "additionalProperties": false
@@ -39800,7 +40287,8 @@
                           "type": "string",
                           "enum": [
                             "list",
-                            "contracted"
+                            "contracted",
+                            "derived"
                           ]
                         },
                         "version": {
@@ -39823,6 +40311,34 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "contracts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string"
+                        },
+                        "provider": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "reference",
+                        "provider"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "The contracts whose conditions priced it – those whose conditions the token owner sees"
                   },
                   "rates": {
                     "type": "array",
@@ -39880,6 +40396,7 @@
                   "totals",
                   "months",
                   "books",
+                  "contracts",
                   "rates",
                   "missing",
                   "atListPrice",
@@ -56871,7 +57388,8 @@
               "type": "string",
               "enum": [
                 "list",
-                "contracted"
+                "contracted",
+                "derived"
               ]
             },
             "in": "query",

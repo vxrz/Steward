@@ -526,6 +526,8 @@ export interface CostSettings {
   defaultCurrency: string;
   /** The month the fiscal year starts in, for the whole instance (1 = January; service cost planning, ADR 0026) */
   fiscalYearStartMonth: number;
+  /** "Estimate changed" (0.23.0, ADR 0035 part 6): the change of an estimate's monthly total, in percent, that is notified */
+  estimateChangePct: number;
 }
 export const costSettingsInput = z
   .object({
@@ -533,6 +535,8 @@ export const costSettingsInput = z
     defaultCurrency: currencyCode,
     /** Left out: unchanged */
     fiscalYearStartMonth: z.number().int().min(1).max(12).optional(),
+    /** Left out: unchanged (default 5) */
+    estimateChangePct: z.number().min(0.1).max(100).optional(),
   })
   .strict();
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoCurrencyCode } from './costs.js';
+import type { CostDerivedBreakdown, CostPriceFound } from './costConditions.js';
 import { boundedRecord } from './zodLimits.js';
 import { isMonth } from './costPlans.js';
 import { COST_PRICE_LIMITS, parsePercent, parsePrice, parseQuantity, parseUnit, type CostPriceBookKind, type CostPriceCharge } from './costPrices.js';
@@ -286,6 +287,13 @@ export type CostAdjustment = z.output<typeof costAdjustmentInput>;
 /** The book to price a provider's items with (default: the contracted book the editor may see, else the list book). */
 export const costBookChoice = z.object({ provider: z.string().trim().min(1).max(120), bookId: z.string().trim().min(1).max(100) }).strict();
 
+/**
+ * The contract whose conditions apply to a provider's prices (0.23.0, ADR 0035 part 3); contractId null: none (list or
+ * the book's prices as they are). Default: a contract the editor sees the conditions of – one covering the estimate's
+ * service or platform first.
+ */
+export const costContractChoice = z.object({ provider: z.string().trim().min(1).max(120), contractId: z.string().trim().min(1).max(100).nullable() }).strict();
+
 /** What a calculation needs: a calculator (or a definition being edited) with inputs, and/or lines by hand. */
 export const costCalculationInput = z
   .object({
@@ -298,6 +306,7 @@ export const costCalculationInput = z
     lines: z.array(costEstimateHandLine).max(COST_ESTIMATE_LIMITS.lines).default([]),
     adjustments: z.array(costAdjustmentInput).max(COST_ESTIMATE_LIMITS.adjustments).default([]),
     books: z.array(costBookChoice).max(50).default([]),
+    contracts: z.array(costContractChoice).max(50).default([]),
     currency: isoCurrencyCode,
     /** The first month the estimate applies from (YYYY-MM); default: the current month */
     appliesFrom: z
@@ -382,6 +391,10 @@ export interface CostEstimateLine {
   amount: CostRange | null;
   /** The reader may not see the book: the line is shown at the list price (or left out without one) */
   priceHidden: boolean;
+  /** How the price was found (0.23.0): list, contracted, derived, negotiated, percent off … – as far as the reader may see it */
+  foundBy: CostPriceFound | null;
+  /** Priced from a derived book: base, discount, markup and fee – only for who sees the provider's terms and the base */
+  breakdown: CostDerivedBreakdown | null;
   /** Why there is no price */
   missing: 'noBook' | 'noItem' | 'unit' | 'ambiguous' | null;
 }
@@ -408,6 +421,8 @@ export interface CostEstimateResult {
   /** Per month over the next 36 months – only when a price changes within them */
   months: { month: string; monthly: CostRange }[] | null;
   books: { id: string; name: string; kind: CostPriceBookKind; version: number; provider: string; hidden: boolean }[];
+  /** The contracts whose conditions it used (0.23.0) – only those the reader sees the conditions of */
+  contracts: { id: string; title: string; reference: string; provider: string }[];
   rates: { from: string; to: string; rate: string; date: string }[];
   /** Lines without a price (their amounts are left out of the totals) */
   missing: number;
@@ -428,6 +443,8 @@ export interface CostEstimate {
   lines: CostEstimateHandLine[];
   adjustments: (CostAdjustment & { by: string; at: string })[];
   books: { provider: string; bookId: string }[];
+  /** The contracts chosen per provider (0.23.0) – those the reader may see */
+  contracts: { provider: string; contractId: string | null }[];
   currency: string;
   appliesFrom: string;
   amountsVisible: boolean;

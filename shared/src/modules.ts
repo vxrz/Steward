@@ -181,7 +181,7 @@ export const MODULES: readonly ModuleDef[] = [
     datasets: ['costs:'],
     access: {
       restrictable: true,
-      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due'],
+      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due', 'cost.estimate_changed'],
       mcpTools: [
         'get_service_cost_plan',
         'get_platform_cost_plan',

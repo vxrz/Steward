@@ -697,5 +697,12 @@
       "body": "The discovery source “{{source}}” on {{platform}} failed and fails since {{since}}: {{error}}",
       "hint": "You get this once until it succeeds again, because you set up the source or manage the platform."
     }
+  },
+  "estimateChanged": {
+    "title": "Estimate changed: {{title}}",
+    "body": "The estimate “{{title}}” of {{owner}} was recalculated with new prices{{cause}}: {{after}} a month instead of {{before}} ({{pct}} %). It keeps its result until you choose Accept new prices.",
+    "cause": " ({{what}})",
+    "book": "{{name}} v{{version}}",
+    "contract": "the conditions of {{title}}"
   }
 }

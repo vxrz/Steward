@@ -697,5 +697,12 @@
       "body": "Die Erkennungsquelle „{{source}}“ auf {{platform}} ist fehlgeschlagen, seit {{since}}: {{error}}",
       "hint": "Sie erhalten diese Nachricht einmal, bis die Erkennung wieder gelingt, weil Sie die Quelle eingerichtet haben oder die Plattform verwalten."
     }
+  },
+  "estimateChanged": {
+    "title": "Schätzung geändert: {{title}}",
+    "body": "Die Schätzung „{{title}}“ von {{owner}} wurde mit neuen Preisen neu berechnet{{cause}}: {{after}} im Monat statt {{before}} ({{pct}} %). Sie behält ihr Ergebnis, bis Sie Neue Preise übernehmen wählen.",
+    "cause": " ({{what}})",
+    "book": "{{name}} v{{version}}",
+    "contract": "die Konditionen von {{title}}"
   }
 }

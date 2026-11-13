@@ -768,6 +768,14 @@ const resultInPartitions = (reply: FastifyReply, names: string[], rows: Cell[][]
 
 /** For tests: whether the organisation's usage views can be read (false: a reseller contract, no ORGANIZATION_USAGE). */
 let orgUsage = true;
+/** Invented contracted rates of the demo account (service type, usage type, effective rate in USD) – not Snowflake's. */
+const RATE_SHEET: [string, string, string][] = [
+  ['WAREHOUSE_METERING', 'compute', '2.6'],
+  ['WAREHOUSE_METERING', 'cloud services', '2.6'],
+  ['STORAGE', 'storage', '21.5'],
+  ['DATA_TRANSFER', 'data transfer', '18'],
+  ['SERVERLESS_TASK', 'serverless tasks', '3.4'],
+];
 export function setSnowflakeOrgUsage(on: boolean): void {
   orgUsage = on;
 }
@@ -889,6 +897,20 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
           reply,
           ['USAGE_DATE', 'SERVICE_TYPE', 'BILLING_TYPE', 'CURRENCY', 'AMOUNT'],
           dailyUsage(arg(1)).map((u) => [u.day, u.service, 'consumption', 'USD', u.amount.toFixed(6)]),
+        );
+      // the rate sheet (0.23.0, ADR 0035 part 2): invented contracted rates of the demo account, the discount included
+      case 'price-rate-sheet':
+        if (!orgUsage)
+          return reply.code(422).send({
+            code: '002003',
+            message: "SQL compilation error:\nObject 'SNOWFLAKE.ORGANIZATION_USAGE.RATE_SHEET_DAILY' does not exist or not authorized.",
+          });
+        if (arg(1) !== DEMO_SNOWFLAKE.account && arg(2) !== DEMO_SNOWFLAKE.account)
+          return result(reply, ['DATE', 'CONTRACT_NUMBER', 'SERVICE_TYPE', 'USAGE_TYPE', 'CURRENCY', 'EFFECTIVE_RATE'], []);
+        return result(
+          reply,
+          ['DATE', 'CONTRACT_NUMBER', 'SERVICE_TYPE', 'USAGE_TYPE', 'CURRENCY', 'EFFECTIVE_RATE'],
+          RATE_SHEET.map((r) => [new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), 'SDC-2026-014', r[0], r[1], 'USD', r[2]]),
         );
       case 'costs-credits':
         return result(
