@@ -271,17 +271,24 @@ function VersionPanel({ productId, n }: { productId: string; n: number }) {
           <Text fw={600} size="sm">
             {t('driftTitle')}
           </Text>
-          {v.drift.findings.length ? (
+          {!v.drift.checked ? (
+            // a document that does not parse: drift was not checked – neither "no drift" nor "0 datasets"
+            <Text size="sm" c="dimmed" data-testid="semantic-drift-unchecked">
+              {t('driftUnchecked')}
+            </Text>
+          ) : v.drift.findings.length ? (
             <Findings findings={v.drift.findings} more={v.drift.more} testId="semantic-drift" />
           ) : (
             <Text size="sm" c="dimmed" data-testid="semantic-drift-none">
               {t('driftNone')}
             </Text>
           )}
-          <Text size="xs" c="dimmed">
-            {t('driftChecked', { count: v.drift.datasetsChecked })}
-            {v.drift.hiddenContracts > 0 && ` ${t('driftHidden', { count: v.drift.hiddenContracts })}`}
-          </Text>
+          {v.drift.checked && (
+            <Text size="xs" c="dimmed">
+              {t('driftChecked', { count: v.drift.datasetsChecked })}
+              {v.drift.hiddenContracts > 0 && ` ${t('driftHidden', { count: v.drift.hiddenContracts })}`}
+            </Text>
+          )}
         </div>
         <div>
           <Text fw={600} size="sm">

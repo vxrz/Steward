@@ -211,6 +211,18 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expectAccessible(page, 'records of processing with transfers');
   });
 
+  test('a version that does not parse: drift not checked, said so', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const broken = await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-broken`, name: `Broken model ${s.token}`, owners: ['user:dana'] });
+    await post(admin, `/api/data-products/${broken.id}/semantic-model/versions`, { document: 'version: 0.1.1\nsemantic_model: [1\n' });
+    await page.goto(`/data-products/${broken.id}/semantic-model`);
+    const version = page.getByTestId('semantic-version');
+    await expect(version.getByTestId('semantic-drift-unchecked')).toHaveText('Not checked: the document does not parse (see the lint below).');
+    await expect(version.getByTestId('semantic-drift-none')).toHaveCount(0);
+    await expect(version).not.toContainText('Columns known for');
+    await expect(version.getByTestId('semantic-lint')).toContainText('The document does not parse');
+  });
+
   test('semantic model and records of processing on a phone @mobile', async ({ page, apiAs }) => {
     const admin = await apiAs('admin');
     await post(admin, `/api/data-products/${s.product}/semantic-model/versions`, {

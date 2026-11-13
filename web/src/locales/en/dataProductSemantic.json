@@ -50,6 +50,7 @@
   "lintNone": "No findings against the official schema.",
   "driftTitle": "Drift",
   "driftNone": "No drift: the datasets match the product’s bound elements and contracts.",
+  "driftUnchecked": "Not checked: the document does not parse (see the lint below).",
   "driftHidden_one": "{{count}} bound contract you may not see was not used.",
   "driftHidden_other": "{{count}} bound contracts you may not see were not used.",
   "driftChecked_one": "Columns known for {{count}} dataset (a bound contract or a schema snapshot).",

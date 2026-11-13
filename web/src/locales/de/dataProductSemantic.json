@@ -50,6 +50,7 @@
   "lintNone": "Keine Befunde gegen das offizielle Schema.",
   "driftTitle": "Abweichungen",
   "driftNone": "Keine Abweichungen: Die Datasets passen zu den gebundenen Elementen und Verträgen des Produkts.",
+  "driftUnchecked": "Nicht geprüft: Das Dokument lässt sich nicht lesen (siehe die Prüfung unten).",
   "driftHidden_one": "{{count}} gebundener Vertrag, den Sie nicht sehen dürfen, wurde nicht verwendet.",
   "driftHidden_other": "{{count}} gebundene Verträge, die Sie nicht sehen dürfen, wurden nicht verwendet.",
   "driftChecked_one": "Spalten bekannt für {{count}} Dataset (ein gebundener Vertrag oder ein Schema-Snapshot).",

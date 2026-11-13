@@ -4916,6 +4916,7 @@ export interface Resources {
     lintNone: string;
     driftTitle: string;
     driftNone: string;
+    driftUnchecked: string;
     driftHidden_one: string;
     driftHidden_other: string;
     driftChecked_one: string;

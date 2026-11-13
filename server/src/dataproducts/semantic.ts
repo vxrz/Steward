@@ -186,7 +186,8 @@ export function semanticVersion(productId: string, n: number): DataSemanticVersi
     ...summaryOf(r, s),
     document: r.document!,
     lint: { findings: lint.findings, more: lint.more, revision: lint.revision },
-    drift: { ...drift, hiddenContracts: ctx?.hiddenContracts ?? 0 },
+    // a document that does not parse is not checked for drift: said so, not "no drift"
+    drift: { ...drift, checked: !!(parsed.doc && ctx), hiddenContracts: ctx?.hiddenContracts ?? 0 },
   };
 }
 

@@ -164,7 +164,13 @@ describe('semantic models', () => {
         'metricUnknownDataset:nowhere',
       ]),
     );
-    expect(v.drift).toMatchObject({ hiddenContracts: 0, datasetsChecked: 1 });
+    expect(v.drift).toMatchObject({ checked: true, hiddenContracts: 0, datasetsChecked: 1 });
+    // a document that does not parse: drift not checked – no "no drift", no datasets
+    const broken = (await dana('POST', '/data-products', { key: 'sem-broken', name: 'Semantic broken', owners: ['user:dana'] })).id;
+    await dana('POST', `/data-products/${broken}/semantic-model/versions`, { document: 'version: 0.1.1\nsemantic_model: [1\n' });
+    const b = await dana('GET', `/data-products/${broken}/semantic-model/versions/1`);
+    expect(b.drift).toMatchObject({ checked: false, findings: [], more: 0, datasetsChecked: 0 });
+    expect(b.lint.findings.some((f: { kind: string }) => f.kind === 'parse')).toBe(true);
     // a contract the reader may not see is not used – counted
     const { db } = await import('../src/db.js');
     db().run(
