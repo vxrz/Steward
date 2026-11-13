@@ -87,6 +87,12 @@ test.describe('edge devices', () => {
     await expect(dialog.getByRole('textbox', { name: 'Topic' })).toHaveValue('ie/d/line-1/opcua/state');
     await expect(dialog.getByRole('textbox', { name: 'Broker (host:port)' })).toHaveValue('ie-databus:1883');
     await expectAccessible(page, 'create element from a sink');
+    // Esc closes this dialog only: the collection stays open and the button has the focus again
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Machine state to the Databus' })).toBeVisible();
+    await expect(button).toBeFocused();
+    await button.click();
     // made: the form goes, the focus moves to the link to the new element (removed again afterwards)
     await dialog.getByRole('textbox', { name: 'Topic' }).fill(`ie/d/line-1/opcua/state-e2e-${Date.now().toString(36)}`);
     await dialog.getByTestId('sink-element-create').click();

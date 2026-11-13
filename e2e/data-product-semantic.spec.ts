@@ -160,6 +160,13 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(modal.getByTestId('port-preview-recordings')).toContainText('No recorded responses are linked.');
     await settle(page);
     await expectAccessible(page, 'port preview');
+    // Esc in the dialog opened inside closes that one only; the focus is back on its button
+    await modal.getByTestId('port-recording-link').click();
+    await expect(page.getByRole('dialog', { name: 'Link a recorded response' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Link a recorded response' })).toBeHidden();
+    await expect(modal).toBeVisible();
+    await expect(modal.getByTestId('port-recording-link')).toBeFocused();
   });
 
   test('the peek of a topic element: masked, for the platform’s manager', async ({ loginAs, apiAs }) => {
