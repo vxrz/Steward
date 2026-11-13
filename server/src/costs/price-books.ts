@@ -30,6 +30,7 @@ import {
   type CostPriceCsvField,
   type CostTierMode,
   type CostCondition,
+  type CostDerivationCause,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -264,8 +265,27 @@ export interface DerivationRecord {
   baseVersion: number;
   baseVersionId: string;
   terms: CostCondition[];
+  /** In English, as the audit log says it */
   cause: string;
+  /** The cause as a code for the UI's language (0.23.0; missing in records written before) */
+  causeCode?: CostDerivationCause;
+  causeBook?: string;
+  causeVersion?: number;
 }
+
+/** Why a derived book's version is written: a code, and for a new base version the base's name and version. */
+export type DerivationCause = { code: Exclude<CostDerivationCause, 'base'> } | { code: 'base'; book: string; version: number };
+
+/** The cause in English (the audit log, the version's note, `/api/v1`): as before the codes. */
+const CAUSE_TEXT: Record<Exclude<CostDerivationCause, 'base'>, string> = {
+  made: 'made',
+  terms: 'terms changed',
+  contractTerms: 'terms of the contract changed',
+  termsToday: 'terms valid from today',
+  baseChanged: 'another base book',
+  contractChanged: 'another contract',
+};
+const causeText = (c: DerivationCause): string => (c.code === 'base' ? `${c.book} v${c.version}` : CAUSE_TEXT[c.code]);
 
 /**
  * Whether `u` sees a derived book's terms (and so the breakdown of its prices): its base book, and – terms on a
@@ -429,7 +449,16 @@ const toVersion = (v: VersionRow, inUse: Set<string>, terms = false): CostPriceV
   inUse: inUse.has(v.id),
 });
 
-const derivationSummary = (d: DerivationRecord | null): CostPriceVersion['derivation'] => (d ? { baseVersion: Number(d.baseVersion), cause: d.cause } : null);
+const derivationSummary = (d: DerivationRecord | null): CostPriceVersion['derivation'] =>
+  d
+    ? {
+        baseVersion: Number(d.baseVersion),
+        cause: d.cause,
+        causeCode: d.causeCode ?? null,
+        causeBook: d.causeBook ?? null,
+        causeVersion: d.causeVersion ?? null,
+      }
+    : null;
 
 /** The list of versions carries the counts only; one version's page has the items. */
 const summaryDiff = (d: CostPriceDiff | null): CostPriceDiff | null =>
@@ -776,7 +805,7 @@ export function writeVersion(
     for (const fn of versionHooks) fn(row.id, number);
   });
   // derived books follow their base: a new version of this book writes theirs in the same step (two levels at most)
-  if (depth < 3) for (const d of derivedOf(row.id)) derive(d, `${row.name} v${number}`, depth + 1);
+  if (depth < 3) for (const d of derivedOf(row.id)) derive(d, { code: 'base', book: row.name, version: number }, depth + 1);
   return { version: number, created: true, diff };
 }
 
@@ -814,7 +843,8 @@ export function termsOfBook(r: BookRow, day = nowIso().slice(0, 10)): CostCondit
  * differ; its record names the base version and the cause). Runs as part of the change that caused it – whoever wrote
  * the base or changed the terms – without the rights of a reader: the book's own readers decide who sees the result.
  */
-export function derive(r: BookRow, cause: string, depth = 0): VersionWritten | null {
+export function derive(r: BookRow, why: DerivationCause, depth = 0): VersionWritten | null {
+  const cause = causeText(why);
   if (r.kind !== 'derived' || !r.base_book_id) return null;
   const base = bookRow(r.base_book_id);
   if (!base) return null;
@@ -830,6 +860,8 @@ export function derive(r: BookRow, cause: string, depth = 0): VersionWritten | n
     baseVersionId: baseVid ?? '',
     terms,
     cause: cause.slice(0, 200),
+    causeCode: why.code,
+    ...(why.code === 'base' ? { causeBook: why.book.slice(0, 200), causeVersion: why.version } : {}),
   };
   const fresh = bookRow(r.id)!;
   return writeVersion(fresh, entries, 'derived', `Derived: ${cause}`, { skippedFees: skipped.slice(0, 50) }, rec, depth);
@@ -845,14 +877,14 @@ function deriveForContract(contractId: string): void {
     `SELECT * FROM cost_price_books WHERE kind = 'derived' AND supplier_contract_id IN (${ids.map(() => '?').join(', ')}) ORDER BY id`,
     ...ids,
   );
-  for (const r of rows) derive(r, 'terms of the contract changed');
+  for (const r of rows) derive(r, { code: 'contractTerms' });
 }
 onConditionsChanged(deriveForContract);
 
 /** Derived books whose terms start or end today get a new version (the job, once a day). */
 export function rederiveAll(): number {
   let n = 0;
-  for (const r of db().all<BookRow>("SELECT * FROM cost_price_books WHERE kind = 'derived' ORDER BY id")) if (derive(r, 'terms valid from today')?.created) n++;
+  for (const r of db().all<BookRow>("SELECT * FROM cost_price_books WHERE kind = 'derived' ORDER BY id")) if (derive(r, { code: 'termsToday' })?.created) n++;
   return n;
 }
 
@@ -914,7 +946,7 @@ export function setBookTerms(id: string, body: unknown): CostPriceBookDetail {
       summary: `Terms of the rate card "${row.name}": ${next.length} term(s)`,
       details: { terms: { before, after: next } },
     });
-    derive(bookRow(id)!, 'terms changed');
+    derive(bookRow(id)!, { code: 'terms' });
   });
   return getBook(id);
 }
@@ -1033,7 +1065,7 @@ export function createBook(body: unknown): CostPriceBookDetail {
       },
     });
     // a derived book's first prices: its base through its terms
-    if (x.kind === 'derived') derive(bookRow(id)!, 'made');
+    if (x.kind === 'derived') derive(bookRow(id)!, { code: 'made' });
   });
   return getBook(id);
 }
@@ -1082,7 +1114,7 @@ export function updateBook(id: string, body: unknown): CostPriceBookDetail {
       },
     });
     if (x.kind === 'derived' && (x.baseBookId !== row.base_book_id || x.supplierContractId !== row.supplier_contract_id))
-      derive(bookRow(id)!, x.baseBookId !== row.base_book_id ? 'another base book' : 'another contract');
+      derive(bookRow(id)!, { code: x.baseBookId !== row.base_book_id ? 'baseChanged' : 'contractChanged' });
   });
   return getBook(id);
 }

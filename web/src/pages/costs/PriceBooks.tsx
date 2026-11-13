@@ -747,7 +747,13 @@ function Versions({ book, onOpen }: { book: CostPriceBookDetail; onOpen: (n: num
                   {t(`prices.sources.${v.source}`)}
                   {v.derivation && (
                     <Text size="xs" c="dimmed">
-                      {t('prices.versions_cause', { cause: v.derivation.cause, version: v.derivation.baseVersion })}
+                      {t('prices.versions_cause', {
+                        // the cause in the UI's language; a version written before the codes keeps the server's text
+                        cause: v.derivation.causeCode
+                          ? t(`prices.causes.${v.derivation.causeCode}`, { book: v.derivation.causeBook ?? '', version: v.derivation.causeVersion ?? '' })
+                          : v.derivation.cause,
+                        version: v.derivation.baseVersion,
+                      })}
                     </Text>
                   )}
                 </Table.Td>

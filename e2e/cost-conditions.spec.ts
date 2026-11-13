@@ -192,6 +192,9 @@ test('the contract’s prices in German: percentages and days in the UI language
     await expect(table).toContainText('12,5 % Nachlass');
     await expect(table).toContainText('01.01.2026');
     await expect(table).not.toContainText('2026-01-01');
+    // the derived book's versions name their cause in German (a code, not the server's English text)
+    await page.goto(`/costs/price-books/${f.derived}`);
+    await expect(page.getByText('Die Konditionen des Vertrags wurden geändert').first()).toBeVisible();
     await expectAccessible(page, 'contract prices (de)');
   } finally {
     await cleanup(api, f);

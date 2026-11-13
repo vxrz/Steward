@@ -3466,6 +3466,13 @@ export interface Resources {
     'prices.basedOn': string;
     'prices.derivedNoEdit': string;
     'prices.versions_cause': string;
+    'prices.causes.made': string;
+    'prices.causes.base': string;
+    'prices.causes.terms': string;
+    'prices.causes.contractTerms': string;
+    'prices.causes.termsToday': string;
+    'prices.causes.baseChanged': string;
+    'prices.causes.contractChanged': string;
     'prices.source.title': string;
     'prices.source.help': string;
     'prices.source.none': string;

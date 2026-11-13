@@ -1014,6 +1014,15 @@
     "basedOn": "Based on {{name}} (v{{version}})",
     "derivedNoEdit": "The prices of a derived book follow its base book and terms – they are not written by hand.",
     "versions_cause": "{{cause}} (base v{{version}})",
+    "causes": {
+      "made": "The book was made",
+      "base": "New version of the base: {{book}} v{{version}}",
+      "terms": "Its terms changed",
+      "contractTerms": "The contract's conditions changed",
+      "termsToday": "Terms that apply from today",
+      "baseChanged": "Another base book",
+      "contractChanged": "Another contract"
+    },
     "source": {
       "title": "Source",
       "help": "A contracted book of a platform can be read from what the platform reports, the discount included: Snowflake's rate sheet daily, Confluent's observed rates of the last complete month. A read replaces what it brought before and keeps items written by hand.",
