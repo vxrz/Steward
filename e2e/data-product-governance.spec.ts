@@ -122,6 +122,8 @@ test.describe('governance of data products', () => {
     await page.getByTestId('review-start-save').click();
     const review = page.getByTestId('review-modal');
     await expect(review.getByTestId('review-entry')).toHaveCount(1);
+    // the registration of a person is named as everywhere else, not by its subject key
+    await expect(review.getByTestId('review-entry')).not.toContainText('user:');
     await review.getByTestId('review-decision').click();
     await page.getByRole('option', { name: 'Keep' }).click();
     await expect(review.getByTestId('review-decision')).toHaveValue('Keep');

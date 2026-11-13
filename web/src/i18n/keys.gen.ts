@@ -4713,6 +4713,7 @@ export interface Resources {
     'reviews.verify': string;
     'reviews.verifyOk': string;
     'reviews.verifyBad': string;
+    'reviews.openNamed': string;
     'settings.title': string;
     'settings.editTitle': string;
     'settings.process': string;

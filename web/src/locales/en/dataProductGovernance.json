@@ -165,7 +165,8 @@
     "sealed": "Approved by {{user}}, {{date}} – sealed:",
     "verify": "Verify the seal",
     "verifyOk": "The seal matches the review.",
-    "verifyBad": "The seal does not match – the review was changed in the database."
+    "verifyBad": "The seal does not match – the review was changed in the database.",
+    "openNamed": "Open the access review of {{port}} in {{environment}}"
   },
   "settings": {
     "title": "Access settings",
