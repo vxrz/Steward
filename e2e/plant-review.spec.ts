@@ -70,15 +70,16 @@ test.describe('plant dialogs and the OT network', () => {
       const dialog = page.getByRole('dialog', { name: 'New zone' });
       await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(`E2E external ${tag}`);
       await dialog.getByRole('textbox', { name: 'ID', exact: true }).fill(zoneId);
+      await expectAccessible(page, 'zone dialog');
       const systems = dialog.getByLabel('Steward systems');
       await systems.click();
       await systems.fill(`E2E cloud historian ${tag}`);
       await page.getByRole('option', { name: `E2E cloud historian ${tag} (server · Invented Cloud AG)` }).click();
-      await expectAccessible(page, 'zone dialog with a system');
       await dialog.getByRole('button', { name: 'Save' }).click();
       await expect(dialog).toBeHidden();
       const card = page.getByTestId(`zone-${zoneId}`);
       await expect(card.getByTestId('zone-items')).toContainText(`E2E cloud historian ${tag}`);
+      await expectAccessible(page, 'zone with a system');
 
       // a data path that pushes to it is found by the system's name on the site's data paths
       expect(
