@@ -7,7 +7,8 @@ import type {
   DataElement,
   DataElementChecks,
   DataElementSummary,
-  DataMaturityLevel,
+  DataCostAllocation,
+  DataCostMatch,
   DataMonitorProposal,
   DataObject,
   DataObjectSummary,
@@ -16,13 +17,13 @@ import type {
   DataProduct,
   DataProductMember,
   DataProductSummary,
-  DataScorecardPart,
+  DataProductCosts,
+  DataProductScorecard,
   DataStep,
   Platform,
-  ProductCost,
   ProductHealth,
 } from '@sm/shared';
-import { ApiError, get } from '../../api';
+import { get } from '../../api';
 import { viewKeys } from './views/queries';
 
 /**
@@ -93,7 +94,8 @@ export function useProductList(query: string) {
   });
 }
 
-export const useProduct = (id: string) => useQuery({ queryKey: dpKeys.product(id), queryFn: () => get<DataProduct>(`/data-products/${enc(id)}`), retry: false });
+export const useProduct = (id: string) =>
+  useQuery({ queryKey: dpKeys.product(id), queryFn: () => get<DataProduct>(`/data-products/${enc(id)}`), retry: false });
 
 /** Health of a page of products in one environment ('' each product's default: production first). */
 export function useListHealth(ids: string[], environment: string) {
@@ -122,7 +124,8 @@ export function useMembers(id: string, query: string) {
 
 export const useSteps = (id: string) => useQuery({ queryKey: dpKeys.steps(id), queryFn: () => get<DataStep[]>(`/data-products/${enc(id)}/steps`) });
 
-export const usePorts = (id: string) => useQuery({ queryKey: [...dpKeys.product(id), 'ports'], queryFn: () => get<DataPort[]>(`/data-products/${enc(id)}/ports`) });
+export const usePorts = (id: string) =>
+  useQuery({ queryKey: [...dpKeys.product(id), 'ports'], queryFn: () => get<DataPort[]>(`/data-products/${enc(id)}/ports`) });
 
 export const useConsumers = (id: string, portId: string, enabled = true) =>
   useQuery({
@@ -139,42 +142,30 @@ export const useMonitorProposal = (id: string, environment: string, enabled: boo
     retry: false,
   });
 
-// ---------- costs and scorecard (WP4: the routes come with their package) ----------
+// ---------- costs and scorecard (ADR 0036 parts 11 and 13) ----------
 
-/** A read that answers `null` while the route is not there yet (404 of a route, not of the product: the page loaded it). */
-async function optional<T>(url: string): Promise<T | null> {
-  try {
-    return await get<T>(url);
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404 && e.code !== 'DATA_PRODUCT_NOT_FOUND') return null;
-    throw e;
-  }
-}
-
-/** GET /api/data-products/:id/costs?environment=&month= – ProductCost (ADR 0036 part 11); null: not available yet. */
-export const useProductCosts = (id: string, environment: string, month: string) =>
+/** The Costs tab: months back from this one, lines, matches and the value beside them (GET …/costs). */
+export const useProductCosts = (id: string, environment: string, months: number) =>
   useQuery({
-    queryKey: dpKeys.costs(id, environment, month),
-    queryFn: () => optional<ProductCost>(`/data-products/${enc(id)}/costs?${qs({ environment, month })}`),
-    retry: false,
+    queryKey: dpKeys.costs(id, environment, String(months)),
+    queryFn: () => get<DataProductCosts>(`/data-products/${enc(id)}/costs?${qs({ environment, months })}`),
+    placeholderData: keepPreviousData,
   });
 
-/**
- * The scorecard of a product in an environment as this page reads it (ADR 0036 part 13): the parts and ISO/IEC 25012
- * dimensions with their state and evidence, and the maturity computed from them. GET /api/data-products/:id/scorecard
- */
-export interface DataProductScorecard {
-  productId: string;
-  environment: string;
-  parts: DataScorecardPart[];
-  maturity: DataMaturityLevel;
-}
+/** How shared cost lines are split (GET /api/data-products/cost-allocations): those the reader may see. */
+export const useAllocations = (enabled: boolean) =>
+  useQuery({ queryKey: [...dpKeys.all, 'allocations'], queryFn: () => get<DataCostAllocation[]>('/data-products/cost-allocations'), enabled });
 
+/** An element's own cost matches (inherited by the products it is part of). */
+export const useElementCostMatches = (id: string) =>
+  useQuery({ queryKey: [...dpKeys.element(id), 'costMatches'], queryFn: () => get<DataCostMatch[]>(`/data-elements/${enc(id)}/cost-matches`) });
+
+/** The scorecard of a product in an environment and the maturity it gives (GET …/scorecard). */
 export const useScorecard = (id: string, environment: string) =>
   useQuery({
     queryKey: dpKeys.scorecard(id, environment),
-    queryFn: () => optional<DataProductScorecard>(`/data-products/${enc(id)}/scorecard?${qs({ environment })}`),
-    retry: false,
+    queryFn: () => get<DataProductScorecard>(`/data-products/${enc(id)}/scorecard?${qs({ environment })}`),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 
@@ -201,7 +192,8 @@ export function useElementSearch(query: string, enabled = true) {
   });
 }
 
-export const useElement = (id: string) => useQuery({ queryKey: dpKeys.element(id), queryFn: () => get<DataElement>(`/data-elements/${enc(id)}`), retry: false });
+export const useElement = (id: string) =>
+  useQuery({ queryKey: dpKeys.element(id), queryFn: () => get<DataElement>(`/data-elements/${enc(id)}`), retry: false });
 
 export const useElementChecks = (id: string) =>
   useQuery({ queryKey: dpKeys.elementChecks(id), queryFn: () => get<DataElementChecks & { canLink: boolean }>(`/data-elements/${enc(id)}/checks`) });

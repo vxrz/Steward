@@ -35,7 +35,8 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
   const names = useMemo(() => {
     const m = new Map<string, PickedElement>();
     for (const x of pagesOf(members.data)) m.set(x.elementId, { id: x.elementId, label: x.element.qualifiedName, visible: x.element.visible });
-    for (const n of view.data?.nodes ?? []) if (n.kind === 'element' && !n.hidden && !m.has(n.id)) m.set(n.id, { id: n.id, label: n.detail || n.label, visible: !!n.path });
+    for (const n of view.data?.nodes ?? [])
+      if (n.kind === 'element' && !n.hidden && !m.has(n.id)) m.set(n.id, { id: n.id, label: n.detail || n.label, visible: !!n.path });
     return m;
   }, [members.data, view.data]);
   const remove = async (s: DataStep) => {
@@ -135,7 +136,12 @@ export function ProductPipelineTab({ p }: { p: DataProduct }) {
                       {s.canEdit && (
                         <Group gap={2} wrap="nowrap">
                           <Tooltip label={t('steps.edit')}>
-                            <ActionIcon variant="subtle" color="gray" aria-label={t('steps.editNamed', { name: s.name })} onClick={() => setEditing({ step: s })}>
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              aria-label={t('steps.editNamed', { name: s.name })}
+                              onClick={() => setEditing({ step: s })}
+                            >
                               <IconPencil size={14} />
                             </ActionIcon>
                           </Tooltip>

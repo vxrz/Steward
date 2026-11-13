@@ -1,5 +1,22 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Autocomplete, Button, Group, MultiSelect, Paper, Select, SimpleGrid, Stack, Switch, TagsInput, Text, Textarea, TextInput, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Autocomplete,
+  Button,
+  Group,
+  MultiSelect,
+  Paper,
+  Select,
+  SimpleGrid,
+  Stack,
+  Switch,
+  TagsInput,
+  Text,
+  Textarea,
+  TextInput,
+  Tooltip,
+} from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -65,7 +82,10 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   });
   const save = () =>
     run(async () => {
-      const apiRef = isApi && (apiUrl.trim() || operations.length) ? { ...(apiUrl.trim() ? { url: apiUrl.trim() } : {}), ...(operations.length ? { operations } : {}) } : null;
+      const apiRef =
+        isApi && (apiUrl.trim() || operations.length)
+          ? { ...(apiUrl.trim() ? { url: apiUrl.trim() } : {}), ...(operations.length ? { operations } : {}) }
+          : null;
       if (e) {
         const body = {
           displayName,
@@ -162,22 +182,64 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
             ) : (
               <EnvironmentInput label={t('elements.environment')} value={environment} onChange={setEnvironment} />
             )}
-            <Autocomplete label={t('elements.layer')} data={[...DEFAULT_DATA_LAYERS]} value={layer} onChange={setLayer} maxLength={60} data-testid="element-layer" />
+            <Autocomplete
+              label={t('elements.layer')}
+              data={[...DEFAULT_DATA_LAYERS]}
+              value={layer}
+              onChange={setLayer}
+              maxLength={60}
+              data-testid="element-layer"
+            />
           </SimpleGrid>
-          {kind === 'other' && <TextInput label={t('elements.typeLabel')} description={t('elements.typeLabelHint')} maxLength={L.short} value={typeLabel} onChange={(x) => setTypeLabel(x.currentTarget.value)} />}
+          {kind === 'other' && (
+            <TextInput
+              label={t('elements.typeLabel')}
+              description={t('elements.typeLabelHint')}
+              maxLength={L.short}
+              value={typeLabel}
+              onChange={(x) => setTypeLabel(x.currentTarget.value)}
+            />
+          )}
           {isApi && (
             <Paper withBorder p="sm">
               <Stack gap="xs">
                 <Text size="sm" c="dimmed">
                   {t('elements.apiHint')}
                 </Text>
-                <TextInput label={t('elements.apiUrl')} maxLength={L.url} value={apiUrl} onChange={(x) => setApiUrl(x.currentTarget.value)} error={v.error('apiUrl')} />
-                <TagsInput label={t('elements.operations')} description={t('elements.operationsHint')} value={operations} onChange={setOperations} maxTags={200} clearable />
+                <TextInput
+                  label={t('elements.apiUrl')}
+                  maxLength={L.url}
+                  value={apiUrl}
+                  onChange={(x) => setApiUrl(x.currentTarget.value)}
+                  error={v.error('apiUrl')}
+                />
+                <TagsInput
+                  label={t('elements.operations')}
+                  description={t('elements.operationsHint')}
+                  value={operations}
+                  onChange={setOperations}
+                  maxTags={200}
+                  clearable
+                />
               </Stack>
             </Paper>
           )}
-          <Textarea label={t('form.description')} autosize minRows={2} maxRows={6} maxLength={L.description} value={description} onChange={(x) => setDescription(x.currentTarget.value)} />
-          <ApplicationSelect label={t('elements.application')} description={t('elements.applicationHint')} value={applicationId} onChange={setApplicationId} by="id" />
+          <Textarea
+            label={t('form.description')}
+            autosize
+            minRows={2}
+            maxRows={6}
+            maxLength={L.description}
+            value={description}
+            onChange={(x) => setDescription(x.currentTarget.value)}
+          />
+          <ApplicationSelect
+            label={t('elements.application')}
+            description={t('elements.applicationHint')}
+            value={applicationId}
+            onChange={setApplicationId}
+            by="id"
+          />
           <FormButtons busy={busy} submit={e ? undefined : t('elements.create')} testId="element-save" />
         </Stack>
       </form>
@@ -257,7 +319,16 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
             {t('discovery.formHelp')}
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput label={t('form.name')} required maxLength={L.name} value={name} onChange={(e) => setName(e.currentTarget.value)} error={v.error('name')} data-autofocus data-testid="source-name" />
+            <TextInput
+              label={t('form.name')}
+              required
+              maxLength={L.name}
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              error={v.error('name')}
+              data-autofocus
+              data-testid="source-name"
+            />
             <Select
               label={t('discovery.platform')}
               description={t('discovery.platformHint')}
@@ -287,8 +358,22 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
             />
           )}
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TagsInput label={t('discovery.include')} description={t('discovery.includeHint')} value={include} onChange={setInclude} maxTags={DL.prefixes} clearable />
-            <TagsInput label={t('discovery.exclude')} description={t('discovery.excludeHint')} value={exclude} onChange={setExclude} maxTags={DL.prefixes} clearable />
+            <TagsInput
+              label={t('discovery.include')}
+              description={t('discovery.includeHint')}
+              value={include}
+              onChange={setInclude}
+              maxTags={DL.prefixes}
+              clearable
+            />
+            <TagsInput
+              label={t('discovery.exclude')}
+              description={t('discovery.excludeHint')}
+              value={exclude}
+              onChange={setExclude}
+              maxTags={DL.prefixes}
+              clearable
+            />
           </SimpleGrid>
           <Paper withBorder p="sm">
             <Text size="sm" fw={600}>
@@ -309,7 +394,15 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
                     allowDeselect={false}
                     w={120}
                   />
-                  <TextInput size="xs" aria-label={t('discovery.ruleValue')} placeholder={t('discovery.ruleValue')} maxLength={100} value={r.value} onChange={(e) => setRule(i, { value: e.currentTarget.value })} style={{ flex: '1 1 120px' }} />
+                  <TextInput
+                    size="xs"
+                    aria-label={t('discovery.ruleValue')}
+                    placeholder={t('discovery.ruleValue')}
+                    maxLength={100}
+                    value={r.value}
+                    onChange={(e) => setRule(i, { value: e.currentTarget.value })}
+                    style={{ flex: '1 1 120px' }}
+                  />
                   <Autocomplete
                     size="xs"
                     aria-label={t('discovery.ruleEnvironment')}
@@ -321,7 +414,13 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
                     style={{ flex: '1 1 120px' }}
                   />
                   <Tooltip label={t('discovery.ruleRemove')}>
-                    <ActionIcon variant="subtle" color="red" aria-label={t('discovery.ruleRemove')} onClick={() => setRules(rules.filter((_, j) => j !== i))} mt={2}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      aria-label={t('discovery.ruleRemove')}
+                      onClick={() => setRules(rules.filter((_, j) => j !== i))}
+                      mt={2}
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Tooltip>
@@ -334,7 +433,12 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
               )}
               {rules.length < DL.environmentRules && (
                 <Group>
-                  <Button size="xs" variant="subtle" leftSection={<IconPlus size={14} />} onClick={() => setRules([...rules, { match: 'suffix', value: '', environment: '' }])}>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={() => setRules([...rules, { match: 'suffix', value: '', environment: '' }])}
+                  >
                     {t('discovery.ruleAdd')}
                   </Button>
                 </Group>
@@ -356,7 +460,9 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
               <Select
                 label={t('discovery.identity')}
                 description={t('discovery.identityHint')}
-                data={(platform.identities ?? []).filter((i) => !i.privileged).map((i) => ({ value: i.id, label: i.default ? t('discovery.identityDefault', { name: i.name }) : i.name }))}
+                data={(platform.identities ?? [])
+                  .filter((i) => !i.privileged)
+                  .map((i) => ({ value: i.id, label: i.default ? t('discovery.identityDefault', { name: i.name }) : i.name }))}
                 value={identityId}
                 onChange={setIdentityId}
                 clearable
@@ -381,7 +487,12 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
               allowDeselect={false}
             />
           </SimpleGrid>
-          <Switch label={t('discovery.enabled')} description={t('discovery.enabledHint')} checked={enabled} onChange={(e) => setEnabled(e.currentTarget.checked)} />
+          <Switch
+            label={t('discovery.enabled')}
+            description={t('discovery.enabledHint')}
+            checked={enabled}
+            onChange={(e) => setEnabled(e.currentTarget.checked)}
+          />
           <Text size="xs" c="dimmed">
             {t('discovery.runsAs')}
           </Text>

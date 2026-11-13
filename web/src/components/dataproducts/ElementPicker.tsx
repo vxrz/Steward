@@ -14,7 +14,10 @@ export interface PickedElement {
   visible?: boolean;
 }
 
-export const pickedOf = (e: Pick<DataElementSummary, 'id' | 'qualifiedName' | 'environment'> & { kind: DataElementKind }, kindLabel: (k: DataElementKind) => string): PickedElement => ({
+export const pickedOf = (
+  e: Pick<DataElementSummary, 'id' | 'qualifiedName' | 'environment'> & { kind: DataElementKind },
+  kindLabel: (k: DataElementKind) => string,
+): PickedElement => ({
   id: e.id,
   label: e.qualifiedName,
   detail: [kindLabel(e.kind), e.environment].filter(Boolean).join(' · '),

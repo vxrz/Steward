@@ -29,7 +29,15 @@ const LIFECYCLE_COLOR: Record<DataProductLifecycle, string> = {
   retired: 'red',
 };
 
-export function LifecycleBadge({ lifecycle, sunsetDate, size = 'sm' }: { lifecycle: DataProductLifecycle | DataObjectLifecycle; sunsetDate?: string | null; size?: 'xs' | 'sm' }) {
+export function LifecycleBadge({
+  lifecycle,
+  sunsetDate,
+  size = 'sm',
+}: {
+  lifecycle: DataProductLifecycle | DataObjectLifecycle;
+  sunsetDate?: string | null;
+  size?: 'xs' | 'sm';
+}) {
   const { t } = useTranslation('dataProducts');
   const badge = (
     <Badge size={size} variant={lifecycle === 'active' ? 'light' : 'outline'} color={LIFECYCLE_COLOR[lifecycle]} tt="none" data-lifecycle={lifecycle}>
@@ -190,7 +198,8 @@ export function RatingFloorNote({ floor, objects }: { floor: RatingFloor & { obj
     const hidden = ids.length - seen.length;
     return [seen.map((o) => o.name).join(', '), hidden ? t('hidden.count', { count: hidden }) : ''].filter(Boolean).join(', ');
   };
-  const dim = (d: string) => (d === 'classification' ? t('rating.classification') : t(`applications:cia.dimensions.${d}` as 'applications:cia.dimensions.integrity'));
+  const dim = (d: string) =>
+    d === 'classification' ? t('rating.classification') : t(`applications:cia.dimensions.${d}` as 'applications:cia.dimensions.integrity');
   const lv = (d: string, k: string | null) =>
     !k ? t('rating.notRated') : d === 'classification' ? t(`classification.${k as DataClassification}`) : (level(d as 'integrity', k)?.label ?? k);
   return (
@@ -242,7 +251,17 @@ export function useEnvironmentParam(names: readonly string[]): [string, (v: stri
   return [value, set];
 }
 
-export function EnvironmentSwitch({ names, value, onChange, testId }: { names: readonly string[]; value: string; onChange: (v: string) => void; testId?: string }) {
+export function EnvironmentSwitch({
+  names,
+  value,
+  onChange,
+  testId,
+}: {
+  names: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+  testId?: string;
+}) {
   const { t } = useTranslation('dataProducts');
   const list = useEnvironmentList();
   const sorted = useSortedEnvironments(names);

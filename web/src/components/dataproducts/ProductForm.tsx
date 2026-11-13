@@ -175,8 +175,26 @@ export function ProductForm({
               data-testid="product-domain"
             />
           </SimpleGrid>
-          <Textarea label={t('form.description')} description={t('form.markdown')} autosize minRows={2} maxRows={8} maxLength={L.description} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
-          <Textarea label={t('form.purpose')} description={t('form.purposeHint')} autosize minRows={2} maxRows={8} maxLength={L.description} value={purpose} onChange={(e) => setPurpose(e.currentTarget.value)} />
+          <Textarea
+            label={t('form.description')}
+            description={t('form.markdown')}
+            autosize
+            minRows={2}
+            maxRows={8}
+            maxLength={L.description}
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+          />
+          <Textarea
+            label={t('form.purpose')}
+            description={t('form.purposeHint')}
+            autosize
+            minRows={2}
+            maxRows={8}
+            maxLength={L.description}
+            value={purpose}
+            onChange={(e) => setPurpose(e.currentTarget.value)}
+          />
           <SubjectsInput
             label={t('form.owners')}
             description={t('form.ownersHint')}
@@ -192,7 +210,13 @@ export function ProductForm({
             </Text>
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
               <TextInput label={t('form.supportChannel')} maxLength={L.short} value={channel} onChange={(e) => setChannel(e.currentTarget.value)} />
-              <TextInput label={t('form.supportUrl')} maxLength={L.url} value={supportUrl} onChange={(e) => setSupportUrl(e.currentTarget.value)} error={v.error('supportUrl')} />
+              <TextInput
+                label={t('form.supportUrl')}
+                maxLength={L.url}
+                value={supportUrl}
+                onChange={(e) => setSupportUrl(e.currentTarget.value)}
+                error={v.error('supportUrl')}
+              />
               <TextInput label={t('form.supportHours')} maxLength={L.short} value={hours} onChange={(e) => setHours(e.currentTarget.value)} />
             </SimpleGrid>
           </Paper>
@@ -214,7 +238,13 @@ export function ProductForm({
               clearable
               placeholder={t('form.notSet')}
             />
-            <TextInput label={t('form.version')} description={t('form.versionHint')} maxLength={60} value={version} onChange={(e) => setVersion(e.currentTarget.value)} />
+            <TextInput
+              label={t('form.version')}
+              description={t('form.versionHint')}
+              maxLength={60}
+              value={version}
+              onChange={(e) => setVersion(e.currentTarget.value)}
+            />
           </SimpleGrid>
           <Paper withBorder p="sm">
             <Text size="sm" fw={600}>
@@ -224,7 +254,15 @@ export function ProductForm({
               {t('form.valueHint')}
             </Text>
             <Stack gap="xs">
-              <Textarea label={t('form.valueStatement')} autosize minRows={1} maxRows={4} maxLength={L.text} value={valueStatement} onChange={(e) => setValueStatement(e.currentTarget.value)} />
+              <Textarea
+                label={t('form.valueStatement')}
+                autosize
+                minRows={1}
+                maxRows={4}
+                maxLength={L.text}
+                value={valueStatement}
+                onChange={(e) => setValueStatement(e.currentTarget.value)}
+              />
               <SimpleGrid cols={{ base: 1, sm: 3 }}>
                 <Select
                   label={t('form.valueTier')}
@@ -372,7 +410,7 @@ type RatingValues = Record<CiaDimension, { level: string | null; justification: 
  */
 export function RatingForm({
   title,
-  url,
+  target,
   rating,
   classification,
   floor,
@@ -381,7 +419,8 @@ export function RatingForm({
   onSaved,
 }: {
   title: string;
-  url: string;
+  /** What is rated: a product (with its classification and floor) or a data object */
+  target: { kind: 'product' | 'object'; id: string };
   rating: DataRating;
   /** A product: its classification and floor (a data object keeps its classification in its own form) */
   classification?: DataClassification | null;
@@ -398,7 +437,11 @@ export function RatingForm({
     level: rating[d] && !rating[d]!.needsRerating ? rating[d]!.level : null,
     justification: rating[d]?.justification ?? '',
   });
-  const [values, setValues] = useState<RatingValues>({ confidentiality: init('confidentiality'), integrity: init('integrity'), availability: init('availability') });
+  const [values, setValues] = useState<RatingValues>({
+    confidentiality: init('confidentiality'),
+    integrity: init('integrity'),
+    availability: init('availability'),
+  });
   const [cls, setCls] = useState<DataClassification | null>(classification ?? null);
   const [why, setWhy] = useState<Partial<Record<RatingFloorDimension, string>>>(reasons ?? {});
   const [busy, run] = useBusy();
@@ -408,7 +451,9 @@ export function RatingForm({
   const below = new Set(
     (floor?.findings ?? [])
       .filter((f) =>
-        f.dimension === 'classification' ? classificationRank(cls) < classificationRank(f.floor) : rank(f.dimension, values[f.dimension].level) < rank(f.dimension, f.floor),
+        f.dimension === 'classification'
+          ? classificationRank(cls) < classificationRank(f.floor)
+          : rank(f.dimension, values[f.dimension].level) < rank(f.dimension, f.floor),
       )
       .map((f) => f.dimension),
   );
@@ -431,7 +476,12 @@ export function RatingForm({
             reasons: Object.fromEntries((floor?.findings ?? []).map((f) => [f.dimension, below.has(f.dimension) ? why[f.dimension]?.trim() || null : null])),
           }
         : dims;
-      onSaved(await put(url, body));
+      onSaved(
+        await put(
+          target.kind === 'product' ? `/data-products/${encodeURIComponent(target.id)}/rating` : `/data-objects/${encodeURIComponent(target.id)}/rating`,
+          body,
+        ),
+      );
     }, t('form.notSaved'));
   const reasonField = (d: RatingFloorDimension) =>
     below.has(d) && (

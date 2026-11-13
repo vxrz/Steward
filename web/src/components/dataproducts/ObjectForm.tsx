@@ -1,5 +1,21 @@
 import { useState } from 'react';
-import { ActionIcon, Button, Checkbox, Group, MultiSelect, Paper, SegmentedControl, Select, SimpleGrid, Stack, TagsInput, Text, Textarea, TextInput, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Button,
+  Checkbox,
+  Group,
+  MultiSelect,
+  Paper,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  TagsInput,
+  Text,
+  Textarea,
+  TextInput,
+  Tooltip,
+} from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -184,9 +200,26 @@ export function ObjectForm({
               className="mono"
             />
           </SimpleGrid>
-          <Textarea label={t('objects.definition')} description={t('form.markdown')} autosize minRows={3} maxRows={10} maxLength={L.description} value={definition} onChange={(e) => setDefinition(e.currentTarget.value)} />
+          <Textarea
+            label={t('objects.definition')}
+            description={t('form.markdown')}
+            autosize
+            minRows={3}
+            maxRows={10}
+            maxLength={L.description}
+            value={definition}
+            onChange={(e) => setDefinition(e.currentTarget.value)}
+          />
           <SimpleGrid cols={{ base: 1, sm: 3 }}>
-            <Select label={t('form.domain')} data={domainOptions(domains)} value={domainId} onChange={setDomainId} clearable searchable placeholder={t('form.notSet')} />
+            <Select
+              label={t('form.domain')}
+              data={domainOptions(domains)}
+              value={domainId}
+              onChange={setDomainId}
+              clearable
+              searchable
+              placeholder={t('form.notSet')}
+            />
             <Select
               label={t('objects.lifecycle')}
               data={DATA_OBJECT_LIFECYCLES.map((x) => ({ value: x, label: t(`lifecycle.${x}`) }))}
@@ -221,7 +254,13 @@ export function ObjectForm({
               />
               {personal !== 'none' && (
                 <>
-                  <SuggestedTags label={t('objects.categories')} value={categories} onChange={setCategories} keys={PERSONAL_DATA_CATEGORIES} text={(k) => t(`objects.categoryNames.${k as 'contact'}`)} />
+                  <SuggestedTags
+                    label={t('objects.categories')}
+                    value={categories}
+                    onChange={setCategories}
+                    keys={PERSONAL_DATA_CATEGORIES}
+                    text={(k) => t(`objects.categoryNames.${k as 'contact'}`)}
+                  />
                   {personal === 'special' && (
                     <MultiSelect
                       label={t('objects.special')}
@@ -232,7 +271,13 @@ export function ObjectForm({
                       clearable
                     />
                   )}
-                  <SuggestedTags label={t('objects.subjects')} value={subjects} onChange={setSubjects} keys={DATA_SUBJECT_SUGGESTIONS} text={(k) => t(`objects.subjectNames.${k as 'customers'}`)} />
+                  <SuggestedTags
+                    label={t('objects.subjects')}
+                    value={subjects}
+                    onChange={setSubjects}
+                    keys={DATA_SUBJECT_SUGGESTIONS}
+                    text={(k) => t(`objects.subjectNames.${k as 'customers'}`)}
+                  />
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Select
                       label={t('objects.legalBasis')}
@@ -248,7 +293,13 @@ export function ObjectForm({
               )}
               <TagsInput label={t('objects.purposes')} value={purposes} onChange={setPurposes} maxTags={L.listValues} clearable />
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput label={t('objects.retention')} description={t('objects.retentionHint')} maxLength={L.short} value={retention} onChange={(e) => setRetention(e.currentTarget.value)} />
+                <TextInput
+                  label={t('objects.retention')}
+                  description={t('objects.retentionHint')}
+                  maxLength={L.short}
+                  value={retention}
+                  onChange={(e) => setRetention(e.currentTarget.value)}
+                />
                 <TextInput label={t('objects.deletionRule')} maxLength={L.text} value={deletionRule} onChange={(e) => setDeletionRule(e.currentTarget.value)} />
               </SimpleGrid>
             </Stack>
@@ -270,9 +321,31 @@ export function ObjectForm({
               {t('objects.rolesHint')}
             </Text>
             <Stack gap="xs">
-              <SubjectsInput label={t('objects.owner')} description={t('objects.ownerHint')} value={owner} onChange={(x) => setOwner(x.slice(-1))} max={1} error={v.error('owner')} scope={{ kind: 'data_object', id: o?.id }} saved={o?.owner ? [`user:${o.owner}`] : []} />
-              <SubjectsInput label={t('objects.stewards')} value={stewards} onChange={setStewards} max={L.subjects} scope={{ kind: 'data_object', id: o?.id }} saved={o?.stewards} />
-              <SubjectsInput label={t('objects.custodians')} description={t('objects.custodiansHint')} value={custodians} onChange={setCustodians} max={L.subjects} />
+              <SubjectsInput
+                label={t('objects.owner')}
+                description={t('objects.ownerHint')}
+                value={owner}
+                onChange={(x) => setOwner(x.slice(-1))}
+                max={1}
+                error={v.error('owner')}
+                scope={{ kind: 'data_object', id: o?.id }}
+                saved={o?.owner ? [`user:${o.owner}`] : []}
+              />
+              <SubjectsInput
+                label={t('objects.stewards')}
+                value={stewards}
+                onChange={setStewards}
+                max={L.subjects}
+                scope={{ kind: 'data_object', id: o?.id }}
+                saved={o?.stewards}
+              />
+              <SubjectsInput
+                label={t('objects.custodians')}
+                description={t('objects.custodiansHint')}
+                value={custodians}
+                onChange={setCustodians}
+                max={L.subjects}
+              />
             </Stack>
           </Paper>
           <Stack gap={6}>
@@ -284,7 +357,15 @@ export function ObjectForm({
             </Text>
             {attributes.map((a, i) => (
               <Group key={i} gap="xs" wrap="wrap" align="flex-start">
-                <TextInput size="xs" aria-label={t('objects.attributeName')} placeholder={t('objects.attributeName')} maxLength={L.name} value={a.name} onChange={(e) => setAttr(i, { name: e.currentTarget.value })} style={{ flex: '1 1 140px' }} />
+                <TextInput
+                  size="xs"
+                  aria-label={t('objects.attributeName')}
+                  placeholder={t('objects.attributeName')}
+                  maxLength={L.name}
+                  value={a.name}
+                  onChange={(e) => setAttr(i, { name: e.currentTarget.value })}
+                  style={{ flex: '1 1 140px' }}
+                />
                 <TextInput
                   size="xs"
                   aria-label={t('objects.attributeDescription')}
@@ -294,9 +375,21 @@ export function ObjectForm({
                   onChange={(e) => setAttr(i, { description: e.currentTarget.value })}
                   style={{ flex: '2 1 200px' }}
                 />
-                <Checkbox size="xs" mt={6} label={t('objects.attributePersonal')} checked={a.personal} onChange={(e) => setAttr(i, { personal: e.currentTarget.checked })} />
+                <Checkbox
+                  size="xs"
+                  mt={6}
+                  label={t('objects.attributePersonal')}
+                  checked={a.personal}
+                  onChange={(e) => setAttr(i, { personal: e.currentTarget.checked })}
+                />
                 <Tooltip label={t('objects.attributeRemove')}>
-                  <ActionIcon variant="subtle" color="red" aria-label={t('objects.attributeRemove')} onClick={() => setAttributes(attributes.filter((_, j) => j !== i))} mt={2}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    aria-label={t('objects.attributeRemove')}
+                    onClick={() => setAttributes(attributes.filter((_, j) => j !== i))}
+                    mt={2}
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Tooltip>
@@ -304,7 +397,12 @@ export function ObjectForm({
             ))}
             {attributes.length < L.attributes && (
               <Group>
-                <Button size="xs" variant="subtle" leftSection={<IconPlus size={14} />} onClick={() => setAttributes([...attributes, { name: '', description: '', personal: false }])}>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={() => setAttributes([...attributes, { name: '', description: '', personal: false }])}
+                >
                   {t('objects.attributeAdd')}
                 </Button>
               </Group>
@@ -387,7 +485,14 @@ export function DomainForm({ domain, domains, onClose, onSaved }: { domain?: Dat
             disabled={hasChildren}
             placeholder={t('domains.topLevel')}
           />
-          <Textarea label={t('form.description')} autosize minRows={2} maxLength={L.description} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+          <Textarea
+            label={t('form.description')}
+            autosize
+            minRows={2}
+            maxLength={L.description}
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+          />
           <Select
             label={t('domains.colour')}
             data={CIA_COLORS.map((c) => ({ value: c, label: t(`applications:scale.colors.${c}`) }))}
@@ -402,7 +507,15 @@ export function DomainForm({ domain, domains, onClose, onSaved }: { domain?: Dat
               </Group>
             )}
           />
-          <SubjectsInput label={t('domains.owners')} description={t('domains.ownersHint')} value={owners} onChange={setOwners} max={L.subjects} scope={{ kind: 'data_domain', id: d?.id }} saved={d?.owners} />
+          <SubjectsInput
+            label={t('domains.owners')}
+            description={t('domains.ownersHint')}
+            value={owners}
+            onChange={setOwners}
+            max={L.subjects}
+            scope={{ kind: 'data_domain', id: d?.id }}
+            saved={d?.owners}
+          />
           <FormButtons busy={busy} testId="domain-save" />
         </Stack>
       </form>

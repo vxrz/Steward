@@ -5,14 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconAlertTriangle, IconPackages, IconPlus, IconTopologyStar3 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import {
-  DATA_PRODUCT_LIFECYCLES,
-  DATA_PRODUCT_TYPES,
-  HEALTH_STATUSES,
-  type DataHealthStatus,
-  type DataProductSummary,
-  type Team,
-} from '@sm/shared';
+import { DATA_PRODUCT_LIFECYCLES, DATA_PRODUCT_TYPES, HEALTH_STATUSES, type DataHealthStatus, type DataProductSummary, type Team } from '@sm/shared';
 import { getOptional } from '../../api';
 import { QueryState, useCreateParam } from '../../components/common';
 import { DataTable, ListFooter } from '../../components/DataTable';
@@ -251,7 +244,12 @@ export function DataProductsPage() {
                 </>
               ),
             },
-            { key: 'domain', header: t('products.domain'), sortValue: (p) => p.domain?.name ?? '', cell: (p) => (p.domain?.hidden ? t('hidden.domain') : (p.domain?.name ?? '–')) },
+            {
+              key: 'domain',
+              header: t('products.domain'),
+              sortValue: (p) => p.domain?.name ?? '',
+              cell: (p) => (p.domain?.hidden ? t('hidden.domain') : (p.domain?.name ?? '–')),
+            },
             { key: 'type', header: t('products.type'), sortValue: (p) => p.type ?? '', nowrap: true, cell: (p) => <TypeBadge type={p.type} size="xs" /> },
             {
               key: 'lifecycle',
@@ -278,11 +276,30 @@ export function DataProductsPage() {
                 </Group>
               ),
             },
-            { key: 'classification', header: t('products.classification'), nowrap: true, cell: (p) => (p.classification ? <ClassificationBadge value={p.classification} size="xs" /> : '–') },
-            { key: 'value', header: t('products.value'), sortValue: (p) => (p.valueTier ? ['low', 'medium', 'high'].indexOf(p.valueTier) : null), nowrap: true, cell: (p) => (p.valueTier ? t(`valueTier.${p.valueTier}`) : '–') },
+            {
+              key: 'classification',
+              header: t('products.classification'),
+              nowrap: true,
+              cell: (p) => (p.classification ? <ClassificationBadge value={p.classification} size="xs" /> : '–'),
+            },
+            {
+              key: 'value',
+              header: t('products.value'),
+              sortValue: (p) => (p.valueTier ? ['low', 'medium', 'high'].indexOf(p.valueTier) : null),
+              nowrap: true,
+              cell: (p) => (p.valueTier ? t(`valueTier.${p.valueTier}`) : '–'),
+            },
             { key: 'updated', header: t('products.updated'), sortValue: (p) => p.updatedAt, nowrap: true, cell: (p) => fmtRelative(p.updatedAt) },
           ]}
-          footer={<ListFooter shown={rows.length} total={list.data?.pages[0]?.countCapped ? undefined : total} hasMore={!!list.hasNextPage} onLoadMore={() => void list.fetchNextPage()} loading={list.isFetchingNextPage} />}
+          footer={
+            <ListFooter
+              shown={rows.length}
+              total={list.data?.pages[0]?.countCapped ? undefined : total}
+              hasMore={!!list.hasNextPage}
+              onLoadMore={() => void list.fetchNextPage()}
+              loading={list.isFetchingNextPage}
+            />
+          }
         />
       )}
       {creating && (

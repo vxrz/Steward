@@ -64,7 +64,11 @@ export function StepForm({
   const [inputs, setInputs] = useState<PickedElement[]>((s?.inputs ?? []).map(label));
   const [outputs, setOutputs] = useState<PickedElement[]>((s?.outputs ?? []).map(label));
   const [busy, run] = useBusy();
-  const apps = useQuery({ queryKey: ['dataProducts', 'applications'], queryFn: () => get<ApplicationSummary[]>('/applications'), enabled: runnerKind === 'application' });
+  const apps = useQuery({
+    queryKey: ['dataProducts', 'applications'],
+    queryFn: () => get<ApplicationSummary[]>('/applications'),
+    enabled: runnerKind === 'application',
+  });
   const platforms = useQuery({
     queryKey: ['dataProducts', 'platforms'],
     queryFn: () => get<Platform[]>('/platforms'),
@@ -137,7 +141,16 @@ export function StepForm({
             {t('steps.help')}
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput label={t('steps.name')} required maxLength={L.name} value={name} onChange={(e) => setName(e.currentTarget.value)} error={v.error('name')} data-autofocus data-testid="step-name" />
+            <TextInput
+              label={t('steps.name')}
+              required
+              maxLength={L.name}
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              error={v.error('name')}
+              data-autofocus
+              data-testid="step-name"
+            />
             <Select
               label={t('steps.kind')}
               data={DATA_STEP_KINDS.map((k) => ({ value: k, label: t(`dataProductViews:stepKinds.${k}`) }))}
@@ -146,13 +159,28 @@ export function StepForm({
               allowDeselect={false}
             />
           </SimpleGrid>
-          <ElementPicker label={t('steps.inputs')} description={t('steps.inputsHint')} value={inputs} onChange={setInputs} max={L.stepEnds} testId="step-inputs" />
+          <ElementPicker
+            label={t('steps.inputs')}
+            description={t('steps.inputsHint')}
+            value={inputs}
+            onChange={setInputs}
+            max={L.stepEnds}
+            testId="step-inputs"
+          />
           {s && s.hiddenInputs > 0 && (
             <Text size="xs" c="dimmed">
               {t('steps.hiddenInputs', { count: s.hiddenInputs })}
             </Text>
           )}
-          <ElementPicker label={t('steps.outputs')} description={t('steps.outputsHint')} value={outputs} onChange={setOutputs} max={L.stepEnds} error={v.error('outputs')} testId="step-outputs" />
+          <ElementPicker
+            label={t('steps.outputs')}
+            description={t('steps.outputsHint')}
+            value={outputs}
+            onChange={setOutputs}
+            max={L.stepEnds}
+            error={v.error('outputs')}
+            testId="step-outputs"
+          />
           <Paper withBorder p="sm">
             <Stack gap="xs">
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -169,7 +197,14 @@ export function StepForm({
                   placeholder={t('steps.noRunner')}
                 />
                 {(runnerKind === 'application' || runnerKind === 'platform' || runnerKind === 'process') && (
-                  <Select label={t(`steps.runnerKinds.${runnerKind}`)} data={runnerOptions} value={runnerId} onChange={setRunnerId} searchable error={v.error('runner')} />
+                  <Select
+                    label={t(`steps.runnerKinds.${runnerKind}`)}
+                    data={runnerOptions}
+                    value={runnerId}
+                    onChange={setRunnerId}
+                    searchable
+                    error={v.error('runner')}
+                  />
                 )}
                 {runnerKind === 'connector' && (
                   <Select
@@ -183,17 +218,49 @@ export function StepForm({
                     error={v.error('runner')}
                   />
                 )}
-                {runnerKind === 'tool' && <Autocomplete label={t('steps.tool')} data={[...DATA_RUNNER_TOOLS]} value={tool} onChange={setTool} maxLength={L.short} />}
+                {runnerKind === 'tool' && (
+                  <Autocomplete label={t('steps.tool')} data={[...DATA_RUNNER_TOOLS]} value={tool} onChange={setTool} maxLength={L.short} />
+                )}
               </SimpleGrid>
               {runnerKind === 'element' && (
-                <ElementPicker label={t('steps.runnerElement')} description={t('steps.runnerElementHint')} value={runnerElement} onChange={(e) => setRunnerElement(e.slice(-1))} max={1} error={v.error('runner')} />
+                <ElementPicker
+                  label={t('steps.runnerElement')}
+                  description={t('steps.runnerElementHint')}
+                  value={runnerElement}
+                  onChange={(e) => setRunnerElement(e.slice(-1))}
+                  max={1}
+                  error={v.error('runner')}
+                />
               )}
-              {runnerKind === 'connector' && <TextInput label={t('steps.connectorName')} maxLength={L.short} value={connectorName} onChange={(e) => setConnectorName(e.currentTarget.value)} />}
-              {runnerKind === 'tool' && <TextInput label={t('steps.toolText')} maxLength={L.text} value={toolText} onChange={(e) => setToolText(e.currentTarget.value)} />}
+              {runnerKind === 'connector' && (
+                <TextInput
+                  label={t('steps.connectorName')}
+                  maxLength={L.short}
+                  value={connectorName}
+                  onChange={(e) => setConnectorName(e.currentTarget.value)}
+                />
+              )}
+              {runnerKind === 'tool' && (
+                <TextInput label={t('steps.toolText')} maxLength={L.text} value={toolText} onChange={(e) => setToolText(e.currentTarget.value)} />
+              )}
             </Stack>
           </Paper>
-          <TextInput label={t('steps.schedule')} description={t('steps.scheduleHint')} maxLength={L.short} value={schedule} onChange={(e) => setSchedule(e.currentTarget.value)} />
-          <Textarea label={t('form.description')} autosize minRows={2} maxRows={6} maxLength={L.description} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+          <TextInput
+            label={t('steps.schedule')}
+            description={t('steps.scheduleHint')}
+            maxLength={L.short}
+            value={schedule}
+            onChange={(e) => setSchedule(e.currentTarget.value)}
+          />
+          <Textarea
+            label={t('form.description')}
+            autosize
+            minRows={2}
+            maxRows={6}
+            maxLength={L.description}
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+          />
           <Stack gap={6}>
             <Text size="sm" fw={500}>
               {t('steps.notes')}

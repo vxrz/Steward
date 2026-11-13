@@ -20,7 +20,11 @@ const enc = encodeURIComponent;
 export function useObjectivesText(): (o: DataObjectives) => string[] {
   const { t } = useTranslation('dataProducts');
   const minutesText = (m: number) =>
-    m % 1440 === 0 ? t('objectives.days', { count: m / 1440 }) : m % 60 === 0 ? t('objectives.hours', { count: m / 60 }) : t('objectives.minutes', { count: m });
+    m % 1440 === 0
+      ? t('objectives.days', { count: m / 1440 })
+      : m % 60 === 0
+        ? t('objectives.hours', { count: m / 60 })
+        : t('objectives.minutes', { count: m });
   return (o) =>
     [
       o.freshnessMinutes ? t('objectives.freshnessText', { value: minutesText(o.freshnessMinutes) }) : '',
@@ -51,7 +55,10 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
   // names of the bound elements: the product's members in this environment
   const members = useMembers(p.id, qs({ environment, limit: 100 }));
   const names = useMemo(
-    () => new Map<string, PickedElement>(pagesOf(members.data).map((m) => [m.elementId, { id: m.elementId, label: m.element.qualifiedName, visible: m.element.visible }])),
+    () =>
+      new Map<string, PickedElement>(
+        pagesOf(members.data).map((m) => [m.elementId, { id: m.elementId, label: m.element.qualifiedName, visible: m.element.visible }]),
+      ),
     [members.data],
   );
   const done = () => {
@@ -84,7 +91,13 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
         testId={`ports-${direction}`}
         actions={
           canEdit && (
-            <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => setEditing({ kind: 'port', direction })} data-testid={`port-add-${direction}`}>
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => setEditing({ kind: 'port', direction })}
+              data-testid={`port-add-${direction}`}
+            >
               {direction === 'output' ? t('ports.addOutput') : t('ports.addInput')}
             </Button>
           )
@@ -126,11 +139,15 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
       </Group>
       {group('output')}
       {group('input')}
-      {editing?.kind === 'port' && <PortForm productId={p.id} port={editing.port} direction={editing.direction} ports={p.ports} onClose={() => setEditing(null)} onSaved={done} />}
+      {editing?.kind === 'port' && (
+        <PortForm productId={p.id} port={editing.port} direction={editing.direction} ports={p.ports} onClose={() => setEditing(null)} onSaved={done} />
+      )}
       {editing?.kind === 'binding' && environment && (
         <BindingForm productId={p.id} port={editing.port} environment={environment} names={names} onClose={() => setEditing(null)} onSaved={done} />
       )}
-      {editing?.kind === 'consumer' && <ConsumerForm productId={p.id} portId={editing.port.id} consumer={editing.consumer} onClose={() => setEditing(null)} onSaved={done} />}
+      {editing?.kind === 'consumer' && (
+        <ConsumerForm productId={p.id} portId={editing.port.id} consumer={editing.consumer} onClose={() => setEditing(null)} onSaved={done} />
+      )}
     </Stack>
   );
 }
@@ -179,7 +196,14 @@ function PortCard({
             </Badge>
             <LifecycleBadge lifecycle={port.lifecycle} sunsetDate={port.sunsetDate} />
             {port.consumesDeprecated && (
-              <Badge size="sm" color="red" variant="light" tt="none" leftSection={<IconAlertTriangle size={11} aria-hidden />} data-testid="port-consumes-deprecated">
+              <Badge
+                size="sm"
+                color="red"
+                variant="light"
+                tt="none"
+                leftSection={<IconAlertTriangle size={11} aria-hidden />}
+                data-testid="port-consumes-deprecated"
+              >
                 {t('ports.consumesDeprecated')}
               </Badge>
             )}
@@ -216,7 +240,9 @@ function PortCard({
               <>
                 <RefLink r={src.product} base="/data-products" />
                 {src.portName && ` · ${src.portName}${src.version ? ` ${src.version}` : ''}`}
-                {src.lifecycle && src.lifecycle !== 'active' && ` (${t(`lifecycle.${src.lifecycle}`)}${src.sunsetDate ? `, ${t('ports.sunset', { date: fmtDay(src.sunsetDate) })}` : ''})`}
+                {src.lifecycle &&
+                  src.lifecycle !== 'active' &&
+                  ` (${t(`lifecycle.${src.lifecycle}`)}${src.sunsetDate ? `, ${t('ports.sunset', { date: fmtDay(src.sunsetDate) })}` : ''})`}
               </>
             ) : src.kind === 'element' ? (
               <Anchor component={Link} to={`/data-elements/${enc(src.elementId)}`} size="sm" className="mono">
@@ -237,7 +263,15 @@ function PortCard({
                 {objects
                   .filter((o) => !o.hidden)
                   .map((o) => (
-                    <Badge key={o.id} size="sm" variant={port.objects.declared.some((d) => d.id === o.id) ? 'light' : 'outline'} tt="none" component={Link} to={`/data-objects/${enc(o.id!)}`} style={{ cursor: 'pointer' }}>
+                    <Badge
+                      key={o.id}
+                      size="sm"
+                      variant={port.objects.declared.some((d) => d.id === o.id) ? 'light' : 'outline'}
+                      tt="none"
+                      component={Link}
+                      to={`/data-objects/${enc(o.id!)}`}
+                      style={{ cursor: 'pointer' }}
+                    >
                       {o.name}
                     </Badge>
                   ))}
@@ -268,7 +302,13 @@ function PortCard({
                 </Button>
                 {binding && (
                   <Tooltip label={t('bindings.remove')}>
-                    <ActionIcon size="sm" variant="subtle" color="red" aria-label={t('bindings.removeNamed', { name: port.name, environment })} onClick={onUnbind}>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="red"
+                      aria-label={t('bindings.removeNamed', { name: port.name, environment })}
+                      onClick={onUnbind}
+                    >
                       <IconLinkOff size={14} />
                     </ActionIcon>
                   </Tooltip>
@@ -396,15 +436,17 @@ function Consumers({ p, port, canEdit, onEdit }: { p: DataProduct; port: DataPor
                     {c.endDate && ` – ${fmtDay(c.endDate)}`}
                   </Table.Td>
                   <Table.Td>
-                    {c.agreement
-                      ? c.agreement.kind === 'url'
-                        ? (
-                            <Anchor href={c.agreement.ref} target="_blank" rel="noopener noreferrer" size="sm">
-                              {c.agreement.label || c.agreement.ref}
-                            </Anchor>
-                          )
-                        : `${t(`consumers.agreementKinds.${c.agreement.kind}`)}: ${c.agreement.label || c.agreement.ref}`
-                      : '–'}
+                    {c.agreement ? (
+                      c.agreement.kind === 'url' ? (
+                        <Anchor href={c.agreement.ref} target="_blank" rel="noopener noreferrer" size="sm">
+                          {c.agreement.label || c.agreement.ref}
+                        </Anchor>
+                      ) : (
+                        `${t(`consumers.agreementKinds.${c.agreement.kind}`)}: ${c.agreement.label || c.agreement.ref}`
+                      )
+                    ) : (
+                      '–'
+                    )}
                   </Table.Td>
                   {canEdit && (
                     <Table.Td>

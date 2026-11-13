@@ -9,6 +9,7 @@ import {
   type DataCheckPurpose,
   type DataContractDetail,
   type DataContractDraft,
+  type DataCostMatch,
   type DataElement,
   type DataElementCheck,
   type DataObjectSummary,
@@ -31,7 +32,8 @@ import { useModuleOn } from '../../modules';
 import { errorText } from '../../i18n/errors';
 import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { ElementLineageView, HealthBadge } from './views';
-import { dpKeys, useElement, useElementChecks, useInvalidateDataProducts } from './api';
+import { dpKeys, useElement, useElementChecks, useElementCostMatches, useInvalidateDataProducts } from './api';
+import { CostMatchForm, MatchTable, useMatchText } from './ProductCosts';
 import { Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
 import { MissingBadge } from './ElementsPage';
 
@@ -77,7 +79,11 @@ export function DataElementPage() {
   return (
     <DetailPage
       back={{ to: '/data-elements', label: t('elements.title') }}
-      title={<span className="mono" style={{ overflowWrap: 'anywhere' }}>{e.displayName || e.qualifiedName}</span>}
+      title={
+        <span className="mono" style={{ overflowWrap: 'anywhere' }}>
+          {e.displayName || e.qualifiedName}
+        </span>
+      }
       status={
         <>
           <Badge variant="light" color="gray" tt="none">
@@ -86,7 +92,14 @@ export function DataElementPage() {
           <MissingBadge since={e.missingSince} />
         </>
       }
-      description={[e.qualifiedName, e.platformHidden ? t('hidden.platform') : e.platformName, e.environment, e.layer && t('elements.layerNamed', { layer: e.layer })].filter(Boolean).join(' · ')}
+      description={[
+        e.qualifiedName,
+        e.platformHidden ? t('hidden.platform') : e.platformName,
+        e.environment,
+        e.layer && t('elements.layerNamed', { layer: e.layer }),
+      ]
+        .filter(Boolean)
+        .join(' · ')}
       actions={
         <>
           {contractsOn && DRAFTABLE.has(e.kind) && (
@@ -111,7 +124,12 @@ export function DataElementPage() {
         <LinkTabs
           label={t('elements.tabs.label')}
           active={tab ? `${base}/${tab}` : base}
-          tabs={TABS.map((x) => ({ to: x ? `${base}/${x}` : base, label: t(`elements.tabs.${x || 'overview'}`), icon: TAB_ICONS[x], testId: `element-tab-${x || 'overview'}` }))}
+          tabs={TABS.map((x) => ({
+            to: x ? `${base}/${x}` : base,
+            label: t(`elements.tabs.${x || 'overview'}`),
+            icon: TAB_ICONS[x],
+            testId: `element-tab-${x || 'overview'}`,
+          }))}
         />
       }
     >
@@ -175,7 +193,9 @@ function ElementOverview({ e }: { e: DataElement }) {
                 {r.bytes !== undefined && r.bytes !== null && <Fact label={t('elements.bytes')}>{fmtBytes(r.bytes)}</Fact>}
                 {r.lastAltered && <Fact label={t('elements.lastAltered')}>{fmtDate(r.lastAltered)}</Fact>}
                 {r.partitions !== undefined && r.partitions !== null && <Fact label={t('elements.partitions')}>{fmtNumber(r.partitions)}</Fact>}
-                {r.retentionMs !== undefined && r.retentionMs !== null && <Fact label={t('elements.retention')}>{t('elements.retentionDays', { count: Math.round(r.retentionMs / 86_400_000) })}</Fact>}
+                {r.retentionMs !== undefined && r.retentionMs !== null && (
+                  <Fact label={t('elements.retention')}>{t('elements.retentionDays', { count: Math.round(r.retentionMs / 86_400_000) })}</Fact>
+                )}
                 {r.schemaVersion !== undefined && r.schemaVersion !== null && <Fact label={t('elements.schemaVersion')}>{fmtNumber(r.schemaVersion)}</Fact>}
               </SimpleGrid>
             ) : (
@@ -214,7 +234,11 @@ function ElementOverview({ e }: { e: DataElement }) {
                   '–'
                 )}
               </Fact>
-              {e.externalId && <Fact label={t('elements.externalId')}><span className="mono">{e.externalId}</span></Fact>}
+              {e.externalId && (
+                <Fact label={t('elements.externalId')}>
+                  <span className="mono">{e.externalId}</span>
+                </Fact>
+              )}
               {e.olNamespace && (
                 <Fact label={t('elements.openLineage')}>
                   <span className="mono">
@@ -247,10 +271,58 @@ function ElementOverview({ e }: { e: DataElement }) {
               </Group>
             )}
           </Section>
+          <ElementCostMatches e={e} />
           <OwningTeams kind="data_element" id={e.id} />
         </Stack>
       </Grid.Col>
     </Grid>
+  );
+}
+
+/** An element's cost matches: the products it is part of inherit them in its environment (ADR 0036 part 11). */
+function ElementCostMatches({ e }: { e: DataElement }) {
+  const { t } = useTranslation('dataProducts');
+  const q = useElementCostMatches(e.id);
+  const invalidate = useInvalidateDataProducts();
+  const matchText = useMatchText();
+  const [adding, setAdding] = useState(false);
+  const canEdit = e.permissions.includes('edit');
+  const remove = async (m: DataCostMatch) => {
+    if (!(await confirmDanger({ action: 'remove', message: t('costs.removeMatchConfirm', { match: matchText(m) }) }))) return;
+    try {
+      await del(`/data-elements/${enc(e.id)}/cost-matches/${enc(m.id)}`);
+      invalidate();
+    } catch (err) {
+      notifyError(err);
+    }
+  };
+  return (
+    <Section
+      title={t('costs.matches')}
+      testId="element-cost-matches"
+      actions={
+        canEdit && (
+          <Button size="xs" variant="default" onClick={() => setAdding(true)}>
+            {t('costs.addMatch')}
+          </Button>
+        )
+      }
+    >
+      <Text size="xs" c="dimmed" mb="xs">
+        {t('costs.elementMatchesHelp')}
+      </Text>
+      {q.data && <MatchTable matches={q.data} onRemove={(m) => void remove(m)} />}
+      {adding && (
+        <CostMatchForm
+          target={{ kind: 'element', id: e.id }}
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false);
+            invalidate();
+          }}
+        />
+      )}
+    </Section>
   );
 }
 
@@ -260,7 +332,11 @@ function ObjectsOfElement({ e }: { e: DataElement }) {
   const invalidate = useInvalidateDataProducts();
   const [adding, setAdding] = useState(false);
   const [pick, setPick] = useState<string | null>(null);
-  const objects = useQuery({ queryKey: ['dataProducts', 'objects', 'options'], queryFn: () => get<DataPage<DataObjectSummary>>('/data-objects?limit=100'), enabled: adding });
+  const objects = useQuery({
+    queryKey: ['dataProducts', 'objects', 'options'],
+    queryFn: () => get<DataPage<DataObjectSummary>>('/data-objects?limit=100'),
+    enabled: adding,
+  });
   const editable = (objects.data?.items ?? []).filter((o) => o.permissions.includes('edit') && !e.objects.some((x) => x.id === o.id));
   const link = async () => {
     if (!pick) return;
@@ -305,7 +381,13 @@ function ObjectsOfElement({ e }: { e: DataElement }) {
               <Group key={o.id} gap="xs">
                 <RefLink r={o} base="/data-objects" />
                 <Tooltip label={t('elements.unlinkObject')}>
-                  <ActionIcon size="sm" variant="subtle" color="red" aria-label={t('elements.unlinkObjectNamed', { name: o.name })} onClick={() => void unlink(o.id, o.name)}>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="red"
+                    aria-label={t('elements.unlinkObjectNamed', { name: o.name })}
+                    onClick={() => void unlink(o.id, o.name)}
+                  >
                     <IconLinkOff size={14} />
                   </ActionIcon>
                 </Tooltip>
@@ -442,17 +524,24 @@ function ElementChecks({ e }: { e: DataElement }) {
                     <Table.Td>{t(`checks.origins.${x.origin}`)}</Table.Td>
                     <Table.Td style={{ overflowWrap: 'anywhere' }}>{x.message ?? '–'}</Table.Td>
                     <Table.Td>
-                      {c.canLink && !x.hidden && (x.linkId ? (
-                        <Tooltip label={t('checks.unlink')}>
-                          <ActionIcon variant="subtle" color="red" aria-label={t('checks.unlinkNamed', { name: x.check?.name ?? '' })} onClick={() => void unlink(x)}>
-                            <IconLinkOff size={14} />
-                          </ActionIcon>
-                        </Tooltip>
-                      ) : (
-                        <Button size="compact-xs" variant="light" onClick={() => void link(x)} data-testid="check-link-found">
-                          {t('checks.linkFound')}
-                        </Button>
-                      ))}
+                      {c.canLink &&
+                        !x.hidden &&
+                        (x.linkId ? (
+                          <Tooltip label={t('checks.unlink')}>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              aria-label={t('checks.unlinkNamed', { name: x.check?.name ?? '' })}
+                              onClick={() => void unlink(x)}
+                            >
+                              <IconLinkOff size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        ) : (
+                          <Button size="compact-xs" variant="light" onClick={() => void link(x)} data-testid="check-link-found">
+                            {t('checks.linkFound')}
+                          </Button>
+                        ))}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -464,10 +553,16 @@ function ElementChecks({ e }: { e: DataElement }) {
           {t('checks.help')}
         </Text>
       </Section>
-      {linking && <LinkCheck e={e} onClose={() => setLinking(false)} onDone={() => {
+      {linking && (
+        <LinkCheck
+          e={e}
+          onClose={() => setLinking(false)}
+          onDone={() => {
             invalidate();
             setLinking(false);
-          }} />}
+          }}
+        />
+      )}
     </Stack>
   );
 }

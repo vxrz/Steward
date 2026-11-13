@@ -93,7 +93,13 @@ export function ProductHealthTab({ p }: { p: DataProduct }) {
   );
 }
 
-function ElementHealthTable({ h, names }: { h: ProductHealth; names: Map<string, { id: string; qualifiedName: string; displayName: string; visible: boolean }> }) {
+function ElementHealthTable({
+  h,
+  names,
+}: {
+  h: ProductHealth;
+  names: Map<string, { id: string; qualifiedName: string; displayName: string; visible: boolean }>;
+}) {
   const { t } = useTranslation('dataProducts');
   return (
     <Section title={t('health.elements')} testId="health-elements">
@@ -119,7 +125,9 @@ function ElementHealthTable({ h, names }: { h: ProductHealth; names: Map<string,
                     <Table.Td>
                       {e.checks.visible + e.checks.hidden === 0
                         ? t('health.noChecks')
-                        : [t('health.checksVisible', { count: e.checks.visible }), e.checks.hidden ? t('health.checksHidden', { count: e.checks.hidden }) : ''].filter(Boolean).join(', ')}
+                        : [t('health.checksVisible', { count: e.checks.visible }), e.checks.hidden ? t('health.checksHidden', { count: e.checks.hidden }) : '']
+                            .filter(Boolean)
+                            .join(', ')}
                     </Table.Td>
                   </Table.Tr>
                 );
@@ -150,7 +158,10 @@ function MonitorProposal({ p, environment, onClose }: { p: DataProduct; environm
   const x = q.data;
   const apply = () =>
     run(async () => {
-      const r = await post<DataMonitorResult>(`/data-products/${enc(p.id)}/monitor`, { environment, ...(name.trim() && !x?.monitor ? { name: name.trim() } : {}) });
+      const r = await post<DataMonitorResult>(`/data-products/${enc(p.id)}/monitor`, {
+        environment,
+        ...(name.trim() && !x?.monitor ? { name: name.trim() } : {}),
+      });
       setResult(r);
       invalidate();
       notifyOk(r.created ? t('monitor.created', { name: r.monitor.name }) : t('monitor.updated', { count: r.added, name: r.monitor.name }));
@@ -163,7 +174,11 @@ function MonitorProposal({ p, environment, onClose }: { p: DataProduct; environm
         {result ? (
           <Alert color="green" variant="light" data-testid="monitor-result">
             <Stack gap={4}>
-              <Text size="sm">{result.created ? t('monitor.createdLong', { name: result.monitor.name }) : t('monitor.updated', { count: result.added, name: result.monitor.name })}</Text>
+              <Text size="sm">
+                {result.created
+                  ? t('monitor.createdLong', { name: result.monitor.name })
+                  : t('monitor.updated', { count: result.added, name: result.monitor.name })}
+              </Text>
               <Anchor component={Link} to={`/monitors/${enc(result.monitor.id)}`} size="sm">
                 {t('monitor.review')}
               </Anchor>
@@ -243,7 +258,13 @@ function MonitorProposal({ p, environment, onClose }: { p: DataProduct; environm
                 </Paper>
               )}
               {!x.monitor && x.checks.length > 0 && (
-                <TextInput label={t('monitor.name')} placeholder={t('monitor.namePlaceholder', { name: p.name, environment })} maxLength={160} value={name} onChange={(e) => setName(e.currentTarget.value)} />
+                <TextInput
+                  label={t('monitor.name')}
+                  placeholder={t('monitor.namePlaceholder', { name: p.name, environment })}
+                  maxLength={160}
+                  value={name}
+                  onChange={(e) => setName(e.currentTarget.value)}
+                />
               )}
               {!x.canApply && (
                 <Text size="sm" c="dimmed">

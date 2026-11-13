@@ -110,7 +110,11 @@ export function DataDiscoveryPage() {
   );
   const readButton = (s: DataDiscoverySource) =>
     s.permissions?.includes('manage') && (
-      <Button size="compact-xs" variant="default" leftSection={<IconPlayerPlay size={12} />} disabled={s.running}
+      <Button
+        size="compact-xs"
+        variant="default"
+        leftSection={<IconPlayerPlay size={12} />}
+        disabled={s.running}
         onClick={(e) => {
           e.stopPropagation();
           void readNow(s);
@@ -188,9 +192,23 @@ export function DataDiscoveryPage() {
               ),
             },
             { key: 'platform', header: t('discovery.platform'), sortValue: (s) => s.platformName ?? '', cell: (s) => s.platformName ?? '–' },
-            { key: 'scope', header: t('discovery.scope'), cell: (s) => <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>{s.scope.join(', ') || t('discovery.allScope')}</Text> },
+            {
+              key: 'scope',
+              header: t('discovery.scope'),
+              cell: (s) => (
+                <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
+                  {s.scope.join(', ') || t('discovery.allScope')}
+                </Text>
+              ),
+            },
             { key: 'last', header: t('discovery.lastRun'), sortValue: (s) => s.lastRunAt ?? '', cell: last },
-            { key: 'next', header: t('discovery.nextRun'), sortValue: (s) => s.nextRunAt ?? '', nowrap: true, cell: (s) => (s.enabled && s.nextRunAt ? fmtRelative(s.nextRunAt) : '–') },
+            {
+              key: 'next',
+              header: t('discovery.nextRun'),
+              sortValue: (s) => s.nextRunAt ?? '',
+              nowrap: true,
+              cell: (s) => (s.enabled && s.nextRunAt ? fmtRelative(s.nextRunAt) : '–'),
+            },
             { key: 'read', header: t('discovery.readNow'), cell: readButton },
           ]}
         />
@@ -280,10 +298,14 @@ export function DataDiscoverySourcePage() {
             </Fact>
             <Fact label={t('discovery.rules')}>
               {s.environmentRules.length
-                ? s.environmentRules.map((r) => t('discovery.ruleText', { match: t(`discovery.ruleMatches.${r.match}`), value: r.value, environment: r.environment })).join('; ')
+                ? s.environmentRules
+                    .map((r) => t('discovery.ruleText', { match: t(`discovery.ruleMatches.${r.match}`), value: r.value, environment: r.environment }))
+                    .join('; ')
                 : t('discovery.noRules')}
             </Fact>
-            <Fact label={t('discovery.interval')}>{t(`discovery.intervals.${s.intervalMinutes as 1440}`, { defaultValue: t('discovery.everyMinutes', { count: s.intervalMinutes }) })}</Fact>
+            <Fact label={t('discovery.interval')}>
+              {t(`discovery.intervals.${s.intervalMinutes as 1440}`, { defaultValue: t('discovery.everyMinutes', { count: s.intervalMinutes }) })}
+            </Fact>
             <Fact label={t('discovery.nextRun')}>{s.enabled ? (s.nextRunAt ? fmtDate(s.nextRunAt) : '–') : t('discovery.paused')}</Fact>
             <Fact label={t('discovery.runsAs')}>{s.runAs}</Fact>
           </SimpleGrid>

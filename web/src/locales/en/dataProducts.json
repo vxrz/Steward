@@ -541,7 +541,6 @@
     "help": "An attribution of the cost lines Steward reads – showback, never chargeback. Shared lines are split by the platform team's rule.",
     "month": "Month",
     "title": "Costs in {{month}}",
-    "total": "Total ({{currency}})",
     "none": "No attributed costs",
     "incomplete": "Incomplete: part of the costs is on platforms whose amounts you may not see.",
     "incompleteShort": "incomplete",
@@ -557,7 +556,51 @@
     },
     "share": "Share",
     "amount": "Amount",
-    "showback": "Showback: not booked and not part of a cost plan; the sum over products is not a budget."
+    "showback": "Showback: not booked and not part of a cost plan; the sum over products is not a budget.",
+    "period": "Period",
+    "months_one": "The last month",
+    "months_other": "The last {{count}} months",
+    "noEnvironment": "The product is in no environment yet – its costs follow once it is.",
+    "byMonth": "Costs per month",
+    "noMatches": "No cost lines are matched to the product yet: add a match – a resource id, a sub-account, a service, a tag or an application.",
+    "noMatchesShort": "no matches yet",
+    "match": "Match",
+    "from": "From",
+    "fromProduct": "The product",
+    "shared": "Shared",
+    "sharedWith_one": "With {{count}} other product",
+    "sharedWith_other": "With {{count}} other products",
+    "splitBetween_one": "Split between {{count}} product",
+    "splitBetween_other": "Split between {{count}} products",
+    "matches": "Cost matches",
+    "matchesHelp": "Which cost lines are the product's: its own matches in this environment, and those of its elements (a topic's cluster, a connector).",
+    "elementMatchesHelp": "The products this element is part of take these lines in its environment.",
+    "addMatch": "Add a match",
+    "addMatchIn": "Add a match in {{environment}}",
+    "removeMatch": "Remove the match",
+    "removeMatchNamed": "Remove the match {{match}}",
+    "removeMatchConfirm": "Remove the match {{match}}? Its lines are no longer attributed to the product",
+    "matchFormHelp": "Name the lines as the platform's bill carries them. A line two or more products match is shared and split by its allocation.",
+    "platformOfElement": "Empty: the element's platform.",
+    "matchKind": "Match by",
+    "matchKinds": {
+      "resource": "Resource",
+      "subAccount": "Sub-account",
+      "service": "Service",
+      "tag": "Tag",
+      "application": "Application"
+    },
+    "matchValue": "Value",
+    "matchValueHints": {
+      "resource": "E.g. a Confluent cluster lkc-… or connector lcc-…, an AWS resource id.",
+      "subAccount": "E.g. a Snowflake account or a Confluent environment.",
+      "service": "The service name of the cost lines.",
+      "tag": "The tag's value.",
+      "application": "The id of the application the lines are mapped to."
+    },
+    "tagKey": "Tag key",
+    "matchTag": "Tag {{key}} = {{value}}",
+    "matchHidden": "A match on a platform you may not see"
   },
   "value": {
     "title": "Business value",
@@ -565,11 +608,6 @@
     "none": "No business value stated.",
     "perYear": "{{amount}} per year",
     "costsLastMonth": "Costs in {{month}}: {{costs}}"
-  },
-  "notAvailable": {
-    "costs": "Costs per product are not available yet on this installation.",
-    "scorecard": "The scorecard is not available yet on this installation.",
-    "short": "not available yet"
   },
   "scorecard": {
     "title": "Scorecard",
@@ -620,6 +658,84 @@
       "availability": "Availability",
       "portability": "Portability",
       "recoverability": "Recoverability"
+    },
+    "maturityShort": "Maturity {{level}}",
+    "sources": {
+      "monitor": "from its monitor",
+      "elements": "from its output elements",
+      "none": "no linked checks"
+    },
+    "evidence": {
+      "noEvidenceYet": "Steward has no evidence for this yet.",
+      "documented": {
+        "has": "{{done}} of {{of}}: description, owner, domain, type, data objects"
+      },
+      "rated": {
+        "dimensions": "{{rated}} of {{of}} dimensions rated",
+        "needsRerating": "{{count}} to be rated again after a scale change",
+        "belowFloor": "Below its data objects without a reason: {{dimensions}}",
+        "belowWithReason": "{{count}} below its data objects, with a reason"
+      },
+      "ports": {
+        "bound": "{{bound}} of {{of}} output ports bound here",
+        "noOutput": "No output port"
+      },
+      "contracted": {
+        "withContract": "{{count}} of {{of}} output ports under a contract",
+        "lintErrors": "{{count}} contract lint errors",
+        "testFailed": "{{count}} contract tests failed",
+        "notTested": "{{count}} contracts not tested"
+      },
+      "observed": {
+        "withFreshness": "{{count}} of {{of}} output elements have a freshness check",
+        "noOutputElements": "No output elements here"
+      },
+      "healthy": {
+        "status": "{{status}}, {{source}}"
+      },
+      "objectives": {
+        "availability": "Available {{uptime}} % over 30 days (objective {{target}} %)",
+        "availabilityShort": "Availability objective {{target}} %: the monitor has not run for 30 days yet",
+        "availabilityNoMonitor": "Availability objective {{target}} %: no monitor yet",
+        "freshness": "{{port}}: fresh {{uptime}} % of the time (objective {{target}})",
+        "freshnessShort": "{{port}}: freshness objective {{target}}, no 30 days of checks yet",
+        "none": "No objectives set on the output ports"
+      },
+      "dependencies": {
+        "ok": "{{inputs}} input ports, none on a deprecated port",
+        "deprecated": "{{count}} of {{of}} input ports consume a deprecated or retired port",
+        "none": "No input ports"
+      },
+      "costsKnown": {
+        "matches": "{{count}} cost matches",
+        "none": "No cost matches"
+      },
+      "currentness": {
+        "checks": "{{fresh}} of {{of}} freshness checks up, {{stale}} stale",
+        "noChecks": "No freshness checks"
+      },
+      "availability": {
+        "uptime": "Up {{uptime}} % over 30 days",
+        "noData": "The monitor has no 30 days of samples yet",
+        "noMonitor": "No monitor"
+      },
+      "compliance": {
+        "tests": "Contract tests: {{passed}} passed, {{failed}} failed, {{untested}} not tested",
+        "noContract": "No contract"
+      },
+      "traceability": {
+        "traced": "{{count}} of {{of}} output elements traced to a source",
+        "noOutputElements": "No output elements here"
+      },
+      "understandability": {
+        "defined": "{{count}} of {{of}} exposed data objects have a definition",
+        "noObjects": "Exposes no data objects"
+      },
+      "confidentiality": {
+        "notRated": "Confidentiality not rated",
+        "rated": "Confidentiality rated {{level}}",
+        "belowFloor": "Confidentiality {{level}}: below its data objects"
+      }
     }
   },
   "access": {
@@ -1056,5 +1172,20 @@
     "environments": "Environments",
     "domains": "Domains",
     "discovery": "Discovery sources"
+  },
+  "allocations": {
+    "title": "Shared lines",
+    "help": "Lines several products match are split by their platform team's rule – equally, or by weight. Never more than 100 % of a line; what no product takes is not attributed.",
+    "equal": "Split equally",
+    "byWeight": "By weight",
+    "rule": "Rule",
+    "change": "Change the split",
+    "editTitle": "Split of {{platform}}, {{match}}",
+    "notAttributed": "{{pct}} % not attributed",
+    "sum": "Together: {{pct}} %.",
+    "over100": "The weights add up to more than 100 %",
+    "hiddenKept_one": "The weight of {{count}} product you may not see stays as it is.",
+    "hiddenKept_other": "The weights of {{count}} products you may not see stay as they are.",
+    "audit": "Who may manage the platform sets the split; it is in the audit log."
   }
 }

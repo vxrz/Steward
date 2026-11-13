@@ -41,7 +41,8 @@ const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 function ObjectivesInput({ value, onChange, inherited }: { value: DataObjectives; onChange: (v: DataObjectives) => void; inherited?: DataObjectives }) {
   const { t } = useTranslation('dataProducts');
   const num = (v: number | string) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-  const hint = (k: keyof DataObjectives) => (inherited && inherited[k] !== null && inherited[k] !== undefined ? t('objectives.inherited', { value: String(inherited[k]) }) : undefined);
+  const hint = (k: keyof DataObjectives) =>
+    inherited && inherited[k] !== null && inherited[k] !== undefined ? t('objectives.inherited', { value: String(inherited[k]) }) : undefined;
   return (
     <Paper withBorder p="sm">
       <Text size="sm" fw={600}>
@@ -214,9 +215,24 @@ export function PortForm({
               onChange={(k) => k && setType(k as DataPortType)}
               allowDeselect={false}
             />
-            <TextInput label={t('ports.version')} description={t('ports.versionHint')} maxLength={60} value={version} onChange={(e) => setVersion(e.currentTarget.value)} data-testid="port-version" />
+            <TextInput
+              label={t('ports.version')}
+              description={t('ports.versionHint')}
+              maxLength={60}
+              value={version}
+              onChange={(e) => setVersion(e.currentTarget.value)}
+              data-testid="port-version"
+            />
           </SimpleGrid>
-          <Textarea label={t('form.description')} autosize minRows={2} maxRows={6} maxLength={L.description} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+          <Textarea
+            label={t('form.description')}
+            autosize
+            minRows={2}
+            maxRows={6}
+            maxLength={L.description}
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+          />
           {direction === 'input' && (
             <Paper withBorder p="sm">
               <Stack gap="xs">
@@ -248,7 +264,10 @@ export function PortForm({
                       label={t('ports.sourcePort')}
                       data={(sourcePorts.data ?? [])
                         .filter((p) => p.direction === 'output')
-                        .map((p) => ({ value: p.id, label: [p.name, p.version, p.lifecycle !== 'active' ? t(`lifecycle.${p.lifecycle}`) : ''].filter(Boolean).join(' · ') }))}
+                        .map((p) => ({
+                          value: p.id,
+                          label: [p.name, p.version, p.lifecycle !== 'active' ? t(`lifecycle.${p.lifecycle}`) : ''].filter(Boolean).join(' · '),
+                        }))}
                       value={sourcePort}
                       onChange={setSourcePort}
                       disabled={!sourceProduct}
@@ -258,7 +277,13 @@ export function PortForm({
                   </SimpleGrid>
                 )}
                 {sourceKind === 'element' && (
-                  <ElementPicker label={t('ports.sourceElement')} value={sourceElement} onChange={(e) => setSourceElement(e.slice(-1))} max={1} error={v.error('source')} />
+                  <ElementPicker
+                    label={t('ports.sourceElement')}
+                    value={sourceElement}
+                    onChange={(e) => setSourceElement(e.slice(-1))}
+                    max={1}
+                    error={v.error('source')}
+                  />
                 )}
                 {sourceKind === 'text' && (
                   <TextInput
@@ -305,7 +330,9 @@ export function PortForm({
             {(lifecycle === 'deprecated' || lifecycle === 'retired') && (
               <Select
                 label={t('ports.successor')}
-                data={ports.filter((p) => p.id !== x?.id && p.direction === direction).map((p) => ({ value: p.id, label: [p.name, p.version].filter(Boolean).join(' ') }))}
+                data={ports
+                  .filter((p) => p.id !== x?.id && p.direction === direction)
+                  .map((p) => ({ value: p.id, label: [p.name, p.version].filter(Boolean).join(' ') }))}
                 value={successor}
                 onChange={setSuccessor}
                 clearable
@@ -481,10 +508,23 @@ export function ConsumerForm({
   const [agreementLabel, setAgreementLabel] = useState(c?.agreement?.label ?? '');
   const [contacts, setContacts] = useState<string[]>(c?.contacts ?? []);
   const [busy, run] = useBusy();
-  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), enabled: kind === 'team' || kind === 'user', staleTime: 60_000 });
-  const apps = useQuery({ queryKey: ['dataProducts', 'applications'], queryFn: () => get<ApplicationSummary[]>('/applications'), enabled: kind === 'application' });
+  const subjects = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => getOptional<Subject[]>('/subjects', []),
+    enabled: kind === 'team' || kind === 'user',
+    staleTime: 60_000,
+  });
+  const apps = useQuery({
+    queryKey: ['dataProducts', 'applications'],
+    queryFn: () => get<ApplicationSummary[]>('/applications'),
+    enabled: kind === 'application',
+  });
   const services = useQuery({ queryKey: ['dataProducts', 'services'], queryFn: () => get<ServiceSummary[]>('/services'), enabled: kind === 'service' });
-  const products = useQuery({ queryKey: ['dataProducts', 'products', 'options'], queryFn: () => get<DataPage<DataProductSummary>>('/data-products?limit=100'), enabled: kind === 'product' });
+  const products = useQuery({
+    queryKey: ['dataProducts', 'products', 'options'],
+    queryFn: () => get<DataPage<DataProductSummary>>('/data-products?limit=100'),
+    enabled: kind === 'product',
+  });
   const refOptions =
     kind === 'application'
       ? (apps.data ?? []).map((a) => ({ value: a.id, label: a.name }))
@@ -555,13 +595,35 @@ export function ConsumerForm({
               />
             )}
             {(kind === 'application' || kind === 'service' || kind === 'product') && (
-              <Select label={t('consumers.who')} data={refOptions} value={refId} onChange={setRefId} searchable error={v.error('who')} placeholder={c && !c.label ? t('hidden.item') : undefined} />
+              <Select
+                label={t('consumers.who')}
+                data={refOptions}
+                value={refId}
+                onChange={setRefId}
+                searchable
+                error={v.error('who')}
+                placeholder={c && !c.label ? t('hidden.item') : undefined}
+              />
             )}
             {kind === 'text' && (
-              <TextInput label={t('consumers.who')} maxLength={L.short} value={text} onChange={(e) => setText(e.currentTarget.value)} error={v.error('who')} data-testid="consumer-text" />
+              <TextInput
+                label={t('consumers.who')}
+                maxLength={L.short}
+                value={text}
+                onChange={(e) => setText(e.currentTarget.value)}
+                error={v.error('who')}
+                data-testid="consumer-text"
+              />
             )}
           </SimpleGrid>
-          <Textarea label={t('consumers.purpose')} autosize minRows={2} maxLength={L.text} value={purpose} onChange={(e) => setPurpose(e.currentTarget.value)} />
+          <Textarea
+            label={t('consumers.purpose')}
+            autosize
+            minRows={2}
+            maxLength={L.text}
+            value={purpose}
+            onChange={(e) => setPurpose(e.currentTarget.value)}
+          />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput type="date" label={t('consumers.since')} value={since} onChange={(e) => setSince(e.currentTarget.value)} error={v.error('since')} />
             <TextInput type="date" label={t('consumers.endDate')} value={endDate} onChange={(e) => setEndDate(e.currentTarget.value)} />
@@ -588,7 +650,14 @@ export function ConsumerForm({
                   error={v.error('agreement')}
                 />
               )}
-              {agreementKind && <TextInput label={t('consumers.agreementLabel')} maxLength={L.short} value={agreementLabel} onChange={(e) => setAgreementLabel(e.currentTarget.value)} />}
+              {agreementKind && (
+                <TextInput
+                  label={t('consumers.agreementLabel')}
+                  maxLength={L.short}
+                  value={agreementLabel}
+                  onChange={(e) => setAgreementLabel(e.currentTarget.value)}
+                />
+              )}
             </SimpleGrid>
           </Paper>
           <SubjectsInput label={t('consumers.contacts')} description={t('consumers.contactsHint')} value={contacts} onChange={setContacts} max={L.subjects} />

@@ -64,7 +64,10 @@ export function DataDomainsPage() {
             </Anchor>
           </Group>
           <Text size="xs" c="dimmed">
-            {[d.owners.length ? t('domains.ownersLine', { owners: d.owners.map(subject).join(', ') }) : '', d.owningTeams.length ? t('domains.teamsLine', { teams: d.owningTeams.map((x) => x.name).join(', ') }) : '']
+            {[
+              d.owners.length ? t('domains.ownersLine', { owners: d.owners.map(subject).join(', ') }) : '',
+              d.owningTeams.length ? t('domains.teamsLine', { teams: d.owningTeams.map((x) => x.name).join(', ') }) : '',
+            ]
               .filter(Boolean)
               .join(' · ')}
           </Text>

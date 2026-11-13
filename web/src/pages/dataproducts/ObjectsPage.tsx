@@ -97,7 +97,16 @@ export function DataObjectsPage() {
       filters={
         none ? undefined : (
           <Group gap="sm" mb="md" align="flex-end" wrap="wrap">
-            <Select size="xs" label={t('products.domain')} data={domainOptions(domains.data)} value={f.domain || null} onChange={(v) => set('domain', v)} clearable searchable w={{ base: '100%', xs: 200 }} />
+            <Select
+              size="xs"
+              label={t('products.domain')}
+              data={domainOptions(domains.data)}
+              value={f.domain || null}
+              onChange={(v) => set('domain', v)}
+              clearable
+              searchable
+              w={{ base: '100%', xs: 200 }}
+            />
             <Select
               size="xs"
               label={t('objects.lifecycle')}
@@ -189,15 +198,39 @@ export function DataObjectsPage() {
                 </>
               ),
             },
-            { key: 'domain', header: t('products.domain'), sortValue: (o) => o.domain?.name ?? '', cell: (o) => (o.domain?.hidden ? t('hidden.domain') : (o.domain?.name ?? '–')) },
+            {
+              key: 'domain',
+              header: t('products.domain'),
+              sortValue: (o) => o.domain?.name ?? '',
+              cell: (o) => (o.domain?.hidden ? t('hidden.domain') : (o.domain?.name ?? '–')),
+            },
             { key: 'lifecycle', header: t('objects.lifecycle'), nowrap: true, cell: (o) => <LifecycleBadge lifecycle={o.lifecycle} size="xs" /> },
-            { key: 'classification', header: t('rating.classification'), nowrap: true, sortValue: (o) => (o.classification ? DATA_CLASSIFICATIONS.indexOf(o.classification) : null), cell: (o) => (o.classification ? <ClassificationBadge value={o.classification} size="xs" /> : '–') },
-            { key: 'personal', header: t('objects.personalData'), nowrap: true, cell: (o) => (o.personalData === 'none' ? t('personalData.none') : <PersonalDataBadge value={o.personalData} size="xs" />) },
+            {
+              key: 'classification',
+              header: t('rating.classification'),
+              nowrap: true,
+              sortValue: (o) => (o.classification ? DATA_CLASSIFICATIONS.indexOf(o.classification) : null),
+              cell: (o) => (o.classification ? <ClassificationBadge value={o.classification} size="xs" /> : '–'),
+            },
+            {
+              key: 'personal',
+              header: t('objects.personalData'),
+              nowrap: true,
+              cell: (o) => (o.personalData === 'none' ? t('personalData.none') : <PersonalDataBadge value={o.personalData} size="xs" />),
+            },
             { key: 'rating', header: t('products.rating'), cell: (o) => <RatingBadges rating={o.rating} /> },
             { key: 'owner', header: t('objects.owner'), cell: (o) => o.owner ?? '–' },
             { key: 'updated', header: t('products.updated'), sortValue: (o) => o.updatedAt, nowrap: true, cell: (o) => fmtRelative(o.updatedAt) },
           ]}
-          footer={<ListFooter shown={rows.length} total={total} hasMore={!!list.hasNextPage} onLoadMore={() => void list.fetchNextPage()} loading={list.isFetchingNextPage} />}
+          footer={
+            <ListFooter
+              shown={rows.length}
+              total={total}
+              hasMore={!!list.hasNextPage}
+              onLoadMore={() => void list.fetchNextPage()}
+              loading={list.isFetchingNextPage}
+            />
+          }
         />
       )}
       {creating && (
@@ -265,7 +298,13 @@ export function DataObjectPage() {
           <PersonalDataBadge value={o.personalData} />
         </>
       }
-      description={[o.domain ? (o.domain.hidden ? t('hidden.domain') : o.domain.name) : null, o.key, o.owner && t('objects.ownerLine', { owner: subject(`user:${o.owner}`) })].filter(Boolean).join(' · ')}
+      description={[
+        o.domain ? (o.domain.hidden ? t('hidden.domain') : o.domain.name) : null,
+        o.key,
+        o.owner && t('objects.ownerLine', { owner: subject(`user:${o.owner}`) }),
+      ]
+        .filter(Boolean)
+        .join(' · ')}
       actions={
         canEdit && (
           <Button size="xs" leftSection={<IconPencil size={14} />} onClick={() => setEditing('object')} data-testid="object-edit">
@@ -293,7 +332,13 @@ export function DataObjectPage() {
           <Grid.Col span={{ base: 12, md: 7 }}>
             <Stack gap="md">
               <Section title={t('objects.definition')}>
-                {o.definition ? <Markdown text={o.definition} /> : <Text size="sm" c="dimmed">{t('objects.noDefinition')}</Text>}
+                {o.definition ? (
+                  <Markdown text={o.definition} />
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    {t('objects.noDefinition')}
+                  </Text>
+                )}
                 {o.synonyms.length > 0 && (
                   <Text size="sm" mt="xs">
                     {t('objects.synonymsLine', { list: o.synonyms.join(', ') })}
@@ -304,7 +349,9 @@ export function DataObjectPage() {
                 <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
                   <Fact label={t('objects.personalData')}>{t(`personalData.${o.personalData}`)}</Fact>
                   {o.personalData !== 'none' && <Fact label={t('objects.categories')}>{categories(o.categories)}</Fact>}
-                  {o.personalData === 'special' && <Fact label={t('objects.special')}>{o.specialCategories.map((k) => t(`objects.specialNames.${k}`)).join(', ') || '–'}</Fact>}
+                  {o.personalData === 'special' && (
+                    <Fact label={t('objects.special')}>{o.specialCategories.map((k) => t(`objects.specialNames.${k}`)).join(', ') || '–'}</Fact>
+                  )}
                   {o.personalData !== 'none' && <Fact label={t('objects.subjects')}>{subjects(o.subjects)}</Fact>}
                   {o.personalData !== 'none' && (
                     <Fact label={t('objects.legalBasis')}>
@@ -401,7 +448,15 @@ export function DataObjectPage() {
         </Grid>
       )}
       {editing === 'object' && <ObjectForm object={o} domains={domains.data} onClose={() => setEditing(null)} onSaved={saved} />}
-      {editing === 'rating' && <RatingForm title={t('rating.objectTitle', { name: o.name })} url={`${base}/rating`} rating={o.rating} onClose={() => setEditing(null)} onSaved={saved} />}
+      {editing === 'rating' && (
+        <RatingForm
+          title={t('rating.objectTitle', { name: o.name })}
+          target={{ kind: 'object', id: o.id }}
+          rating={o.rating}
+          onClose={() => setEditing(null)}
+          onSaved={saved}
+        />
+      )}
     </DetailPage>
   );
 }

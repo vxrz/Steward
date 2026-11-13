@@ -107,7 +107,9 @@ export function DataElementsPage() {
   const anyFilter = !!(term || f.platformId || f.kind || f.environment || f.layer || f.inNoProduct || f.missing);
   const none = list.isSuccess && !anyFilter && (first?.total ?? 0) === 0;
   const active = [f.platformId, f.kind, f.environment, f.layer, f.inNoProduct, f.missing, term].filter(Boolean).length;
-  const usedPlatforms = (platforms.data ?? []).filter((p) => ['snowflake', 'kafka', 'confluent-cloud', 'database', 'aws', 'insights-hub'].includes(p.kind) || p.id === f.platformId);
+  const usedPlatforms = (platforms.data ?? []).filter(
+    (p) => ['snowflake', 'kafka', 'confluent-cloud', 'database', 'aws', 'insights-hub'].includes(p.kind) || p.id === f.platformId,
+  );
   return (
     <ListPage
       testId="data-elements"
@@ -181,9 +183,31 @@ export function DataElementsPage() {
             clearable
             w={{ base: '100%', xs: 140 }}
           />
-          <Select size="xs" label={t('elements.layer')} data={[...DEFAULT_DATA_LAYERS]} value={f.layer || null} onChange={(v) => set('layer', v)} clearable w={{ base: '100%', xs: 130 }} />
-          <Switch size="sm" label={t('elements.onlyInNoProduct')} checked={f.inNoProduct} onChange={(e) => set('inNoProduct', e.currentTarget.checked ? '1' : null)} mb={6} data-testid="filter-in-no-product" />
-          <Switch size="sm" label={t('elements.onlyMissing')} checked={f.missing} onChange={(e) => set('missing', e.currentTarget.checked ? '1' : null)} mb={6} data-testid="filter-missing" />
+          <Select
+            size="xs"
+            label={t('elements.layer')}
+            data={[...DEFAULT_DATA_LAYERS]}
+            value={f.layer || null}
+            onChange={(v) => set('layer', v)}
+            clearable
+            w={{ base: '100%', xs: 130 }}
+          />
+          <Switch
+            size="sm"
+            label={t('elements.onlyInNoProduct')}
+            checked={f.inNoProduct}
+            onChange={(e) => set('inNoProduct', e.currentTarget.checked ? '1' : null)}
+            mb={6}
+            data-testid="filter-in-no-product"
+          />
+          <Switch
+            size="sm"
+            label={t('elements.onlyMissing')}
+            checked={f.missing}
+            onChange={(e) => set('missing', e.currentTarget.checked ? '1' : null)}
+            mb={6}
+            data-testid="filter-missing"
+          />
         </Group>
       }
       view="data-elements"
@@ -240,7 +264,15 @@ export function DataElementsPage() {
               header: t('elements.name'),
               cell: (e) => (
                 <Stack gap={0}>
-                  <Anchor component={Link} to={to(e)} size="sm" fw={500} className="mono" style={{ overflowWrap: 'anywhere' }} onClick={(ev) => ev.stopPropagation()}>
+                  <Anchor
+                    component={Link}
+                    to={to(e)}
+                    size="sm"
+                    fw={500}
+                    className="mono"
+                    style={{ overflowWrap: 'anywhere' }}
+                    onClick={(ev) => ev.stopPropagation()}
+                  >
                     {e.qualifiedName}
                   </Anchor>
                   {e.displayName && e.displayName !== e.qualifiedName && (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActionIcon, Badge, Button, Checkbox, Group, Menu, Paper, Select, Stack, Text, Textarea, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, Button, Checkbox, Group, Menu, Paper, Select, Stack, Text, Textarea, Tooltip, VisuallyHidden } from '@mantine/core';
 import { IconAlertTriangle, IconDots, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -198,8 +198,18 @@ export function ProductElementsTab({ p }: { p: DataProduct }) {
                 ),
               },
               { key: 'kind', header: t('elements.kind'), sortValue: (m) => kindLabel(m.element.kind), cell: (m) => kindLabel(m.element.kind) },
-              { key: 'platform', header: t('elements.platform'), cell: (m) => <PlatformName name={m.element.platformName} hidden={m.element.platformHidden} /> },
-              { key: 'environment', header: t('elements.environment'), sortValue: (m) => m.element.environment, nowrap: true, cell: (m) => m.element.environment || '–' },
+              {
+                key: 'platform',
+                header: t('elements.platform'),
+                cell: (m) => <PlatformName name={m.element.platformName} hidden={m.element.platformHidden} />,
+              },
+              {
+                key: 'environment',
+                header: t('elements.environment'),
+                sortValue: (m) => m.element.environment,
+                nowrap: true,
+                cell: (m) => m.element.environment || '–',
+              },
               { key: 'layer', header: t('elements.layer'), sortValue: (m) => m.element.layer, nowrap: true, cell: (m) => m.element.layer || '–' },
               { key: 'role', header: t('members.role'), sortValue: (m) => m.role, nowrap: true, cell: (m) => <RoleBadge role={m.role} size="xs" /> },
               {
@@ -208,21 +218,41 @@ export function ProductElementsTab({ p }: { p: DataProduct }) {
                 nowrap: true,
                 cell: (m) => (
                   <Group gap={4} wrap="nowrap">
-                    {healthOf.get(m.elementId) ? <HealthBadge status={healthOf.get(m.elementId)!} size="xs" /> : m.role === 'input' ? '–' : <HealthBadge status="noData" size="xs" />}
+                    {healthOf.get(m.elementId) ? (
+                      <HealthBadge status={healthOf.get(m.elementId)!} size="xs" />
+                    ) : m.role === 'input' ? (
+                      '–'
+                    ) : (
+                      <HealthBadge status="noData" size="xs" />
+                    )}
                     {missing(m)}
                   </Group>
                 ),
               },
-              { key: 'actions', header: '', cell: (m) => actions(m) },
+              { key: 'actions', header: <VisuallyHidden>{t('table.actions')}</VisuallyHidden>, label: t('table.actions'), cell: (m) => actions(m) },
             ]}
-            footer={<ListFooter shown={rows.length} total={total} hasMore={!!members.hasNextPage} onLoadMore={() => void members.fetchNextPage()} loading={members.isFetchingNextPage} />}
+            footer={
+              <ListFooter
+                shown={rows.length}
+                total={total}
+                hasMore={!!members.hasNextPage}
+                onLoadMore={() => void members.fetchNextPage()}
+                loading={members.isFetchingNextPage}
+              />
+            }
           />
         )}
       </Section>
-      {adding && <AddMembers p={p} onClose={() => setAdding(false)} onDone={() => {
+      {adding && (
+        <AddMembers
+          p={p}
+          onClose={() => setAdding(false)}
+          onDone={() => {
             invalidate();
             setAdding(false);
-          }} />}
+          }}
+        />
+      )}
       {creating && (
         <ElementForm
           onClose={() => setCreating(false)}
@@ -296,7 +326,12 @@ function AddMembers({ p, onClose, onDone }: { p: DataProduct; onClose: () => voi
             allowDeselect={false}
             data-testid="member-role"
           />
-          <Checkbox label={t('members.withDescendants')} description={t('members.descendantsHint')} checked={descendants} onChange={(e) => setDescendants(e.currentTarget.checked)} />
+          <Checkbox
+            label={t('members.withDescendants')}
+            description={t('members.descendantsHint')}
+            checked={descendants}
+            onChange={(e) => setDescendants(e.currentTarget.checked)}
+          />
           <Textarea label={t('members.note')} autosize minRows={1} maxLength={L.text} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
           <FormButtons busy={busy} submit={t('members.addButton', { count: picked.length })} testId="member-save" />
         </Stack>

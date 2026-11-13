@@ -67,6 +67,7 @@ export function DataProductPage() {
   const invalidate = useInvalidateDataProducts();
   const q = useProduct(id);
   const health = useProductHealth(id);
+  const scorecard = useScorecard(id, '');
   const domains = useDomains();
   const [editing, setEditing] = useState<'product' | 'lifecycle' | 'rating' | null>(null);
   const subject = useSubjectLabel();
@@ -110,6 +111,11 @@ export function DataProductPage() {
         <>
           <LifecycleBadge lifecycle={p.lifecycle} sunsetDate={p.sunsetDate} />
           <TypeBadge type={p.type} />
+          {scorecard.data && (
+            <Badge variant="outline" color="gray" tt="none" data-testid="product-maturity-badge">
+              {t('scorecard.maturityShort', { level: scorecard.data.maturity })}
+            </Badge>
+          )}
           {(health.data ?? []).map((h) => (
             <Group key={h.environment || 'none'} gap={4} wrap="nowrap" component="span" data-testid={`product-health-${h.environment}`}>
               {health.data!.length > 1 && (
@@ -132,7 +138,13 @@ export function DataProductPage() {
       actions={
         canEdit && (
           <>
-            <Button size="xs" variant="default" leftSection={<IconArrowsExchange size={14} />} onClick={() => setEditing('lifecycle')} data-testid="product-lifecycle">
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<IconArrowsExchange size={14} />}
+              onClick={() => setEditing('lifecycle')}
+              data-testid="product-lifecycle"
+            >
               {t('product.changeLifecycle')}
             </Button>
             <Button size="xs" leftSection={<IconPencil size={14} />} onClick={() => setEditing('product')} data-testid="product-edit">
@@ -166,7 +178,7 @@ export function DataProductPage() {
       {editing === 'rating' && (
         <RatingForm
           title={t('rating.productTitle', { name: p.name })}
-          url={`${base}/rating`}
+          target={{ kind: 'product', id: p.id }}
           rating={p.rating}
           classification={p.classification}
           floor={p.ratingFloor}
@@ -182,9 +194,10 @@ export function DataProductPage() {
 function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
   const { t } = useTranslation(['dataProducts', 'common']);
   const subject = useSubjectLabel();
-  const envs = useSortedEnvironments(p.environments);
-  const scorecard = useScorecard(p.id, envs[0] ?? '');
-  const consumers = p.ports.filter((x) => x.direction === 'output').reduce((n, x) => ({ registered: n.registered + x.consumers.registered, derived: n.derived + x.consumers.derived }), { registered: 0, derived: 0 });
+  const scorecard = useScorecard(p.id, '');
+  const consumers = p.ports
+    .filter((x) => x.direction === 'output')
+    .reduce((n, x) => ({ registered: n.registered + x.consumers.registered, derived: n.derived + x.consumers.derived }), { registered: 0, derived: 0 });
   const outputs = p.ports.filter((x) => x.direction === 'output');
   return (
     <Grid gap="md">
@@ -199,7 +212,13 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
           )}
           <Section title={t('product.about')}>
             <Stack gap="sm">
-              {p.description ? <Markdown text={p.description} /> : <Text size="sm" c="dimmed">{t('product.noDescription')}</Text>}
+              {p.description ? (
+                <Markdown text={p.description} />
+              ) : (
+                <Text size="sm" c="dimmed">
+                  {t('product.noDescription')}
+                </Text>
+              )}
               {p.purpose && (
                 <div>
                   <Text size="xs" c="dimmed">
@@ -213,7 +232,17 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
           <Section title={t('product.dataObjects')} testId="product-objects">
             {p.objects.length ? (
               <Group gap={6}>
-                {p.objects.map((o, i) => (o.hidden ? <Badge key={`h${i}`} variant="outline" color="gray" tt="none">{t('hidden.item')}</Badge> : <Badge key={o.id} variant="light" tt="none" component={Link} to={`/data-objects/${encodeURIComponent(o.id)}`} style={{ cursor: 'pointer' }}>{o.name}</Badge>))}
+                {p.objects.map((o, i) =>
+                  o.hidden ? (
+                    <Badge key={`h${i}`} variant="outline" color="gray" tt="none">
+                      {t('hidden.item')}
+                    </Badge>
+                  ) : (
+                    <Badge key={o.id} variant="light" tt="none" component={Link} to={`/data-objects/${encodeURIComponent(o.id)}`} style={{ cursor: 'pointer' }}>
+                      {o.name}
+                    </Badge>
+                  ),
+                )}
               </Group>
             ) : (
               <Text size="sm" c="dimmed">
@@ -221,7 +250,7 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
               </Text>
             )}
           </Section>
-          <ScorecardPanel query={scorecard} environment={envs[0] ?? ''} />
+          <ScorecardPanel query={scorecard} />
           <Section title={t('product.consumers')}>
             {outputs.length ? (
               <Stack gap={4}>
@@ -236,7 +265,7 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
               </Text>
             )}
           </Section>
-          <ValueAndCosts p={p} environment={envs[0] ?? ''} />
+          <ValueAndCosts p={p} />
         </Stack>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 5 }}>
@@ -253,7 +282,15 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
           >
             <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
               <Fact label={t('form.domain')}>{p.domain ? <RefLink r={p.domain} base="/data-domains" /> : '–'}</Fact>
-              <Fact label={t('form.owners')}>{p.owners.length ? p.owners.map(subject).join(', ') : <Text span c="orange" size="sm">{t('product.noOwner')}</Text>}</Fact>
+              <Fact label={t('form.owners')}>
+                {p.owners.length ? (
+                  p.owners.map(subject).join(', ')
+                ) : (
+                  <Text span c="orange" size="sm">
+                    {t('product.noOwner')}
+                  </Text>
+                )}
+              </Fact>
               <Fact label={t('product.rating')} testId="product-rating">
                 <RatingBadges rating={p.rating} size="sm" />
               </Fact>
@@ -277,7 +314,11 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
               </Fact>
               <Fact label={t('form.version')}>{p.version || '–'}</Fact>
               <Fact label={t('product.members')}>
-                {t('product.memberCounts', { input: fmtNumber(p.memberCounts.input), internal: fmtNumber(p.memberCounts.internal), output: fmtNumber(p.memberCounts.output) })}
+                {t('product.memberCounts', {
+                  input: fmtNumber(p.memberCounts.input),
+                  internal: fmtNumber(p.memberCounts.internal),
+                  output: fmtNumber(p.memberCounts.output),
+                })}
               </Fact>
               <Fact label={t('product.lifecycleDates')}>
                 {Object.entries(p.lifecycleDates)
@@ -351,7 +392,11 @@ function EnvironmentsSection({ p }: { p: DataProduct }) {
                 <Table.Th scope="col">{t('environment.label')}</Table.Th>
                 <Table.Th scope="col">{t('environments.state')}</Table.Th>
                 <Table.Th scope="col">{t('environments.monitor')}</Table.Th>
-                {canEdit && <Table.Th scope="col"><VisuallyHidden>{t('table.actions')}</VisuallyHidden></Table.Th>}
+                {canEdit && (
+                  <Table.Th scope="col">
+                    <VisuallyHidden>{t('table.actions')}</VisuallyHidden>
+                  </Table.Th>
+                )}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -387,7 +432,12 @@ function EnvironmentsSection({ p }: { p: DataProduct }) {
                   {canEdit && (
                     <Table.Td>
                       <Tooltip label={t('environments.remove')}>
-                        <ActionIcon variant="subtle" color="red" aria-label={t('environments.removeNamed', { environment: e.environment })} onClick={() => void remove(e.environment)}>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          aria-label={t('environments.removeNamed', { environment: e.environment })}
+                          onClick={() => void remove(e.environment)}
+                        >
                           <IconTrash size={14} />
                         </ActionIcon>
                       </Tooltip>
