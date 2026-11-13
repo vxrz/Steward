@@ -1093,6 +1093,10 @@ function writeElements(run: Run): void {
             description: m.description ?? e.row!.description,
             typeLabel: m.type_label ?? e.row!.type_label,
             ...(m.api_ref !== undefined ? { apiRef: m.api_ref ? { ...(api ?? {}), ...m.api_ref } : null } : {}),
+            // 0.25.0: a generic part's technology, namespace and properties (left out: kept)
+            ...(m.technology !== undefined ? { technology: m.technology } : {}),
+            ...(m.namespace !== undefined ? { namespace: m.namespace } : {}),
+            ...(m.properties !== undefined ? { properties: m.properties } : {}),
           });
         });
         continue;
@@ -1119,6 +1123,9 @@ function writeElements(run: Run): void {
             typeLabel: m.type_label ?? '',
             apiRef: m.api_ref ?? null,
             flags: Object.entries(m.flags ?? {}).map(([name, value]) => ({ name, value })),
+            technology: m.technology ?? null,
+            namespace: m.namespace ?? null,
+            properties: m.properties ?? [],
           },
           'imported',
           batch,
@@ -1234,13 +1241,14 @@ function portBody(r: Resolver, x: PortFile, row: PortRow | undefined, productPor
 function runnerInput(r: Resolver, x: RunnerFile | null | undefined, rowRunner: string | null): unknown {
   if (x === undefined) return parseJson(rowRunner, null);
   if (!x) return null;
-  if (x.kind === 'tool') return { kind: 'tool', tool: x.tool ?? '', text: x.text ?? '' };
-  if (x.kind === 'connector') return { kind: 'connector', platformId: r.named('platform', x.platform ?? ''), name: x.name ?? '' };
+  const tech = x.technology ? { technology: x.technology } : {};
+  if (x.kind === 'tool') return { kind: 'tool', tool: x.tool ?? '', text: x.text ?? '', ...tech };
+  if (x.kind === 'connector') return { kind: 'connector', platformId: r.named('platform', x.platform ?? ''), name: x.name ?? '', ...tech };
   if (x.kind === 'element') {
     if (!x.element) throw new HttpError(400, 'The runner names no element', 'DATA_STEP_INVALID', { context: 'runner' });
-    return { kind: 'element', id: r.elementId(x.element) };
+    return { kind: 'element', id: r.elementId(x.element), ...tech };
   }
-  return { kind: x.kind, id: r.named(x.kind, x.name ?? '') };
+  return { kind: x.kind, id: r.named(x.kind, x.name ?? ''), ...tech };
 }
 
 function consumerBody(r: Resolver, c: ConsumerFile) {

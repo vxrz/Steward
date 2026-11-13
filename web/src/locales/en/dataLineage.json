@@ -186,7 +186,8 @@
     "origins": {
       "openlineage": "OpenLineage",
       "dbt": "dbt",
-      "snowflake": "Snowflake object dependencies"
+      "snowflake": "Snowflake object dependencies",
+      "connector": "Connector"
     },
     "loadMore": "Load more",
     "runStates": {

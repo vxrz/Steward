@@ -208,7 +208,8 @@
     "curate": "Aufbereiten",
     "publish": "Veröffentlichen",
     "replicate": "Replizieren",
-    "other": "Sonstiges"
+    "other": "Sonstiges",
+    "bridge": "Brücke"
   },
   "elementKinds": {
     "snowflake.database": "Snowflake-Datenbank",
@@ -231,6 +232,13 @@
     "api.endpoint": "API-Endpunkt",
     "files.path": "Dateipfad",
     "insightsHub.aspect": "Insights-Hub-Aspekt",
-    "other": "Sonstiges"
+    "other": "Sonstiges",
+    "generic.dataset": "Datenbestand (generisch)",
+    "generic.stream": "Datenstrom (generisch)",
+    "generic.files": "Dateien (generisch)",
+    "generic.endpoint": "Schnittstelle (generisch)"
+  },
+  "technology": {
+    "notListed": "{{name}} (nicht in der Technologieliste)"
   }
 }

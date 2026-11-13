@@ -1,4 +1,5 @@
 import {
+  BUILT_IN_DATA_TECHNOLOGIES,
   DATA_LINEAGE_LIMITS as LL,
   DATA_LINEAGE_ORIGINS,
   DATA_LINEAGE_PROPOSAL_STATUSES,
@@ -8,12 +9,15 @@ import {
   type DataLineageProposal,
   type DataLineageProposalPage,
   type DataLineageProposalStatus,
+  type PlatformPermission,
+  type AclEntry,
 } from '@sm/shared';
 import { z } from 'zod';
 import { db } from '../../db.js';
 import { audit } from '../../audit.js';
 import { forbid, me } from '../../auth/access.js';
 import type { AuthUser } from '../../auth/context.js';
+import { platformAccess } from '../../auth/policy.js';
 import { HttpError, newId, nowIso, parseJson } from '../../util.js';
 import { elementAccess, productAccess } from '../access.js';
 import { L, decodeCursor, encodeCursor, json, limitReached } from '../common.js';
@@ -61,7 +65,25 @@ function visibleSources(u: AuthUser): Map<string, { name: string; manage: boolea
   // discovery sources have their own rights (the platform's, their element teams); at most 50 exist
   const hasSnowflake = db().get('SELECT 1 FROM dp_lineage_proposals WHERE origin = ? LIMIT 1', 'snowflake');
   if (hasSnowflake) for (const s of listDiscoverySources()) out.set(s.id, { name: s.name, manage: !!s.permissions?.includes('manage') });
+  // 0.25.0: connector proposals – their source is a Kafka Connect or Confluent platform; who sees the platform sees them
+  for (const p of db().all<{ id: string; name: string; acl: string }>(
+    `SELECT id, name, acl FROM platforms WHERE id IN (SELECT DISTINCT source_id FROM dp_lineage_proposals WHERE origin = 'connector')`,
+  )) {
+    const perms = platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions;
+    if (perms.length) out.set(p.id, { name: p.name, manage: perms.includes('manage') });
+  }
   return out;
+}
+
+const ORIGIN_TEXT = { openlineage: 'OpenLineage', dbt: 'dbt', snowflake: 'Snowflake object dependencies', connector: 'connector' } as const;
+
+/** The runner of a step accepted from a proposal: the tool and the job – or, from a connector, the connector itself. */
+function acceptedRunner(row: ProposalRow): Record<string, string> {
+  if (row.origin === 'connector') {
+    const tech = BUILT_IN_DATA_TECHNOLOGIES.find((t) => t.name.toLowerCase() === row.tool.toLowerCase());
+    return { kind: 'connector', platformId: row.source_id, name: row.name.slice(0, L.short), ...(tech ? { technology: tech.key } : {}) };
+  }
+  return { kind: 'tool', tool: row.tool.slice(0, L.short), text: row.job_key.slice(0, L.text) };
 }
 
 const listQuery = z
@@ -303,11 +325,8 @@ export function acceptProposal(id: string, body: unknown): DataLineageProposal {
         stepId,
         name.slice(0, L.name),
         kind,
-        json({ kind: 'tool', tool: row.tool.slice(0, L.short), text: row.job_key.slice(0, L.text) }),
-        `Proposed by ${sourceName} (${row.origin === 'openlineage' ? 'OpenLineage' : row.origin === 'dbt' ? 'dbt' : 'Snowflake object dependencies'}).`.slice(
-          0,
-          L.description,
-        ),
+        json(acceptedRunner(row)),
+        `Proposed by ${sourceName} (${ORIGIN_TEXT[row.origin]}).`.slice(0, L.description),
         row.last_run_state && row.last_run_at
           ? json({ state: row.last_run_state, at: row.last_run_at, completeAt: row.last_complete_at, origin: row.origin, sourceId: row.source_id })
           : null,

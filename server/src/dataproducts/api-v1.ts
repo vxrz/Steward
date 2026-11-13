@@ -13,7 +13,15 @@ import { lineageView, pipelineView } from './views.js';
 import { odpsDocument } from './odps.js';
 import { membersOf } from './store.js';
 import { scorecardsOf } from './scorecard.js';
-import { DataElementV1ListQuery, DataObjectV1ListQuery, DataProductLineageQuery, DataProductOdpsQuery, DataProductV1ListQuery } from './api-schemas.js';
+import {
+  DataElementV1ListQuery,
+  DataObjectV1ListQuery,
+  DataProductLineageQuery,
+  DataProductOdpsQuery,
+  DataProductOpenLineageQuery,
+  DataProductV1ListQuery,
+} from './api-schemas.js';
+import { openLineageExport } from './openlineage-export.js';
 import YAML from 'yaml';
 import { SemanticModelQuery, ossieDocumentSchema } from '../api/v1/schemas.js';
 import type { OssieVersion } from '../semantic/ossie.js';
@@ -188,6 +196,7 @@ function graphOut(g: DataGraph, head: Record<string, unknown>) {
       ...(n.missing ? { missing: true } : {}),
       ...(n.distance !== undefined ? { distance: n.distance } : {}),
       ...(n.count !== undefined ? { count: n.count } : {}),
+      ...(n.technology ? { technology: n.technology } : {}),
     })),
     // 0.24.0: ways a lineage source proposes are marked, never passed off as documented
     edges: g.edges.map((e) => ({
@@ -292,6 +301,26 @@ export function dataProductApiRoutes(get: Get): void {
       const id = (req.params as { productId: string }).productId;
       const q = req.query as z.infer<typeof DataProductOdpsQuery>;
       return found(() => odpsDocument(id, q.environment), `Data product ${id}`);
+    },
+  );
+  get(
+    '/data-products/:productId/openlineage',
+    {
+      operationId: 'getDataProductOpenLineage',
+      tag: TAG,
+      summary: 'Export a data product as OpenLineage events',
+      description: `The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. ${MODULE}`,
+      params: { productId: 'Data product id' },
+      query: DataProductOpenLineageQuery,
+      response: {
+        content: { 'application/x-ndjson': { schema: { type: 'string', description: 'One OpenLineage event (JSON) per line' } } },
+      },
+    },
+    async (req, reply) => {
+      const id = (req.params as { productId: string }).productId;
+      const q = req.query as z.infer<typeof DataProductOpenLineageQuery>;
+      const f = found(() => openLineageExport(id, { environment: q.environment, stepId: q.step }), `Data product ${id}`);
+      return reply.type('application/x-ndjson; charset=utf-8').send(f.body);
     },
   );
   get(

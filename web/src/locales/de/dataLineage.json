@@ -186,7 +186,8 @@
     "origins": {
       "openlineage": "OpenLineage",
       "dbt": "dbt",
-      "snowflake": "Snowflake-Objektabhängigkeiten"
+      "snowflake": "Snowflake-Objektabhängigkeiten",
+      "connector": "Connector"
     },
     "loadMore": "Mehr laden",
     "runStates": {

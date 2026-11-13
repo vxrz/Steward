@@ -43899,7 +43899,11 @@
               "api.endpoint",
               "files.path",
               "insightsHub.aspect",
-              "other"
+              "other",
+              "generic.dataset",
+              "generic.stream",
+              "generic.files",
+              "generic.endpoint"
             ]
           },
           "qualifiedName": {
@@ -43933,6 +43937,13 @@
               "null",
               "string"
             ]
+          },
+          "technology": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Generic parts (0.25.0): the technology – a key of the technology list, or a value not in the list"
           },
           "products": {
             "type": "object",
@@ -43969,6 +43980,7 @@
           "source",
           "parentId",
           "missingSince",
+          "technology",
           "products",
           "updatedAt"
         ],
@@ -44020,7 +44032,11 @@
               "api.endpoint",
               "files.path",
               "insightsHub.aspect",
-              "other"
+              "other",
+              "generic.dataset",
+              "generic.stream",
+              "generic.files",
+              "generic.endpoint"
             ]
           },
           "qualifiedName": {
@@ -44054,6 +44070,13 @@
               "null",
               "string"
             ]
+          },
+          "technology": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Generic parts (0.25.0): the technology – a key of the technology list, or a value not in the list"
           },
           "products": {
             "type": "object",
@@ -44131,6 +44154,26 @@
                 "boolean"
               ]
             }
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Generic parts (0.25.0): key: value properties entered by people"
           },
           "owningTeams": {
             "type": "array",
@@ -44317,6 +44360,7 @@
           "source",
           "parentId",
           "missingSince",
+          "technology",
           "products",
           "updatedAt",
           "description",
@@ -44326,6 +44370,7 @@
           "olName",
           "apiRef",
           "flags",
+          "properties",
           "owningTeams",
           "productRefs",
           "objects",
@@ -45186,7 +45231,11 @@
                     "api.endpoint",
                     "files.path",
                     "insightsHub.aspect",
-                    "other"
+                    "other",
+                    "generic.dataset",
+                    "generic.stream",
+                    "generic.files",
+                    "generic.endpoint"
                   ]
                 },
                 "layer": {
@@ -45224,6 +45273,28 @@
                 },
                 "count": {
                   "type": "integer"
+                },
+                "technology": {
+                  "description": "Generic parts (0.25.0): the technology",
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "icon": {
+                      "type": "string"
+                    },
+                    "listed": {
+                      "type": "boolean",
+                      "description": "false: a value not in the technology list"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "icon",
+                    "listed"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -58173,6 +58244,94 @@
         }
       }
     },
+    "/data-products/{productId}/openlineage": {
+      "get": {
+        "operationId": "getDataProductOpenLineage",
+        "summary": "Export a data product as OpenLineage events",
+        "tags": [
+          "Data products"
+        ],
+        "description": "The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "description": "Only the steps with an end and the members in this environment (default: every environment)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "step",
+            "required": false,
+            "description": "One step of the product: its job and datasets only"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "description": "Data product id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string",
+                  "description": "One OpenLineage event (JSON) per line"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/data-products/{productId}/lineage": {
       "get": {
         "operationId": "getDataProductLineage",
@@ -58336,7 +58495,11 @@
                 "api.endpoint",
                 "files.path",
                 "insightsHub.aspect",
-                "other"
+                "other",
+                "generic.dataset",
+                "generic.stream",
+                "generic.files",
+                "generic.endpoint"
               ]
             },
             "in": "query",

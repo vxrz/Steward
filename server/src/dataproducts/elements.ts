@@ -1,6 +1,8 @@
 import {
   DATA_ELEMENT_KIND_DEFS,
   DATA_PRODUCT_ID_PREFIX,
+  convertTargets,
+  dataElementConvertInput,
   dataElementInput,
   dataElementUpdate,
   dataMemberListQuery,
@@ -10,11 +12,13 @@ import {
   elementKindFits,
   elementNameNorm,
   elementShortName,
+  isGenericElementKind,
   type AclEntry,
   type DataElement,
   type DataElementListQuery,
   type DataElementOnProduct,
   type DataElementReadout,
+  type DataElementProperty,
   type DataElementSummary,
   type DataMemberRole,
   type DataPage,
@@ -48,6 +52,7 @@ import {
   readoutsOf,
   type ElementRow,
 } from './store.js';
+import { technologyList } from './technologies.js';
 
 /**
  * The element catalogue (ADR 0036 part 5) and membership (part 6): elements are concrete things on a platform – a
@@ -135,9 +140,61 @@ function summaryOf(r: ElementRow, platforms: Map<string, { name: string | null }
     source: r.source,
     parentId: r.parent_id,
     missingSince: r.missing_since,
+    technology: r.technology ?? null,
     products,
     updatedAt: r.updated_at,
   };
+}
+
+// ---------- generic parts (0.25.0, ADR 0037 part 0) ----------
+
+/**
+ * A technology as stored: the key of the list entry it names (by key or name, without case), else the free value as
+ * typed (shown as _not in the list_); null for none.
+ */
+export function storedTechnology(value: string | null | undefined): string | null {
+  const v = value?.trim();
+  if (!v) return null;
+  const lower = v.toLowerCase();
+  const hit = technologyList().find((t) => t.key === lower) ?? technologyList().find((t) => t.name.trim().toLowerCase() === lower);
+  return hit ? hit.key : v;
+}
+
+/** The properties of a generic element as stored: keys unique (the last value wins), in the order given. */
+const storedProperties = (xs: readonly DataElementProperty[]): string => {
+  const byKey = new Map<string, string>();
+  for (const p of xs) byKey.set(p.key, p.value);
+  return json([...byKey].map(([key, value]) => ({ key, value })));
+};
+
+const genericProblem = (context: string, kind: string) =>
+  new HttpError(
+    400,
+    `A ${kind} element ${context === 'namespace' ? 'needs its OpenLineage namespace' : context === 'technology' ? 'needs its technology' : 'has no technology, namespace or properties – only generic parts do'}`,
+    'DATA_ELEMENT_GENERIC',
+    {
+      context,
+      kind,
+    },
+  );
+
+/**
+ * A generic part's identity – its namespace and qualified name, its OpenLineage dataset – is one element per kind and
+ * environment (the catalogue's key – platform, kind, environment, name – is checked as for every element). An existing
+ * one the caller may not see is not named.
+ */
+function refuseGenericIdentity(kind: string, environment: string, namespace: string, norm: string, except = ''): void {
+  if (
+    db().get(
+      'SELECT 1 FROM dp_elements WHERE kind = ? AND environment = ? AND lower(ol_namespace) = ? AND name_norm = ? AND id <> ?',
+      kind,
+      environment,
+      namespace.trim().toLowerCase(),
+      norm,
+      except,
+    )
+  )
+    throw new HttpError(409, 'An element with this kind, environment, namespace and name exists already', 'DATA_ELEMENT_EXISTS', { kind, environment });
 }
 
 // ---------- the catalogue ----------
@@ -167,6 +224,13 @@ export function listElements(q: DataElementListQuery): DataPage<DataElementSumma
   if (q.layer) {
     where.push('e.layer = ?');
     params.push(q.layer);
+  }
+  if (q.technology) {
+    // a list entry by its key or name; a free value as typed (compared without case)
+    const v = q.technology.trim().toLowerCase();
+    const hit = technologyList().find((t) => t.key === v || t.name.trim().toLowerCase() === v);
+    where.push('lower(e.technology) IN (?, ?)');
+    params.push(hit?.key ?? v, v);
   }
   if (q.prefix) {
     const p = elementNameNorm(q.prefix);
@@ -248,6 +312,7 @@ export function getElement(id: string): DataElement {
     plantSink: parseJson(r.plant_sink, null),
     apiRef: parseJson(r.api_ref, null),
     flags: parseJson(r.flags, {}),
+    properties: parseJson<DataElementProperty[]>(r.properties, []),
     owningTeams: teamNames,
     permissions: perms,
     productRefs: productRefs.sort((a, b) => (a.product.name ?? '').localeCompare(b.product.name ?? '')),
@@ -327,6 +392,14 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
   const platformId = input.platformId ?? '';
   checkPlatform(input.kind, input.platformId, batch?.platforms);
   const norm = elementNameNorm(input.qualifiedName);
+  // 0.25.0: a generic part has a technology and a namespace (its OpenLineage dataset is the namespace and the name);
+  // the other kinds have neither (their dataset comes from discovery)
+  const generic = isGenericElementKind(input.kind);
+  if (generic) {
+    if (!input.technology) throw genericProblem('technology', input.kind);
+    if (!input.namespace) throw genericProblem('namespace', input.kind);
+    refuseGenericIdentity(input.kind, input.environment, input.namespace, norm);
+  } else if (input.technology || input.namespace || input.properties.length) throw genericProblem('notGeneric', input.kind);
   refuseExisting(platformId, input.kind, input.environment, norm);
   checkParent(input.kind, platformId, input.environment, input.parentId, null);
   const room = batch ? batch.room : L.elements - Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements')!.n);
@@ -336,8 +409,8 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
   db().tx(() => {
     db().run(
       `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, layer, description, type_label, source,
-         application_id, component_id, plant_sink, api_ref, flags, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         application_id, component_id, plant_sink, api_ref, flags, technology, properties, ol_namespace, ol_name, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       platformId,
       input.kind,
@@ -355,6 +428,10 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
       input.plantSink ? json(input.plantSink) : null,
       input.apiRef ? json(input.apiRef) : null,
       json(Object.fromEntries(input.flags.map((f) => [f.name, f.value]))),
+      generic ? storedTechnology(input.technology) : null,
+      storedProperties(generic ? input.properties : []),
+      generic ? input.namespace : null,
+      generic ? input.qualifiedName : null,
       now,
       u.username,
       now,
@@ -370,7 +447,12 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
       entityType: 'data_element',
       entityId: id,
       summary: `Data element ${input.qualifiedName} (${input.kind}${input.environment ? `, ${input.environment}` : ''}) added to the catalogue`,
-      details: { kind: input.kind, platformId: input.platformId, environment: input.environment },
+      details: {
+        kind: input.kind,
+        platformId: input.platformId,
+        environment: input.environment,
+        ...(generic ? { technology: storedTechnology(input.technology), namespace: input.namespace } : {}),
+      },
     });
   });
   if (batch) batch.room--;
@@ -395,6 +477,14 @@ export function updateElement(id: string, body: unknown): DataElement {
   const qualifiedName = input.qualifiedName ?? r.qualified_name;
   const environment = input.environment ?? r.environment;
   const norm = elementNameNorm(qualifiedName);
+  // 0.25.0: a generic part's technology, namespace and properties are people's fields; other kinds have none
+  const generic = isGenericElementKind(r.kind);
+  if (!generic && (input.technology || input.namespace || input.properties?.length)) throw genericProblem('notGeneric', r.kind);
+  if (generic && input.technology !== undefined && !input.technology) throw genericProblem('technology', r.kind);
+  if (generic && input.namespace !== undefined && !input.namespace) throw genericProblem('namespace', r.kind);
+  const namespace = generic ? (input.namespace ?? r.ol_namespace ?? '') : null;
+  if (generic && (renames || (namespace ?? '').toLowerCase() !== (r.ol_namespace ?? '').toLowerCase()))
+    refuseGenericIdentity(r.kind, environment, namespace ?? '', norm, r.id);
   if (renames) {
     refuseExisting(r.platform_id, r.kind, environment, norm, r.id);
     if (environment !== r.environment && db().get('SELECT 1 FROM dp_port_elements WHERE element_id = ?', r.id))
@@ -409,7 +499,8 @@ export function updateElement(id: string, body: unknown): DataElement {
   db().tx(() => {
     db().run(
       `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, environment = ?, display_name = ?, layer = ?, description = ?, type_label = ?, application_id = ?,
-         component_id = ?, plant_sink = ?, api_ref = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+         component_id = ?, plant_sink = ?, api_ref = ?, technology = ?, properties = ?, ol_namespace = ?, ol_name = ?, revision = revision + 1, updated_at = ?, updated_by = ?
+       WHERE id = ?`,
       qualifiedName,
       norm,
       environment,
@@ -421,6 +512,11 @@ export function updateElement(id: string, body: unknown): DataElement {
       pick('componentId', r.component_id),
       input.plantSink === undefined ? r.plant_sink : input.plantSink ? json(input.plantSink) : null,
       input.apiRef === undefined ? r.api_ref : input.apiRef ? json(input.apiRef) : null,
+      generic && input.technology !== undefined ? storedTechnology(input.technology) : r.technology,
+      generic && input.properties !== undefined ? storedProperties(input.properties) : r.properties,
+      generic ? namespace : r.ol_namespace,
+      // a generic part's OpenLineage name is its qualified name
+      generic ? qualifiedName : r.ol_name,
       nowIso(),
       actorName(),
       r.id,
@@ -454,6 +550,73 @@ export function deleteElement(id: string): void {
       summary: `Data element ${r.qualified_name} (${r.kind}) deleted from the catalogue`,
     });
   });
+}
+
+/**
+ * _Convert to …_ (0.25.0, ADR 0037 part 0): a generic part becomes the specific kind of its role – the same element, so
+ * its id, memberships, ports and bindings, steps and lineage, checks, cost matches, links and history stay; discovery
+ * takes over from then on (an entered element a discovery source finds is looked after by it). The target's identity –
+ * platform, kind, environment and qualified name – must be free: another element there (one the caller may not see too,
+ * never named) refuses the conversion. Who may change the element converts it; audited (`dataelement.converted`).
+ */
+export function convertElement(id: string, body: unknown): DataElement {
+  const { row: r, perms } = visibleElement(id);
+  if (!perms.includes('edit')) forbid('change this element', 'dataProducts');
+  if (!isGenericElementKind(r.kind))
+    throw new HttpError(400, `${r.qualified_name} is no generic part – only generic parts are converted`, 'DATA_ELEMENT_CONVERT', {
+      context: 'notGeneric',
+      kind: r.kind,
+    });
+  const input = dataElementConvertInput.parse(body);
+  if (!convertTargets(r.kind).includes(input.kind))
+    throw new HttpError(400, `A ${r.kind} element cannot become a ${input.kind} element`, 'DATA_ELEMENT_CONVERT', {
+      context: 'kind',
+      from: r.kind,
+      to: input.kind,
+    });
+  checkPlatform(input.kind, input.platformId);
+  const platformId = input.platformId ?? '';
+  const qualifiedName = input.qualifiedName ?? r.qualified_name;
+  const norm = elementNameNorm(qualifiedName);
+  if (
+    db().get(
+      'SELECT 1 FROM dp_elements WHERE platform_id = ? AND kind = ? AND environment = ? AND name_norm = ? AND id <> ?',
+      platformId,
+      input.kind,
+      r.environment,
+      norm,
+      r.id,
+    )
+  )
+    throw new HttpError(409, `Another element is this ${input.kind} already – the conversion would make two of one`, 'DATA_ELEMENT_CONVERT_TAKEN', {
+      kind: input.kind,
+      environment: r.environment,
+    });
+  db().tx(() => {
+    db().run(
+      `UPDATE dp_elements SET kind = ?, platform_id = ?, qualified_name = ?, name_norm = ?, display_name = ?, parent_id = NULL, technology = NULL,
+         revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+      input.kind,
+      platformId,
+      qualifiedName,
+      norm,
+      qualifiedName === r.qualified_name ? r.display_name : elementShortName(qualifiedName),
+      nowIso(),
+      actorName(),
+      r.id,
+    );
+    audit({
+      action: 'dataelement.converted',
+      entityType: 'data_element',
+      entityId: r.id,
+      summary: `Data element ${r.qualified_name} converted from ${r.kind}${r.technology ? ` (${r.technology})` : ''} to ${input.kind}${qualifiedName !== r.qualified_name ? ` as ${qualifiedName}` : ''}`,
+      details: {
+        from: { kind: r.kind, technology: r.technology, namespace: r.ol_namespace, qualifiedName: r.qualified_name, platformId: r.platform_id || null },
+        to: { kind: input.kind, platformId: input.platformId, qualifiedName },
+      },
+    });
+  });
+  return getElement(r.id);
 }
 
 // ---------- membership ----------

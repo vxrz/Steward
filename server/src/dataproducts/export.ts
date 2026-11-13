@@ -320,6 +320,12 @@ export function elementEntry(s: Snapshot, r: ElementRow): ElementFile | null {
         ? { ...(api.url ? { url: api.url } : {}), ...(api.operations?.length ? { operations: api.operations } : {}) }
         : null,
     flags: parseJson<Record<string, string | number | boolean>>(r.flags, {}),
+    // 0.25.0: a generic part's technology, namespace and properties
+    ...(r.technology ? { technology: r.technology } : {}),
+    ...(r.kind.startsWith('generic.') && r.ol_namespace ? { namespace: r.ol_namespace } : {}),
+    ...(parseJson<{ key: string; value: string }[]>(r.properties, []).length
+      ? { properties: parseJson<{ key: string; value: string }[]>(r.properties, []) }
+      : {}),
   };
 }
 
@@ -329,17 +335,18 @@ export { elementKey };
 
 function runnerFile(s: Snapshot, raw: DataStepRunner | null): RunnerFile | null | undefined {
   if (!raw) return null;
-  if (raw.kind === 'tool') return { kind: 'tool', tool: raw.tool, text: raw.text };
+  const tech = raw.technology ? { technology: raw.technology } : {};
+  if (raw.kind === 'tool') return { kind: 'tool', tool: raw.tool, text: raw.text, ...tech };
   if (raw.kind === 'connector') {
     const platform = s.platformNameOf(raw.platformId);
-    return platform ? { kind: 'connector', platform, name: raw.name } : undefined;
+    return platform ? { kind: 'connector', platform, name: raw.name, ...tech } : undefined;
   }
   if (raw.kind === 'element') {
     const element = s.ref(raw.id);
-    return element ? { kind: 'element', element } : undefined;
+    return element ? { kind: 'element', element, ...tech } : undefined;
   }
   const name = raw.kind === 'platform' ? s.platformNameOf(raw.id) : raw.kind === 'process' ? s.processName(raw.id) : s.catalogueName('application', raw.id);
-  return name ? { kind: raw.kind, name } : undefined;
+  return name ? { kind: raw.kind, name, ...tech } : undefined;
 }
 
 function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number], identities: readonly string[] = []): ConsumerFile | null {

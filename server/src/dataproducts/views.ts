@@ -49,6 +49,7 @@ import {
   type StepRow,
 } from './store.js';
 import { elementHealth, productHealth } from './views-health.js';
+import { technologyOf } from './technologies.js';
 import { openProposalsAround } from './lineage/proposals.js';
 
 /**
@@ -106,9 +107,17 @@ function graphElements(u: AuthUser | null, rows: ReadonlyMap<string, ElementRow>
       hiddenProductIds: p?.hidden ?? [],
       // the parent (a schema, a bundle) by the qualified name: no read of the parent needed
       parentName: r.parent_id && dot > 0 ? elementShortName(r.qualified_name.slice(0, dot)) : null,
+      // 0.25.0: a generic part's technology from the list (kept in memory: no statement of its own)
+      technology: r.technology ? graphTechnology(r.technology) : null,
     });
   }
   return out;
+}
+
+/** A technology as the pictures draw it: the list's name and icon, or the value as typed (not in the list). */
+function graphTechnology(value: string): { name: string; icon: string; listed: boolean } {
+  const t = technologyOf(value);
+  return t ? { name: t.name, icon: t.icon, listed: true } : { name: value, icon: 'other', listed: false };
 }
 
 /** The runners of these steps in words, in bulk (an application, platform, process or element the reader may not see: null). */
@@ -147,15 +156,21 @@ function runnerTexts(
     const e = visibleElements.get(id) ?? extra.get(id);
     return e?.visible ? e.qualifiedName : null;
   };
+  const text = (r: DataStepRunner): string | null => {
+    if (r.kind === 'tool') return [r.tool, r.text].filter(Boolean).join(' – ') || null;
+    if (r.kind === 'connector') return platforms.has(r.platformId) ? `${r.name} (${platforms.get(r.platformId)})` : null;
+    if (r.kind === 'platform') return platforms.get(r.id) ?? null;
+    if (r.kind === 'application') return apps.get(r.id) ?? null;
+    if (r.kind === 'process') return procs.get(r.id) ?? null;
+    return elementName(r.id);
+  };
   return new Map(
     parsed.map(({ id, r }) => {
       if (!r) return [id, null];
-      if (r.kind === 'tool') return [id, [r.tool, r.text].filter(Boolean).join(' – ') || null];
-      if (r.kind === 'connector') return [id, platforms.has(r.platformId) ? `${r.name} (${platforms.get(r.platformId)})` : null];
-      if (r.kind === 'platform') return [id, platforms.get(r.id) ?? null];
-      if (r.kind === 'application') return [id, apps.get(r.id) ?? null];
-      if (r.kind === 'process') return [id, procs.get(r.id) ?? null];
-      return [id, elementName(r.id)];
+      const t = text(r);
+      // 0.25.0: a bridge's runner names its technology first – "Debezium · shop-cdc (Kafka Connect (demo))"
+      const tech = t && r.technology ? graphTechnology(r.technology).name : null;
+      return [id, t && tech && !t.toLowerCase().startsWith(tech.toLowerCase()) ? `${tech} · ${t}` : t];
     }),
   );
 }

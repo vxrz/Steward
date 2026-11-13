@@ -199,7 +199,18 @@ export const DATA_ELEMENT_SOURCES = ['entered', 'discovered', 'imported'] as con
 export type DataElementSource = (typeof DATA_ELEMENT_SOURCES)[number];
 
 /** Kinds of steps (part 9). */
-export const DATA_STEP_KINDS = ['ingest', 'stage', 'transform', 'curate', 'publish', 'replicate', 'other'] as const;
+export const DATA_STEP_KINDS = [
+  'ingest',
+  'stage',
+  'transform',
+  'curate',
+  'publish',
+  'replicate',
+  'other',
+  // 0.25.0 (ADR 0037 part 0): moves or replicates data between technologies without changing its meaning – change data
+  // capture, sink connectors, flows, routes, edge-to-cloud connectors
+  'bridge',
+] as const;
 export type DataStepKind = (typeof DATA_STEP_KINDS)[number];
 
 /** What runs a step: a Steward application, platform, process or element, a connector, or a tool named in text. */
@@ -278,6 +289,12 @@ export const DATA_ELEMENT_KINDS = [
   'files.path',
   'insightsHub.aspect',
   'other',
+  // 0.25.0 (ADR 0037 part 0): generic parts by role – technology, qualified name, namespace and properties entered by
+  // people, never discovered (shared/src/dataTechnologies.ts)
+  'generic.dataset',
+  'generic.stream',
+  'generic.files',
+  'generic.endpoint',
 ] as const;
 export type DataElementKind = (typeof DATA_ELEMENT_KINDS)[number];
 export const isDataElementKind = (x: unknown): x is DataElementKind => typeof x === 'string' && (DATA_ELEMENT_KINDS as readonly string[]).includes(x);
@@ -337,6 +354,10 @@ export const DATA_ELEMENT_KIND_DEFS: Readonly<Record<DataElementKind, DataElemen
   'files.path': { platformKinds: ['aws'], platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'file' },
   'insightsHub.aspect': { platformKinds: ['insights-hub'], platformRequired: true, container: false, parentKinds: [], discovered: false, portType: 'other' },
   other: { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'other' },
+  'generic.dataset': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'table' },
+  'generic.stream': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'topic' },
+  'generic.files': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'file' },
+  'generic.endpoint': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
 };
 
 /** Whether an element of `kind` may live on a platform of `platformKind` (null: no platform). */
@@ -777,6 +798,8 @@ export interface DataElementSummary {
   source: DataElementSource;
   parentId: string | null;
   missingSince: string | null;
+  /** 0.25.0: generic kinds – the technology (a key of the technology list or a free value); null: none */
+  technology: string | null;
   /** Products it is a member of (visible to the reader / hidden: counted, never named) */
   products: { visible: number; hidden: number };
   updatedAt: string;
@@ -794,6 +817,8 @@ export interface DataElement extends DataElementSummary {
   plantSink: { assetId: string; collectionId: string; sinkId: string } | null;
   apiRef: { specId?: string; operations?: string[]; url?: string } | null;
   flags: Record<string, string | number | boolean>;
+  /** 0.25.0: generic kinds – key: value properties entered by people (a flow id, a route id, a retention) */
+  properties: { key: string; value: string }[];
   owningTeams: OwningTeamRef[];
   permissions: DataProductPermission[];
   /** Products it is part of, with its role there */
@@ -984,10 +1009,15 @@ export function discoveryKeeps(qualifiedName: string, include: readonly string[]
 
 // ---------- steps and lineage (part 9) ----------
 
-export type DataStepRunner =
+/**
+ * 0.25.0 (ADR 0037 part 0): a runner may name its **technology** (a key of the technology list or a free value) – what a
+ * bridge step's runner is: Debezium, Node-RED, Apache Camel …
+ */
+export type DataStepRunner = (
   | { kind: 'application' | 'platform' | 'process' | 'element'; id: string }
   | { kind: 'connector'; platformId: string; name: string }
-  | { kind: 'tool'; tool: string; text: string };
+  | { kind: 'tool'; tool: string; text: string }
+) & { technology?: string };
 
 export interface DataTransformNote {
   kind: DataTransformKind;
@@ -1017,6 +1047,11 @@ export interface DataStep {
    * accepted from: the state, when, and the last complete run (freshness evidence of its outputs); null: none reported
    */
   lastRun?: { state: string; at: string; completeAt: string | null; origin: string; sourceId: string } | null;
+  /**
+   * 0.25.0 (ADR 0037 part 1): a connector runner's state as the Kafka Connect checks of monitors see it (checks naming
+   * its platform and connector, or the whole cluster) – the worst status, with the checks counted; null: no such check
+   */
+  health?: { status: DataHealthStatus; checks: { visible: number; hidden: number } } | null;
   revision: number;
   createdAt: string;
   createdBy: string;

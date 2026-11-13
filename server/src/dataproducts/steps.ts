@@ -9,6 +9,8 @@ import { canViewCatalogue } from '../records/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, productAccess } from './access.js';
 import { L, actorName, elementNotFound, json, limitReached, stepNotFound } from './common.js';
+import { connectorStepHealth } from './connector-health.js';
+import { storedTechnology } from './elements.js';
 import {
   elementTeamIds,
   elementsByIds,
@@ -112,7 +114,13 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
   const visible = new Map(ids.map((id) => [id, members.has(id) || elementAccess(u, teams.get(id) ?? []).permissions.length > 0]));
   const by = new Map<string, StepElementRow[]>();
   for (const e of ends) by.set(e.step_id, [...(by.get(e.step_id) ?? []), e]);
-  return steps.map((s) => {
+  const runners = steps.map((s) => ({ id: s.id, ...runnerOf(u, s.runner, visible, ctx.runners) }));
+  // 0.25.0: a connector's state as the step's health (the Kafka Connect and Confluent checks; none without a connector)
+  const health = connectorStepHealth(
+    u,
+    runners.filter((r) => !r.hidden).map((r) => ({ id: r.id, runner: r.runner })),
+  );
+  return steps.map((s, i) => {
     const mine = by.get(s.id) ?? [];
     const ins = mine.filter((e) => e.direction === 'in').map((e) => e.element_id);
     const outs = mine.filter((e) => e.direction === 'out').map((e) => e.element_id);
@@ -120,7 +128,7 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
     const canEdit = inProducts.length
       ? inProducts.some((p) => editable.has(p))
       : outs.length > 0 && outs.every((o) => elementAccess(u, teams.get(o) ?? []).permissions.includes('edit'));
-    const { runner, hidden } = runnerOf(u, s.runner, visible, ctx.runners);
+    const { runner, hidden } = runners[i]!;
     return {
       id: s.id,
       name: s.name,
@@ -137,6 +145,7 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
       canEdit,
       // 0.24.0: the last run a lineage source reported (OpenLineage, dbt run results)
       lastRun: parseJson<DataStep['lastRun']>(s.last_run, null),
+      health: health.get(s.id) ?? null,
       revision: s.revision,
       createdAt: s.created_at,
       createdBy: s.created_by,
@@ -219,6 +228,14 @@ export function writeEnds(stepId: string, inputs: string[], outputs: string[]): 
   for (const e of new Set(outputs)) db().run("INSERT INTO dp_step_elements (step_id, element_id, direction) VALUES (?, ?, 'out')", stepId, e);
 }
 
+/** A runner as stored: its technology as the key of the list entry it names (else as typed; none left out). */
+function storedRunner(r: StepInput['runner']): string | null {
+  if (!r) return null;
+  const { technology, ...rest } = r;
+  const t = storedTechnology(technology);
+  return json(t ? { ...rest, technology: t } : rest);
+}
+
 export function createStep(productId: string, productName: string, body: unknown): DataStep {
   const input = dataStepInput.parse(body);
   checkEnds(productId, input, new Set());
@@ -232,7 +249,7 @@ export function createStep(productId: string, productName: string, body: unknown
       id,
       input.name,
       input.kind,
-      input.runner ? json(input.runner) : null,
+      storedRunner(input.runner),
       input.schedule,
       input.description,
       json(input.notes),
@@ -289,7 +306,7 @@ export function updateStep(productId: string, productName: string, stepId: strin
   checkEnds(productId, { ...input, inputs, outputs }, new Set(hidden.map((e) => e.element_id)));
   // a runner the editor may not see is not in their form: without a runner of their own it stays as it was
   const keepRunner = !input.runner && row.runner !== null && runnerOf(me(), row.runner, new Map()).hidden;
-  const runner = input.runner ? json(input.runner) : keepRunner ? row.runner : null;
+  const runner = input.runner ? storedRunner(input.runner) : keepRunner ? row.runner : null;
   db().tx(() => {
     db().run(
       `UPDATE dp_steps SET name = ?, step_kind = ?, runner = ?, schedule = ?, description = ?, notes = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,

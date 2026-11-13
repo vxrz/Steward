@@ -1,6 +1,7 @@
 import {
   CIA_DIMENSIONS,
   ISO_25012_DIMENSIONS,
+  isGenericElementKind,
   maturityLevel,
   worstHealth,
   type DataHealthStatus,
@@ -38,9 +39,11 @@ import {
   productsByIds,
   stepsAround,
   type BindingWithElements,
+  type ElementRow,
   type ObjectRow,
   type PortRow,
 } from './store.js';
+import { technologyOf } from './technologies.js';
 
 /**
  * The scorecard of data products (ADR 0036 part 13, docs/DATA-PRODUCTS.md#scorecard): per product and environment,
@@ -218,11 +221,19 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
       objects: floor.objectIds.length > 0,
     };
     const docDone = Object.values(doc).filter(Boolean).length;
+    // 0.25.0 (ADR 0037 part 0): generic parts in the environment, and those whose technology is not in the list – said,
+    // not scored (a generic part is documented; discovery may follow)
+    const generic = myMembers
+      .map((m) => elements.get(m.element_id))
+      .filter((e): e is ElementRow => !!e && isGenericElementKind(e.kind) && (!env || e.environment === env));
+    const unlisted = generic.filter((e) => !technologyOf(e.technology)).length;
     part('documented', share(docDone, 5), [
       ev('documented.has', { done: docDone, of: 5 }),
       ...Object.entries(doc)
         .filter(([, v]) => !v)
         .map(([k]) => ev(`documented.missing.${k}`)),
+      ...(generic.length ? [ev('documented.genericParts', { count: generic.length })] : []),
+      ...(unlisted ? [ev('documented.technologyNotInList', { count: unlisted })] : []),
     ]);
 
     // rated: every dimension rated (not waiting for a re-rating) and at least the floor (or below with a reason)

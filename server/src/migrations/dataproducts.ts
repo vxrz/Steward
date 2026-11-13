@@ -694,4 +694,26 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE dp_port_review_items ADD COLUMN facts TEXT;
     `,
   },
+  {
+    // 0.25.0 (ADR 0037 part 0, package A): generic parts – the technology and the key: value properties of an element
+    // (its namespace is ol_namespace, its OpenLineage name the qualified name); the technologies administrators add to
+    // the built-in list (shared/src/dataTechnologies.ts)
+    name: 'dataproducts-006a-generic-parts-technologies',
+    sql: `
+      ALTER TABLE dp_elements ADD COLUMN technology TEXT;
+      ALTER TABLE dp_elements ADD COLUMN properties TEXT NOT NULL DEFAULT '[]';
+      CREATE INDEX dp_elements_technology ON dp_elements(technology);
+      CREATE TABLE dp_technologies (
+        key TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        icon TEXT NOT NULL DEFAULT 'other',
+        ol_namespace_pattern TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+    `,
+  },
 ];

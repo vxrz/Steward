@@ -303,8 +303,9 @@ const REGEX_TIMEOUT_MS = 500;
  * RegexEngine for JSONata: fixed-length patterns run natively (bounded work, see above); all
  * others run in a worker thread that is terminated after a time limit. The worker returns a
  * batch of consecutive matches, so a global $replace/$match/$split costs one round trip per batch.
+ * Also the guard of the topic routing patterns of connector configurations (dataproducts/connector-lineage.ts, 0.25.0).
  */
-class GuardedRegExp {
+export class GuardedRegExp {
   lastIndex = 0;
   private readonly re: RegExp;
   private readonly fixed: boolean;

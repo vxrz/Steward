@@ -14,6 +14,7 @@ import { createSource } from './discovery/sources.js';
 import { applyImport } from './import.js';
 import { applyOlEvents, parseOlEvent } from './lineage/openlineage.js';
 import { createLineageSource } from './lineage/sources.js';
+import { proposeFromConnectors } from './connector-lineage.js';
 import { readMeasuredUse } from './measured.js';
 import { applyMonitor } from './monitor-draft.js';
 import { addConsumer } from './ports.js';
@@ -45,6 +46,10 @@ import { takeScorecardSnapshots } from './scorecard-history.js';
  *      (role REPORTING) and one that stays silent, read once from ACCESS_HISTORY; an open access request for
  *      Customer 360's port; 30 days of scorecard history behind today's snapshot (a maturity that rose twice), so
  *      the trend has something to draw.
+ *   8. Phase 3 (0.25.0, ADR 0037): the Orders pipeline names the bridges Debezium → Kafka → Snowflake sink (shop-cdc and
+ *      orders-snowflake-sink of Kafka Connect (demo)) and a Node-RED flow that forwards a generic part (the returns
+ *      desk's webhook); the connectors' lineage is proposed from the readouts of Kafka Connect (demo) and Confluent Cloud
+ *      (demo) – what the steps document already is _documented_, the S3 sink's prefix waits as an open proposal.
  *
  * Loaded with the service half of the demo (Home → Load demo, the UI tests), whether the module is on or off: switched
  * on, it is there. Once – a domain "sales" means it was loaded.
@@ -164,6 +169,16 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
     await consumersDemo(orders, product('customer-360'));
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo consumers and access request not set up');
+  }
+  // 8. phase 3 (0.25.0): the connectors' lineage as proposals (whether the module is on yet or not)
+  for (const name of ['Kafka Connect (demo)', 'Confluent Cloud (demo)']) {
+    const id = platformId(name);
+    if (!id) continue;
+    try {
+      proposeFromConnectors(id, { force: true });
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, platform: name }, 'demo connector lineage not proposed');
+    }
   }
   return imported.counts.add;
 }

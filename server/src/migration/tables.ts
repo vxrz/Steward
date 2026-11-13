@@ -462,6 +462,8 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_product_environments.updated_by',
   'dp_elements.created_by',
   'dp_elements.updated_by',
+  'dp_technologies.created_by',
+  'dp_technologies.updated_by',
   'dp_members.added_by',
   'dp_ports.created_by',
   'dp_ports.updated_by',
