@@ -56,6 +56,7 @@ import {
   type ElementRow,
 } from './store.js';
 import { technologyList } from './technologies.js';
+import { platformDataset } from './ol-addresses.js';
 
 /**
  * The element catalogue (ADR 0036 part 5) and membership (part 6): elements are concrete things on a platform – a
@@ -638,15 +639,23 @@ export function convertElement(id: string, body: unknown): DataElement {
       kind: input.kind,
       environment: r.environment,
     });
+  // the OpenLineage dataset: kept (lineage keeps matching it) – unless the name changes, then the one the platform's
+  // address gives, as discovery would (none: left empty – the old name would name another dataset)
+  const renamed = qualifiedName !== r.qualified_name;
+  const ol = renamed
+    ? (platformDataset(input.kind, platformId, qualifiedName) ?? enteredDataset(input.kind, platformId, r.ol_namespace, qualifiedName))
+    : { namespace: r.ol_namespace, name: r.ol_name };
   db().tx(() => {
     db().run(
       `UPDATE dp_elements SET kind = ?, platform_id = ?, qualified_name = ?, name_norm = ?, display_name = ?, parent_id = NULL, technology = NULL,
-         revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+         ol_namespace = ?, ol_name = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
       input.kind,
       platformId,
       qualifiedName,
       norm,
       qualifiedName === r.qualified_name ? r.display_name : elementShortName(qualifiedName),
+      ol?.namespace ?? null,
+      ol?.name ?? null,
       nowIso(),
       actorName(),
       r.id,
@@ -658,7 +667,7 @@ export function convertElement(id: string, body: unknown): DataElement {
       summary: `Data element ${r.qualified_name} converted from ${r.kind}${r.technology ? ` (${r.technology})` : ''} to ${input.kind}${qualifiedName !== r.qualified_name ? ` as ${qualifiedName}` : ''}`,
       details: {
         from: { kind: r.kind, technology: r.technology, namespace: r.ol_namespace, qualifiedName: r.qualified_name, platformId: r.platform_id || null },
-        to: { kind: input.kind, platformId: input.platformId, qualifiedName },
+        to: { kind: input.kind, platformId: input.platformId, qualifiedName, namespace: ol?.namespace ?? null },
       },
     });
   });

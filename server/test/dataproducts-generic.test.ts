@@ -264,6 +264,29 @@ describe('Convert to …', () => {
       params: { context: 'notGeneric' },
     });
   });
+
+  it('a new qualified name takes the OpenLineage dataset of the platform’s address; the same name keeps the one entered', async () => {
+    // renamed: the dataset the Kafka platform's bootstrap server gives (as discovery would), never the old name
+    const a = await dana('POST', '/data-elements', {
+      kind: 'generic.stream',
+      qualifiedName: 'invented.ol.rename',
+      environment: 'prod',
+      technology: 'kafka',
+      namespace: 'kafka://invented-broker:9092',
+    });
+    const ca = await dana('POST', `/data-elements/${a.id}/convert`, { kind: 'kafka.topic', platformId: kafka, qualifiedName: 'invented.ol.renamed' });
+    expect(ca).toMatchObject({ qualifiedName: 'invented.ol.renamed', olNamespace: 'kafka://kafka.demo.invalid:9092', olName: 'invented.ol.renamed' });
+    // the same name: the dataset entered stays (OpenLineage events keep matching it)
+    const b = await dana('POST', '/data-elements', {
+      kind: 'generic.stream',
+      qualifiedName: 'invented.ol.same',
+      environment: 'prod',
+      technology: 'kafka',
+      namespace: 'kafka://invented-broker:9092',
+    });
+    const cb = await dana('POST', `/data-elements/${b.id}/convert`, { kind: 'kafka.topic', platformId: kafka });
+    expect(cb).toMatchObject({ qualifiedName: 'invented.ol.same', olNamespace: 'kafka://invented-broker:9092', olName: 'invented.ol.same' });
+  });
 });
 
 describe('the OpenLineage export', () => {
