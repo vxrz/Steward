@@ -16,6 +16,7 @@ import {
 } from '@sm/shared';
 import { z } from 'zod';
 import { db } from '../db.js';
+import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
@@ -65,8 +66,8 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
     params.push(q.domain, q.domain);
   }
   if (q.q) {
-    where.push('(name_norm LIKE ? OR key LIKE ?)');
-    const like = `%${q.q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    where.push("(lower(name_norm) LIKE ? ESCAPE '\\' OR lower(key) LIKE ? ESCAPE '\\')");
+    const like = `%${likeEscape(q.q.toLowerCase())}%`;
     params.push(like, like);
   }
   const objects = db()

@@ -503,6 +503,8 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'db_schema_settings.subject_id',
   // the data subjects of a data object (customers, employees …): categories of people, never persons (ADR 0036 part 2)
   'dp_objects.subjects',
+  // 0.24.0: how many members a promotion added, not people
+  'dp_promotions.members',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */

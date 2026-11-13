@@ -151,6 +151,8 @@ Streams are listed only to a role with `SELECT` on them, internal stages only wi
 
 The demo's source _Shop warehouse (demo)_ is set up this way over `SHOP` and `SHOP_DEV` ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-demo)).
 
+**Who really reads a port** (0.24.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#declared-against-actual-consumers)): one fixed, read-only statement (`/* steward:dp-access-history */`) on `SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY` (the objects read, `BASE_OBJECTS_ACCESSED`) joined to `QUERY_HISTORY` for the role – the last 30 days, aggregated per user and role, the port's object names as bound JSON arrays, never a query text. It needs the Enterprise edition and the database role `SNOWFLAKE.GOVERNANCE_VIEWER` (or `IMPORTED PRIVILEGES` on `SNOWFLAKE`): `GRANT DATABASE ROLE SNOWFLAKE.GOVERNANCE_VIEWER TO ROLE STEWARD_READ;`. Without it the port says _not available_ there.
+
 ## Templates
 
 Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):
