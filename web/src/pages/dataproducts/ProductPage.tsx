@@ -72,7 +72,7 @@ export function DataProductPage() {
   const [editing, setEditing] = useState<'product' | 'lifecycle' | 'rating' | null>(null);
   const subject = useSubjectLabel();
   // the successor of a deprecated product: the other products the reader may see (first page)
-  const others = useProductList('limit=100');
+  const others = useProductList('limit=100', editing === 'lifecycle');
   const tab = TABS.find((x) => x === tabParam);
   if (tab === undefined) return <Navigate to={`/data-products/${encodeURIComponent(id)}`} replace />;
   const p = q.data;

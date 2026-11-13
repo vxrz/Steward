@@ -1,8 +1,8 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { expectAccessible, settle } from './support/axe';
-import { chooseOption, expectNoHorizontalScroll, json } from './support/helpers';
+import { animationsDone, expectAccessible, settle } from './support/axe';
+import { expectNoHorizontalScroll, json } from './support/helpers';
 
 /**
  * The pages of the data products module (ADR 0036 part 13, WP5): a designer creates a product, adds elements from the
@@ -67,12 +67,23 @@ async function seed(admin: APIRequestContext): Promise<Seed> {
   return { token, raw, curated, shared, contract, publicProduct, secretProduct };
 }
 
+/** Picks an option of a Mantine Select by its test id (the list page behind a dialog has selects with the same labels). */
+async function choose(page: Page, testId: string, option: string) {
+  await page.getByTestId(testId).click();
+  await animationsDone(page);
+  await page.getByRole('option', { name: option }).click();
+}
+
 /** A Mantine MultiSelect that searches on the server: type, wait for the option, pick it. */
 async function pickElement(page: Page, testId: string, search: string, option: string) {
   const input = page.getByTestId(testId);
   await input.click();
   await input.fill(search);
-  await page.getByRole('option', { name: option, exact: true }).click();
+  const found = page.getByRole('option', { name: option });
+  await expect(found).toBeVisible({ timeout: 30_000 });
+  await found.click();
+  // a MultiSelect stays open for the next pick: Tab leaves it (and closes it)
+  await input.press('Tab');
 }
 
 test.describe('the data products pages', () => {
@@ -97,7 +108,7 @@ test.describe('the data products pages', () => {
     await page.getByTestId('product-new').click();
     await page.getByTestId('product-name').fill(`Orders ${s.token}`);
     await expect(page.getByTestId('product-key')).toHaveValue(`orders-${s.token.toLowerCase()}`);
-    await chooseOption(page, 'Type', 'Source-aligned');
+    await choose(page, 'product-type', 'Source-aligned');
     await page.getByTestId('product-save').click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText(`Orders ${s.token}`);
     await expect(page.getByTestId('product-objects')).toBeVisible();
@@ -126,7 +137,7 @@ test.describe('the data products pages', () => {
     await expect(port).toContainText('Not bound in prod');
     await port.getByTestId('port-bind').click();
     await pickElement(page, 'binding-elements', `${s.token}.CURATED`, `${s.token}.CURATED.ORDERS`);
-    await chooseOption(page, 'Contract', `Orders contract ${s.token} (${s.token.toLowerCase()}-orders)`);
+    await choose(page, 'binding-contract', `Orders contract ${s.token} (${s.token.toLowerCase()}-orders)`);
     await page.getByTestId('binding-save').click();
     await expect(port.getByTestId('binding-contract-line')).toContainText(`Orders contract ${s.token}`);
     await expect(port.getByTestId('port-binding')).toContainText(`${s.token}.CURATED.ORDERS`);
@@ -135,7 +146,7 @@ test.describe('the data products pages', () => {
 
     // deprecating needs a sunset date: asked before the server is
     await page.getByTestId('product-lifecycle').click();
-    await chooseOption(page, 'New state', 'Deprecated');
+    await choose(page, 'lifecycle-to', 'Deprecated');
     await page.getByTestId('lifecycle-save').click();
     await expect(page.getByText('Deprecating needs a sunset date')).toBeVisible();
     await page.getByTestId('lifecycle-sunset').fill('2027-03-31');

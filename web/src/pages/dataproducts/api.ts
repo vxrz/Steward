@@ -84,9 +84,10 @@ export const useDomains = () => useQuery({ queryKey: dpKeys.domains, queryFn: ()
 // ---------- products ----------
 
 /** A page of products after another (keyset paging), filters in the query string. */
-export function useProductList(query: string) {
+export function useProductList(query: string, enabled = true) {
   return useInfiniteQuery({
     queryKey: dpKeys.products(query),
+    enabled,
     initialPageParam: '',
     queryFn: ({ pageParam }) => get<DataPage<DataProductSummary>>(`/data-products?${query}${pageParam ? `&cursor=${enc(pageParam)}` : ''}`),
     getNextPageParam: (last) => last.next ?? undefined,

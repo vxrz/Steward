@@ -66,7 +66,8 @@ export function DataElementsPage() {
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get('q') ?? params.get('prefix') ?? '');
   const [term] = useDebouncedValue(search.trim(), 300);
-  const mode = params.get('prefix') !== null ? 'prefix' : 'text';
+  // the start of the qualified name (by index) or a text in it; remembered in the address with the search
+  const mode = params.get('match') === 'prefix' || params.has('prefix') ? 'prefix' : 'text';
   const [creating, setCreating] = useState(false);
   useCreateParam(canCreate, () => setCreating(true));
   const platforms = usePlatforms();
@@ -89,7 +90,9 @@ export function DataElementsPage() {
     const next = new URLSearchParams(params);
     next.delete('q');
     next.delete('prefix');
-    next.set(m === 'prefix' ? 'prefix' : 'q', search.trim());
+    if (m === 'prefix') next.set('match', 'prefix');
+    else next.delete('match');
+    if (search.trim()) next.set(m === 'prefix' ? 'prefix' : 'q', search.trim());
     setParams(next, { replace: true });
   };
   const query = qs({
