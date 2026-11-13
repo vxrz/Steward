@@ -32,7 +32,7 @@ import type { AuthUser, SessionMeta, StepUpDetail } from './context.js';
 import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
-import { rewriteTeamReferences } from './subjects.js';
+import { forgetStaleTeamGrants, rewriteTeamReferences } from './subjects.js';
 import { revokeOAuthGrants } from '../mcp/oauth-grants.js';
 import { clientAddress } from '../rateLimits.js';
 
@@ -555,10 +555,15 @@ export function saveTeam(input: { name: string; description?: string; members?: 
     if (id) {
       const r = db().run('UPDATE teams SET name = ?, description = ? WHERE id = ?', name, input.description ?? '', id);
       if (!r.changes) throw new HttpError(404, 'Team not found');
-      // renamed: owners, responsibles, access lists, recipients and subscribers follow (#143)
-      if (before && before.name.toLowerCase() !== name.toLowerCase()) moved = rewriteTeamReferences(before.name, name);
+      // renamed: owners, responsibles, access lists, recipients and subscribers follow (#143) – after the shares and
+      // module grants a deleted team of the new name left behind are gone (they would widen, security review 0.21.0)
+      if (before && before.name.toLowerCase() !== name.toLowerCase()) {
+        forgetStaleTeamGrants(name, tid);
+        moved = rewriteTeamReferences(before.name, name);
+      }
     } else {
       if (db().get('SELECT 1 FROM teams WHERE name = ?', name)) throw new HttpError(409, `Team "${name}" exists`);
+      forgetStaleTeamGrants(name, tid);
       db().run('INSERT INTO teams (id, name, description, created_at) VALUES (?, ?, ?, ?)', tid, name, input.description ?? '', nowIso());
     }
     if (input.members) {

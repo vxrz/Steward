@@ -312,14 +312,30 @@ export function applyBlockedFor(r: CsRow, u: AuthUser): { code: string; message:
   return rightsProblem(r, u);
 }
 
-/** The rights applying needs: manage on every site it touches (who may add sites for new ones), the catalogue's right. */
-export function rightsProblem(r: Pick<CsRow, 'sites' | 'catalogue'>, u: AuthUser): { code: string; message: string } | null {
+/**
+ * The rights applying needs: manage on every site it touches (who may add sites for new ones), and Edit on every device
+ * profile and KPI definition it changes – their owning teams and shares (0.21.0, #293; a new entry: who may add entries).
+ * The same answer decides who reviews, returns and rejects it, and who is told about it (security review 0.21.0: not
+ * every instance designer). `ops` and `scope`: read once for a list (catalogueOps(), catalogueScope()).
+ */
+export function rightsProblem(
+  r: Pick<CsRow, 'id' | 'sites' | 'catalogue'>,
+  u: AuthUser,
+  ops?: Map<string, { kind: string; id: string }[]>,
+  scope?: CatalogueScope,
+): { code: string; message: string } | null {
   const rights = siteRights(db().all<{ id: string; acl: string }>('SELECT id, acl FROM plant_sites'), u);
   for (const s of parseJson<string[]>(r.sites, [])) {
     const p = rights.get(s);
     if (p ? !p.includes('manage') : !canCreateSites(u)) return { code: 'FORBIDDEN', message: `You may not change site "${s}"` };
   }
-  if (Number(r.catalogue) && !canManageCatalogue(u)) return { code: 'FORBIDDEN', message: 'You may not change device profiles and KPI definitions' };
+  if (Number(r.catalogue)) {
+    const named = (ops ?? catalogueOps(r.id)).get(r.id) ?? [];
+    const sc = scope ?? catalogueScope(u);
+    const edits = (o: { kind: string; id: string }) => sc.rights(o.kind === 'profile' ? 'device_profile' : 'kpi_definition', o.id).includes('edit');
+    if (named.length ? !named.every(edits) : !canManageCatalogue(u))
+      return { code: 'FORBIDDEN', message: 'You may not change device profiles and KPI definitions' };
+  }
   return null;
 }
 

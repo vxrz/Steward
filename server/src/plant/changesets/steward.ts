@@ -14,6 +14,7 @@ import { withAuditDetails } from '../../audit.js';
 import type { AuthUser } from '../../auth/context.js';
 import { me } from '../../auth/access.js';
 import { siteRights } from '../access.js';
+import { catalogueScope, presentEntryValues } from '../catalogue-access.js';
 import { cutValue } from '../diff.js';
 import { redactValue } from '../collections-redact.js';
 import { withImportWriteHook, type ImportWriteHook } from '../import-data.js';
@@ -273,9 +274,14 @@ export function withSteward<T>(input: ImportInput, fn: () => T, u: AuthUser = me
   const flags = new Map<string, PlantStewardFlag & { siteId: string }>();
   const kept = new Map<string, { c: Candidate; paths: { keys: string[]; file: unknown }[] }>();
   const extra: Record<string, unknown> = {};
+  // 0.21.0 (#293, security review): a device profile or KPI definition the importer may not see is named by its
+  // placeholder in the flags, as in the rest of the preview – Steward's value, the last import's and the file's
+  const scope = catalogueScope(u);
+  const present = (c: Candidate, v: unknown): unknown =>
+    v && typeof v === 'object' && !Array.isArray(v) ? presentEntryValues(c.kind, c.id, v as Record<string, unknown>, scope) : v;
   /** What the file says at a path, as the history would keep it (a data collection's secrets removed) */
-  const shown = (c: Candidate, keys: string[], file: unknown) =>
-    c.kind === 'collection' ? valueAt(redactValue(setAtPath(c.now, keys, file)).value, keys) : file;
+  const shown = (c: Candidate, keys: string[], file: unknown, after: unknown) =>
+    c.kind === 'collection' ? valueAt(redactValue(setAtPath(c.now, keys, file)).value, keys) : valueAt(present(c, after), keys);
   const hook: ImportWriteHook = (kind, siteId, id, before, after) => {
     const e = entryOf(kind, siteId, id);
     const c = e ? candidates.get(entryKey(e)) : undefined;
@@ -294,9 +300,9 @@ export function withSteward<T>(input: ImportInput, fn: () => T, u: AuthUser = me
         name: c.name,
         siteId: c.siteId,
         path,
-        lastImport: c.baseline ? cutValue(valueAt(c.baseline, keys)) : null,
-        steward: cutValue(valueAt(c.now, keys)),
-        file: cutValue(shown(c, keys, file)),
+        lastImport: c.baseline ? cutValue(valueAt(present(c, c.baseline), keys)) : null,
+        steward: cutValue(valueAt(present(c, c.now), keys)),
+        file: cutValue(shown(c, keys, file, after)),
         importId: c.importId,
         ...(c.wholeEntry ? { wholeEntry: true } : {}),
         choice,

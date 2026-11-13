@@ -179,8 +179,21 @@ export const MODULES: readonly ModuleDef[] = [
     datasets: ['costs:'],
     access: {
       restrictable: true,
-      events: ['cost.budget', 'cost.booking_due', 'cost.volume'],
-      mcpTools: ['get_service_cost_plan', 'get_platform_cost_plan', 'list_cost_commitments'],
+      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due'],
+      mcpTools: [
+        'get_service_cost_plan',
+        'get_platform_cost_plan',
+        'list_cost_commitments',
+        // price books, calculators, estimates and the dry run (0.21.0, ADR 0035)
+        'list_price_books',
+        'get_price_book',
+        'list_cost_calculators',
+        'get_cost_calculator',
+        'list_cost_units',
+        'list_cost_estimates',
+        'get_cost_estimate',
+        'calculate_cost_estimate',
+      ],
       reportSections: ['costs'],
       exportParts: ['costPlans'],
     },

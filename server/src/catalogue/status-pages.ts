@@ -16,6 +16,7 @@ import { runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
 import { catalogueTeams } from '../auth/policy.js';
+import { isRestricted } from '../auth/share-store.js';
 import { SYSTEM_USER } from '../compliance/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { listMaintenance } from './maintenance.js';
@@ -100,8 +101,8 @@ export function getPage(id: string): StatusPage {
 
 /**
  * A status page publishes its services (to every signed-in user, status viewers and anyone with the link): a service
- * of owning teams only by someone who may change it (#131); a service of the whole instance, as before, by any page
- * editor. Services the page already shows stay (a page editor may change the rest of the page).
+ * of owning teams or a Restricted one only by someone who may change it (#131, ADR 0033); a service of the whole
+ * instance, as before, by any page editor. Services the page already shows stay (a page editor may change the rest of the page).
  */
 function checkServices(ids: string[], u: AuthUser, kept: string[] = []): void {
   const keep = new Set(kept);
@@ -109,7 +110,10 @@ function checkServices(ids: string[], u: AuthUser, kept: string[] = []): void {
     if (keep.has(id)) continue;
     const r = db().get<{ owners: string }>('SELECT owners FROM services WHERE id = ?', id);
     const allowed =
-      !!r && (catalogueTeams('service', id).length === 0 || canEditService(u, { kind: 'service', id, owners: parseJson<string[]>(r.owners, []) }));
+      !!r &&
+      // a Restricted service (ADR 0033) is nobody's by role: only who may change it publishes it (security review 0.21.0)
+      ((catalogueTeams('service', id).length === 0 && !isRestricted('service', id)) ||
+        canEditService(u, { kind: 'service', id, owners: parseJson<string[]>(r.owners, []) }));
     // the same answer for a service that does not exist and one the user may not publish: ids of others' services stay unconfirmed
     if (!allowed) throw new HttpError(400, `Service ${id} not found`, 'SERVICE_NOT_FOUND', { id });
   }

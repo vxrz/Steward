@@ -196,13 +196,19 @@ describe('a person who does not use a module', () => {
       const list = await names();
       expect(list).not.toContain('list_cost_commitments');
       expect(list).not.toContain('get_service_cost_plan');
+      // price books, calculators, estimates and the dry run are the module's too (security review 0.21.0)
+      for (const t of ['list_price_books', 'get_price_book', 'list_cost_calculators', 'list_cost_estimates', 'calculate_cost_estimate'])
+        expect(list, t).not.toContain(t);
       expect(list).toContain('search_processes');
       const called = await rpc('tools/call', { name: 'list_cost_commitments', arguments: {} });
       expect(called.error?.message).toMatch(/Unknown tool/);
+      for (const name of ['list_price_books', 'calculate_cost_estimate'])
+        expect((await rpc('tools/call', { name, arguments: {} })).error?.message, name).toMatch(/Unknown tool/);
     } finally {
       await open('costs');
     }
     expect(await names()).toContain('list_cost_commitments');
+    expect(await names()).toContain('list_price_books');
   });
 
   it('is sent no notification of its events, in no channel', async () => {
