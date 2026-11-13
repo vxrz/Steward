@@ -195,6 +195,12 @@ describe('promotion between environments', () => {
     expect(await fail(dana('POST', `/data-products/${product}/promotion`, { from: 'dev', to: 'prod', fingerprint: 'stale' }))).toMatchObject({
       params: { context: 'changed' },
     });
+    // what the binding takes over is part of the fingerprint: objectives changed since the preview are refused
+    await dana('PUT', `/data-products/${product}/ports/${port}/bindings/dev`, { elementIds: [devCurated], objectives: { freshnessMinutes: 5 } });
+    expect(await fail(dana('POST', `/data-products/${product}/promotion`, { from: 'dev', to: 'prod', fingerprint: pre.fingerprint }))).toMatchObject({
+      params: { context: 'changed' },
+    });
+    await dana('PUT', `/data-products/${product}/ports/${port}/bindings/dev`, { elementIds: [devCurated], objectives: { freshnessMinutes: 60 } });
     const done = await dana('POST', `/data-products/${product}/promotion`, {
       from: 'dev',
       to: 'prod',

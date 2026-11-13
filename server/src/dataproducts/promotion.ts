@@ -191,6 +191,8 @@ function plan(u: AuthUser, productId: string, from: string, to: string): Plan {
       to,
       members: previewMembers.map((m) => [m.sourceId, m.targetId, m.state, m.role]),
       bindings: previewBindings.map((b) => [b.portId, b.targetBound, b.elements.map((x) => [x.sourceId, x.targetId, x.state])]),
+      // what the bindings in the target take over: the contract (version, server) and the objectives
+      sets: bindingSets.map((b) => [b.portId, b.contractId, b.contractVersion, b.contractServer, b.objectives]),
     }),
   ).slice(0, 32);
   return {
