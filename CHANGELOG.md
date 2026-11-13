@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Run list of `/api/v1` and MCP:** each run on a page cost a database statement of its own for its open tasks; the page now reads them with its runs, in one statement, as the app's run list does.
+
 ## [0.23.0] - 2026-11-13
 
 Steward 0.23.0 completes **one access model** and brings **module roles** and **price books, phase 2**. The access lists of processes, platforms, platform identities, monitors and plant sites become shares on an _Access_ tab – nobody gains or loses a right in the upgrade – and records, credentials, ticket references, dashboards and data contracts get shares too ([ADR 0033](docs/adr/0033-one-access-model.md) phase 2). The plant registry, Costs and data products have module roles – viewer, contributor and manager – and someone with only module roles sees only those modules; the role _Plant viewer_ becomes the plant registry's contributor role ([ADR 0034](docs/adr/0034-module-access.md) phase 2). Supplier contracts carry price conditions, providers with a fee on top price from derived books, Snowflake's rate sheet and Confluent keep contracted books current, and estimates are recalculated when prices change ([ADR 0035](docs/adr/0035-price-books-and-calculators.md) phase 2). A release review of security, performance, UI, UX and accessibility (WCAG 2.2) was fixed before the release, the data flow cards of an asset name all its collections, and the decision record for data products phase 3 ([ADR 0037](docs/adr/0037-data-products-connectors-files-edge.md)) is accepted. The upgrade fixture of 0.22.0 is added. Migrations are additive (`costs-008-contract-conditions`, `costs-009-estimate-recalculation`, `modules-003-grant-source`, `access-001-acl-shares`).

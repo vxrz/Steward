@@ -331,9 +331,14 @@ export function listRunsPage(f: RunPageFilter): RunSummary[] {
   if (f.to) (where.push('started_at < ?'), params.push(f.to));
   if (f.after) (where.push('(started_at < ? OR (started_at = ? AND id < ?))'), params.push(f.after.startedAt, f.after.startedAt, f.after.id));
   params.push(f.limit);
+  // the open tasks in the same query, like listRuns: not one count per run (the public API's and MCP's run lists)
   return withFindings(
     db()
-      .all<RunRow>(`SELECT * FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC, id DESC LIMIT ?`, ...params)
+      .all<RunRow & { open_tasks: number }>(
+        `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
+       FROM runs WHERE ${where.join(' AND ')} ORDER BY started_at DESC, id DESC LIMIT ?`,
+        ...params,
+      )
       .map(toSummary),
   );
 }

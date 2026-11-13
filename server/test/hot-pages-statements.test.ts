@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { quiesce, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Statements per request of the pages that are opened most and polled (security review 0.19.0 H2): the start page
@@ -77,7 +77,13 @@ async function v1Statements(token: string, url: string): Promise<number> {
   return counted.get(`/api/v1${url}`) ?? -1;
 }
 
+/**
+ * Counts every page once the server is quiet. The demo's feeder schedules fire every 10 or 15 minutes: a fire between
+ * the two counts gives the datasets it publishes a schedule to read (seen in CI: v1/datasets +6) – changed data, not a
+ * read per process. So the cron jobs stop first (grow() arms its new schedules again) and the runs they started end.
+ */
 async function countAll(): Promise<Record<string, number>> {
+  await quiesce();
   const out: Record<string, number> = {};
   for (const [who, c] of [
     ['admin', s.api],
@@ -153,4 +159,17 @@ describe('statements per request of the hot pages', () => {
     // about 90 statements with the demo's datasets, independent of the processes)
     for (const [k, n] of Object.entries(after)) expect(n, k).toBeLessThan(k.includes('/dashboard') || k.endsWith('v1/datasets') ? 160 : 80);
   }, 300_000);
+
+  it('the run list of the public API reads the open tasks of its runs in one statement', async () => {
+    // seen in CI: a fire of the demo's three feeder schedules every 15 minutes added a count per run (v1/runs +3)
+    const { db } = await import('../src/db.js');
+    const { fire } = await import('../src/scheduler.js');
+    await quiesce();
+    const before = await v1Statements(tokens.admin!, '/runs');
+    const feeders = db().all<{ id: string }>("SELECT id FROM schedules WHERE cron = '*/15 * * * *' AND enabled = 1");
+    expect(feeders.length).toBeGreaterThan(0);
+    for (const f of feeders) expect(await fire(f.id)).toBeTruthy();
+    await quiesce();
+    expect(await v1Statements(tokens.admin!, '/runs')).toBe(before);
+  }, 120_000);
 });
