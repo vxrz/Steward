@@ -904,7 +904,7 @@
     "AI_NOT_A_GATEWAY": "„{{name}}“ ist kein LLM-Gateway.",
     "AI_SETTINGS_INVALID": "Die KI-Einstellungen der Plattform sind ungültig.",
     "FORBIDDEN_managePlant": "Sie brauchen das Recht, diesen Standort zu verwalten.",
-    "FORBIDDEN_createSites": "Nur Designer und Administratoren legen Standorte an.",
+    "FORBIDDEN_createSites": "Nur die Verwalter des Werksregisters legen Standorte an (Designer und Administratoren sowie wem die Rolle vergeben wurde).",
     "PLANT_MODULE_OFF": "Das Werksregister ist nicht eingeschaltet (Einstellungen → Module).",
     "MODULE_OFF": "Dieser Bereich ist ausgeschaltet (Einstellungen → Module).",
     "MODULE_NOT_FOUND": "Ein Modul „{{module}}“ gibt es nicht.",

@@ -904,7 +904,7 @@
     "AI_NOT_A_GATEWAY": "“{{name}}” is not an LLM gateway.",
     "AI_SETTINGS_INVALID": "The AI settings of the platform are not valid.",
     "FORBIDDEN_managePlant": "You need the manage right on this site.",
-    "FORBIDDEN_createSites": "Only designers and administrators add sites.",
+    "FORBIDDEN_createSites": "Only the plant registry’s managers add sites (designers, administrators and whoever was given the role).",
     "PLANT_MODULE_OFF": "The plant registry is not turned on (Settings → Modules).",
     "MODULE_OFF": "This area is switched off (Settings → Modules).",
     "MODULE_NOT_FOUND": "There is no module \"{{module}}\".",

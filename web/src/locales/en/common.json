@@ -226,7 +226,7 @@
     "personReviews": "Designers and administrators start person reviews.",
     "evidencePacks": "Everyone except viewers exports evidence packs.",
     "users": "Administrators invite users and create teams.",
-    "plantSites": "Designers and administrators add sites.",
+    "plantSites": "The plant registry’s managers add sites – designers, administrators and whoever was given the role.",
     "plantAssets": "Whoever manages a site adds its assets: designers and administrators, or the people its access list names."
   },
   "duplicate": {

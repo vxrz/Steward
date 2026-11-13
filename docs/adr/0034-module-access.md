@@ -1,6 +1,6 @@
 # 0034. Who may use a module: module access and module roles
 
-- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); built in 0.21.0 (phase 1: who may use a module; module roles are phase 2)
+- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ (2026-11-12); built in 0.21.0 (phase 1: who may use a module) and 0.23.0 (phase 2: module roles, see _Built in 0.23.0_)
 - **Date:** 2026-11-12
 - **Since:** 0.21.0 at the earliest (phase 1, see _Phases_); builds on [ADR 0016](0016-module-registry.md) and [ADR 0033](0033-one-access-model.md)
 
@@ -146,8 +146,20 @@ Data platform and data mesh integrations, quality management, MES, planning and 
 ## Phases
 
 1. **0.21.0 – module access:** the setting for every restrictable module, the route hook and `MODULE_NO_ACCESS`, part 2 on every surface, links (part 3), preview, step-up, audit, access reviews, SSO through teams.
-2. **0.22.0 – module roles:** the framework, the plant registry migrated (part 5), module roles per user and team and in the SSO mapping, `moduleOnly`, manager settings.
+2. **0.22.0 (built in 0.23.0) – module roles:** the framework, the plant registry migrated (part 5), module roles per user and team and in the SSO mapping, `moduleOnly`, manager settings.
 3. **Later:** the status viewer as the status pages' viewer role; new modules declare `access` from their first release.
+
+## Built in 0.23.0 (phase 2)
+
+Module roles as decided (parts 4–6, decisions 5–8 and 11). Settled while building:
+
+- **One place, read once.** `server/src/modules/grants.ts` reads the module policy – the modes of `module_access` and every row of `module_grants` – in one statement per request or job run (`modulePolicy`), and answers `usesByPolicy`, `moduleRoleOf` (role, where from, and the role from grants alone) and `grantedModuleRoles`. The policy module asks it in `decide()` (`opts.module`): a granted role counts like an instance role – on items without owning teams, access list or _Restricted_, and on an owning team's items for its members. Deciding every site costs the same number of statements however many grants there are (`server/test/module-roles.test.ts`).
+- **Declared in the registry.** `access.roles` names the rights per kind (`site`, `device_profile`, `kpi_definition`, `registry` for the plant registry; `costs`; the four data product kinds and `module`), `fromCoreRoles` the defaults, `managerSettings` the content settings. `DEFAULT_PLANT` and `DEFAULT_PLANT_CATALOGUE` are computed from it (`coreRoleDefaults`); tests compare them per module with the tables before 0.23.0 and every user's rights, routes and sidebar before and after the conversion of the role `plant`. The Costs module declares only **manager** (the costs managers of ADR 0035, designers by default); the data products declare all three (ADR 0036 part 12; their team roles keep giving their defaults, as in 0.22.0).
+- **Grants.** `module_grants` gained `source` (`modules-003-grant-source`): null for an administrator's grant (the access dialog or the user form edit the same rows), `sso` for one synchronised at sign-in. On a restricted module every grant means "uses it"; open to everyone, only grants with a role are kept. Widening (a new role or a higher one) asks for `access.grant`; every change is `access.module_access_changed` with `roles` and `via` (`userForm`, `sso`, `roleAlias`).
+- **The role `plant`** is converted in code once the vault is open (and after a migration package is imported): `convertDeprecatedRoles` reads the roles as JSON, gives a contributor grant (synchronised for accounts of a provider that synchronises roles) and audits each account. To keep everyone's rights, `role:plant` entries of access lists and shares, and the catalogue names a plant page shows, still count for whoever is granted contributor or more (`formerRolesOf`). The API accepts the role in `POST`/`PUT /api/users` and SSO mappings with a `Deprecation` header.
+- **Manager settings follow a granted manager role only** – a manager role from core roles (designers) gives the module's items, not its settings, so nobody gained settings at the upgrade. The plant registry's are at `GET`/`PUT /api/plant/settings` (signed-in session); the switch stays at `/api/settings/plant`.
+- **Module-only users** (`moduleOnlyModules` in `server/src/auth/policy.ts`) generalise the plant viewer: `PLANT_VIEWER_ONLY` for the plant registry, `MODULE_ONLY_USER` otherwise; a status role beside a module role keeps both (`statusOnly`).
+- **Not yet:** `GET /api/access/shared-with?subject=` does not list module grants (the shares helper's area); the status viewer as the status pages' viewer role stays phase 3.
 
 ## Owner decisions (accepted as recommended)
 
