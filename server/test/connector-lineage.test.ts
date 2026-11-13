@@ -267,6 +267,41 @@ describe('lineage from connectors', () => {
     await s.api('PUT', `/platforms/${connect}/access`, { acl: [] });
     expect(await seen()).toBe(true);
   });
+
+  it('keeps every origin to its own source: who may not see the platform neither fetches nor draws a connector proposal', async () => {
+    type P = { id: string; sourceId: string; inputs: { id: string }[]; outputs: { id: string }[] };
+    const open = (await dana('GET', '/data-products/lineage-proposals?origin=connector&status=open')).items as P[];
+    const p = open.find((x) => x.sourceId === connect && x.inputs.length && x.outputs.length)!;
+    const [from, to] = [p.inputs[0]!.id, p.outputs[0]!.id];
+    const listed = async () => ((await dana('GET', '/data-products/lineage-proposals?status=open')).items as P[]).some((x) => x.id === p.id);
+    const drawn = async () =>
+      ((await dana('GET', `/data-elements/${to}/lineage?depth=1`)).edges as { from: string; to: string; proposed?: boolean }[]).some(
+        (e) => e.proposed && e.from === from && e.to === to,
+      );
+    expect((await dana('GET', `/data-products/lineage-proposals/${p.id}`)).id).toBe(p.id);
+    expect(await listed()).toBe(true);
+    expect(await drawn()).toBe(true);
+    // the platform for its managers only: the proposal is not listed, not fetched, not drawn
+    await s.api('PUT', `/platforms/${connect}/access`, { acl: [{ subject: 'user:admin', permissions: ['manage'] }] });
+    try {
+      expect((await fail(dana('GET', `/data-products/lineage-proposals/${p.id}`))).status).toBe(404);
+      expect(await listed()).toBe(false);
+      expect(await drawn()).toBe(false);
+    } finally {
+      await s.api('PUT', `/platforms/${connect}/access`, { acl: [] });
+    }
+    // a proposal is seen through the kind of source its origin names: a platform id under a lineage source's origin
+    // grants nothing, although the reader sees the platform
+    dbm.db().run("UPDATE dp_lineage_proposals SET origin = 'openlineage' WHERE id = ?", p.id);
+    try {
+      expect((await fail(dana('GET', `/data-products/lineage-proposals/${p.id}`))).status).toBe(404);
+      expect(await listed()).toBe(false);
+      expect(await drawn()).toBe(false);
+    } finally {
+      dbm.db().run("UPDATE dp_lineage_proposals SET origin = 'connector' WHERE id = ?", p.id);
+    }
+    expect(await listed()).toBe(true);
+  });
 });
 
 describe('Create step from connector', () => {
