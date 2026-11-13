@@ -16,6 +16,7 @@ import { vault } from '../../vault.js';
 import { runAs } from '../../auth/context.js';
 import { HttpError, newId, nowIso } from '../../util.js';
 import { CheckSetupError, ownerProblem, platformFor } from '../../monitors/platforms.js';
+import { noticeDiscoveryFailed, noticeElementsMissing } from '../notices.js';
 import { discoverySourceRow, markMissing, pruneCheckLinks, removeLongMissing, upsertDiscovered } from '../store.js';
 import { DiscoveryError, parseSource, type DiscoveryContext, type DiscoveryProblem, type DiscoveryReader } from './common.js';
 import { readSnowflake } from './snowflake.js';
@@ -346,20 +347,9 @@ async function execute(sourceId: string, runId: string, actor: string, opts: Run
       });
   });
   // notices (WP4): the products of newly missing elements are told once; the source's managers when it starts failing
-  if (missing.length) noticeElementsMissing(src.id, missing);
-  if (failure && !before) noticeDiscoveryFailed(src.id, failure);
+  if (missing.length) noticeElementsMissing(src.id, missing, runId);
+  if (failure && !before) noticeDiscoveryFailed(src.id, failure, failingSince, runId);
   return toRun(db().get<RunRow>('SELECT * FROM dp_discovery_runs WHERE id = ?', runId)!);
-}
-
-/**
- * The notices of ADR 0036 part 17 `elements_missing` and `discovery_failed` – sent by the notices of work package 4
- * (dataproducts/notices.ts), which replaces these two calls when it is merged. Until then they only log.
- */
-function noticeElementsMissing(sourceId: string, elementIds: readonly string[]): void {
-  logger.info({ source: sourceId, missing: elementIds.length }, 'data products: elements no longer found');
-}
-function noticeDiscoveryFailed(sourceId: string, problem: DiscoveryProblem): void {
-  logger.warn({ source: sourceId, code: problem.code }, `data products: discovery failed – ${problem.message}`);
 }
 
 /** The job `data-products`: the due sources, one at a time, for at most 20 minutes; null when the vault is locked. */

@@ -18,6 +18,7 @@ import type { AuthUser } from '../auth/context.js';
 import { currentScale } from '../catalogue/cia.js';
 import { statusPointsOf, upAndDown, uptimeHundredths } from '../monitors/stats.js';
 import { parseJson } from '../util.js';
+import { elementHealthOf } from './health.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import {
@@ -51,12 +52,11 @@ import {
 // ---------- the seam to the health of elements (WP3) ----------
 
 /**
- * The health of elements (each lives in one environment), as `u` may see it. **Seam:** the scorecard's one dependency
- * on the module's health (WP3, health.ts). Until that is merged it answers _no data_ for every element – never OK
- * without a check; the integrator replaces the body with `return elementHealthOf(u, elementIds)` from health.ts.
+ * The health of elements (each lives in one environment), as `u` may see it: the scorecard's one dependency on the
+ * module's health (health.ts) – never OK without a check.
  */
-export function scorecardElementHealth(_u: AuthUser | null, elementIds: readonly string[]): Map<string, ElementHealth> {
-  return new Map(elementIds.map((id) => [id, { elementId: id, status: 'noData' as DataHealthStatus, checks: { visible: 0, hidden: 0 } }]));
+export function scorecardElementHealth(u: AuthUser | null, elementIds: readonly string[]): Map<string, ElementHealth> {
+  return elementHealthOf(u, elementIds);
 }
 
 // ---------- helpers ----------
