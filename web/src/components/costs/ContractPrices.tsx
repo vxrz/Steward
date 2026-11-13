@@ -11,6 +11,7 @@ import {
   COST_DERIVATION_KINDS,
   COST_LIST_CONDITION_KINDS,
   ISO_4217_CODES,
+  costConditionInput,
   type CostCondition,
   type CostConditionInput,
   type CostConditionKind,
@@ -19,6 +20,7 @@ import {
   type CostContractConditions,
 } from '@sm/shared';
 import { get, isUnavailable, notifyError, notifyOk, put } from '../../api';
+import { ApiError } from '../../apiError';
 import { FormModal, FormModalCancel } from '../FormModal';
 import { fmtDayOnly, fmtDecimal, fmtNumber } from '../../format';
 
@@ -237,6 +239,43 @@ const inputOf = (r: Row): CostConditionInput => {
   return { ...base, ...valid, bands, scheduleId: r.scheduleId };
 };
 
+/** Messages per condition and field ("percent", "provider" …), in the UI's language. */
+type FieldErrors = Record<number, Partial<Record<string, string>>>;
+
+/** The message of a field: by the field (the server's own text is English and names its path). */
+function fieldMessage(t: T, field: string, kind: CostConditionKind): string {
+  if (field === 'percent') return t(kind === 'markup' ? 'conditions.errors.percentMarkup' : 'conditions.errors.percent');
+  const known = ['provider', 'on', 'target', 'price', 'currency', 'unit', 'scheduleId', 'bands', 'validFrom', 'validTo'];
+  return t(`conditions.errors.${known.includes(field) ? field : 'other'}`);
+}
+
+/** The fields of each condition that are not right, checked as the server checks them (before anything is sent). */
+function checkRows(t: T, rows: Row[]): FieldErrors {
+  const out: FieldErrors = {};
+  rows.forEach((r, i) => {
+    const res = costConditionInput.safeParse(inputOf(r));
+    if (res.success) return;
+    for (const issue of res.error.issues) {
+      const field = String(issue.path[0] ?? 'kind');
+      (out[i] ??= {})[field] ??= fieldMessage(t, field, r.kind);
+    }
+  });
+  return out;
+}
+
+/** The server's refusal as field messages: its issues name `conditions.<n>.<field>`. Empty when none does. */
+function serverErrors(t: T, rows: Row[], err: unknown): FieldErrors {
+  const out: FieldErrors = {};
+  if (!(err instanceof ApiError)) return out;
+  for (const issue of err.issues ?? []) {
+    const m = /^conditions\.(\d+)\.(\w+)/.exec(issue.path);
+    const i = m ? Number(m[1]) : -1;
+    if (!m || !rows[i]) continue;
+    (out[i] ??= {})[m[2]!] ??= fieldMessage(t, m[2]!, rows[i].kind);
+  }
+  return out;
+}
+
 /** The conditions of a contract, or the terms of a rate card (kinds: the derivation kinds only). */
 export function ConditionsDialog({
   title,
@@ -259,9 +298,21 @@ export function ConditionsDialog({
   const [rows, setRows] = useState<Row[]>(() => initial.map(rowOf));
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  /** The message of a field of condition `i` (shown after a save was tried) */
+  const err = (i: number, field: string): string | undefined => errors[i]?.[field];
   const set = (i: number, patch: Partial<Row>) => {
     setDirty(true);
     setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    // a changed field is checked again on the next save
+    const fields = Object.keys(patch);
+    if (errors[i] && fields.some((f) => errors[i]![f]))
+      setErrors({ ...errors, [i]: Object.fromEntries(Object.entries(errors[i]!).filter(([f]) => !fields.includes(f))) });
+  };
+  const showErrors = (e: FieldErrors) => {
+    setErrors(e);
+    // the first marked field gets the focus (WCAG 3.3.1)
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="conditions-form"] [aria-invalid="true"]')?.focus());
   };
   const add = () => {
     setDirty(true);
@@ -288,12 +339,19 @@ export function ConditionsDialog({
     ]);
   };
   const submit = async () => {
+    const found = checkRows(t, rows);
+    if (Object.keys(found).length) return showErrors(found);
     setBusy(true);
     try {
       await onSave(rows.map(inputOf));
       onClose();
-    } catch (err) {
-      notifyError(err);
+    } catch (e) {
+      const marked = serverErrors(t, rows, e);
+      if (Object.keys(marked).length) {
+        showErrors(marked);
+        // the fields say what is wrong – not the server's paths ("conditions.0.percent: …")
+        notifyError(new Error(t('conditions.errors.checkFields')));
+      } else notifyError(e);
     } finally {
       setBusy(false);
     }
@@ -307,6 +365,8 @@ export function ConditionsDialog({
   return (
     <FormModal title={title} onClose={onClose} size="xl" dirty={dirty}>
       <form
+        data-testid="conditions-form"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
@@ -331,6 +391,7 @@ export function ConditionsDialog({
                         set(i, { kind: k, on: COST_CONDITION_SCOPES_OF[k].includes(r.on) ? r.on : COST_CONDITION_SCOPES_OF[k][0]! });
                       }}
                       data-testid={`condition-${i}-kind`}
+                      error={err(i, 'kind')}
                     />
                     <TextInput
                       label={t('conditions.provider')}
@@ -338,6 +399,7 @@ export function ConditionsDialog({
                       required
                       onChange={(e) => set(i, { provider: e.currentTarget.value })}
                       data-testid={`condition-${i}-provider`}
+                      error={err(i, 'provider')}
                     />
                     <Select
                       label={t('conditions.on')}
@@ -346,6 +408,7 @@ export function ConditionsDialog({
                       allowDeselect={false}
                       onChange={(v) => set(i, { on: (v ?? r.on) as CostConditionScope })}
                       data-testid={`condition-${i}-on`}
+                      error={err(i, 'on')}
                     />
                   </SimpleGrid>
                   <ActionIcon
@@ -355,6 +418,7 @@ export function ConditionsDialog({
                     onClick={() => {
                       setDirty(true);
                       setRows(rows.filter((_, j) => j !== i));
+                      setErrors({});
                     }}
                   >
                     <IconTrash size={14} />
@@ -368,6 +432,7 @@ export function ConditionsDialog({
                       required
                       onChange={(e) => set(i, { target: e.currentTarget.value })}
                       data-testid={`condition-${i}-target`}
+                      error={err(i, 'target')}
                     />
                   )}
                   {(r.kind === 'percentOff' || r.kind === 'baseDiscount' || r.kind === 'markup') && (
@@ -378,6 +443,7 @@ export function ConditionsDialog({
                       inputMode="decimal"
                       onChange={(e) => set(i, { percent: e.currentTarget.value })}
                       data-testid={`condition-${i}-percent`}
+                      error={err(i, 'percent')}
                     />
                   )}
                   {(r.kind === 'negotiatedPrice' || r.kind === 'feePerUnit' || r.kind === 'fixedFee') && (
@@ -389,8 +455,16 @@ export function ConditionsDialog({
                         inputMode="decimal"
                         onChange={(e) => set(i, { price: e.currentTarget.value })}
                         data-testid={`condition-${i}-price`}
+                        error={err(i, 'price')}
                       />
-                      <Select label={t('conditions.currency')} searchable data={CURRENCIES} value={r.currency} onChange={(v) => v && set(i, { currency: v })} />
+                      <Select
+                        label={t('conditions.currency')}
+                        searchable
+                        data={CURRENCIES}
+                        value={r.currency}
+                        onChange={(v) => v && set(i, { currency: v })}
+                        error={err(i, 'currency')}
+                      />
                     </>
                   )}
                   {(r.kind === 'negotiatedPrice' || r.kind === 'feePerUnit') && (
@@ -409,6 +483,7 @@ export function ConditionsDialog({
                       value={r.unit}
                       required
                       onChange={(e) => set(i, { unit: e.currentTarget.value })}
+                      error={err(i, 'unit')}
                     />
                   )}
                   {r.kind === 'commitment' && (
@@ -419,6 +494,7 @@ export function ConditionsDialog({
                         value={r.scheduleId}
                         onChange={(v) => set(i, { scheduleId: v })}
                         description={schedules.length ? undefined : t('conditions.noSchedules')}
+                        error={err(i, 'scheduleId')}
                       />
                       <TextInput
                         label={t('conditions.bands')}
@@ -426,12 +502,25 @@ export function ConditionsDialog({
                         value={r.bands}
                         required
                         onChange={(e) => set(i, { bands: e.currentTarget.value })}
+                        error={err(i, 'bands')}
                       />
                     </>
                   )}
-                  <TextInput type="date" label={t('conditions.validFrom')} value={r.validFrom} onChange={(e) => set(i, { validFrom: e.currentTarget.value })} />
-                  <TextInput type="date" label={t('conditions.validTo')} value={r.validTo} onChange={(e) => set(i, { validTo: e.currentTarget.value })} />
-                  <TextInput label={t('conditions.note')} value={r.note} onChange={(e) => set(i, { note: e.currentTarget.value })} />
+                  <TextInput
+                    type="date"
+                    label={t('conditions.validFrom')}
+                    value={r.validFrom}
+                    onChange={(e) => set(i, { validFrom: e.currentTarget.value })}
+                    error={err(i, 'validFrom')}
+                  />
+                  <TextInput
+                    type="date"
+                    label={t('conditions.validTo')}
+                    value={r.validTo}
+                    onChange={(e) => set(i, { validTo: e.currentTarget.value })}
+                    error={err(i, 'validTo')}
+                  />
+                  <TextInput label={t('conditions.note')} value={r.note} onChange={(e) => set(i, { note: e.currentTarget.value })} error={err(i, 'note')} />
                 </SimpleGrid>
               </Stack>
             </Paper>

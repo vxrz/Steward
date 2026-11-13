@@ -1350,6 +1350,22 @@
       "feePerUnit": "{{price}} {{currency}} je {{block}} {{unit}}",
       "fixedFee": "{{price}} {{currency}} im Monat",
       "commitment": "nach dem zugesagten Volumen: {{bands}}"
+    },
+    "errors": {
+      "provider": "Nennen Sie den Anbieter so, wie ihn seine Preisbücher nennen",
+      "on": "Diese Art von Kondition gilt nicht für diesen Bereich",
+      "target": "Geben Sie an, wofür sie gilt",
+      "percent": "Ein Prozentsatz von 0 bis 100",
+      "percentMarkup": "Ein Prozentsatz von 0 bis 500",
+      "price": "Ein Preis ab 0 mit höchstens 12 Nachkommastellen",
+      "currency": "Wählen Sie die Währung des Preises",
+      "unit": "Die Einheit der Gebühr, etwa GBy, h oder {credit}",
+      "scheduleId": "Wählen Sie einen Volumenplan dieses Vertrags",
+      "bands": "Steigende Beträge, jeweils mit einem Prozentsatz von 0 bis 100",
+      "validFrom": "Wählen Sie einen Tag",
+      "validTo": "Am ersten Tag oder danach",
+      "other": "Prüfen Sie dieses Feld",
+      "checkFields": "Prüfen Sie die markierten Felder"
     }
   }
 }

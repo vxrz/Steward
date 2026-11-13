@@ -111,6 +111,12 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
   if (!mobile) {
     await prices.getByTestId('contract-prices-edit').click();
     await page.getByTestId('condition-add').click();
+    // saving without a percentage: the form marks the field in plain words and puts the focus there
+    await page.getByTestId('conditions-save').click();
+    await expect(page.getByTestId('condition-4-percent')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByTestId('condition-4-percent')).toBeFocused();
+    await expect(page.getByTestId('conditions-form')).toContainText('A percentage from 0 to 100');
+    await expect(page.getByTestId('conditions-form')).not.toContainText('conditions.4');
     // a decimal comma as typed in German is taken
     await page.getByTestId('condition-4-percent').fill('5,5');
     await expectAccessible(page, 'contract prices: the dialog');

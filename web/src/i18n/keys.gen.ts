@@ -3737,6 +3737,20 @@ export interface Resources {
     'conditions.value.feePerUnit': string;
     'conditions.value.fixedFee': string;
     'conditions.value.commitment': string;
+    'conditions.errors.provider': string;
+    'conditions.errors.on': string;
+    'conditions.errors.target': string;
+    'conditions.errors.percent': string;
+    'conditions.errors.percentMarkup': string;
+    'conditions.errors.price': string;
+    'conditions.errors.currency': string;
+    'conditions.errors.unit': string;
+    'conditions.errors.scheduleId': string;
+    'conditions.errors.bands': string;
+    'conditions.errors.validFrom': string;
+    'conditions.errors.validTo': string;
+    'conditions.errors.other': string;
+    'conditions.errors.checkFields': string;
   };
   credentials: {
     title: string;

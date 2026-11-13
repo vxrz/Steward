@@ -1350,6 +1350,22 @@
       "feePerUnit": "{{price}} {{currency}} per {{block}} {{unit}}",
       "fixedFee": "{{price}} {{currency}} a month",
       "commitment": "by the committed volume: {{bands}}"
+    },
+    "errors": {
+      "provider": "Name the provider as its price books do",
+      "on": "This kind of condition is not for this scope",
+      "target": "Say what it is for",
+      "percent": "A percentage from 0 to 100",
+      "percentMarkup": "A percentage from 0 to 500",
+      "price": "A price of at least 0 with at most 12 decimals",
+      "currency": "Choose the currency of the price",
+      "unit": "The unit the fee is per, such as GBy, h or {credit}",
+      "scheduleId": "Choose a volume schedule of this contract",
+      "bands": "Amounts that rise, each with a percentage from 0 to 100",
+      "validFrom": "Choose a day",
+      "validTo": "On or after the first day",
+      "other": "Check this field",
+      "checkFields": "Check the marked fields"
     }
   }
 }
