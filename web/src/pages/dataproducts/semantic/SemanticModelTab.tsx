@@ -17,6 +17,7 @@ import { useMe } from '../../../auth';
 import { QueryState } from '../../../components/common';
 import { confirmDialog } from '../../../components/confirm';
 import { FormModal } from '../../../components/FormModal';
+import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { UnifiedDiff } from '../../../components/editor/VersionDiff';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate, fmtDay } from '../../../format';
@@ -25,6 +26,12 @@ import { CardTable, Section, useSortedEnvironments } from '../parts';
 import { semKeys, useSemanticModel, useSemanticValid, useSemanticVersion } from './api';
 
 const enc = encodeURIComponent;
+
+/** A person as the app names them elsewhere: the display name, not the username. */
+function usePerson(): (username: string) => string {
+  const label = useSubjectLabel();
+  return (username) => label(`user:${username}`);
+}
 
 /**
  * The _Semantic model_ tab of a product (ADR 0037 part 4): Steward's governed copy of the product's Apache Ossie model –
@@ -37,6 +44,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
   const q = useSemanticModel(p.id);
   const qc = useQueryClient();
   const { username } = useMe();
+  const person = usePerson();
   const [shown, setShown] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [signing, setSigning] = useState<DataSemanticVersionSummary | null>(null);
@@ -66,11 +74,11 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
             <>
               <Text size="sm" data-testid="semantic-valid-today">
                 {v.validToday?.signOff
-                  ? t('validToday', { version: v.validToday.version, by: v.validToday.signOff.by, date: fmtDay(v.validToday.signOff.at) })
+                  ? t('validToday', { version: v.validToday.version, by: person(v.validToday.signOff.by), date: fmtDay(v.validToday.signOff.at) })
                   : t('noValid')}
               </Text>
               <Text size="sm" c="dimmed" data-testid="semantic-current">
-                {t('current', { version: v.current.version, by: v.current.createdBy, date: fmtDate(v.current.createdAt) })}
+                {t('current', { version: v.current.version, by: person(v.current.createdBy), date: fmtDate(v.current.createdAt) })}
               </Text>
             </>
           ) : (
@@ -91,7 +99,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
             rowTestId={(x) => `semantic-version-${x.version}`}
             columns={[
               { key: 'version', header: t('version'), nowrap: true, cell: (x) => t('versionN', { n: x.version }) },
-              { key: 'saved', header: t('saved'), cell: (x) => `${fmtDate(x.createdAt)} · ${x.createdBy}` },
+              { key: 'saved', header: t('saved'), cell: (x) => `${fmtDate(x.createdAt)} · ${person(x.createdBy)}` },
               { key: 'origin', header: t('origin'), nowrap: true, cell: (x) => t(`origins.${x.origin}`) },
               { key: 'lint', header: t('lint'), nowrap: true, cell: (x) => t('lintCount', { count: x.lintFindings }) },
               {
@@ -105,7 +113,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
                           {t('validBadge')}
                         </Badge>
                       )}
-                      <Text size="sm">{t('signedOff', { by: x.signOff.by, date: fmtDay(x.signOff.validFrom) })}</Text>
+                      <Text size="sm">{t('signedOff', { by: person(x.signOff.by), date: fmtDay(x.signOff.validFrom) })}</Text>
                     </Group>
                   ) : (
                     <Stack gap={0}>
@@ -191,6 +199,7 @@ function ValidOn({ productId }: { productId: string }) {
   const [date, setDate] = useState('');
   const [asked, setAsked] = useState('');
   const q = useSemanticValid(productId, asked);
+  const person = usePerson();
   const a = q.data;
   return (
     <Paper withBorder p="md" data-testid="semantic-valid-on">
@@ -211,12 +220,12 @@ function ValidOn({ productId }: { productId: string }) {
         <Stack gap={2} mt="sm" data-testid="semantic-valid-answer">
           <Text size="sm">
             {a.valid?.signOff
-              ? t('validOn.valid', { version: a.valid.version, by: a.valid.signOff.by, from: fmtDay(a.valid.signOff.validFrom) })
+              ? t('validOn.valid', { version: a.valid.version, by: person(a.valid.signOff.by), from: fmtDay(a.valid.signOff.validFrom) })
               : t('validOn.none', { date: fmtDay(a.date) })}
           </Text>
           {a.latest && (
             <Text size="sm" c="dimmed">
-              {t('validOn.latest', { version: a.latest.version, by: a.latest.createdBy, date: fmtDate(a.latest.createdAt) })}
+              {t('validOn.latest', { version: a.latest.version, by: person(a.latest.createdBy), date: fmtDate(a.latest.createdAt) })}
             </Text>
           )}
         </Stack>

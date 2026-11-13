@@ -97,6 +97,9 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await page.getByTestId('semantic-note').fill('From the contract');
     await page.getByTestId('semantic-save').click();
     await expect(page.getByTestId('semantic-version-1')).toBeVisible();
+    // people by their display names, as elsewhere in the app
+    await expect(page.getByTestId('semantic-version-1')).toContainText('Dana Designer');
+    await expect(page.getByTestId('semantic-current')).toContainText('saved by Dana Designer');
     // the draft has neither lint findings nor drift
     await expect(page.getByTestId('semantic-lint-none')).toBeVisible();
     await expect(page.getByTestId('semantic-drift-none')).toBeVisible();
@@ -117,12 +120,12 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(adam.getByTestId('semantic-document').last()).toContainText('customer_email');
     await adam.getByTestId('semantic-signoff-note').fill('Matches the contract');
     await adam.getByTestId('semantic-signoff-save').click();
-    await expect(adam.getByTestId('semantic-valid-today')).toContainText('Valid today: version 1, signed off by adam');
+    await expect(adam.getByTestId('semantic-valid-today')).toContainText('Valid today: version 1, signed off by Adam Approver');
     // which model was valid on a day
     const today = new Date().toISOString().slice(0, 10);
     await adam.getByTestId('semantic-valid-date').fill(today);
     await adam.getByTestId('semantic-valid-check').click();
-    await expect(adam.getByTestId('semantic-valid-answer')).toContainText('Version 1 – signed off by adam');
+    await expect(adam.getByTestId('semantic-valid-answer')).toContainText('Version 1 – signed off by Adam Approver');
     await adam.getByTestId('semantic-valid-date').fill('2020-01-01');
     await adam.getByTestId('semantic-valid-check').click();
     await expect(adam.getByTestId('semantic-valid-answer')).toContainText('No version was signed off and valid on');
