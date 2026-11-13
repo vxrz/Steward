@@ -20,7 +20,7 @@ import { currentUser, requestContext } from '../auth/context.js';
 import { requireCapability, require as requirePermission } from '../auth/permissions.js';
 import { bearerToken, resolveToken } from '../auth/tokens.js';
 import { toAuthUser } from '../auth/users.js';
-import { plantOnly } from '../auth/policy.js';
+import { moduleOnlyModules, moduleOnlyRefusal, statusOnly } from '../auth/policy.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import * as platforms from '../platforms/service.js';
 import { emit } from '../events.js';
@@ -43,7 +43,7 @@ import { decide, getRequest, listRequests, privilegedUsesOf } from './requests.j
 import { privilegedRefusal } from '../platforms/privileged.js';
 import { offersSignIn, resolveAccessGrant, resourceMetadataUrl, resourceOf } from './oauth.js';
 import { clientAddress, ROUTE_LIMITS } from '../rateLimits.js';
-import { ACCESS, isStatusViewer } from '../auth/access.js';
+import { ACCESS } from '../auth/access.js';
 
 export const mcpLimiter = new TokenBucketLimiter();
 const REALM = 'Steward MCP';
@@ -212,12 +212,13 @@ function admit(req: FastifyRequest, reply: FastifyReply, principal: McpPrincipal
   if (r.user.mustChangePassword)
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'The owner of this token has to change their password in the web UI first', 'forbidden');
   // a status viewer (#26) sees the status pages only – also with a token made before they became one
-  if (isStatusViewer(toAuthUser(r.user as UserInfo).roles))
+  if (statusOnly(toAuthUser(r.user as UserInfo)))
     return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Status viewers only see the status pages – MCP clients are not for them', 'forbidden');
   // a plant viewer (#218) sees the plant registry only: MCP clients are not for them (the plant tools of 0.12.0 are for
   // the other roles, with their site rights)
-  if (plantOnly(toAuthUser(r.user as UserInfo)))
-    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, 'Plant viewers only see the plant registry – MCP clients are not for them', 'forbidden');
+  const only = moduleOnlyModules(toAuthUser(r.user as UserInfo));
+  if (only.length)
+    return void refuse(reply, 403, STEWARD_ERRORS.forbidden, `${moduleOnlyRefusal(only).error} – MCP clients are not for them`, 'forbidden');
   if (!vault().unlocked) {
     reply.header('retry-after', '60');
     return void refuse(reply, 503, STEWARD_ERRORS.unavailable, 'The vault is locked – an administrator has to unlock it', 'locked');

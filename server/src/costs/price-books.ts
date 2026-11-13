@@ -1,4 +1,5 @@
 import {
+  moduleRoleAtLeast,
   COST_PRICE_CSV_FIELDS,
   COST_PRICE_LIMITS,
   costPriceBookInput,
@@ -33,6 +34,7 @@ import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../u
 import { scopeInfo } from './access.js';
 import { decodeCursor, pageRows } from '../api/v1/pagination.js';
 import { readCsv } from './csv.js';
+import { moduleRole } from '../modules/access.js';
 
 /**
  * Price books (0.21.0, ADR 0035 parts 1, 2 and 8, docs/PRICE-BOOKS.md): books of item prices in immutable versions,
@@ -139,8 +141,11 @@ const notFound = (id: string) => new HttpError(404, `Price book ${id} not found`
 
 // ---------- rights ----------
 
-/** The costs managers (ADR 0035 part 8): administrators and designers until the Costs module's manager role exists. */
-export const isCostsManager = (u: AuthUser | null): boolean => !u || isAdmin(u) || u.roles.includes('designer');
+/**
+ * The costs managers (ADR 0035 part 8, decision 7): the Costs module's manager role (ADR 0034, 0.23.0) – administrators
+ * and designers by default (`fromCoreRoles`, the rule of 0.21.0), and whoever an administrator grants it to.
+ */
+export const isCostsManager = (u: AuthUser | null): boolean => !u || isAdmin(u) || moduleRoleAtLeast(moduleRole('costs', u), 'manager');
 /** Who uses the Costs module at all: every role that works in Steward (not status or plant viewers alone). */
 export const usesCosts = (u: AuthUser | null): boolean => !u || u.roles.some((r) => r !== 'status' && r !== 'plant');
 

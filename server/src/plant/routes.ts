@@ -2,14 +2,15 @@ import { hiddenCatalogue } from './catalogue-access.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ASSET_STATUSES, PLANT_LIMITS } from '@sm/shared';
-import { ACCESS } from '../auth/access.js';
+import { ACCESS, forbid } from '../auth/access.js';
 import { config } from '../config.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { logger } from '../log.js';
 import { addLink, linkInput, linkUpdate, removeLink, updateLink } from '../records/links.js';
 import { HttpError } from '../util.js';
-import { plantSettings, plantSettingsInput, requirePlant, updatePlantSettings } from './settings.js';
+import { plantManagerSettings, plantManagerSettingsInput, plantSettings, plantSettingsInput, requirePlant, updatePlantManagerSettings, updatePlantSettings } from './settings.js';
+import { mayChangeModuleSetting } from '../modules/access.js';
 import * as svc from './service.js';
 import { applyImport, exportYaml, importInput, importStepUpPoints, listImports, previewImport } from './import.js';
 import {
@@ -267,6 +268,19 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req) => updatePlantSettings(plantSettingsInput.parse(req.body), plantDemo),
   );
+
+  // 0.23.0 (ADR 0034 decision 11): the content of the settings – enterprise, labels, own fields, review intervals – for
+  // administrators and the managers an administrator granted the plant registry's manager role (a signed-in session)
+  app.get('/plant/settings', async () => {
+    requirePlant();
+    if (!mayChangeModuleSetting('plant', 'labels')) forbid('change the settings of the plant registry', 'moduleSettings');
+    return plantManagerSettings();
+  });
+  app.put('/plant/settings', { config: { access: ACCESS.session } }, async (req) => {
+    requirePlant();
+    if (!mayChangeModuleSetting('plant', 'labels')) forbid('change the settings of the plant registry', 'moduleSettings');
+    return updatePlantManagerSettings(plantManagerSettingsInput.parse(req.body), (key) => mayChangeModuleSetting('plant', key));
+  });
 
   // 0.15.0: how long the history and its bookkeeping are kept, and what they take (ADR 0020)
   const historyView = (): PlantHistorySettingsView => ({ settings: historyRetention(), usage: historyUsage() });

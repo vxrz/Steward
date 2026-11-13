@@ -9,6 +9,7 @@ import { plantEnabled } from './settings.js';
 import type { AssetRow, SiteRow } from './model.js';
 import { sinksOf } from './collections-model.js';
 import { catalogueScope, seesEntry } from './catalogue-access.js';
+import { moduleRole } from '../modules/access.js';
 
 /**
  * Sites and assets as link kinds (#218): documents, records, tickets, services and applications can name them, and
@@ -71,9 +72,9 @@ const assetLinkKind: LinkResolver = {
 
 /**
  * Device profiles belong to no site: everyone who sees the plant registry sees them (plant/access.ts) – every role
- * but "status" (status viewers see no site, so no profile either).
+ * but "status" (status viewers see no site, so no profile either), and whoever has a plant module role (ADR 0034).
  */
-export const seesProfiles = (u = currentUser()): boolean => !!u && u.roles.some((r) => r !== 'status');
+export const seesProfiles = (u = currentUser()): boolean => !!u && (u.roles.some((r) => r !== 'status') || moduleRole('plant', u) !== null);
 
 type ProfileLinkRow = { id: string; name: string; manufacturer: string; model: string };
 const profileDetail = (p: ProfileLinkRow) => [p.manufacturer, p.model].filter(Boolean).join(' ') || undefined;

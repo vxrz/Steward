@@ -12,12 +12,13 @@ import {
   type PlantProfileValues,
   type PlantResolvedProfile,
   type Role,
+  coreRoleDefaults,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { decide, memberships, owningTeams, type ShareModel } from '../auth/policy.js';
 import { isRestricted } from '../auth/share-store.js';
-import { usesModule } from '../modules/access.js';
+import { moduleRole, usesModule } from '../modules/access.js';
 import { HttpError } from '../util.js';
 import { canManageCatalogue, plantProposesSome, proposing } from './access.js';
 import { kpiProfiles } from './checks.js';
@@ -43,18 +44,12 @@ import { resolvedProfile } from './data-model.js';
 
 const ALL = PLANT_CATALOGUE_PERMISSIONS;
 
-/** What each role gives on an entry of an owning team (as a member) or – without the legacy rules – of the instance. */
-export const DEFAULT_PLANT_CATALOGUE: Record<Role, readonly PlantCataloguePermission[]> = {
-  admin: ALL,
-  // decision 13: designers among the members manage it (all designers while it belongs to the whole instance)
-  designer: ALL,
-  operator: ['view', 'propose'],
-  approver: ['view', 'propose'],
-  auditor: ['view'],
-  viewer: ['view'],
-  status: [],
-  plant: ['view', 'propose'],
-};
+/**
+ * What each role gives on an entry of an owning team (as a member) or – without the legacy rules – of the instance:
+ * the plant module's role defaults since 0.23.0 (ADR 0034 part 5; designers manage it, decision 13). Device profiles
+ * and KPI definitions give the same.
+ */
+export const DEFAULT_PLANT_CATALOGUE: Record<Role, readonly PlantCataloguePermission[]> = coreRoleDefaults('plant', 'device_profile', ALL);
 
 /** How a share's level and action rights give rights on an entry (ADR 0033 part 1: View, Edit, Manage; propose beside them). */
 export const PLANT_CATALOGUE_SHARES: ShareModel<PlantCataloguePermission> = {
@@ -78,8 +73,9 @@ function normalise(given: Iterable<string>): PlantCataloguePermission[] {
   return ALL.filter((x) => p.has(x));
 }
 
-/** Who reaches the plant registry at all by a role (status viewers alone do not). */
-const worksInSteward = (u: AuthUser): boolean => u.roles.some((r) => r !== 'status') || [...memberships(u).values()].some((m) => m.roles.length > 0);
+/** Who reaches the plant registry at all by a role (status viewers alone do not) – or by a plant module role (ADR 0034). */
+const worksInSteward = (u: AuthUser): boolean =>
+  u.roles.some((r) => r !== 'status') || [...memberships(u).values()].some((m) => m.roles.length > 0) || moduleRole('plant', u) !== null;
 
 /** The rights of the rules before 0.21.0 (entries without owning teams and not Restricted); read once per scope. */
 interface Legacy {
@@ -104,7 +100,7 @@ const openEntry = (kind: PlantCatalogueKind, id: string): boolean => !owningTeam
  */
 export function catalogueEntryAccess(u: AuthUser | null, kind: PlantCatalogueKind, id: string, legacy?: Legacy): CatalogueDecision {
   if (!u || !usesModule(u, 'plant')) return { permissions: [], reasons: [] };
-  const d = decide(u, { kind, id, acl: [] }, ALL, DEFAULT_PLANT_CATALOGUE, 'view', { shares: PLANT_CATALOGUE_SHARES });
+  const d = decide(u, { kind, id, acl: [] }, ALL, DEFAULT_PLANT_CATALOGUE, 'view', { shares: PLANT_CATALOGUE_SHARES, module: { id: 'plant', kind } });
   if (!openEntry(kind, id) || d.reasons.some((r) => r.source === 'admin')) return { permissions: normalise(d.permissions), reasons: d.reasons };
   // the whole instance's entry: exactly as before – every reader of the registry sees it, who may add sites manages it,
   // who proposes on some site proposes; its shares add (decide() gave their reasons)
@@ -114,7 +110,7 @@ export function catalogueEntryAccess(u: AuthUser | null, kind: PlantCatalogueKin
   if (l.propose()) rights.add('propose');
   if (l.manage()) for (const x of ALL) rights.add(x);
   const reasons = d.reasons
-    .map((r) => (r.source === 'instanceRole' ? { ...r, permissions: r.permissions.filter((x) => rights.has(x)) } : r))
+    .map((r) => (r.source === 'instanceRole' || r.source === 'moduleRole' ? { ...r, permissions: r.permissions.filter((x) => rights.has(x)) } : r))
     .filter((r) => r.permissions.length);
   if (rights.has('propose') && !reasons.some((r) => r.permissions.includes('propose')) && u.roles[0])
     reasons.push({ source: 'instanceRole', role: u.roles.find((r) => r !== 'status') ?? u.roles[0], permissions: ['propose'] });

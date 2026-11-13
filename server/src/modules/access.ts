@@ -1,12 +1,15 @@
 import {
   MODULES,
   accessModule,
-  isModuleId,
+  managerSetting,
   moduleDef,
   moduleOfRoute,
   moduleRestrictable,
+  moduleRoleAtLeast,
+  moduleRolesOf,
   type ModuleAccessMode,
   type ModuleId,
+  type ModuleRole,
   type ModuleUse,
   type ModuleUseReason,
   type ModuleUseState,
@@ -14,8 +17,18 @@ import {
 import { db } from '../db.js';
 import { HttpError, parseJson } from '../util.js';
 import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
-import { matches } from '../auth/permissions.js';
 import { moduleAccessMode, moduleEnabled } from './registry.js';
+import {
+  alwaysUsesModules,
+  forgetModulePolicy,
+  grantReason,
+  grantSubjects,
+  grantsOf,
+  modulePolicy,
+  moduleRoleOf,
+  usesByPolicy,
+  type ModulePolicy,
+} from './grants.js';
 
 export { moduleAccessMode };
 
@@ -34,44 +47,16 @@ export { moduleAccessMode };
 /** Who is asked: a signed-in person, a token's owner, a recipient (roles, teams and former names decide). */
 export type ModuleUser = Pick<AuthUser, 'id' | 'username' | 'roles' | 'teams'>;
 
-/** Administrators switch modules and give access; auditors' evidence must not depend on who was given a module. */
-export const alwaysUsesModules = (u: Pick<AuthUser, 'roles'>): boolean => u.roles.includes('admin') || u.roles.includes('auditor');
-
-/** The subjects (`team:<name>`, `user:<name>`) that use a restricted module, as stored (lower case). */
-export function moduleGrantSubjects(id: ModuleId): string[] {
-  return db()
-    .all<{ subject: string }>('SELECT subject FROM module_grants WHERE module_id = ? ORDER BY subject', id)
-    .map((r) => r.subject);
-}
-
-/** The restricted modules with their subjects, in one read (for filtering many items at once). */
-export function restrictedModules(): Map<ModuleId, string[]> {
-  const out = new Map<ModuleId, string[]>();
-  for (const r of db().all<{ module_id: string }>("SELECT module_id FROM module_access WHERE mode = 'selected'"))
-    if (isModuleId(r.module_id) && moduleRestrictable(r.module_id)) out.set(r.module_id, []);
-  if (!out.size) return out;
-  for (const g of db().all<{ module_id: string; subject: string }>('SELECT module_id, subject FROM module_grants'))
-    out.get(g.module_id as ModuleId)?.push(g.subject);
-  return out;
-}
-
-/** restrictedModules(), read once per request or job run (a change of access forgets it: forgetModuleAccess). */
-function restrictedNow(): Map<ModuleId, string[]> {
-  const store = currentStore();
-  if (!store) return restrictedModules();
-  return (store.moduleAccess ??= restrictedModules()) as Map<ModuleId, string[]>;
-}
+export { alwaysUsesModules };
 
 /** After a change of module access within a request: read it again. */
-export function forgetModuleAccess(): void {
-  const store = currentStore();
-  if (store) store.moduleAccess = undefined;
-}
+export const forgetModuleAccess = forgetModulePolicy;
 
 /** Whether `u` uses a module given its mode and subjects (also for the preview of a change). */
 export function usesWith(u: ModuleUser, mode: ModuleAccessMode, subjects: readonly string[]): boolean {
   if (mode !== 'selected' || alwaysUsesModules(u)) return true;
-  return subjects.some((s) => matches(u as AuthUser, s));
+  const mine = grantSubjects(u);
+  return subjects.some((s) => mine.has(s.trim().toLowerCase()));
 }
 
 /**
@@ -82,52 +67,111 @@ export function usesWith(u: ModuleUser, mode: ModuleAccessMode, subjects: readon
  * (moduleOfItemKind) to someone who does not use it is refused – subjectUsesModule() for the share's subject.
  */
 export function usesModule(user: ModuleUser | null | undefined, id: ModuleId): boolean {
-  if (!user) return true;
-  const gate = accessModule(id);
-  if (!moduleRestrictable(gate) || alwaysUsesModules(user)) return true;
-  const subjects = restrictedNow().get(gate);
-  return !subjects || usesWith(user, 'selected', subjects);
+  return usesByPolicy(user, id);
 }
 
 /** The modules `user` does not use (one read; the map follows the plant registry). */
 export function modulesNotUsedBy(user: ModuleUser | null | undefined): Set<ModuleId> {
   const out = new Set<ModuleId>();
   if (!user || alwaysUsesModules(user)) return out;
-  const restricted = restrictedNow();
-  if (!restricted.size) return out;
-  for (const m of MODULES) {
-    const subjects = restricted.get(accessModule(m.id));
-    if (subjects && !usesWith(user, 'selected', subjects)) out.add(m.id);
-  }
+  const policy = modulePolicy();
+  if (!policy.restricted.size) return out;
+  for (const m of MODULES) if (!usesByPolicy(user, m.id, policy)) out.add(m.id);
   return out;
 }
 
 /**
  * Whether `user` uses module `id` and through what (ADR 0034 part 7): _Why do I have access?_, person access reviews and
- * the test sign-in name the module layer – everyone signed in, administrator, auditor, named on the list, or a team on
- * it. A module that follows another (the map) is answered for that one.
+ * the test sign-in name the module layer – everyone signed in, administrator, auditor, named on the list, a team on
+ * it, or single sign-on – and, for a module that declares roles, their module role and where it comes from. A module
+ * that follows another (the map) is answered for that one.
  */
 export function moduleUseOf(user: ModuleUser, id: ModuleId): ModuleUse {
+  const policy = modulePolicy();
   const gate = accessModule(id);
-  const subjects = moduleRestrictable(gate) ? restrictedNow().get(gate) : undefined;
+  const restricted = moduleRestrictable(gate) && policy.restricted.has(gate);
   const through: ModuleUseReason[] = [];
   if (user.roles.includes('admin')) through.push({ source: 'admin' });
   if (user.roles.includes('auditor')) through.push({ source: 'auditor' });
-  if (!subjects) through.push({ source: 'everyone' });
+  if (!restricted) through.push({ source: 'everyone' });
   else
-    for (const s of subjects) {
-      if (!matches(user as AuthUser, s)) continue;
-      const m = /^(user|team):(.+)$/i.exec(s);
-      if (m?.[1]!.toLowerCase() === 'team') through.push({ source: 'team', team: m[2]! });
-      else if (m) through.push({ source: 'user' });
+    for (const g of grantsOf(user, gate, policy)) {
+      const r = grantReason(g, 'viewer');
+      through.push(r.source === 'team' ? { source: 'team', team: r.team! } : { source: r.source === 'sso' ? 'sso' : 'user' });
     }
-  return { module: id, enabled: moduleEnabled(id), restricted: !!subjects, uses: through.length > 0, through };
+  const out: ModuleUse = { module: id, enabled: moduleEnabled(id), restricted, uses: through.length > 0, through };
+  if (moduleRolesOf(id).length) {
+    const r = moduleRoleOf(user, id, policy);
+    out.role = r.role;
+    out.roleThrough = r.through;
+  }
+  return out;
 }
 
 /** The restricted modules (each once: the map follows the plant registry) and whether `user` uses each. */
 export function restrictedModuleUses(user: ModuleUser): ModuleUse[] {
-  const restricted = restrictedNow();
-  return MODULES.filter((m) => accessModule(m.id) === m.id && restricted.has(m.id)).map((m) => moduleUseOf(user, m.id));
+  const policy = modulePolicy();
+  return MODULES.filter((m) => accessModule(m.id) === m.id && policy.restricted.has(m.id)).map((m) => moduleUseOf(user, m.id));
+}
+
+/**
+ * The module layer of a person access review (ADR 0034 part 7): the restricted modules, and the modules in which a
+ * module role is granted to the person (directly, through a team or single sign-on) – each once, with their role and
+ * where it comes from. What core roles give by default follows from the roles the review shows anyway.
+ */
+export function moduleUsesForReview(user: ModuleUser): ModuleUse[] {
+  const policy = modulePolicy();
+  return MODULES.filter(
+    (m) => accessModule(m.id) === m.id && (policy.restricted.has(m.id) || (moduleRolesOf(m.id).length > 0 && moduleRoleOf(user, m.id, policy).granted !== null)),
+  ).map((m) => moduleUseOf(user, m.id));
+}
+
+/**
+ * The test sign-in (ADR 0034 part 6): the restricted modules and the modules the mappings give a role in, as the person
+ * would use them with these roles, teams and module roles (synchronised grants as they would be after the sign-in).
+ */
+export function previewModuleUses(user: ModuleUser, moduleRoles: readonly { module: ModuleId; role: ModuleRole }[]): ModuleUse[] {
+  const now = modulePolicy();
+  const subject = `user:${user.username.toLowerCase()}`;
+  const grants = new Map(now.grants);
+  for (const [id, rows] of now.grants) grants.set(id, rows.filter((g) => !(g.source === 'sso' && g.subject.trim().toLowerCase() === subject)));
+  for (const m of moduleRoles) grants.set(m.module, [...(grants.get(m.module) ?? []), { module: m.module, subject, role: m.role, source: 'sso' }]);
+  const store = currentStore();
+  const policy: ModulePolicy = { restricted: now.restricted, grants };
+  const run = () =>
+    MODULES.filter((m) => accessModule(m.id) === m.id && (policy.restricted.has(m.id) || moduleRoles.some((r) => r.module === m.id))).map((m) =>
+      moduleUseOf(user, m.id),
+    );
+  if (!store) return run();
+  const saved = store.moduleAccess;
+  store.moduleAccess = policy;
+  try {
+    return run();
+  } finally {
+    store.moduleAccess = saved;
+  }
+}
+
+/** The module role of the current person (or `user`) in a module: null when it declares none or they do not use it. */
+export function moduleRole(id: ModuleId, user: ModuleUser | null | undefined = currentUser()): ModuleRole | null {
+  return moduleRoleOf(user, id).role;
+}
+
+/**
+ * Whether `user` may change a module's setting `key` (ADR 0034 decision 11): administrators always; otherwise only a
+ * **granted** manager role of a module that declares the setting as content (`managerSettings`) – a manager role that
+ * comes from core roles gives the module's items, not its settings, so nobody gained settings at the upgrade.
+ */
+export function mayChangeModuleSetting(id: ModuleId, key: string, user: ModuleUser | null | undefined = currentUser()): boolean {
+  if (!user) return false;
+  if (user.roles.includes('admin')) return true;
+  return managerSetting(id, key) && moduleRoleAtLeast(moduleRoleOf(user, id).granted, 'manager');
+}
+
+/** The modules whose manager settings `user` may change (Capabilities.moduleSettings). */
+export function moduleSettingsOf(user: ModuleUser | null | undefined): ModuleId[] {
+  if (!user) return [];
+  return MODULES.filter((m) => (m.access?.managerSettings ?? []).some((k) => mayChangeModuleSetting(m.id, k, user))).map((m) => m.id);
 }
 
 /** A module is on and the current person (if any) uses it: what request-scoped surfaces ask instead of moduleEnabled. */
@@ -172,7 +216,7 @@ export function subjectUsesModule(subject: string, id: ModuleId): boolean {
   const m = /^(user|team):(.+)$/i.exec(subject.trim());
   if (!m) return false;
   const name = m[2]!.trim().toLowerCase();
-  if (m[1]!.toLowerCase() === 'team') return moduleGrantSubjects(gate).some((s) => s.toLowerCase() === `team:${name}`);
+  if (m[1]!.toLowerCase() === 'team') return (modulePolicy().grants.get(gate) ?? []).some((g) => g.subject.toLowerCase() === `team:${name}`);
   const row = db().get<{ id: string; username: string; roles: string }>('SELECT id, username, roles FROM users WHERE lower(username) = ?', name);
   if (!row) return false;
   const teams = db()

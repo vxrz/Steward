@@ -1,4 +1,4 @@
-import type { ModuleId, ModuleStates, ModuleUse, ModuleUseState } from './modules.js';
+import type { ModuleGrantSource, ModuleId, ModuleRole, ModuleStates, ModuleUse, ModuleUseState } from './modules.js';
 import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
@@ -35,8 +35,23 @@ export const ROLE_INFO: Record<Role, string> = {
   auditor: 'Read-only access to all processes, runs, protocols and the audit log',
   viewer: 'Read-only access to processes and their runs (unless restricted)',
   status: 'Only the service status pages – none of the other pages, processes, platforms or data',
-  plant: 'Sees only the plant registry (sites and assets, unless a site is restricted) – none of the other pages, processes, services or documents',
+  plant:
+    'Deprecated since 0.23.0: the module role contributor of the plant registry (Users → module roles). Still accepted for one release and turned into that grant',
 };
+
+/**
+ * The instance role "plant" (Plant viewer, #218) became the plant registry's module role contributor (ADR 0034 part 5,
+ * 0.23.0). The API still accepts it for one release and turns it into that grant; it is no longer stored or offered.
+ */
+export const DEPRECATED_ROLES: readonly Role[] = ['plant'];
+
+/** A module role of one user (0.23.0, ADR 0034 part 4): set in the user form, or synchronised by single sign-on. */
+export interface UserModuleRole {
+  module: ModuleId;
+  role: ModuleRole;
+  /** admin: given by an administrator; sso: synchronised at each sign-in (read-only in the user form) */
+  source: ModuleGrantSource;
+}
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
 export type ProcessPermission = (typeof PROCESS_PERMISSIONS)[number];
@@ -72,6 +87,11 @@ export interface UserInfo {
   profile: UserProfileValue[];
   /** Fields the single sign-on provider keeps up to date at every sign-in: not editable in Steward */
   managedFields: ('displayName' | 'firstName' | 'lastName' | 'email')[];
+  /**
+   * The module roles granted to the person themselves (0.23.0, ADR 0034): not those of their teams or core roles – GET
+   * /api/access/explain and the person access review name every source. Only in the administrators' user lists.
+   */
+  moduleRoles?: UserModuleRole[];
   /** When an administrator replaced the person's data by a pseudonym (0.11.0, docs/PRIVACY.md): for good */
   pseudonymisedAt?: string | null;
 }
@@ -154,6 +174,11 @@ export interface SsoRoleMapping {
   teams: string[];
   /** Roles the user gets in these teams (#131), beside their instance roles */
   teamRoles?: Role[];
+  /**
+   * Module roles the user gets (0.23.0, ADR 0034 part 6), synchronised at each sign-in like roles – a shortcut beside
+   * module access through the mapped teams. The deprecated role "plant" in `roles` gives the plant registry's contributor.
+   */
+  moduleRoles?: { module: ModuleId; role: ModuleRole }[];
 }
 
 export interface SsoProvider {
@@ -412,9 +437,15 @@ export interface AccessReason {
    * share (a share of the resource, ADR 0033) | implied (a share implied by an owner or responsible field: computed, not
    * stored – ADR 0033 part 2)
    */
-  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share' | 'implied';
+  source: 'admin' | 'owner' | 'auditor' | 'instanceRole' | 'teamRole' | 'accessList' | 'named' | 'share' | 'implied' | 'moduleRole';
   /** The role, the team, or the access list or share subject the right comes from */
   role?: Role;
+  /**
+   * source moduleRole (0.23.0, ADR 0034 part 4): a module role granted to the person (`subject` user:…), a team they are
+   * in (`subject` team:…) or through single sign-on (`sso`) – it counts like an instance role
+   */
+  moduleRole?: ModuleRole;
+  sso?: boolean;
   team?: string;
   subject?: string;
   /** source named or implied: named as an owner or as a responsible (ticket references) */
@@ -461,8 +492,15 @@ export interface Capabilities {
   plant?: boolean;
   /** With the module on: the user may manage a site or add one (the sidebar's Import). Missing means false. */
   plantManage?: boolean;
-  /** A plant viewer: role "plant" and no other working role – the web app shows the Plant area and the profile only. Missing means false. */
+  /**
+   * A plant viewer: a module role of the plant registry (or the deprecated role "plant") and no other working role – the
+   * web app shows the Plant area and the profile only. Missing means false.
+   */
   plantOnly?: boolean;
+  /** The person's module role per module that declares roles and that they use (0.23.0, ADR 0034). Only in GET /auth/status. */
+  moduleRoles?: Partial<Record<ModuleId, ModuleRole>>;
+  /** The modules whose manager settings the person may change (a granted manager role, or an administrator). Only in GET /auth/status. */
+  moduleSettings?: ModuleId[];
   /**
    * The modules (0.11.0, ADR 0016) and whether each is on for the person; a module missing here is on. False also for a
    * module the person does not use (ADR 0034): the web app hides it the same way. Only in GET /auth/status.
