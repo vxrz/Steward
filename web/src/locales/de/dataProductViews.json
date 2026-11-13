@@ -169,7 +169,8 @@
     "more_other": "{{names}} und {{count}} weitere",
     "count_one": "{{count}} Schritt",
     "count_other": "{{count}} Schritte",
-    "deprecated": "Abgekündigt"
+    "deprecated": "Abgekündigt",
+    "deprecatedPort": "{{name}} (abgekündigt)"
   },
   "health": {
     "up": "OK",

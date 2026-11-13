@@ -250,6 +250,7 @@ describe('the product map', () => {
       ],
       dependencies: [
         { from: 'orders', to: 'mart', port: 'orders v2', deprecated: false },
+        { from: 'orders', to: 'mart', port: 'orders v1', deprecated: true },
         { from: { hidden: 'dpr_secret' }, to: 'orders', port: 'secret port', deprecated: true },
         { from: 'mart', to: 'unrelated', port: 'x', deprecated: false },
       ],
@@ -264,7 +265,13 @@ describe('the product map', () => {
     expect(JSON.stringify(g)).not.toContain('dpr_secret');
     expect(JSON.stringify(g)).not.toContain('secret port');
     expect(g.edges.find((e) => e.to === 'orders')).toMatchObject({ from: 'hidden-1', deprecated: true, labels: [] });
-    expect(g.edges.find((e) => e.id === 'orders>mart')).toMatchObject({ labels: ['orders v2'] });
+    // the deprecated port is named as such, the current one on the same way is not
+    expect(g.edges.find((e) => e.id === 'orders>mart')).toMatchObject({
+      labels: ['orders v2', 'orders v1'],
+      deprecated: true,
+      deprecatedLabels: ['orders v1'],
+    });
+    expect(g.edges.find((e) => e.to === 'orders')?.deprecatedLabels).toBeUndefined();
     // a dependency between two products outside the filters is not drawn
     expect(g.nodes.some((n) => n.id === 'unrelated')).toBe(false);
     expect(g.hidden.products).toBe(1);

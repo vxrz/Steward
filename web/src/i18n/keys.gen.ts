@@ -4393,6 +4393,7 @@ export interface Resources {
     'edge.count_one': string;
     'edge.count_other': string;
     'edge.deprecated': string;
+    'edge.deprecatedPort': string;
     'health.up': string;
     'health.degraded': string;
     'health.down': string;
