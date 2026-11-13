@@ -768,8 +768,18 @@
         "retention": "Retention",
         "deletion": "Deletion rule",
         "owner": "Data owner",
-        "flags": "Regulatory flags"
+        "flags": "Regulatory flags",
+        "transfers": "Transfers to third countries (Art. 30(1)(e))",
+        "toms": "Technical and organisational measures (Art. 30(1)(g))"
       },
+      "safeguard": {
+        "adequacy": "adequacy decision (Art. 45)",
+        "scc": "standard contractual clauses (Art. 46(2)(c))",
+        "bcr": "binding corporate rules (Art. 47)",
+        "derogation": "derogation (Art. 49)",
+        "other": "other safeguard"
+      },
+      "truncated": "The list is cut at {{limit}} data objects: narrow it with the filters to see the rest.",
       "personal": {
         "none": "none",
         "personal": "personal",

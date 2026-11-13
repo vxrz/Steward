@@ -14,6 +14,7 @@ import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from
 import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam, useRetentionText } from './parts';
 import { ActualConsumers } from './governance/ActualConsumers';
 import { RequestAccessButton } from './governance/AccessRequests';
+import { PeekButton, PortPreviewButton } from './semantic/Previews';
 
 const enc = encodeURIComponent;
 
@@ -62,6 +63,11 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
       new Map<string, PickedElement>(
         pagesOf(members.data).map((m) => [m.elementId, { id: m.elementId, label: m.element.qualifiedName, visible: m.element.visible }]),
       ),
+    [members.data],
+  );
+  // 0.25.0 (ADR 0037 part 6): the bound Kafka topics offer the peek
+  const topics = useMemo(
+    () => new Set(pagesOf(members.data).flatMap((m) => (m.element.kind === 'kafka.topic' && m.element.visible ? [m.elementId] : []))),
     [members.data],
   );
   const done = () => {
@@ -116,6 +122,7 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
                 environment={environment}
                 names={names}
                 canEdit={canEdit}
+                topics={topics}
                 onEdit={() => setEditing({ kind: 'port', direction, port: x })}
                 onDelete={() => void remove(x)}
                 onBind={() => setEditing({ kind: 'binding', port: x })}
@@ -160,6 +167,7 @@ function PortCard({
   port,
   environment,
   names,
+  topics,
   canEdit,
   onEdit,
   onDelete,
@@ -171,6 +179,7 @@ function PortCard({
   port: DataPort;
   environment: string;
   names: Map<string, PickedElement>;
+  topics: ReadonlySet<string>;
   canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -330,9 +339,12 @@ function PortCard({
                         <span key={id}>
                           {i > 0 && ', '}
                           {n?.visible !== false && n ? (
-                            <Anchor component={Link} to={`/data-elements/${enc(id)}`} size="sm" className="mono">
-                              {n.label}
-                            </Anchor>
+                            <>
+                              <Anchor component={Link} to={`/data-elements/${enc(id)}`} size="sm" className="mono">
+                                {n.label}
+                              </Anchor>
+                              {topics.has(id) && <PeekButton elementId={id} name={n.label} />}
+                            </>
                           ) : (
                             <Text span size="sm" className="mono">
                               {n?.label ?? t('ports.anElement')}
@@ -385,6 +397,8 @@ function PortCard({
             {/* 0.24.0 (ADR 0036 phase 2): who really reads, and asking for access */}
             {binding && <ActualConsumers p={p} port={port} environment={environment} />}
             <RequestAccessButton p={p} port={port} />
+            {/* 0.25.0 (ADR 0037 part 6): contract examples and recorded responses, no platform read */}
+            <PortPreviewButton productId={p.id} port={port} environment={environment} />
           </div>
         )}
       </Stack>

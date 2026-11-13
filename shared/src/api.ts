@@ -2157,7 +2157,24 @@ export interface McpDataProductsProposal {
   /** Entries left out above: they name what the reader may not see */
   hidden: number;
   /** What applying it did (counts), once applied */
-  result: { add: number; change: number } | null;
+  result: { add: number; change: number; semanticVersions?: number } | null;
+  /**
+   * 0.25.0 (ADR 0037 part 4): semantic models of products, each saved as a new version when applied. A product the
+   * reader may not see is null (and its document not shown).
+   */
+  semanticModels?: {
+    product: { id: string | null; key: string; name: string } | null;
+    bytes: number;
+    sha256: string;
+    note: string;
+    lintFindings: number;
+    revision: string;
+    /** The newest version of the product's model (null: none yet) */
+    currentVersion: number | null;
+    /** The same text as the newest version: applying saves nothing for it */
+    unchanged: boolean;
+    document: string;
+  }[];
 }
 
 /** A control catalogue proposed by an AI assistant (#74), as the reviewer sees it: compared with the catalogue of that key. */

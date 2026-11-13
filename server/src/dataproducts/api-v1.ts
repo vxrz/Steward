@@ -20,8 +20,11 @@ import {
   DataProductOdpsQuery,
   DataProductOpenLineageQuery,
   DataProductV1ListQuery,
+  DataSemanticModelV1Query,
+  DataSemanticVersionsV1Query,
 } from './api-schemas.js';
 import { openLineageExport } from './openlineage-export.js';
+import { semanticExport, semanticModelView, validAnswer } from './semantic.js';
 import YAML from 'yaml';
 import { SemanticModelQuery, ossieDocumentSchema } from '../api/v1/schemas.js';
 import type { OssieVersion } from '../semantic/ossie.js';
@@ -439,4 +442,60 @@ export function dataProductApiRoutes(get: Get): void {
       return { ...o, domain: ref(o.domain), products: { items: o.products.items.map(ref), hidden: o.products.hidden } };
     },
   );
+  // 0.25.0 (ADR 0037 part 4): the product's semantic model – the governed copy, as stored, with its versions and sign-offs
+  get(
+    '/data-products/:productId/semantic-model',
+    {
+      operationId: 'getDataProductSemanticModel',
+      tag: TAG,
+      summary: 'Get the semantic model of a data product',
+      description: `The product's Apache Ossie semantic model as it was stored (YAML or JSON, as written): the newest version, a given one (?version=) or the one signed off and valid on a day (?date=); with ?environment= the datasets' sources are rewritten to the product's elements of that environment. The headers x-steward-semantic-version and x-steward-sha256 name the version (the SHA-256 of the stored text). 404 when the product has none. See docs/DATA-PRODUCTS.md#semantic-models. ${MODULE}`,
+      params: { productId: 'Data product id' },
+      query: DataSemanticModelV1Query,
+      response: {
+        content: {
+          'application/yaml': { schema: { type: 'string', description: 'The document as stored (YAML)' } },
+          'application/json': { schema: { type: 'object', additionalProperties: true, description: 'The document as stored (JSON)' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = (req.params as { productId: string }).productId;
+      const q = req.query as z.infer<typeof DataSemanticModelV1Query>;
+      const x = semanticFound(() => semanticExport(id, q), id);
+      reply.header('x-steward-semantic-version', String(x.version.version));
+      reply.header('x-steward-sha256', x.version.sha256);
+      if (x.notRewritten) reply.header('x-steward-sources-not-rewritten', String(x.notRewritten));
+      return reply.type(x.contentType).send(x.body);
+    },
+  );
+  get(
+    '/data-products/:productId/semantic-model/versions',
+    {
+      operationId: 'listDataProductSemanticModelVersions',
+      tag: TAG,
+      summary: 'List the versions of a data product’s semantic model',
+      description: `Every saved version of the product's semantic model (who, when, SHA-256) with its sign-off; the version valid today; with ?date= which version was signed off and valid on that day, and who approved it. ${MODULE}`,
+      params: { productId: 'Data product id' },
+      query: DataSemanticVersionsV1Query,
+      response: { $ref: 'DataSemanticVersions#' },
+    },
+    async (req) => {
+      const id = (req.params as { productId: string }).productId;
+      const q = req.query as z.infer<typeof DataSemanticVersionsV1Query>;
+      const v = found(() => semanticModelView(id), `Data product ${id}`);
+      return { productId: v.productId, versions: v.versions, validToday: v.validToday, validOn: q.date ? validAnswer(v.productId, q.date) : null };
+    },
+  );
+}
+
+/** A semantic model the product does not have answers 404 as the API's problem too. */
+function semanticFound<T>(f: () => T, id: string): T {
+  try {
+    return f();
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode === 404)
+      throw notFound(e.code === 'DATA_SEMANTIC_MODEL_NOT_FOUND' ? `The semantic model of data product ${id}` : `Data product ${id}`);
+    throw e;
+  }
 }

@@ -281,7 +281,36 @@ export const DataLineage = z.object({
   hidden: z.object({ elements: z.number().int(), products: z.number().int() }).describe('Counted, never named'),
 });
 
+const SemanticVersion = z.object({
+  version: z.number().int(),
+  sha256: z.string().describe('SHA-256 of the document as stored'),
+  size: z.number().int().describe('Bytes'),
+  format: z.enum(['yaml', 'json']),
+  ossieVersion: z.string().nullable().describe('The Ossie revision the document names, when Steward knows it'),
+  note: z.string(),
+  origin: z.enum(['page', 'draft', 'proposal', 'api']),
+  lintFindings: z.number().int().describe('Findings of the lint against the official schema when it was saved (they never block saving)'),
+  createdBy: z.string(),
+  createdAt: ts(),
+  signOff: z
+    .object({ by: z.string(), at: ts(), validFrom: z.string().describe('The day from which it is the valid version'), note: z.string(), sha256: z.string() })
+    .nullable()
+    .describe('Who signed the version off and from when it is valid; null: not signed off'),
+});
+
+/** 0.25.0 (ADR 0037 part 4): the versions of a product's semantic model with their sign-offs. */
+export const DataSemanticVersions = z.object({
+  productId: z.string(),
+  versions: z.array(SemanticVersion).describe('Newest first'),
+  validToday: SemanticVersion.nullable().describe('The signed-off version valid today'),
+  validOn: z
+    .object({ date: z.string(), valid: SemanticVersion.nullable(), latest: SemanticVersion.nullable() })
+    .nullable()
+    .describe('With ?date=: the version signed off and valid that day (who approved it), and the newest saved by then'),
+});
+
 export const DATA_PRODUCT_COMPONENTS: Record<string, ZodTypeAny> = {
+  DataSemanticVersions,
   DataProductEntry,
   DataProductDetail,
   DataElementEntry,
@@ -332,4 +361,23 @@ export const DataProductLineageQuery = z.object({
   environment: z.string().max(60).optional().describe('The pipeline’s environment (default: production)'),
   element: id.optional().describe('An element of the product: its lineage instead of the product’s pipeline'),
   depth: z.number().int().min(1).max(4).default(2).describe('Steps up and down around the element (1–4)'),
+});
+
+/** 0.25.0 (ADR 0037 part 4): which version of a product's semantic model, and the environment to rewrite its sources to. */
+export const DataSemanticModelV1Query = z.object({
+  version: z.number().int().min(1).max(100_000).optional().describe('A version (default: the newest)'),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('The version signed off and valid on that day (YYYY-MM-DD) instead'),
+  environment: z.string().max(60).optional().describe('Rewrite the datasets’ sources to the product’s elements of this environment'),
+});
+
+export const DataSemanticVersionsV1Query = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Also answer which version was valid on that day (YYYY-MM-DD) and who signed it off'),
 });

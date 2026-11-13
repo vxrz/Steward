@@ -90,10 +90,11 @@ The example _Kafka – Schema change review_ takes the subject, the proposed sch
 For troubleshooting, a platform manager can read the newest messages of a topic: the eye icon on a Kafka topic component.
 
 - **Off by default.** The platform's variable `peek = on` turns it on, per platform.
-- **Platform managers only** (the platform's _manage_ right), never API tokens without it.
+- **Platform managers only** (the platform's _manage_ right), and **only in a signed-in session** (since 0.25.0): an API token – even one of a platform manager – is refused (`SESSION_REQUIRED`), and the peek is never offered over MCP or `/api/v1`.
 - **At most 5 messages of 4 KB.** Steward reads with a throw-away consumer group (`steward-peek-…`) that commits nothing.
 - **Sensitive fields hidden**: JSON fields whose names look like secrets or personal data (password, token, key, e-mail, phone, IBAN, card, name, address, birth date …) become `***`; e-mail addresses, IBANs and card numbers in text are masked too. Binary messages (e.g. Avro) are shown as their size only.
 - **Audited**: every read is recorded as `kafka.messages_read` with the topic and the offsets read.
+- **On data products** (0.25.0, [DATA-PRODUCTS.md](DATA-PRODUCTS.md#previews)): a `kafka.topic` element – its page, and a topic bound to a port – offers the same peek with the same rules. It **also hides the fields that the data contracts bound with the topic mark personal** (`customProperties: [{ property: personalData, value: true }]` or a personal `classification`), whether or not you may see those contracts; the audit entry names the element and counts the fields masked by contract. Like the peek on a topic component, only in a signed-in session.
 
 ## Kafka Connect and Debezium
 
