@@ -24,7 +24,7 @@ import {
  */
 
 const ts = () => z.string().describe('ISO 8601 timestamp (UTC)');
-const limit = z.number().int().min(1).max(100).default(50).describe('Page size (1–100, default 50)');
+const limit = z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)');
 const cursor = z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)');
 const id = z.string().max(200);
 const HEALTH = ['up', 'degraded', 'down', 'blocked', 'unknown', 'maintenance', 'off', 'noData'] as const;
