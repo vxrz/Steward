@@ -88,6 +88,28 @@ function ownersOf(all: Person[], product: ProductRow): Person[] {
 
 // ---------- deprecated ----------
 
+/** Deprecation notices held back while an import runs (holdingNotices); null: sent at once. */
+let held: (() => void)[] | null = null;
+
+/**
+ * Runs `fn` (synchronous – a transaction) holding back the deprecation notices it causes: they are sent after it
+ * returns when `send` is true, and dropped when it throws or `send` is false – an import's preview runs the writes in a
+ * transaction that is rolled back, and a refused import rolls back too, so neither may tell anyone.
+ */
+export function holdingNotices<T>(send: boolean, fn: () => T): T {
+  const outer = held;
+  const mine: (() => void)[] = [];
+  held = mine;
+  let result: T;
+  try {
+    result = fn();
+  } finally {
+    held = outer;
+  }
+  if (send) for (const f of mine) outer ? outer.push(f) : f();
+  return result;
+}
+
 /**
  * The lifecycle hook of products and ports (service.changeLifecycle, ports.updatePort): becoming deprecated – or a new
  * sunset date while deprecated – tells the consumers once; leaving deprecated (but for retired) forgets that it was
@@ -98,6 +120,10 @@ export function onLifecycleChanged(
   id: string,
   change: { from: string; to: string; sunsetDate: string | null; sunsetBefore?: string | null },
 ): number {
+  if (held) {
+    held.push(() => onLifecycleChanged(kind, id, change));
+    return 0;
+  }
   try {
     if (change.to !== 'deprecated') {
       if (change.from === 'deprecated' && change.to !== 'retired') forget(kind, id, 'deprecated:');

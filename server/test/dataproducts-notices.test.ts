@@ -118,6 +118,29 @@ describe('dataproduct.deprecated', () => {
     expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(1);
   });
 
+  it('is held back while an import runs: dropped for its preview and a refused import, sent once it is committed', async () => {
+    const { holdingNotices, onLifecycleChanged, noticesOf } = await import('../src/dataproducts/notices.js');
+    const { db } = await import('../src/db.js');
+    db().run("DELETE FROM notifications WHERE event = 'dataproduct.deprecated'");
+    db().run('DELETE FROM dp_notices WHERE item_id = ?', orders);
+    const change = { from: 'active', to: 'deprecated', sunsetDate: '2027-12-31' };
+    // the preview: nothing told, nothing remembered
+    expect(holdingNotices(false, () => onLifecycleChanged('product', orders, change))).toBe(0);
+    // a refused import: the transaction throws, nothing told
+    expect(() =>
+      holdingNotices(true, () => {
+        onLifecycleChanged('product', orders, change);
+        throw new Error('refused');
+      }),
+    ).toThrow('refused');
+    expect(noticesOf('product', [orders])).toEqual([]);
+    expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(0);
+    // committed: told once
+    holdingNotices(true, () => onLifecycleChanged('product', orders, change));
+    expect(noticesOf('product', [orders]).map((n) => n.notice_key)).toEqual(['deprecated:2027-12-31']);
+    expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(1);
+  });
+
   it('tells nobody who may not see the deprecated product', async () => {
     const team = (await s.api('POST', '/teams', { name: 'Invented owner team', members: ['dana'] })).id;
     const secret = (await dana('POST', '/data-products', { key: 'notice-team-owned', name: 'Team owned product', owners: ['user:dana'] })).id;

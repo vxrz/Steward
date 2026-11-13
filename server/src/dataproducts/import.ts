@@ -17,6 +17,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, withoutAudit } from '../audit.js';
+import { holdingNotices } from './notices.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
 import { canViewCatalogue } from '../records/access.js';
@@ -1215,10 +1216,12 @@ export function previewImport(body: unknown): DataProductImportPreview {
   if (!plan.problems.length) {
     try {
       withoutAudit(() =>
-        db().tx(() => {
-          execute(plan, true);
-          throw new Rollback();
-        }),
+        holdingNotices(false, () =>
+          db().tx(() => {
+            execute(plan, true);
+            throw new Rollback();
+          }),
+        ),
       );
     } catch (e) {
       if (!(e instanceof Rollback)) throw e;
@@ -1272,15 +1275,18 @@ export function applyImport(body: unknown): DataProductImportResult {
   }
   if (input.fingerprint && input.fingerprint !== fingerprintOf(plan))
     throw new HttpError(409, 'The data products changed since the preview – check the preview again', 'DATA_PRODUCT_IMPORT_CHANGED');
-  db().tx(() => {
-    execute(plan, false);
-    const c = plan.counts;
-    audit({
-      action: 'dataproduct.imported',
-      entityType: 'data_product',
-      summary: `Data products imported (${plan.mode === 'add' ? 'add only' : 'add and update'}): ${c.add} added, ${c.change} changed, ${c.unchanged} unchanged, ${c.skip} skipped – ${plan.files.length} file(s)`,
-      details: { mode: plan.mode, counts: c, files: plan.files },
-    });
-  });
+  // deprecations it makes tell their consumers once it is committed (a refused import tells nobody)
+  holdingNotices(true, () =>
+    db().tx(() => {
+      execute(plan, false);
+      const c = plan.counts;
+      audit({
+        action: 'dataproduct.imported',
+        entityType: 'data_product',
+        summary: `Data products imported (${plan.mode === 'add' ? 'add only' : 'add and update'}): ${c.add} added, ${c.change} changed, ${c.unchanged} unchanged, ${c.skip} skipped – ${plan.files.length} file(s)`,
+        details: { mode: plan.mode, counts: c, files: plan.files },
+      });
+    }),
+  );
   return { mode: plan.mode, counts: plan.counts, warnings: [...new Set(plan.warnings)].slice(0, 100) };
 }
