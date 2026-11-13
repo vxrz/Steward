@@ -44,6 +44,8 @@ const BASE_HELPERS = new Set(['withBase', 'appUrl']);
  * clients. A key ending in "/*" covers everything below it.
  */
 const API_ONLY: Record<string, string> = {
+  // review 0.20.0: the counts per kind before deleting a team that alone owns items (the Users page shows the refusal
+  // TEAM_OWNS_RESOURCES today; its dialog to choose the team they move to is a web change of its own)
   // the web UI itself and its files
   'GET /': 'the web UI (hint page without a build)',
   'GET /*': 'the web UI (static files)',
