@@ -221,6 +221,9 @@ test.describe('the pictures of data products', () => {
     await expect(graph.locator('[data-testid^="graph-area-domain:"]', { hasText: `Sales ${s.token}` })).toBeVisible();
     await expect(graph.getByTestId(`graph-edge-${s.orders}>${s.mart}`)).toBeAttached();
     await expectAccessible(page, 'product map');
+    // the filters say what they are, as on the lists
+    for (const name of ['Domain', 'Type', 'Lifecycle', 'Environment'])
+      await expect(page.getByTestId('map-filters').getByText(name, { exact: true })).toBeVisible();
     // a filter is part of the address; what matches is drawn, its neighbours greyed
     await page.getByTestId('map-type').click();
     await page.getByRole('option', { name: 'Consumer-aligned' }).click();

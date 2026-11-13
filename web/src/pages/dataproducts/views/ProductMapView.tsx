@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Select, Stack, Text } from '@mantine/core';
+import { Group, Select, Stack, Text } from '@mantine/core';
 import { useSearchParams } from 'react-router-dom';
 import {
   DATA_PRODUCT_LIFECYCLES,
@@ -80,9 +80,8 @@ function MapGraph({ view, filters, onFilter }: { view: DataProductMapView; filte
       data={data}
       value={(filters[k] as string | null | undefined) ?? null}
       onChange={(v) => onFilter(k, v)}
-      placeholder={label}
-      aria-label={label}
-      w={160}
+      label={label}
+      w={{ base: '100%', xs: 180 }}
       data-testid={testId}
     />
   );
@@ -95,8 +94,8 @@ function MapGraph({ view, filters, onFilter }: { view: DataProductMapView; filte
       title={t('map.title')}
       testId="data-product-map-view"
       nodesTitle={t('map.products')}
-      filters={
-        <>
+      filterBar={
+        <Group gap="sm" align="flex-end" wrap="wrap" data-testid="map-filters">
           {select('domain', t('filters.domain'), domains, 'map-domain')}
           {select(
             'type',
@@ -116,7 +115,7 @@ function MapGraph({ view, filters, onFilter }: { view: DataProductMapView; filte
             view.options.environments.map((x) => ({ value: x, label: x })),
             'map-environment',
           )}
-        </>
+        </Group>
       }
       columns={[
         { key: 'domain', header: t('table.domain'), cell: (n) => <Text size="sm">{(n.domainId && domainName.get(n.domainId)) || '–'}</Text> },

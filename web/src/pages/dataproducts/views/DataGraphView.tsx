@@ -43,6 +43,8 @@ export interface DataGraphViewProps {
   waysTable?: ReactNode;
   /** Filters and the environment switch, beside the picture/table switch */
   filters?: ReactNode;
+  /** Filters with visible labels, in a row of their own below the toolbar (as on the lists) */
+  filterBar?: ReactNode;
   /** More entries of the legend */
   legend?: ReactNode;
   headerText?: (index: number) => string;
@@ -63,6 +65,7 @@ export function DataGraphView({
   columns,
   waysTable,
   filters,
+  filterBar,
   legend,
   headerText,
   nodesTitle,
@@ -128,6 +131,7 @@ export function DataGraphView({
       <ViewToolbar mode={mode} onMode={setMode} onExport={drawn.nodes.length ? exportSvg : null}>
         {filters}
       </ViewToolbar>
+      {filterBar}
       {notes.length > 0 && (
         <Alert variant="light" color="gray" icon={<IconInfoCircle size={16} />} p="xs" data-testid="graph-notes">
           <Stack gap={2}>
