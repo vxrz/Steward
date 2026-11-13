@@ -155,20 +155,35 @@ export const keyOfDataset = (d: Dataset, aliases: readonly DataLineageNamespaceA
  */
 export function elementsByNames(platformId: string, names: readonly string[]): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  const uniq = [...new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean))];
-  for (const part of chunks(uniq))
-    for (const r of db().all<{ id: string; name_norm: string; kind: string }>(
-      `SELECT id, name_norm, kind FROM dp_elements WHERE platform_id = ? AND name_norm IN (${marks(part.length)}) ORDER BY id`,
-      platformId,
-      ...part,
-    )) {
-      const list = out.get(r.name_norm) ?? [];
-      const container = r.kind.endsWith('.database') || r.kind.endsWith('.schema');
-      if (container) list.push(r.id);
-      else list.unshift(r.id);
-      out.set(r.name_norm, list);
-    }
+  for (const part of chunks(uniqueNames(names))) addByNames(out, platformId, part);
   return out;
+}
+
+/** The same for many names (a dbt manifest's 50,000): a turn of the event loop after every `every` chunks of 500. */
+export async function elementsByNamesStepwise(platformId: string, names: readonly string[], every = 4): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  let n = 0;
+  for (const part of chunks(uniqueNames(names))) {
+    addByNames(out, platformId, part);
+    if (++n % every === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  return out;
+}
+
+const uniqueNames = (names: readonly string[]) => [...new Set(names.map((n) => n.trim().toLowerCase()).filter(Boolean))];
+
+function addByNames(out: Map<string, string[]>, platformId: string, part: readonly string[]): void {
+  for (const r of db().all<{ id: string; name_norm: string; kind: string }>(
+    `SELECT id, name_norm, kind FROM dp_elements WHERE platform_id = ? AND name_norm IN (${marks(part.length)}) ORDER BY id`,
+    platformId,
+    ...part,
+  )) {
+    const list = out.get(r.name_norm) ?? [];
+    const container = r.kind.endsWith('.database') || r.kind.endsWith('.schema');
+    if (container) list.push(r.id);
+    else list.unshift(r.id);
+    out.set(r.name_norm, list);
+  }
 }
 
 // ---------- coverage by documented steps ----------

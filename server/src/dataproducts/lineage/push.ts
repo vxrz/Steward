@@ -10,6 +10,7 @@ import { addressAllowed } from '../../triggers/service.js';
 import { HttpError, nowIso, parseJson, sha256 } from '../../util.js';
 import { applyOlEvents, parseOlPush } from './openlineage.js';
 import { importManifest, importRunResults } from './dbt.js';
+import { DbtBodyError, openDbtFile, type DbtReader } from './dbt-parse.js';
 import { creatorMayPush, tokenExpired, type LineageTokenRow } from './sources.js';
 import { lineageSourceRow, type LineageSourceRow } from './store.js';
 
@@ -197,6 +198,20 @@ function parseBody(raw: Buffer | undefined, file: PushHead['file']): unknown {
   }
 }
 
+/** dbt imports going on, per source: the next one waits for the one before (as when they were one synchronous call). */
+const dbtImports = new Map<string, Promise<unknown>>();
+async function oneAtATime<T>(sourceId: string, fn: () => Promise<T>): Promise<T> {
+  const before = dbtImports.get(sourceId) ?? Promise.resolve();
+  // the import before failed for its own caller (who got the error): this one runs all the same
+  const mine = before.catch(() => undefined).then(fn);
+  dbtImports.set(sourceId, mine);
+  try {
+    return await mine;
+  } finally {
+    if (dbtImports.get(sourceId) === mine) dbtImports.delete(sourceId);
+  }
+}
+
 /** The source of a verified token, refused when it is paused or of the other kind. */
 function sourceFor(token: VerifiedLineageToken, file: PushHead['file']): LineageSourceRow {
   const src = lineageSourceRow(token.sourceId);
@@ -271,10 +286,25 @@ export async function importDbtFile(
     throw new HttpError(413, `The file is larger than ${Math.floor(pushLimit(file) / 1024)} KB`, 'BODY_TOO_LARGE_KIB', {
       maxKib: Math.floor(pushLimit(file) / 1024),
     });
-  const body = parseBody(raw, file);
-  const hash = sha256(raw ?? Buffer.alloc(0));
-  const counts: Record<string, number> =
-    file === 'manifest' ? (await importManifest(src.id, src.platform_id, body)).counts : (await importRunResults(src.id, body)).counts;
+  const platformId = src.platform_id;
+  // 0.25.0: parsed in a worker thread (dbt-parse.ts) and imported part by part; the files of one source one after the
+  // other (a manifest's tests are written in batches – its run results wait for them)
+  const { counts, hash } = await oneAtATime(src.id, async () => {
+    let reader: DbtReader;
+    try {
+      reader = await openDbtFile(file, raw ?? Buffer.alloc(0));
+    } catch (e) {
+      if (e instanceof DbtBodyError) throw notJson(e.message, file);
+      throw e;
+    }
+    try {
+      const c: Record<string, number> =
+        file === 'manifest' ? (await importManifest(src.id, platformId, reader)).counts : (await importRunResults(src.id, reader)).counts;
+      return { counts: c, hash: reader.sha256 };
+    } finally {
+      reader.close();
+    }
+  });
   const result: DataLineageImport = { file, at: nowIso(), by: by.actor, sha256: hash, counts };
   db().tx(() => {
     db().run(
