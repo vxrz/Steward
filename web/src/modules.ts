@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { AreaVisibility, Capabilities, ModuleId, VisibilityArea, VisibilitySummary } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod into the first download.
-import { moduleOfNav } from '../../shared/src/modules';
+import { moduleDef, moduleOfNav } from '../../shared/src/modules';
 import { useMe } from './auth';
 import { get } from './api';
 
@@ -27,6 +27,25 @@ export const navModuleOn = (caps: Capabilities, key: string): boolean => {
   const id = moduleOfNav(key);
   return !id || moduleOn(caps, id);
 };
+
+/**
+ * A module-only user's modules (0.23.0, ADR 0034): they use these through module roles and have no other working role –
+ * the sidebar, the start page and the pages follow them. Empty for everyone else (older servers: the plant flag).
+ */
+export const moduleOnlyOf = (caps: Capabilities): ModuleId[] => (caps.moduleOnly?.length ? caps.moduleOnly : caps.plantOnly ? ['plant'] : []);
+
+/** Whether a sidebar entry belongs to one of a module-only user's modules (the Plant area as a whole for the registry). */
+export const moduleOnlyNav = (mods: readonly ModuleId[], key: string, group?: string): boolean => {
+  const id = moduleOfNav(key);
+  return (!!id && mods.includes(id)) || (group === 'plant' && mods.includes('plant'));
+};
+
+/** Whether a module-only user reaches a page: the pages of their modules, their profile and About. */
+export const moduleOnlyPage = (mods: readonly ModuleId[], pathname: string): boolean =>
+  ['/profile', '/about', ...mods.flatMap((m) => moduleDef(m).pages)].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+/** A module-only user's start page: the first of their modules (the plant registry's sites first). */
+export const moduleOnlyStart = (mods: readonly ModuleId[]): string => (mods.includes('plant') ? '/plant/sites' : (moduleDef(mods[0]!).pages[0] ?? '/profile'));
 
 export function useModuleOn(id: ModuleId): boolean {
   return moduleOn(useMe().caps, id);

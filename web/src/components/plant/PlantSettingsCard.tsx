@@ -43,13 +43,18 @@ import { TableScroll } from '../TableScroll';
 /**
  * Settings → Modules → Plant registry (#218): the switch (off by default; off, the module's pages and routes are gone
  * and its data is kept), the enterprise's name, own display names of the record types and own fields per record type.
+ *
+ * `manager` (0.23.0, ADR 0034 decision 11): the same content for whoever an administrator granted the plant registry's
+ * manager role – through GET/PUT /api/plant/settings, without the switch and the aliases, which stay administrators'.
  */
-export function PlantSettingsCard() {
+export function PlantSettingsCard({ manager = false }: { manager?: boolean }) {
   const { t } = useTranslation(['plant', 'settings', 'plantDocs']);
   const qc = useQueryClient();
   const recordTypes = useRecordTypes();
   const typeName = useTypeName();
-  const q = useQuery({ queryKey: plantKeys.settings, queryFn: () => get<PlantSettings>('/settings/plant') });
+  const url = manager ? '/plant/settings' : '/settings/plant';
+  const key = manager ? plantKeys.managerSettings : plantKeys.settings;
+  const q = useQuery({ queryKey: key, queryFn: () => get<PlantSettings>(url) });
   const [d, setD] = useState<PlantSettings | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -69,14 +74,14 @@ export function PlantSettingsCard() {
     if (!d) return;
     setBusy(true);
     try {
-      const next = await put<PlantSettings>('/settings/plant', {
-        enabled: d.enabled,
+      const next = await put<PlantSettings>(url, {
+        ...(manager ? {} : { enabled: d.enabled }),
         enterprise: d.enterprise,
         labels: d.labels,
         fields: d.fields,
         documentReview: d.documentReview ?? {},
       });
-      qc.setQueryData(plantKeys.settings, next);
+      qc.setQueryData(key, next);
       // the sidebar's Plant area and the link kinds follow the switch
       void qc.invalidateQueries({ queryKey: ['auth'] });
       void qc.invalidateQueries({ queryKey: plantKeys.all });
@@ -115,17 +120,26 @@ export function PlantSettingsCard() {
             {t('preview')}
           </Badge>
         </Group>
-        <Text size="sm" c="dimmed" mb="sm">
-          <Trans t={t} i18nKey="settings.description" components={{ b: <b /> }} />
-        </Text>
+        {/* the module's switch is administrators' (Settings → Modules): its description is not for a manager */}
+        {!manager && (
+          <Text size="sm" c="dimmed" mb="sm">
+            <Trans t={t} i18nKey="settings.description" components={{ b: <b /> }} />
+          </Text>
+        )}
         <Stack gap="sm">
-          <Switch
-            label={t('settings.enabled')}
-            description={t('settings.enabledHelp')}
-            checked={d.enabled}
-            onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })}
-            data-testid="plant-enabled"
-          />
+          {manager ? (
+            <Text size="xs" c="dimmed" data-testid="plant-manager-settings-hint">
+              {t('settings.managerHint')}
+            </Text>
+          ) : (
+            <Switch
+              label={t('settings.enabled')}
+              description={t('settings.enabledHelp')}
+              checked={d.enabled}
+              onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })}
+              data-testid="plant-enabled"
+            />
+          )}
           {q.data?.enabled && !d.enabled && (
             <Alert color="yellow" p="xs">
               <Text size="sm">{t('settings.turningOff')}</Text>
@@ -255,7 +269,7 @@ export function PlantSettingsCard() {
         </Stack>
       </Card>
       {/* the old ids of renamed entries (0.11.0) */}
-      {q.data?.enabled && <PlantAliasesCard />}
+      {q.data?.enabled && !manager && <PlantAliasesCard />}
     </>
   );
 }

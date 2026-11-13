@@ -158,8 +158,8 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   }
   if (kind === 'cost_price_book') {
     const row = bookRow(r.id);
-    const b = row ? bookRights(row, u) : { view: false, edit: false };
-    return { permissions: [...(b.view ? ['view'] : []), ...(b.edit ? ['edit'] : [])], reasons: [] };
+    const b = row ? bookRights(row, u) : { view: false, edit: false, manage: false };
+    return { permissions: [...(b.view ? ['view'] : []), ...(b.edit ? ['edit'] : []), ...(b.manage ? ['manage'] : [])], reasons: [] };
   }
   if (kind === 'cost_calculator') {
     const c = calculatorRights({ id: r.id }, u);

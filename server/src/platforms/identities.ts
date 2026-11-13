@@ -165,10 +165,18 @@ export function allRegisterCounts(): Map<string, Map<string, number>> {
 /** Names and flags of an identity – never secrets, the sign-in settings or variables. */
 export function toIdentity(
   r: IdentityRow,
-  extra: { secretKeys: string[]; integrity: PlatformIdentity['integrity']; mayUse: boolean; staleOperations?: number; registerEntries?: number },
+  extra: {
+    secretKeys: string[];
+    integrity: PlatformIdentity['integrity'];
+    mayUse: boolean;
+    staleOperations?: number;
+    registerEntries?: number;
+    /** Its shares as the former access list (0.23.0: for who manages the platform) and how many there are */
+    acl?: AclEntry<'use'>[];
+    shared?: number;
+  },
 ): PlatformIdentity {
   const filter = parseJson<PlatformIdentity['operationFilter']>(r.operation_filter, null);
-  const acl = parseJson<AclEntry<'use'>[]>(r.acl, []);
   return {
     id: r.id,
     platformId: r.platform_id,
@@ -190,7 +198,8 @@ export function toIdentity(
     ...(extra.registerEntries !== undefined ? { registerEntries: extra.registerEntries } : {}),
     ...(flag(r.disabled) ? { disabled: true } : {}),
     // the default identity is open to everyone with "use" on the platform: it has no list of its own
-    ...(flag(r.is_default) ? {} : { acl: Array.isArray(acl) ? acl : [] }),
+    // (how many shares it has only for who manages the platform: the caller leaves `shared` out for anyone else)
+    ...(flag(r.is_default) ? {} : { acl: extra.acl ?? [], ...(extra.shared !== undefined ? { shared: extra.shared } : {}) }),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

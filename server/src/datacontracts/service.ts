@@ -139,7 +139,7 @@ export function contractRow(id: string): ContractRow | undefined {
 
 /** The rights of the caller (jobs without a caller: every right). */
 export function permissionsOf(r: Pick<ContractRow, 'id'>, u: AuthUser | null = currentUser()): DataContractPermission[] {
-  if (!u) return ['view', 'test', 'edit', 'manage'];
+  if (!u) return ['view', 'test', 'edit', 'relax', 'manage'];
   return contractAccess(u, r).permissions;
 }
 
@@ -790,7 +790,7 @@ export function setSettings(id: string, body: unknown): DataContractDetail {
   // switching off "breaking changes need a change record" is the decision of who approves changes (manage) – who has
   // only that right (an approver) changes nothing else
   const switchedOff = !!row.require_change_record && !input.requireChangeRecord;
-  if (switchedOff) requirePermission(perms, 'manage', 'switch off the change record rule of this data contract');
+  if (switchedOff) requirePermission(perms, 'relax', 'switch off the change record rule of this data contract');
   // a service the caller may not see is not named to them (null): it stays as it is unless they choose another one
   const hidden = !!row.service_platform_id && !platformVisible(row.service_platform_id, u);
   const service = input.servicePlatformId === null && hidden ? row.service_platform_id : (input.servicePlatformId ?? null);

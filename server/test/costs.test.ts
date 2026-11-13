@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fromMicros, toMicros } from '@sm/shared';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 import { timeLimit } from './time.js';
 
 /**
@@ -225,7 +225,7 @@ describe('who sees costs', () => {
     // auditors and administrators still see them
     expect((await audrey('GET', `/costs/application/${app}`)).currencies[0].lastMonth).toBe('20.75');
     const [audit] = await s.api('GET', '/audit?action=cost.settings_changed');
-    expect(audit.details.after).toEqual({ hideAmountsFromViewers: true, defaultCurrency: 'EUR', fiscalYearStartMonth: 1 });
+    expect(audit.details.after).toEqual({ hideAmountsFromViewers: true, defaultCurrency: 'EUR', fiscalYearStartMonth: 1, estimateChangePct: 5 });
     await s.api('PUT', '/costs/settings', { hideAmountsFromViewers: false, defaultCurrency: 'USD' });
   });
 
@@ -314,13 +314,12 @@ describe('push from CI', () => {
   it('stops with a creator who may no longer manage the platform, and keeps to the rate limit', async () => {
     const dana = await s.as('dana', PW);
     // designers may use platforms but not manage them: the access list gives dana the manage right
-    const { db } = await import('../src/db.js');
-    db().run('UPDATE platforms SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:dana', permissions: ['use', 'manage'] }]), platform);
+    await storeAcl('platform', platform, [{ subject: 'user:dana', permissions: ['use', 'manage'] }]);
     const t = await dana('POST', `/costs/platform/${platform}/push-tokens`, { name: 'dana', rateLimitPerMinute: 1 });
     expect((await push(t.token, csv('5'), {}, platform, '?mode=add')).status).toBe(200);
     expect((await push(t.token, csv('6'), {}, platform, '?mode=add')).status).toBe(429);
     (await import('../src/costs/push.js')).resetCostPushState();
-    db().run('UPDATE platforms SET acl = ? WHERE id = ?', '[]', platform);
+    await storeAcl('platform', platform, []);
     expect((await push(t.token, csv('7'), {}, platform, '?mode=add')).json.code).toBe('COST_PUSH_TOKEN_INVALID');
   });
 });

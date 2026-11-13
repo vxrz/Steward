@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 
 /**
  * Team-scoped access (#131), first part: owning teams on processes and platforms, roles per team, the policy's
@@ -85,15 +85,14 @@ describe('owning teams on a process', () => {
   });
 
   it('take access list entries as exceptions for others', async () => {
-    const d = await db();
-    d.run('UPDATE processes SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:dave', permissions: ['view'] }]), proc);
+    await storeAcl('process', proc, [{ subject: 'user:dave', permissions: ['view'] }]);
     try {
       expect((await dave('GET', `/processes/${proc}`)).permissions).toEqual(['view']);
       // members keep their team roles beside the list
       expect((await tara('GET', `/processes/${proc}`)).permissions).toEqual(expect.arrayContaining(['edit']));
       expect(await status(vic('GET', `/processes/${proc}`))).toBe(404);
     } finally {
-      d.run("UPDATE processes SET acl = '[]' WHERE id = ?", proc);
+      await storeAcl('process', proc, []);
     }
   });
 
@@ -124,13 +123,13 @@ describe('owning teams on a process', () => {
 describe('owning teams on a platform', () => {
   it('give members their rights and nobody else', async () => {
     const before = await s.api('GET', `/access/explain?kind=platform&id=${platform}&user=dave`);
-    expect(before.permissions).toEqual(['use']);
+    expect(before.permissions).toEqual(['view', 'use']);
     await s.api('PUT', `/owning-teams/platform/${platform}`, { teamIds: [orders] });
     try {
       expect((await s.api('GET', `/access/explain?kind=platform&id=${platform}&user=dave`)).permissions).toEqual([]);
       const t = await s.api('GET', `/access/explain?kind=platform&id=${platform}&user=tara`);
-      expect(t).toMatchObject({ permissions: ['use'], reasons: [expect.objectContaining({ source: 'teamRole', team: 'Orders' })] });
-      expect((await tara('GET', `/platforms/${platform}`)).permissions).toEqual(['use']);
+      expect(t).toMatchObject({ permissions: ['view', 'use'], reasons: [expect.objectContaining({ source: 'teamRole', team: 'Orders' })] });
+      expect((await tara('GET', `/platforms/${platform}`)).permissions).toEqual(['view', 'use']);
     } finally {
       await s.api('PUT', `/owning-teams/platform/${platform}`, { teamIds: [] });
     }

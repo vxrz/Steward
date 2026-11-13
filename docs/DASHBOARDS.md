@@ -37,4 +37,6 @@ A `vega` widget draws its `spec` (Vega-Lite JSON, or YAML in the dashboard file)
 
 ## Who can see what
 
-a dataset is visible to everyone who may view the process that publishes it. A partition is left out – from rows, counts, metrics, the API and MCP, without a hint – when one of its platforms has an access list that does not include the reader; administrators and auditors see all. Platforms without an access list keep their data visible to everyone who sees the dataset.
+A dataset is visible to everyone who may view the process that publishes it. A partition is left out – from rows, counts, metrics, the API and MCP, without a hint – when one of its platforms is kept from the reader (Restricted, or owned by teams the reader is not in, without a share that lets them use it – until 0.22 an access list); administrators and auditors see all. Platforms of the whole instance keep their data visible to everyone who sees the dataset.
+
+**A dashboard** is seen by everybody signed in and changed by its owner (its creator) and administrators; with owning teams only their members see it, and a **designer among the members edits it** (0.23.0, [ADR 0033](adr/0033-one-access-model.md) decision 11 – before, only its owner could). Its _Access_ section shares it with a user, a team or a role – View, Edit or Manage – and administrators can make it Restricted ([TEAMS.md](TEAMS.md#sharing-the-access-tab)). Its owner has an implied Manage share: they change its shares and delete it; deleting needs Manage, not Edit.

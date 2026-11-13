@@ -1,9 +1,8 @@
 import type { z } from 'zod';
-import { cleanAcl } from '../auth/permissions.js';
+import { aclOf, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
+import { SITE_SHARE_KIND } from './site-shares.js';
 import {
   PLANT_LIMITS,
-  PLANT_PERMISSIONS,
-  type AclEntry,
   type AssetStatus,
   type PlantAssetDetail,
   type PlantAssetSummary,
@@ -167,7 +166,8 @@ export function getSite(id: string): PlantSiteDetail {
     fields: v.fields,
     areas: nodeTree(index, placed),
     buildings: buildingList(index, assets),
-    acl: perms.includes('manage') ? parseJson<AclEntry<PlantPermission>[]>(row.acl, []) : null,
+    // deprecated (0.23.0): the shares as the former access list
+    acl: perms.includes('manage') ? aclOf<PlantPermission>('site', id) : null,
     // as before 0.13: view and manage (the propose right is canPropose – clients that compare the list keep working)
     permissions: perms.filter((x) => x !== 'propose'),
     links: listLinks('site', id),
@@ -297,21 +297,13 @@ export function deleteSite(id: string): void {
   });
 }
 
+/**
+ * `PUT /plant/sites/:siteId/access` (deprecated since 0.23.0, ADR 0033 phase 2): the access list, written as shares and
+ * the Restricted scope (auth/acl-shares.ts) – the shares core asks for the step-up (only when it widens) and audits.
+ */
 export function setSiteAccess(id: string, acl: unknown): PlantSiteDetail {
   const row = manageableSite(id, 'change access to this site');
-  const next = cleanAcl<PlantPermission>(acl, PLANT_PERMISSIONS).filter((e) => e.permissions.length);
-  const before = parseJson<AclEntry<PlantPermission>[]>(row.acl, []);
-  if (JSON.stringify(before) === JSON.stringify(next)) return getSite(id);
-  db().tx(() => {
-    db().run('UPDATE plant_sites SET acl = ?, updated_at = ?, updated_by = ? WHERE id = ?', JSON.stringify(next), nowIso(), me().username, id);
-    audit({
-      action: 'site.access_changed',
-      entityType: 'site',
-      entityId: id,
-      summary: next.length ? `Access to site "${row.name}" restricted to ${next.length} entries` : `Access list of site "${row.name}" removed`,
-      details: { old: before, new: next },
-    });
-  });
+  writeAlias({ kind: 'site', id, aclInput: acl, held: heldByAuthor(SITE_SHARE_KIND, id), label: `site "${row.name}"` });
   return getSite(id);
 }
 

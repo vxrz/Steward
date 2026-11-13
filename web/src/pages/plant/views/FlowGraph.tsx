@@ -49,6 +49,7 @@ import { compoundLayout, layeredLayout, type PlantFlowEdge, type PlantFlowGraph,
 import { ProtocolBadge } from '../../../components/plant/data';
 import { LiveBadge, liveSourceName, liveVar, liveWord } from './common';
 import { useMotion } from './prefs';
+import { detailLines } from './flowText';
 
 /**
  * A graph of the plant registry (#230): the data flow of an asset, the lineage of a data point – and later the OT
@@ -213,8 +214,9 @@ const PartNode = memo(function PartNode({ data }: NodeProps<FlowRfNode>) {
           lineClamp={badges ? 1 : 2}
           title={node.detail}
           style={{ whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}
+          data-testid="flow-node-detail"
         >
-          {node.detail}
+          {detailLines(node.detail, (count) => t('node.moreLines', { count }))}
         </Text>
       )}
       {badges && (

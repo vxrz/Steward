@@ -47,6 +47,7 @@ export const NOTIFICATION_EVENTS = [
   'dataproduct.deprecated',
   'dataproduct.elements_missing',
   'dataproduct.discovery_failed',
+  'cost.estimate_changed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -133,6 +134,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
     'A data product or port you consume was deprecated (registered consumers and the owners of products that use it), with its sunset date and successor',
   'dataproduct.elements_missing': 'A discovery run no longer found elements of a data product you own (once per product and run)',
   'dataproduct.discovery_failed': 'A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)',
+  'cost.estimate_changed':
+    'An estimate of a service or platform you own was recalculated with new prices and its monthly total moved by the threshold (Accept new prices to make them current)',
 };
 
 /**

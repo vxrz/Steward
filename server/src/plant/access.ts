@@ -1,46 +1,36 @@
-import { PLANT_PERMISSIONS, type AclEntry, type AccessReason, type PlantPermission, type Role } from '@sm/shared';
+import { PLANT_PERMISSIONS, coreRoleDefaults, moduleRoleRights, type AccessReason, type PlantPermission, type Role } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
-import { decide } from '../auth/policy.js';
-import { forbid, hasRole } from '../auth/access.js';
+import { SITE_SHARE_MODEL, decide } from '../auth/policy.js';
+import { forbid } from '../auth/access.js';
 import { db } from '../db.js';
-import { parseJson } from '../util.js';
-import { usesModule } from '../modules/access.js';
+import { moduleRole, usesModule } from '../modules/access.js';
 
 /**
  * Rights in the plant registry (#218): per site, through the one policy module (auth/policy.ts, ADR 0006). Assets,
  * the hierarchy and the buildings of a site follow the site.
  *
  * - Without owning teams and without an access list: every signed-in role sees the site (as the catalogue), designers
- *   and administrators manage it, the role "plant" (Plant viewer) sees it, status viewers never.
+ *   and administrators manage it, operators and approvers propose, status viewers never.
+ * - Since 0.23.0 (ADR 0034 part 5) these role defaults are the plant module's: `fromCoreRoles` maps each core role to a
+ *   module role (designer → manager, operator and approver → contributor, auditor and viewer → viewer) and the module
+ *   declares what each gives (shared/src/modules.ts). Module roles granted to a person, a team or through single
+ *   sign-on count like instance roles; the former instance role "plant" (Plant viewer) is a contributor grant.
  * - An access list restricts the site to its entries (view or manage), as with processes and platforms.
  * - With owning teams: their members have their instance and team roles on it; auditors see it; administrators always
  *   manage it.
  */
-export const DEFAULT_PLANT: Record<Role, PlantPermission[]> = {
-  admin: ['view', 'propose', 'manage'],
-  designer: ['view', 'propose', 'manage'],
-  // 0.13.0: who knows the data best may keep drafts and propose changes (ADR 0020, owner decision 1) – never apply them
-  operator: ['view', 'propose'],
-  approver: ['view', 'propose'],
-  auditor: ['view'],
-  viewer: ['view'],
-  status: [],
-  plant: ['view', 'propose'],
-};
+export const DEFAULT_PLANT: Record<Role, PlantPermission[]> = coreRoleDefaults('plant', 'site', PLANT_PERMISSIONS);
 
-/** Who may add sites (and import files with new sites). */
-const SITE_CREATORS: readonly Role[] = ['admin', 'designer'];
-
-export function siteAccess(
-  u: AuthUser | null,
-  s: { id: string; acl: AclEntry<PlantPermission>[] | string },
-): { permissions: PlantPermission[]; reasons: AccessReason[] } {
+/** The rights on a site: owning teams, shares and the Restricted scope (the `acl` passed is no longer read, 0.23.0). */
+export function siteAccess(u: AuthUser | null, s: { id: string; acl?: unknown }): { permissions: PlantPermission[]; reasons: AccessReason[] } {
   // someone who does not use the plant registry (ADR 0034) has no right on a site: wherever a core page names a site
   // or an asset (maintenance targets, impact, links), they see nothing of it
   if (u && !usesModule(u, 'plant')) return { permissions: [], reasons: [] };
-  const acl = typeof s.acl === 'string' ? parseJson<AclEntry<PlantPermission>[]>(s.acl, []) : s.acl;
-  const d = decide(u, { kind: 'site', id: s.id, acl }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view');
+  const d = decide(u, { kind: 'site', id: s.id, acl: [] }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view', {
+    module: { id: 'plant', kind: 'site' },
+    shares: SITE_SHARE_MODEL,
+  });
   // managing a site includes seeing it and proposing changes; proposing includes seeing it
   if (d.permissions.includes('manage')) d.permissions = [...PLANT_PERMISSIONS];
   else if (d.permissions.includes('propose') && !d.permissions.includes('view')) d.permissions = ['view', 'propose'];
@@ -49,9 +39,12 @@ export function siteAccess(
   return d;
 }
 
-export const sitePermissions = (s: { id: string; acl: string }, u: AuthUser | null = currentUser()): PlantPermission[] => siteAccess(u, s).permissions;
+export const sitePermissions = (s: { id: string; acl?: unknown }, u: AuthUser | null = currentUser()): PlantPermission[] => siteAccess(u, s).permissions;
 
-export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => hasRole(u, SITE_CREATORS) || (proposerElevation > 0 && plantProposesSome(u));
+/** Who may add sites (and import files with new sites): the plant module's managers – administrators and designers by default. */
+const createsSites = (u: AuthUser | null): boolean => moduleRoleRights('plant', moduleRole('plant', u), 'registry').includes('createSites');
+
+export const canCreateSites = (u: AuthUser | null = currentUser()): boolean => createsSites(u) || (proposerElevation > 0 && plantProposesSome(u));
 
 /**
  * A proposer's preview (0.13.0, change sets): what their draft would do is computed with the rights they propose with
@@ -73,7 +66,7 @@ export function asProposer<T>(fn: () => T): T {
 
 /** Whether someone may keep drafts and propose changes: the propose right on some site (or on any site they may add). */
 export function plantProposesSome(u: AuthUser | null = currentUser()): boolean {
-  if (hasRole(u, SITE_CREATORS)) return true;
+  if (createsSites(u)) return true;
   const saved = proposerElevation;
   proposerElevation = 0;
   try {

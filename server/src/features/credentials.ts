@@ -2,10 +2,13 @@ import { credentialRoutes } from '../credentials/routes.js';
 import { credentialApiRoutes } from '../credentials/api-v1.js';
 import { CREDENTIAL_MIGRATIONS } from '../migrations/credentials.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
+import { credentialShareKind } from '../auth/item-shares.js';
+import { credentialAccess } from '../credentials/service.js';
 
 /** The credentials register: documentation of credentials, never their values. */
 export default defineFeature({
   name: 'credentials',
+  shareKinds: [credentialShareKind((u, r) => credentialAccess(u, r).permissions)],
   routes: [credentialRoutes],
   apiV1: [credentialApiRoutes],
   jobs: [

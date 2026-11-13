@@ -12,6 +12,7 @@ import type { AuthUser } from './context.js';
 import { aliasSubjects, sameIdentity } from './aliases.js';
 import { fourEyesRequired } from './assurance-policy.js';
 import { memberships, platformAccess, processAccess } from './policy.js';
+import { formerRolesOf } from '../modules/grants.js';
 
 /**
  * Access model
@@ -34,10 +35,11 @@ export const DEFAULT_PROCESS: Record<Role, ProcessPermission[]> = {
 
 export const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
   admin: [...PLATFORM_PERMISSIONS],
-  designer: ['use'],
-  operator: ['use'],
+  designer: ['view', 'use'],
+  operator: ['view', 'use'],
   approver: [],
-  auditor: [],
+  // 0.23.0 (ADR 0033 decision 8): auditors view every platform, as every other kind – never use or change it
+  auditor: ['view'],
   viewer: [],
   status: [],
   plant: [],
@@ -50,6 +52,8 @@ export function subjectsOf(u: AuthUser): Set<string> {
     ...u.roles.map((r) => `role:${r}`),
     // former names from an imported migration package (aliases.ts)
     ...aliasSubjects(u),
+    // the former role "plant": whoever is granted the plant registry's contributor role or more (ADR 0034 part 5)
+    ...formerRolesOf(u).map((r) => `role:${r}`),
   ]);
 }
 
@@ -60,12 +64,12 @@ export function matches(u: AuthUser, subject: string): boolean {
 export const isAdmin = (u: AuthUser | null): boolean => !!u?.roles.includes('admin');
 
 /** The rights on a process (auth/policy.ts decides, with owning teams, #131). */
-export function processPermissions(u: AuthUser | null, p: { id: string; owner?: string | null; acl: AclEntry<ProcessPermission>[] }): ProcessPermission[] {
+export function processPermissions(u: AuthUser | null, p: { id: string; owner?: string | null; acl?: unknown }): ProcessPermission[] {
   return processAccess(u, p).permissions;
 }
 
 /** The rights on a platform (auth/policy.ts decides, with owning teams, #131). */
-export function platformPermissions(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }): PlatformPermission[] {
+export function platformPermissions(u: AuthUser | null, p: { id: string; acl?: unknown }): PlatformPermission[] {
   return platformAccess(u, p).permissions;
 }
 

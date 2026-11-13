@@ -24,8 +24,13 @@ import { useQuery } from '@tanstack/react-query';
 import { IconChevronDown, IconChevronRight, IconExternalLink, IconPlus, IconPlugConnected, IconTrash } from '@tabler/icons-react';
 import {
   BRAND,
+  DEPRECATED_ROLES,
   ROLES,
   TEAM_ROLES,
+  modulesWithRoles,
+  moduleRolesOf,
+  type ModuleId,
+  type ModuleRole,
   SSO_PRESETS,
   SSO_DOMAIN,
   SSO_PRESET_INFO,
@@ -104,7 +109,28 @@ function presetForm(preset: SsoPreset, buttonLabel: string): ProviderForm {
   };
 }
 
-const roleOptions = () => ROLES.map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
+/** The roles to map: the deprecated role "plant" only while a mapping still names it (it gives the plant registry's contributor). */
+const roleOptions = (current: readonly string[] = []) =>
+  ROLES.filter((r) => !DEPRECATED_ROLES.includes(r) || current.includes(r)).map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
+/** Module roles a mapping gives (0.23.0, ADR 0034 part 6): "Plant registry: Manager", one per module. */
+const moduleRoleOptions = () =>
+  modulesWithRoles().map((m) => ({
+    group: i18n.t(`modules:items.${m}.name`, { brand: BRAND.name }),
+    items: moduleRolesOf(m).map((r) => ({
+      value: `${m}:${r}`,
+      label: i18n.t('modules:moduleRole', { module: i18n.t(`modules:items.${m}.name`, { brand: BRAND.name }), role: i18n.t(`modules:roleNames.${r}`) }),
+    })),
+  }));
+/** One role per module: choosing another role of a module replaces the one chosen before. */
+const pickModuleRoles = (before: readonly string[], next: string[]): { module: ModuleId; role: ModuleRole }[] => {
+  const added = next.filter((v) => !before.includes(v));
+  const out = new Map<string, string>();
+  for (const v of next) {
+    const [m, r] = v.split(':') as [string, string];
+    if (!out.has(m) || added.includes(v)) out.set(m, r);
+  }
+  return [...out].map(([module, role]) => ({ module: module as ModuleId, role: role as ModuleRole }));
+};
 const teamRoleOptions = () => TEAM_ROLES.map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
 
 export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoProvider | null; onClose: () => void; onSaved: () => void }) {
@@ -286,10 +312,10 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             set('issuer', e.currentTarget.value);
             if (kind === 'entra') setTenant(tenantFromIssuer(e.currentTarget.value));
           }}
-          rightSectionWidth={150}
+          rightSectionWidth={170}
           rightSection={
             <Button
-              size="compact-xs"
+              size="compact-sm"
               variant="light"
               leftSection={<IconPlugConnected size={12} />}
               loading={testing}
@@ -451,13 +477,14 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                 <Table.Th miw={180}>{t('table.roles')}</Table.Th>
                 <Table.Th miw={160}>{t('table.teams')}</Table.Th>
                 <Table.Th miw={160}>{t('provider.teamRoles')}</Table.Th>
+                <Table.Th miw={180}>{t('provider.moduleRoles')}</Table.Th>
                 <Table.Th w={36} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {form.mappings.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={5}>
+                  <Table.Td colSpan={6}>
                     <Text size="xs" c="dimmed">
                       {t('provider.noMappings')}
                     </Text>
@@ -480,7 +507,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                     <MultiSelect
                       size="xs"
                       aria-label={t('table.roles')}
-                      data={roleOptions()}
+                      data={roleOptions(m.roles)}
                       value={m.roles}
                       onChange={(v) => setMapping(i, { roles: v as Role[] })}
                       comboboxProps={{ withinPortal: true }}
@@ -506,6 +533,24 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                       onChange={(v) => setMapping(i, { teamRoles: v as Role[] })}
                       disabled={!m.teams.length}
                       comboboxProps={{ withinPortal: true }}
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <MultiSelect
+                      size="xs"
+                      aria-label={t('provider.moduleRoles')}
+                      data={moduleRoleOptions()}
+                      value={(m.moduleRoles ?? []).map((x) => `${x.module}:${x.role}`)}
+                      onChange={(v) =>
+                        setMapping(i, {
+                          moduleRoles: pickModuleRoles(
+                            (m.moduleRoles ?? []).map((x) => `${x.module}:${x.role}`),
+                            v,
+                          ),
+                        })
+                      }
+                      comboboxProps={{ withinPortal: true }}
+                      data-testid={`sso-mapping-module-roles-${i}`}
                     />
                   </Table.Td>
                   <Table.Td>
@@ -541,7 +586,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
         <MultiSelect
           label={t('provider.defaultRoles')}
           description={t('provider.defaultRolesHint')}
-          data={roleOptions()}
+          data={roleOptions(form.defaultRoles)}
           value={form.defaultRoles}
           onChange={(v) => set('defaultRoles', v as Role[])}
           comboboxProps={{ withinPortal: true }}

@@ -336,6 +336,20 @@ describe('applying an import', () => {
     const mine = await s.api('GET', '/plant/collections?collectorKind=job&collectorRef=edge-gateway-1');
     expect(mine.map((c: { assetId: string }) => c.assetId)).toEqual(['east-mill-2', 'east-mill-2', 'east-mill-2', 'east-mill-2']);
   });
+
+  it('a collector and a destination that several collections share name each of them, not only the first (0.23.0)', async () => {
+    type Col = { name: string; items: { dataPoint: string | null }[]; sinks: { object: string }[] };
+    const cols = ((await s.api('GET', '/plant/assets/east-mill-2/collections')).collections as Col[]).filter((c) => c.items.some((i) => i.dataPoint));
+    expect(cols.length).toBeGreaterThan(1);
+    const flow = await s.api('GET', '/plant/assets/east-mill-2/flow');
+    type Node = { id: string; kind: string; detail: string };
+    const gw = (flow.nodes as Node[]).find((n) => n.id === 'coll:job:edge-gateway-1')!;
+    expect(gw.detail.split('\n').sort()).toEqual([...new Set(cols.map((c) => c.name))].sort());
+    // every path a collection loads into is on its destination's card
+    const objects = new Set(cols.flatMap((c) => c.sinks.map((x) => x.object)).filter(Boolean));
+    const shown = new Set((flow.nodes as Node[]).filter((n) => n.kind === 'target').flatMap((n) => n.detail.split('\n')));
+    for (const o of objects) expect(shown.has(o), o).toBe(true);
+  });
 });
 
 describe('rights, audit and the public API', () => {

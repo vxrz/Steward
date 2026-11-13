@@ -144,13 +144,13 @@
     "team": {
       "members": {
         "label": "Add team members or roles in a team",
-        "description": "Teams are subjects of access lists: a new member gets their rights."
+        "description": "Items are shared with teams and teams have module roles: a new member gets their rights."
       }
     },
     "access": {
       "grant": {
-        "label": "Give rights in an access list",
-        "description": "Access lists of platforms, processes and monitors, owning teams, copies with their access settings, owners and responsibles named from outside the owning teams."
+        "label": "Give someone access: a share, a module role",
+        "description": "Shares that widen access and making an item no longer Restricted, module roles, owning teams, copies with their access settings, owners and responsibles named from outside the owning teams."
       }
     },
     "sso": {

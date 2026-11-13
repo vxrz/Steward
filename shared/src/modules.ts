@@ -10,6 +10,8 @@
  * `defaultOn: false` (the data products, ADR 0036), which stay off until an administrator switches them on.
  */
 
+import type { Role } from './api.js';
+
 /** How far an area or a connector is: stable · beta (complete, little use or only checked against mocks) · preview (new, may change). */
 export const MATURITY_LEVELS = ['stable', 'beta', 'preview'] as const;
 export type Maturity = (typeof MATURITY_LEVELS)[number];
@@ -76,6 +78,24 @@ export interface ModuleDef {
 export interface ModuleAccessDef {
   /** Whether an administrator may restrict it to selected teams and users (status pages and the map: no) */
   restrictable: boolean;
+  /**
+   * Its module roles (ADR 0034 part 4, 0.23.0), if it owns items or settings that core rights do not already cover: the
+   * rights each role gives per kind of the module (`site`, `device_profile` …, or a name of its own such as `costs`). The
+   * vocabulary is fixed – viewer, contributor, manager; a module may declare fewer. Each role includes the lower ones'.
+   */
+  roles?: Partial<Record<ModuleRole, Readonly<Record<string, readonly string[]>>>>;
+  /**
+   * The module role each core role gives by default (today's role defaults, so an upgrade changes nothing). A module
+   * role granted to the person, a team they are in or through single sign-on adds; the highest counts.
+   */
+  fromCoreRoles?: Partial<Record<Role, ModuleRole>>;
+  /**
+   * Settings the manager role may change (ADR 0034 decision 11): content such as the plant registry's labels and own
+   * fields. Everything else – switching the module, its access, connectors with credentials, retention, anything behind
+   * a step-up – stays with administrators. Only a **granted** manager role counts here (an administrator's grant), so a
+   * core role mapped to manager by `fromCoreRoles` gains no settings at the upgrade.
+   */
+  managerSettings?: readonly string[];
   /** Not restrictable on its own: whoever uses that module uses this one (the map of sites follows the plant registry) */
   follows?: ModuleId;
   /** Notification events that are its own: not sent to people who do not use it, in no channel */
@@ -181,7 +201,11 @@ export const MODULES: readonly ModuleDef[] = [
     datasets: ['costs:'],
     access: {
       restrictable: true,
-      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due'],
+      // the costs managers (ADR 0035 part 8, decision 7): instance price books, instance calculators and exchange rates –
+      // administrators and designers before 0.23.0, so designers map to it; costs follow services and platforms otherwise
+      roles: { manager: { costs: ['managePriceBooks', 'manageCalculators', 'manageFxRates'] } },
+      fromCoreRoles: { admin: 'manager', designer: 'manager' },
+      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due', 'cost.estimate_changed'],
       mcpTools: [
         'get_service_cost_plan',
         'get_platform_cost_plan',
@@ -297,6 +321,30 @@ export const MODULES: readonly ModuleDef[] = [
     jobs: ['plant-changes', 'plant-advisories'],
     access: {
       restrictable: true,
+      // the role defaults of the plant registry before 0.23.0 (DEFAULT_PLANT, DEFAULT_PLANT_CATALOGUE), read through the
+      // module: the instance role "plant" (Plant viewer) became a contributor grant (ADR 0034 part 5)
+      roles: {
+        viewer: { site: ['view'], device_profile: ['view'], kpi_definition: ['view'] },
+        contributor: { site: ['view', 'propose'], device_profile: ['view', 'propose'], kpi_definition: ['view', 'propose'] },
+        manager: {
+          site: ['view', 'propose', 'manage'],
+          device_profile: ['view', 'propose', 'edit', 'manage'],
+          kpi_definition: ['view', 'propose', 'edit', 'manage'],
+          // adding sites and catalogue entries, importing new sites (SITE_CREATORS before 0.23.0)
+          registry: ['createSites', 'manageCatalogue'],
+        },
+      },
+      fromCoreRoles: {
+        admin: 'manager',
+        designer: 'manager',
+        operator: 'contributor',
+        approver: 'contributor',
+        auditor: 'viewer',
+        viewer: 'viewer',
+        // the alias of one release (decision 8): an account that still carries the role is a contributor
+        plant: 'contributor',
+      },
+      managerSettings: ['enterprise', 'labels', 'fields', 'documentReview'],
       events: ['plant.change_proposed', 'plant.change_decided', 'plant.advisory_matched'],
       mcpTools: [
         'list_plant_sites',
@@ -360,6 +408,21 @@ export const MODULES: readonly ModuleDef[] = [
     // module role of their own and a report section follow in phase 2; the instance export has no part of it yet.
     access: {
       restrictable: true,
+      // ADR 0036 part 12 with ADR 0034 phase 2 (0.23.0): the core roles give what 0.22.0 gave (designer → manager, other
+      // working roles → viewer – team roles included, server/src/dataproducts/access.ts); granted roles add, the
+      // contributor among them (creates entries)
+      roles: {
+        viewer: { data_product: ['view'], data_object: ['view'], data_element: ['view'], data_domain: ['view'] },
+        contributor: { data_product: ['view'], data_object: ['view'], data_element: ['view'], data_domain: ['view'], module: ['create'] },
+        manager: {
+          data_product: ['view', 'edit', 'manage'],
+          data_object: ['view', 'edit', 'manage'],
+          data_element: ['view', 'edit', 'manage'],
+          data_domain: ['view', 'edit', 'manage'],
+          module: ['create', 'manageModule'],
+        },
+      },
+      fromCoreRoles: { admin: 'manager', designer: 'manager', operator: 'viewer', approver: 'viewer', auditor: 'viewer', viewer: 'viewer' },
       events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed'],
       mcpTools: [
         'list_data_products',
@@ -433,6 +496,87 @@ export const moduleOfExportPart = owner((a) => a.exportParts);
 /** The module that owns an item kind (a link kind, an owning-team kind), if any. */
 export const moduleOfItemKind = owner((a) => a.itemKinds);
 
+// ---------- module roles (ADR 0034 part 4, 0.23.0) ----------
+
+/** The module roles, lowest first: each includes the rights of the lower ones (German: Leser, Mitwirkender, Verwalter). */
+export const MODULE_ROLES = ['viewer', 'contributor', 'manager'] as const;
+export type ModuleRole = (typeof MODULE_ROLES)[number];
+export const isModuleRole = (x: unknown): x is ModuleRole => typeof x === 'string' && (MODULE_ROLES as readonly string[]).includes(x);
+
+/** The roles a module declares, lowest first (none: its data follows core items). */
+export const moduleRolesOf = (id: ModuleId): ModuleRole[] => MODULE_ROLES.filter((r) => !!moduleDef(id).access?.roles?.[r]);
+
+/** The modules that declare module roles. */
+export const modulesWithRoles = (): ModuleId[] => MODULES.filter((m) => moduleRolesOf(m.id).length > 0).map((m) => m.id);
+
+/** The higher of two module roles (null: none). */
+export function higherModuleRole(a: ModuleRole | null | undefined, b: ModuleRole | null | undefined): ModuleRole | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return MODULE_ROLES.indexOf(a) >= MODULE_ROLES.indexOf(b) ? a : b;
+}
+
+/** Whether `role` is at least `min`. */
+export const moduleRoleAtLeast = (role: ModuleRole | null | undefined, min: ModuleRole): boolean =>
+  !!role && MODULE_ROLES.indexOf(role) >= MODULE_ROLES.indexOf(min);
+
+/**
+ * The declared role a role stands for in a module that declares fewer: the highest declared one it includes (a module
+ * with only `manager` gives a granted viewer nothing). Null: none.
+ */
+export function declaredModuleRole(id: ModuleId, role: ModuleRole | null | undefined): ModuleRole | null {
+  if (!role) return null;
+  const declared = moduleRolesOf(id);
+  return [...declared].reverse().find((r) => moduleRoleAtLeast(role, r)) ?? null;
+}
+
+/** The module role core roles give by default (`fromCoreRoles`: the highest of them). */
+export function moduleRoleFromCore(id: ModuleId, roles: readonly Role[]): ModuleRole | null {
+  const map = moduleDef(id).access?.fromCoreRoles;
+  if (!map) return null;
+  let out: ModuleRole | null = null;
+  for (const r of roles) out = higherModuleRole(out, map[r]);
+  return declaredModuleRole(id, out);
+}
+
+/** The rights a module role gives on a kind of the module (the role's own and every lower declared role's). */
+export function moduleRoleRights(id: ModuleId, role: ModuleRole | null | undefined, kind: string): string[] {
+  if (!role) return [];
+  const roles = moduleDef(id).access?.roles ?? {};
+  const out = new Set<string>();
+  for (const r of MODULE_ROLES) if (moduleRoleAtLeast(role, r)) for (const p of roles[r]?.[kind] ?? []) out.add(p);
+  return [...out];
+}
+
+/**
+ * A core role's default rights on a kind of a module, read through `fromCoreRoles` and `roles` – the table a module's
+ * policy passes to decide() (DEFAULT_PLANT before 0.23.0). Rights in the order of `all`.
+ */
+export function coreRoleDefaults<P extends string>(id: ModuleId, kind: string, all: readonly P[]): Record<Role, P[]> {
+  const out = {} as Record<Role, P[]>;
+  const map = moduleDef(id).access?.fromCoreRoles ?? {};
+  for (const r of CORE_ROLE_NAMES) {
+    const rights = new Set(moduleRoleRights(id, declaredModuleRole(id, map[r]), kind));
+    out[r] = all.filter((p) => rights.has(p));
+  }
+  return out;
+}
+
+/** The core roles (ROLES of api.ts, repeated here so the web app's direct import of this file stays small). */
+const CORE_ROLE_NAMES: readonly Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor', 'viewer', 'status', 'plant'];
+
+/** Whether a module lets its managers change a setting (`managerSettings`). */
+export const managerSetting = (id: ModuleId, key: string): boolean => !!moduleDef(id).access?.managerSettings?.includes(key);
+
+/** Where a person's module role comes from: core roles, a grant to them, to a team they are in, or single sign-on. */
+export interface ModuleRoleReason {
+  source: 'coreRole' | 'user' | 'team' | 'sso';
+  role: ModuleRole;
+  /** source coreRole: the core role; source team: the team's name as stored on the grant */
+  coreRole?: Role;
+  team?: string;
+}
+
 /** Module access: everyone signed in (the default), or only selected teams and users. */
 export const MODULE_ACCESS_MODES = ['everyone', 'selected'] as const;
 export type ModuleAccessMode = (typeof MODULE_ACCESS_MODES)[number];
@@ -441,12 +585,20 @@ export type ModuleAccessMode = (typeof MODULE_ACCESS_MODES)[number];
 export const MODULE_USE_STATES = ['on', 'off', 'notYours'] as const;
 export type ModuleUseState = (typeof MODULE_USE_STATES)[number];
 
+/** Where a grant comes from: given by an administrator (the access dialog, the user form) or synchronised by single sign-on. */
+export const MODULE_GRANT_SOURCES = ['admin', 'sso'] as const;
+export type ModuleGrantSource = (typeof MODULE_GRANT_SOURCES)[number];
+
 /** Limits of module access (zod and the settings form). */
 export const MODULE_ACCESS_LIMITS = { grants: 500 } as const;
 
 /** One team or user that uses a restricted module: the subject strings of access lists (`team:<name>`, `user:<name>`). */
 export interface ModuleGrant {
   subject: string;
+  /** Its module role (0.23.0); null: it uses a restricted module with the role its core roles give */
+  role: ModuleRole | null;
+  /** Given by an administrator, or synchronised from single sign-on at each sign-in (read-only in the dialog) */
+  source: ModuleGrantSource;
   /** Who gave it and when */
   createdBy: string;
   createdAt: string;
@@ -458,6 +610,8 @@ export interface ModuleGrant {
 export interface ModuleAccessView {
   module: ModuleId;
   restrictable: boolean;
+  /** The module roles it declares, lowest first (none: grants only say who uses it) */
+  roles: ModuleRole[];
   mode: ModuleAccessMode;
   grants: ModuleGrant[];
   updatedAt: string | null;
@@ -467,8 +621,11 @@ export interface ModuleAccessView {
 /** PUT /api/settings/modules/:id/access and POST …/access/preview */
 export interface ModuleAccessInput {
   mode: ModuleAccessMode;
-  /** The teams and users that use it while it is restricted (ignored for `everyone`) */
-  grants: { subject: string }[];
+  /**
+   * The teams and users that use it while it is restricted, each with a module role if the module declares roles. While
+   * it is open to everyone, only grants with a role are kept (they give the role); the others are left out.
+   */
+  grants: { subject: string; role?: ModuleRole | null }[];
 }
 
 /** POST /api/settings/modules/:id/access/preview: who gains and who loses use of the module, nothing changed. */
@@ -478,6 +635,8 @@ export interface ModuleAccessPreview {
   widens: boolean;
   gains: { username: string; displayName: string }[];
   loses: { username: string; displayName: string }[];
+  /** Whose module role changes (0.23.0): before and after (null: none) – a use gained or lost is in gains and loses */
+  roleChanges?: { username: string; displayName: string; before: ModuleRole | null; after: ModuleRole | null }[];
   /** Teams that own items of the module but would not use it */
   owningTeamsWithout: string[];
 }
@@ -487,7 +646,7 @@ export interface ModuleAccessPreview {
  * signed in (an open module), as an administrator or auditor, named on its list, or through a team on its list.
  */
 export interface ModuleUseReason {
-  source: 'everyone' | 'admin' | 'auditor' | 'user' | 'team';
+  source: 'everyone' | 'admin' | 'auditor' | 'user' | 'team' | 'sso';
   /** source team: the team's name as stored on the list */
   team?: string;
 }
@@ -501,6 +660,12 @@ export interface ModuleUse {
   restricted: boolean;
   uses: boolean;
   through: ModuleUseReason[];
+  /**
+   * Their module role, for a module that declares roles (0.23.0): the highest of what their core roles give and what is
+   * granted to them, a team they are in or through single sign-on – and where each comes from. Null: none.
+   */
+  role?: ModuleRole | null;
+  roleThrough?: ModuleRoleReason[];
 }
 
 /**
@@ -530,6 +695,8 @@ export interface ModuleState {
   restrictable: boolean;
   /** Its module access: everyone signed in, or selected teams and users */
   accessMode: ModuleAccessMode;
+  /** The module roles it declares (0.23.0), lowest first */
+  roles: ModuleRole[];
 }
 
 export interface ModulesView {

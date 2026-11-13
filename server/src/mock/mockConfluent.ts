@@ -379,7 +379,15 @@ function costLines(start: string, end: string) {
   for (let t = Date.parse(`${start}T00:00:00Z`); t < Date.parse(`${end}T00:00:00Z`); t += DAY) {
     const day = new Date(t).toISOString().slice(0, 10);
     const next = new Date(t + DAY).toISOString().slice(0, 10);
-    const line = (product: string, lineType: string, amount: number, resource: Record<string, unknown>) =>
+    // 0.23.0: each line with its quantity, unit and list price, and a discount on the cluster's lines (invented figures)
+    const line = (
+      product: string,
+      lineType: string,
+      amount: number,
+      resource: Record<string, unknown>,
+      q: { quantity: number; unit: string; discountPct?: number },
+    ) => {
+      const original = q.discountPct ? Math.round((amount / (1 - q.discountPct / 100)) * 1e6) / 1e6 : amount;
       out.push({
         api_version: 'billing/v1',
         kind: 'Cost',
@@ -389,22 +397,44 @@ function costLines(start: string, end: string) {
         product,
         line_type: lineType,
         network_access_type: 'INTERNET',
-        original_amount: amount,
-        discount_amount: 0,
+        price: Math.round((original / q.quantity) * 1e6) / 1e6,
+        quantity: q.quantity,
+        unit: q.unit,
+        original_amount: original,
+        discount_amount: Math.round((original - amount) * 1e6) / 1e6,
         amount,
         resource,
       });
-    line('KAFKA', 'KAFKA_NUM_CKUS', 36, cluster);
-    line('KAFKA', 'KAFKA_STORAGE', 4.25, cluster);
-    line('KAFKA', 'KAFKA_NETWORK_WRITE', 1.5, cluster);
-    line('CONNECT', 'CONNECT_CAPACITY', 7.2, { id: 'lcc-demo1', display_name: 'orders-s3-sink', environment: { id: DEMO_CONFLUENT.environment } });
-    line('CONNECT', 'CONNECT_THROUGHPUT', 0.35, { id: 'lcc-demo2', display_name: 'shop-events-http-source', environment: { id: DEMO_CONFLUENT.environment } });
-    line('KAFKA', 'KAFKA_BASE', 0.6, { id: 'lkc-demo2', display_name: 'sandbox', environment: { id: 'env-demo2' } });
-    line('STREAM_GOVERNANCE', 'GOVERNANCE_BASE', 0.9, {
-      id: DEMO_CONFLUENT.environment,
-      display_name: 'demo',
-      environment: { id: DEMO_CONFLUENT.environment },
-    });
+    };
+    line('KAFKA', 'KAFKA_NUM_CKUS', 36, cluster, { quantity: 48, unit: 'CKU-hour', discountPct: 10 });
+    line('KAFKA', 'KAFKA_STORAGE', 4.25, cluster, { quantity: 50, unit: 'GB-month', discountPct: 10 });
+    line('KAFKA', 'KAFKA_NETWORK_WRITE', 1.5, cluster, { quantity: 30, unit: 'GB', discountPct: 10 });
+    line(
+      'CONNECT',
+      'CONNECT_CAPACITY',
+      7.2,
+      { id: 'lcc-demo1', display_name: 'orders-s3-sink', environment: { id: DEMO_CONFLUENT.environment } },
+      { quantity: 24, unit: 'Task-hour' },
+    );
+    line(
+      'CONNECT',
+      'CONNECT_THROUGHPUT',
+      0.35,
+      { id: 'lcc-demo2', display_name: 'shop-events-http-source', environment: { id: DEMO_CONFLUENT.environment } },
+      { quantity: 14, unit: 'GB' },
+    );
+    line('KAFKA', 'KAFKA_BASE', 0.6, { id: 'lkc-demo2', display_name: 'sandbox', environment: { id: 'env-demo2' } }, { quantity: 24, unit: 'Hour' });
+    line(
+      'STREAM_GOVERNANCE',
+      'GOVERNANCE_BASE',
+      0.9,
+      {
+        id: DEMO_CONFLUENT.environment,
+        display_name: 'demo',
+        environment: { id: DEMO_CONFLUENT.environment },
+      },
+      { quantity: 24, unit: 'Hour' },
+    );
   }
   return out;
 }

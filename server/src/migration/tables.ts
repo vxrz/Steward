@@ -96,6 +96,7 @@ export const NOT_MOVED: Record<string, string> = {
   dp_discovery_runs: 'the run history of the discovery sources (not moved, as the sources)',
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
+  cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -242,6 +243,9 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_estimates.created_by',
   'cost_estimates.updated_by',
   'cost_estimate_results.replaced_by',
+  // contract conditions (0.23.0, ADR 0035 phase 2): who made and changed one
+  'supplier_contract_conditions.created_by',
+  'supplier_contract_conditions.updated_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',

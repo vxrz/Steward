@@ -18,8 +18,13 @@ export const ODCS_SCHEMA_VERSION = 'v3.0.2';
 /** The apiVersion a new draft gets. */
 export const ODCS_DRAFT_API_VERSION = 'v3.0.2';
 
-/** manage: switch off "breaking changes need a change record" (administrators and approvers – who approve changes) */
-export const DATA_CONTRACT_PERMISSIONS = ['view', 'test', 'edit', 'manage'] as const;
+/**
+ * relax: switch off "breaking changes need a change record" (administrators and approvers – who approve changes; the
+ * action right _relax the breaking-change rule_ of a share, 0.23.0, ADR 0033 decision 12). manage: the same right under
+ * its former name – deprecated, kept in `permissions` for one release; who changes a contract's shares is the Access
+ * tab's `canManage`.
+ */
+export const DATA_CONTRACT_PERMISSIONS = ['view', 'test', 'edit', 'relax', 'manage'] as const;
 export type DataContractPermission = (typeof DATA_CONTRACT_PERMISSIONS)[number];
 
 export const DATA_CONTRACT_LIMITS = {

@@ -47,7 +47,7 @@ test('a designer documents an agent certificate by uploading it and sees it as d
   await expect(drawer.getByRole('link', { name: 'keepass://IT-Ops.kdbx' })).toHaveCount(0);
   await drawer.getByRole('button', { name: 'Mark reviewed' }).click();
   await drawer.getByRole('textbox', { name: 'Comment' }).fill('Still used by the hall 3 gateway');
-  await drawer.getByRole('button', { name: 'Save' }).click();
+  await drawer.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Review recorded')).toBeVisible();
   await expect(drawer.getByText('Still used by the hall 3 gateway')).toBeVisible();
   await page.keyboard.press('Escape');

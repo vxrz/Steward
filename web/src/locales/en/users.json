@@ -1,6 +1,6 @@
 {
   "title": "Users & teams",
-  "description": "Who can sign in, their roles and teams. Roles give default rights everywhere; access lists on processes and platforms can narrow them down.",
+  "description": "Who can sign in, their roles and teams. Roles give default rights everywhere; an item can be restricted and shared with users, teams and roles.",
   "addUser": "Add user",
   "noRoles": "no roles",
   "resetConfirm": "Reset the password of {{user}}? Their sessions are signed out.",
@@ -24,7 +24,7 @@
   "teams": {
     "title": "Teams",
     "new": "New team",
-    "none": "No teams yet. Teams group users so that access lists and task assignments can refer to them (e.g. team:service desk).",
+    "none": "No teams yet. Teams group users so that shares and task assignments can refer to them (e.g. team:service desk).",
     "edit": "Edit team {{name}}",
     "delete": "Delete team {{name}}",
     "deleteConfirm": "Delete team \"{{name}}\"? Access entries that name it stop matching anyone.",
@@ -42,7 +42,7 @@
   },
   "roles": {
     "title": "Roles",
-    "hint": "Roles are defaults. A process or platform with an access list only grants the rights listed there (plus administrators and, for processes, the owner). Approval steps can additionally be assigned to specific users, teams or roles and require a second person (four-eyes principle)."
+    "hint": "Roles are defaults. A restricted item grants only the rights it is shared with (plus administrators, auditors and its owner). Approval steps can additionally be assigned to specific users, teams or roles and require a second person (four-eyes principle)."
   },
   "userModal": {
     "updated": "{{user}} updated",
@@ -298,7 +298,8 @@
         "GROUPS_OVERAGE": "The token left the groups out (too many groups; claim {{claim}}). No roles come from them. Assign groups to the application, use app roles or a group filter.",
         "USERINFO_USED": "Claims from the userinfo endpoint are used too."
       },
-      "modules": "Restricted modules"
+      "modules": "Modules",
+      "moduleRoles": "Module roles"
     },
     "stripDomains": "Domains to strip",
     "stripDomainsHint": "Only these domains are removed (max@contoso.com → max). A user name of any other domain is refused – otherwise boss@any-domain could claim the account “boss”.",
@@ -325,7 +326,8 @@
     },
     "teamRoles": "Roles in these teams",
     "changedCount_one": "{{count}} changed",
-    "changedCount_other": "{{count}} changed"
+    "changedCount_other": "{{count}} changed",
+    "moduleRoles": "Module roles"
   },
   "profileValues": {
     "title": "From the sign-in provider",
@@ -459,5 +461,12 @@
     "confirmLabel": "Type the user name {{name}} to confirm",
     "submit": "Replace by a pseudonym",
     "done": "The data of {{name}} was replaced by the pseudonym {{pseudonym}}"
+  },
+  "moduleRoles": {
+    "title": "Module roles",
+    "hint": "What the person may do in a module beyond what their roles give – the highest counts. Their teams’ module roles and single sign-on’s are set elsewhere (Settings → Modules, the provider’s mappings).",
+    "none": "From their roles",
+    "fromSso": "Single sign-on gives {{role}} (kept up to date at each sign-in)",
+    "sso": "single sign-on"
   }
 }

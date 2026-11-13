@@ -1,6 +1,6 @@
 {
   "title": "Benutzer & Teams",
-  "description": "Wer sich anmelden kann, mit welchen Rollen und in welchen Teams. Rollen vergeben überall Standardrechte; Zugriffslisten an Prozessen und Plattformen können sie einschränken.",
+  "description": "Wer sich anmelden kann, mit welchen Rollen und in welchen Teams. Rollen vergeben überall Standardrechte; ein Eintrag kann eingeschränkt und mit Benutzern, Teams und Rollen geteilt werden.",
   "addUser": "Benutzer hinzufügen",
   "noRoles": "keine Rollen",
   "resetConfirm": "Passwort von {{user}} zurücksetzen? Alle Sitzungen dieses Benutzers werden abgemeldet.",
@@ -24,7 +24,7 @@
   "teams": {
     "title": "Teams",
     "new": "Neues Team",
-    "none": "Noch keine Teams. Teams fassen Benutzer zusammen, damit Zugriffslisten und Aufgabenzuweisungen auf sie verweisen können (z. B. team:service desk).",
+    "none": "Noch keine Teams. Teams fassen Benutzer zusammen, damit Einträge unter „Geteilt mit“ und Aufgabenzuweisungen auf sie verweisen können (z. B. team:service desk).",
     "edit": "Team {{name}} bearbeiten",
     "delete": "Team {{name}} löschen",
     "deleteConfirm": "Team „{{name}}“ löschen? Zugriffseinträge, die es nennen, gelten dann für niemanden mehr.",
@@ -42,7 +42,7 @@
   },
   "roles": {
     "title": "Rollen",
-    "hint": "Rollen sind Standardwerte. Ein Prozess oder eine Plattform mit Zugriffsliste gewährt nur die dort aufgeführten Rechte (zusätzlich Administratoren und bei Prozessen der Eigentümer). Freigabeschritte lassen sich zusätzlich bestimmten Benutzern, Teams oder Rollen zuweisen und können eine zweite Person verlangen (Vier-Augen-Prinzip)."
+    "hint": "Rollen sind Standardwerte. Ein eingeschränkter Eintrag gewährt nur die Rechte, mit denen er geteilt ist (zusätzlich haben Administratoren, Prüfer und sein Eigentümer Zugriff). Freigabeschritte lassen sich zusätzlich bestimmten Benutzern, Teams oder Rollen zuweisen und können eine zweite Person verlangen (Vier-Augen-Prinzip)."
   },
   "userModal": {
     "updated": "{{user}} aktualisiert",
@@ -298,7 +298,8 @@
         "GROUPS_OVERAGE": "Das Token hat die Gruppen weggelassen (zu viele Gruppen; Claim {{claim}}). Aus ihnen kommen keine Rollen. Weisen Sie der Anwendung Gruppen zu, nutzen Sie App-Rollen oder einen Gruppenfilter.",
         "USERINFO_USED": "Claims vom Userinfo-Endpunkt werden mitverwendet."
       },
-      "modules": "Beschränkte Module"
+      "modules": "Module",
+      "moduleRoles": "Modulrollen"
     },
     "stripDomains": "Zu entfernende Domains",
     "stripDomainsHint": "Nur diese Domains werden entfernt (max@contoso.com → max). Ein Benutzername einer anderen Domain wird abgewiesen – sonst könnte boss@beliebige-domain das Konto „boss“ übernehmen.",
@@ -325,7 +326,8 @@
     },
     "teamRoles": "Rollen in diesen Teams",
     "changedCount_one": "{{count}} geändert",
-    "changedCount_other": "{{count}} geändert"
+    "changedCount_other": "{{count}} geändert",
+    "moduleRoles": "Modulrollen"
   },
   "profileValues": {
     "title": "Vom Anmeldeanbieter",
@@ -459,5 +461,12 @@
     "confirmLabel": "Geben Sie zur Bestätigung den Benutzernamen {{name}} ein",
     "submit": "Durch Pseudonym ersetzen",
     "done": "Die Daten von {{name}} wurden durch das Pseudonym {{pseudonym}} ersetzt"
+  },
+  "moduleRoles": {
+    "title": "Modulrollen",
+    "hint": "Was die Person in einem Modul über ihre Rollen hinaus darf – die höchste zählt. Die Modulrollen ihrer Teams und die des Single Sign-on werden an anderer Stelle festgelegt (Einstellungen → Module, die Zuordnungen des Anbieters).",
+    "none": "Aus ihren Rollen",
+    "fromSso": "Das Single Sign-on gibt {{role}} (bei jeder Anmeldung aktualisiert)",
+    "sso": "Single Sign-on"
   }
 }

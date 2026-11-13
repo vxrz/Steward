@@ -54,7 +54,7 @@ On the site page:
 
 - **Hierarchy**: areas (with an optional manufacturing domain), their work centers and work units; add, edit, [move](#move-to) (a work center to another area, a work unit to another work center – its assets follow) and remove (only empty nodes). Each node names its building or inherits it. The areas start open and the work centers folded; the arrow beside a node folds it, _Expand all_ and _Collapse all_ do it for the whole tree. A link to `#node-<id>` opens the path to that node.
 - **Buildings**: buildings, halls, floors, rooms and outdoor areas; a floor or room names the building it is in (no cycles). A building that something names cannot be removed.
-- The site's assets by status, its links, its access list and owning teams.
+- The site's assets by status, its links, its owning teams and shares (_Access_).
 
 ### Move to
 
@@ -119,7 +119,7 @@ Since 0.14. Plant assets and their documents live for decades: a manual written 
 
 A **review interval** is optional and only ever a **hint**:
 
-- **per site**: _Documentation review interval_ (months) on the site's overview, beside _Changes need a second person_ and the access list – a setting of the site, changed by who manages it (`PUT /api/plant/sites/:siteId/doc-review`, audited as `site.doc_review_changed`; not part of the file format);
+- **per site**: _Documentation review interval_ (months) on the site's overview, beside _Changes need a second person_ – a setting of the site, changed by who manages it (`PUT /api/plant/sites/:siteId/doc-review`, audited as `site.doc_review_changed`; not part of the file format);
 - **per document type**: _Settings → Modules → Plant registry → Review intervals of documents_ (months per living-document type, `documentReview` in the plant settings) – it applies instead of the site's.
 
 When the last confirmation – or, before the first, the document's last change (an asset: when it was added) – is older than the interval, the document shows **A look is due** in a quiet blue, else _Next look by …_. Never red, never an alert, no notification: nothing is wrong with an old document, and a reminder every three years for every manual of a site would only teach people to ignore reminders. Without an interval nothing is ever due.
@@ -237,7 +237,9 @@ _Plant → Explore data_: **who delivers a data point** – a text across every 
 
 ### Rights
 
-Without owning teams, everyone who sees the plant registry sees the catalogues (the role _Plant viewer_ included); **designers and administrators** manage them (whoever may add sites), and whoever may propose on some site proposes changes to them. An assignment and its KPI instances follow the asset's site: who sees the site sees them, who manages it changes them. Lists, counts, the search, the checks and the data point and KPI pages count and name only assets of sites the reader may see; a profile that only a hidden asset has is “still in use” without a count. Every change is audited (`device_profile.created|updated|deleted`, `kpi_definition.created|updated|deleted`, `asset.assignment_set|assignment_removed`, `*.duplicated`).
+Since 0.23.0 these role defaults are the plant registry's **module roles** ([MODULES.md](MODULES.md#module-roles)): designers are its managers, operators and approvers its contributors, auditors and viewers its viewers – nothing changed at the upgrade; an administrator gives a person or a team a module role (a team's manager role makes its members manage the catalogues), and the former role _Plant viewer_ is the contributor grant.
+
+Without owning teams, everyone who sees the plant registry sees the catalogues (the plant registry's contributors without another role included); **designers and administrators** manage them (whoever may add sites), and whoever may propose on some site proposes changes to them. An assignment and its KPI instances follow the asset's site: who sees the site sees them, who manages it changes them. Lists, counts, the search, the checks and the data point and KPI pages count and name only assets of sites the reader may see; a profile that only a hidden asset has is “still in use” without a count. Every change is audited (`device_profile.created|updated|deleted`, `kpi_definition.created|updated|deleted`, `asset.assignment_set|assignment_removed`, `*.duplicated`).
 
 #### Owning teams and shares
 
@@ -1264,12 +1266,12 @@ The card shows what the history, the baselines and the change sets take in the d
 
 Rights are per site; the hierarchy, buildings and assets of a site follow it ([ADR 0006](adr/0006-owning-teams-policy-module.md)):
 
-- **Without owning teams or access list**: every role that works in Steward (viewer, operator, approver, auditor, designer, administrator) sees the site; designers and administrators manage it (change it, its hierarchy, buildings and assets, import into it). Designers and administrators add sites.
-- **Access list** (site page → _Access_, for who manages it; adding an entry asks for a step-up like other grants): only its entries get their rights – _view_, _propose_ or _manage_ – plus administrators; auditors always see.
+- **Without owning teams, shares or Restricted**: every role that works in Steward (viewer, operator, approver, auditor, designer, administrator) sees the site; designers and administrators manage it (change it, its hierarchy, buildings and assets, import into it). Designers and administrators add sites.
+- **Shares** (the site's _Access_ section, 0.23.0 – the former access list): who manages the site shares it with a user, a team or a role – View or Manage, with _propose_ beside the level – and can make it **Restricted** (only its shares, administrators and auditors reach it); a widening asks for the step-up, narrowing does not ([TEAMS.md](TEAMS.md#sharing-the-access-tab)). Since the upgrade an access list is its shares with exactly its rights, and a site that had one is Restricted.
 - **Propose** (0.13.0, [Change sets](#change-sets)): keep drafts of changes and propose them – never apply. By default operators, approvers and plant viewers; managing a site includes it. Device profiles and KPI definitions belong to no site: whoever may propose for some site may propose changes to them. An AI assistant may propose with its owner's _propose_ right. `permissions` of a site lists _view_ and _manage_ as before; `canPropose` says whether the person may propose.
 - **A second person** (0.13.0): where a site needs one (`plant.changeSet`), no author applies a change set – administrators included.
 - **Owning teams**: as for other resources, members of the owning teams have their instance and team roles on the site.
-- **Plant viewer** (`plant`): a new instance role that **sees only the plant registry** (sites that are not restricted) and their own profile. For a user whose only working role it is – no other instance role (a _status_ role adds the status pages) and no role in a team – the server refuses every other route (`403 PLANT_VIEWER_ONLY`), the public API answers only `/api/v1/plant/…` and `/api/v1/me`, the MCP endpoint refuses them, and the web app shows the _Plant_ area and the profile only. Linked systems and applications show by name, without a link; records, services and credentials that link to a site or asset are not listed. With another working role, they keep that role's access.
+- **Plant viewer** (`plant`) – _since 0.23.0 the plant registry's module role **contributor**, given per user or team ([MODULES.md](MODULES.md#module-roles)); the role is still accepted for one release and turned into that grant. What follows describes a module-only user of the plant registry:_ a new instance role that **sees only the plant registry** (sites that are not restricted) and their own profile. For a user whose only working role it is – no other instance role (a _status_ role adds the status pages) and no role in a team – the server refuses every other route (`403 PLANT_VIEWER_ONLY`), the public API answers only `/api/v1/plant/…` and `/api/v1/me`, the MCP endpoint refuses them, and the web app shows the _Plant_ area and the profile only. Linked systems and applications show by name, without a link; records, services and credentials that link to a site or asset are not listed. With another working role, they keep that role's access.
 - **Status viewers** never see the module; nothing of it is shown on status pages.
 - The **OT network** follows its site: who sees the site sees it, who manages the site changes it ([Rights](#rights-1)).
 - **Device profiles and KPI definitions** belong to the installation: everyone who sees the registry sees them, designers and administrators manage them – unless owning teams or shares say otherwise (0.21.0, [Owning teams and shares](#owning-teams-and-shares)). An asset's **assignment and KPI instances** follow its site ([Rights](#rights)).

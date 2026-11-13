@@ -42,8 +42,9 @@ import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './b
 import * as processes from '../processes/service.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, memberships, newResourceTeams, owningTeams, teamScoped } from '../auth/policy.js';
-import { auditNamedGrant, requireNamedGrant, uncoveredSubjects, type NamedGrant } from '../auth/named-grants.js';
+import { isRestricted } from '../auth/share-store.js';
+import { assignCreatorTeams, forgetOwningTeams, memberships, newResourceTeams, owningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
+import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -139,29 +140,34 @@ export function saveReminderSettings(input: z.infer<typeof reminderSettingsSchem
 export const isOwner = (u: AuthUser, r: Pick<CredentialRow, 'owner_subjects'>): boolean => parseJson<string[]>(r.owner_subjects, []).some((s) => matches(u, s));
 
 export function credentialPermissions(u: AuthUser | null, r: Pick<CredentialRow, 'id' | 'owner_subjects' | 'archived'>): CredentialPermission[] {
-  return credentialAccess(u, r).permissions;
+  return credentialAccess(u, r).permissions.filter((p): p is CredentialPermission => p !== 'manage');
 }
 
 /** Who may see and change an entry, and why (#131: members of its owning teams only, when it has some). */
 export function credentialAccess(u: AuthUser | null, r: Pick<CredentialRow, 'id' | 'owner_subjects' | 'archived'>) {
-  const ALL = ['view', 'edit', 'archive', 'delete'] as const;
+  // `manage` (0.23.0, ADR 0033): changing its shares and naming an owner from outside its owning teams – designers and
+  // operators by role (who did before), Manage shares; an owner has an implied Edit share. Archive and delete stay
+  // administrators'. credentialPermissions() leaves `manage` out of the entry's public rights.
+  const ALL = ['view', 'edit', 'archive', 'delete', 'manage'] as const;
+  type P = (typeof ALL)[number];
   const named = u ? parseJson<string[]>(r.owner_subjects, []).find((s) => matches(u, s)) : undefined;
   const owner = !!named;
-  const byRole = (role: string): CredentialPermission[] => [
+  const byRole = (role: string): P[] => [
     ...(READ_ROLES.includes(role) ? (['view'] as const) : []),
-    ...(EDIT_ROLES.includes(role) ? (['edit'] as const) : []),
+    ...(EDIT_ROLES.includes(role) ? (['edit', 'manage'] as const) : []),
   ];
-  const d = teamScoped<CredentialPermission>(
+  const d = teamScoped<P>(
     u,
     { kind: 'credential', id: r.id },
     {
       all: ALL,
       byRole,
-      personal: named ? { permissions: ['view', 'edit'], subject: named, as: 'owner' } : null,
+      personal: named ? { permissions: ['view', 'edit'], subject: named, as: 'owner', level: 'edit' } : null,
       auditor: ['view'],
+      shares: ITEM_SHARE_MODEL,
       unscoped: () => {
         if (!u) return [];
-        const out = new Set<CredentialPermission>([...(owner ? (['view', 'edit'] as const) : []), ...u.roles.flatMap(byRole)]);
+        const out = new Set<P>([...(owner ? (['view', 'edit'] as const) : []), ...u.roles.flatMap(byRole)]);
         if (isAdmin(u)) ALL.forEach((p) => out.add(p));
         return ALL.filter((p) => out.has(p));
       },
@@ -922,6 +928,14 @@ function namedOwners(id: string | null, b: CredentialInput, ownerSubjects?: stri
     before: before ? parseJson<string[]>(before.owner_subjects, []) : [],
     after,
     rights: ['view', 'edit'],
+    // 0.23.0 (ADR 0033 decision 3): only who manages the entry names an owner from outside; on a Restricted one every
+    // new owner is from outside
+    ...(before
+      ? {
+          restricted: !owningTeams('credential', before.id).length && isRestricted('credential', before.id),
+          mayGrant: credentialAccess(currentUser(), before).permissions.includes('manage'),
+        }
+      : {}),
   };
 }
 
@@ -930,7 +944,7 @@ export function credentialNamesOutsiders(id: string | null, body: unknown): stri
   const p = credentialInputSchema.safeParse(body ?? {});
   if (!p.success) return [];
   const g = namedOwners(id, p.data);
-  return uncoveredSubjects(g.teams, g.before, g.after);
+  return outsidersOf(g);
 }
 
 export function createCredential(b: CredentialInput): Credential {

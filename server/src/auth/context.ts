@@ -42,8 +42,8 @@ interface RequestStore {
   teamIndex?: Map<string, { id: string; name: string }[]>;
   /** Shares and Restricted resources, read once per request and kind (auth/share-store.ts) */
   shareIndex?: ShareIndex;
-  /** The restricted modules and the subjects that use them, read once per request (modules/access.ts, ADR 0034) */
-  moduleAccess?: Map<string, string[]>;
+  /** The module policy – restricted modules and every module grant – read once per request (modules/grants.ts, ADR 0034) */
+  moduleAccess?: object;
   /** How this request met the assurance policy (auth/assurance.ts): written into its audit entries */
   assurance?: { proofs: Record<string, unknown>[]; consumed: boolean };
 }

@@ -12,6 +12,7 @@ import { memberships, owningTeams, shareReasons, teamScoped, type ShareModel } f
 import { isRestricted } from '../auth/share-store.js';
 import { parseJson } from '../util.js';
 import { usesModule as usesModuleAccess } from '../modules/access.js';
+import { grantedModuleRoles } from '../modules/grants.js';
 
 /**
  * Who may do what in the data products module (ADR 0036 part 12). **Module access** (ADR 0034 phase 1) decides who
@@ -20,7 +21,8 @@ import { usesModule as usesModuleAccess } from '../modules/access.js';
  * items, on every surface (its routes answer 404 MODULE_NO_ACCESS before this is asked; owning-team routes, link
  * pickers, monitor checks and contract drafts ask this). Within it the core roles give the module role
  * (`fromCoreRoles`): designer → manager, every other working role → viewer, administrators everything. Module roles
- * granted per team (contributor among them) come with ADR 0034 phase 2: `moduleRoleOf` is the seam that will ask them.
+ * granted to a person, a team or through single sign-on (ADR 0034 phase 2, 0.23.0; contributor among them) add: they
+ * count like an instance role – on items without owning teams, and on items of an owning team the person is in.
  *
  * Per item (owned kinds data_product, data_object, data_element, data_domain): without owning teams every working
  * role sees it and managers (designers) change it; with owning teams their members do (with their instance and team
@@ -60,6 +62,17 @@ const byRole = (r: Role): readonly DataProductPermission[] => {
 
 const RANK: Record<DataProductModuleRole, number> = { viewer: 1, contributor: 2, manager: 3 };
 
+/** The module roles granted to `u` (ADR 0034 phase 2) as reasons with the rights they give on items. */
+function grantedReasons(u: AuthUser): AccessReason[] {
+  return grantedModuleRoles(u, 'dataProducts').map((r) => ({
+    source: 'moduleRole' as const,
+    moduleRole: r.role,
+    ...(r.source === 'team' ? { subject: `team:${r.team}` } : r.source === 'user' ? { subject: `user:${u.username.toLowerCase()}` } : {}),
+    ...(r.source === 'sso' ? { sso: true } : {}),
+    permissions: [...BY_MODULE_ROLE[r.role as DataProductModuleRole]],
+  }));
+}
+
 /** The person's module role in the instance (the highest of their instance and team roles; null: none). */
 export function moduleRoleOf(u: AuthUser | null): DataProductModuleRole | null {
   if (!u || !usesModuleAccess(u, 'dataProducts')) return null;
@@ -70,6 +83,11 @@ export function moduleRoleOf(u: AuthUser | null): DataProductModuleRole | null {
   };
   for (const r of u.roles) consider(r);
   for (const m of memberships(u).values()) for (const r of m.roles) consider(r);
+  // granted module roles (ADR 0034 phase 2): the highest counts
+  for (const g of grantedModuleRoles(u, 'dataProducts')) {
+    const m = g.role as DataProductModuleRole;
+    if (!best || RANK[m] > RANK[best]) best = m;
+  }
   return best;
 }
 
@@ -131,12 +149,24 @@ function decideItem(
       },
     },
   );
-  if (!shares || !u || isAdmin(u)) return normalise(d);
+  if (!u || isAdmin(u)) return normalise(d);
+  // granted module roles (ADR 0034 phase 2): like an instance role – on items without owning teams that are not
+  // Restricted, and on an owning team's items for its members
+  const teamsOf = owningTeams(kind, id);
+  const mine = memberships(u);
+  const moduleWide = (!teamsOf.length && !(shares && isRestricted(kind, id))) || teamsOf.some((t) => mine.has(t.id)) ? grantedReasons(u) : [];
+  if (moduleWide.length) {
+    const reasons = [...d.reasons, ...moduleWide];
+    const granted = new Set([...d.permissions, ...moduleWide.flatMap((r) => r.permissions)]);
+    d.reasons = reasons;
+    d.permissions = ALL.filter((p) => granted.has(p));
+  }
+  if (!shares) return normalise(d);
   // shares (ADR 0033, kinds switched to shares): they add a level; a Restricted item without owning teams gives the
   // instance roles nothing – only its shares, its named owners, auditors (view) and administrators reach it
   let reasons = d.reasons;
   if (!owningTeams(kind, id).length && isRestricted(kind, id)) {
-    reasons = reasons.filter((r) => r.source !== 'instanceRole');
+    reasons = reasons.filter((r) => r.source !== 'instanceRole' && r.source !== 'moduleRole');
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
   }
   reasons = [...reasons, ...shareReasons(u, { kind, id }, shares)];
@@ -186,6 +216,8 @@ export function elementAccess(u: AuthUser | null, teamIds: readonly string[]): I
       for (const role of new Set([...u.roles, ...m.roles])) add({ source: 'teamRole', role, team: m.name, permissions: [...byRole(role)] });
     }
   }
+  // granted module roles (ADR 0034 phase 2): module-wide, like an instance role
+  if (!teamIds.length || teamIds.some((t) => memberships(u).has(t))) for (const r of grantedReasons(u)) add(r);
   const granted = new Set(reasons.flatMap((r) => r.permissions));
   return normalise({ permissions: ALL.filter((p) => granted.has(p as DataProductPermission)), reasons });
 }
@@ -197,7 +229,8 @@ export function elementAccess(u: AuthUser | null, teamIds: readonly string[]): I
 export function elementScopeSql(u: AuthUser | null, alias = 'e'): { sql: string; params: string[] } {
   if (!u || !usesModuleAccess(u, 'dataProducts')) return { sql: '1 = 0', params: [] };
   if (isAdmin(u) || u.roles.includes('auditor')) return { sql: '1 = 1', params: [] };
-  const working = u.roles.some((r) => byRole(r).length > 0);
+  // a granted module role (ADR 0034 phase 2) counts like a working instance role
+  const working = u.roles.some((r) => byRole(r).length > 0) || grantedModuleRoles(u, 'dataProducts').length > 0;
   const teams = [...memberships(u)].filter(([, m]) => working || m.roles.some((r) => byRole(r).length > 0)).map(([id]) => id);
   const unowned = `NOT EXISTS (SELECT 1 FROM resource_teams rt WHERE rt.kind = 'data_element' AND rt.resource_id = ${alias}.id)`;
   const owned = teams.length

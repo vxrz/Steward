@@ -143,7 +143,9 @@ test.describe('as a viewer', () => {
     await expect(page.getByRole('link', { name: 'Import', exact: true })).toBeHidden();
     await page.goto('/plant/sites/riverside');
     await expect(page.getByTestId('plant-hierarchy').getByRole('button', { name: 'Add area' })).toBeHidden();
-    await expect(page.getByTestId('site-access')).toBeHidden();
+    // the site's Access section (0.23.0, its access list became shares): a viewer reads only their own reasons
+    await expect(page.getByTestId('shares-panel')).toContainText('Only who manages this item');
+    await expect(page.getByRole('button', { name: 'Save shares' })).toBeHidden();
     await expectAccessible(page, 'plant site (viewer)');
   });
 });
@@ -181,6 +183,8 @@ test.describe('as a plant viewer', () => {
     // other pages are not there for them
     await page.goto('/services');
     await expect(page.getByText('Page not found', { exact: true })).toBeVisible();
+    // in plain words why
+    await expect(page.getByTestId('empty-state')).toContainText('You only use some areas of this instance');
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Profile', level: 1 })).toBeVisible();
   });

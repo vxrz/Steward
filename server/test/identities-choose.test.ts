@@ -200,6 +200,9 @@ describe('managing identities', () => {
     expect(((await olivia('GET', `/platforms/${p.id}`)) as any).identities.find((x: any) => x.default).mayUse).toBe(true);
     await s.api('PUT', `/platforms/${p.id}/identities/${i.id}/access`, { acl: [{ subject: 'user:olivia', permissions: ['use'] }] });
     expect((await seenBy(olivia)).mayUse).toBe(true);
+    // how many shares it has is for who manages the platform – not for who only uses it
+    expect((await seenBy(olivia)).shared).toBeUndefined();
+    expect(((await s.api('GET', `/platforms/${p.id}`)) as any).identities.find((x: any) => x.id === i.id).shared).toBe(1);
     // dana (designer) is not on the list
     expect((await seenBy(dana)).mayUse).toBe(false);
     // an owning team: its members with a role that uses platforms (designer, operator) use it
@@ -217,9 +220,11 @@ describe('managing identities', () => {
       body: { code: 'IDENTITY_DEFAULT_NO_ACCESS_LIST' },
     });
     // managing is not using: a platform manager who is not listed may configure, not use
-    expect((await auditOf(`entityId=${p.id}&action=platform.identity_access_changed`))[0].details.acl).toEqual([
-      { subject: 'user:olivia', permissions: ['use'] },
-    ]);
+    // (since 0.23.0 the list is the identity's shares: audited as an access change on the identity)
+    expect((await auditOf(`entityId=${i.id}&action=access.share_added`))[0].details).toMatchObject({
+      subject: 'user:olivia',
+      after: { level: 'view', actions: ['use'] },
+    });
   });
 
   it('switches the default identity: audited, the new default is open to everyone, the former one closed', async () => {

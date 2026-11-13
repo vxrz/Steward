@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Group, List, Loader, Modal, Radio, Stack, Text } from '@mantine/core';
+import { Alert, Badge, Button, Group, List, Loader, Modal, Radio, Select, Stack, Table, Text } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconShieldLock, IconUsers } from '@tabler/icons-react';
-import type { ModuleAccessInput, ModuleAccessMode, ModuleAccessPreview, ModuleAccessView, ModuleId } from '@sm/shared';
+import type { ModuleAccessInput, ModuleAccessMode, ModuleAccessPreview, ModuleAccessView, ModuleId, ModuleRole } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { MODULE_ACCESS_LIMITS } from '../../../../shared/src/modules';
 import { BRAND } from '../../../../shared/src/brand';
@@ -12,10 +12,14 @@ import { get, notifyError, notifyOk, post, put } from '../../api';
 import { QueryState } from '../common';
 import { SubjectsInput, useSubjectLabel } from '../SubjectsInput';
 import { visibilityKey } from '../../modules';
+import { TableScroll } from '../TableScroll';
+import { useModuleRoleLabel } from '../modules/moduleUse';
 
 export const moduleAccessKey = (id: ModuleId) => ['settings', 'modules', id, 'access'] as const;
 
-const sameList = (a: readonly string[], b: readonly string[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+/** One entry of the dialog: a team or user and its module role (null: uses it with the role its core roles give). */
+type Entry = { subject: string; role: ModuleRole | null };
+const key = (xs: readonly Entry[]) => JSON.stringify(xs.map((x) => `${x.subject.toLowerCase()}|${x.role ?? ''}`).sort());
 
 /** How many names a preview list shows before "and n more". */
 const SHOWN = 12;
@@ -31,19 +35,40 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
   const qc = useQueryClient();
   const q = useQuery({ queryKey: moduleAccessKey(id), queryFn: () => get<ModuleAccessView>(`/settings/modules/${id}/access`) });
   const [mode, setMode] = useState<ModuleAccessMode>('everyone');
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const label = useSubjectLabel();
+  const roleLabel = useModuleRoleLabel();
+  // the module roles it declares (0.23.0, ADR 0034 part 4): each entry gets a role column
+  const roles = q.data?.roles ?? [];
+  const adminGrants = useMemo(() => (q.data?.grants ?? []).filter((g) => g.source !== 'sso'), [q.data]);
+  const ssoGrants = useMemo(() => (q.data?.grants ?? []).filter((g) => g.source === 'sso'), [q.data]);
   useEffect(() => {
     if (!q.data) return;
     setMode(q.data.mode);
-    setSubjects(q.data.grants.map((g) => g.subject.toLowerCase()));
-  }, [q.data]);
+    setEntries(adminGrants.map((g) => ({ subject: g.subject.toLowerCase(), role: g.role })));
+  }, [q.data, adminGrants]);
 
-  const saved = useMemo(() => (q.data?.mode === 'selected' ? q.data.grants.map((g) => g.subject.toLowerCase()) : []), [q.data]);
-  const body: ModuleAccessInput = { mode, grants: mode === 'selected' ? subjects.map((subject) => ({ subject })) : [] };
-  const dirty = !!q.data && (mode !== q.data.mode || (mode === 'selected' && !sameList(subjects, saved)));
+  // open to everyone, only entries with a role mean something (they give the role)
+  const kept = (m: ModuleAccessMode, xs: readonly Entry[]) => (m === 'selected' ? xs : xs.filter((x) => x.role));
+  const saved = useMemo(
+    () =>
+      kept(
+        q.data?.mode ?? 'everyone',
+        adminGrants.map((g) => ({ subject: g.subject.toLowerCase(), role: g.role })),
+      ),
+    [q.data, adminGrants],
+  );
+  const body: ModuleAccessInput = { mode, grants: kept(mode, entries).map((e) => ({ subject: e.subject, ...(roles.length ? { role: e.role } : {}) })) };
+  const dirty = !!q.data && (mode !== q.data.mode || key(kept(mode, entries)) !== key(saved));
+  const setSubjects = (next: string[]) =>
+    setEntries(next.map((subject) => entries.find((e) => e.subject === subject) ?? { subject, role: mode === 'everyone' && roles.length ? roles[0]! : null }));
+  const setRole = (subject: string, role: ModuleRole | null) => setEntries(entries.map((e) => (e.subject === subject ? { ...e, role } : e)));
+  const roleOptions = (m: ModuleAccessMode) => [
+    ...(m === 'selected' ? [{ value: '', label: t('access.roleDefault') }] : []),
+    ...roles.map((r) => ({ value: r, label: `${roleLabel(r)} – ${t(`roleHint.${r}`)}` })),
+  ];
   const [draft] = useDebouncedValue(JSON.stringify(body), 300);
   const preview = useQuery({
     queryKey: [...moduleAccessKey(id), 'preview', draft],
@@ -103,14 +128,58 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
               <Radio value="selected" label={t('access.mode.selected')} description={t('access.modeHint.selected')} data-testid="module-access-selected" />
             </Stack>
           </Radio.Group>
-          {mode === 'selected' && (
+          {(mode === 'selected' || roles.length > 0) && (
             <SubjectsInput
-              label={t('access.subjects')}
-              description={t('access.subjectsHint')}
-              value={subjects}
+              label={mode === 'selected' ? t('access.subjects') : t('access.rolesTitle')}
+              description={mode === 'selected' ? t('access.subjectsHint') : t('access.everyoneRolesHint')}
+              value={entries.map((e) => e.subject)}
               onChange={setSubjects}
               max={MODULE_ACCESS_LIMITS.grants}
             />
+          )}
+          {roles.length > 0 && (
+            <Stack gap={4} data-testid="module-access-roles">
+              <Text size="xs" c="dimmed">
+                {t('access.rolesIntro', { name })}
+              </Text>
+              {entries.length > 0 && (
+                <TableScroll>
+                  <Table fz="sm" verticalSpacing={4} withTableBorder>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>{t('access.subjects')}</Table.Th>
+                        <Table.Th miw={200}>{t('access.roleColumn')}</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {entries.map((e) => (
+                        <Table.Tr key={e.subject}>
+                          <Table.Td>{label(e.subject)}</Table.Td>
+                          <Table.Td>
+                            <Select
+                              size="xs"
+                              aria-label={t('access.roleFor', { name: label(e.subject) })}
+                              data={roleOptions(mode)}
+                              value={e.role ?? ''}
+                              onChange={(v) => setRole(e.subject, (v || null) as ModuleRole | null)}
+                              allowDeselect={false}
+                              placeholder={t('access.noRole')}
+                              comboboxProps={{ withinPortal: true }}
+                              data-testid={`module-role-${e.subject}`}
+                            />
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </TableScroll>
+              )}
+              {ssoGrants.length > 0 && (
+                <Text size="xs" c="dimmed" data-testid="module-access-sso">
+                  {t('access.ssoGrants', { grants: ssoGrants.map((g) => `${label(g.subject)} (${roleLabel(g.role)})`).join(', ') })}
+                </Text>
+              )}
+            </Stack>
           )}
           {q.data.grants.some((g) => !g.known) && mode === 'selected' && (
             <Text size="xs" c="dimmed">
@@ -122,7 +191,7 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
               <Text size="sm" c="dimmed">
                 {q.data.mode === 'selected'
                   ? q.data.grants.length
-                    ? t('access.now.selected', { subjects: q.data.grants.map((g) => label(g.subject)).join(', ') })
+                    ? t('access.now.selected', { subjects: [...new Set(q.data.grants.map((g) => label(g.subject)))].join(', ') })
                     : t('access.now.nobody')
                   : t('access.now.everyone')}
               </Text>
@@ -144,7 +213,7 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
                 <Text size="sm" fw={600}>
                   {t('access.previewTitle')}
                 </Text>
-                {!current.gains.length && !current.loses.length && <Text size="sm">{t('access.nobodyChanges')}</Text>}
+                {!current.gains.length && !current.loses.length && !current.roleChanges?.length && <Text size="sm">{t('access.nobodyChanges')}</Text>}
                 {current.gains.length > 0 && (
                   <div data-testid="module-access-gains">
                     <Text size="sm">{t('access.gains', { count: current.gains.length })}</Text>
@@ -155,6 +224,23 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
                   <div data-testid="module-access-loses">
                     <Text size="sm">{t('access.loses', { count: current.loses.length })}</Text>
                     {people(current.loses)}
+                  </div>
+                )}
+                {!!current.roleChanges?.length && (
+                  <div data-testid="module-access-role-changes">
+                    <Text size="sm">{t('access.roleChanges', { count: current.roleChanges.length })}</Text>
+                    <List size="sm" spacing={2}>
+                      {current.roleChanges.slice(0, SHOWN).map((c) => (
+                        <List.Item key={c.username}>
+                          {t('access.roleChange', {
+                            person: c.displayName && c.displayName !== c.username ? `${c.displayName} (${c.username})` : c.username,
+                            before: roleLabel(c.before),
+                            after: roleLabel(c.after),
+                          })}
+                        </List.Item>
+                      ))}
+                      {current.roleChanges.length > SHOWN && <List.Item>{t('access.more', { count: current.roleChanges.length - SHOWN })}</List.Item>}
+                    </List>
                   </div>
                 )}
                 {current.owningTeamsWithout.length > 0 && (

@@ -28,7 +28,8 @@ import { processAccess } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
-import { me } from '../auth/access.js';
+import { ACCESS, me } from '../auth/access.js';
+import { markDeprecated } from '../auth/acl-shares.js';
 import { namesPrivileged, privilegedRefusal, privilegedSlots } from '../platforms/privileged.js';
 import { requireProcess, requireRun, withDecisionRights, visibleTasks, visibleRuns } from './helpers.js';
 import { params } from './params.js';
@@ -128,10 +129,13 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
     const b = z.object({ definition: z.any(), comment: z.string().max(2000).optional() }).parse(req.body);
     return processes.saveProcess(params(req).id!, b.definition, b.comment ?? '');
   });
-  app.put('/processes/:id/access', { config: { stepUp: { action: 'grantAccess', ...processAccess } } }, async (req) => {
+  // deprecated since 0.23.0 (ADR 0033 phase 2): the access list is written as shares (PUT /api/access/process/:id/shares);
+  // the owner stays here. Session only: share lists name people and are changed in the app
+  app.put('/processes/:id/access', { config: { access: ACCESS.session, stepUp: { action: 'grantAccess', ...processAccess } } }, async (req, reply) => {
     requireProcess(params(req).id!, 'manage', 'change access to this process');
-    const b = z.object({ acl: z.array(z.any()).max(500), owner: z.string().max(64).nullable().optional() }).parse(req.body);
+    const b = z.object({ acl: z.array(z.any()).max(500).optional(), owner: z.string().max(64).nullable().optional() }).parse(req.body);
     if (b.owner && !users.findUserByName(b.owner)) throw new HttpError(400, `Unknown user "${b.owner}"`);
+    if (b.acl !== undefined) markDeprecated(reply, 'process', params(req).id!);
     return processes.setProcessAccess(params(req).id!, b);
   });
   app.delete('/processes/:id', async (req) => {

@@ -42,9 +42,9 @@ import { QueryState } from '../../components/common';
 import { DetailPage } from '../../components/page/DetailPage';
 import { DataTable, type DataColumn } from '../../components/DataTable';
 import { confirmDialog } from '../../components/confirm';
-import { fmtMoney, fmtMonth, planPath } from '../../components/costs/common';
+import { fmtMoney, fmtMoneySigned, fmtMonth, planPath } from '../../components/costs/common';
 import { estimateKeys, RangeBar, RangeText } from '../../components/costs/Estimates';
-import { numberFormat } from '../../format';
+import { fmtDecimal, numberFormat } from '../../format';
 import '../../components/dashboard/viz.css';
 
 /**
@@ -62,6 +62,7 @@ interface Draft {
   lines: CostEstimateHandLine[];
   adjustments: CostAdjustmentInput[];
   books: { provider: string; bookId: string }[];
+  contracts: { provider: string; contractId: string | null }[];
 }
 
 const CURRENCIES = [...ISO_4217_CODES].sort();
@@ -76,6 +77,7 @@ function draftOf(e: CostEstimate): Draft {
     lines: e.lines,
     adjustments: e.adjustments.map(({ by: _b, at: _a, ...a }) => a),
     books: e.books,
+    contracts: e.contracts ?? [],
   };
 }
 
@@ -89,6 +91,7 @@ const bodyOf = (e: CostEstimate, d: Draft) => ({
   lines: d.lines,
   adjustments: d.adjustments,
   books: d.books,
+  contracts: d.contracts,
   currency: d.currency,
   appliesFrom: d.appliesFrom,
 });
@@ -257,6 +260,7 @@ export function EstimatePage() {
             <InputsForm defs={defs} values={draft.inputs} disabled={!e.canEdit} onChange={(inputs) => setDraft({ ...draft, inputs })} />
             <HandLines lines={draft.lines} disabled={!e.canEdit} onChange={(lines) => setDraft({ ...draft, lines })} />
             <BookChoices draft={draft} result={r} books={books.data ?? []} disabled={!e.canEdit} onChange={(b) => setDraft({ ...draft, books: b })} />
+            <ContractChoices draft={draft} result={r} disabled={!e.canEdit} onChange={(c) => setDraft({ ...draft, contracts: c })} />
             <Adjustments draft={draft} result={r} disabled={!e.canEdit} onChange={(adjustments) => setDraft({ ...draft, adjustments })} />
             {e.canEdit && (
               <Group justify="flex-end">
@@ -582,6 +586,60 @@ function BookChoices({
   );
 }
 
+/**
+ * The contract whose conditions apply per provider (0.23.0, ADR 0035 part 3): only providers with contracts whose
+ * prices the person sees are offered; default – a contract covering the estimate's service or platform first.
+ */
+function ContractChoices({
+  draft,
+  result,
+  disabled,
+  onChange,
+}: {
+  draft: Draft;
+  result: CostEstimateResult | null;
+  disabled: boolean;
+  onChange: (c: Draft['contracts']) => void;
+}) {
+  const { t } = useTranslation('costs');
+  const q = useQuery({
+    queryKey: ['costs', 'condition-contracts'],
+    queryFn: () => get<{ id: string; title: string; reference: string; supplierName: string; providers: string[] }[]>('/costs/contracts'),
+  });
+  const norm = (s: string) => s.trim().toLowerCase();
+  const providers = [...new Set([...(result?.lines ?? []).map((l) => l.provider), ...draft.lines.map((l) => l.provider).filter(Boolean)])].filter((p) =>
+    (q.data ?? []).some((c) => c.providers.some((x) => norm(x) === norm(p))),
+  );
+  if (!providers.length) return null;
+  const NONE = '__none';
+  return (
+    <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      {providers.map((p) => {
+        const options = (q.data ?? []).filter((c) => c.providers.some((x) => norm(x) === norm(p)));
+        const chosen = draft.contracts.find((c) => norm(c.provider) === norm(p));
+        return (
+          <Select
+            key={p}
+            label={t('estimates.contracts.label', { provider: p })}
+            placeholder={t('estimates.contracts.default')}
+            clearable
+            disabled={disabled}
+            data={[
+              { value: NONE, label: t('estimates.contracts.none') },
+              ...options.map((c) => ({ value: c.id, label: `${c.title}${c.reference ? ` (${c.reference})` : ''} – ${c.supplierName}` })),
+            ]}
+            value={chosen ? (chosen.contractId ?? NONE) : null}
+            onChange={(v) =>
+              onChange([...draft.contracts.filter((c) => norm(c.provider) !== norm(p)), ...(v ? [{ provider: p, contractId: v === NONE ? null : v }] : [])])
+            }
+            data-testid={`estimate-contract-${norm(p)}`}
+          />
+        );
+      })}
+    </SimpleGrid>
+  );
+}
+
 function Adjustments({
   draft,
   result,
@@ -696,13 +754,45 @@ function Adjustments({
 
 // ---------- the result ----------
 
+/** How the price of a line was found (ADR 0035 part 3), as far as the reader may see it. */
 function howFound(t: (k: string, o?: Record<string, unknown>) => string, l: CostEstimateLine): string {
   if (l.missing) return t(`estimates.missing.${l.missing}`);
   const parts: string[] = [];
   if (l.priceHidden) parts.push(t('estimates.priceHidden'));
-  if (l.book) parts.push(t('estimates.how', { kind: t(`prices.kinds.${l.book.kind}`), book: l.book.name, version: l.book.version }));
+  const f = l.foundBy;
+  if (l.book && f) {
+    const contract = f.contract ? f.contract.reference || f.contract.title : '';
+    parts.push(t(`estimates.foundBy.${f.kind}`, { book: l.book.name, version: l.book.version, percent: f.percent ? fmtDecimal(f.percent) : '', contract }));
+    if (f.contract?.inherited) parts.push(t('estimates.foundBy.inherited'));
+    if (f.conditionIgnored) parts.push(t('estimates.foundBy.ignored'));
+  } else if (l.book) parts.push(t('estimates.how', { kind: t(`prices.kinds.${l.book.kind}`), book: l.book.name, version: l.book.version }));
   if (l.fx) parts.push(t('estimates.fx', { from: l.fx.from, rate: l.fx.rate, date: l.fx.date }));
   return parts.join(' · ');
+}
+
+/** A derived book's base, discount, markup and fee – only sent to who sees the provider's terms and the base book. */
+function Breakdown({ l, currency }: { l: CostEstimateLine; currency: string }) {
+  const { t } = useTranslation('costs');
+  const b = l.breakdown;
+  if (!b) return null;
+  return (
+    <Stack gap={0} data-testid="line-breakdown">
+      <Text size="xs" c="dimmed">
+        {t('estimates.breakdown.base', { amount: fmtMoneySigned(b.baseAmount.expected, currency), book: `${b.base.name} v${b.base.version}` })}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('estimates.breakdown.discount', { percent: fmtDecimal(b.discountPct), amount: fmtMoneySigned(b.discount.expected, currency) })}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('estimates.breakdown.markup', { percent: fmtDecimal(b.markupPct), amount: fmtMoneySigned(b.markup.expected, currency) })}
+      </Text>
+      {Number(b.fee.expected) !== 0 && (
+        <Text size="xs" c="dimmed">
+          {t('estimates.breakdown.fee', { amount: fmtMoneySigned(b.fee.expected, currency) })}
+        </Text>
+      )}
+    </Stack>
+  );
 }
 
 export function ResultView({ r }: { r: CostEstimateResult }) {
@@ -765,9 +855,10 @@ export function ResultView({ r }: { r: CostEstimateResult }) {
               {l.tiered ? ` ${t('estimates.tiered')}` : ''}
             </Text>
           )}
-          <Text size="xs" c={l.missing || l.priceHidden ? 'orange' : 'dimmed'}>
+          <Text size="xs" c={l.missing || l.priceHidden ? 'orange' : 'dimmed'} data-testid="line-found">
             {howFound(t, l)}
           </Text>
+          <Breakdown l={l} currency={r.currency} />
           {l.adjustment && (
             <Text size="xs" c="grape" data-testid="line-adjustment">
               {t(l.adjustment.kind === 'percent' ? 'estimates.adjust.shownPercent' : 'estimates.adjust.shownPrice', {
@@ -848,6 +939,7 @@ export function ResultView({ r }: { r: CostEstimateResult }) {
             <Text size="xs" c="dimmed">
               {qty(l.quantity)} {unit(l.unit)} · {howFound(t, l)}
             </Text>
+            <Breakdown l={l} currency={r.currency} />
             {l.adjustment && (
               <Text size="xs" c="grape" data-testid="line-adjustment">
                 {t(l.adjustment.kind === 'percent' ? 'estimates.adjust.shownPercent' : 'estimates.adjust.shownPrice', {
@@ -960,6 +1052,7 @@ function Compare({ e, draft, defs }: { e: CostEstimate; draft: Draft; defs: Cost
             lines: base.lines,
             adjustments: base.adjustments,
             books: base.books,
+            contracts: base.contracts,
             currency: base.currency,
             appliesFrom: base.appliesFrom,
           },
@@ -970,6 +1063,7 @@ function Compare({ e, draft, defs }: { e: CostEstimate; draft: Draft; defs: Cost
             lines: base.lines,
             adjustments: base.adjustments,
             books: base.books,
+            contracts: base.contracts,
             currency: base.currency,
             appliesFrom: base.appliesFrom,
           })),

@@ -290,7 +290,8 @@ describe('L1: the change record rule', () => {
     expect(c.permissions).toEqual(['view', 'test', 'edit']);
     const off = { servicePlatformId: service, testServer: null, requireChangeRecord: false };
     expect(await failure(dana('PUT', `/data-contracts/${c.id}/settings`, off))).toMatchObject({ status: 403 });
-    expect((await adam('GET', `/data-contracts/${c.id}`)).permissions).toEqual(['view', 'manage']);
+    // (0.23.0, ADR 0033 decision 12: the right is relax, still listed as manage for one release)
+    expect((await adam('GET', `/data-contracts/${c.id}`)).permissions).toEqual(['view', 'relax', 'manage']);
     expect((await adam('PUT', `/data-contracts/${c.id}/settings`, off)).requireChangeRecord).toBe(false);
     const a = (await auditOf('contract.settings_changed')).find((x) => x.summary.includes('Contract l1-switch'))!;
     expect(a.summary).toContain('switched off');

@@ -17,6 +17,9 @@ import {
   type PlatformSpec,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { forgetShares, isRestricted } from '../auth/shares.js';
+import { aclOf, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
+import { PLATFORM_SHARE_KIND } from './shares.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
@@ -48,8 +51,8 @@ import {
 } from './identities.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
 import { currentUser } from '../auth/context.js';
-import { cleanAcl, platformPermissions } from '../auth/permissions.js';
-import { PLATFORM_PERMISSIONS, type AclEntry, type PlatformPermission } from '@sm/shared';
+import { platformPermissions } from '../auth/permissions.js';
+import { type PlatformPermission } from '@sm/shared';
 import { assignCreatorTeams, forgetOwningTeams, identityAccess } from '../auth/policy.js';
 import { staleRefs } from './operationFilter.js';
 
@@ -92,8 +95,8 @@ function worst(states: Platform['integrity'][]): Platform['integrity'] {
 
 function toPlatform(r: PlatformRow, idents: IdentityRow[], registerOf?: Map<string, number>): Platform {
   const stored = { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) };
-  const acl = parseJson<AclEntry<PlatformPermission>[]>(r.acl, []);
-  const permissions = platformPermissions(currentUser(), { id: r.id, acl });
+  const permissions = platformPermissions(currentUser(), { id: r.id });
+  const manages = permissions.includes('manage');
   const def = idents.find((i) => Number(i.is_default) === 1 || i.is_default === true);
   // the MCP mode lives on the default identity (0.9.0); the API shows it in config.mcpGateway as before
   const mcpGateway = gatewayView(stored.mcpGateway, def ? parseMcp(def.mcp) : mcpFromGateway(stored.mcpGateway));
@@ -118,15 +121,20 @@ function toPlatform(r: PlatformRow, idents: IdentityRow[], registerOf?: Map<stri
       mayUse:
         permissions.includes('use') &&
         !(Number(i.disabled) === 1 || i.disabled === true) &&
-        identityAccess(user, { id: r.id, acl }, { id: i.id, default: Number(i.is_default) === 1 || i.is_default === true, acl: parseJson(i.acl, []) })
-          .permissions.length > 0,
+        identityAccess(user, { id: r.id }, { id: i.id, default: Number(i.is_default) === 1 || i.is_default === true }).permissions.length > 0,
       staleOperations: staleOf(i),
       registerEntries: register.get(i.id) ?? 0,
+      // (deprecated since 0.23.0: the identity's shares as its former access list, for who manages the platform)
+      acl: manages ? aclOf<'use'>('platform_identity', i.id) : [],
+      // how many shares it has: for who changes them (who manages the platform), not for its users or auditors
+      ...(manages ? { shared: aclOf('platform_identity', i.id).length } : {}),
     }),
   );
   const own = platformIntegrity(r);
   return {
-    acl,
+    // deprecated (0.23.0): the shares as the former access list, for who may change them
+    acl: manages ? aclOf<PlatformPermission>('platform', r.id) : [],
+    restricted: isRestricted('platform', r.id),
     permissions,
     id: r.id,
     name: r.name,
@@ -560,19 +568,13 @@ export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
   return getPlatform(id);
 }
 
+/**
+ * `PUT /platforms/:id/access` (deprecated since 0.23.0, ADR 0033 phase 2): the access list, written as shares and the
+ * Restricted scope (auth/acl-shares.ts) – the shares core asks for the step-up and audits.
+ */
 export function setPlatformAccess(id: string, aclInput: unknown): Platform {
   const before = getPlatform(id);
-  const acl = cleanAcl(aclInput, PLATFORM_PERMISSIONS);
-  db().tx(() => {
-    db().run('UPDATE platforms SET acl = ?, updated_at = ? WHERE id = ?', JSON.stringify(acl), nowIso(), id);
-    audit({
-      action: 'platform.access_changed',
-      entityType: 'platform',
-      entityId: id,
-      summary: `Access of "${before.name}" changed: ${acl.length ? acl.map((e) => `${e.subject} (${e.permissions.join('/')})`).join(', ') : 'default role rights'}`,
-      details: { acl, previous: before.acl },
-    });
-  });
+  writeAlias({ kind: 'platform', id, aclInput, held: heldByAuthor(PLATFORM_SHARE_KIND, id), label: `platform "${before.name}"` });
   return getPlatform(id);
 }
 
@@ -602,11 +604,13 @@ export function deletePlatform(id: string): void {
     );
   const docs = db().all<{ filename: string | null; id: string }>('SELECT id, filename FROM platform_docs WHERE platform_id = ?', id);
   db().tx(() => {
-    // its identities go with it (ON DELETE CASCADE as well)
+    // its identities go with it (ON DELETE CASCADE as well), and their shares (0.23.0)
+    for (const i of db().all<{ id: string }>('SELECT id FROM platform_identities WHERE platform_id = ?', id)) forgetShares('platform_identity', i.id);
     db().run('DELETE FROM platform_identities WHERE platform_id = ?', id);
     db().run('DELETE FROM platforms WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('platform', id);
+    forgetShares('platform', id);
     // Gatus metrics mode: the source with its samples, aggregates, transitions and endpoints
     deleteGatusSource(id);
     // changedetection.io: its watches and their links (#242)

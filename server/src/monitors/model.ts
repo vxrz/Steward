@@ -1,7 +1,6 @@
 import {
   MONITOR_PERMISSIONS,
   monitorDefinitionSchema,
-  type AclEntry,
   type CauseRef,
   type CheckDef,
   type MonitorDefinition,
@@ -13,7 +12,7 @@ import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities } from '../auth/permissions.js';
-import { decide } from '../auth/policy.js';
+import { MONITOR_SHARE_MODEL, decide } from '../auth/policy.js';
 
 /** Rows and small helpers shared by the monitor modules. */
 
@@ -169,16 +168,16 @@ export const MONITOR_DEFAULTS: Record<Role, MonitorPermission[]> = {
  * Same model as processes: role defaults, or the access list when it has entries; admins and the owner keep everything.
  * With owning teams (#131) members of those teams have their roles in the team, everyone else only the access list.
  */
-export function monitorAccess(u: AuthUser | null, m: { id: string; owner: string; acl: AclEntry<MonitorPermission>[] }) {
-  const d = decide(u, { kind: 'monitor', ...m }, MONITOR_PERMISSIONS, MONITOR_DEFAULTS, 'view');
+/** The rights on a monitor: owning teams, shares and the Restricted scope (the `acl` passed is no longer read, 0.23.0). */
+export function monitorAccess(u: AuthUser | null, m: { id: string; owner: string; acl?: unknown }) {
+  const d = decide(u, { kind: 'monitor', id: m.id, owner: m.owner, acl: [] }, MONITOR_PERMISSIONS, MONITOR_DEFAULTS, 'view', { shares: MONITOR_SHARE_MODEL });
   const out = new Set(d.permissions);
   if (out.has('manage')) ['edit', 'acknowledge'].forEach((x) => out.add(x as MonitorPermission));
   if (out.size) out.add('view');
   return { permissions: MONITOR_PERMISSIONS.filter((x) => out.has(x)), reasons: d.reasons };
 }
 
-export const monitorPermissions = (u: AuthUser | null, m: { id: string; owner: string; acl: AclEntry<MonitorPermission>[] }): MonitorPermission[] =>
-  monitorAccess(u, m).permissions;
+export const monitorPermissions = (u: AuthUser | null, m: { id: string; owner: string; acl?: unknown }): MonitorPermission[] => monitorAccess(u, m).permissions;
 
 export const permissionsOfRow = (r: Pick<MonitorRow, 'id' | 'owner' | 'acl'>, u: AuthUser | null = currentUser()): MonitorPermission[] =>
   monitorPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) });

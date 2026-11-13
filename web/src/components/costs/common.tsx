@@ -20,6 +20,12 @@ export function fmtMoney(amount: string | null | undefined, currency: string, di
   }
 }
 
+/**
+ * An amount with a real minus sign (U+2212) instead of the hyphen Intl writes – for amounts that are subtracted, as
+ * in a derived price's breakdown: "−US$10.00" / "−10,00 $".
+ */
+export const fmtMoneySigned = (amount: string | null | undefined, currency: string): string => fmtMoney(amount, currency).replace('-', '\u2212');
+
 /** An amount (decimal text) as a number with the currency's minor units, without the code: "8,333" for JPY. */
 export function fmtAmount(amount: string | null | undefined, currency: string): string {
   if (amount === null || amount === undefined || amount === '') return '–';

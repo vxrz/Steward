@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, storeAcl, type Client, type TestServer } from './helpers.js';
 
 /**
  * Changing the ids of plant registry entries (0.11.0, docs/PLANT.md#changing-ids): the rename core for every kind of
@@ -333,6 +333,10 @@ describe('the registry of reference columns', () => {
     // 0.21.0 (ADR 0035): a price book's kind (list, contracted), an estimate's owner and what it is for (services, platforms)
     cost_price_books: 'a price book kind',
     cost_estimates: 'the service or platform an estimate belongs to',
+    // 0.23.0 (ADR 0035 phase 2): a contract condition's kind (percent off list, unit price, commitment …), and which
+    // "Estimate changed" notice was sent
+    supplier_contract_conditions: 'a contract condition kind',
+    cost_estimate_notices: 'the kind of an estimate notice',
     supplier_contract_items: 'an application or system a contract names for a covered service (ADR 0032)',
     ca_suggestions: 'the source of a suggested finding',
     supplier_certificates: 'a certificate kind (ISO 27001, SOC 2 …)',
@@ -427,7 +431,12 @@ describe('renaming one entry', () => {
     expect(preview.aliases).toEqual(['riverside']);
     // the preview changes nothing
     expect((await s.api('GET', '/plant/sites/riverside')).id).toBe('riverside');
+    // its shares and scope (0.23.0) follow it
+    await storeAcl('site', 'riverside', [{ subject: 'user:vera', permissions: ['view'] }]);
     const r = await rename(s.api, 'site', 'riverside', 'rvs');
+    const shares = (await s.api('GET', '/access/site/rvs/shares')) as { restricted: boolean; shares: { subject: string }[] };
+    expect(shares).toMatchObject({ restricted: true, shares: [expect.objectContaining({ subject: 'user:vera' })] });
+    await storeAcl('site', 'rvs', []);
     expect(r).toMatchObject({ newId: 'rvs', path: '/plant/sites/rvs', aliases: ['riverside'] });
     const after = await s.api('GET', '/plant/sites/rvs');
     expect(after.areas.map((a: { id: string }) => a.id)).toEqual(before.areas.map((a: { id: string }) => a.id));

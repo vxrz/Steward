@@ -194,7 +194,7 @@ export interface PlantSiteDetail extends PlantSiteSummary, PlantStamp {
   /** The areas with their work centers and work units */
   areas: PlantNode[];
   buildings: PlantBuilding[];
-  /** Only for who may manage the site */
+  /** Only for who may manage the site – deprecated since 0.23.0 (ADR 0033): the shares as the former access list */
   acl: AclEntry<PlantPermission>[] | null;
   permissions: PlantPermission[];
   links: ItemLink[];

@@ -262,6 +262,9 @@ const REFERENCES_ALL: RefSpec[] = [
         .reduce((n, l) => n + run('UPDATE item_links SET to_id = ? WHERE id = ?', `${r.to}${l.to_id.slice(r.from.length)}`, l.id), 0),
   },
   pair('resource_teams', 'kind', 'site', 'resource_id', 'site', 'owning_team'),
+  // its shares and its scope (0.23.0: its access list became shares)
+  pair('resource_shares', 'kind', 'site', 'resource_id', 'site', 'share'),
+  pair('resource_restrictions', 'kind', 'site', 'resource_id', 'site', 'share'),
   usedBy('site', 'site', (r, s) => r[s]),
   usedBy('site', 'conduit', (r, s) => r[s], true),
   json<string[]>('plant_imports', 'sites', '[]', 'site', 'import', ['id'], inList),

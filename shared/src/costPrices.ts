@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { COST_LIMITS, isoCurrencyCode } from './costs.js';
 import { isCalendarDate } from './costPlans.js';
+import type { CostCondition } from './costConditions.js';
 
 /**
  * Price books, cost drivers and units (0.21.0, ADR 0035 parts 1 and 2, docs/PRICE-BOOKS.md): items priced per unit of a
@@ -364,10 +365,21 @@ export const COST_UNIT_SUGGESTIONS = [
 
 // ---------- price book entries ----------
 
-export const COST_PRICE_BOOK_KINDS = ['list', 'contracted'] as const;
+/**
+ * Sources a contracted book of a platform can be read from (0.23.0, ADR 0035 part 2): Snowflake's rate sheet
+ * (ORGANIZATION_USAGE.RATE_SHEET_DAILY – the discount included) and Confluent's observed rates (the Costs API's lines of
+ * the last complete month).
+ */
+export const COST_PRICE_SOURCE_KINDS = ['snowflakeRateSheet', 'confluentObserved'] as const;
+export type CostPriceSourceKind = (typeof COST_PRICE_SOURCE_KINDS)[number];
+/** What one source read may bring at most: 25 MB and the entries of a version (COST_PRICE_SOURCE_TOO_LARGE). */
+export const COST_PRICE_SOURCE_LIMITS = { bytes: 25 * 1024 * 1024, entries: 20_000 } as const;
+
+/** list: published prices; contracted: the prices of one contract; derived (0.23.0): a base book × a provider's terms and fee */
+export const COST_PRICE_BOOK_KINDS = ['list', 'contracted', 'derived'] as const;
 export type CostPriceBookKind = (typeof COST_PRICE_BOOK_KINDS)[number];
-/** How a version came to be: by hand, a CSV import, the migration of the Snowflake fallback's price, a source read (phase 2) */
-export const COST_PRICE_VERSION_SOURCES = ['manual', 'csv', 'migration', 'source'] as const;
+/** How a version came to be: by hand, a CSV import, the migration of the Snowflake fallback's price, a source read, a derivation (0.23.0) */
+export const COST_PRICE_VERSION_SOURCES = ['manual', 'csv', 'migration', 'source', 'derived'] as const;
 export type CostPriceVersionSource = (typeof COST_PRICE_VERSION_SOURCES)[number];
 export const COST_PRICE_CHARGES = ['usage', 'recurring', 'oneOff'] as const;
 export type CostPriceCharge = (typeof COST_PRICE_CHARGES)[number];
@@ -660,6 +672,8 @@ export const costPriceBookInput = z
     supplierId: z.string().trim().min(1).max(100).nullable().default(null),
     supplierContractId: z.string().trim().min(1).max(100).nullable().default(null),
     reviewDays: z.number().int().min(1).max(COST_PRICE_LIMITS.reviewDaysMax).default(90),
+    /** A derived book (0.23.0): the book its customer prices are computed from (list, contracted or derived – two levels at most) */
+    baseBookId: z.string().trim().min(1).max(100).nullable().default(null),
   })
   .strict();
 export type CostPriceBookInput = z.input<typeof costPriceBookInput>;
@@ -785,7 +799,21 @@ export interface CostPriceVersion {
   createdBy: string;
   /** Used by an estimate (kept beyond the fifty versions per book) */
   inUse: boolean;
+  /**
+   * A derived book's version: the base version and why it was written (only for who sees the terms) – `cause` in
+   * English (as the audit log and the version's note say it), `causeCode` with `causeBook` for the UI's language;
+   * versions written before 0.23.0's codes have none.
+   */
+  derivation: { baseVersion: number; cause: string; causeCode: CostDerivationCause | null; causeBook: string | null; causeVersion: number | null } | null;
 }
+
+/**
+ * Why a derived book's version was written (0.23.0): it was made, its base book has a new version (`base`, with the
+ * base's name and version), its own terms or its contract's conditions changed, terms start or end today, or it names
+ * another base book or contract.
+ */
+export const COST_DERIVATION_CAUSES = ['made', 'base', 'terms', 'contractTerms', 'termsToday', 'baseChanged', 'contractChanged'] as const;
+export type CostDerivationCause = (typeof COST_DERIVATION_CAUSES)[number];
 
 export interface CostPriceBook {
   id: string;
@@ -797,7 +825,15 @@ export interface CostPriceBook {
   platform: { id: string; name: string } | null;
   supplier: { id: string; name: string } | null;
   supplierContract: { id: string; title: string } | null;
-  source: 'manual' | 'csv';
+  source: 'manual' | 'csv' | 'derived' | CostPriceSourceKind;
+  /** A book read from a source (0.23.0): when it was last read, what it read and why a read failed (the last version stays) */
+  sourceState: { lastReadAt: string | null; note: string | null; error: string | null } | null;
+  /** A derived book's base (null when the reader may not see it – the customer prices only) */
+  base: { id: string; name: string; version: number } | null;
+  /** A derived book: its terms are a contract's conditions (`contract`) or the book's own (a rate card, `book`) */
+  termsOn: 'contract' | 'book' | null;
+  /** The reader sees the terms of the derived book (and its base): the breakdown of its prices */
+  termsVisible: boolean;
   reviewDays: number;
   checkedAt: string | null;
   checkedBy: string | null;
@@ -814,6 +850,8 @@ export interface CostPriceBook {
 }
 
 export interface CostPriceBookDetail extends CostPriceBook {
+  /** A derived book's terms – a rate card's own, or its contract's (read-only here) – only for who sees them (0.23.0) */
+  terms: CostCondition[] | null;
   items: CostPriceEntry[];
   /** More items than listed (the page asks for the next ones) */
   more: boolean;
