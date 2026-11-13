@@ -93,6 +93,9 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
     // the button goes with its row: keep the keyboard focus in the panel (WCAG 2.4.3)
     requestAnimationFrame(() => heading.current?.focus());
   }, []);
+  // a share just added: its level field takes the focus (WCAG 2.4.3) – the Add button is disabled again
+  const [added, setAdded] = useState<string | null>(null);
+  const focused = useCallback(() => setAdded(null), []);
   const phone = useMediaQuery('(max-width: 48em)') ?? false;
   // the levels the kind offers (a platform and a site: View and Manage; an identity: View with "use")
   const levelData = useMemo(
@@ -247,6 +250,8 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                 view={v}
                 levelData={levelData}
                 phone={phone}
+                focus={added === s.subject}
+                onFocused={focused}
                 onUpdate={update}
                 onRemove={remove}
               />
@@ -264,6 +269,7 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                   levels={levelData}
                   onAdd={(subject, level) => {
                     setDraft((d) => [...d, { subject, level, actions: newActions, until: '', known: true, custom: null }]);
+                    setAdded(subject);
                   }}
                 />
                 <Group gap="xs">
@@ -291,6 +297,8 @@ const ShareRow = memo(function ShareRow({
   view: v,
   levelData,
   phone,
+  focus,
+  onFocused,
   onUpdate,
   onRemove,
 }: {
@@ -300,10 +308,19 @@ const ShareRow = memo(function ShareRow({
   levelData: { value: string; label: string; disabled: boolean }[];
   /** A phone: the row as a card – name and removal on top, the level and end date side by side, the rights below */
   phone: boolean;
+  /** Just added: the level field (or its first field) takes the focus */
+  focus: boolean;
+  onFocused: () => void;
   onUpdate: (subject: string, change: Partial<Draft>) => void;
   onRemove: (subject: string) => void;
 }) {
   const { t } = useTranslation(['access', 'common']);
+  const first = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focus) return;
+    first.current?.focus();
+    onFocused();
+  }, [focus, onFocused]);
   const held = v.held;
   const mayAction = (a: ShareAction) => held === 'all' || held.actions.includes(a);
   const rightName = (r: string) => t(`common:permissions.${r}`, { defaultValue: r });
@@ -329,6 +346,7 @@ const ShareRow = memo(function ShareRow({
   );
   const level = !oneLevel && (
     <Select
+      ref={first}
       label={t('shares.level')}
       data={levelData}
       // a Custom share has no level of its own: the field says so until one is chosen
@@ -340,9 +358,11 @@ const ShareRow = memo(function ShareRow({
       aria-label={t('shares.levelFor', { name })}
     />
   );
-  const rights = v.actions.map((a) => (
+  const rights = v.actions.map((a, i) => (
     <Checkbox
       key={a}
+      // the first field of an identity's share (it has one level): the focus after adding it
+      ref={oneLevel && i === 0 ? first : undefined}
       // a label starts with a capital (the right's name is lower case for running text: "may: view, run")
       label={capFirst(t(`common:permissions.${a}`, { defaultValue: a }))}
       checked={s.actions.includes(a)}
