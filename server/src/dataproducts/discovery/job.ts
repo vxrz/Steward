@@ -376,5 +376,12 @@ export async function runDataProductsJob(now = Date.now()): Promise<{ read: numb
       logger.warn({ err, source: id }, 'a data products discovery run did not start');
     }
   }
+  // phase 2 (package D): the quantities of measured use, once a day per platform and measure (costs by measured use)
+  try {
+    const { readMeasuredUse } = await import('../measured.js');
+    await readMeasuredUse(now);
+  } catch (err) {
+    logger.warn({ err }, 'measured use of data products could not be read');
+  }
   return { read, failed };
 }

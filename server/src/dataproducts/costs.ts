@@ -1,4 +1,5 @@
 import {
+  DATA_COST_MEASURE_LIMITS,
   DATA_PRODUCT_ID_PREFIX,
   dataCostAllocationInput,
   dataCostMatchInput,
@@ -7,6 +8,7 @@ import {
   type DataCostAllocationRule,
   type DataCostMatch,
   type DataCostMatchKind,
+  type DataCostMeasure,
   type DataProductCostLine,
   type DataProductCosts,
   type DataValueTier,
@@ -19,6 +21,18 @@ import type { AuthUser } from '../auth/context.js';
 import { platformScopes, type ScopeInfo } from '../costs/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, productAccess } from './access.js';
+import {
+  MEASURE_PLATFORM_KINDS,
+  measurePrice,
+  measureScope,
+  memberTopics,
+  pricedMicros,
+  storedSubjects,
+  subjectsOf,
+  usageKey,
+  usageOf,
+  type MeasuredPrice,
+} from './measured.js';
 import { L, actorName, elementNotFound, refOf } from './common.js';
 import { ensureEnvironment, editableProduct, sortEnvironments, visibleProduct } from './service.js';
 import {
@@ -81,6 +95,11 @@ interface AllocationRow {
   weights: string;
   updated_at: string;
   updated_by: string;
+  /** Rule measured (phase 2): what is measured, the subjects per product ({productId: [...]}), the last read */
+  measure: DataCostMeasure | null;
+  subjects: string;
+  read_at: string | null;
+  read_error: string | null;
 }
 
 interface Key {
@@ -165,11 +184,12 @@ function claimsOf(platformIds: readonly string[] | null): { keys: Map<string, Ke
  * Splits `amount` (micros, may be negative: credits) into parts num_i / den each, in whole micros by the largest
  * remainder: the parts add up to the rounded total share and never exceed the amount.
  */
-export function splitMicros(amount: number, nums: readonly number[], den: number): number[] {
+export function splitMicros(amount: number, nums: readonly (number | bigint)[], den: number | bigint): number[] {
   if (!nums.length) return [];
   const sign = amount < 0 ? -1n : 1n;
   const a = BigInt(Math.abs(Math.trunc(amount)));
   const D = BigInt(den);
+  if (D <= 0n) return nums.map(() => 0);
   const N = nums.map((n) => BigInt(n));
   const sum = N.reduce((x, y) => x + y, 0n);
   if (sum > D) throw new Error('shares above 100 %');
@@ -301,6 +321,49 @@ export function lastMonths(n: number, now = Date.now()): string[] {
   return out;
 }
 
+// ---------- measured use (phase 2) ----------
+
+interface MeasuredKey {
+  measure: DataCostMeasure;
+  /** Subjects (warehouses, query tags, topics) per product */
+  subjects: Map<string, string[]>;
+  /** month → subject → quantity (millionths of the unit); '' the scope's total */
+  usage: Map<string, Map<string, bigint>> | undefined;
+  price: MeasuredPrice | null;
+}
+
+/**
+ * What the measured allocations among these keys need for these months – the subjects per claiming product, the
+ * quantities read and the price – in a fixed number of statements: the quantities of all their platforms at once, the
+ * member topics of the claimants at once, the price once per platform and measure.
+ */
+function measuredContext(keys: Map<string, KeyClaims>, allocations: Map<string, AllocationRow>, months: readonly string[]): Map<string, MeasuredKey> {
+  const out = new Map<string, MeasuredKey>();
+  const measuredIds = [...allocations].filter(([, a]) => a.rule === 'measured' && a.measure).map(([id]) => id);
+  if (!measuredIds.length) return out;
+  const usage = usageOf(
+    measuredIds.map((id) => allocations.get(id)!.platform_id),
+    months,
+  );
+  const claimants = new Map(measuredIds.map((id) => [id, [...new Set([...(keys.get(id)?.units.values() ?? [])].map((u) => u.productId))]]));
+  const topicsNeeded = measuredIds.filter((id) => allocations.get(id)!.measure === 'confluentTopic').flatMap((id) => claimants.get(id)!);
+  const topics = topicsNeeded.length ? memberTopics(topicsNeeded) : new Map<string, string[]>();
+  const prices = new Map<string, MeasuredPrice | null>();
+  for (const id of measuredIds) {
+    const a = allocations.get(id)!;
+    const measure = a.measure!;
+    const pk = `${a.platform_id}\u0000${measure}`;
+    if (!prices.has(pk)) prices.set(pk, measurePrice(a.platform_id, measure));
+    out.set(id, {
+      measure,
+      subjects: subjectsOf(a, claimants.get(id)!, topics),
+      usage: usage.get(usageKey(a.platform_id, measure, measureScope(measure, { kind: a.match_kind, value: a.match_value }, a.platform_id))),
+      price: prices.get(pk) ?? null,
+    });
+  }
+  return out;
+}
+
 // ---------- attribution ----------
 
 interface Attributed {
@@ -314,6 +377,7 @@ interface Attributed {
   key: Key;
   products: number;
   amount: number;
+  measured?: { measure: DataCostMeasure; priced: boolean };
 }
 
 /**
@@ -326,8 +390,10 @@ function attribute(
   allocations: Map<string, AllocationRow>,
   wanted: ReadonlySet<string>,
   take: (a: Attributed) => void,
+  months: readonly string[] = [...new Set(groups.map((g) => g.month))],
 ): void {
   const index = indexKeys(keys.values());
+  const measured = measuredContext(keys, allocations, months);
   for (const g of groups) {
     const ix = index.get(g.platform_id);
     if (!ix) continue;
@@ -345,7 +411,47 @@ function attribute(
     let parts: number[];
     let shares: number[];
     let rule: DataCostAllocationRule | null;
-    if (alloc?.rule === 'weight') {
+    let measure: Attributed['measured'];
+    const m = alloc?.rule === 'measured' && decisive ? measured.get(keyOf(decisive)) : undefined;
+    if (m) {
+      // per product its measured use – priced where the book has a price in the line's currency, else its share of the
+      // measured total – split equally between its environments; never more than the line together
+      const perProduct = new Map<string, Unit[]>();
+      for (const u of list) perProduct.set(u.productId, [...(perProduct.get(u.productId) ?? []), u]);
+      const ps = [...perProduct.keys()].sort();
+      const usage = m.usage?.get(g.month);
+      const qty = ps.map((p) => (m.subjects.get(p) ?? []).reduce((sum, subject) => sum + (usage?.get(subject) ?? 0n), 0n));
+      const priced = !!m.price && m.price.currency === g.currency.toUpperCase();
+      let nums: bigint[];
+      let den: bigint;
+      if (priced) {
+        nums = qty.map((q) => pricedMicros(q, m.price!));
+        const sum = nums.reduce((x, y) => x + y, 0n);
+        const line = BigInt(Math.abs(Math.trunc(amount)));
+        den = sum > line ? sum : line;
+      } else {
+        nums = qty;
+        const sum = qty.reduce((x, y) => x + y, 0n);
+        const total = usage?.get('') ?? 0n;
+        den = total > sum ? total : sum;
+      }
+      const productParts = den > 0n ? splitMicros(amount, nums, den) : ps.map(() => 0);
+      const byUnit = new Map<string, { amount: number; share: number }>();
+      ps.forEach((p, i) => {
+        const us = perProduct.get(p)!;
+        const sub = splitMicros(
+          productParts[i]!,
+          us.map(() => 1),
+          us.length,
+        );
+        const share = den > 0n ? Number((nums[i]! * 1_000_000n) / den) / 1_000_000 : 0;
+        us.forEach((u, j) => byUnit.set(unitKey(u), { amount: sub[j]!, share: share / us.length }));
+      });
+      parts = list.map((u) => byUnit.get(unitKey(u))!.amount);
+      shares = list.map((u) => byUnit.get(unitKey(u))!.share);
+      rule = 'measured';
+      measure = { measure: m.measure, priced };
+    } else if (alloc?.rule === 'weight') {
       // per product its weight, split equally between its environments
       const w = parseJson<Record<string, number>>(alloc.weights, {});
       const perProduct = new Map<string, Unit[]>();
@@ -376,6 +482,7 @@ function attribute(
       rule = list.length > 1 ? 'equal' : null;
     }
     const kind: 'direct' | 'share' = rule === null ? 'direct' : 'share';
+    const measuredOf = measure;
     list.forEach((u, i) => {
       if (!wanted.has(u.productId)) return;
       // the key the product's line is shown under: the deciding one when it claims it, else its own most specific
@@ -392,6 +499,7 @@ function attribute(
         key,
         products: products.size,
         amount: parts[i]!,
+        ...(measuredOf ? { measured: measuredOf } : {}),
       });
     });
   }
@@ -430,7 +538,12 @@ export function productCostsOf(
     return c;
   };
   const lineIndex = new Map<MonthCosts, Map<string, DataProductCostLine>>();
-  attribute(groups, keys, allocations, wanted, (a) => {
+  attribute(
+    groups,
+    keys,
+    allocations,
+    wanted,
+    (a) => {
     const c = cell(a.unit, a.month);
     const info = infos ? infos.get(a.platformId) : undefined;
     if (infos && (!info || !info.amounts)) {
@@ -439,7 +552,7 @@ export function productCostsOf(
       c.amountsHidden = true;
       return;
     }
-    const id = JSON.stringify([a.platformId, a.kind, a.rule, a.share, a.currency, keyOf(a.key)]);
+    const id = JSON.stringify([a.platformId, a.kind, a.rule, a.share, a.currency, keyOf(a.key), a.measured?.priced ?? null]);
     const idx = lineIndex.get(c) ?? new Map<string, DataProductCostLine>();
     lineIndex.set(c, idx);
     const line = idx.get(id);
@@ -457,11 +570,14 @@ export function productCostsOf(
         currency: a.currency,
         match: { kind: a.key.kind, value: a.key.value, tagKey: a.key.tagKey },
         products: a.products,
+        ...(a.measured ? { measured: a.measured } : {}),
       };
       idx.set(id, l);
       c.lines.push(l);
     }
-  });
+    },
+    months,
+  );
   for (const byEnv of out.values())
     for (const byMonth of byEnv.values())
       for (const c of byMonth.values()) {
@@ -778,6 +894,16 @@ export function listAllocations(q: { platformId?: string }): DataCostAllocation[
   const products = productsByIds(productIds);
   const sees = new Map([...products.values()].map((p) => [p.id, productAccess(u, p).permissions.length > 0]));
   const out: DataCostAllocation[] = [];
+  const prices = new Map<string, boolean>();
+  const pricing = (a: AllocationRow): 'book' | 'share' => {
+    const pk = `${a.platform_id}\u0000${a.measure}`;
+    if (!prices.has(pk)) prices.set(pk, !!measurePrice(a.platform_id, a.measure!));
+    return prices.get(pk) ? 'book' : 'share';
+  };
+  const measuredClaimants = [...all]
+    .filter(([id]) => allocations.get(id)?.rule === 'measured' && allocations.get(id)?.measure === 'confluentTopic')
+    .flatMap(([, k]) => [...k.units.values()].map((x) => x.productId));
+  const topics = measuredClaimants.length ? memberTopics(measuredClaimants) : new Map<string, string[]>();
   for (const [id, k] of all) {
     const info = infos.get(k.platformId);
     if (!info) continue;
@@ -785,7 +911,11 @@ export function listAllocations(q: { platformId?: string }): DataCostAllocation[
     const byProduct = new Map<string, string[]>();
     for (const x of k.units.values()) byProduct.set(x.productId, [...(byProduct.get(x.productId) ?? []), x.environment]);
     if (byProduct.size < 2 && !a) continue;
-    out.push(allocationView(k, a, byProduct, products, sees, info));
+    const measured =
+      a?.rule === 'measured' && a.measure
+        ? { subjects: subjectsOf(a, [...byProduct.keys()], topics), pricing: info.amounts ? pricing(a) : null }
+        : null;
+    out.push(allocationView(k, a, byProduct, products, sees, info, measured));
   }
   return out.sort(
     (x, y) =>
@@ -803,6 +933,7 @@ function allocationView(
   products: Map<string, ProductRow>,
   sees: Map<string, boolean>,
   info: ScopeInfo,
+  measured: { subjects: Map<string, string[]>; pricing: 'book' | 'share' | null } | null = null,
 ): DataCostAllocation {
   const rule: DataCostAllocationRule = a?.rule ?? 'equal';
   const weights = rule === 'weight' ? parseJson<Record<string, number>>(a!.weights, {}) : {};
@@ -818,7 +949,12 @@ function allocationView(
     takenBp += bp(weightOf(p));
     if (sees.get(p)) {
       const ref = refOf(row) as DataCostAllocation['products'][number]['product'];
-      named.push({ product: ref, environments: sortEnvironments(envs), weightPct: shown && rule === 'weight' ? weightOf(p) : null });
+      named.push({
+        product: ref,
+        environments: sortEnvironments(envs),
+        weightPct: shown && rule === 'weight' ? weightOf(p) : null,
+        ...(rule === 'measured' ? { subjects: shown && measured ? (measured.subjects.get(p) ?? []) : null } : {}),
+      });
     } else {
       hidden++;
       hiddenBp += bp(weightOf(p));
@@ -835,15 +971,24 @@ function allocationView(
     products: named,
     hiddenProducts: hidden,
     hiddenWeightPct: shown && rule === 'weight' ? hiddenBp / 100 : null,
-    notAttributedPct: shown ? (rule === 'weight' ? Math.max(0, 10_000 - takenBp) / 100 : 0) : null,
+    // measured use: what is not attributed differs per month (the Costs tab shows each month's lines)
+    notAttributedPct: shown && rule !== 'measured' ? (rule === 'weight' ? Math.max(0, 10_000 - takenBp) / 100 : 0) : null,
     weightsShown: shown,
     canEdit: info.canManageSource,
     updatedAt: a?.updated_at ?? null,
     updatedBy: a?.updated_by ?? null,
+    measured:
+      rule === 'measured' && a?.measure
+        ? { measure: a.measure, readAt: shown ? a.read_at : null, error: shown ? a.read_error : null, pricing: measured?.pricing ?? null }
+        : null,
   };
 }
 
-const allocationProblem = (context: 'over100' | 'product' | 'noMatch', message: string, extra: Record<string, string | number> = {}) =>
+const allocationProblem = (
+  context: 'over100' | 'product' | 'noMatch' | 'measure' | 'measurePlatform' | 'measureScope' | 'subjects',
+  message: string,
+  extra: Record<string, string | number> = {},
+) =>
   new HttpError(400, message, 'DATA_COST_ALLOCATION', { context, ...extra });
 
 /**
@@ -869,6 +1014,29 @@ export function setAllocation(body: unknown): DataCostAllocation {
   const before = allocations.get(id);
   const beforeWeights = before?.rule === 'weight' ? parseJson<Record<string, number>>(before.weights, {}) : {};
   const weights = new Map<string, number>();
+  const subjects = new Map<string, string[]>();
+  if (input.rule === 'measured') {
+    if (!input.measure) throw allocationProblem('measure', 'Say what is measured: Snowflake warehouses or query tags, or Confluent topics');
+    const kind = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', input.platformId)?.kind ?? '';
+    const kinds = MEASURE_PLATFORM_KINDS[input.measure];
+    if (!kinds.includes(kind))
+      throw allocationProblem('measurePlatform', `${input.measure} is measured on a platform of kind ${kinds.join(' or ')}`, { kind: kinds.join(', ') });
+    if (input.measure === 'confluentTopic' && !measureScope(input.measure, k, input.platformId))
+      throw allocationProblem('measureScope', 'Topics are measured per cluster: split the lines of the cluster (a resource match lkc-…, or a Kafka platform that names its cluster)');
+    // subjects of matching products the manager may not see stay as they are
+    const beforeSubjects = before?.rule === 'measured' ? storedSubjects(before) : new Map<string, string[]>();
+    for (const [p, list] of beforeSubjects) if (matching.has(p) && !sees.get(p)) subjects.set(p, list);
+    for (const x of input.subjects) {
+      if (!matching.has(x.productId) || !sees.get(x.productId))
+        throw allocationProblem('product', `Data product ${x.productId} does not match these lines`, { productId: x.productId });
+      subjects.set(x.productId, [...new Set(x.subjects)]);
+    }
+    const count = [...subjects.values()].reduce((n, l) => n + l.length, 0);
+    if (count > DATA_COST_MEASURE_LIMITS.subjectsPerAllocation)
+      throw allocationProblem('subjects', `At most ${DATA_COST_MEASURE_LIMITS.subjectsPerAllocation} warehouses, query tags or topics per split`, {
+        max: DATA_COST_MEASURE_LIMITS.subjectsPerAllocation,
+      });
+  }
   if (input.rule === 'weight') {
     // weights of matching products the manager may not see stay as they are
     for (const [p, w] of Object.entries(beforeWeights)) if (matching.has(p) && !sees.get(p)) weights.set(p, Number(w) || 0);
@@ -882,6 +1050,9 @@ export function setAllocation(body: unknown): DataCostAllocation {
   }
   const now = nowIso();
   const stored = Object.fromEntries([...weights].sort(([a], [b]) => a.localeCompare(b)));
+  const storedSubj = Object.fromEntries([...subjects].sort(([a], [b]) => a.localeCompare(b)));
+  // a new measure or other subjects are read again by the next run of the job
+  const sameMeasure = before?.rule === 'measured' && before.measure === (input.measure ?? null) && before.subjects === JSON.stringify(storedSubj);
   db().tx(() => {
     if (input.rule === 'equal')
       db().run(
@@ -893,28 +1064,38 @@ export function setAllocation(body: unknown): DataCostAllocation {
       );
     else
       db().run(
-        `INSERT INTO dp_cost_allocations (id, platform_id, match_kind, match_value, tag_key, rule, weights, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (platform_id, match_kind, match_value, tag_key) DO UPDATE SET rule = excluded.rule, weights = excluded.weights, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+        `INSERT INTO dp_cost_allocations (id, platform_id, match_kind, match_value, tag_key, rule, weights, updated_at, updated_by, measure, subjects, read_at, read_error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (platform_id, match_kind, match_value, tag_key) DO UPDATE SET rule = excluded.rule, weights = excluded.weights, updated_at = excluded.updated_at,
+           updated_by = excluded.updated_by, measure = excluded.measure, subjects = excluded.subjects, read_at = excluded.read_at, read_error = excluded.read_error`,
         before?.id ?? newId(DATA_PRODUCT_ID_PREFIX.allocation),
         k.platformId,
         k.kind,
         k.value,
         k.tagKey,
-        'weight',
+        input.rule,
         JSON.stringify(stored),
         now,
         u.username,
+        input.rule === 'measured' ? input.measure! : null,
+        JSON.stringify(input.rule === 'measured' ? storedSubj : {}),
+        sameMeasure ? (before?.read_at ?? null) : null,
+        sameMeasure ? (before?.read_error ?? null) : null,
       );
     const sum = [...weights.values()].reduce((s, w) => s + bp(w), 0) / 100;
     audit({
       action: 'dataproduct.cost_allocation_changed',
       entityType: 'platform',
       entityId: k.platformId,
-      summary: `Costs of ${info.name}, ${matchText(k.kind, k.value, k.tagKey)}: ${before?.rule ?? 'equal'} → ${input.rule}${input.rule === 'weight' ? ` (${weights.size} weight(s), ${sum} % attributed)` : ''}`,
+      summary: `Costs of ${info.name}, ${matchText(k.kind, k.value, k.tagKey)}: ${before?.rule ?? 'equal'} → ${input.rule}${input.rule === 'weight' ? ` (${weights.size} weight(s), ${sum} % attributed)` : input.rule === 'measured' ? ` (${input.measure}, ${subjects.size} product(s) with subjects)` : ''}`,
       details: {
         match: { kind: k.kind, value: k.value, tagKey: k.tagKey },
-        before: { rule: before?.rule ?? 'equal', weights: beforeWeights },
-        after: { rule: input.rule, weights: stored },
+        before: {
+          rule: before?.rule ?? 'equal',
+          weights: beforeWeights,
+          ...(before?.rule === 'measured' ? { measure: before.measure, subjects: Object.fromEntries(storedSubjects(before)) } : {}),
+        },
+        after: { rule: input.rule, weights: stored, ...(input.rule === 'measured' ? { measure: input.measure, subjects: storedSubj } : {}) },
       },
     });
   });

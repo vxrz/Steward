@@ -96,6 +96,8 @@ export const NOT_MOVED: Record<string, string> = {
   dp_discovery_runs: 'the run history of the discovery sources (not moved, as the sources)',
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
+  // phase 2, package D (0.24.0)
+  dp_cost_usage: 'quantities of measured use read from the platforms (credits, bytes): read again on the target by the job data-products',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */

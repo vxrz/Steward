@@ -80,6 +80,27 @@ const METERING = [
   { warehouse: 'PBI_WH', credits30: 18.75, credits7: 6.5 },
 ];
 const USED_BY: Record<string, string[]> = { SHOP: ['TRANSFORM_WH', 'BI_WH'], CRM: ['BI_WH'] };
+/** Credits of queries by query tag in a month (QUERY_ATTRIBUTION_HISTORY) – measured use of data products. */
+export const DEMO_QUERY_TAG_CREDITS: Readonly<Record<string, number>> = { orders: 30.5, customer360: 12.25 };
+/** The account's warehouse credits in a month (WAREHOUSE_METERING_HISTORY: each warehouse's 30 days). */
+export const DEMO_WAREHOUSE_CREDITS: Readonly<Record<string, number>> = Object.fromEntries(METERING.map((m) => [m.warehouse, m.credits30]));
+/** The months (YYYY-MM) from a timestamp to the current month. */
+function measureMonths(from: string): string[] {
+  const start = Date.parse(from);
+  if (!Number.isFinite(start)) return [];
+  const out: string[] = [];
+  const d = new Date(start);
+  const now = new Date();
+  for (let y = d.getUTCFullYear(), m = d.getUTCMonth(); y < now.getUTCFullYear() || (y === now.getUTCFullYear() && m <= now.getUTCMonth()); m++) {
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+    out.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+    if (out.length > 24) break;
+  }
+  return out;
+}
 /**
  * Users of the account. The four short names serve the SHOP and CRM databases; the project database
  * PRD_SDC_OPQ_PBI_DEV (#project access review) is used by people with employee ids and two technical users.
@@ -889,6 +910,24 @@ export async function mockSnowflake(app: FastifyInstance): Promise<void> {
           reply,
           ['USAGE_DATE', 'SERVICE_TYPE', 'BILLING_TYPE', 'CURRENCY', 'AMOUNT'],
           dailyUsage(arg(1)).map((u) => [u.day, u.service, 'consumption', 'USD', u.amount.toFixed(6)]),
+        );
+      case 'costs-measure-warehouses':
+        // measured use of data products (ADR 0036 part 11, phase 2): each warehouse's 30-day credits in every month asked for
+        return result(
+          reply,
+          ['WAREHOUSE_NAME', 'MONTH', 'CREDITS'],
+          measureMonths(arg(1)).flatMap((m) => METERING.map((w) => [w.warehouse, m, w.credits30.toFixed(9)])),
+        );
+      case 'costs-measure-tags':
+        return result(
+          reply,
+          ['QUERY_TAG', 'MONTH', 'CREDITS'],
+          measureMonths(arg(1)).flatMap((m) =>
+            bindings
+              .slice(1)
+              .filter((t) => Object.prototype.hasOwnProperty.call(DEMO_QUERY_TAG_CREDITS, t))
+              .map((t) => [t, m, DEMO_QUERY_TAG_CREDITS[t]!.toFixed(9)]),
+          ),
         );
       case 'costs-credits':
         return result(

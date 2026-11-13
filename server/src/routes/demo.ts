@@ -530,7 +530,8 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
       baseUrl: `${base}/confluent`,
       config: {
         ...preset.config,
-        variables: { ...preset.config.variables, schemaRegistryUrl: `${base}/schema-registry` },
+        // metricsUrl: the Metrics API for the measured use of data products (the mock serves it on the same origin)
+        variables: { ...preset.config.variables, schemaRegistryUrl: `${base}/schema-registry`, metricsUrl: `${base}/confluent` },
         http: { ...preset.config.http, proxy: 'none' },
       },
       secrets: {

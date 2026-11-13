@@ -388,4 +388,34 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // phase 2, package D (0.24.0): cost splitting by measured use – what a platform's allocation measures and the
+    // quantities read (dp_cost_usage: per platform, measure, scope, month and subject; subject '' is the scope's total);
+    // the origins of imported entries (an import's or a Git sync source's name), which _replace_ removes from
+    name: 'dataproducts-005d-measured-use-origins',
+    sql: `
+      ALTER TABLE dp_cost_allocations ADD COLUMN measure TEXT;
+      ALTER TABLE dp_cost_allocations ADD COLUMN subjects TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE dp_cost_allocations ADD COLUMN read_at TEXT;
+      ALTER TABLE dp_cost_allocations ADD COLUMN read_error TEXT;
+      CREATE TABLE dp_cost_usage (
+        platform_id TEXT NOT NULL,
+        measure TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT '',
+        month TEXT NOT NULL,
+        subject TEXT NOT NULL DEFAULT '',
+        quantity TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        PRIMARY KEY (platform_id, measure, scope, month, subject)
+      );
+      CREATE TABLE dp_import_origins (
+        origin TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (origin, kind, item_id)
+      );
+      CREATE INDEX dp_import_origins_item ON dp_import_origins(kind, item_id);
+    `,
+  },
 ];
