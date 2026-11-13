@@ -1,5 +1,8 @@
 import { DATA_DISCOVERY_LIMITS, type Platform } from '@sm/shared';
 import { registryGet } from '../../kafka/service.js';
+import { buildUrl } from '../../platforms/http.js';
+import { assertOutboundAllowed } from '../../platforms/outbound.js';
+import { outboundContext } from '../../platforms/policyContext.js';
 
 /**
  * The Schema Registry of a Kafka platform (its base URL, basic auth with registryKey / registrySecret – docs/KAFKA.md)
@@ -34,6 +37,8 @@ export class RunRegistry {
 
   private async subjectList(): Promise<Set<string>> {
     if (this.subjects) return this.subjects;
+    // the registry's origin must be allowed by the outbound policy (an allow-list may leave out even the platform's own)
+    await assertOutboundAllowed(await buildUrl(this.platform, this.secrets, '/'), outboundContext());
     const names: string[] = [];
     const page = 1000;
     // pages of offset/limit, like Confluent's; a registry without paging answers all at once (and the loop ends)

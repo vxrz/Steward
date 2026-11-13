@@ -8,6 +8,9 @@ import {
   type DiscoveredElement,
 } from '@sm/shared';
 import { ISO, SnowflakeClient, sfName, type Row } from '../../snowflake/client.js';
+import { buildUrl } from '../../platforms/http.js';
+import { assertOutboundAllowed } from '../../platforms/outbound.js';
+import { outboundContext } from '../../platforms/policyContext.js';
 import { DiscoveryError, num, short, type DiscoveryContext } from './common.js';
 
 /**
@@ -25,7 +28,8 @@ import { DiscoveryError, num, short, type DiscoveryContext } from './common.js';
  * do not hold – of their output only metadata columns are kept (never a definition). Names from the scope go into the
  * information schema statements as a bound IDENTIFIER(?), into SHOW as a quoted identifier (checked against
  * SNOWFLAKE_DISCOVERY_SCOPE_RE, `"` doubled); every other value is a binding. Large results are read partition by
- * partition (SnowflakeClient.queryPartitions) and handed on before the next partition is fetched.
+ * partition (SnowflakeClient.queryPartitions) and handed on before the next partition is fetched. The account's origin is
+ * checked against the outbound policy first (like Confluent Cloud's), every request then by the platform's request path.
  */
 
 const AU = 'SNOWFLAKE.ACCOUNT_USAGE';
@@ -78,6 +82,9 @@ export async function* readSnowflake(ctx: DiscoveryContext): AsyncGenerator<Disc
   const scope = snowflakeScope(source.scope);
   if (!scope.size)
     throw new DiscoveryError({ message: 'Name at least one Snowflake database in the scope', code: 'DATA_DISCOVERY_SCOPE', params: { context: 'snowflakeEmpty' } });
+  // the account's origin itself must be allowed by the outbound policy (an allow-list may leave it out); every statement
+  // then goes through the platform's request path (the policy for redirects, address pinning, the read-only identity)
+  await assertOutboundAllowed(await buildUrl(platform, ctx.secrets, '/'), outboundContext());
   const c = new SnowflakeClient(platform, ctx.secrets, ctx.signal);
   const account = String(platform.config.variables?.account ?? '').trim() || null;
   const fallback = platform.environment ?? '';

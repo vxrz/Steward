@@ -615,8 +615,11 @@ export function upsertDiscovered(
   const d = db();
   const now = nowIso();
   const keyOf = (kind: string, env: string, norm: string) => `${kind}\u0000${env}\u0000${norm}`;
-  type Known = Pick<ElementRow, 'id' | 'kind' | 'environment' | 'name_norm' | 'qualified_name' | 'external_id' | 'tech_hash' | 'missing_since' | 'parent_id'>;
-  const cols = 'id, kind, environment, name_norm, qualified_name, external_id, tech_hash, missing_since, parent_id';
+  type Known = Pick<
+    ElementRow,
+    'id' | 'kind' | 'environment' | 'name_norm' | 'qualified_name' | 'external_id' | 'tech_hash' | 'missing_since' | 'parent_id' | 'discovery_source_id'
+  >;
+  const cols = 'id, kind, environment, name_norm, qualified_name, external_id, tech_hash, missing_since, parent_id, discovery_source_id';
   d.tx(() => {
     // what exists: by name (the batch and its parents) and by external id (renames)
     const names = new Set<string>();
@@ -647,6 +650,7 @@ export function upsertDiscovered(
       return null;
     };
     const inserts: unknown[][] = [];
+    const orphans: string[] = [];
     const teamRows: unknown[][] = [];
     const readouts = new Map<string, string>();
     for (const e of batch) {
@@ -698,10 +702,19 @@ export function upsertDiscovered(
             actor,
             row.id,
           );
-          row = { ...row, tech_hash: hash, missing_since: null, parent_id: parentId };
+          row = { ...row, tech_hash: hash, missing_since: null, parent_id: parentId, discovery_source_id: row.discovery_source_id ?? sourceId };
           known.set(keyOf(e.kind, e.environment, norm), row);
           result.changed++;
-        } else result.unchanged++;
+        } else {
+          // an element no source looks after (entered, or its source deleted) is this source's from now on: it is
+          // marked missing when the platform no longer has it
+          if (!row.discovery_source_id) {
+            orphans.push(row.id);
+            row = { ...row, discovery_source_id: sourceId };
+            known.set(keyOf(e.kind, e.environment, norm), row);
+          }
+          result.unchanged++;
+        }
       }
       if (!row) {
         if (room <= 0) {
@@ -742,6 +755,7 @@ export function upsertDiscovered(
           tech_hash: hash,
           missing_since: null,
           parent_id: parentId,
+          discovery_source_id: sourceId,
         };
         known.set(keyOf(e.kind, e.environment, norm), row);
         result.added++;
@@ -750,6 +764,7 @@ export function upsertDiscovered(
       const readout = readoutJson(e.readout);
       if (readout) readouts.set(row.id, readout);
     }
+    for (const part of chunks(orphans)) d.run(`UPDATE dp_elements SET discovery_source_id = ? WHERE id IN (${marks(part.length)})`, sourceId, ...part);
     // parents come before their children in `inserts` (the batch's order), so a child never points ahead
     insertRows(
       `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, source, discovery_source_id,
