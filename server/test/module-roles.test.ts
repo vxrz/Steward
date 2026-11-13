@@ -440,6 +440,15 @@ describe('module-only users', () => {
       // the link picker (a route plant viewers reach) finds nothing outside their modules: no dashboard names
       expect(await s.api('GET', '/link-targets?kind=dashboard')).not.toEqual([]);
       for (const kind of ['dashboard', 'site', 'process']) expect(await nora('GET', `/link-targets?kind=${kind}`), kind).toEqual([]);
+      // a Costs manager without a core role maintains instance price books and reads the exchange rates they set
+      const book = (await nora('POST', '/costs/price-books', { name: 'Invented module-only book', kind: 'list', provider: 'Invented', currency: 'USD' })).id;
+      try {
+        expect((await nora('GET', '/costs/price-books')).map((b: { id: string }) => b.id)).toContain(book);
+        await nora('PUT', `/costs/price-books/${book}/entries`, { entries: [{ sku: 'x', name: 'X', unit: 'h', price: '1', currency: 'USD' }] });
+        expect((await nora('GET', '/costs/fx-rates')).length).toBe((await s.api('GET', '/costs/fx-rates')).length);
+      } finally {
+        await s.api('DELETE', `/costs/price-books/${book}`);
+      }
       expect((await status(nora('GET', '/auth/status'))).status).toBe(200);
       await s.api('PUT', `/users/${id}`, {
         moduleRoles: [

@@ -173,8 +173,11 @@ const notFound = (id: string) => new HttpError(404, `Price book ${id} not found`
  * and designers by default (`fromCoreRoles`, the rule of 0.21.0), and whoever an administrator grants it to.
  */
 export const isCostsManager = (u: AuthUser | null): boolean => !u || isAdmin(u) || moduleRoleAtLeast(moduleRole('costs', u), 'manager');
-/** Who uses the Costs module at all: every role that works in Steward (not status or plant viewers alone). */
-export const usesCosts = (u: AuthUser | null): boolean => !u || u.roles.some((r) => r !== 'status' && r !== 'plant');
+/**
+ * Who uses the Costs module at all: every role that works in Steward (not status or plant viewers alone) – and, since
+ * 0.23.0 (ADR 0034), whoever the Costs module's manager role is given to, also without a core role (a module-only user).
+ */
+export const usesCosts = (u: AuthUser | null): boolean => !u || u.roles.some((r) => r !== 'status' && r !== 'plant') || moduleRole('costs', u) !== null;
 
 export interface BookRights {
   view: boolean;
