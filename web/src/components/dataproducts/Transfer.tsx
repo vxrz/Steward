@@ -214,7 +214,8 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
           maxLength={100}
           withAsterisk={mode === 'replace'}
           error={files.length || origin ? originError : undefined}
-          className="mono"
+          // the value in monospace, the label and its hint as every other field's
+          classNames={{ input: 'mono' }}
           data-testid="import-origin"
         />
         {preview && (
