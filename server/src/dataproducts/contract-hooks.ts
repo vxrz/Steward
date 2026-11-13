@@ -7,6 +7,7 @@ import { contractAccess } from '../auth/policy.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { t } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
+import { flagEndorsementReview } from './endorsements.js';
 import { claim, named, ownersOf, people, sees, type Person } from './notices.js';
 import { recordQualityResults } from './quality.js';
 import { chunks, consumersOf, consumingPorts, elementsByIds, marks, productsByIds, type PortRow, type ProductRow } from './store.js';
@@ -54,7 +55,8 @@ const changeText = (c: DataContractChange): string =>
 
 /**
  * A version of a contract was saved (datacontracts/service.ts saveVersion). Breaking changes tell the consumers of the
- * output ports that follow the current version, once per port and version. Returns the number of people told.
+ * output ports that follow the current version, once per port and version, and flag the endorsements of their products
+ * for a review (endorsements.ts flagEndorsementReview). Returns the number of people told.
  */
 export function onContractVersionSaved(e: {
   contractId: string;
@@ -80,17 +82,22 @@ export function onContractVersionSaved(e: {
       ...consumingIn.map((c) => c.product_id),
     ]);
     let told = 0;
+    const flag = new Set<string>();
     for (const [portId, rows] of byPort) {
       const port = rows[0]!;
       const product = products.get(port.product_id);
       if (!product || product.lifecycle === 'retired') continue;
       if (!claim('port', portId, `breaking:${e.contractId}#${e.version}`)) continue;
+      flag.add(product.id);
       told += sendBreaking(e, port, rows.map((r) => r.environment).filter(Boolean), product, all, {
         consumers: consumers.filter((c) => c.port_id === portId),
         consumingIn: consumingIn.filter((c) => c.source_port_id === portId && c.product_id !== product.id),
         consuming,
       });
     }
+    // the endorsement of a product whose output port follows the contract needs a review (package C; once per port and
+    // version, as the notice) – it stops counting until endorsed again
+    if (flag.size) flagEndorsementReview([...flag], 'breakingChange', `contract ${e.contractId} version ${e.version}`);
     return told;
   } catch (err) {
     logger.warn({ err, contract: e.contractId }, 'breaking-change notice could not be sent');

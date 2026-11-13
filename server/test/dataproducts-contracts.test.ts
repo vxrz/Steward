@@ -309,6 +309,32 @@ describe('dataproduct.contract_breaking', () => {
     expect(await settle(adam, before + 1)).toHaveLength(before + 1);
   });
 
+  it('flags the endorsement of a product whose port follows the contract for a review (once per version)', async () => {
+    // audrey shares dana's teams: she sees the product and, as the domain's owner, endorses it
+    const domain = (await s.api('POST', '/data-domains', { key: 'dp-b-endorsed', name: 'Invented endorsed', owners: ['user:audrey'] })).id;
+    const p = (await dana('POST', '/data-products', { key: 'dp-b-endorsed', name: 'Invented endorsed orders', owners: ['user:dana'], domainId: domain })).id;
+    const pp = (await dana('POST', `/data-products/${p}/ports`, { direction: 'output', name: 'orders', type: 'table' })).id;
+    await dana('PUT', `/data-products/${p}/ports/${pp}/bindings/prod`, { elementIds: [element], contractId: contract });
+    expect((await audrey('PUT', `/data-products/${p}/endorsement`, {})).endorsement).toMatchObject({ valid: true, review: null });
+    const v5 = ordersYaml((d) => {
+      d.version = '4.0.0';
+      d.schema[0].properties = d.schema[0].properties.filter((x: { name: string }) => !['TOTAL', 'REGION'].includes(x.name));
+    });
+    expect((await dana('POST', `/data-contracts/${contract}/versions`, { yaml: v5 })).diff.breaking).toBeGreaterThan(0);
+    let e: { valid: boolean; review: string | null } | null = null;
+    for (let i = 0; i < 40 && e?.review !== 'breakingChange'; i++) {
+      e = (await dana('GET', `/data-products/${p}/endorsement`)).endorsement;
+      if (e?.review !== 'breakingChange') await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(e).toMatchObject({ valid: false, review: 'breakingChange' });
+    // endorsed again: the same version does not flag it again
+    expect((await audrey('PUT', `/data-products/${p}/endorsement`, {})).endorsement.valid).toBe(true);
+    const { onContractVersionSaved } = await import('../src/dataproducts/contract-hooks.js');
+    const version = Number((await dana('GET', `/data-contracts/${contract}`)).currentVersion);
+    onContractVersionSaved({ contractId: contract, contractName: 'x', contractKey: 'x', version, breaking: 1, changes: [] });
+    expect((await dana('GET', `/data-products/${p}/endorsement`)).endorsement).toMatchObject({ valid: true, review: null });
+  });
+
   it('tells nobody who may not see the product', async () => {
     const { db } = await import('../src/db.js');
     const team = (await s.api('POST', '/teams', { name: 'Invented hidden product team', members: ['dana'] })).id;
