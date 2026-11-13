@@ -30,7 +30,7 @@ const productKind: LinkResolver = {
     const u = currentUser();
     return db()
       .all<{ id: string; key: string; name: string; owners: string }>(
-        "SELECT id, key, name, owners FROM dp_products WHERE name_norm LIKE ? ESCAPE '\\' OR key LIKE ? ESCAPE '\\' ORDER BY name_norm, id LIMIT 500",
+        "SELECT id, key, name, owners FROM dp_products WHERE lower(name) LIKE ? ESCAPE '\\' OR lower(key) LIKE ? ESCAPE '\\' ORDER BY name_norm, id LIMIT 500",
         like(q),
         like(q),
       )
@@ -55,7 +55,7 @@ const objectKind: LinkResolver = {
     const u = currentUser();
     return db()
       .all<{ id: string; key: string; name: string; owner: string | null; stewards: string }>(
-        "SELECT id, key, name, owner, stewards FROM dp_objects WHERE name_norm LIKE ? ESCAPE '\\' OR key LIKE ? ESCAPE '\\' ORDER BY name_norm, id LIMIT 500",
+        "SELECT id, key, name, owner, stewards FROM dp_objects WHERE lower(name) LIKE ? ESCAPE '\\' OR lower(key) LIKE ? ESCAPE '\\' ORDER BY name_norm, id LIMIT 500",
         like(q),
         like(q),
       )
