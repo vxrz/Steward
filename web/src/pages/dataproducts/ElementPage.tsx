@@ -206,7 +206,7 @@ function ElementOverview({ e }: { e: DataElement }) {
             )}
           </Section>
           <ElementQualityPanel elementId={e.id} />
-          <PersonalFieldsPanel url={`/data-elements/${encodeURIComponent(e.id)}/personal-fields`} queryKey={dpKeys.element(e.id)} />
+          <PersonalFieldsPanel kind="element" id={e.id} />
         </Stack>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 5 }}>

@@ -368,6 +368,13 @@ Phase 1 as planned, in eight work packages ([docs/DATA-PRODUCTS.md](../DATA-PROD
 
 **Moved to phase 2** (beside the list under _Phases_): module roles granted per team – the _contributor_ – waits for ADR 0034 phase 2; shares of data objects, elements and domains (they keep owning teams); editable layers and regulatory flags (built-in lists in 0.22.0); a part of the instance export; the product map's health reads the members' elements in chunks of 500 ids – 150 statements and about 0.5 s for 2,000 products – and should become one grouped read.
 
+## Built in 0.24.0 (phase 2)
+
+- **Volume and quality checks** (part 10): the `data-element` check's _volume_ mode (Snowflake `ROW_COUNT`/`BYTES`, Kafka end offsets, against the newest reading a window old) and _quality_ mode (Data Metric Function results read-only from `SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS`, or the recorded results); quality results of elements in one store with one write function (`recordQualityResults`, `server/src/dataproducts/quality.ts`) for dbt, DMF, contract tests and checks; the datacontract CLI test for **Snowflake and Kafka servers**; ISO/IEC 25012 _accuracy_, _completeness_ and _consistency_ in the scorecard; the completeness objective of ports.
+- **Field-level personal data from contracts** (part 2): personal and classified fields of bound contracts on products, elements and data objects; evidence of _confidentiality_ in the scorecard.
+- **Breaking-change notices** (parts 7 and 17): `dataproduct.contract_breaking` from a hook in the data contracts service, once per port and contract version.
+- **Scorecard snapshots and history** (part 13): daily snapshots kept 400 days, the maturity trend on the product page, and the report section _Data products_ – the module's report section (ADR 0034).
+
 ## Owner decisions (accepted as recommended)
 
 1. **Own model or a catalogue.** _Recommendation:_ an own thin model with links out to catalogues; reading from DataHub or OpenMetadata later, never as the basis.

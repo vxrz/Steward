@@ -492,6 +492,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/cost-allocations': ALL,
   'PUT /api/data-products/cost-allocations': ADMIN,
   'GET /api/data-products/:id/scorecard': ALL,
+  // 0.24.0 (ADR 0036 phase 2): the scorecard over time, personal fields from contracts, quality results
+  'GET /api/data-products/:id/scorecard/history': ALL,
+  'GET /api/data-products/:id/personal-fields': ALL,
+  'GET /api/data-elements/:id/personal-fields': ALL,
+  'GET /api/data-objects/:id/personal-fields': ALL,
+  'GET /api/data-elements/:id/quality': ALL,
   // the list's maturity and last month's costs of a page (WP8)
   'GET /api/data-products/facts': ALL,
   // import and export, ODPS (WP7): exports read like the products they hold; the preview shows anyone what an import

@@ -397,7 +397,7 @@ export function DataObjectPage() {
                   </List>
                 </Section>
               )}
-              <PersonalFieldsPanel url={`/data-objects/${encodeURIComponent(o.id)}/personal-fields`} queryKey={dpKeys.object(o.id)} />
+              <PersonalFieldsPanel kind="object" id={o.id} />
               <ObjectElements o={o} />
             </Stack>
           </Grid.Col>

@@ -255,7 +255,7 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
           </Section>
           <ScorecardPanel query={scorecard} />
           <ScorecardTrend productId={p.id} environment={scorecard.data?.environment} />
-          <PersonalFieldsPanel url={`/data-products/${encodeURIComponent(p.id)}/personal-fields`} queryKey={dpKeys.product(p.id)} />
+          <PersonalFieldsPanel kind="product" id={p.id} />
           <Section title={t('product.consumers')}>
             {outputs.length ? (
               <Stack gap={4}>

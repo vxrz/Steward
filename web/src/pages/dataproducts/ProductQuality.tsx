@@ -144,10 +144,22 @@ function TrendPicture({ points }: { points: DataScorecardHistory['points'] }) {
   );
 }
 
-/** The personal and classified fields of the contracts bound where `url` says (a product, an element, a data object). */
-export function PersonalFieldsPanel({ url, queryKey }: { url: string; queryKey: readonly unknown[] }) {
+/** Where the personal fields of a product, an element or a data object are read. */
+const PERSONAL_URL = {
+  product: (id: string) => `/data-products/${enc(id)}/personal-fields`,
+  element: (id: string) => `/data-elements/${enc(id)}/personal-fields`,
+  object: (id: string) => `/data-objects/${enc(id)}/personal-fields`,
+};
+const PERSONAL_KEY = { product: dpKeys.product, element: dpKeys.element, object: dpKeys.object };
+
+/** The personal and classified fields of the contracts bound to a product's output ports, an element, or a data object's ports. */
+export function PersonalFieldsPanel({ kind, id }: { kind: keyof typeof PERSONAL_URL; id: string }) {
   const { t } = useTranslation('dataProducts');
-  const q = useQuery({ queryKey: [...queryKey, 'personalFields'], queryFn: () => get<DataPersonalFields>(url), staleTime: 60_000 });
+  const q = useQuery({
+    queryKey: [...PERSONAL_KEY[kind](id), 'personalFields'],
+    queryFn: () => get<DataPersonalFields>(PERSONAL_URL[kind](id)),
+    staleTime: 60_000,
+  });
   const d = q.data;
   if (d && !d.groups.length && !d.hiddenContracts) return null;
   return (
