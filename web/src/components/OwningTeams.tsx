@@ -9,6 +9,7 @@ import { useMe } from '../auth';
 import { supplierKeys } from '../queryKeys';
 import { fmtDay } from '../format';
 import { OpenSupplierModal } from './suppliers/SharedSuppliers';
+import { useModuleUseText } from './modules/moduleUse';
 
 interface OwningTeamsResponse {
   teams: { id: string; name: string }[];
@@ -119,6 +120,7 @@ function ExplainModal({ kind, id, onClose }: { kind: OwnedKind; id: string; onCl
   // others' rights: administrators and auditors (the server checks it as well)
   const mayAskForOthers = isAdmin || caps.viewAudit;
   const [user, setUser] = useState(username);
+  const moduleUse = useModuleUseText();
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<UserInfo[]>('/users'), enabled: isAdmin });
   const q = useQuery({
     queryKey: ['access-explain', kind, id, user],
@@ -139,6 +141,12 @@ function ExplainModal({ kind, id, onClose }: { kind: OwnedKind; id: string; onCl
         )}
         {q.data && (
           <>
+            {q.data.module && (
+              <Text size="sm" c={q.data.module.uses ? undefined : 'orange'} data-testid="explain-module">
+                {moduleUse(q.data.module)}
+                {!q.data.module.uses && ` – ${t('owning.moduleNotUsed')}`}
+              </Text>
+            )}
             <Text size="sm">
               {q.data.permissions.length
                 ? t('owning.rights', { user: q.data.user, rights: q.data.permissions.map((p) => t(`common:permissions.${p}`, { defaultValue: p })).join(', ') })

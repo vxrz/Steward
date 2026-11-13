@@ -128,7 +128,8 @@
         "platform_identity": "Plattform-Identitäten",
         "supplier": "Lieferant"
       }
-    }
+    },
+    "moduleNotUsed": "ohne das Modul gelten die Rechte unten nicht"
   },
   "restrictedSite": "<b>Eingeschränkt:</b> Nur die Einträge unten erhalten die genannten Rechte am Standort, seiner Hierarchie und seinen Anlagen, außerdem Administratoren. Auditoren können immer lesen.",
   "defaultsSite": "<b>Es gelten die Rollenrechte</b> (alle, die in Steward arbeiten, sehen den Standort, Designer verwalten ihn). Fügen Sie Einträge hinzu, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",

@@ -287,7 +287,8 @@
         "USERNAME_TRANSFORMED": "Regel für den Benutzernamen: {{from}} → {{to}}",
         "GROUPS_OVERAGE": "Das Token hat die Gruppen weggelassen (zu viele Gruppen; Claim {{claim}}). Aus ihnen kommen keine Rollen. Weisen Sie der Anwendung Gruppen zu, nutzen Sie App-Rollen oder einen Gruppenfilter.",
         "USERINFO_USED": "Claims vom Userinfo-Endpunkt werden mitverwendet."
-      }
+      },
+      "modules": "Beschränkte Module"
     },
     "stripDomains": "Zu entfernende Domains",
     "stripDomainsHint": "Nur diese Domains werden entfernt (max@contoso.com → max). Ein Benutzername einer anderen Domain wird abgewiesen – sonst könnte boss@beliebige-domain das Konto „boss“ übernehmen.",

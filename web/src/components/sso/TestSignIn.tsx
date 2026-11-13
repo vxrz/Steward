@@ -9,6 +9,7 @@ import { notifyError, post } from '../../api';
 import { codeText, errorText } from '../../i18n/errors';
 import { listFormat } from '../../format';
 import { TableScroll } from '../TableScroll';
+import { useModuleUseText } from '../modules/moduleUse';
 
 const OUTCOME_COLOR: Record<SsoSignInPreview['outcome'], string> = { signIn: 'blue', relink: 'blue', link: 'teal', create: 'green', refuse: 'red' };
 
@@ -158,6 +159,7 @@ function Claims({ claims }: { claims: SsoClaimEntry[] }) {
 
 function Preview({ preview: p }: { preview: SsoSignInPreview }) {
   const { t } = useTranslation(['users', 'common']);
+  const moduleUse = useModuleUseText();
   const none = t('provider.test.none');
   // note codes come from the server (users:provider.test.notes.<code>)
   const noteText = t as unknown as (key: string, options: Record<string, string>) => string;
@@ -225,6 +227,19 @@ function Preview({ preview: p }: { preview: SsoSignInPreview }) {
     ],
     [t('provider.test.roles'), p.roles.length ? p.roles.map((r) => t(`common:roles.${r}`)).join(', ') : none],
     [t('provider.test.teams'), p.teams.length ? p.teams.join(', ') : none],
+    // the modules restricted to selected teams and users: an SSO group reaches one through its team (ADR 0034)
+    ...(p.modules?.length
+      ? [
+          [
+            t('provider.test.modules'),
+            <Stack gap={0} key="modules" data-testid="sso-test-modules">
+              {p.modules.map((m) => (
+                <span key={m.module}>{moduleUse(m)}</span>
+              ))}
+            </Stack>,
+          ] as [string, ReactNode],
+        ]
+      : []),
     ...p.profile.map((f): [string, ReactNode] => [f.label, f.value]),
   ];
   return (

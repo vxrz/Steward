@@ -128,7 +128,8 @@
         "platform_identity": "Platform identities",
         "supplier": "Supplier"
       }
-    }
+    },
+    "moduleNotUsed": "without the module, the rights below do not apply"
   },
   "restrictedSite": "<b>Restricted:</b> only the subjects below get the listed rights on the site, its hierarchy and its assets, plus administrators. Auditors can always read.",
   "defaultsSite": "<b>Default role rights apply</b> (everyone who works in Steward sees the site, designers manage it). Add entries to restrict access to specific users, teams or roles.",

@@ -153,7 +153,13 @@
     "ismsAllCatalogues": "Every catalogue with a statement",
     "ismsServices": "Services",
     "ismsDays": "Supplier dates within (days)",
-    "ismsDaysHint": "Certificates and notice-by dates this many days ahead, and passed this many days ago"
+    "ismsDaysHint": "Certificates and notice-by dates this many days ahead, and passed this many days ago",
+    "moduleWithout": "Without the {{name}} sections (they do not use the module): {{who}}.",
+    "moduleTeam": "members of team {{team}} who do not use it otherwise",
+    "moduleEmails_one": "{{count}} e-mail address outside Steward",
+    "moduleEmails_other": "{{count}} e-mail addresses outside Steward",
+    "moduleYouNot": "You do not use {{name}}: its sections are left out of the report.",
+    "moduleOwnerNot": "The owner of this schedule does not use {{name}}: its sections are left out of the report."
   },
   "emptyState": {
     "title": "No report schedules yet",

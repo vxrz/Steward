@@ -378,7 +378,9 @@
     "lastLogin_one": "Letzte Anmeldung {{date}} (vor {{count}} Tag)",
     "lastLogin_other": "Letzte Anmeldung {{date}} (vor {{count}} Tagen)",
     "neverSignedIn": "Nie angemeldet",
-    "passwordWithoutMfa": "Passwort ohne MFA"
+    "passwordWithoutMfa": "Passwort ohne MFA",
+    "modules": "Module dieser Instanz",
+    "modulesHint": "Beschränkte Module, jetzt gelesen: Wer ein Modul nutzt, wird unter Einstellungen → Module geändert, nicht auf einer Plattform. SSO-Gruppen erreichen ein Modul über ihr Team."
   },
   "packs": {
     "title": "Nachweispakete",
