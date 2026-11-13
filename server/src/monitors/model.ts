@@ -1,7 +1,6 @@
 import {
   MONITOR_PERMISSIONS,
   monitorDefinitionSchema,
-  type AclEntry,
   type CauseRef,
   type CheckDef,
   type MonitorDefinition,
@@ -178,8 +177,7 @@ export function monitorAccess(u: AuthUser | null, m: { id: string; owner: string
   return { permissions: MONITOR_PERMISSIONS.filter((x) => out.has(x)), reasons: d.reasons };
 }
 
-export const monitorPermissions = (u: AuthUser | null, m: { id: string; owner: string; acl?: unknown }): MonitorPermission[] =>
-  monitorAccess(u, m).permissions;
+export const monitorPermissions = (u: AuthUser | null, m: { id: string; owner: string; acl?: unknown }): MonitorPermission[] => monitorAccess(u, m).permissions;
 
 export const permissionsOfRow = (r: Pick<MonitorRow, 'id' | 'owner' | 'acl'>, u: AuthUser | null = currentUser()): MonitorPermission[] =>
   monitorPermissions(u, { id: r.id, owner: r.owner, acl: parseJson(r.acl, []) });

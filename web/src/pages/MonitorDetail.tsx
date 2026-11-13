@@ -28,7 +28,7 @@ import {
   type MonitorHistoryEntry,
   type MonitorSaveResult,
 } from '@sm/shared';
-import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
+import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { CopyId } from '../components/CopyId';
 import { DetailState, JsonView } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';

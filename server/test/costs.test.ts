@@ -314,7 +314,6 @@ describe('push from CI', () => {
   it('stops with a creator who may no longer manage the platform, and keeps to the rate limit', async () => {
     const dana = await s.as('dana', PW);
     // designers may use platforms but not manage them: the access list gives dana the manage right
-    const { db } = await import('../src/db.js');
     await storeAcl('platform', platform, [{ subject: 'user:dana', permissions: ['use', 'manage'] }]);
     const t = await dana('POST', `/costs/platform/${platform}/push-tokens`, { name: 'dana', rateLimitPerMinute: 1 });
     expect((await push(t.token, csv('5'), {}, platform, '?mode=add')).status).toBe(200);

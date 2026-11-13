@@ -252,7 +252,6 @@ describe('uploads and matches on the demo enterprise', () => {
   });
 
   it('readers see only the sites they may see: matches elsewhere are counted, not named', async () => {
-    const d = await db();
     await storeAcl('site', 'hillcrest', [{ subject: 'user:admin', permissions: ['view', 'manage'] }]);
     try {
       const a = (await users.vera!('GET', '/plant/advisories?q=EXPM')).items[0];

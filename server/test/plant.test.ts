@@ -292,10 +292,9 @@ describe('rights per site', () => {
     expect((await users.pia!('GET', '/plant/sites/beta')).acl).toBeNull();
     // (since 0.23.0 the access list is written as shares and the Restricted scope, audited in the access family)
     expect((await s.api('GET', '/audit?action=access.scope_changed&entityId=beta'))[0].summary).toMatch(/site "Beta.*" is Restricted/);
-    expect((await s.api('GET', '/audit?action=access.share_added&entityId=beta')).map((e: { details: { subject: string } }) => e.details.subject).sort()).toEqual([
-      'user:olaf',
-      'user:pia',
-    ]);
+    expect(
+      (await s.api('GET', '/audit?action=access.share_added&entityId=beta')).map((e: { details: { subject: string } }) => e.details.subject).sort(),
+    ).toEqual(['user:olaf', 'user:pia']);
   });
 
   it('a site code taken by a site the caller may not see: the other site is not named', async () => {

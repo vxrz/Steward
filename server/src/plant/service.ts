@@ -4,8 +4,6 @@ import { heldOn } from '../auth/shares.js';
 import { SITE_SHARE_KIND } from './site-shares.js';
 import {
   PLANT_LIMITS,
-  PLANT_PERMISSIONS,
-  type AclEntry,
   type AssetStatus,
   type PlantAssetDetail,
   type PlantAssetSummary,

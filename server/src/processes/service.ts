@@ -134,7 +134,12 @@ export function setProcessAccess(id: string, input: { acl?: unknown; owner?: str
         entityType: 'process',
         entityId: id,
         summary: `Owner of ${label}: ${before.owner ?? '–'} → ${owner ?? '–'}${owner ? ' (every right on it)' : ''}`,
-        details: { field: 'owner', before: before.owner, after: owner, ...(owner ? { granted: [{ subject: `user:${owner.toLowerCase()}`, rights: ['all'] }] } : {}) },
+        details: {
+          field: 'owner',
+          before: before.owner,
+          after: owner,
+          ...(owner ? { granted: [{ subject: `user:${owner.toLowerCase()}`, rights: ['all'] }] } : {}),
+        },
       });
     }
   });

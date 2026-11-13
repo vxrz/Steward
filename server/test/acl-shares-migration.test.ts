@@ -165,14 +165,22 @@ const platformAcl = new Map<string, readonly AclEntry[]>();
 function legacyRights(u: U, it: Item): string[] {
   switch (it.kind) {
     case 'process':
-      return closure(['view', 'run', 'edit', 'approve', 'manage'], legacyDecide(u, it, ['view', 'run', 'edit', 'approve', 'manage'], perms.DEFAULT_PROCESS, 'view'), {
-        anyGives: 'view',
-      });
+      return closure(
+        ['view', 'run', 'edit', 'approve', 'manage'],
+        legacyDecide(u, it, ['view', 'run', 'edit', 'approve', 'manage'], perms.DEFAULT_PROCESS, 'view'),
+        {
+          anyGives: 'view',
+        },
+      );
     case 'monitor':
-      return closure(['view', 'acknowledge', 'edit', 'manage'], legacyDecide(u, it, ['view', 'acknowledge', 'edit', 'manage'], monitorModel.MONITOR_DEFAULTS, 'view'), {
-        implies: { manage: ['edit', 'acknowledge'] },
-        anyGives: 'view',
-      });
+      return closure(
+        ['view', 'acknowledge', 'edit', 'manage'],
+        legacyDecide(u, it, ['view', 'acknowledge', 'edit', 'manage'], monitorModel.MONITOR_DEFAULTS, 'view'),
+        {
+          implies: { manage: ['edit', 'acknowledge'] },
+          anyGives: 'view',
+        },
+      );
     case 'site': {
       const got = legacyDecide(u, it, ['view', 'propose', 'manage'], plantAccess.DEFAULT_PLANT, 'view');
       return got.includes('manage') ? ['view', 'propose', 'manage'] : got.includes('propose') ? ['view', 'propose'] : got;
@@ -480,7 +488,13 @@ describe('the upgrade fixture (v0.19.0, SQLite)', () => {
             l.kind,
             l.id,
           )
-          .map((r) => ({ subject: r.subject, level: r.level, actions: JSON.parse(r.actions), rights: r.rights ? JSON.parse(r.rights) : null, by: r.created_by }));
+          .map((r) => ({
+            subject: r.subject,
+            level: r.level,
+            actions: JSON.parse(r.actions),
+            rights: r.rights ? JSON.parse(r.rights) : null,
+            by: r.created_by,
+          }));
         const expected = acl
           .aclToShares(l.kind, l.acl)
           .map((x) => ({ subject: x.subject, level: x.level, actions: x.actions, rights: x.rights ?? null, by: 'system' }));

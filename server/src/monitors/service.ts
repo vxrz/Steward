@@ -7,7 +7,6 @@ import {
   HIDDEN_MONITOR_REF,
   type MonitorPlatformReference,
   MONITOR_KEY_RE,
-  MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
   checkPlatformKinds,
   definitionIssues,
@@ -15,7 +14,6 @@ import {
   issueLabel,
   findCycle,
   suggestFreshness,
-  type AclEntry,
   type CheckDef,
   type CheckOf,
   type ObservedDelay,
@@ -47,7 +45,6 @@ import { parseYaml } from '../yaml-safe.js';
 /** Largest monitor file (the import route accepts 512 KB). */
 export const MONITOR_YAML_BYTES = 1024 * 1024;
 import { currentUser, viaApiToken } from '../auth/context.js';
-import { cleanAcl } from '../auth/permissions.js';
 import { getPlatform, listPlatforms } from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import {

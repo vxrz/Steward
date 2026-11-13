@@ -1,10 +1,9 @@
-import { PLANT_PERMISSIONS, type AclEntry, type AccessReason, type PlantPermission, type Role } from '@sm/shared';
+import { PLANT_PERMISSIONS, type AccessReason, type PlantPermission, type Role } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
 import { SITE_SHARE_MODEL, decide } from '../auth/policy.js';
 import { forbid, hasRole } from '../auth/access.js';
 import { db } from '../db.js';
-import { parseJson } from '../util.js';
 import { usesModule } from '../modules/access.js';
 
 /**

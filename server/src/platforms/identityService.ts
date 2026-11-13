@@ -27,7 +27,6 @@ import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { cleanAcl } from '../auth/permissions.js';
 import { forgetOwningTeams, identityAccess } from '../auth/policy.js';
 import { invalidateIdentityCaches, invalidatePlatformCaches } from './http.js';
 import { requireIdentityIntact, requirePlatformIntact, sealIdentity } from './integrity.js';

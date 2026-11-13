@@ -38,7 +38,6 @@ describe('identity aliases of imported accounts', () => {
   });
 
   it('grants what an imported access list gave the former name', async () => {
-    const { db } = await import('../src/db.js');
     const p = (await s.api('GET', '/processes'))[0];
     await storeAcl('process', p.id, [{ subject: 'user:laptop-olivia', permissions: ['view', 'run'] }]);
     const olivia = await s.as('olivia', 'Demo-password-1');

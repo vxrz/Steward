@@ -32,7 +32,7 @@ import {
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { CHANGEDETECTION_KIND, CONFLUENT_KIND, DATABASE_KIND, KAFKA_CONNECT_KIND, LLM_GATEWAY_KIND, type Platform } from '@sm/shared';
-import { apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
+import { apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { CopyId } from '../components/CopyId';
 import { AccessTab } from '../components/access/AccessTab';
 import { useMe } from '../auth';
@@ -136,7 +136,6 @@ export function PlatformDetailPage() {
     p.config.auth?.type === 'token_request' ||
     p.config.auth?.type === 'jwt' ||
     (p.config.auth?.type === 'aws_sigv4' && !!p.config.auth.aws?.roleArn);
-
 
   const runTest = async () => {
     setTesting(true);

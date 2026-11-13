@@ -77,8 +77,7 @@ export function entryToShare(kind: AclKind, permissions: readonly string[]): Sha
   switch (kind) {
     case 'process': {
       const actions = (['approve', 'run'] as const).filter(has);
-      if (has('manage') && !has('edit'))
-        return { level: 'view', actions: [...actions], rights: [...new Set(['view', 'manage', ...actions])].sort() };
+      if (has('manage') && !has('edit')) return { level: 'view', actions: [...actions], rights: [...new Set(['view', 'manage', ...actions])].sort() };
       return { level: has('manage') ? 'manage' : has('edit') ? 'edit' : 'view', actions: [...actions], rights: null };
     }
     case 'monitor':
@@ -124,7 +123,7 @@ export function aclToShares(kind: AclKind, acl: readonly AclEntry[]): ShareWrite
 export function shareRights(kind: AclKind, s: Pick<ResourceShare, 'level' | 'actions' | 'rights'>): string[] {
   const k = KIND[kind];
   if (s.rights?.length) return k.perms.filter((p) => s.rights!.includes(p));
-  const given = new Set<string>([...(k.model.levels[s.level]), ...s.actions.flatMap((a) => k.model.actions?.[a] ?? [])]);
+  const given = new Set<string>([...k.model.levels[s.level], ...s.actions.flatMap((a) => k.model.actions?.[a] ?? [])]);
   return k.perms.filter((p) => given.has(p));
 }
 
@@ -265,7 +264,5 @@ type AliasKind = AclKind & OwnedKind;
 
 /** Marks the answer of a deprecated access-list route: `Deprecation`, and the Access tab's route as its successor. */
 export function markDeprecated(reply: FastifyReply, kind: AliasKind, id: string): void {
-  reply
-    .header('Deprecation', 'true')
-    .header('Link', `<${config.basePath}/api/access/${kind}/${encodeURIComponent(id)}/shares>; rel="successor-version"`);
+  reply.header('Deprecation', 'true').header('Link', `<${config.basePath}/api/access/${kind}/${encodeURIComponent(id)}/shares>; rel="successor-version"`);
 }

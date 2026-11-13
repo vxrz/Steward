@@ -43,7 +43,6 @@ const csv = (...rows: string[]) => [HEAD, ...rows].join('\n');
 const eur = (d: { currencies: { currency: string; thisMonth: string | null; lastMonth: string | null }[] }) => d.currencies.find((c) => c.currency === 'EUR');
 
 async function newPlatform(name: string): Promise<string> {
-  const { db } = await import('../src/db.js');
   const id = (
     await s.api('POST', '/platforms', {
       name,

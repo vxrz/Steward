@@ -52,8 +52,8 @@ import {
 } from './identities.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
 import { currentUser } from '../auth/context.js';
-import { cleanAcl, platformPermissions } from '../auth/permissions.js';
-import { PLATFORM_PERMISSIONS, type AclEntry, type PlatformPermission } from '@sm/shared';
+import { platformPermissions } from '../auth/permissions.js';
+import { type PlatformPermission } from '@sm/shared';
 import { assignCreatorTeams, forgetOwningTeams, identityAccess } from '../auth/policy.js';
 import { staleRefs } from './operationFilter.js';
 

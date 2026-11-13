@@ -85,7 +85,6 @@ describe('owning teams on a process', () => {
   });
 
   it('take access list entries as exceptions for others', async () => {
-    const d = await db();
     await storeAcl('process', proc, [{ subject: 'user:dave', permissions: ['view'] }]);
     try {
       expect((await dave('GET', `/processes/${proc}`)).permissions).toEqual(['view']);

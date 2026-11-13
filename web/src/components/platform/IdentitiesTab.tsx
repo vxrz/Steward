@@ -279,7 +279,7 @@ function IdentityDialog({
             </Tabs.Panel>
           )}
           <Tabs.Panel value="access">
-            <AccessForm platform={platform} identity={identity} manage={manage} />
+            <AccessForm identity={identity} />
           </Tabs.Panel>
           <Tabs.Panel value="mcp">
             <McpForm platform={platform} identity={identity} manage={manage} />
@@ -757,9 +757,8 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
 }
 
 /** Who may use the identity: everyone with "use" (the default), else its access list and owning teams. */
-function AccessForm({ platform, identity, manage }: { platform: Platform; identity: PlatformIdentity; manage: boolean }) {
+function AccessForm({ identity }: { identity: PlatformIdentity }) {
   const { t } = useTranslation(['platforms', 'common']);
-  const refresh = useRefresh(platform);
   if (identity.default) return <Text size="sm">{t('identities.defaultAccess')}</Text>;
   return (
     <Stack>

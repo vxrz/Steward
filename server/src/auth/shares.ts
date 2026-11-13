@@ -203,7 +203,13 @@ function cleanShares(kind: OwnedKind, input: readonly ShareWrite[]): CleanShare[
     const unknown = s.actions.find((a) => !offered.includes(a));
     if (unknown) throw new HttpError(400, `A share of a ${kind} has no action right "${unknown}"`, 'SHARE_ACTION_UNKNOWN', { action: unknown });
     const rights = raw.rights === undefined ? undefined : raw.rights === null ? null : [...new Set(raw.rights)].sort();
-    out.set(subject, { subject, level: s.level, actions: [...new Set(s.actions)].sort(), expiresAt: endOf(s.expiresAt), ...(rights === undefined ? {} : { rights }) });
+    out.set(subject, {
+      subject,
+      level: s.level,
+      actions: [...new Set(s.actions)].sort(),
+      expiresAt: endOf(s.expiresAt),
+      ...(rights === undefined ? {} : { rights }),
+    });
   }
   return [...out.values()].sort((a, b) => a.subject.localeCompare(b.subject));
 }
@@ -465,7 +471,13 @@ export function copyShares(kind: OwnedKind, fromId: string, toId: string): void 
         ts,
       );
     if (isRestricted(kind, fromId))
-      db().run('INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', kind, toId, actor, ts);
+      db().run(
+        'INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        kind,
+        toId,
+        actor,
+        ts,
+      );
   });
   sharesChanged();
 }
