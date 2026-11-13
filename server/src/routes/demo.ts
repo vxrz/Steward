@@ -809,12 +809,6 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo costs not read');
   }
-  // ---- price books, calculators and estimates (0.21.0, ADR 0035): invented prices, the example calculators ----
-  try {
-    if (moduleEnabled('costs')) await (await import('../costs/price-demo.js')).setupPriceDemo();
-  } catch (err) {
-    logger.warn({ err: (err as Error).message }, 'demo price books not added');
-  }
 
   // ---- access reconciliation of the simulated Insights Hub (baseline snapshot) ----
   await setupComplianceDemo(platformByKind.get('insights-hub'));
@@ -835,6 +829,12 @@ export async function setupDemo(opts: { applications?: boolean; services?: boole
       services = await (await import('../catalogue/demo.js')).setupServiceDemo();
     } catch (err) {
       logger.warn({ err: (err as Error).message }, 'demo services not created');
+    }
+    // ---- price books, calculators and estimates (0.21.0, ADR 0035): invented prices, the example calculators ----
+    try {
+      if (moduleEnabled('costs')) await (await import('../costs/price-demo.js')).setupPriceDemo();
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'demo price books not added');
     }
   }
   // ---- the plant registry's invented enterprise, when the module is on (plant/demo.ts) ----

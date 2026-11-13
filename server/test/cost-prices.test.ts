@@ -153,58 +153,6 @@ describe('the pricing arithmetic', () => {
   });
 });
 
-describe('migration costs-006-price-books', () => {
-  const targets = (): { name: string; target: any }[] => [
-    { name: 'SQLite', target: { kind: 'sqlite', file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sm-cpb-')), 'db.sqlite') } },
-    ...(PG_TEST_URL
-      ? [{ name: 'PostgreSQL', target: { kind: 'postgres', url: PG_TEST_URL, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_cpb${process.pid}` } }]
-      : []),
-  ];
-  it("moves the Snowflake fallback's price per credit into the platform's contracted book as version 1", async () => {
-    const { Db, coreMigrations, namedMigrations } = await import('../src/db.js');
-    for (const { name, target } of targets()) {
-      const dialect = target.kind === 'sqlite' ? 'sqlite' : 'postgres';
-      const before = namedMigrations(dialect)
-        .map((m) => m.name)
-        .filter((n) => n !== 'costs-006-price-books' && n !== 'costs-007-calculators-estimates');
-      const old = new Db(target, { upTo: { core: coreMigrations(dialect).length, named: before }, quiet: true });
-      const at = '2026-10-01T00:00:00.000Z';
-      old.run(
-        "INSERT INTO platforms (id, name, kind, base_url, config, created_at, updated_at) VALUES ('p_sf', 'Snowflake prod', 'snowflake', 'https://sf.example', '{}', ?, ?)",
-        at,
-        at,
-      );
-      old.run(
-        "INSERT INTO platforms (id, name, kind, base_url, config, created_at, updated_at) VALUES ('p_sf2', 'Snowflake test', 'snowflake', 'https://sf.example', '{}', ?, ?)",
-        at,
-        at,
-      );
-      old.run(
-        "INSERT INTO cost_sources (platform_id, enabled, tag_key, credit_price, credit_currency, updated_at, updated_by) VALUES ('p_sf', 1, 'application', '3.125', 'EUR', ?, 'dana')",
-        at,
-      );
-      old.run("INSERT INTO cost_sources (platform_id, enabled, tag_key, updated_at, updated_by) VALUES ('p_sf2', 1, 'application', ?, 'dana')", at);
-      old.close();
-      const now = new Db(target, { quiet: true });
-      try {
-        expect(now.all('SELECT id, kind, provider, platform_id, currency, current_version, created_by FROM cost_price_books'), name).toEqual([
-          { id: 'cpb_p_sf', kind: 'contracted', provider: 'Snowflake', platform_id: 'p_sf', currency: 'EUR', current_version: 1, created_by: 'dana' },
-        ]);
-        expect(now.all('SELECT book_id, number, source, entry_count FROM cost_price_book_versions'), name).toEqual([
-          { book_id: 'cpb_p_sf', number: 1, source: 'migration', entry_count: 1 },
-        ]);
-        expect(now.all('SELECT version_id, sku_id, unit, charge, price, block, currency FROM cost_price_items'), name).toEqual([
-          { version_id: 'cpv_p_sf_1', sku_id: 'compute-credit', unit: '{credit}', charge: 'usage', price: '3.125', block: 1, currency: 'EUR' },
-        ]);
-        // the source keeps its columns
-        expect(now.get<{ credit_price: string }>("SELECT credit_price FROM cost_sources WHERE platform_id = 'p_sf'")?.credit_price).toBe('3.125');
-      } finally {
-        now.close();
-      }
-    }
-  });
-});
-
 describe('price books', () => {
   let s: TestServer;
   let dana: Client;
@@ -215,7 +163,7 @@ describe('price books', () => {
   beforeAll(async () => {
     s = await startTestServer();
     await setup(s);
-    await s.api('POST', '/demo/setup', {});
+    await s.api('POST', '/demo/setup', { services: true });
     dana = await s.as('dana', PW);
     olivia = await s.as('olivia', PW);
     vera = await s.as('vera', PW);
@@ -267,7 +215,7 @@ describe('price books', () => {
 
   it('imports a CSV file with a mapping: preview first, problems refuse the whole file', async () => {
     const b = await dana('POST', '/costs/price-books', { name: 'Invented Queue AG list', kind: 'list', provider: 'Invented Queue AG', currency: 'EUR' });
-    const csv = 'Item;Name;Unit;Price;Per;Tiers;Included\nmsg;Messages;{msg};0,40;1000000;0:0,40;1000000:0,30;1000\nseat;Seats;{seat}.mo;12,00;1;;\n';
+    const csv = 'Item;Name;Unit;Price;Per;Tiers;Included\nmsg;Messages;{msg};0,40;1000000;"0:0,40;1000000:0,30";1000\nseat;Seats;{seat}.mo;12,00;1;;\n';
     const mapping = { sku: 'Item', name: 'Name', unit: 'Unit', price: 'Price', block: 'Per', tiers: 'Tiers', included: 'Included', decimal: ',' };
     const preview = await dana('POST', `/costs/price-books/${b.id}/import/preview`, { csv, fileName: 'queue.csv', mapping });
     expect(preview).toMatchObject({ rows: 2, entries: 2, problems: [], diff: { added: 2 } });
@@ -328,7 +276,7 @@ describe('price books', () => {
     const sent = checkPriceReviews(Date.now(), true);
     expect(sent).toBeGreaterThan(0);
     expect(checkPriceReviews(Date.now(), true)).toBe(0);
-    const n = (await dana('GET', '/notifications')) as { event: string; link?: string }[];
+    const n = ((await dana('GET', '/notifications?limit=200')) as { items: { event: string; link?: string }[] }).items;
     expect(n.some((x) => x.event === 'cost.price_review_due' && x.link?.endsWith(b.id))).toBe(true);
     const checked = await dana('POST', `/costs/price-books/${b.id}/check`);
     expect(checked).toMatchObject({ reviewDue: false, checkedBy: 'dana', version: 1 });
@@ -343,7 +291,10 @@ describe('price books', () => {
     expect(snowflakeCreditPrice(snowflake)).toEqual({ price: '2.75', currency: 'USD' });
     // a price changed in the book is what the source shows and the fallback reads
     const book = ((await s.api('GET', '/costs/price-books')) as { id: string; platform: { id: string } | null }[]).find((b) => b.platform?.id === snowflake)!;
-    await s.api('PUT', `/costs/price-books/${book.id}/entries`, { entries: [{ sku: 'compute-credit', name: 'Compute credit', unit: '{credit}', price: '2.9', currency: 'USD' }] });
+    await s.api('PUT', `/costs/price-books/${book.id}/entries`, {
+      mode: 'replace',
+      entries: [{ sku: 'compute-credit', name: 'Compute credit', unit: '{credit}', price: '2.9', currency: 'USD' }],
+    });
     expect((await s.api('GET', `/costs/platform/${snowflake}/source`)).creditPrice).toBe('2.90');
     expect(snowflakeCreditPrice(snowflake)?.price).toBe('2.90');
   });
@@ -378,5 +329,58 @@ describe('price books', () => {
     const l1 = statements(() => listBooks());
     db().run('UPDATE cost_price_books SET updated_at = updated_at');
     expect(l1).toBeLessThan(12);
+  });
+});
+
+// after the server's tests: the configuration (data folder) is the test server's
+describe('migration costs-006-price-books', () => {
+  const targets = (): { name: string; target: any }[] => [
+    { name: 'SQLite', target: { kind: 'sqlite', file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sm-cpb-')), 'db.sqlite') } },
+    ...(PG_TEST_URL
+      ? [{ name: 'PostgreSQL', target: { kind: 'postgres', url: PG_TEST_URL, schema: `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_cpb${process.pid}` } }]
+      : []),
+  ];
+  it("moves the Snowflake fallback's price per credit into the platform's contracted book as version 1", async () => {
+    const { Db, coreMigrations, namedMigrations } = await import('../src/db.js');
+    for (const { name, target } of targets()) {
+      const dialect = target.kind === 'sqlite' ? 'sqlite' : 'postgres';
+      const before = namedMigrations(dialect)
+        .map((m) => m.name)
+        .filter((n) => n !== 'costs-006-price-books' && n !== 'costs-007-calculators-estimates');
+      const old = new Db(target, { upTo: { core: coreMigrations(dialect).length, named: before }, quiet: true });
+      const at = '2026-10-01T00:00:00.000Z';
+      old.run(
+        "INSERT INTO platforms (id, name, kind, base_url, config, created_at, updated_at) VALUES ('p_sf', 'Snowflake prod', 'snowflake', 'https://sf.example', '{}', ?, ?)",
+        at,
+        at,
+      );
+      old.run(
+        "INSERT INTO platforms (id, name, kind, base_url, config, created_at, updated_at) VALUES ('p_sf2', 'Snowflake test', 'snowflake', 'https://sf.example', '{}', ?, ?)",
+        at,
+        at,
+      );
+      old.run(
+        "INSERT INTO cost_sources (platform_id, enabled, tag_key, credit_price, credit_currency, updated_at, updated_by) VALUES ('p_sf', 1, 'application', '3.125', 'EUR', ?, 'dana')",
+        at,
+      );
+      old.run("INSERT INTO cost_sources (platform_id, enabled, tag_key, updated_at, updated_by) VALUES ('p_sf2', 1, 'application', ?, 'dana')", at);
+      old.close();
+      const now = new Db(target, { quiet: true });
+      try {
+        expect(now.all('SELECT id, kind, provider, platform_id, currency, current_version, created_by FROM cost_price_books'), name).toEqual([
+          { id: 'cpb_p_sf', kind: 'contracted', provider: 'Snowflake', platform_id: 'p_sf', currency: 'EUR', current_version: 1, created_by: 'dana' },
+        ]);
+        expect(now.all('SELECT book_id, number, source, entry_count FROM cost_price_book_versions'), name).toEqual([
+          { book_id: 'cpb_p_sf', number: 1, source: 'migration', entry_count: 1 },
+        ]);
+        expect(now.all('SELECT version_id, sku_id, unit, charge, price, block, currency FROM cost_price_items'), name).toEqual([
+          { version_id: 'cpv_p_sf_1', sku_id: 'compute-credit', unit: '{credit}', charge: 'usage', price: '3.125', block: 1, currency: 'EUR' },
+        ]);
+        // the source keeps its columns
+        expect(now.get<{ credit_price: string }>("SELECT credit_price FROM cost_sources WHERE platform_id = 'p_sf'")?.credit_price).toBe('3.125');
+      } finally {
+        now.close();
+      }
+    }
   });
 });

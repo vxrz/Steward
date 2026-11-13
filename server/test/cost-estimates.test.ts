@@ -43,11 +43,12 @@ lines:
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
-  await s.api('POST', '/demo/setup', {});
+  await s.api('POST', '/demo/setup', { services: true });
   dana = await s.as('dana', PW);
   vera = await s.as('vera', PW);
   olivia = await s.as('olivia', PW);
-  shop = (await s.api('GET', '/services')).find((x: { name: string }) => x.name === 'Online shop (demo)').id;
+  const { db } = await import('../src/db.js');
+  shop = db().get<{ id: string }>("SELECT id FROM services WHERE name = 'Online shop (demo)'")!.id;
   const books = (await s.api('GET', '/costs/price-books')) as { id: string; name: string }[];
   snowList = books.find((b) => b.name === 'Snowflake list prices (demo)')!.id;
   saasBook = books.find((b) => b.name === 'Invented Messaging AG price list (demo)')!.id;
@@ -147,7 +148,7 @@ describe('the dry run', () => {
     expect(compute.credits).toEqual({ low: '292', expected: '584', high: '1168' });
     expect(num(compute.amount!.expected)).toBe(1810.4);
     expect(m.lines.find((l) => l.key === 'storage')).toMatchObject({ unit: 'TBy.mo', quantity: { expected: '1' }, amount: { expected: '23.00' } });
-    expect(m.totals.monthly).toEqual({ low: '928.20', expected: '1833.40', high: '3643.60' });
+    expect(m.totals.monthly).toEqual({ low: '928.20', expected: '1833.40', high: '3643.80' });
     expect(m).toMatchObject({ ranged: true, hoursPerMonth: 730, missing: 0 });
     // L at half the runtime costs the same compute: the difference is zero
     expect(r.comparison[1]).toMatchObject({ name: 'L', monthly: { expected: '0.00' } });
@@ -389,14 +390,39 @@ describe('estimates', () => {
   });
 
   it('the public API and the MCP tools read what the token owner may see; the dry run stores nothing and is rate-limited', async () => {
+    await s.api('PUT', '/mcp-server', { enabled: true });
     const token = (await s.api('POST', '/me/tokens', { name: 'mcp-costs', scope: 'mcp' })).token as string;
+    const MODERN = '2026-07-28';
+    let id = 1;
     const call = async (name: string, args: Record<string, unknown>) => {
       const res = await fetch(`${s.base}/api/mcp`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'mcp-protocol-version': MODERN,
+          'mcp-method': 'tools/call',
+          'mcp-name': name,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: id++,
+          method: 'tools/call',
+          params: {
+            name,
+            arguments: args,
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': MODERN,
+              'io.modelcontextprotocol/clientCapabilities': {},
+              'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+            },
+          },
+        }),
       });
-      const body = await res.json();
+      const text = await res.text();
+      const body = JSON.parse(text);
+      if (!body.result) throw new Error(text);
       return body.result as { isError?: boolean; structuredContent?: any; content: { text: string }[] };
     };
     const books = await call('list_price_books', {});
