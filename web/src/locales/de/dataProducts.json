@@ -130,6 +130,8 @@
     "classification": "Klassifizierung",
     "value": "Wert",
     "updated": "Geändert",
+    "columns": "Spalten",
+    "columnsLabel": "Angezeigte Spalten",
     "inEnvironments": "Umgebungen: {{list}}",
     "noMatch": "Kein Datenprodukt passt zu den Filtern.",
     "emptyTitle": "Noch keine Datenprodukte",

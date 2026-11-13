@@ -202,6 +202,19 @@ test.describe('the data products pages', () => {
     await expect(orders).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Maturity' })).toBeVisible();
     await expect(table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) })).toContainText('Maturity');
+    // fewer columns at first, the rest a choice remembered for the person; the rating on one line
+    await expect(table.getByRole('columnheader', { name: 'Value' })).toHaveCount(0);
+    const ordersRow = table.getByRole('row').filter({ has: page.getByRole('link', { name: 'Orders', exact: true }) });
+    expect((await ordersRow.getByText(/^C: /).boundingBox())!.y).toBe((await ordersRow.getByText(/^A: /).boundingBox())!.y);
+    await page.getByTestId('product-columns').click();
+    await page.getByTestId('product-column-value').check();
+    await page.keyboard.press('Escape');
+    await expect(table.getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('product-table').getByRole('columnheader', { name: 'Value' })).toBeVisible();
+    await page.getByTestId('product-columns').click();
+    await page.getByTestId('product-column-value').uncheck();
+    await page.keyboard.press('Escape');
     // export: everything as YAML from the list, the product as YAML, JSON or ODPS from its menu
     await page.getByTestId('products-transfer').click();
     await expect(page.getByTestId('products-export-yaml')).toHaveAttribute('href', /\/api\/data-products\/export\?format=yaml/);

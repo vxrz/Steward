@@ -4547,6 +4547,8 @@ export interface Resources {
     'products.classification': string;
     'products.value': string;
     'products.updated': string;
+    'products.columns': string;
+    'products.columnsLabel': string;
     'products.inEnvironments': string;
     'products.noMatch': string;
     'products.emptyTitle': string;

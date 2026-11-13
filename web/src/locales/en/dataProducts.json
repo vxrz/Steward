@@ -130,6 +130,8 @@
     "classification": "Classification",
     "value": "Value",
     "updated": "Changed",
+    "columns": "Columns",
+    "columnsLabel": "Columns shown",
     "inEnvironments": "In {{list}}",
     "noMatch": "No data product matches the filters.",
     "emptyTitle": "No data products yet",
