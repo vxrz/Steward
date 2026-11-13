@@ -522,7 +522,7 @@ export function addMembers(productId: string, productName: string, body: unknown
   if (count + adding.length > L.membersPerProduct) throw limitReached('membersPerProduct', L.membersPerProduct);
   const now = nowIso();
   db().tx(() => {
-    for (const id of ids) {
+    for (const id of ids)
       if (existing.has(id))
         db().run(
           'UPDATE dp_members SET role = ?, include_descendants = ?, note = ? WHERE product_id = ? AND element_id = ?',
@@ -532,27 +532,20 @@ export function addMembers(productId: string, productName: string, body: unknown
           productId,
           id,
         );
-      else
-        db().run(
-          'INSERT INTO dp_members (product_id, element_id, role, include_descendants, note, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          productId,
-          id,
-          input.role,
-          input.includeDescendants ? 1 : 0,
-          input.note,
-          actorName(),
-          now,
-        );
-      const env = rows.get(id)!.environment;
-      if (env)
-        db().run(
-          `INSERT INTO dp_product_environments (product_id, environment, state, updated_at, updated_by) VALUES (?, ?, 'planned', ?, ?) ON CONFLICT DO NOTHING`,
-          productId,
-          env,
-          now,
-          actorName(),
-        );
-    }
+    // 0.25.0: new members in multi-row statements, each environment once (an import adds thousands)
+    for (const part of chunks(adding, 100))
+      db().run(
+        `INSERT INTO dp_members (product_id, element_id, role, include_descendants, note, added_by, added_at) VALUES ${part.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+        ...part.flatMap((id) => [productId, id, input.role, input.includeDescendants ? 1 : 0, input.note, actorName(), now]),
+      );
+    for (const env of new Set(ids.map((id) => rows.get(id)!.environment).filter(Boolean)))
+      db().run(
+        `INSERT INTO dp_product_environments (product_id, environment, state, updated_at, updated_by) VALUES (?, ?, 'planned', ?, ?) ON CONFLICT DO NOTHING`,
+        productId,
+        env,
+        now,
+        actorName(),
+      );
     const names = ids.map((id) => rows.get(id)!.qualified_name);
     audit({
       action: adding.length ? 'dataproduct.member_added' : 'dataproduct.member_changed',

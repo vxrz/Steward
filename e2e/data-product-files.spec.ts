@@ -34,7 +34,7 @@ test('an S3 prefix: its objects, format and partitions from the listing', async 
   await expect(readout).toContainText('Parquet');
   await expect(readout).toContainText('Partitioned by');
   await expect(readout).toContainText('dt');
-  await expectAccessible(page);
+  await expectAccessible(page, 'S3 prefix element');
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoHorizontalScroll(page);
 });
@@ -47,12 +47,12 @@ test('the file port of Sales files: format, partitioning and the S3 location; it
   const port = page.getByTestId('port-daily sales files');
   await expect(port.getByTestId('port-files')).toContainText('CSV files · partitioned by dt');
   await expect(port.getByTestId('binding-object-storage')).toContainText('s3://invented-shop-lake.example/exports/daily-sales/');
-  await expectAccessible(page);
+  await expectAccessible(page, 'file port');
   await port.getByRole('button', { name: 'Change the port daily sales files' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByTestId('port-file-format')).toHaveValue('CSV');
   await expect(dialog.getByTestId('port-partitioning')).toBeVisible();
-  await expectAccessible(page);
+  await expectAccessible(page, 'file port form');
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoHorizontalScroll(page);
@@ -71,7 +71,7 @@ test('a discovery source on the AWS account names S3 prefixes', async ({ page })
   await scope.press('Enter');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog.getByText('Name S3 prefixes as s3://bucket/prefix/')).toBeVisible();
-  await expectAccessible(page);
+  await expectAccessible(page, 'discovery source on AWS');
 });
 
 test('an import of more than 1,000 elements runs in the background with its progress', async ({ page }) => {
