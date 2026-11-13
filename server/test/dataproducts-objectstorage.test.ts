@@ -230,6 +230,44 @@ describe('checks, links and file ports', () => {
     expect(await check(1440)).toMatchObject({ status: 'up' });
   });
 
+  it('a listing the key limit cuts judges no growth or change of the volume; an absolute minimum it reaches passes', async () => {
+    const el = await element('s3://invented-shop-lake.example/exports/daily-sales/');
+    const { dataElementCheck } = await import('../src/dataproducts/checks/element.js');
+    const { setMockS3Bucket } = await import('../src/mock/mockAws.js');
+    const { DATA_DISCOVERY_LIMITS } = await import('@sm/shared');
+    const { db } = await import('../src/db.js');
+    const limits = DATA_DISCOVERY_LIMITS as { s3CheckKeys: number };
+    const check = (extra: Record<string, unknown>) =>
+      dataElementCheck({ element: el.id, mode: 'volume', failAs: 'down', warningAs: 'degraded', ...extra } as never, {
+        owner: 'admin',
+        now: () => Date.now(),
+      });
+    const readings = () => Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_volume_readings WHERE element_id = ?', el.id)!.n);
+    setMockS3Bucket(
+      'invented-shop-lake.example',
+      Array.from({ length: 6 }, (_, i) => ({
+        key: `exports/daily-sales/dt=2026-11-0${i + 1}/daily-sales.csv`,
+        size: 10,
+        lastModified: new Date().toISOString(),
+      })),
+    );
+    const before = limits.s3CheckKeys;
+    limits.s3CheckKeys = 3;
+    const stored = readings();
+    try {
+      // growth and change: a cut count says nothing of them – unknown, with the hint, and no reading kept
+      expect(await check({ minGrowth: 1 })).toMatchObject({ status: 'unknown', message: expect.stringContaining('name a narrower prefix') });
+      expect(await check({ maxChangePct: 10 })).toMatchObject({ status: 'unknown', message: expect.stringContaining('growth and change are not judged') });
+      // a minimum: the three keys read reach two – up; five they do not prove – unknown
+      expect(await check({ minRows: 2 })).toMatchObject({ status: 'up', message: expect.stringContaining('at least 3 objects') });
+      expect(await check({ minRows: 5 })).toMatchObject({ status: 'unknown' });
+      expect(readings()).toBe(stored);
+    } finally {
+      limits.s3CheckKeys = before;
+      setMockS3Bucket('invented-shop-lake.example', null);
+    }
+  });
+
   it('proposes S3 prefix → stage and stage → table through the pipe after the Snowflake run', async () => {
     const items = [
       ...(await dana('GET', '/data-products/lineage-proposals?origin=snowflake&status=open')).items,

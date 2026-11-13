@@ -14,7 +14,8 @@ import { finish } from './volume.js';
  *
  * A prefix with more keys than the limit is judged on the keys read, and the message says so – its freshness only when
  * the keys read hold a recent object: S3 lists the oldest partitions first, so a cut listing never proves staleness
- * (unknown instead). Folder markers do not
+ * (unknown instead), and its volume only against an absolute minimum the keys read already reach (growth and change rules
+ * are unknown on a cut listing, and it is not stored as a reading). Folder markers do not
  * count. The element's platform must be an AWS account platform; the monitor owner's use right on it is checked by the
  * caller (element.ts), as for every platform check.
  */
@@ -77,5 +78,21 @@ export async function filesVolume(c: Check, el: ElementRow, platform: Platform, 
   if ('error' in s) return { status: 'unknown', message: s.error! };
   const measure = c.measure ?? 'rows';
   const what = `S3: ${el.qualified_name}${partialNote(s.partial)}`;
+  if (s.partial) {
+    // a cut listing is a lower bound: growth and change cannot be judged on it (nor stored as a reading for later ones);
+    // an absolute minimum passes when the keys read already reach it
+    const unit = measure === 'bytes' ? 'bytes' : 'objects';
+    const value = measure === 'bytes' ? s.bytes : s.objects;
+    const n = (x: number) => x.toLocaleString('en-GB');
+    if (c.minGrowth !== undefined || c.maxChangePct !== undefined || c.minRows === undefined || value < c.minRows)
+      return {
+        status: 'unknown',
+        message: `S3: ${el.qualified_name} – the first ${n(DL.s3CheckKeys)} keys hold ${n(value)} ${unit}; more may follow, so ${
+          c.minGrowth !== undefined || c.maxChangePct !== undefined ? 'growth and change are' : 'the volume is'
+        } not judged (name a narrower prefix)`,
+        value: { value, partial: true },
+      };
+    return { status: 'up', message: `${what}: at least ${n(value)} ${unit} (at least ${n(c.minRows)})`, value: { value, partial: true } };
+  }
   return measure === 'bytes' ? finish(c, el, 'bytes', 'bytes', what, s.bytes, now) : finish(c, el, 'objects', 'objects', what, s.objects, now);
 }
