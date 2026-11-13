@@ -102,6 +102,13 @@ test.describe('governance of data products', () => {
     await olivia.getByTestId('requests-scope').getByText('Mine').click();
     await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
     await expect(olivia.getByTestId('requests-table').getByTestId('request-status-pending')).toBeVisible();
+    // the status filter: none refused
+    await olivia.getByTestId('requests-status').click();
+    await olivia.getByRole('option', { name: 'Refused' }).click();
+    await expect(olivia.getByTestId('requests-empty')).toHaveText('No request of this status – clear the status to see all.');
+    await olivia.getByTestId('requests-status').click();
+    await olivia.getByRole('option', { name: 'Pending' }).click();
+    await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
     await expectAccessible(olivia, 'access requests page');
 
     // the owner decides on the Access tab
@@ -164,6 +171,40 @@ test.describe('governance of data products', () => {
     await expect(adam.getByTestId('product-endorsement').getByTestId('product-endorsed-badge')).toContainText('Endorsed');
     await expect(adam.getByTestId('endorsement-line')).toContainText('Endorsed by adam');
     await expectAccessible(adam, 'endorsed product');
+  });
+
+  test('withdrawing a request asks first; the card on a phone says what the table says', async ({ apiAs, loginAs }) => {
+    const admin = await apiAs('admin');
+    const olivia = await apiAs('olivia');
+    const own = (
+      await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-withdraw`, name: `Withdrawn access ${s.token}`, owners: ['user:dana'] })
+    ).id;
+    const port = (await post(admin, `/api/data-products/${own}/ports`, { direction: 'output', name: 'orders', type: 'table' })).id;
+    const el = await json<{ items: { id: string }[] }>(await admin.get(`/api/data-elements?prefix=${s.token}.SALES.ORDERS&environment=prod`));
+    expect((await admin.put(`/api/data-products/${own}/ports/${port}/bindings/prod`, { data: { elementIds: [el.items[0]!.id] } })).ok()).toBe(true);
+    await post(olivia, `/api/data-products/${own}/ports/${port}/access-requests`, {
+      environment: 'prod',
+      consumer: { kind: 'user', subject: 'user:olivia', text: '', refId: null },
+      purpose: 'Quarterly figures',
+      until: '2027-06-30',
+      agreement: null,
+      identities: [],
+    });
+    const page = await loginAs('olivia');
+    await page.goto(`/data-products/${own}/access`);
+    const requests = page.getByTestId('product-access-requests');
+    await requests.getByTestId('request-withdraw').click();
+    await expect(page.getByTestId('confirm-dialog-message')).toContainText('Withdraw your request for orders · prod?');
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(requests.getByTestId('request-status-pending')).toBeVisible();
+    await requests.getByTestId('request-withdraw').click();
+    await page.getByTestId('confirm-dialog-confirm').click();
+    await expect(page.getByText('Request withdrawn')).toBeVisible();
+    await expect(requests.getByTestId('request-status-withdrawn')).toBeVisible();
+    // on a phone the card keeps the purpose and the date
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(requests.getByTestId('request-card')).toContainText(/Until \d/);
+    await expect(requests.getByTestId('request-card')).toContainText('Quarterly figures');
   });
 
   test('the records of processing with their exports', async ({ page }) => {

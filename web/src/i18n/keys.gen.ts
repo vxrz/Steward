@@ -4665,6 +4665,10 @@ export interface Resources {
     'requests.refuseNamed': string;
     'requests.withdrawNamed': string;
     'requests.approvedFirst': string;
+    'requests.withdrawConfirm': string;
+    'requests.statusFilter': string;
+    'requests.allStatuses': string;
+    'requests.emptyStatus': string;
     'reviews.title': string;
     'reviews.help': string;
     'reviews.start': string;

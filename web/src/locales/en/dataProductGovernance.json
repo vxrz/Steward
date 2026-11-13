@@ -111,7 +111,11 @@
     "approveNamed": "Approve the request of {{who}}",
     "refuseNamed": "Refuse the request of {{who}}",
     "withdrawNamed": "Withdraw the request of {{who}}",
-    "approvedFirst": "First approval recorded – a second person decides"
+    "approvedFirst": "First approval recorded – a second person decides",
+    "withdrawConfirm": "Withdraw your request for {{port}}? It cannot be sent again – ask anew if you need access later.",
+    "statusFilter": "Status",
+    "allStatuses": "All statuses",
+    "emptyStatus": "No request of this status – clear the status to see all."
   },
   "reviews": {
     "title": "Port access reviews",

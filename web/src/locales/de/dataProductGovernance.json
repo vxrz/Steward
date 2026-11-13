@@ -111,7 +111,11 @@
     "approveNamed": "Antrag von {{who}} genehmigen",
     "refuseNamed": "Antrag von {{who}} ablehnen",
     "withdrawNamed": "Antrag von {{who}} zurückziehen",
-    "approvedFirst": "Erste Genehmigung erfasst – eine zweite Person entscheidet"
+    "approvedFirst": "Erste Genehmigung erfasst – eine zweite Person entscheidet",
+    "withdrawConfirm": "Ihren Antrag für {{port}} zurückziehen? Er lässt sich nicht erneut senden – stellen Sie später bei Bedarf einen neuen.",
+    "statusFilter": "Status",
+    "allStatuses": "Alle Status",
+    "emptyStatus": "Kein Antrag mit diesem Status – leeren Sie den Status, um alle zu sehen."
   },
   "reviews": {
     "title": "Zugriffsprüfungen der Ports",
