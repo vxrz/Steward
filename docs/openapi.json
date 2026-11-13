@@ -42314,6 +42314,490 @@
         ],
         "additionalProperties": false
       },
+      "DataSemanticVersions": {
+        "title": "DataSemanticVersions",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string",
+                  "description": "SHA-256 of the document as stored"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "Bytes"
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "yaml",
+                    "json"
+                  ]
+                },
+                "ossieVersion": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "The Ossie revision the document names, when Steward knows it"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "page",
+                    "draft",
+                    "proposal",
+                    "api"
+                  ]
+                },
+                "lintFindings": {
+                  "type": "integer",
+                  "description": "Findings of the lint against the official schema when it was saved (they never block saving)"
+                },
+                "createdBy": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "signOff": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "by": {
+                          "type": "string"
+                        },
+                        "at": {
+                          "type": "string",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "validFrom": {
+                          "type": "string",
+                          "description": "The day from which it is the valid version"
+                        },
+                        "note": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "by",
+                        "at",
+                        "validFrom",
+                        "note",
+                        "sha256"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Who signed the version off and from when it is valid; null: not signed off"
+                }
+              },
+              "required": [
+                "version",
+                "sha256",
+                "size",
+                "format",
+                "ossieVersion",
+                "note",
+                "origin",
+                "lintFindings",
+                "createdBy",
+                "createdAt",
+                "signOff"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Newest first"
+          },
+          "validToday": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "description": "SHA-256 of the document as stored"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "description": "Bytes"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "yaml",
+                      "json"
+                    ]
+                  },
+                  "ossieVersion": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The Ossie revision the document names, when Steward knows it"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": [
+                      "page",
+                      "draft",
+                      "proposal",
+                      "api"
+                    ]
+                  },
+                  "lintFindings": {
+                    "type": "integer",
+                    "description": "Findings of the lint against the official schema when it was saved (they never block saving)"
+                  },
+                  "createdBy": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "signOff": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "validFrom": {
+                            "type": "string",
+                            "description": "The day from which it is the valid version"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at",
+                          "validFrom",
+                          "note",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Who signed the version off and from when it is valid; null: not signed off"
+                  }
+                },
+                "required": [
+                  "version",
+                  "sha256",
+                  "size",
+                  "format",
+                  "ossieVersion",
+                  "note",
+                  "origin",
+                  "lintFindings",
+                  "createdBy",
+                  "createdAt",
+                  "signOff"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signed-off version valid today"
+          },
+          "validOn": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "valid": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "integer"
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "description": "SHA-256 of the document as stored"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "description": "Bytes"
+                          },
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "yaml",
+                              "json"
+                            ]
+                          },
+                          "ossieVersion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The Ossie revision the document names, when Steward knows it"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "page",
+                              "draft",
+                              "proposal",
+                              "api"
+                            ]
+                          },
+                          "lintFindings": {
+                            "type": "integer",
+                            "description": "Findings of the lint against the official schema when it was saved (they never block saving)"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "signOff": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "by": {
+                                    "type": "string"
+                                  },
+                                  "at": {
+                                    "type": "string",
+                                    "description": "ISO 8601 timestamp (UTC)"
+                                  },
+                                  "validFrom": {
+                                    "type": "string",
+                                    "description": "The day from which it is the valid version"
+                                  },
+                                  "note": {
+                                    "type": "string"
+                                  },
+                                  "sha256": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "by",
+                                  "at",
+                                  "validFrom",
+                                  "note",
+                                  "sha256"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Who signed the version off and from when it is valid; null: not signed off"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "sha256",
+                          "size",
+                          "format",
+                          "ossieVersion",
+                          "note",
+                          "origin",
+                          "lintFindings",
+                          "createdBy",
+                          "createdAt",
+                          "signOff"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "latest": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "version": {
+                            "type": "integer"
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "description": "SHA-256 of the document as stored"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "description": "Bytes"
+                          },
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "yaml",
+                              "json"
+                            ]
+                          },
+                          "ossieVersion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The Ossie revision the document names, when Steward knows it"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "page",
+                              "draft",
+                              "proposal",
+                              "api"
+                            ]
+                          },
+                          "lintFindings": {
+                            "type": "integer",
+                            "description": "Findings of the lint against the official schema when it was saved (they never block saving)"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "signOff": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "by": {
+                                    "type": "string"
+                                  },
+                                  "at": {
+                                    "type": "string",
+                                    "description": "ISO 8601 timestamp (UTC)"
+                                  },
+                                  "validFrom": {
+                                    "type": "string",
+                                    "description": "The day from which it is the valid version"
+                                  },
+                                  "note": {
+                                    "type": "string"
+                                  },
+                                  "sha256": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "by",
+                                  "at",
+                                  "validFrom",
+                                  "note",
+                                  "sha256"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Who signed the version off and from when it is valid; null: not signed off"
+                          }
+                        },
+                        "required": [
+                          "version",
+                          "sha256",
+                          "size",
+                          "format",
+                          "ossieVersion",
+                          "note",
+                          "origin",
+                          "lintFindings",
+                          "createdBy",
+                          "createdAt",
+                          "signOff"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "date",
+                  "valid",
+                  "latest"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With ?date=: the version signed off and valid that day (who approved it), and the newest saved by then"
+          }
+        },
+        "required": [
+          "productId",
+          "versions",
+          "validToday",
+          "validOn"
+        ],
+        "additionalProperties": false
+      },
       "DataProductEntry": {
         "title": "DataProductEntry",
         "type": "object",
@@ -58804,6 +59288,189 @@
                 "$ref": "#/components/headers/RateLimit-Policy"
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-products/{productId}/semantic-model": {
+      "get": {
+        "operationId": "getDataProductSemanticModel",
+        "summary": "Get the semantic model of a data product",
+        "tags": [
+          "Data products"
+        ],
+        "description": "The product's Apache Ossie semantic model as it was stored (YAML or JSON, as written): the newest version, a given one (?version=) or the one signed off and valid on a day (?date=); with ?environment= the datasets' sources are rewritten to the product's elements of that environment. The headers x-steward-semantic-version and x-steward-sha256 name the version (the SHA-256 of the stored text). 404 when the product has none. See docs/DATA-PRODUCTS.md#semantic-models. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "description": "A version (default: the newest)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "description": "The version signed off and valid on that day (YYYY-MM-DD) instead"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "description": "Rewrite the datasets’ sources to the product’s elements of this environment"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "description": "Data product id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string",
+                  "description": "The document as stored (YAML)"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "The document as stored (JSON)"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/data-products/{productId}/semantic-model/versions": {
+      "get": {
+        "operationId": "listDataProductSemanticModelVersions",
+        "summary": "List the versions of a data product’s semantic model",
+        "tags": [
+          "Data products"
+        ],
+        "description": "Every saved version of the product's semantic model (who, when, SHA-256) with its sign-off; the version valid today; with ?date= which version was signed off and valid on that day, and who approved it. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "description": "Also answer which version was valid on that day (YYYY-MM-DD) and who signed it off"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "productId",
+            "required": true,
+            "description": "Data product id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSemanticVersions"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

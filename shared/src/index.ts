@@ -100,6 +100,7 @@ export * from './dataProductGraph.js';
 export * from './dataProductQuality.js';
 export * from './dataLineage.js';
 export * from './dataProductGovernance.js';
+export * from './dataProductSemantic.js';
 export * from './libraries.js';
 export * from './modules.js';
 export * from './platformKinds.js';

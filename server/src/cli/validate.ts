@@ -64,6 +64,7 @@ export interface FileResult {
     | 'plant registry'
     | 'webhook trigger'
     | 'data contract'
+    | 'semantic model'
     | 'library'
     | 'library release'
     | 'record type'
@@ -217,6 +218,22 @@ export async function validateFile(file: string): Promise<FileResult> {
       count,
       errors,
       warnings: findings.filter((f) => f.severity !== 'error').map((f) => `${f.path}: ${f.message}`),
+    };
+  }
+  // an Apache Ossie semantic model (0.25.0, ADR 0037 part 4, examples/data-products): linted against the vendored
+  // official schema of its revision, as on save
+  if (obj && typeof obj === 'object' && typeof obj.version === 'string' && ('semantic_model' in obj || 'datasets' in obj)) {
+    const { lintSemanticDocument, modelOf } = await import('../dataproducts/semantic-lint.js');
+    const text = fs.readFileSync(file, 'utf8');
+    const l = lintSemanticDocument(text);
+    const errors = l.findings.filter((f) => f.severity === 'error').map((f) => `${f.path || '/'}: ${f.message}`);
+    return {
+      file: rel,
+      kind: 'semantic model',
+      ok: !errors.length,
+      count: modelOf(obj).datasets.length,
+      errors,
+      warnings: l.findings.filter((f) => f.severity !== 'error').map((f) => `${f.path || '/'}: ${f.message}`),
     };
   }
   // a cost calculator (0.21.0, ADR 0035, examples/costs/calculators): checked as on save, the formulas' syntax included
@@ -387,7 +404,7 @@ export async function main(argv: string[]): Promise<number> {
       else if (r.kind === 'library release') out.push(`${c.dim('•')} ${r.file}: library release (checked with its manifest)`);
       else
         out.push(
-          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : r.kind === 'security advisory' ? 'products' : r.kind === 'data products' ? 'entries' : 'nodes'}`,
+          `${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : r.kind === 'template bundle' ? 'items' : r.kind === 'plant registry' ? 'records' : r.kind === 'webhook trigger' ? 'mapped inputs' : r.kind === 'data contract' ? 'schema objects' : r.kind === 'library' ? 'items' : r.kind === 'record type' ? 'fields' : r.kind === 'connector type' ? 'API specs' : r.kind === 'security advisory' ? 'products' : r.kind === 'data products' ? 'entries' : r.kind === 'semantic model' ? 'datasets' : 'nodes'}`,
         );
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);

@@ -3,9 +3,9 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { logger } from '../log.js';
-import { addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
+import { addKafkaMessages, addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
 import { dropSnowflakeObject } from '../mock/mockSnowflake.js';
-import { nowIso } from '../util.js';
+import { newId, nowIso } from '../util.js';
 import { requestAccess } from './access-requests.js';
 import { readNow, writeIdentities } from './consumers-actual.js';
 import { addProductMatch, setAllocation } from './costs.js';
@@ -18,6 +18,8 @@ import { readMeasuredUse } from './measured.js';
 import { applyMonitor } from './monitor-draft.js';
 import { addConsumer } from './ports.js';
 import { recordQualityResults } from './quality.js';
+import { setObjectRopaDetails } from './ropa-details.js';
+import { saveSemanticVersion } from './semantic.js';
 import { takeScorecardSnapshots } from './scorecard-history.js';
 
 /**
@@ -165,7 +167,48 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo consumers and access request not set up');
   }
+  // 8. phase 3, package D (0.25.0): Orders' semantic model, messages to peek at, the Art. 30 details of Customer
+  try {
+    semanticDemo(orders);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo semantic model not saved');
+  }
   return imported.counts.add;
+}
+
+/**
+ * Version 1 of Orders' semantic model (examples/data-products/orders.semantic-model.yaml), signed off by the demo's
+ * approver; a few invented events on orders.v1 for the peek; the data object Customer's transfer to a third country
+ * and the reference to the technical and organisational measures (Art. 30(1)(e) and (g)).
+ */
+function semanticDemo(orders: string): void {
+  const text = fs.readFileSync(path.join(config.examplesDir, 'data-products', 'orders.semantic-model.yaml'), 'utf8');
+  const saved = saveSemanticVersion(orders, { document: text, note: 'The governed copy of the shop’s semantic layer (invented)' });
+  const approver = db().get<{ username: string }>("SELECT username FROM users WHERE username = 'adam'");
+  if (saved.created && approver)
+    db().run(
+      'INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at) SELECT ?, product_id, id, version, sha256, ?, ?, ?, ? FROM dp_semantic_versions WHERE product_id = ? AND version = ?',
+      newId(),
+      nowIso().slice(0, 10),
+      'Checked against the contract Shop orders',
+      approver.username,
+      nowIso(),
+      orders,
+      saved.version.version,
+    );
+  addKafkaMessages(
+    'orders.v1',
+    [1, 2, 3].map((i) => ({
+      key: `o-${2000 + i}`,
+      value: JSON.stringify({ orderId: `o-${2000 + i}`, customerId: `c-${300 + i}`, email: `buyer${i}@example.com`, total: 19.9 * i, status: 'confirmed' }),
+    })),
+  );
+  const customer = db().get<{ id: string }>("SELECT id FROM dp_objects WHERE key = 'customer'");
+  if (customer)
+    setObjectRopaDetails(customer.id, {
+      transfers: [{ country: 'United States', recipient: 'Invented Cloud Inc.', safeguard: 'scc', note: 'Support tickets with customer names (invented)' }],
+      toms: { kind: 'url', url: 'https://wiki.example/security/toms', label: 'Technical and organisational measures (invented)' },
+    });
 }
 
 type ElementOf = (qualifiedName: string) => { id: string; ol_namespace: string | null; ol_name: string | null } | undefined;

@@ -192,14 +192,20 @@ function maskEmails(s: string): string {
     .join('');
 }
 
-/** Hides sensitive fields (by key) and patterns (e-mail, IBAN, card numbers) in a message value. */
-export function hideSensitive(v: unknown, depth = 0): unknown {
+/**
+ * Hides sensitive fields (by key) and patterns (e-mail, IBAN, card numbers) in a message value – and the keys of
+ * `extra` (lower case: the fields a bound data contract marks personal, 0.25.0).
+ */
+export function hideSensitive(v: unknown, depth = 0, extra?: ReadonlySet<string>): unknown {
   if (depth > 20) return '…';
   if (typeof v === 'string') return PATTERNS.reduce((s, [re, to]) => s.replace(re, to), maskEmails(v));
-  if (Array.isArray(v)) return v.map((x) => hideSensitive(x, depth + 1));
+  if (Array.isArray(v)) return v.map((x) => hideSensitive(x, depth + 1, extra));
   if (v && typeof v === 'object')
     return Object.fromEntries(
-      Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, isSensitiveKey(k) || PERSONAL.test(k) ? '***' : hideSensitive(x, depth + 1)]),
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [
+        k,
+        isSensitiveKey(k) || PERSONAL.test(k) || extra?.has(k.toLowerCase()) ? '***' : hideSensitive(x, depth + 1, extra),
+      ]),
     );
   return v;
 }
@@ -213,12 +219,12 @@ function isBinary(s: string): boolean {
   return false;
 }
 
-function render(buf: Buffer | null): { text: string; truncated: boolean } {
+function render(buf: Buffer | null, extra?: ReadonlySet<string>): { text: string; truncated: boolean } {
   if (!buf) return { text: '', truncated: false };
   const raw = buf.subarray(0, KAFKA_LIMITS.peekBytes * 4).toString('utf8');
   let text: string;
   try {
-    text = JSON.stringify(hideSensitive(JSON.parse(raw)), null, 2);
+    text = JSON.stringify(hideSensitive(JSON.parse(raw), 0, extra), null, 2);
   } catch {
     // not JSON: shown as text with the patterns hidden; binary (e.g. Avro) as a length only
     text = isBinary(raw) ? `(binary, ${buf.length} bytes)` : (hideSensitive(raw) as string);
@@ -232,7 +238,15 @@ function render(buf: Buffer | null): { text: string; truncated: boolean } {
  * who may manage the platform, at most KAFKA_LIMITS.peekMessages of KAFKA_LIMITS.peekBytes, sensitive fields hidden,
  * every read audited.
  */
-export async function peekTopic(platformId: string, topic: string, count: number, actor: string, canManage: boolean): Promise<PeekedMessage[]> {
+export async function peekTopic(
+  platformId: string,
+  topic: string,
+  count: number,
+  actor: string,
+  canManage: boolean,
+  /** 0.25.0 (ADR 0037 part 6): further keys to hide (a bound contract's personal fields) and what to add to the audit entry */
+  o: { maskKeys?: ReadonlySet<string>; details?: Record<string, string | number> } = {},
+): Promise<PeekedMessage[]> {
   assertTopic(topic);
   const platform = getPlatform(platformId);
   if (platform.kind !== KAFKA_KIND) throw new HttpError(400, 'Choose a Kafka platform', 'COMPONENT_TOPIC_PLATFORM');
@@ -247,7 +261,7 @@ export async function peekTopic(platformId: string, topic: string, count: number
     throw new HttpError(502, `Kafka could not be read: ${kafkaError(e)}`, 'KAFKA_READ', { detail: kafkaError(e) });
   }
   const out = raw.slice(0, n).map((m) => {
-    const v = render(m.value);
+    const v = render(m.value, o.maskKeys);
     return {
       partition: m.partition,
       offset: m.offset.toString(),
@@ -264,7 +278,7 @@ export async function peekTopic(platformId: string, topic: string, count: number
     entityId: platformId,
     actor,
     summary: `${out.length} messages of the topic "${topic}" read on "${platform.name}" (sensitive fields hidden)`,
-    details: { topic, count: out.length, offsets: out.map((m) => `${m.partition}:${m.offset}`) },
+    details: { topic, count: out.length, offsets: out.map((m) => `${m.partition}:${m.offset}`), ...(o.details ?? {}) },
   });
   return out;
 }

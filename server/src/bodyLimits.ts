@@ -23,6 +23,7 @@ import {
   COST_PRICE_LIMITS,
   DATA_CONTRACT_LIMITS,
   DATA_LINEAGE_LIMITS,
+  DATA_SEMANTIC_LIMITS,
   DEBUG_LIMITS,
   DB_SCHEMA_LIMITS,
   LIBRARY_LIMITS,
@@ -201,6 +202,11 @@ export const LARGE_BODIES = {
   libraryUpload: {
     routes: ['POST /api/library-releases/upload'],
     bytes: base64(LIBRARY_LIMITS.maxUploadBytes),
+  },
+  /** 0.25.0 (ADR 0037 part 4): a semantic model of a data product as written: DATA_SEMANTIC_LIMITS.documentBytes (1 MB) in a JSON body */
+  dataSemanticModel: {
+    routes: ['POST /api/data-products/:id/semantic-model/versions'],
+    bytes: jsonText(DATA_SEMANTIC_LIMITS.documentBytes),
   },
 } as const satisfies Record<string, LargeBody>;
 

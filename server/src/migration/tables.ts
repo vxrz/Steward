@@ -484,6 +484,11 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_port_review_items.decided_by',
   'dp_promotions.created_by',
   'dp_endorsements.endorsed_by',
+  // 0.25.0 (ADR 0037 parts 4 and 6): who saved and signed off semantic models, who linked a recorded response
+  'dp_semantic_versions.created_by',
+  'dp_semantic_versions.proposed_by',
+  'dp_semantic_signoffs.signed_by',
+  'dp_port_recordings.added_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */

@@ -14,6 +14,7 @@ import {
   type LegalBasis,
   type PersonalDataLevel,
 } from './dataProducts.js';
+import type { DataTransfer } from './dataProductSemantic.js';
 
 /**
  * Consumers, access and governance of data products (0.24.0, ADR 0036 phase 2, docs/DATA-PRODUCTS.md): declared
@@ -640,6 +641,12 @@ export interface DataRopaEntry {
   hiddenRecipients: number;
   processors: DataRopaProcessor[];
   hiddenProcessors: number;
+  /** Art. 30(1)(e) (0.25.0): transfers to third countries entered on the data object (via null) or a product that processes it */
+  transfers: (DataTransfer & { via: string | null })[];
+  /** Art. 30(1)(g) (0.25.0): references to the technical and organisational measures, of the data object (via null) or its products */
+  toms: { label: string; url: string | null; via: string | null }[];
+  /** Records referenced as measures that the reader may not see (counted, never named) */
+  hiddenToms: number;
 }
 
 /** GET /api/data-products/records-of-processing */
@@ -648,6 +655,9 @@ export interface DataRopa {
   generatedAt: string;
   /** The suppliers module is on (processors name suppliers and their contracts) */
   suppliers: boolean;
+  /** 0.25.0: more data objects the reader may see match than one answer holds (DATA_GOVERNANCE_LIMITS.ropaObjects) */
+  truncated: boolean;
+  limit: number;
 }
 
 export const dataRopaQuery = z

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   boundedRecord,
+  DATA_SEMANTIC_LIMITS as SL,
   MCP_REQUEST_LIMITS,
   type DataProductImportChange,
   type DataProductImportPreview,
@@ -19,6 +20,9 @@ import { registerReviewKind, saveProposal, type Row } from '../mcp/requests.js';
 import { canManageModule, domainAccess, objectAccess, productAccess, usesModule } from './access.js';
 import { DATA_PRODUCT_FORMAT_VERSION, SCHEMA_ID, dataProductsFileSchema, dataProductsJsonSchema, issueMessages } from './format.js';
 import { applyImport, credentialPlaces, previewImport } from './import.js';
+import { saveSemanticVersion } from './semantic.js';
+import { lintSemanticDocument, parseSemanticDocument } from './semantic-lint.js';
+import { editableProduct } from './service.js';
 import type { DomainRow, ObjectRow, ProductRow } from './store.js';
 
 /**
@@ -42,22 +46,74 @@ export const DATA_PRODUCT_PROPOSAL_LIMITS = {
   title: 120,
 } as const;
 
+/** A semantic model proposed for a product (0.25.0, ADR 0037 part 4): saved as a new version when applied. */
+interface SemanticPart {
+  /** The product as the assistant named it (id or key) */
+  product: string;
+  document: string;
+  note: string;
+  sha256: string;
+}
+
 interface Payload {
   type: 'dataProducts';
   title: string;
   incomplete: boolean;
   /** The parts as sent (JSON), each a file of the import */
   documents: string[];
+  /** 0.25.0: semantic models of products, each saved as a version of that product's model */
+  semanticModels?: SemanticPart[];
   added: number;
   changed: number;
   /** The preview when it was proposed (the token owner's rights) */
   proposed: { counts: { add: number; change: number }; changes: DataProductImportChange[]; warnings: string[]; fingerprint: string } | null;
-  result?: { add: number; change: number } | null;
+  result?: { add: number; change: number; semanticVersions?: number } | null;
 }
 
 const payloadOf = (r: Pick<Row, 'payload'>): Payload =>
   parseJson<Payload>(r.payload, { type: 'dataProducts', title: '', incomplete: false, documents: [], added: 0, changed: 0, proposed: null });
 const filesOf = (p: Payload) => p.documents.map((content, i) => ({ name: `proposal-${i + 1}.json`, content }));
+const semanticOf = (p: Payload): SemanticPart[] => p.semanticModels ?? [];
+
+/**
+ * The product a semantic model names, as `u` may see it: by id, else by key – or a key the proposal's import adds
+ * (null id: it exists once the import ran). Undefined: not known or not theirs to see.
+ */
+function semanticProduct(name: string, u: AuthUser, addedKeys: ReadonlySet<string>): { id: string | null; key: string; name: string } | undefined {
+  const row =
+    db().get<ProductRow>('SELECT * FROM dp_products WHERE id = ?', name) ?? db().get<ProductRow>('SELECT * FROM dp_products WHERE key = ?', name.toLowerCase());
+  if (row) return productAccess(u, row).permissions.length ? { id: row.id, key: row.key, name: row.name } : undefined;
+  return addedKeys.has(name.toLowerCase()) ? { id: null, key: name.toLowerCase(), name } : undefined;
+}
+
+/** Keys of the products the import of a proposal adds (its preview). */
+const addedProductKeys = (changes: readonly DataProductImportChange[]): Set<string> =>
+  new Set(changes.filter((c) => c.kind === 'dataProduct' && c.action === 'add').map((c) => c.key.toLowerCase()));
+
+/** The semantic models as the reader sees them: per product, the lint, and whether it differs from the newest version. */
+function semanticView(p: Payload, u: AuthUser, added: ReadonlySet<string>): NonNullable<McpDataProductsProposal['semanticModels']> {
+  return semanticOf(p).map((m) => {
+    const target = semanticProduct(m.product, u, added);
+    const latest = target?.id
+      ? db().get<{ version: number; sha256: string }>(
+          'SELECT version, sha256 FROM dp_semantic_versions WHERE product_id = ? ORDER BY version DESC LIMIT 1',
+          target.id,
+        )
+      : undefined;
+    const lint = lintSemanticDocument(m.document);
+    return {
+      product: target ? { id: target.id, key: target.key, name: target.name } : null,
+      bytes: Buffer.byteLength(m.document),
+      sha256: m.sha256,
+      note: m.note,
+      lintFindings: lint.findings.length + lint.more,
+      revision: lint.revision,
+      currentVersion: latest ? Number(latest.version) : null,
+      unchanged: !!latest && latest.sha256 === m.sha256,
+      document: target ? m.document : '',
+    };
+  });
+}
 const importBody = (p: Payload, fingerprint?: string) => ({ files: filesOf(p), mode: 'update' as const, ...(fingerprint ? { fingerprint } : {}) });
 const documentSha = (p: Payload) => sha256(p.documents.join('\n'));
 const documentBytes = (p: Payload) => p.documents.reduce((n, d) => n + Buffer.byteLength(d), 0);
@@ -87,8 +143,20 @@ function seen(c: DataProductImportChange, u: AuthUser, nowKeys: Set<string> | nu
   return false;
 }
 
+const EMPTY_PREVIEW: DataProductImportPreview = {
+  mode: 'update',
+  counts: { add: 0, change: 0, unchanged: 0, skip: 0 },
+  changes: [],
+  problems: [],
+  warnings: [],
+  files: [],
+  fingerprint: 'semantic-models-only',
+};
+
 /** The import's preview now, as the current person – null when it cannot run (a parse problem is a problem of it). */
 function previewNow(p: Payload): DataProductImportPreview {
+  // a proposal of semantic models only (0.25.0) imports nothing
+  if (!p.documents.length) return EMPTY_PREVIEW;
   return previewImport(importBody(p));
 }
 
@@ -112,7 +180,9 @@ function view(r: Row, u: AuthUser): McpDataProductsProposal {
   const nowKeys = now ? new Set(now.changes.map((c) => `${c.kind}\u0000${c.key}`)) : null;
   const proposedChanges = p.proposed?.changes ?? [];
   const shown = proposedChanges.filter((c) => seen(c, u, nowKeys));
+  const semantic = semanticOf(p).length ? semanticView(p, u, addedProductKeys(now?.changes ?? proposedChanges)) : [];
   return {
+    ...(semantic.length ? { semanticModels: semantic } : {}),
     type: 'dataProducts',
     title: p.title,
     incomplete: p.incomplete,
@@ -163,6 +233,16 @@ function precheck(r: Row, selection: McpProposalSelection | undefined, u: AuthUs
       'The proposal’s preview changed since it was proposed – check the preview of now and accept it again',
       'DATA_PRODUCT_IMPORT_CHANGED',
     );
+  // semantic models (0.25.0): each names a product the reviewer may change (or one the import adds)
+  const added = addedProductKeys(n.changes);
+  for (const m of semanticOf(p)) {
+    const target = semanticProduct(m.product, u, added);
+    if (!target)
+      throw new HttpError(404, `The data product ${m.product} of a proposed semantic model is not known`, 'DATA_PRODUCT_NOT_FOUND', {
+        id: m.product.slice(0, 100),
+      });
+    if (target.id) editableProduct(target.id);
+  }
 }
 
 /** Applies the proposal as the reviewer (their rights): the import, mode add and update, in one transaction. */
@@ -172,14 +252,27 @@ function apply(r: Row, selection: McpProposalSelection | undefined, u: AuthUser)
   const sel = selectionOf(selection);
   // the preview the reviewer confirmed (changed since), else the proposed one – what else came in between is refused
   const fingerprint = p.proposed && n.fingerprint !== p.proposed.fingerprint ? sel?.fingerprint : n.fingerprint;
-  const result = applyImport(importBody(p, fingerprint ?? 'unconfirmed'));
-  const counts = { add: result.counts.add, change: result.counts.change };
+  const counts = db().tx(() => {
+    const result = p.documents.length ? applyImport(importBody(p, fingerprint ?? 'unconfirmed')) : null;
+    const c = { add: result?.counts.add ?? 0, change: result?.counts.change ?? 0, semanticVersions: 0 };
+    // semantic models (0.25.0): a version of each product's model, saved as the reviewer, the requester as its proposer
+    for (const m of semanticOf(p)) {
+      const target = semanticProduct(m.product, u, new Set([m.product.toLowerCase()]));
+      if (!target?.id)
+        throw new HttpError(404, `The data product ${m.product} of a proposed semantic model is not known`, 'DATA_PRODUCT_NOT_FOUND', {
+          id: m.product.slice(0, 100),
+        });
+      const saved = saveSemanticVersion(target.id, { document: m.document, note: m.note }, { origin: 'proposal', proposedBy: r.requested_by, requestId: r.id });
+      if (saved.created) c.semanticVersions++;
+    }
+    return c;
+  });
   db().run('UPDATE mcp_requests SET payload = ? WHERE id = ?', JSON.stringify({ ...p, result: counts }), r.id);
   audit({
     action: 'dataproduct.proposal_applied',
     entityType: 'mcp_request',
     entityId: r.id,
-    summary: `Data products proposal "${p.title}" of ${r.requested_by}'s AI assistant applied by ${u.username}: ${counts.add} added, ${counts.change} changed`,
+    summary: `Data products proposal "${p.title}" of ${r.requested_by}'s AI assistant applied by ${u.username}: ${counts.add} added, ${counts.change} changed${counts.semanticVersions ? `, ${counts.semanticVersions} semantic model version(s) saved` : ''}`,
     details: { requestId: r.id, requestedBy: r.requested_by, tokenName: r.token_name, counts, sha256: documentSha(p) },
   });
   return { body: counts };
@@ -200,7 +293,7 @@ registerReviewKind('dataProducts', {
     const p = payloadOf(r);
     return p.incomplete
       ? `data products proposal "${p.title}" (${p.documents.length} part(s) so far)`
-      : `data products proposal "${p.title}" (${p.added} added, ${p.changed} changed)`;
+      : `data products proposal "${p.title}" (${p.added} added, ${p.changed} changed${semanticOf(p).length ? `, ${semanticOf(p).length} semantic model(s)` : ''})`;
   },
   summary: (r) => {
     const p = payloadOf(r);
@@ -219,6 +312,39 @@ registerReviewKind('dataProducts', {
     });
   },
 });
+
+// ---------- semantic models in proposals (0.25.0, ADR 0037 part 4) ----------
+
+/** A semantic model's text as data for the credential check (unparsable text is checked as a string). */
+function semanticDocOf(text: string): unknown {
+  const parsed = parseSemanticDocument(text);
+  return parsed.doc ?? text;
+}
+
+const semanticPart = (m: { product: string; document: string; note?: string }): SemanticPart => ({
+  product: m.product.trim(),
+  document: m.document,
+  note: (m.note ?? '').trim(),
+  sha256: sha256(m.document),
+});
+
+/**
+ * The semantic models of a complete proposal, as the token owner: each names a product they may see (or one the
+ * proposal adds); the number that differ from the newest version of their product.
+ */
+function checkSemanticModels(p: Payload, changes: readonly DataProductImportChange[], u: AuthUser): number {
+  const added = addedProductKeys(changes);
+  let changed = 0;
+  for (const m of semanticOf(p)) {
+    const target = semanticProduct(m.product, u, added);
+    if (!target) throw new ToolError(`Semantic model: the data product "${m.product}" is not known (or you may not see it) – name it by its id or key`);
+    const latest = target.id
+      ? db().get<{ sha256: string }>('SELECT sha256 FROM dp_semantic_versions WHERE product_id = ? ORDER BY version DESC LIMIT 1', target.id)
+      : undefined;
+    if (!latest || latest.sha256 !== m.sha256) changed++;
+  }
+  return changed;
+}
 
 // ---------- the tools ----------
 
@@ -256,6 +382,7 @@ export const dataProductProposalTools: ToolDef[] = [
       'Only adding and changing: an existing entry takes the keys the document gives (keys left out keep their values); list items (members, ports, consumers, steps) are matched and added or changed, never removed. Retiring a product is refused – a person does that. Never send credentials: a password, token, key or a password in a URL refuses the document.',
       'To document a product from a Snowflake schema, read its discovered elements with search_data_elements and name them (platform, kind, qualified_name, environment) as members, port bindings and step inputs and outputs; elements Steward does not know yet go under "elements". From a dbt manifest: models and sources become elements and steps (inputs → outputs), exposures registered consumers.',
       `Large documents come in parts of at most ${L.partBytes / 1024} KB: the first with more: true (with title and rationale), the next ones with the returned proposalId, the last with more: false – at most ${L.parts} parts. Each part is a document of the format by itself; together they are one import.`,
+      `Semantic models (Apache Ossie 0.1.1 or 0.2.0.dev0, YAML or JSON text) go under semanticModels: { product: id or key, document, note } – each becomes a new version of that product's model, stored as written, when a person applies the proposal (get_product_semantic_model reads the current one). Steward keeps the governed copy; metrics are defined in dbt, Snowflake semantic views or BI tools. A part may carry semantic models without a document.`,
     ].join('\n\n'),
     input: z
       .object({
@@ -267,7 +394,24 @@ export const dataProductProposalTools: ToolDef[] = [
           .max(MCP_REQUEST_LIMITS.reason)
           .optional()
           .describe('Why, and where it comes from (a schema, a dbt manifest) – the reviewer sees it (the first or only part)'),
-        document: boundedRecord(z.unknown(), 16).describe(`A document of the data products file format, version ${DATA_PRODUCT_FORMAT_VERSION}`),
+        document: boundedRecord(z.unknown(), 16)
+          .optional()
+          .describe(`A document of the data products file format, version ${DATA_PRODUCT_FORMAT_VERSION} (optional when the part carries semantic models)`),
+        semanticModels: z
+          .array(
+            z
+              .object({
+                product: z.string().min(1).max(200).describe('The data product: its id or key (or the key of a product this proposal adds)'),
+                document: z.string().min(1).max(L.partBytes).describe('The Apache Ossie document as YAML or JSON text (0.1.1 or 0.2.0.dev0)'),
+                note: z.string().trim().max(500).optional().describe('What changed, for the version history'),
+              })
+              .strict(),
+          )
+          .max(SL.proposalModels)
+          .optional()
+          .describe(
+            `Semantic models (Apache Ossie) of products, each saved as a new version of that product's model when a person applies the proposal – at most ${SL.proposalModels} per proposal`,
+          ),
         proposalId: z.string().min(1).max(100).optional().describe('A further part: the `requestId` of your unfinished proposal'),
         more: z.boolean().default(false).describe('true when further parts follow; the last (or only) part leaves it out'),
       })
@@ -276,17 +420,29 @@ export const dataProductProposalTools: ToolDef[] = [
     asks: true,
     handler: (a, ctx) => {
       if (!mayUse(currentUser())) throw new ToolError('The data products module is off, or you do not use it');
-      const doc = a.document as Record<string, unknown>;
+      if (!a.document && !a.semanticModels?.length) throw new ToolError('Send a document of the format, semantic models, or both');
+      const doc = (a.document ?? null) as Record<string, unknown> | null;
+      const models = a.semanticModels ?? [];
       const what = a.proposalId || a.more ? 'This part' : 'The document';
-      const secrets = credentialPlaces(doc);
+      const modelSecrets = models.flatMap((m, i) =>
+        credentialPlaces(semanticDocOf(m.document)).map((x) => `semanticModels[${i}]${x.startsWith('/') ? x : `.${x}`}`),
+      );
+      if (modelSecrets.length)
+        throw new ToolError(
+          `A semantic model holds what looks like a credential – nothing was proposed. Leave out passwords, tokens, keys and passwords in URLs:\n${modelSecrets.map((x) => `- ${x}`).join('\n')}`,
+        );
+      const modelBytes = models.reduce((n, m) => n + Buffer.byteLength(m.document), 0);
+      if (modelBytes > L.partBytes)
+        throw new ToolError(`The semantic models of one part are too large (at most ${L.partBytes / 1024} KB together) – send them in further parts`);
+      const secrets = doc ? credentialPlaces(doc) : [];
       if (secrets.length)
         throw new ToolError(
           `${what} holds what looks like a credential – nothing was proposed. Leave out passwords, tokens, keys and passwords in URLs:\n${secrets.map((x) => `- ${x}`).join('\n')}`,
         );
-      const retired = retiring(doc);
+      const retired = doc ? retiring(doc) : [];
       if (retired.length) throw new ToolError(`A proposal does not retire products (${retired.join(', ')}) – a person does that in Steward`);
-      const text = JSON.stringify(doc);
-      if (Buffer.byteLength(text) > L.partBytes)
+      const text = doc ? JSON.stringify(doc) : null;
+      if (text && Buffer.byteLength(text) > L.partBytes)
         throw new ToolError(
           `${what} is too large (at most ${L.partBytes / 1024} KB) – split it into parts: the first with more: true, the next ones with the returned proposalId`,
         );
@@ -294,8 +450,8 @@ export const dataProductProposalTools: ToolDef[] = [
       const more = a.more === true;
       // each part is a document of the format by itself: its format problems are told now (names it refers to may be in
       // another part – they are checked with the last one)
-      const own = dataProductsFileSchema.safeParse(doc);
-      const formatProblems = own.success ? [] : issueMessages(own.error.issues);
+      const own = doc ? dataProductsFileSchema.safeParse(doc) : null;
+      const formatProblems = !own || own.success ? [] : issueMessages(own.error.issues);
       if (formatProblems.length && (more || a.proposalId))
         throw new ToolError(
           `${what} is no document of the format – it was not kept. Fix it and send it again:\n${formatProblems
@@ -309,20 +465,24 @@ export const dataProductProposalTools: ToolDef[] = [
         reason: a.rationale,
         payload: (prev) => {
           const before = prev ? (prev as Payload) : null;
-          if (before && before.documents.length >= L.parts) throw new ToolError(`A proposal has at most ${L.parts} parts`);
-          const documents = [...(before?.documents ?? []), text];
+          if (before && before.documents.length + (before.semanticModels?.length ?? 0) >= L.parts)
+            throw new ToolError(`A proposal has at most ${L.parts} parts`);
+          const documents = [...(before?.documents ?? []), ...(text ? [text] : [])];
+          const semanticModels = [...(before?.semanticModels ?? []), ...models.map(semanticPart)];
+          if (semanticModels.length > SL.proposalModels) throw new ToolError(`A proposal has at most ${SL.proposalModels} semantic models`);
           const base: Payload = {
             type: 'dataProducts',
             title: before?.title ?? a.title!,
             incomplete: more,
             documents,
+            ...(semanticModels.length ? { semanticModels } : {}),
             added: 0,
             changed: 0,
             proposed: null,
           };
           if (more) return { ...base };
           // the last part: the preview of all parts together, as the token owner – problems refuse it
-          preview = previewImport(importBody(base));
+          preview = previewNow(base);
           if (preview.problems.length)
             throw new ToolError(
               `The proposal cannot be applied as it is (${preview.problems.length} problem(s)) – nothing was kept of this part. Fix and send it again:\n${preview.problems
@@ -330,7 +490,9 @@ export const dataProductProposalTools: ToolDef[] = [
                 .map((x) => `- ${x.file} ${x.path}: ${x.message}`)
                 .join('\n')}`,
             );
-          if (!preview.counts.add && !preview.counts.change) throw new ToolError('The proposal changes nothing – Steward has all of it already');
+          const semanticChanges = checkSemanticModels(base, preview.changes, ctx.principal.user);
+          if (!preview.counts.add && !preview.counts.change && !semanticChanges)
+            throw new ToolError('The proposal changes nothing – Steward has all of it already');
           return {
             ...base,
             added: preview.counts.add,
@@ -350,8 +512,8 @@ export const dataProductProposalTools: ToolDef[] = [
           action: 'dataproduct.proposal_created',
           entityType: 'mcp_request',
           entityId: r.requestId,
-          summary: `Data products proposal "${a.title ?? ''}" of ${ctx.principal.user.username}'s AI assistant: ${p.counts.add} to add, ${p.counts.change} to change`,
-          details: { counts: p.counts, requestedBy: ctx.principal.user.username },
+          summary: `Data products proposal "${a.title ?? ''}" of ${ctx.principal.user.username}'s AI assistant: ${p.counts.add} to add, ${p.counts.change} to change${models.length || a.proposalId ? ' (with any semantic models)' : ''}`,
+          details: { counts: p.counts, requestedBy: ctx.principal.user.username, semanticModels: models.length },
         });
       return {
         ...r,

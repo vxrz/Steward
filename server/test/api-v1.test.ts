@@ -112,6 +112,11 @@ beforeAll(async () => {
       `  - { key: api-orders, name: API orders, members: [{ element: ${JSON.stringify(ref('API.RAW.ORDERS'))} }], ports: [{ direction: output, name: orders, data_objects: [api-order], bindings: [{ environment: prod, elements: [${JSON.stringify(ref('API.CURATED.ORDERS'))}] }] }], steps: [{ name: curate, inputs: [${JSON.stringify(ref('API.RAW.ORDERS'))}], outputs: [${JSON.stringify(ref('API.CURATED.ORDERS'))}] }] }`,
     ].join('\n');
     await s.api('POST', '/data-products/import', { files: [{ name: 'api.yaml', content: doc }], mode: 'add' });
+    // 0.25.0 (ADR 0037 part 4): the product's semantic model, version 1
+    const product = (await s.api('GET', '/data-products?q=api-orders')).items.find((x: any) => x.key === 'api-orders').id;
+    await s.api('POST', `/data-products/${product}/semantic-model/versions`, {
+      document: 'version: 0.1.1\nsemantic_model:\n  - name: api\n    datasets:\n      - { name: orders, source: API.CURATED.ORDERS }\n',
+    });
   }
   await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
@@ -634,6 +639,9 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/data-products/{productId}', `/data-products/${x.id}`);
     await get('/data-products/{productId}/odps', `/data-products/${x.id}/odps`);
     await get('/data-products/{productId}/lineage', `/data-products/${x.id}/lineage`);
+    // 0.25.0: the semantic model's versions, and the document of a product that has one
+    const sv = await get('/data-products/{productId}/semantic-model/versions', `/data-products/${x.id}/semantic-model/versions`);
+    if (sv.status === 200 && sv.body.versions.length) await get('/data-products/{productId}/semantic-model', `/data-products/${x.id}/semantic-model`);
   }
   for (const x of (await listAll('/data-elements', '/data-elements')).slice(0, 5)) await get('/data-elements/{elementId}', `/data-elements/${x.id}`);
   for (const x of await listAll('/data-objects', '/data-objects')) await get('/data-objects/{objectId}', `/data-objects/${x.id}`);

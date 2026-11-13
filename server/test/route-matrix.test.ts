@@ -573,6 +573,24 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/:id/endorsement': ALL,
   'PUT /api/data-products/:id/endorsement': DESIGN,
   'DELETE /api/data-products/:id/endorsement': DESIGN,
+  // phase 3, package D (0.25.0, ADR 0037 parts 4 and 6): semantic models read like the product, saved by who changes it,
+  // signed off by who manages it (designers), the domain's owners and approvers who see it; previews read like the
+  // product, recordings linked by who changes it; the peek of a topic element for the platform's managers; Art. 30 details
+  'GET /api/data-products/:id/semantic-model': ALL,
+  'GET /api/data-products/:id/semantic-model/valid': ALL,
+  'GET /api/data-products/:id/semantic-model/draft': ALL,
+  'GET /api/data-products/:id/semantic-model/export': ALL,
+  'GET /api/data-products/:id/semantic-model/versions/:n': ALL,
+  'POST /api/data-products/:id/semantic-model/versions': DESIGN,
+  'POST /api/data-products/:id/semantic-model/versions/:n/sign-off': ['admin', 'designer', 'approver'],
+  'GET /api/data-products/:id/ports/:portId/preview': ALL,
+  'POST /api/data-products/:id/ports/:portId/recordings': DESIGN,
+  'DELETE /api/data-products/:id/ports/:portId/recordings/:recordingId': DESIGN,
+  'POST /api/data-elements/:id/peek': ADMIN,
+  'GET /api/data-objects/:id/ropa-details': ALL,
+  'PUT /api/data-objects/:id/ropa-details': DESIGN,
+  'GET /api/data-products/:id/ropa-details': ALL,
+  'PUT /api/data-products/:id/ropa-details': DESIGN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1184,6 +1202,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/data-products/:productId': ALL,
   'GET /api/v1/data-products/:productId/odps': ALL,
   'GET /api/v1/data-products/:productId/lineage': ALL,
+  // 0.25.0 (ADR 0037 part 4): the product's semantic model as stored, its versions and sign-offs
+  'GET /api/v1/data-products/:productId/semantic-model': ALL,
+  'GET /api/v1/data-products/:productId/semantic-model/versions': ALL,
   'GET /api/v1/data-elements': ALL,
   'GET /api/v1/data-elements/:elementId': ALL,
   'GET /api/v1/data-objects': ALL,
@@ -1661,6 +1682,9 @@ const SESSION_ONLY = [
   'POST /api/data-products/:id/promotion',
   'PUT /api/data-products/:id/endorsement',
   'DELETE /api/data-products/:id/endorsement',
+  // 0.25.0 (ADR 0037): signing off a semantic model is a person's approval; the peek reads messages (KAFKA.md)
+  'POST /api/data-products/:id/semantic-model/versions/:n/sign-off',
+  'POST /api/data-elements/:id/peek',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2386,6 +2410,7 @@ function fill(url: string): string {
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
       .replace(/:requestId/g, fx.dataRequest!)
+      .replace(/:recordingId/g, 'rec_none')
       .replace(/^\/api\/data-products\/port-reviews\/:reviewId/, `/api/data-products/port-reviews/${fx.dataReview}`)
       .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
@@ -2539,6 +2564,7 @@ function fill(url: string): string {
 const QUERY: Record<string, string> = {
   'GET /api/data-products/:id/ports/:portId/actual': '?environment=prod',
   'GET /api/data-products/:id/promotion': '?from=prod&to=dev',
+  'GET /api/data-products/:id/semantic-model/valid': '?date=2026-01-01',
   'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/plant/assets/:assetId/collection-sources/diff': '?from=pcs_matrix&to=pcs_matrix',
   'GET /api/plant/documents': '?kind=device-profile&id=matrix-profile',
@@ -3198,6 +3224,10 @@ beforeAll(async () => {
     })
   ).id;
   fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
+  // 0.25.0: version 1 of the product's semantic model (ADR 0037 part 4)
+  await a('POST', `/data-products/${fx.dataProduct}/semantic-model/versions`, {
+    document: 'version: 0.1.1\nsemantic_model:\n  - name: matrix\n    datasets:\n      - { name: orders, source: MATRIX.CURATED.ORDERS }\n',
+  });
   // phase 2: an import of two products under an origin – replacing it with an empty file removes both (step-up)
   await a('POST', '/data-products/import', {
     files: [

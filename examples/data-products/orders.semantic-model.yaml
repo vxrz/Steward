@@ -1,0 +1,47 @@
+# The semantic model of the invented data product Orders (docs/DATA-PRODUCTS.md#semantic-models, ADR 0037 part 4):
+# an Apache Ossie 0.1.1 document as Steward keeps it – the governed copy, stored as written, versioned and signed off.
+# The demo loads it as version 1 of Orders' model. The field "discount" is not in the bound contract "Shop orders":
+# the Semantic model tab shows it as a drift finding.
+version: 0.1.1
+semantic_model:
+  - name: orders
+    description: Confirmed orders of the invented shop, one row per order (the output port orders v2).
+    ai_context:
+      instructions: Revenue is the sum of order totals in EUR; cancelled orders are not revenue.
+      synonyms: [sales orders, shop orders]
+    datasets:
+      - name: orders
+        source: SHOP.CURATED.ORDERS
+        primary_key: [id]
+        description: One confirmed order of a customer
+        fields:
+          - name: id
+            expression: { dialects: [{ dialect: ANSI_SQL, expression: '"id"' }] }
+            dimension: { is_time: false }
+          - name: customer_id
+            expression: { dialects: [{ dialect: ANSI_SQL, expression: '"customer_id"' }] }
+            dimension: { is_time: false }
+            ai_context:
+              instructions: Refers to a customer – group by it, never list single customers.
+          - name: status
+            expression: { dialects: [{ dialect: ANSI_SQL, expression: '"status"' }] }
+            dimension: { is_time: false }
+          - name: total
+            expression: { dialects: [{ dialect: ANSI_SQL, expression: '"total"' }] }
+            description: Order total in EUR
+          - name: discount
+            expression: { dialects: [{ dialect: ANSI_SQL, expression: '"discount"' }] }
+            description: Discount in EUR
+          - name: ordered_at
+            expression: { dialects: [{ dialect: ANSI_SQL, expression: '"ordered_at"' }] }
+            dimension: { is_time: true }
+    metrics:
+      - name: revenue
+        description: Sum of the totals of confirmed orders
+        expression:
+          dialects:
+            - { dialect: ANSI_SQL, expression: "SUM(CASE WHEN orders.status <> 'cancelled' THEN orders.total END)" }
+      - name: average_order_value
+        expression:
+          dialects:
+            - { dialect: ANSI_SQL, expression: SUM(orders.total) / COUNT(orders.id) }

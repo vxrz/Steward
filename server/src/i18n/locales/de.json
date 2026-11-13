@@ -768,8 +768,18 @@
         "retention": "Aufbewahrung",
         "deletion": "Löschregel",
         "owner": "Datenverantwortliche Person",
-        "flags": "Regulatorische Kennzeichen"
+        "flags": "Regulatorische Kennzeichen",
+        "transfers": "Übermittlungen in Drittländer (Art. 30 Abs. 1 lit. e)",
+        "toms": "Technische und organisatorische Maßnahmen (Art. 30 Abs. 1 lit. g)"
       },
+      "safeguard": {
+        "adequacy": "Angemessenheitsbeschluss (Art. 45)",
+        "scc": "Standardvertragsklauseln (Art. 46 Abs. 2 lit. c)",
+        "bcr": "verbindliche interne Datenschutzvorschriften (Art. 47)",
+        "derogation": "Ausnahme (Art. 49)",
+        "other": "andere Garantie"
+      },
+      "truncated": "Die Liste ist bei {{limit}} Datenobjekten abgeschnitten: Grenzen Sie sie mit den Filtern ein, um den Rest zu sehen.",
       "personal": {
         "none": "keine",
         "personal": "personenbezogen",

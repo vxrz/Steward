@@ -694,4 +694,56 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE dp_port_review_items ADD COLUMN facts TEXT;
     `,
   },
+  {
+    // phase 3, package D (0.25.0, ADR 0037 parts 4 and 6): semantic models (Apache Ossie) as governed records – one
+    // document per product, every save a version (who, when, SHA-256), stored as written, with optional sign-offs
+    // (valid from their day); recorded responses linked to a port as its preview; the GDPR Art. 30 details of data
+    // objects and products – transfers to third countries with their safeguards (e) and the measures' reference (g)
+    name: 'dataproducts-006d-semantic-models-ropa',
+    sql: `
+      CREATE TABLE dp_semantic_versions (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        format TEXT NOT NULL,
+        ossie_version TEXT,
+        document TEXT NOT NULL,
+        sha256 TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        origin TEXT NOT NULL DEFAULT 'page',
+        lint_count INTEGER NOT NULL DEFAULT 0,
+        proposed_by TEXT,
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX dp_semantic_versions_product ON dp_semantic_versions(product_id, version);
+      CREATE TABLE dp_semantic_signoffs (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        version_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        valid_from TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        signed_by TEXT NOT NULL,
+        signed_at TEXT NOT NULL
+      );
+      CREATE INDEX dp_semantic_signoffs_product ON dp_semantic_signoffs(product_id, valid_from);
+      CREATE UNIQUE INDEX dp_semantic_signoffs_version ON dp_semantic_signoffs(version_id);
+      CREATE TABLE dp_port_recordings (
+        port_id TEXT NOT NULL,
+        recording_id TEXT NOT NULL,
+        platform_id TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        added_by TEXT NOT NULL,
+        added_at TEXT NOT NULL,
+        PRIMARY KEY (port_id, recording_id)
+      );
+      ALTER TABLE dp_objects ADD COLUMN transfers TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE dp_objects ADD COLUMN toms TEXT;
+      ALTER TABLE dp_products ADD COLUMN transfers TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE dp_products ADD COLUMN toms TEXT;
+    `,
+  },
 ];

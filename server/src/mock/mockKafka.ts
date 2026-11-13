@@ -155,6 +155,17 @@ export function addKafkaTopic(name: string, partitions = 1): void {
     messages: [],
   };
 }
+/** For tests and the demo (0.25.0): messages on a topic, the newest last – what a peek reads. */
+export function addKafkaMessages(topic: string, messages: { key: string; value: string }[]): void {
+  const t = data.topics[topic];
+  if (!t) return;
+  for (const m of messages) {
+    const partition = t.messages.length % t.partitions;
+    t.ends[partition]! += 1;
+    t.newest = Date.now();
+    t.messages.push({ partition, offset: t.ends[partition]! - 1, at: t.newest, key: m.key, value: m.value });
+  }
+}
 /** For tests (data products discovery at scale): `count` empty topics `<prefix>0` … */
 export function addKafkaTopics(prefix: string, count: number, partitions = 3): void {
   for (let i = 0; i < count; i++) addKafkaTopic(`${prefix}${i}`, partitions);

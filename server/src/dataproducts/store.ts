@@ -83,6 +83,9 @@ export interface ObjectRow {
   stewards: string;
   custodians: string;
   external_refs: string;
+  /** 0.25.0 (GDPR Art. 30(1)(e) and (g)): transfers to third countries (JSON) and the measures' reference (JSON) */
+  transfers?: string;
+  toms?: string | null;
   revision: number;
   created_at: string;
   created_by: string;
@@ -116,6 +119,9 @@ export interface ProductRow {
   rating_reason: string;
   tags: string;
   external_refs: string;
+  /** 0.25.0 (GDPR Art. 30(1)(e) and (g)): transfers to third countries (JSON) and the measures' reference (JSON) */
+  transfers?: string;
+  toms?: string | null;
   revision: number;
   created_at: string;
   created_by: string;
