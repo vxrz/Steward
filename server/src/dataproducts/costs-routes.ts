@@ -5,6 +5,7 @@ import { ACCESS, me } from '../auth/access.js';
 import * as costs from './costs.js';
 import { productScorecard } from './scorecard.js';
 import { listFacts } from './list-facts.js';
+import { productEstimates } from './estimates.js';
 
 /**
  * Costs and the scorecard of data products in the internal API (ADR 0036 parts 11, 13, 19). Rights in the services: a
@@ -16,7 +17,8 @@ import { listFacts } from './list-facts.js';
  *   DELETE     /api/data-products/:id/costs/matches/:matchId
  *   GET|POST   /api/data-elements/:id/cost-matches, DELETE …/:matchId     an element's matches (inherited by its products)
  *   GET        /api/data-products/cost-allocations?platformId=            shared lines and how they are split
- *   PUT        /api/data-products/cost-allocations                         equal or by weight (session only)
+ *   PUT        /api/data-products/cost-allocations                         equal, by weight or by measured use (session only)
+ *   GET        /api/data-products/:id/estimates?environment=&months=      estimated against attributed (phase 2)
  *   GET        /api/data-products/:id/scorecard?environment=              the scorecard and the maturity
  *   GET        /api/data-products/facts?ids=&environment=                 maturity and last month's costs of a page of products
  */
@@ -36,6 +38,7 @@ export async function dataProductCostRoutes(app: FastifyInstance): Promise<void>
   app.put('/data-products/cost-allocations', { config: { access: ACCESS.session } }, async (req) => costs.setAllocation(req.body));
 
   app.get('/data-products/:id/costs', async (req) => costs.productCosts(param(req, 'id'), dataProductCostsQuery.parse(req.query)));
+  app.get('/data-products/:id/estimates', async (req) => productEstimates(param(req, 'id'), dataProductCostsQuery.parse(req.query)));
   app.post('/data-products/:id/costs/matches', async (req) => costs.addProductMatch(param(req, 'id'), req.body));
   app.delete('/data-products/:id/costs/matches/:matchId', async (req, reply) => {
     costs.deleteProductMatch(param(req, 'id'), param(req, 'matchId'));

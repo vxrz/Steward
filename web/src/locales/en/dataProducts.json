@@ -1205,7 +1205,7 @@
   },
   "allocations": {
     "title": "Shared lines",
-    "help": "Lines several products match are split by their platform team's rule – equally, or by weight. Never more than 100 % of a line; what no product takes is not attributed.",
+    "help": "Lines several products match are split by their platform team's rule – equally, by weight or by measured use. Never more than 100 % of a line; what no product takes is not attributed.",
     "equal": "Split equally",
     "byWeight": "By weight",
     "rule": "Rule",
@@ -1216,7 +1216,8 @@
     "over100": "The weights add up to more than 100 %",
     "hiddenKept_one": "The weight of {{count}} product you may not see stays as it is.",
     "hiddenKept_other": "The weights of {{count}} products you may not see stay as they are.",
-    "audit": "Who may manage the platform sets the split; it is in the audit log."
+    "audit": "Who may manage the platform sets the split; it is in the audit log.",
+    "measured": "By measured use"
   },
   "transfer": {
     "menu": "Import and export",
@@ -1228,7 +1229,7 @@
     "odps": "ODPS v1.0.0 (YAML)",
     "import": "Import files…",
     "importTitle": "Import data products",
-    "importIntro": "Files of Steward's format – domains, data objects, elements and products, YAML or JSON. Check the preview first; nothing is written until you import.",
+    "importIntro": "Files of Steward's format – domains, data objects, elements and products, YAML or JSON – and ODPS v1 documents (Open Data Product Standard), read as products of the format. Check the preview first; nothing is written until you import.",
     "schema": "File format (JSON Schema)",
     "files": "Files",
     "filesHint": "At most 500 files and 8 MB together.",
@@ -1237,11 +1238,13 @@
     "mode": "Mode",
     "modes": {
       "add": "Add only",
-      "update": "Add and update"
+      "update": "Add and update",
+      "replace": "Replace an earlier import"
     },
     "modeHints": {
       "add": "Entries that exist are left as they are.",
-      "update": "Entries that exist take what the files say; what a file leaves out keeps Steward's value. Nothing is removed."
+      "update": "Entries that exist take what the files say; what a file leaves out keeps Steward's value. Nothing is removed.",
+      "replace": "As add and update, and the files are the whole of the earlier import of this origin: its entries the files no longer hold are removed, and the products' members, ports, steps and consumers the files leave out too. What you may not see is never removed."
     },
     "preview": "Preview",
     "run": "Import",
@@ -1256,7 +1259,13 @@
       "unchanged_one": "{{count}} unchanged",
       "unchanged_other": "{{count}} unchanged",
       "skip_one": "{{count}} skipped",
-      "skip_other": "{{count}} skipped"
+      "skip_other": "{{count}} skipped",
+      "remove_one": "{{count}} to remove",
+      "remove_other": "{{count}} to remove",
+      "removedItems_one": "{{count}} list item to remove",
+      "removedItems_other": "{{count}} list items to remove",
+      "keptHidden_one": "{{count}} kept: not yours to see",
+      "keptHidden_other": "{{count}} kept: not yours to see"
     },
     "problems_one": "{{count}} problem stops the import",
     "problems_other": "{{count}} problems stop the import",
@@ -1276,8 +1285,65 @@
       "add": "Add",
       "change": "Change",
       "unchanged": "Unchanged",
-      "skip": "Skip"
-    }
+      "skip": "Skip",
+      "remove": "Remove"
+    },
+    "origin": "Origin",
+    "originHint": "A name the import keeps its entries under (for example shop-catalogue) – an import that replaces it later names the same origin. Optional, except to replace.",
+    "originRequired": "Replacing needs the origin of the earlier import.",
+    "originInvalid": "Letters, digits and . _ - : / – at most 100.",
+    "doneReplace": "Imported: {{add}} added, {{change}} changed, {{unchanged}} unchanged, {{remove}} removed, {{items}} list items removed",
+    "odpsRead_one": "{{count}} ODPS document read as a data product.",
+    "odpsRead_other": "{{count}} ODPS documents read as data products.",
+    "stepUp": "The import removes more than one entry or list item: importing asks you to confirm it is you."
+  },
+  "measured": {
+    "help": "Each product takes its measured use of the line: credits of its warehouses or query tags, or the bytes written to its topics – priced with the platform’s contracted price book where it has a price, else as its share of everything measured. Read once a day; never more than the line together.",
+    "measure": "What is measured",
+    "measures": {
+      "snowflakeWarehouse": "Snowflake credits per warehouse",
+      "snowflakeQueryTag": "Snowflake credits per query tag",
+      "confluentTopic": "Confluent bytes per topic"
+    },
+    "subjectsHint": {
+      "snowflakeWarehouse": "Its warehouses (names)",
+      "snowflakeQueryTag": "Its query tags",
+      "confluentTopic": "Its topics – none: its member topics"
+    },
+    "hiddenKept_one": "What is measured for {{count}} product you may not see stays as it is.",
+    "hiddenKept_other": "What is measured for {{count}} products you may not see stays as it is.",
+    "priced": "priced with the price book",
+    "shareOfTotal": "share of the measured total",
+    "readAt": "Read {{at}}",
+    "notRead": "Not read yet – the job reads it within the hour",
+    "pricing": {
+      "book": "priced with the platform’s price book",
+      "share": "no price: share of the measured total"
+    },
+    "error": "The last read failed: {{error}}"
+  },
+  "estimates": {
+    "title": "Estimated against attributed",
+    "help": "Estimates made for this product (they belong to a service or a platform, under Costs) beside what is attributed to it. Showback: nothing is netted or booked.",
+    "none": "No estimate is for this product yet – make one under Costs on a service or a platform and name this product as what it is for.",
+    "of": "{{owner}} · from {{from}}",
+    "perMonth": "{{amount}} a month",
+    "atListPrice": "at list price for you",
+    "atListPriceShort": "list price",
+    "table": "Estimated against attributed per month",
+    "estimated": "Estimated",
+    "attributed": "Attributed",
+    "difference": "Difference",
+    "withinRange": "within the range",
+    "above": "above the estimate",
+    "below": "below the estimate"
+  },
+  "ossie": {
+    "menu": "Ossie export",
+    "label": "The data objects as an Apache Ossie model",
+    "yaml": "Ossie 0.1.1 (YAML)",
+    "json": "Ossie 0.1.1 (JSON)",
+    "dev": "Ossie 0.2.0.dev0 (YAML)"
   },
   "quality": {
     "trend": {

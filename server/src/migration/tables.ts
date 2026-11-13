@@ -107,6 +107,8 @@ export const NOT_MOVED: Record<string, string> = {
   // 0.24.0 (ADR 0036 phase 2): who really reads a port, as the platforms said – read again on the target
   dp_actual_reads: 'when the actual consumers of a port were read and how (ACCESS_HISTORY, consumer groups): read again on the target',
   dp_actual_consumers: 'who read a port as the platforms said (ACCESS_HISTORY, consumer groups): read again on the target',
+  // phase 2, package D (0.24.0)
+  dp_cost_usage: 'quantities of measured use read from the platforms (credits, bytes): read again on the target by the job data-products',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -517,6 +519,8 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'dp_objects.subjects',
   // 0.24.0: how many members a promotion added, not people
   'dp_promotions.members',
+  // what an allocation by measured use measures per product (warehouses, query tags, topics) – never a person
+  'dp_cost_allocations.subjects',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */

@@ -25,12 +25,14 @@ import { canManageRecordTypes } from '../records/access.js';
 import { dashboardVisible, dashboardAccess } from '../dashboards/service.js';
 import * as calculators from '../costs/calculators.js';
 import { moduleEnabled } from '../modules/registry.js';
+import * as dataSync from '../dataproducts/gitsync.js';
 
 /**
  * The kinds of items a Git sync source can bring in, in the formats Steward already
  * imports and exports: process YAML/JSON (graph or sequential steps), dashboard YAML,
  * monitor files (`kind: monitor` / `kind: monitorTemplate`, platforms by name or id),
- * record type files (`kind: recordType`) and cost calculators (`kind: costCalculator`, 0.21.0). Files are parsed as data only – nothing in them is run.
+ * record type files (`kind: recordType`), cost calculators (`kind: costCalculator`, 0.21.0) and data products and data
+ * objects (one `data_product:` or `data_object:` of the module's format, 0.24.0). Files are parsed as data only – nothing in them is run.
  */
 
 export interface ParsedItem {
@@ -97,6 +99,8 @@ export function classify(raw: unknown): SyncKind | 'bundle' | null {
   if (o.kind === 'monitor' || o.kind === 'monitorTemplate') return 'monitor';
   if (o.kind === 'recordType') return 'recordType';
   if (o.kind === 'costCalculator') return 'costCalculator';
+  const data = dataSync.classifyDataFile(o);
+  if (data) return data;
   if (Array.isArray(o.widgets)) return 'dashboard';
   if (Array.isArray(o.nodes) || Array.isArray(o.steps)) return 'process';
   return null;
@@ -171,6 +175,14 @@ export async function parseFile(file: string, text: string, kinds: SyncKind[]): 
       if (!p.ok || !p.definition) return fail(kind, p.errors, typeof o.id === 'string' ? o.id : null);
       return { ok: true, item: { kind, identity: p.definition.id, name: p.definition.name, content: { text }, hash: sha256(text) } };
     }
+    case 'dataProduct':
+    case 'dataObject': {
+      // the data products module (0.24.0, ADR 0036 part 16): one entry per file, matched by its key
+      if (!moduleEnabled('dataProducts')) return fail(kind, ['The data products module is switched off'], null);
+      const p = dataSync.parseDataFile(kind, o);
+      if (!p.ok) return fail(kind, p.errors, p.identity);
+      return { ok: true, item: { kind, identity: p.identity, name: p.name, content: p.content, hash: p.hash } };
+    }
   }
 }
 
@@ -201,6 +213,9 @@ export function findLocal(kind: SyncKind, identity: string): LocalItem | null {
     }
     case 'costCalculator':
       return calculators.calculatorByKey(identity);
+    case 'dataProduct':
+    case 'dataObject':
+      return dataSync.findDataLocal(kind, identity);
   }
 }
 
@@ -217,6 +232,9 @@ export function localById(kind: SyncKind, id: string): LocalItem | null {
       return db().get<{ id: string; name: string }>('SELECT id, name FROM record_types WHERE id = ?', id) ?? null;
     case 'costCalculator':
       return db().get<{ id: string; name: string }>('SELECT id, name FROM cost_calculators WHERE id = ?', id) ?? null;
+    case 'dataProduct':
+    case 'dataObject':
+      return dataSync.dataLocalById(kind, id);
   }
 }
 
@@ -255,6 +273,9 @@ export function localHash(kind: SyncKind, id: string): string | null {
     }
     case 'costCalculator':
       return calculators.calculatorHash(id);
+    case 'dataProduct':
+    case 'dataObject':
+      return dataSync.dataLocalHash(kind, id);
   }
 }
 
@@ -286,6 +307,11 @@ export function localText(kind: SyncKind, id: string): { text: string; definitio
         const t = calculators.calculatorText(id);
         return t === null ? null : { text: t };
       }
+      case 'dataProduct':
+      case 'dataObject': {
+        const t = dataSync.dataLocalText(kind, id);
+        return t === null ? null : { text: t };
+      }
     }
   } catch {
     return null;
@@ -294,6 +320,7 @@ export function localText(kind: SyncKind, id: string): { text: string; definitio
 
 export function incomingText(kind: SyncKind, content: unknown): string {
   if (kind === 'costCalculator') return (content as { text: string }).text;
+  if (kind === 'dataProduct' || kind === 'dataObject') return dataSync.dataIncomingText(content);
   return yaml(kind === 'recordType' ? { kind: 'recordType', ...(content as object) } : content);
 }
 
@@ -322,6 +349,9 @@ export function canView(kind: SyncKind, entityId: string): boolean {
     case 'costCalculator':
       // calculators hold no prices: every reader of the Costs module sees them
       return true;
+    case 'dataProduct':
+    case 'dataObject':
+      return dataSync.canViewData(kind, entityId);
   }
 }
 
@@ -347,6 +377,9 @@ export function canDecide(kind: SyncKind, entityId: string | null): boolean {
       return canManageRecordTypes(u);
     case 'costCalculator':
       return local ? calculators.calculatorRights({ id: local.id }, u).edit : calculators.mayAddCalculators(u);
+    case 'dataProduct':
+    case 'dataObject':
+      return dataSync.canDecideData(kind, local?.id ?? null);
   }
 }
 
@@ -363,7 +396,7 @@ export async function applyItem(
   kind: SyncKind,
   content: unknown,
   target: string | null,
-  o: { identity: string; comment: string; disabled?: boolean; platforms?: Record<string, string> },
+  o: { identity: string; comment: string; disabled?: boolean; platforms?: Record<string, string>; sourceId?: string },
 ): Promise<ApplyResult> {
   switch (kind) {
     case 'process': {
@@ -411,6 +444,12 @@ export async function applyItem(
         ? calculators.saveCalculator(target, { definition: text, publish: true }, 'git')
         : calculators.createCalculator({ definition: text, publish: true }, 'git');
       return { entityId: c.id, version: c.version };
+    }
+    case 'dataProduct':
+    case 'dataObject': {
+      // the module's import, as the reviewer: add and update, the product's lists from the file, origin git:<source>
+      const r = dataSync.applyDataFile(kind, content, { identity: o.identity, sourceId: o.sourceId });
+      return { entityId: r.entityId, version: null };
     }
   }
 }

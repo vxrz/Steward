@@ -526,6 +526,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-elements/:id/personal-fields': ALL,
   'GET /api/data-objects/:id/personal-fields': ALL,
   'GET /api/data-elements/:id/quality': ALL,
+  // phase 2 (package D): estimated against attributed – read like the product (estimates as their owner's plan allows)
+  'GET /api/data-products/:id/estimates': ALL,
+  // the Ossie export of the data objects the caller may see (phase 2)
+  'GET /api/data-objects/semantic-model': ALL,
   // the list's maturity and last month's costs of a page (WP8)
   'GET /api/data-products/facts': ALL,
   // import and export, ODPS (WP7): exports read like the products they hold; the preview shows anyone what an import
@@ -1181,6 +1185,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/data-elements/:elementId': ALL,
   'GET /api/v1/data-objects': ALL,
   'GET /api/v1/data-objects/:objectId': ALL,
+  // phase 2: the data objects the token owner may see as an Ossie model
+  'GET /api/v1/data-objects/semantic-model': ALL,
   'GET /api/v1/plant/sites': PLANT,
   'GET /api/v1/plant/sites/:siteId': PLANT,
   'GET /api/v1/plant/assets': PLANT,
@@ -2119,6 +2125,11 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
       cascade: true,
     },
     harmless: { files: [{ name: 'r.yaml', content: 'version: 1\nremove: []\n' }], mode: 'update' },
+  },
+  // a data products import that replaces an earlier one and removes more than one entry (dataproduct.bulkChange)
+  'POST /api/data-products/import': {
+    sensitive: { files: [{ name: 'empty.yaml', content: 'version: 1\n' }], mode: 'replace', origin: 'matrix-origin' },
+    harmless: { files: [{ name: 'p.yaml', content: 'version: 1\ndata_products:\n  - { key: matrix-harmless, name: Harmless }\n' }], mode: 'update' },
   },
 };
 
@@ -3171,6 +3182,17 @@ beforeAll(async () => {
     })
   ).id;
   fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
+  // phase 2: an import of two products under an origin – replacing it with an empty file removes both (step-up)
+  await a('POST', '/data-products/import', {
+    files: [
+      {
+        name: 'origin.yaml',
+        content: 'version: 1\ndata_products:\n  - { key: matrix-origin-a, name: Origin A }\n  - { key: matrix-origin-b, name: Origin B }\n',
+      },
+    ],
+    mode: 'update',
+    origin: 'matrix-origin',
+  });
   // a discovery source of the demo Snowflake account, never read (disabled)
   fx.discoverySource = (
     await a('POST', '/data-products/discovery-sources', { name: 'Matrix discovery', platformId: snowflake, scope: ['SHOP'], enabled: false })

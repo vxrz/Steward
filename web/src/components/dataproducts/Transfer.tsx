@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Table, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, FileInput, Group, List, Menu, SegmentedControl, Stack, Table, Text, TextInput } from '@mantine/core';
 import { IconDownload, IconFileExport, IconFileImport, IconFileUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { DATA_PRODUCT_IMPORT_MODES, type DataProductImportMode, type DataProductImportPreview, type DataProductImportResult } from '@sm/shared';
+import {
+  DATA_PRODUCT_IMPORT_MODES,
+  DATA_PRODUCT_IMPORT_ORIGIN_RE,
+  type DataProductImportMode,
+  type DataProductImportPreview,
+  type DataProductImportResult,
+} from '@sm/shared';
 import { apiUrl, notifyOk, post } from '../../api';
 import { FormModal, FormModalCancel } from '../FormModal';
 import { TableScroll } from '../TableScroll';
@@ -25,7 +31,35 @@ export const transferUrls = {
   product: (id: string, format: 'yaml' | 'json') => apiUrl(`/data-products/${enc(id)}/export?format=${format}`),
   odps: (id: string) => apiUrl(`/data-products/${enc(id)}/odps`),
   schema: () => apiUrl('/data-products/schema'),
+  /** The data objects the reader may see as an Apache Ossie semantic model (phase 2) */
+  ossie: (format: 'yaml' | 'json', version: '0.1.1' | '0.2.0.dev0' = '0.1.1') => apiUrl(`/data-objects/semantic-model?format=${format}&version=${version}`),
 };
+
+/** The data objects list's export: the business vocabulary as an Apache Ossie semantic model (phase 2). */
+export function OssieMenu() {
+  const { t } = useTranslation('dataProducts');
+  return (
+    <Menu position="bottom-end" withinPortal shadow="md">
+      <Menu.Target>
+        <Button size="xs" variant="default" leftSection={<IconFileExport size={14} />} data-testid="objects-ossie">
+          {t('ossie.menu')}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t('ossie.label')}</Menu.Label>
+        <Menu.Item component="a" href={transferUrls.ossie('yaml')} leftSection={<IconDownload size={14} />} data-testid="objects-ossie-yaml">
+          {t('ossie.yaml')}
+        </Menu.Item>
+        <Menu.Item component="a" href={transferUrls.ossie('json')} leftSection={<IconDownload size={14} />} data-testid="objects-ossie-json">
+          {t('ossie.json')}
+        </Menu.Item>
+        <Menu.Item component="a" href={transferUrls.ossie('yaml', '0.2.0.dev0')} leftSection={<IconDownload size={14} />}>
+          {t('ossie.dev')}
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
 
 /** The products list's _Import and export_ menu: everything the reader may see (or the filtered domain), and Import. */
 export function TransferMenu({ domain, canImport, onImport }: { domain?: string; canImport: boolean; onImport: () => void }) {
@@ -84,17 +118,28 @@ const show = (v: unknown): string => {
   return s.length > 120 ? `${s.slice(0, 119)}…` : s;
 };
 
-const ACTION_COLOR = { add: 'green', change: 'blue', unchanged: 'gray', skip: 'orange' } as const;
+const ACTION_COLOR = { add: 'green', change: 'blue', unchanged: 'gray', skip: 'orange', remove: 'red' } as const;
 
 /** Import files of Steward's format: choose, preview, import. */
 export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation(['dataProducts', 'common']);
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<DataProductImportMode>('add');
+  const [origin, setOrigin] = useState('');
   const [preview, setPreview] = useState<DataProductImportPreview | null>(null);
   const [busy, run] = useBusy();
   const tooLarge = files.reduce((n, f) => n + f.size, 0) > MAX_BYTES;
-  const body = async () => ({ mode, files: await Promise.all(files.map(async (f) => ({ name: f.name, content: await f.text() }))) });
+  const originError =
+    mode === 'replace' && !origin.trim()
+      ? t('transfer.originRequired')
+      : origin.trim() && !DATA_PRODUCT_IMPORT_ORIGIN_RE.test(origin.trim())
+        ? t('transfer.originInvalid')
+        : undefined;
+  const body = async () => ({
+    mode,
+    ...(origin.trim() ? { origin: origin.trim() } : {}),
+    files: await Promise.all(files.map(async (f) => ({ name: f.name, content: await f.text() }))),
+  });
   const check = () =>
     run(async () => {
       setPreview(await post<DataProductImportPreview>('/data-products/import/preview', await body()));
@@ -102,7 +147,16 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
   const apply = () =>
     run(async () => {
       const r = await post<DataProductImportResult>('/data-products/import', { ...(await body()), fingerprint: preview?.fingerprint });
-      notifyOk(t('transfer.done', { add: r.counts.add, change: r.counts.change, unchanged: r.counts.unchanged, skip: r.counts.skip }));
+      notifyOk(
+        t(r.counts.remove !== undefined ? 'transfer.doneReplace' : 'transfer.done', {
+          add: r.counts.add,
+          change: r.counts.change,
+          unchanged: r.counts.unchanged,
+          skip: r.counts.skip,
+          remove: r.counts.remove ?? 0,
+          items: r.counts.removedItems ?? 0,
+        }),
+      );
       onDone();
     }, t('transfer.failed'));
   const changed = (next: () => void) => {
@@ -148,6 +202,20 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
             {t(`transfer.modeHints.${mode}`)}
           </Text>
         </div>
+        <TextInput
+          label={t('transfer.origin')}
+          description={t('transfer.originHint')}
+          value={origin}
+          onChange={(e) => {
+            const v = e.currentTarget.value;
+            changed(() => setOrigin(v));
+          }}
+          maxLength={100}
+          withAsterisk={mode === 'replace'}
+          error={files.length || origin ? originError : undefined}
+          className="mono"
+          data-testid="import-origin"
+        />
         {preview && (
           <Stack gap="xs" data-testid="import-preview">
             <Group gap="xs">
@@ -156,7 +224,32 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
                   {t(`transfer.counts.${a}`, { count: preview.counts[a] })}
                 </Badge>
               ))}
+              {preview.counts.remove !== undefined && (
+                <Badge color="red" variant="light" tt="none" data-testid="import-count-remove">
+                  {t('transfer.counts.remove', { count: preview.counts.remove })}
+                </Badge>
+              )}
+              {!!preview.counts.removedItems && (
+                <Badge color="red" variant="light" tt="none" data-testid="import-count-removed-items">
+                  {t('transfer.counts.removedItems', { count: preview.counts.removedItems })}
+                </Badge>
+              )}
+              {!!preview.counts.keptHidden && (
+                <Badge color="gray" variant="light" tt="none" data-testid="import-count-kept-hidden">
+                  {t('transfer.counts.keptHidden', { count: preview.counts.keptHidden })}
+                </Badge>
+              )}
             </Group>
+            {!!preview.odps && (
+              <Text size="sm" c="dimmed">
+                {t('transfer.odpsRead', { count: preview.odps })}
+              </Text>
+            )}
+            {preview.stepUp && (
+              <Alert color="orange" variant="light" data-testid="import-step-up">
+                {t('transfer.stepUp')}
+              </Alert>
+            )}
             {preview.problems.length > 0 && (
               <Alert color="red" variant="light" title={t('transfer.problems', { count: preview.problems.length })} data-testid="import-problems">
                 <List size="sm" spacing={2}>
@@ -223,7 +316,7 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
             variant={preview ? 'default' : 'filled'}
             onClick={() => void check()}
             loading={busy && !preview}
-            disabled={!files.length || tooLarge}
+            disabled={!files.length || tooLarge || !!originError}
             data-testid="import-preview-run"
           >
             {t('transfer.preview')}
@@ -232,7 +325,10 @@ export function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone:
             <Button
               onClick={() => void apply()}
               loading={busy}
-              disabled={preview.problems.length > 0 || preview.counts.add + preview.counts.change === 0}
+              disabled={
+                preview.problems.length > 0 ||
+                preview.counts.add + preview.counts.change + (preview.counts.remove ?? 0) + (preview.counts.removedItems ?? 0) === 0
+              }
               data-testid="import-run"
             >
               {t('transfer.run')}

@@ -34,6 +34,13 @@ import { config } from '../config.js';
  * setConfluentConnector; resetConfluent restores everything.
  */
 
+/** Bytes received per day by the topics of the cluster lkc-demo1 (the Metrics API) – measured use of data products. */
+export const DEMO_TOPIC_BYTES_PER_DAY: Readonly<Record<string, number>> = {
+  orders: 6_000_000_000,
+  payments: 3_000_000_000,
+  'shop-events.clicks': 1_000_000_000,
+};
+
 export const DEMO_CONFLUENT = {
   cloudKey: 'CLOUDKEY',
   cloudSecret: 'demo-confluent-cloud-secret',
@@ -441,6 +448,27 @@ function costLines(start: string, end: string) {
 
 export async function mockConfluent(app: FastifyInstance): Promise<void> {
   const R = '/confluent';
+  // measured use of data products (ADR 0036 part 11, phase 2): the Metrics API's received bytes per topic and day
+  // (POST /v2/metrics/cloud/query, like https://api.telemetry.confluent.cloud) – 40 rows per page, so paging is exercised
+  app.post(`${R}/v2/metrics/cloud/query`, async (req, reply) => {
+    if (!authorized(req, reply, false)) return reply;
+    const b = (req.body ?? {}) as { filter?: { value?: string }; intervals?: string[] };
+    const q = req.query as Record<string, string | undefined>;
+    const [from, to] = String(b.intervals?.[0] ?? '').split('/');
+    const s0 = Date.parse(String(from));
+    const e0 = Date.parse(String(to));
+    if (!Number.isFinite(s0) || !Number.isFinite(e0) || e0 <= s0)
+      return reply.code(400).send({ errors: [{ status: '400', detail: 'intervals are required' }] });
+    const rows: Record<string, unknown>[] = [];
+    if (b.filter?.value === DEMO_CONFLUENT.cluster)
+      for (let t = s0; t < e0 && rows.length < 2000; t += DAY)
+        for (const [topic, bytes] of Object.entries(DEMO_TOPIC_BYTES_PER_DAY))
+          rows.push({ timestamp: new Date(t).toISOString(), value: bytes, 'metric.topic': topic });
+    const at = Number(q.page_token ?? 0) || 0;
+    const size = 40;
+    const next = at + size < rows.length ? String(at + size) : null;
+    return { data: rows.slice(at, at + size), meta: { pagination: { page_size: size, next_page_token: next } } };
+  });
   app.get(`${R}/billing/v1/costs`, async (req, reply) => {
     if (!authorized(req, reply, false)) return reply;
     const q = req.query as Record<string, string | undefined>;

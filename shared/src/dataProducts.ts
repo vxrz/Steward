@@ -1,5 +1,6 @@
 import { CIA_DIMENSIONS, levelRank, type ApplicationRating, type CiaDimension, type CiaLevel, type CiaColor } from './catalogue.js';
 import type { MonitorStatus } from './monitors.js';
+import type { CostEstimateSummary } from './costCalculators.js';
 
 /**
  * The data products module (0.22.0, ADR 0036, docs/DATA-PRODUCTS.md): data objects say what the business data is, how
@@ -1090,6 +1091,22 @@ export type DataCostMatchKind = (typeof DATA_COST_MATCH_KINDS)[number];
 export const DATA_COST_ALLOCATION_RULES = ['equal', 'weight', 'measured'] as const;
 export type DataCostAllocationRule = (typeof DATA_COST_ALLOCATION_RULES)[number];
 
+/**
+ * What the rule _by measured use_ measures (phase 2, ADR 0036 part 11): Snowflake credits per warehouse
+ * (WAREHOUSE_METERING_HISTORY) or per query tag (QUERY_ATTRIBUTION_HISTORY), Confluent bytes received per topic (the
+ * Metrics API). Read daily by the job `data-products`; priced with the platform's price book where it has a price.
+ */
+export const DATA_COST_MEASURES = ['snowflakeWarehouse', 'snowflakeQueryTag', 'confluentTopic'] as const;
+export type DataCostMeasure = (typeof DATA_COST_MEASURES)[number];
+/** The unit of each measure's quantities (UCUM, ADR 0035 part 1). */
+export const DATA_COST_MEASURE_UNITS: Record<DataCostMeasure, string> = {
+  snowflakeWarehouse: '{credit}',
+  snowflakeQueryTag: '{credit}',
+  confluentTopic: 'By',
+};
+/** Limits of measured use: subjects (warehouses, query tags, topics) per product and per allocation. */
+export const DATA_COST_MEASURE_LIMITS = { subjectsPerProduct: 50, subjectsPerAllocation: 500, subjectChars: 255 } as const;
+
 export interface ProductCostLine {
   platformId: string;
   /** direct: only this product matches the line; share: split by the allocation's rule */
@@ -1147,6 +1164,8 @@ export interface DataProductCostLine extends ProductCostLine {
   match: { kind: DataCostMatchKind; value: string; tagKey: string };
   /** The products the line is split between, this one included (others counted, never named) */
   products: number;
+  /** Rule measured: what was measured, and whether the share is priced (a price book) or the share of the measured total */
+  measured?: { measure: DataCostMeasure; priced: boolean };
 }
 
 /** The Costs tab of a product (GET /api/data-products/:id/costs): per month in one environment, value beside it. */
@@ -1179,8 +1198,22 @@ export interface DataCostAllocation {
   value: string;
   tagKey: string;
   rule: DataCostAllocationRule;
-  /** Products matching the key that the reader may see, with their weight (null: weights not shown) */
-  products: { product: DataRef & { hidden?: false }; environments: string[]; weightPct: number | null }[];
+  /**
+   * Products matching the key that the reader may see, with their weight (null: weights not shown) and – rule measured –
+   * the warehouses, query tags or topics measured for them (null: not shown, or another rule)
+   */
+  products: { product: DataRef & { hidden?: false }; environments: string[]; weightPct: number | null; subjects?: string[] | null }[];
+  /**
+   * Rule measured (phase 2): what is measured, when it was read last and why a read failed, and how the shares are priced
+   * – `book` with the price per unit of the platform's contracted price book (credits, GB), `share` as the share of the
+   * measured total where there is no price. Shown to who sees the platform's amounts; null for the other rules.
+   */
+  measured?: {
+    measure: DataCostMeasure;
+    readAt: string | null;
+    error: string | null;
+    pricing: 'book' | 'share' | null;
+  } | null;
   /** Products matching it that the reader may not see (counted, never named) */
   hiddenProducts: number;
   /** Weight of the hidden products together (null: weights not shown) */
@@ -1191,6 +1224,31 @@ export interface DataCostAllocation {
   canEdit: boolean;
   updatedAt: string | null;
   updatedBy: string | null;
+}
+
+/**
+ * Estimated against attributed (phase 2, ADR 0035 part 6 / ADR 0036 part 11; GET /api/data-products/:id/estimates):
+ * the estimates _for_ the product the reader may see (each belongs to a service or a platform, as cost plans) and per
+ * month and currency the attributed costs beside the sum of the estimates that apply in that month (low, expected,
+ * high). Amounts in micros; nothing is netted or booked.
+ */
+export interface DataProductEstimates {
+  productId: string;
+  environment: string | null;
+  /** The Costs module is on (estimates belong to it); off: no estimates and no comparison */
+  available: boolean;
+  estimates: CostEstimateSummary[];
+  comparison: {
+    month: string;
+    currency: string;
+    attributedMicros: number;
+    /** A part of the attributed costs is hidden from the reader */
+    incomplete: boolean;
+    /** The estimates of the currency that apply in the month (null: none, or their amounts are hidden from the reader) */
+    estimated: { low: number; expected: number; high: number } | null;
+    /** An estimate is shown at list prices to this reader (rates they may not see) */
+    atListPrice: boolean;
+  }[];
 }
 
 // ---------- scorecard and maturity (part 13; WP4) ----------

@@ -4,14 +4,24 @@
  * Schema docs/data-products/data-products-1.schema.json (GET /api/data-products/schema).
  */
 
-/** Add only: entries that exist are left as they are. Add and update: existing entries take what the files say. */
-export const DATA_PRODUCT_IMPORT_MODES = ['add', 'update'] as const;
+/**
+ * Add only: entries that exist are left as they are. Add and update: existing entries take what the files say.
+ * Replace (phase 2): as add and update, and the files are the whole of an earlier import of the same `origin` – its
+ * entries the files no longer hold are removed, and the lists of the products the files hold (members, ports, steps,
+ * consumers) lose the items the files leave out; what the importer may not see is never removed (counted).
+ */
+export const DATA_PRODUCT_IMPORT_MODES = ['add', 'update', 'replace'] as const;
 export type DataProductImportMode = (typeof DATA_PRODUCT_IMPORT_MODES)[number];
 
 export const DATA_PRODUCT_IMPORT_KINDS = ['domain', 'dataObject', 'element', 'dataProduct'] as const;
 export type DataProductImportKind = (typeof DATA_PRODUCT_IMPORT_KINDS)[number];
 
-export type DataProductImportAction = 'add' | 'change' | 'unchanged' | 'skip';
+export type DataProductImportAction = 'add' | 'change' | 'unchanged' | 'skip' | 'remove';
+
+/** The name an import keeps its entries under (an import's own name, `git:<source>` for Git sync): letters, digits, ". _ - : /" */
+export const DATA_PRODUCT_IMPORT_ORIGIN_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$/;
+/** More removals than this ask for the step-up dataproduct.bulkChange */
+export const DATA_PRODUCT_IMPORT_REMOVALS_WITHOUT_STEP_UP = 1;
 
 export interface DataProductImportField {
   /** The field in the file's words, with the item of a list: `ports[output orders v2].bindings[prod].contract` */
@@ -45,6 +55,12 @@ export interface DataProductImportCounts {
   change: number;
   unchanged: number;
   skip: number;
+  /** Mode replace: entries removed (their list items removed are counted under `removedItems`) */
+  remove?: number;
+  /** Mode replace: members, ports, steps and consumers the files leave out of their products */
+  removedItems?: number;
+  /** Mode replace: entries and items the files leave out that the importer may not see – kept, never removed */
+  keptHidden?: number;
 }
 
 export interface DataProductImportPreview {
@@ -59,6 +75,12 @@ export interface DataProductImportPreview {
   files: { name: string; sha256: string; bytes: number }[];
   /** Pass it to the import: a different result is refused (DATA_PRODUCT_IMPORT_CHANGED) */
   fingerprint: string;
+  /** The origin the import keeps its entries under (mode replace: the earlier import it replaces) */
+  origin?: string | null;
+  /** Mode replace removes more than one entry or item: importing asks for the step-up dataproduct.bulkChange */
+  stepUp?: boolean;
+  /** ODPS documents among the files, read as data products of Steward's format */
+  odps?: number;
 }
 
 export interface DataProductImportResult {

@@ -9,6 +9,8 @@ import {
   DATA_DISCOVERY_LIMITS as DL,
   DATA_DISCOVERY_MODES,
   DATA_COST_MATCH_KINDS,
+  DATA_COST_MEASURE_LIMITS,
+  DATA_COST_MEASURES,
   DATA_ELEMENT_KINDS,
   DATA_ENVIRONMENT_STATES,
   DATA_MEMBER_ROLES,
@@ -434,15 +436,32 @@ export type DataCostMatchInput = z.input<typeof dataCostMatchInput>;
 export const dataElementCostMatchInput = z.object({ platformId: id().optional(), ...costMatchFields }).strict();
 export type DataElementCostMatchInput = z.input<typeof dataElementCostMatchInput>;
 
-/** The split of a platform's lines of one match key (PUT /api/data-products/cost-allocations). Measured use is phase 2. */
+/** The split of a platform's lines of one match key (PUT /api/data-products/cost-allocations). */
 export const dataCostAllocationInput = z
   .object({
     platformId: id(),
     ...costMatchFields,
-    rule: z.enum(['equal', 'weight']),
+    rule: z.enum(['equal', 'weight', 'measured']),
     /** Percent of the line per product (weight rule); at most 100 together, the rest is not attributed */
     weights: z
       .array(z.object({ productId: id(), pct: z.number().min(0).max(100) }).strict())
+      .max(L.products)
+      .default([]),
+    /** Rule measured (phase 2): what is measured */
+    measure: z.enum(DATA_COST_MEASURES).optional(),
+    /**
+     * Rule measured: the warehouses, query tags or topics measured per product (topics: none given – the product's
+     * member topics)
+     */
+    subjects: z
+      .array(
+        z
+          .object({
+            productId: id(),
+            subjects: z.array(z.string().trim().min(1).max(DATA_COST_MEASURE_LIMITS.subjectChars)).max(DATA_COST_MEASURE_LIMITS.subjectsPerProduct),
+          })
+          .strict(),
+      )
       .max(L.products)
       .default([]),
   })

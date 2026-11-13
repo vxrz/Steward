@@ -9,6 +9,7 @@ import { DATA_PRODUCT_LINK_KIND_RESOLVERS } from '../dataproducts/links.js';
 import { dataProductTransferRoutes } from '../dataproducts/transfer-routes.js';
 import { dataProductApiRoutes } from '../dataproducts/api-v1.js';
 import { dataProductTools } from '../dataproducts/mcp.js';
+import { dataProductProposalTools } from '../dataproducts/proposals.js';
 import { DATA_PRODUCT_SHARE_KIND } from '../dataproducts/shares.js';
 import { dataProductQualityRoutes } from '../dataproducts/quality-routes.js';
 import { dataProductsSection } from '../dataproducts/report-section.js';
@@ -44,7 +45,8 @@ export default defineFeature({
   reportSections: [dataProductsSection],
   // the public API (read-only) and the MCP read tools (WP7, ADR 0036 parts 14 and 19); not listed while the module is off
   apiV1: [dataProductApiRoutes],
-  mcpTools: dataProductTools,
+  // phase 2 (package D): proposals from assistants – applied by a person under AI requests, never by the assistant
+  mcpTools: [...dataProductTools, ...dataProductProposalTools],
   // ADR 0036 part 17: documents, records and ticket references link products and data objects
   linkKinds: [...DATA_PRODUCT_LINK_KIND_RESOLVERS],
   // ADR 0033: products are shared with people and teams on their Access tab (data objects, elements and domains keep

@@ -3,6 +3,7 @@ import {
   boundedRecord,
   MCP_REQUEST_LIMITS,
   type McpCatalogueProposal,
+  type McpDataProductsProposal,
   type McpMappingsProposal,
   type McpPlantProposal,
   type McpProposalSummary,
@@ -97,7 +98,7 @@ export interface ReviewKind {
   describe: (r: Row) => string;
   /** What the proposal is about, for lists (cheap: no comparison, no lookups) */
   summary: (r: Row) => McpProposalSummary;
-  view: (r: Row, u: AuthUser) => McpCatalogueProposal | McpMappingsProposal | McpPlantProposal;
+  view: (r: Row, u: AuthUser) => McpCatalogueProposal | McpMappingsProposal | McpPlantProposal | McpDataProductsProposal;
   /** Applies what the reviewer accepted, as the reviewer; the result is stored with the request */
   apply: (r: Row, selection: McpProposalSelection | undefined, u: AuthUser) => { body: unknown; error?: string };
   /**

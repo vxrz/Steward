@@ -230,9 +230,19 @@ export const costPriceTools: ToolDef[] = [
     name: 'calculate_cost_estimate',
     title: 'Calculate a cost estimate (dry run)',
     description: `A dry run with your books and rights that stores nothing: up to ${COST_ESTIMATE_LIMITS.variants} variants (two architectures, one warehouse size against another, a list book against a contracted one), each a calculator with inputs (values, or ranges {low, expected, high} for numbers) and/or lines by hand (provider, SKU, quantity, unit), an optional currency, book per provider and ad-hoc adjustments (a percentage −90…+500 or a fixed unit price for a line, each with a reason). Answers per variant the lines and totals (low, expected, high – a span of the inputs, not a probability) and how each price was found, and a comparison: each variant against the first per month and one-off, the cheapest per scenario, the lines that make the difference. ${COST_ESTIMATE_LIMITS.dryRunsPerMinute} calculations a minute per token (each variant counts); at most ${COST_CALCULATOR_LIMITS.timeoutMs} ms per calculation.`,
-    input: costDryRunInput,
+    input: costDryRunInput.extend({
+      compareWith: z
+        .object({
+          dataProductId: z.string().trim().min(1).max(200).describe('A data product (id or key) whose attributed costs to set beside the variants'),
+          environment: z.string().trim().max(60).optional().describe('Its environment (default: production first)'),
+          months: z.number().int().min(1).max(12).default(3).describe('Complete months to average'),
+        })
+        .strict()
+        .optional()
+        .describe('Data products module: compare the variants with what a similar product costs (its attributed costs and estimates)'),
+    }),
     visible,
-    handler: async (a, ctx) => {
+    handler: async ({ compareWith, ...a }, ctx) => {
       off();
       if (a.variants.some((v) => v.definition !== undefined))
         throw new ToolError('A calculator definition is tried in the editor of the app; name a calculator (calculatorId) or give lines by hand');
@@ -242,8 +252,20 @@ export const costPriceTools: ToolDef[] = [
         if (!r.allowed) throw new ToolError(`Rate limit of ${r.limit} calculations a minute reached – retry after ${r.retryAfterSeconds} s`);
       }
       try {
-        return await dryRun(a);
+        const result = await dryRun(a);
+        if (!compareWith) return result;
+        if (!moduleEnabled('dataProducts')) throw new ToolError('The data products module is switched off – compareWith needs it');
+        const { productComparison } = await import('../dataproducts/estimates.js');
+        const dataProduct = asTool(`Data product ${compareWith.dataProductId}`, () =>
+          productComparison(
+            compareWith.dataProductId,
+            { environment: compareWith.environment, months: compareWith.months },
+            result.variants.map((v) => ({ name: v.name, currency: v.result.currency, monthly: v.result.totals.monthly })),
+          ),
+        );
+        return { ...result, dataProduct };
       } catch (e) {
+        if (e instanceof ToolError) throw e;
         if (e instanceof HttpError && e.statusCode < 500) throw new ToolError(`${e.code ? `${e.code}: ` : ''}${e.message}`);
         throw e;
       }

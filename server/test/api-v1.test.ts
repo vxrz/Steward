@@ -636,6 +636,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   }
   for (const x of (await listAll('/data-elements', '/data-elements')).slice(0, 5)) await get('/data-elements/{elementId}', `/data-elements/${x.id}`);
   for (const x of await listAll('/data-objects', '/data-objects')) await get('/data-objects/{objectId}', `/data-objects/${x.id}`);
+  // phase 2: the data objects as an Ossie model (team scope: the token owner's objects)
+  await get('/data-objects/semantic-model', '/data-objects/semantic-model');
   // database schemas (#222): the demo database platform (read) and a system (a tbls import)
   for (const [kind, ids] of [
     ['platforms', (await listAll('/platforms', '/platforms?kind=database')).map((x) => x.id)],

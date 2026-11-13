@@ -104,7 +104,8 @@
     "kinds": {
       "catalogue": "Kontrollkatalog",
       "mappings": "Zuordnungen zu Kontrollen",
-      "plant": "Anlagenverzeichnis"
+      "plant": "Anlagenverzeichnis",
+      "dataProducts": "Datenprodukte"
     },
     "acceptProposal_one": "{{count}} Eintrag übernehmen",
     "acceptProposal_other": "{{count}} Einträge übernehmen",
@@ -277,5 +278,12 @@
     "warnings": "Warnungen",
     "checks": "Was Steward nach dem Übernehmen prüft",
     "result": "{{added}} ergänzt, {{changed}} geändert."
+  },
+  "dpProposal": {
+    "changes": "Was der Vorschlag hinzufügt und ändert",
+    "onlyAddChange": "Ein Vorschlag fügt nur hinzu und ändert – nichts wird entfernt. Beim Übernehmen wird er als Sie importiert, mit Ihren Rechten.",
+    "incomplete_one": "Der Assistent sendet diesen Vorschlag noch ({{n}} Teil bisher) – prüfen können Sie ihn, sobald der letzte Teil da ist.",
+    "incomplete_other": "Der Assistent sendet diesen Vorschlag noch ({{n}} Teile bisher) – prüfen können Sie ihn, sobald der letzte Teil da ist.",
+    "applied": "Übernommen: {{add}} hinzugefügt, {{change}} geändert"
   }
 }

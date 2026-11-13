@@ -12,6 +12,7 @@ import {
   type CostEstimateProposals,
   type CostEstimateSummary,
   type CostInputValue,
+  type CostEstimateTargetKind,
   type CostPlanTargetKind,
 } from '@sm/shared';
 import { z } from 'zod';
@@ -23,6 +24,8 @@ import { requireScope, scopeInfo, type ScopeInfo } from './access.js';
 import { catalogueOf, checkOwnerTarget, startMonth, targetOf, thisMonth, type OwnerRef } from './plans.js';
 import { bookRow, onVersionWritten, priceSight } from './price-books.js';
 import { onConditionsChanged } from './contract-conditions.js';
+import { moduleEnabled } from '../modules/registry.js';
+import { productVisibleTo } from '../dataproducts/access-lookup.js';
 import { calculateOne, viewResult, type StoredResult } from './pricing.js';
 import { listOnly, microsText, proposalsOf, SEE_ALL, type EstimateBasis, type PriceSight } from './estimate-model.js';
 
@@ -45,7 +48,7 @@ export interface EstimateRow {
   id: string;
   owner_kind: 'service' | 'platform';
   owner_id: string;
-  for_kind: CostPlanTargetKind | null;
+  for_kind: CostEstimateTargetKind | null;
   for_id: string | null;
   title: string;
   description: string;
@@ -97,13 +100,44 @@ const stored = (text: string | null): StoredResult | null => parseJson<StoredRes
 
 function forOf(r: EstimateRow): CostEstimate['for'] {
   if (!r.for_kind || !r.for_id) return null;
+  if (r.for_kind === 'dataProduct') return dataProductTarget(r.for_id);
   const cat = r.owner_kind === 'service' ? catalogueOf(r.owner_id) : { apps: new Set<string>(), systems: new Set<string>() };
   const t = targetOf(r.for_kind, r.for_id, cat);
   return t ? { kind: t.kind, id: t.id, name: t.name, visible: t.visible } : null;
 }
 
-function checkFor(o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | null): void {
-  checkOwnerTarget(o, t);
+function checkFor(o: OwnerRef, t: { kind: CostEstimateTargetKind; id: string } | null): void {
+  if (t?.kind === 'dataProduct') {
+    // a data product the editor may see (the module on and theirs to use), whoever owns the estimate
+    const x = dataProductTarget(t.id);
+    if (!x || !x.visible)
+      throw new HttpError(400, `Not a data product you may see: ${t.id}`, 'COST_PLAN_TARGET', {
+        kind: t.kind,
+      });
+    return;
+  }
+  checkOwnerTarget(o, t as { kind: CostPlanTargetKind; id: string } | null);
+}
+
+/**
+ * A data product as an estimate's target (ADR 0035 part 6): its name where the reader may see it – the module on and
+ * the product visible to them – else `visible: false` and no name (a product they may not see is never named).
+ */
+function dataProductTarget(id: string): CostEstimate['for'] {
+  if (!moduleEnabled('dataProducts')) return { kind: 'dataProduct', id, name: '', visible: false };
+  const row = db().get<{ id: string; name: string }>('SELECT id, name FROM dp_products WHERE id = ?', id);
+  if (!row) return { kind: 'dataProduct', id, name: '', visible: false };
+  const sees = dataProductVisible(row.id);
+  return { kind: 'dataProduct', id: row.id, name: sees ? row.name : '', visible: sees };
+}
+
+/** Whether the current reader may see the data product (its own rights, team scope and module access). */
+function dataProductVisible(id: string): boolean {
+  try {
+    return productVisibleTo(id);
+  } catch {
+    return false;
+  }
 }
 
 // ---------- reading ----------
@@ -172,8 +206,8 @@ export function allEstimates(q: { serviceId?: string; platformId?: string } = {}
   });
 }
 
-/** The estimates that name an application, system or platform the reader may see (its Costs and contracts panel). */
-export function estimatesFor(kind: CostPlanTargetKind, id: string): CostEstimateSummary[] {
+/** The estimates that name an application, system, platform or data product the reader may see (its costs panel or tab). */
+export function estimatesFor(kind: CostEstimateTargetKind, id: string): CostEstimateSummary[] {
   const rows = db().all<EstimateRow>('SELECT * FROM cost_estimates WHERE for_kind = ? AND for_id = ? ORDER BY title, id', kind, id);
   return summaries(rows, (r) => access(r));
 }
@@ -256,7 +290,7 @@ export function getEstimate(id: string): CostEstimate {
 
 // ---------- writing ----------
 
-function platformOf(o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | null): string | null {
+function platformOf(o: OwnerRef, t: { kind: CostEstimateTargetKind; id: string } | null): string | null {
   if (o.kind === 'platform') return o.id;
   return t?.kind === 'platform' ? t.id : null;
 }
@@ -660,8 +694,9 @@ export function confirmEstimateProposals(id: string, body: unknown): { added: nu
         x.fiscalYear,
         l.title,
         x.category,
-        o.kind === 'service' ? row.for_kind : null,
-        o.kind === 'service' ? row.for_id : null,
+        // a data product is no target of a plan line (showback, never chargeback – ADR 0036 part 11)
+        o.kind === 'service' && row.for_kind !== 'dataProduct' ? row.for_kind : null,
+        o.kind === 'service' && row.for_kind !== 'dataProduct' ? row.for_id : null,
         l.micros,
         row.currency,
         l.cadence,

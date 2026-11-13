@@ -58640,6 +58640,124 @@
         }
       }
     },
+    "/data-objects/semantic-model": {
+      "get": {
+        "operationId": "getDataObjectsSemanticModel",
+        "summary": "The data objects as an Apache Ossie semantic model",
+        "tags": [
+          "Data products"
+        ],
+        "description": "The business vocabulary of the data products module as an [Apache Ossie](https://github.com/apache/ossie) document: each data object the token owner may see a dataset with its key attributes as fields, relationships from attributes named after another object's key. JSON or YAML (`Accept: application/yaml` or `format=yaml`). Unlike /semantic-model it differs between tokens (team scope). See docs/DATA-PRODUCTS.md. Only while the data products module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "yaml"
+              ]
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "Response format; default from the Accept header (application/yaml or application/json), else JSON"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0.1.1",
+                "0.2.0.dev0"
+              ],
+              "default": "0.1.1"
+            },
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "description": "Apache Ossie revision: 0.1.1 (released, default) or 0.2.0.dev0 (in development)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Apache Ossie semantic model document (0.1.1: `semantic_model` array; 0.2.0.dev0: one model at the root)",
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "string",
+                      "enum": [
+                        "0.1.1",
+                        "0.2.0.dev0"
+                      ],
+                      "description": "Ossie specification version"
+                    },
+                    "semantic_model": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "datasets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string",
+                  "description": "The same document as YAML"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/data-objects/{objectId}": {
       "get": {
         "operationId": "getDataObject",

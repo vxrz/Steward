@@ -618,7 +618,7 @@
   },
   "allocations": {
     "title": "Geteilte Positionen",
-    "help": "Positionen, denen mehrere Produkte zugeordnet sind, werden nach der Regel ihres Plattformteams aufgeteilt – zu gleichen Teilen oder nach Gewicht. Nie mehr als 100 % einer Position; was kein Produkt übernimmt, bleibt unzugeordnet.",
+    "help": "Zeilen, die mehrere Produkte zuordnen, werden nach der Regel des Plattformteams aufgeteilt – gleich, nach Gewicht oder nach gemessener Nutzung. Nie mehr als 100 % einer Zeile; was kein Produkt übernimmt, ist nicht zugeordnet.",
     "equal": "Zu gleichen Teilen",
     "byWeight": "Nach Gewicht",
     "rule": "Regel",
@@ -629,7 +629,8 @@
     "over100": "Die Gewichte ergeben mehr als 100 %",
     "hiddenKept_one": "Das Gewicht von {{count}} Produkt, das Sie nicht sehen dürfen, bleibt, wie es ist.",
     "hiddenKept_other": "Die Gewichte von {{count}} Produkten, die Sie nicht sehen dürfen, bleiben, wie sie sind.",
-    "audit": "Wer die Plattform verwalten darf, legt die Aufteilung fest; sie steht im Audit-Protokoll."
+    "audit": "Wer die Plattform verwalten darf, legt die Aufteilung fest; sie steht im Audit-Protokoll.",
+    "measured": "Nach gemessener Nutzung"
   },
   "value": {
     "title": "Geschäftlicher Wert",
@@ -1228,7 +1229,7 @@
     "odps": "ODPS v1.0.0 (YAML)",
     "import": "Dateien importieren…",
     "importTitle": "Datenprodukte importieren",
-    "importIntro": "Dateien im Steward-Format – Domänen, Datenobjekte, Elemente und Produkte, als YAML oder JSON. Prüfen Sie zuerst die Vorschau; geschrieben wird erst beim Import.",
+    "importIntro": "Dateien im Format von Steward – Domänen, Datenobjekte, Elemente und Produkte, YAML oder JSON – sowie ODPS-v1-Dokumente (Open Data Product Standard), die als Produkte des Formats gelesen werden. Prüfen Sie zuerst die Vorschau; geschrieben wird erst beim Import.",
     "schema": "Dateiformat (JSON Schema)",
     "files": "Dateien",
     "filesHint": "Höchstens 500 Dateien und zusammen 8 MB.",
@@ -1237,11 +1238,13 @@
     "mode": "Modus",
     "modes": {
       "add": "Nur hinzufügen",
-      "update": "Hinzufügen und aktualisieren"
+      "update": "Hinzufügen und aktualisieren",
+      "replace": "Früheren Import ersetzen"
     },
     "modeHints": {
       "add": "Vorhandene Einträge bleiben, wie sie sind.",
-      "update": "Vorhandene Einträge übernehmen, was in den Dateien steht; was eine Datei auslässt, behält den Wert in Steward. Entfernt wird nichts."
+      "update": "Vorhandene Einträge übernehmen, was in den Dateien steht; was eine Datei auslässt, behält den Wert in Steward. Entfernt wird nichts.",
+      "replace": "Wie Hinzufügen und aktualisieren; zudem sind die Dateien der ganze frühere Import dieser Herkunft: Seine Einträge, die die Dateien nicht mehr enthalten, werden entfernt, ebenso Elemente, Ports, Schritte und Konsumenten der Produkte, die die Dateien auslassen. Was Sie nicht sehen dürfen, wird nie entfernt."
     },
     "preview": "Vorschau",
     "run": "Importieren",
@@ -1256,7 +1259,13 @@
       "unchanged_one": "{{count}} unverändert",
       "unchanged_other": "{{count}} unverändert",
       "skip_one": "{{count}} übersprungen",
-      "skip_other": "{{count}} übersprungen"
+      "skip_other": "{{count}} übersprungen",
+      "remove_one": "{{count}} zu entfernen",
+      "remove_other": "{{count}} zu entfernen",
+      "removedItems_one": "{{count}} Listeneintrag zu entfernen",
+      "removedItems_other": "{{count}} Listeneinträge zu entfernen",
+      "keptHidden_one": "{{count}} bleibt: für Sie nicht sichtbar",
+      "keptHidden_other": "{{count}} bleiben: für Sie nicht sichtbar"
     },
     "problems_one": "{{count}} Problem verhindert den Import",
     "problems_other": "{{count}} Probleme verhindern den Import",
@@ -1276,8 +1285,65 @@
       "add": "Hinzufügen",
       "change": "Ändern",
       "unchanged": "Unverändert",
-      "skip": "Überspringen"
-    }
+      "skip": "Überspringen",
+      "remove": "Entfernen"
+    },
+    "origin": "Herkunft",
+    "originHint": "Ein Name, unter dem der Import seine Einträge führt (zum Beispiel shop-catalogue) – ein späterer Import, der ihn ersetzt, nennt dieselbe Herkunft. Optional, außer zum Ersetzen.",
+    "originRequired": "Zum Ersetzen braucht es die Herkunft des früheren Imports.",
+    "originInvalid": "Buchstaben, Ziffern und . _ - : / – höchstens 100.",
+    "doneReplace": "Importiert: {{add}} hinzugefügt, {{change}} geändert, {{unchanged}} unverändert, {{remove}} entfernt, {{items}} Listeneinträge entfernt",
+    "odpsRead_one": "{{count}} ODPS-Dokument als Datenprodukt gelesen.",
+    "odpsRead_other": "{{count}} ODPS-Dokumente als Datenprodukte gelesen.",
+    "stepUp": "Der Import entfernt mehr als einen Eintrag oder Listeneintrag: Beim Import bestätigen Sie, dass Sie es sind."
+  },
+  "measured": {
+    "help": "Jedes Produkt übernimmt seine gemessene Nutzung der Zeile: Credits seiner Warehouses oder Query-Tags oder die in seine Topics geschriebenen Bytes – bewertet mit dem vertraglichen Preisbuch der Plattform, wo es einen Preis hat, sonst als Anteil am gesamten Gemessenen. Einmal täglich gelesen; zusammen nie mehr als die Zeile.",
+    "measure": "Was gemessen wird",
+    "measures": {
+      "snowflakeWarehouse": "Snowflake-Credits je Warehouse",
+      "snowflakeQueryTag": "Snowflake-Credits je Query-Tag",
+      "confluentTopic": "Confluent-Bytes je Topic"
+    },
+    "subjectsHint": {
+      "snowflakeWarehouse": "Seine Warehouses (Namen)",
+      "snowflakeQueryTag": "Seine Query-Tags",
+      "confluentTopic": "Seine Topics – keine: seine Topic-Elemente"
+    },
+    "hiddenKept_one": "Was für {{count}} Produkt gemessen wird, das Sie nicht sehen dürfen, bleibt unverändert.",
+    "hiddenKept_other": "Was für {{count}} Produkte gemessen wird, die Sie nicht sehen dürfen, bleibt unverändert.",
+    "priced": "mit dem Preisbuch bewertet",
+    "shareOfTotal": "Anteil am gesamten Gemessenen",
+    "readAt": "Gelesen {{at}}",
+    "notRead": "Noch nicht gelesen – der Job liest es innerhalb einer Stunde",
+    "pricing": {
+      "book": "mit dem Preisbuch der Plattform bewertet",
+      "share": "kein Preis: Anteil am gesamten Gemessenen"
+    },
+    "error": "Das letzte Lesen ist fehlgeschlagen: {{error}}"
+  },
+  "estimates": {
+    "title": "Geschätzt und zugeordnet",
+    "help": "Schätzungen für dieses Produkt (sie gehören zu einem Service oder einer Plattform, unter Kosten) neben dem, was ihm zugeordnet ist. Showback: Nichts wird verrechnet oder gebucht.",
+    "none": "Noch keine Schätzung gilt diesem Produkt – legen Sie unter Kosten bei einem Service oder einer Plattform eine an und nennen Sie dieses Produkt als ihren Gegenstand.",
+    "of": "{{owner}} · ab {{from}}",
+    "perMonth": "{{amount}} im Monat",
+    "atListPrice": "für Sie zum Listenpreis",
+    "atListPriceShort": "Listenpreis",
+    "table": "Geschätzt und zugeordnet je Monat",
+    "estimated": "Geschätzt",
+    "attributed": "Zugeordnet",
+    "difference": "Differenz",
+    "withinRange": "innerhalb der Spanne",
+    "above": "über der Schätzung",
+    "below": "unter der Schätzung"
+  },
+  "ossie": {
+    "menu": "Ossie-Export",
+    "label": "Die Datenobjekte als Apache-Ossie-Modell",
+    "yaml": "Ossie 0.1.1 als YAML",
+    "json": "Ossie 0.1.1 als JSON",
+    "dev": "Ossie 0.2.0.dev0 als YAML"
   },
   "quality": {
     "trend": {
