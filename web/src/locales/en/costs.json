@@ -1286,7 +1286,6 @@
     "bandsHint": "Committed amount per year and percentage: 0:0;100000:15;500000:25",
     "validFrom": "Valid from",
     "validTo": "Valid to",
-    "datePlaceholder": "YYYY-MM-DD",
     "note": "Note",
     "validRange": "{{from}} – {{to}}",
     "validTerm": "The contract's term",

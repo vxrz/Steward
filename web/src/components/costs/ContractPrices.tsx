@@ -430,14 +430,14 @@ export function ConditionsDialog({
                     </>
                   )}
                   <TextInput
+                    type="date"
                     label={t('conditions.validFrom')}
-                    placeholder={t('conditions.datePlaceholder')}
                     value={r.validFrom}
                     onChange={(e) => set(i, { validFrom: e.currentTarget.value })}
                   />
                   <TextInput
+                    type="date"
                     label={t('conditions.validTo')}
-                    placeholder={t('conditions.datePlaceholder')}
                     value={r.validTo}
                     onChange={(e) => set(i, { validTo: e.currentTarget.value })}
                   />

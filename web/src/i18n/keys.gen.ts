@@ -3690,7 +3690,6 @@ export interface Resources {
     'conditions.bandsHint': string;
     'conditions.validFrom': string;
     'conditions.validTo': string;
-    'conditions.datePlaceholder': string;
     'conditions.note': string;
     'conditions.validRange': string;
     'conditions.validTerm': string;

@@ -1286,7 +1286,6 @@
     "bandsHint": "Zugesagter Betrag je Jahr und Prozentsatz: 0:0;100000:15;500000:25",
     "validFrom": "Gültig ab",
     "validTo": "Gültig bis",
-    "datePlaceholder": "JJJJ-MM-TT",
     "note": "Notiz",
     "validRange": "{{from}} – {{to}}",
     "validTerm": "Die Laufzeit des Vertrags",
