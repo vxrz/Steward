@@ -75,6 +75,7 @@ export interface MeasuredAllocationRow {
   subjects: string;
   read_at: string | null;
   read_error: string | null;
+  updated_at: string;
   updated_by: string;
 }
 
@@ -308,7 +309,7 @@ async function readGroup(group: MeasuredAllocationRow[], now: number): Promise<v
   const ids = group.map((x) => x.id);
   try {
     // the person who last set the allocation (a platform manager) – their use right is checked before every read
-    const owner = [...group].sort((x, y) => (x.updated_by < y.updated_by ? -1 : 1))[0]!.updated_by;
+    const owner = [...group].sort((x, y) => (y.updated_at > x.updated_at ? 1 : y.updated_at < x.updated_at ? -1 : x.id < y.id ? -1 : 1))[0]!.updated_by;
     const kind = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', a.platform_id)?.kind ?? '';
     if (!MEASURE_PLATFORM_KINDS[measure].includes(kind)) throw new Error(`the platform is not of kind ${MEASURE_PLATFORM_KINDS[measure].join(' or ')}`);
     const readerId = measure === 'confluentTopic' ? confluentReader(a.platform_id, kind) : a.platform_id;

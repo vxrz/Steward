@@ -181,6 +181,21 @@ describe('Snowflake warehouses', () => {
     expect(al.measured.error).toBeNull();
   });
 
+  it('reads as the person who set an allocation of the measure last – not the first by name', async () => {
+    const { db } = await import('../src/db.js');
+    const row = db().get<{ id: string; updated_at: string; updated_by: string }>(
+      "SELECT id, updated_at, updated_by FROM dp_cost_allocations WHERE platform_id = ? AND match_value = 'MEAS-ACCT'",
+      snowflake,
+    )!;
+    // an earlier setter who is gone (first by name); the later one may still read
+    db().run('UPDATE dp_cost_allocations SET updated_by = ?, updated_at = ? WHERE id = ?', 'aaa-former-manager', '2020-01-01T00:00:00.000Z', row.id);
+    try {
+      expect((await read()).failed).toBe(0);
+    } finally {
+      db().run('UPDATE dp_cost_allocations SET updated_by = ?, updated_at = ? WHERE id = ?', row.updated_by, row.updated_at, row.id);
+    }
+  });
+
   it('without a price: each product’s share of the measured credits – never above the line, the rest not attributed', async () => {
     const { DEMO_WAREHOUSE_CREDITS } = await import('../src/mock/mockSnowflake.js');
     const total = Object.values(DEMO_WAREHOUSE_CREDITS).reduce((x, y) => x + y, 0);
