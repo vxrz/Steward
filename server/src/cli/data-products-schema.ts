@@ -2,8 +2,8 @@
  * Writes the JSON Schema (2020-12) of the data products file format to docs/data-products/data-products-1.schema.json,
  * or checks that the committed file is up to date (the tests check it too: dataproducts-transfer.test.ts).
  *
- *   npx tsx server/src/cli/data-products-schema.ts               write the file
- *   npx tsx server/src/cli/data-products-schema.ts --check       exit 1 when it is outdated
+ *   npm run data-products:schema                write the file
+ *   npm run data-products:schema -- --check     exit 1 when it is outdated
  */
 import fs from 'node:fs';
 import path from 'node:path';
