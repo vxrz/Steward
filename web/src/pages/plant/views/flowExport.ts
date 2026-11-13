@@ -108,7 +108,7 @@ export function flowSvg(
               n.detail,
               (count) => `(+${count})`,
               (line, max) => clip(line, max),
-            ).replace('\n', ' '),
+            ).replace(/\n/g, ' '),
           )}</text>`
         : '',
       `<text x="${p.x + 14}" y="${p.y + p.h - 14}" font-size="10.5" fill="${n.live ? live[n.live.state] : n.checks.length ? problem : th.dimmed}">${escapeXml(clip(o.status(n), 38))}</text>`,
