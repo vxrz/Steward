@@ -8,6 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **The _Access_ tab: share an item with a user, a team or a role** ([docs/TEAMS.md](docs/TEAMS.md#sharing-the-access-tab), [ADR 0033](docs/adr/0033-one-access-model.md)): _Shared with_ gives View, Edit or Manage, the kind's action rights and an optional end date; the scope can be Restricted; owners show as an implied Edit share. Before saving it says who gains and who loses what, giving access asks for the step-up, and _Why do I have access?_ names the share. Shares with users or teams the reader may not see are counted, not named, and kept (`GET|PUT /api/access/:kind/:id/shares`, `PUT …/scope`, `POST …/preview`, signed-in sessions only).
 - **The plan line dialog says that a line needs no contract** ([docs/COSTS.md](docs/COSTS.md#planning-per-service)): a licence to buy later or a renewal still to be negotiated is a plan line without supplier and contract; the contract is chosen once it exists.
 
 ### Changed

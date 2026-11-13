@@ -151,6 +151,8 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   supplier: ['Supplier not found', 'SUPPLIER_NOT_FOUND'],
 };
 const notFound = (kind: OwnedKind, id: string) => new HttpError(404, NOT_FOUND[kind][0], NOT_FOUND[kind][1], { id });
+/** 404 for an item of a kind, like one that does not exist (the Access tab's routes, auth/share-routes.ts). */
+export const resourceNotFound = notFound;
 
 /** The resource, if the caller may see it (404 otherwise, like one that does not exist). */
 function visible(kind: OwnedKind, id: string): ResourceRow {

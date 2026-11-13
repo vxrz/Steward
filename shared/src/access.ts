@@ -77,3 +77,79 @@ export type ShareInput = z.input<typeof shareInputSchema>;
 
 /** The whole list of a resource's shares (it replaces the stored one). */
 export const sharesInputSchema = z.object({ shares: z.array(shareInputSchema).max(SHARE_LIMIT) });
+
+/** A resource's scope (ADR 0033 part 1): the whole instance, its owning teams, or only its shares (Restricted). */
+export const SHARE_SCOPES = ['instance', 'teams', 'restricted'] as const;
+export type ShareScope = (typeof SHARE_SCOPES)[number];
+
+/** A share as the Access tab lists it. */
+export interface ShareView extends ResourceShare {
+  /** Whether the user or team exists (a deleted team or a removed user stays an entry that matches nobody) */
+  known: boolean;
+}
+
+/**
+ * A share implied by a field of the item (ADR 0033 part 2): an owner has Edit, computed from the owner field when the
+ * item is read, never stored. Not removable on the Access tab: removing the owner removes it.
+ */
+export interface ImpliedShare {
+  subject: string;
+  level: ShareLevel;
+  as: 'owner' | 'responsible';
+  /** From outside the owning teams (or on a Restricted item): naming it was a widening, confirmed with the step-up */
+  outside: boolean;
+}
+
+/** What someone holds on an item in share terms: `'all'` for administrators. */
+export type HeldShareView = 'all' | { level: ShareLevel | null; actions: ShareAction[] };
+
+/** GET /api/access/:kind/:id/shares – the Access tab of an item (ADR 0033 part 7). */
+export interface ResourceAccessView {
+  kind: OwnedKind;
+  id: string;
+  name: string;
+  scope: ShareScope;
+  owningTeams: { id: string; name: string }[];
+  restricted: boolean;
+  /**
+   * The shares, for Manage holders, administrators and auditors; null for everyone else (they see only their own
+   * reasons, in Why do I have access?)
+   */
+  shares: ShareView[] | null;
+  /** Shares whose subject the reader may not see: counted, not named, and kept when the list is saved */
+  hidden: number;
+  /** Shares implied by owners (and responsibles) – read-only */
+  implied: ImpliedShare[];
+  /** The action rights the kind offers beside the level */
+  actions: ShareAction[];
+  /** What the reader holds: nobody shares more (administrators: all) */
+  held: HeldShareView;
+  /** Whether the reader may change the shares (Manage) */
+  canManage: boolean;
+  /** Whether the reader may switch Restricted (administrators; on some kinds the Manage holders, decision 15) */
+  canRestrict: boolean;
+  /** The latest end date a share may get now (ISO) */
+  maxEnd: string;
+}
+
+/** POST /api/access/:kind/:id/preview – a change of shares or scope, nothing stored. */
+export const accessPreviewSchema = z.object({
+  shares: z.array(shareInputSchema).max(SHARE_LIMIT).optional(),
+  restricted: z.boolean().optional(),
+});
+export type AccessPreviewInput = z.input<typeof accessPreviewSchema>;
+
+/** A subject and the rights a change gives it or takes from it (`view`, `edit`, `manage`, action rights, `extended`, `roleDefaults`). */
+export interface AccessChangeLine {
+  subject: string;
+  rights: string[];
+}
+
+/** The answer of the preview: who gains what (a widening asks for the step-up) and who loses what (confirmed). */
+export interface AccessPreview {
+  gains: AccessChangeLine[];
+  losses: AccessChangeLine[];
+}
+
+/** PUT /api/access/:kind/:id/scope */
+export const accessScopeSchema = z.object({ restricted: z.boolean() });

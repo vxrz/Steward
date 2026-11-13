@@ -1371,6 +1371,7 @@
     "SUPPLIER_CONTRACT_PLATFORM_NOT_FOUND": "The contract does not cover this platform (any more).",
     "SUPPLIER_CONTRACT_PLATFORM_HAS_SCHEDULES": "The platform pays {{count}} payment schedules of this contract ({{schedules}}). Move or remove them first.",
     "SHARE_SUBJECT_UNSUITABLE": "{{subject}} cannot be given a share of this item: status viewers get none, plant viewers only on the plant registry.",
+    "SHARE_SUBJECT_UNSUITABLE_module": "This item cannot be shared with {{subject}}: they do not use its module. An administrator can give them access to the module.",
     "SHARE_EXCEEDS_OWN_RIGHTS": "You cannot share more than you hold yourself ({{subject}}).",
     "SHARE_EXPIRY_INVALID": "The end date of a share must be in the future and at most a year ahead.",
     "SHARE_ACTION_UNKNOWN": "This kind of item has no right “{{action}}” to share."
