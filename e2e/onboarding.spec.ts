@@ -136,20 +136,21 @@ test('Kafka topics by prefix: list, add with an environment, keep in sync', asyn
     await page.getByTestId('add-topics-by-prefix').click();
     const dialog = page.getByRole('dialog', { name: 'Add Kafka topics by prefix' });
     await chooseOption(page, 'Kafka platform', 'Kafka (demo)');
-    await dialog.getByTestId('topic-prefix-input').fill('or');
+    // payments: the only topic of its prefix (the demo's data products add orders.v1 beside orders)
+    await dialog.getByTestId('topic-prefix-input').fill('pa');
     await dialog.getByTestId('topic-prefix-list').click();
     const topics = dialog.getByTestId('topic-prefix-topics');
-    await expect(topics).toContainText('1 topic starts with “or”');
-    await expect(topics.getByRole('checkbox', { name: 'orders' })).toBeChecked();
+    await expect(topics).toContainText('1 topic starts with “pa”');
+    await expect(topics.getByRole('checkbox', { name: 'payments' })).toBeChecked();
     await topics.getByRole('switch', { name: 'Keep in sync' }).check();
     await expectAccessible(page, 'topics by prefix');
     await dialog.getByTestId('topic-prefix-add').click();
     await expect(dialog).toBeHidden();
     const panel = page.getByTestId('application-components');
-    await expect(panel.getByText('orders', { exact: true })).toBeVisible();
-    await expect(page.getByTestId('topic-offers')).toContainText('Kept in sync: or');
+    await expect(panel.getByText('payments', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('topic-offers')).toContainText('Kept in sync: pa');
     const syncs = await json<{ prefix: string }[]>(await api.get(`/api/applications/${app.id}/topic-prefixes`));
-    expect(syncs.map((x) => x.prefix)).toEqual(['or']);
+    expect(syncs.map((x) => x.prefix)).toEqual(['pa']);
   } finally {
     await api.delete(`/api/applications/${app.id}`).catch(() => undefined);
   }

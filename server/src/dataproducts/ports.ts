@@ -71,10 +71,10 @@ function contractRefs(u: AuthUser | null, ids: string[]): Map<string, DataRef> {
 
 const objectives = (s: string): DataObjectives => parseJson<DataObjectives>(s, {});
 
-/** The ports of a product with bindings, contracts, objects, consumer counts and sources (bulk: a fixed number of statements). */
 /**
- * The ports of a product as `u` sees them. `known`: data object rows the caller read already (the product page's rating
- * floor reads the exposed ones) – only the others are read here.
+ * The ports of a product with bindings, contracts, objects, consumer counts and sources (bulk: a fixed number of
+ * statements), as `u` sees them. `known`: data object rows the caller read already (the product page's rating floor
+ * reads the exposed ones) – only the others are read here.
  */
 export function portViews(u: AuthUser | null, productId: string, known?: ReadonlyMap<string, ObjectRow>): DataPort[] {
   const ports = portsOf([productId]);
