@@ -1,15 +1,25 @@
-import { useState, type ReactNode } from 'react';
-import { Anchor, Badge, Button, Group, Paper, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { useQuery } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
+import { Anchor, Badge, Button, Group, MultiSelect, Paper, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconCircleCheck, IconCircleDashed, IconCircleX, IconEyeOff, IconNetwork } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { LinkKind, LinkTarget, LiveState, PlantItemRef, PlantLiveStatus, PlantSiteNetwork, SecurityLevel, ZoneCriticality } from '@sm/shared';
+import type {
+  LinkKind,
+  LinkTarget,
+  LiveState,
+  PlantItemRef,
+  PlantLiveStatus,
+  PlantSiteNetwork,
+  PlantZoneView,
+  SecurityLevel,
+  ZoneCriticality,
+} from '@sm/shared';
 import { get } from '../../api';
 import { TONE } from '../common';
 import { fmtDate } from '../../format';
 import { plantKeys } from '../../queryKeys';
+import { useRemoteSelect } from '../remoteSelect';
 
 /** A labelled value in the network's cards (the text in the size of the card's). */
 export function NetField({ label, children }: { label: string; children: ReactNode }) {
@@ -268,7 +278,8 @@ export function SiteNetworkCard({ siteId }: { siteId: string }) {
 /**
  * A Steward item to pick (a system, application, platform, process or monitor): searched as one types, through the
  * link targets the reader may see. `keep` is the current value with its label, so an item the reader no longer finds
- * stays selected.
+ * stays selected. The selected item's label is never a search, and every item keeps one label (remoteSelect.ts) – the
+ * field does not flicker between "Gateway" and "Gateway (server)" while nothing is typed.
  */
 export function ItemSelect({
   kind,
@@ -293,15 +304,15 @@ export function ItemSelect({
   error?: ReactNode;
   testId?: string;
 }) {
-  const [search, setSearch] = useState('');
-  const [debounced] = useDebouncedValue(search, 250);
+  // the fallback label belongs to its id only (a transfer removed above must not lend its peer's name to the next)
+  const pick = useRemoteSelect({ value, fallback: (id) => (keep?.id === id ? keep.label : null) });
   const q = useQuery({
-    queryKey: ['link-targets', kind, debounced],
-    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}&limit=50`),
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}&limit=50`),
+    placeholderData: keepPreviousData,
   });
   const found = (q.data ?? []).filter((x) => !filter || filter(x));
-  const options = found.map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label }));
-  if (value && !options.some((o) => o.value === value)) options.unshift({ value, label: keep?.label || value });
+  const options = pick.options(found.map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })));
   return (
     <Select
       label={label}
@@ -312,11 +323,79 @@ export function ItemSelect({
       searchable
       clearable={!required}
       required={required}
-      onSearchChange={setSearch}
+      searchValue={pick.search}
+      onSearchChange={pick.setSearch}
       nothingFoundMessage="–"
       error={error}
       data-testid={testId}
       comboboxProps={{ withinPortal: true }}
     />
+  );
+}
+
+/**
+ * Several Steward items to pick (0.20: the systems or platforms of a zone), searched as one types through the link
+ * targets the reader may see; `known` names the items already chosen. Items the reader may not see are not in `value`
+ * – the form says how many there are, and the server keeps them.
+ */
+export function ItemMultiSelect({
+  kind,
+  value,
+  onChange,
+  label,
+  description,
+  known,
+  testId,
+}: {
+  kind: LinkKind;
+  value: string[];
+  onChange: (v: string[]) => void;
+  label: ReactNode;
+  description?: ReactNode;
+  known?: { id: string; label: string }[];
+  testId?: string;
+}) {
+  const pick = useRemoteSelect({ value, fallback: (id) => known?.find((x) => x.id === id)?.label ?? null });
+  const q = useQuery({
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}&limit=50`),
+    placeholderData: keepPreviousData,
+  });
+  const options = pick.options((q.data ?? []).map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })));
+  return (
+    <MultiSelect
+      label={label}
+      description={description}
+      data={options}
+      value={value}
+      onChange={onChange}
+      searchable
+      clearable
+      searchValue={pick.search}
+      onSearchChange={pick.setSearch}
+      nothingFoundMessage="–"
+      data-testid={testId}
+      comboboxProps={{ withinPortal: true }}
+    />
+  );
+}
+
+/** The systems and platforms a zone lists (0.20): by name where the reader may see them, the others counted. */
+export function ZoneItems({ zone }: { zone: Pick<PlantZoneView, 'items' | 'hiddenItems'> }) {
+  const { t } = useTranslation('plantNetwork');
+  return (
+    <Group gap={6} wrap="wrap" component="span" data-testid="zone-items">
+      {zone.items.map((x, i) => (
+        <Text key={`${x.kind}:${x.id}`} span size="sm">
+          <ItemRefView item={x} />
+          {i < zone.items.length - 1 || zone.hiddenItems ? ',' : ''}
+        </Text>
+      ))}
+      {zone.hiddenItems > 0 && (
+        <Text span size="sm" c="dimmed">
+          {t('zone.hiddenItems', { count: zone.hiddenItems })}
+        </Text>
+      )}
+    </Group>
   );
 }

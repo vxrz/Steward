@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Anchor, Badge, Button, Grid, Group, List, Modal, Paper, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { Anchor, Badge, Button, Grid, Group, List, Paper, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconArrowBackUp, IconDownload, IconEdit, IconEyeOff, IconFile, IconHierarchy2, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -52,6 +52,7 @@ import { CollapsibleSection, SectionGroup, SectionGroupControls } from '../compo
 import { DescribedText, DescriptionModal } from '../components/plant/describe';
 import { OpenChangesChip, ProposeEditButton, saveOrDraft } from '../components/plant/changes/common';
 import { CatalogueTabPage, CatalogueTabs } from './plant/views/tabs';
+import { FormModal as GuardedModal } from '../components/FormModal';
 
 /** Where an interface or data point of a derived profile comes from (0.11.0); nothing on a profile without a base. */
 function OriginBadge({ origin, derived, nameOf }: { origin: PlantModelOrigin | undefined; derived: boolean; nameOf: (id: string) => string }) {
@@ -769,7 +770,7 @@ function GroupModal({
   const [busy, setBusy] = useState(false);
   const error = !name.trim() ? t('common:validation.required') : taken.includes(name.trim()) ? t('data.groupTaken') : undefined;
   return (
-    <Modal opened onClose={onClose} title={t('data.editGroup', { name: name0 })}>
+    <GuardedModal onClose={onClose} title={t('data.editGroup', { name: name0 })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -804,6 +805,6 @@ function GroupModal({
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>
-    </Modal>
+    </GuardedModal>
   );
 }

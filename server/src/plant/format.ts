@@ -659,6 +659,14 @@ export const zoneSchema = z
       .optional()
       .describe('Where the zone sits in the Purdue levels, bottom to top; leave it out and the diagram derives one'),
     vlans: z.array(id).max(NL.vlansPerZone).optional().describe('The VLANs in the zone (ids of VLANs of the site)'),
+    systems: z
+      .array(z.string().min(1).max(100))
+      .max(NL.itemsPerZone)
+      .optional()
+      .describe(
+        'Steward systems in the zone (ids) – cloud services and enterprise systems without a VLAN of the site; the same system may be in zones of several sites',
+      ),
+    platforms: z.array(z.string().min(1).max(100)).max(NL.itemsPerZone).optional().describe('Steward platforms in the zone (ids), as systems'),
     owner: short,
     sl_t: z
       .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
@@ -742,8 +750,15 @@ export const dataPathSchema = z
         z
           .object({
             protocol: z.string().min(1).max(60),
-            mode: z.enum(TRANSFER_MODES),
-            peer_kind: z.enum(PEER_KINDS).optional().describe('device (of the asset), system (a Steward system) or other (default)'),
+            mode: z
+              .enum(TRANSFER_MODES)
+              .describe(
+                'Seen from the collector: pull (it fetches from the peer – a source), push (it sends to the peer – a target) or receive (the peer sends to it – a source)',
+              ),
+            peer_kind: z
+              .enum(PEER_KINDS)
+              .optional()
+              .describe('device (of the asset), system, application or platform (a Steward item, by id) or other (default)'),
             peer: short,
             port: z.number().int().min(1).max(65535).nullable().optional(),
             notes: text(500),
@@ -756,7 +771,7 @@ export const dataPathSchema = z
       .array(
         z
           .object({
-            kind: z.enum(DESTINATION_KINDS).optional().describe('system, dataset or other (default)'),
+            kind: z.enum(DESTINATION_KINDS).optional().describe('system, application or platform (a Steward item, by id), dataset (a key) or other (default)'),
             ref: z.string().min(1).max(NL.text),
             path: text(500),
             notes: text(500),

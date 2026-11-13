@@ -58,16 +58,35 @@ export const DEVICE_FLAG_SUGGESTIONS = ['device_ordered', 'port_ordered', 'addre
 export const COLLECTOR_KINDS = ['application', 'platform', 'process', 'job'] as const;
 export type CollectorKind = (typeof COLLECTOR_KINDS)[number];
 
-export const TRANSFER_MODES = ['push', 'pull'] as const;
+/**
+ * How a transfer moves the data, seen from the collector: `pull` – the collector fetches it from the peer (the peer is
+ * a source); `push` – the collector sends it to the peer (the peer is a target, like a destination); `receive` (0.20) –
+ * the peer sends it to the collector (a PLC or HMI publishing over MQTT to a gateway; the peer is a source).
+ */
+export const TRANSFER_MODES = ['pull', 'push', 'receive'] as const;
 export type TransferMode = (typeof TRANSFER_MODES)[number];
 
-/** The other end of a transfer: a device of the asset, a Steward system (a host) or something else (text). */
-export const PEER_KINDS = ['device', 'system', 'other'] as const;
+/** Modes whose peer is where the data comes from (the others send to their peer). */
+export const SOURCE_MODES: readonly TransferMode[] = ['pull', 'receive'];
+
+/**
+ * The other end of a transfer: a device of the asset, a Steward system (a host), application (InfluxDB on the gateway)
+ * or platform (Insights Hub – 0.20) or something else (text).
+ */
+export const PEER_KINDS = ['device', 'system', 'application', 'platform', 'other'] as const;
 export type PeerKind = (typeof PEER_KINDS)[number];
 
-/** Where a data path's data ends up: a Steward system (host), a Steward dataset or something else (text). */
-export const DESTINATION_KINDS = ['system', 'dataset', 'other'] as const;
+/**
+ * Where a data path's data ends up: a Steward system (host), application or platform (0.20), a Steward dataset or
+ * something else (text).
+ */
+export const DESTINATION_KINDS = ['system', 'application', 'platform', 'dataset', 'other'] as const;
 export type DestinationKind = (typeof DESTINATION_KINDS)[number];
+
+/** The kinds of Steward items a data path reads from and writes to: chains are followed through them (0.20). */
+export const PATH_ITEM_KINDS = ['system', 'application', 'platform'] as const;
+export type PathItemKind = (typeof PATH_ITEM_KINDS)[number];
+const isPathItem = (k: string): k is PathItemKind => (PATH_ITEM_KINDS as readonly string[]).includes(k);
 
 /** Live status of an asset or device: only linked checks set it. */
 export const LIVE_STATES = ['online', 'offline', 'unknown'] as const;
@@ -111,6 +130,8 @@ export const PLANT_NETWORK_LIMITS = {
   ranges: 64,
   sites: 50,
   vlansPerZone: 200,
+  /** Steward systems, and platforms, a zone lists (0.20) */
+  itemsPerZone: 200,
   devicesPerPath: 100,
   protocols: 30,
   controls: 30,
@@ -182,6 +203,14 @@ export interface PlantZoneValues {
   level: ZoneLevel | null;
   /** VLANs in the zone (ids of VLANs of the site) */
   vlans: string[];
+  /**
+   * Steward systems in the zone (0.20) – cloud services and enterprise systems without a VLAN of the site; the same
+   * system may be in zones of several sites. A view lists only those the reader may see (and counts the others); a
+   * save keeps the ones the caller may not see.
+   */
+  systems: string[];
+  /** Steward platforms in the zone (0.20: an IoT platform in the External zone), as `systems` */
+  platforms: string[];
   owner: string;
   /** IEC 62443-3-2 target security level SL-T (1–4); null: open until a risk assessment sets it */
   slTarget: SecurityLevel | null;
@@ -354,6 +383,10 @@ export interface PlantVlanView extends PlantVlanValues, PlantSource {
 export interface PlantZoneView extends PlantZoneValues, PlantSource {
   conduits: string[];
   deviceCount: number;
+  /** The systems and platforms in it the reader may see, by name (0.20) */
+  items: PlantItemRef[];
+  /** How many systems and platforms in it the reader may not see: counted, never named */
+  hiddenItems: number;
 }
 
 export interface PlantConduitView extends PlantConduitValues, PlantSource {
@@ -371,13 +404,40 @@ export interface PlantDeviceView extends PlantDeviceValues, PlantSource {
   hints: ('vlan_missing' | 'address_outside' | 'address_blocked')[];
 }
 
+/**
+ * The Steward items a data path reads from and writes to (0.20, docs/PLANT.md#chains-of-data-paths), as
+ * `<kind>:<id>` (a system, application or platform): it reads from the items its pull and receive transfers name, and
+ * – only when it has no pull or receive transfer – from the system its collector runs on (a job that archives what
+ * lands on a file share runs on that share); it writes to the items its push transfers name and to its destinations.
+ * Two paths that only write into the same item share nothing: chains run from a writer to a reader, item by item (an
+ * application is not the system it runs on).
+ */
+export function dataPathEnds(p: Pick<PlantDataPathValues, 'collector' | 'transfers' | 'destinations'>): { from: string[]; to: string[] } {
+  const from: string[] = [];
+  const to: string[] = [];
+  const add = (list: string[], key: string) => {
+    if (!list.includes(key)) list.push(key);
+  };
+  let sourced = false;
+  for (const t of p.transfers) {
+    const source = SOURCE_MODES.includes(t.mode);
+    if (source) sourced = true;
+    if (isPathItem(t.peerKind) && t.peer) add(source ? from : to, `${t.peerKind}:${t.peer}`);
+  }
+  if (!sourced && p.collector?.host) add(from, `system:${p.collector.host}`);
+  for (const d of p.destinations) if (isPathItem(d.kind) && d.ref) add(to, `${d.kind}:${d.ref}`);
+  return { from, to };
+}
+
 export interface PlantPathLink {
   assetId: string;
   assetName: string;
   pathId: string;
   subject: string;
-  /** The host they share */
+  /** The Steward item they share (its id) */
   via: string;
+  /** Its kind (0.20): a system, application or platform */
+  viaKind: PathItemKind;
 }
 
 export interface PlantDataPathView extends PlantDataPathValues, PlantSource {
@@ -385,9 +445,9 @@ export interface PlantDataPathView extends PlantDataPathValues, PlantSource {
   assetName: string;
   collectorRef: PlantItemRef | null;
   collectorHost: PlantItemRef | null;
-  /** Per transfer: its peer when it is a system */
+  /** Per transfer: its peer when it is a system, application or platform */
   peers: (PlantItemRef | null)[];
-  /** Per destination: the system or dataset */
+  /** Per destination: the system, application, platform or dataset */
   targets: (PlantItemRef | null)[];
   /** Data paths that read from a host this one writes to (the next link of a chain; at most `chainLinks`) */
   next: PlantPathLink[];

@@ -12,11 +12,13 @@ import type {
   PlantSiteNetwork,
   ZoneLevelOf,
 } from '@sm/shared';
+import { SOURCE_MODES } from '@sm/shared';
 
 /**
  * The OT network of a site (#220) as a graph (#230, view 5): IEC 62443-3-2 zones as areas, the IEEE 802.1Q VLANs in
  * them as areas, the assets on their VLANs (their devices on hover), the conduits between the zones, and the data
- * paths – from where the data comes, over the collector and the parties it pushes to, to its destinations. A way from
+ * paths – from where the data comes (what the collector pulls from or receives from), over the collector, to the parties
+ * it pushes to and its destinations. A way from
  * one zone into another runs through the conduit between them; one without a documented conduit says so.
  *
  * Status only from what #220 links: an asset's live status comes from its checks and those of its devices – a part
@@ -38,7 +40,10 @@ export interface NetworkWords {
   /** A zone's level: its own, or derived for the diagram */
   level: (l: ZoneLevelOf) => string;
   /** info labels */
-  label: Record<'devices' | 'subnets' | 'owner' | 'vlans' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level', string>;
+  label: Record<
+    'devices' | 'subnets' | 'owner' | 'vlans' | 'items' | 'protocols' | 'controls' | 'assessment' | 'managedBy' | 'segment' | 'restricted' | 'level',
+    string
+  >;
   yes: string;
   hidden: string;
   noVlan: string;
@@ -82,6 +87,11 @@ export function networkGraph(
   const zoneOfVlan = new Map<string, string>();
   for (const z of n.zones) for (const v of z.vlans) if (!zoneOfVlan.has(v) && vlanById.has(v)) zoneOfVlan.set(v, z.id);
   const hostVlan = new Map((placement?.hosts ?? []).map((h) => [h.id, h.vlans[0]]));
+  // 0.20: a system without a VLAN of the site stands in a zone that lists it; an application with the system it runs
+  // on; a platform in a zone that lists it
+  const hostZone = new Map((placement?.hosts ?? []).map((h) => [h.id, h.zones?.[0]]));
+  const appSystem = new Map((placement?.applications ?? []).map((a) => [a.id, a.system]));
+  const platformZone = new Map((placement?.platforms ?? []).map((x) => [x.id, x.zones[0]]));
   // an asset is drawn on the VLAN of its first device that has one
   const assetVlan = new Map<string, string>();
   for (const d of n.devices) if (d.vlan && vlanById.has(d.vlan) && !assetVlan.has(d.assetId)) assetVlan.set(d.assetId, d.vlan);
@@ -99,6 +109,15 @@ export function networkGraph(
       info: [
         ...(levels?.has(z.id) ? [{ label: w.label.level, value: w.level(levels.get(z.id)!) }] : []),
         { label: w.label.vlans, value: z.vlans.map((v) => vlanById.get(v)?.name ?? v).join(', ') || '–' },
+        // 0.20: the systems and platforms it lists – those the reader may not see counted, never named
+        ...((z.items?.length ?? 0) || z.hiddenItems
+          ? [
+              {
+                label: w.label.items,
+                value: [...(z.items ?? []).map((x) => x.label || x.id), ...(z.hiddenItems ? [`${w.hidden}: ${z.hiddenItems}`] : [])].join(', '),
+              },
+            ]
+          : []),
         ...(z.owner ? [{ label: w.label.owner, value: z.owner }] : []),
         ...(z.riskAssessment ? [{ label: w.label.assessment, value: [z.riskAssessment, z.assessedAt].filter(Boolean).join(' · ') }] : []),
         { label: w.label.devices, value: String(z.deviceCount) },
@@ -205,6 +224,11 @@ export function networkGraph(
     return undefined;
   };
   const vlanParent = (vlan: string | undefined) => (vlan && nodes.has(`vlan:${vlan}`) && nodes.get(`vlan:${vlan}`)!.group ? `vlan:${vlan}` : undefined);
+  const zoneParent = (zone: string | undefined) => (zone && nodes.has(`zone:${zone}`) ? `zone:${zone}` : undefined);
+  /** Where a system stands: on a VLAN of its segment, else in a zone that lists it, else outside (undefined) */
+  const hostParent = (id: string | null | undefined) => (id ? (vlanParent(hostVlan.get(id)) ?? zoneParent(hostZone.get(id))) : undefined);
+  const itemParent = (kind: string, id: string) =>
+    kind === 'application' ? hostParent(appSystem.get(id)) : kind === 'platform' ? zoneParent(platformZone.get(id)) : undefined;
   const host = (ref: PlantItemRef | null, id: string) =>
     node({
       id: `host:${id}`,
@@ -213,7 +237,7 @@ export function networkGraph(
       hidden: !ref?.visible,
       detail: '',
       path: ref?.path ?? null,
-      parent: vlanParent(hostVlan.get(id)),
+      parent: hostParent(id),
     });
   const peer = (text: string) => node({ id: `peer:${norm(text)}`, kind: 'peer', label: text || '–', detail: '', path: null, small: true });
   const worst = (a: LiveState | null | undefined, b: LiveState | null | undefined): LiveState | null => {
@@ -237,6 +261,38 @@ export function networkGraph(
     }
     return id;
   };
+  /** The collector of a data path as a part (one per collector, whichever data paths name it) */
+  const collectorNode = (dp: PlantDataPathView): string | null => {
+    const c = dp.collector;
+    if (!c) return null;
+    const hostRef = dp.collectorHost;
+    return node({
+      id: `col:${c.kind}:${norm(c.ref)}`,
+      kind: 'collector',
+      label: dp.collectorRef?.visible === false ? '' : dp.collectorRef?.label || c.ref,
+      hidden: dp.collectorRef?.visible === false,
+      detail: [w.collectorKind(c.kind), hostRef ? w.on(hostRef.visible ? hostRef.label : w.hidden) : ''].filter(Boolean).join(' · '),
+      path: dp.collectorRef?.path ?? null,
+      // on the system it runs on; an application or platform without one where it stands itself
+      parent: c.host ? hostParent(c.host) : itemParent(c.kind, c.ref),
+    });
+  };
+  /**
+   * A Steward application or platform a data path pushes to, reads from or delivers to (0.20): one part with the
+   * collector of the same item, so a chain through it stays one picture
+   */
+  const stewardItem = (kind: 'application' | 'platform', item: PlantItemRef | null, id: string) =>
+    node({
+      id: `col:${kind}:${norm(id)}`,
+      kind,
+      label: item?.visible ? item.label || id : '',
+      hidden: !item?.visible,
+      detail: '',
+      path: item?.path ?? null,
+      parent: itemParent(kind, id),
+    });
+  // collectors first: an application that collects for one path and receives from another is drawn as its collector
+  for (const dp of n.dataPaths as PlantDataPathView[]) if (nodes.has(`asset:${dp.assetId}`)) collectorNode(dp);
   for (const dp of n.dataPaths as PlantDataPathView[]) {
     const pid = `${dp.assetId}/${dp.id}`;
     const asset = `asset:${dp.assetId}`;
@@ -279,40 +335,34 @@ export function networkGraph(
       }
       touch(to);
     };
-    const party = (kind: 'device' | 'system' | 'other', ref: string, item: PlantItemRef | null) =>
-      kind === 'device' ? asset : kind === 'system' ? host(item, ref) : peer(ref);
-    // where the data comes from: what the collector pulls from (devices are the asset), else the asset itself
-    const pulls = dp.transfers.map((t, i) => ({ t, i })).filter((x) => x.t.mode === 'pull');
-    const sources = pulls.map((x) => ({ id: party(x.t.peerKind, x.t.peer, dp.peers[x.i] ?? null), label: transferLabel(x.t, w) }));
-    if (!sources.some((s) => s.id === asset) && (!pulls.length || dp.devices.length)) sources.unshift({ id: asset, label: '' });
+    const party = (kind: PlantDataPathView['transfers'][number]['peerKind'], ref: string, item: PlantItemRef | null) =>
+      kind === 'device'
+        ? asset
+        : kind === 'system'
+          ? host(item, ref)
+          : kind === 'application' || kind === 'platform'
+            ? stewardItem(kind, item, ref)
+            : peer(ref);
+    // where the data comes from (seen from the collector): what it pulls from and what sends to it – a device is its
+    // asset –, else the asset itself
+    const ends = dp.transfers.map((t, i) => ({ t, id: party(t.peerKind, t.peer, dp.peers[i] ?? null), label: transferLabel(t, w) }));
+    const fetched = ends.filter((x) => SOURCE_MODES.includes(x.t.mode));
+    const sources = fetched.map(({ id, label }) => ({ id, label }));
+    if (!sources.some((s) => s.id === asset) && (!fetched.length || dp.devices.length)) sources.unshift({ id: asset, label: '' });
     let stage = sources;
     if (dp.collector) {
-      const c = dp.collector;
-      const hostRef = dp.collectorHost;
-      const id = node({
-        id: `col:${c.kind}:${norm(c.ref)}`,
-        kind: 'collector',
-        label: dp.collectorRef?.visible === false ? '' : dp.collectorRef?.label || c.ref,
-        hidden: dp.collectorRef?.visible === false,
-        detail: [w.collectorKind(c.kind), hostRef ? w.on(hostRef.visible ? hostRef.label : w.hidden) : ''].filter(Boolean).join(' · '),
-        path: dp.collectorRef?.path ?? null,
-        parent: c.host ? vlanParent(hostVlan.get(c.host)) : undefined,
-      });
+      const id = collectorNode(dp)!;
       for (const s of sources) link(s.id, id, s.label);
       stage = [{ id, label: '' }];
     }
-    // the parties the collector pushes to, then the destinations
-    const pushes = dp.transfers
-      .map((t, i) => ({ t, i }))
-      .filter((x) => x.t.mode === 'push')
-      .map((x) => ({ id: party(x.t.peerKind, x.t.peer, dp.peers[x.i] ?? null), label: transferLabel(x.t, w) }));
-    if (pushes.length) {
-      for (const s of stage) for (const x of pushes) link(s.id, x.id, x.label);
-      stage = pushes.map((x) => ({ id: x.id, label: '' }));
-    }
+    // the parties the collector pushes to are targets like the destinations: each is reached from the collector (two
+    // targets are never drawn one after the other)
+    const pushes = ends.filter((x) => x.t.mode === 'push');
+    for (const s of stage) for (const x of pushes) link(s.id, x.id, x.label);
     const dests = dp.destinations.map((d, i) => {
       const item = dp.targets[i] ?? null;
       if (d.kind === 'system') return host(item, d.ref);
+      if (d.kind === 'application' || d.kind === 'platform') return stewardItem(d.kind, item, d.ref);
       if (d.kind === 'dataset') return node({ id: `ds:${d.ref}`, kind: 'dataset', label: d.ref, detail: '', path: item?.path ?? null });
       return peer(d.ref);
     });

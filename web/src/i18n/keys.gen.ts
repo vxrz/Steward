@@ -10729,10 +10729,15 @@ export interface Resources {
     'collectorKinds.job': string;
     'modes.push': string;
     'modes.pull': string;
+    'modes.receive': string;
     'peerKinds.device': string;
     'peerKinds.system': string;
+    'peerKinds.application': string;
+    'peerKinds.platform': string;
     'peerKinds.other': string;
     'destinationKinds.system': string;
+    'destinationKinds.application': string;
+    'destinationKinds.platform': string;
     'destinationKinds.dataset': string;
     'destinationKinds.other': string;
     'vlan.title': string;
@@ -10811,6 +10816,15 @@ export interface Resources {
     'zone.assessmentRequired': string;
     'zone.assessedAt': string;
     'zone.assessedBy': string;
+    'zone.systems': string;
+    'zone.systemsHelp': string;
+    'zone.platforms': string;
+    'zone.platformsHelp': string;
+    'zone.items': string;
+    'zone.hiddenItems_one': string;
+    'zone.hiddenItems_other': string;
+    'zone.hiddenItemsKept_one': string;
+    'zone.hiddenItemsKept_other': string;
     'conduit.title': string;
     'conduit.help': string;
     'conduit.add': string;
@@ -10929,6 +10943,8 @@ export interface Resources {
     'path.count_other': string;
     'path.countOf_one': string;
     'path.countOf_other': string;
+    'path.transfersHelp': string;
+    'path.peerIsHost': string;
     'asset.title': string;
     'asset.help': string;
     'asset.siteNetwork': string;
@@ -10955,6 +10971,9 @@ export interface Resources {
     'quality.kinds.no_vlan_other': string;
     'quality.kinds.switch_case_one': string;
     'quality.kinds.switch_case_other': string;
+    'modeHelp.pull': string;
+    'modeHelp.push': string;
+    'modeHelp.receive': string;
   };
   plantViews: {
     noAssets: string;
@@ -11046,6 +11065,8 @@ export interface Resources {
     'kinds.conduit': string;
     'kinds.host': string;
     'kinds.peer': string;
+    'kinds.application': string;
+    'kinds.platform': string;
     'node.hidden': string;
     'node.inactive': string;
     'node.inactiveSentence': string;

@@ -98,6 +98,7 @@ export function NetworkDiagramView({ siteId }: { siteId: string }) {
         subnets: t('network.subnets'),
         owner: t('plantNetwork:owner'),
         vlans: t('plantNetwork:zone.vlans'),
+        items: t('plantNetwork:zone.items'),
         protocols: t('plantNetwork:conduit.protocols'),
         controls: t('network.controls'),
         assessment: t('network.assessment'),
@@ -347,7 +348,7 @@ function Diagram({ graph, network: n, levels }: { graph: PlantFlowGraph; network
 
   // ---------- search: a part or a data path ----------
   const searchData = useMemo(() => {
-    const kinds = ['asset', 'collector', 'host', 'peer', 'dataset', 'zone', 'vlan', 'conduit'] as const;
+    const kinds = ['asset', 'collector', 'host', 'application', 'platform', 'peer', 'dataset', 'zone', 'vlan', 'conduit'] as const;
     const groups = kinds
       .map((k) => ({
         group: t(`kinds.${k}`),

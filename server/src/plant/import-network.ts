@@ -21,7 +21,7 @@ import { db } from '../db.js';
 import type { AssetRow, SiteRow } from './model.js';
 import type { AssetNetworkFile, OtNetworkFile, PlantFile, StatusCheckFile } from './format.js';
 import { clean, pushWrite, type Origin, type Write } from './import-data.js';
-import { refProblems, withHiddenSites } from './network.js';
+import { refProblems, withHiddenSites, zoneWithHidden } from './network.js';
 import { checkVisible, liveContext, withStoredHiddenChecks } from './live.js';
 import { resolveTarget } from '../records/links.js';
 import {
@@ -181,6 +181,8 @@ function zoneFromFile(x: ZoneFile): Planned<PlantZoneValues>['values'] {
   if (has(x, 'criticality')) v.criticality = x.criticality ?? null;
   if (has(x, 'level')) v.level = x.level ?? null;
   if (has(x, 'vlans')) v.vlans = x.vlans ?? [];
+  if (has(x, 'systems')) v.systems = (x.systems ?? []).map((s) => s.trim());
+  if (has(x, 'platforms')) v.platforms = (x.platforms ?? []).map((s) => s.trim());
   if (has(x, 'sl_t')) v.slTarget = x.sl_t ?? null;
   if (has(x, 'assessed_at')) v.assessedAt = x.assessed_at ?? null;
   return v;
@@ -459,6 +461,8 @@ const ZONE_DEFAULTS = (id: string): PlantZoneValues => ({
   criticality: null,
   level: null,
   vlans: [],
+  systems: [],
+  platforms: [],
   owner: '',
   slTarget: null,
   riskAssessment: '',
@@ -717,6 +721,9 @@ export function computeNetwork(c: NetContext): void {
     nameOf: (v) => v.name,
     write: (site, v, pos) => upsertZone(site, v, pos, c.meta),
     adopt: adoptSql('plant_zones', 'site_id'),
+    // the systems and platforms it lists must be visible to the importer; those they may not see stay (0.20)
+    refs: true,
+    keep: (v, before) => zoneWithHidden(v, before),
   });
   plannedRecords<PlantConduitValues, ConduitRow>({
     planned: p.conduits,
@@ -1061,6 +1068,9 @@ export function otNetworkOut(siteId: string): Record<string, unknown> | null {
           criticality: z.criticality,
           level: z.level,
           vlans: z.vlans,
+          // the systems and platforms as far as the exporter may see them (an import keeps the others)
+          systems: z.systems.filter((id) => resolveTarget('system', id)),
+          platforms: z.platforms.filter((id) => resolveTarget('platform', id)),
           owner: z.owner,
           sl_t: z.slTarget,
           risk_assessment: z.riskAssessment,

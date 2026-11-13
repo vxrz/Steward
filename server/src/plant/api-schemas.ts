@@ -30,6 +30,7 @@ import {
   PEER_KINDS,
   STATUS_CHECK_KINDS,
   TRANSFER_MODES,
+  PATH_ITEM_KINDS,
   VLAN_RANGE_TYPES,
   ZONE_CRITICALITIES,
   ZONE_LEVELS,
@@ -599,6 +600,8 @@ const Zone = z.object({
   criticality: z.enum(ZONE_CRITICALITIES).nullable(),
   level: z.enum(ZONE_LEVELS).nullable().describe('Where the zone sits in the Purdue levels (field … external); null: not set'),
   vlans: z.array(z.string()),
+  systems: z.array(z.string()).describe('Steward systems in the zone the token owner may see (ids)'),
+  platforms: z.array(z.string()).describe('Steward platforms in the zone the token owner may see (ids)'),
   owner: z.string(),
   slTarget: z.number().int().min(1).max(4).nullable().describe('IEC 62443-3-2 target security level (SL-T); null: open until a risk assessment sets it'),
   riskAssessment: z.string(),
@@ -607,6 +610,8 @@ const Zone = z.object({
   ...source,
   conduits: z.array(z.string()),
   deviceCount: z.number().int(),
+  items: z.array(ItemRef).describe('The systems and platforms in the zone the token owner may see, by name'),
+  hiddenItems: z.number().int().describe('How many systems and platforms in the zone the token owner may not see (counted, not named)'),
 });
 const Conduit = z.object({
   id: z.string(),
@@ -655,7 +660,8 @@ const PathLink = z.object({
   assetName: z.string(),
   pathId: z.string(),
   subject: z.string(),
-  via: z.string().describe('The system they share'),
+  via: z.string().describe('The Steward item they share (its id)'),
+  viaKind: z.enum(PATH_ITEM_KINDS).describe('Its kind: system, application or platform'),
 });
 const DataPath = z.object({
   id: z.string(),
@@ -666,7 +672,9 @@ const DataPath = z.object({
   transfers: z.array(
     z.object({
       protocol: z.string(),
-      mode: z.enum(TRANSFER_MODES),
+      mode: z
+        .enum(TRANSFER_MODES)
+        .describe('Seen from the collector: pull (it fetches from the peer), push (it sends to the peer) or receive (the peer sends to it)'),
       peerKind: z.enum(PEER_KINDS),
       peer: z.string(),
       port: z.number().int().nullable(),
@@ -682,8 +690,12 @@ const DataPath = z.object({
   collectorHost: ItemRef.nullable(),
   peers: z.array(ItemRef.nullable()),
   targets: z.array(ItemRef.nullable()),
-  next: z.array(PathLink).describe('Data paths that read from a system this one writes to (at most 50)'),
-  previous: z.array(PathLink).describe('Data paths that write to a system this one reads from (at most 50)'),
+  next: z
+    .array(PathLink)
+    .describe(
+      'Data paths that read from a Steward item (system, application, platform) this one writes to (at most 50). A path reads from its pull and receive peers (else from the system its collector runs on) and writes to its push peers and destinations',
+    ),
+  previous: z.array(PathLink).describe('Data paths that write to a Steward item this one reads from (at most 50)'),
   nextMore: z.number().int().describe('How many more data paths read from it than `next` lists'),
   previousMore: z.number().int().describe('How many more data paths write to it than `previous` lists'),
 });

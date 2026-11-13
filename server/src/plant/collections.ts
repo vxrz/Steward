@@ -313,8 +313,9 @@ const itemKey = (it: { outputName: string; address: string }) => it.outputName |
 function downstreamOf(s: PlantCollectionSink): PlantSinkDownstream {
   const out: PlantSinkDownstream = { paths: [], more: 0, hidden: 0, dashboards: [], hiddenDashboards: 0 };
   if (!s.ref) return out;
-  if (s.kind === 'system' && resolveTarget('system', s.ref)) {
-    const p = pathsReadingFrom(s.ref);
+  // 0.20: data paths read from applications and platforms too
+  if ((s.kind === 'system' || s.kind === 'application' || s.kind === 'platform') && resolveTarget(s.kind, s.ref)) {
+    const p = pathsReadingFrom(s.kind, s.ref);
     out.paths = p.paths.map(({ assetId, assetName, pathId, subject }) => ({ assetId, assetName, pathId, subject }));
     out.more = p.more;
     out.hidden = p.hidden;
