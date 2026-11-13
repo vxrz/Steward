@@ -68,10 +68,14 @@ test('a process: its access list is shares with a Custom one, the owner above th
     await expect(panel.getByTestId('share-row')).toHaveCount(1);
     // a card: the level and the end date side by side under the name, within the screen
     const card = panel.getByTestId('share-row').first();
-    const level = await card.getByRole('combobox', { name: /^Level for / }).boundingBox();
-    const until = await card.getByLabel(/^End date for /).boundingBox();
-    expect(Math.abs(level!.y - until!.y)).toBeLessThan(4);
-    expect(until!.x + until!.width).toBeLessThanOrEqual(390);
+    const boxes = async () => ({
+      level: (await card.getByRole('combobox', { name: /^Level for / }).boundingBox())!,
+      until: (await card.getByLabel(/^End date for /).boundingBox())!,
+    });
+    // (the layout follows the viewport after a render)
+    await expect.poll(async () => Math.abs((await boxes()).level.y - (await boxes()).until.y)).toBeLessThan(4);
+    const { until } = await boxes();
+    expect(until.x + until.width).toBeLessThanOrEqual(390);
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'process access tab (phone)');
   } finally {
