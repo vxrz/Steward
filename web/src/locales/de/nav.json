@@ -55,7 +55,7 @@
     "dataMap": "Produktkarte",
     "dataDiscovery": "Erkennung",
     "dataAccessRequests": "Zugriffsanträge",
-    "dataRecordsOfProcessing": "Verarbeitungstätigkeiten"
+    "dataRecordsOfProcessing": "Verarbeitungs\u00adtätigkeiten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

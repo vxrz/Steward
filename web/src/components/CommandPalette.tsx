@@ -182,7 +182,11 @@ const makeFilter =
         ...g,
         actions: g.actions
           .filter((a) => {
-            const hay = [a.label, g.group, ...(Array.isArray(a.keywords) ? a.keywords : [a.keywords])].join(' ').toLowerCase();
+            // soft hyphens (long German labels break cleanly in the sidebar) do not stand between the query and a match
+            const hay = [a.label, g.group, ...(Array.isArray(a.keywords) ? a.keywords : [a.keywords])]
+              .join(' ')
+              .replace(/\u00ad/g, '')
+              .toLowerCase();
             return words.every((w) => hay.includes(w));
           })
           .slice(0, PER_GROUP),
