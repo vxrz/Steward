@@ -285,6 +285,7 @@ test.describe('the data products pages', () => {
 
   test('a dialog opened from a menu gives the focus back to the menu’s button', async ({ page }) => {
     await page.goto('/data-products');
+    await expect(page.getByTestId('product-table')).toBeVisible();
     const menu = page.getByTestId('products-transfer');
     await menu.click();
     await page.getByTestId('products-import').click();
