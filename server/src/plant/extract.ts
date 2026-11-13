@@ -30,6 +30,9 @@ import { allAssignments, ownProfiles, pointName, pointsOf, upsertProfile } from 
 import { assetModel, resolveAll, type OwnProfiles } from './resolve.js';
 import { checkRename, dryRun, profileFamily, renameEntry } from './rename.js';
 import { checkedProfile, visibleAssets } from './catalogue.js';
+import { copyCatalogueScope } from './catalogue-shares.js';
+import { teamsChanged } from '../auth/policy.js';
+import { sharesChanged } from '../auth/share-store.js';
 
 /**
  * Extract a base profile (0.12.0, docs/PLANT.md "Extracting a base profile"): two or more device profiles without a
@@ -602,6 +605,22 @@ function run(input: PlantExtractInput, by: string, write: boolean): PlantExtract
     });
     return preview;
   }
+  // 0.21.0: the base belongs where the leading profile does – its content is the leading profile's (its owning teams,
+  // Restricted when it is, no shares); refused when the caller would not see it
+  try {
+    copyCatalogueScope({
+      kind: 'device_profile',
+      from: { id: input.leading, name: own0.get(input.leading)!.name },
+      to: { id: base.id, name: base.name },
+      as: 'base',
+      audit: write && preview.points.every((p) => !p.problem),
+    });
+  } catch (e) {
+    if (!(e instanceof HttpError) || e.code !== 'PLANT_COPY_NOT_VISIBLE') throw e;
+    const message = `The base would belong to the owning teams of ${input.leading} (or only its shares), and you would not see it`;
+    preview.problems.push({ code: 'hidden', message, params: { profile: input.leading } });
+    return preview;
+  }
   preview.ok = preview.points.every((p) => !p.problem);
   if (write && preview.ok) {
     const renamed = [...renames].flatMap(([id, list]) => list.map((r) => ({ profile: id, ...r })));
@@ -619,7 +638,11 @@ function run(input: PlantExtractInput, by: string, write: boolean): PlantExtract
 /** POST /api/plant/profiles/extract-base/preview: what the extraction would do, without doing it. */
 export function previewExtract(input: z.infer<typeof extractInput>): PlantExtractPreview {
   const by = requireCatalogue();
-  return dryRun(() => run(input, by, false));
+  const out = dryRun(() => run(input, by, false));
+  // the base's owning teams and scope were rolled back: the request decides from what is stored again
+  teamsChanged();
+  sharesChanged();
+  return out;
 }
 
 /** POST /api/plant/profiles/extract-base: extracts the base in one transaction; refused (nothing changed) while anything is refused. */

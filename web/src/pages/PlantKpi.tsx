@@ -1,5 +1,4 @@
 import { isPlantHidden } from '@sm/shared';
-import { OwningTeams } from '../components/OwningTeams';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Anchor, Badge, Button, Code, Grid, Group, List, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -587,8 +586,6 @@ export function PlantKpiPage() {
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
-          {/* 0.21.0 (#293): who owns the KPI definition; designers among them manage it */}
-          <OwningTeams kind="kpi_definition" id={k.id} />
           <Stack gap="md">
             <KpiCoverageCard kpiId={k.id} />
             <Paper withBorder p="md" data-testid="kpi-instances">

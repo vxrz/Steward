@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   OWNED_KINDS,
+  PLANT_SHARE_KINDS,
   SHARE_ACTIONS,
   accessPreviewSchema,
   accessScopeSchema,
@@ -16,7 +17,7 @@ import { HttpError } from '../util.js';
 import { ACCESS, me } from './access.js';
 import type { AuthUser } from './context.js';
 import { isAdmin, subjectsOf } from './permissions.js';
-import { managesShares, owningTeams } from './policy.js';
+import { managesShares, owningTeams, plantOnly } from './policy.js';
 import { heldOn, isRestricted, previewShares, setRestricted, setShares, shareKind, sharesOf, sharesWiden, type ShareKindDef } from './shares.js';
 import { accessGrantRule } from './access-change.js';
 import { subjectExists } from './subjects.js';
@@ -31,6 +32,9 @@ import { resourceNotFound } from './scope-routes.js';
  *   PUT  /api/access/:kind/:id/shares    replace the shares (Manage; a widening asks for the step-up)
  *   PUT  /api/access/:kind/:id/scope     switch Restricted (administrators; switching it off asks for the step-up)
  *   POST /api/access/:kind/:id/preview   who would gain and who would lose what, nothing stored
+ *
+ * Plant viewers reach them for the plant registry's kinds (device profiles, KPI definitions – a share may name them),
+ * every other kind answers them 404.
  *
  * Team scope: an item the reader may not see answers 404 like a missing one. The share list is for Manage holders,
  * administrators and auditors; a share whose subject the reader may not see (a Manage holder who may not list users
@@ -47,7 +51,7 @@ function target(req: FastifyRequest): { def: ShareKindDef; id: string; u: AuthUs
   const id = String(p.id ?? '');
   const def = shareKind(kind);
   const u = me();
-  if (!def || def.name(id) === undefined || !def.rights(u, id).length) throw resourceNotFound(kind, id);
+  if (!def || (plantOnly(u) && !PLANT_SHARE_KINDS.includes(kind)) || def.name(id) === undefined || !def.rights(u, id).length) throw resourceNotFound(kind, id);
   return { def, id, u };
 }
 
@@ -109,24 +113,23 @@ function scopeWidens(req: FastifyRequest): boolean {
   return !accessScopeSchema.parse(req.body).restricted && isRestricted(def.kind, id);
 }
 
+/** Session only; plant viewers too (target() keeps them to the plant registry's kinds). */
+const SESSION = { ...ACCESS.session, plantViewer: true } as const;
+
 export async function shareRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/access/:kind/:id/shares', { config: { access: ACCESS.session } }, async (req): Promise<ResourceAccessView> => {
+  app.get('/access/:kind/:id/shares', { config: { access: SESSION } }, async (req): Promise<ResourceAccessView> => {
     const { def, id, u } = target(req);
     return accessView(def, id, u);
   });
 
-  app.put(
-    '/access/:kind/:id/shares',
-    { config: { access: ACCESS.session, stepUp: accessGrantRule(sharesWidenOf) } },
-    async (req): Promise<ResourceAccessView> => {
-      const { def, id, u } = target(req);
-      const input = sharesInputSchema.parse(req.body).shares;
-      setShares({ kind: def.kind, id, held: heldOn(def, u, id), shares: withHiddenShares(def.kind, id, u, input) });
-      return accessView(def, id, u);
-    },
-  );
+  app.put('/access/:kind/:id/shares', { config: { access: SESSION, stepUp: accessGrantRule(sharesWidenOf) } }, async (req): Promise<ResourceAccessView> => {
+    const { def, id, u } = target(req);
+    const input = sharesInputSchema.parse(req.body).shares;
+    setShares({ kind: def.kind, id, held: heldOn(def, u, id), shares: withHiddenShares(def.kind, id, u, input) });
+    return accessView(def, id, u);
+  });
 
-  app.put('/access/:kind/:id/scope', { config: { access: ACCESS.session, stepUp: accessGrantRule(scopeWidens) } }, async (req): Promise<ResourceAccessView> => {
+  app.put('/access/:kind/:id/scope', { config: { access: SESSION, stepUp: accessGrantRule(scopeWidens) } }, async (req): Promise<ResourceAccessView> => {
     const { def, id, u } = target(req);
     const { restricted } = accessScopeSchema.parse(req.body);
     const view = accessView(def, id, u);
@@ -135,7 +138,7 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
     return accessView(def, id, u);
   });
 
-  app.post('/access/:kind/:id/preview', { config: { access: ACCESS.session } }, async (req): Promise<AccessPreview> => {
+  app.post('/access/:kind/:id/preview', { config: { access: SESSION } }, async (req): Promise<AccessPreview> => {
     const { def, id, u } = target(req);
     if (!managesShares(heldOn(def, u, id)) && !isAdmin(u)) throw resourceForbidden();
     const b = accessPreviewSchema.parse(req.body);

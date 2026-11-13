@@ -262,7 +262,8 @@
       "leading": "The leading profile is one of the chosen profiles.",
       "no_points": "Choose at least one data point every profile can share.",
       "base_taken": "A device profile with the id {{id}} exists already.",
-      "rules": "The result breaks a rule of device profiles: {{message}}"
+      "rules": "The result breaks a rule of device profiles: {{message}}",
+      "hidden": "The base would belong where the leading profile {{profile}} belongs (its owning teams, or only who it is shared with), and you would not see it – choose a leading profile of your teams, or ask an administrator."
     },
     "interfaces": "Interfaces of the base",
     "interfacesHelp": "Each profile’s interface that holds the shared data points gets this id. Where their protocols differ, the base’s interface has the protocol “other” and no addresses – each profile keeps its protocol and addresses.",
