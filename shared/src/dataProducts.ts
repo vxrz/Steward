@@ -217,7 +217,21 @@ export const DATA_RUNNER_TOOLS = [
   'Spark',
   'AWS Glue',
   'script',
+  // 0.24.0 (owner): integration runtimes of plants and applications
+  'Apache Camel',
+  'Node-RED',
+  'Industrial Edge connector',
 ] as const;
+
+/**
+ * Tools whose name is translated in the step form (dataProducts:steps.runnerTools.<key>); the stored value stays the
+ * English name of DATA_RUNNER_TOOLS. The others are product names and read the same in every language.
+ */
+export const DATA_RUNNER_TOOL_LABEL_KEYS: Readonly<Partial<Record<(typeof DATA_RUNNER_TOOLS)[number], string>>> = {
+  'Apache Camel': 'apacheCamel',
+  'Node-RED': 'nodeRed',
+  'Industrial Edge connector': 'industrialEdgeConnector',
+};
 
 /** Kinds of transformation notes (ADR 0019's sink transformation kinds). */
 export const DATA_TRANSFORM_KINDS = ['rename', 'scale', 'unit', 'aggregate', 'filter', 'enrich', 'compute', 'format', 'other'] as const;

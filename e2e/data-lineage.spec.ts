@@ -31,14 +31,14 @@ async function element(admin: APIRequestContext, qn: string): Promise<El> {
 }
 
 /** A push as a tool sends it: no session, only the source's push token. */
-async function push(sourceId: string, token: string, body: unknown): Promise<number> {
-  const ctx = await playwrightRequest.newContext({ baseURL: origin() });
+async function push(sourceId: string, token: string, body: unknown): Promise<string> {
+  const ctx = await playwrightRequest.newContext({ baseURL: origin(), storageState: { cookies: [], origins: [] } });
   try {
     const res = await ctx.post(withBasePath(`/api/hooks/data-lineage/${sourceId}`), {
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       data: JSON.stringify(body),
     });
-    return res.status();
+    return `${res.status()}${res.ok() ? '' : ` ${await res.text()}`}`;
   } finally {
     await ctx.dispose();
   }
@@ -99,8 +99,8 @@ test.describe('lineage from tools', () => {
     await expectAccessible(page, 'lineage source');
 
     // the tool pushes two jobs: one is accepted, the other stays proposed
-    expect(await push(sourceId, pushToken, event(`load_customers_${token}`, [e.orders], [e.customers]))).toBe(200);
-    expect(await push(sourceId, pushToken, event(`score_${token}`, [e.staged], [e.customers]))).toBe(200);
+    expect(await push(sourceId, pushToken, event(`load_customers_${token}`, [e.orders], [e.customers]))).toBe('200');
+    expect(await push(sourceId, pushToken, event(`score_${token}`, [e.staged], [e.customers]))).toBe('200');
     await page.reload();
     const inbox = page.getByTestId('lineage-source-proposals');
     const row = inbox.getByRole('row').filter({ hasText: `load_customers_${token}` });
@@ -179,9 +179,9 @@ test.describe('lineage from tools', () => {
       await admin.post('/api/data-products/lineage-sources', { data: { name: `Phone jobs ${token}`, kind: 'openlineage', teamIds: [] } }),
     );
     const t = await json<{ token: string }>(await admin.post(`/api/data-products/lineage-sources/${src.id}/tokens`, { data: { name: 'CI' } }));
-    expect(await push(src.id, t.token, event(`phone_${token}`, [e.staged], [e.orders]))).toBe(200);
+    expect(await push(src.id, t.token, event(`phone_${token}`, [e.staged], [e.orders]))).toBe('200');
     await page.goto('/data-products/discovery');
-    await expect(page.getByTestId('lineage-source-table').or(page.getByTestId('lineage-sources'))).toBeVisible();
+    await expect(page.getByTestId('lineage-sources')).toBeVisible();
     await expect(page.getByTestId('proposal-card').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'discovery with lineage on a phone');

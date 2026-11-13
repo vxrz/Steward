@@ -4988,6 +4988,9 @@ export interface Resources {
     'steps.transformKinds.compute': string;
     'steps.transformKinds.format': string;
     'steps.transformKinds.other': string;
+    'steps.runnerTools.apacheCamel': string;
+    'steps.runnerTools.nodeRed': string;
+    'steps.runnerTools.industrialEdgeConnector': string;
     'members.title': string;
     'members.add': string;
     'members.addTitle': string;

@@ -435,6 +435,11 @@
       "compute": "Berechnen",
       "format": "Formatieren",
       "other": "Sonstiges"
+    },
+    "runnerTools": {
+      "apacheCamel": "Apache Camel",
+      "nodeRed": "Node-RED",
+      "industrialEdgeConnector": "Industrial-Edge-Connector"
     }
   },
   "members": {

@@ -18,7 +18,7 @@ import { QueryState } from '../../../components/common';
 import { DataTable } from '../../../components/DataTable';
 import { confirmDanger } from '../../../components/confirm';
 import { fmtDate, fmtRelative } from '../../../format';
-import { pagesOf, useInvalidateDataProducts } from '../api';
+import { useInvalidateDataProducts } from '../api';
 import { useProposals } from './api';
 
 const enc = encodeURIComponent;
@@ -174,7 +174,7 @@ export function ProposalInbox({ sourceId, sources }: { sourceId?: string; source
   const q = useProposals({ status, sourceId: sourceId ?? source ?? undefined });
   const invalidate = useInvalidateDataProducts();
   const [accepting, setAccepting] = useState<DataLineageProposal | null>(null);
-  const rows = pagesOf(q.data);
+  const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
   const reject = async (p: DataLineageProposal) => {
     if (!(await confirmDanger({ action: 'confirm', message: t('proposals.rejectConfirm', { name: p.name }), confirmLabel: t('proposals.reject') }))) return;
     try {

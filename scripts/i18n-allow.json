@@ -226,7 +226,9 @@
       "OpenLineage",
       "dbt",
       "manifest.json",
-      "run_results.json"
+      "run_results.json",
+      "Apache Camel",
+      "Node-RED"
     ]
   }
 }

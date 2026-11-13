@@ -3110,7 +3110,7 @@ beforeAll(async () => {
     const t = (await a('POST', `/data-products/lineage-sources/${fx.lineageSource}/tokens`, { name: 'Matrix CI' })).token as string;
     const { db } = await import('../src/db.js');
     const ns = 'matrix://lineage';
-    db().run("UPDATE dp_elements SET ol_namespace = ?, ol_name = name_norm WHERE id IN (?, ?)", ns, fx.dataElement!, curated);
+    db().run('UPDATE dp_elements SET ol_namespace = ?, ol_name = name_norm WHERE id IN (?, ?)', ns, fx.dataElement!, curated);
     const names = db().all<{ id: string; ol_name: string }>('SELECT id, ol_name FROM dp_elements WHERE id IN (?, ?)', fx.dataElement!, curated);
     const nameOf = (id: string) => names.find((x) => x.id === id)!.ol_name;
     const res = await fetch(`${s.base}/api/hooks/data-lineage/${fx.lineageSource}`, {
