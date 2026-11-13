@@ -1,6 +1,6 @@
 # Data products
 
-> **Preview, off by default.** An administrator switches the module on under _Settings → Modules → Data products_ and may restrict it to selected teams and users (_Who may use it_, [ADR 0034](adr/0034-module-access.md)). This page describes what 0.22.0 builds (phase 1) and the parts of phase 2 built since ([Consumers, access and governance](#consumers-access-and-governance), 0.24.0); what follows is listed [at the end](#phase-2). The design and its reasons are in [ADR 0036](adr/0036-data-products-module.md).
+> **Preview, off by default.** An administrator switches the module on under _Settings → Modules → Data products_ and may restrict it to selected teams and users (_Who may use it_, [ADR 0034](adr/0034-module-access.md)). This page describes what 0.22.0 builds (phase 1) and phase 2, built in 0.24.0 – [lineage from tools](#lineage-from-tools), [quality results](#quality-results), the [scorecard over time](#scorecard-history), [consumers, access and governance](#consumers-access-and-governance), [measured use](#measured-use) and [estimates](#estimates), [proposals from assistants](#proposals-from-assistants) and the exchange of products; what is still to come is listed [at the end](#phase-2). The design and its reasons are in [ADR 0036](adr/0036-data-products-module.md).
 
 **Try it:** start the demo (`npm run demo`), _Load demo data_ on Home, switch the module on – the invented shop's domains, data objects, discovered elements and three products are there ([The demo](#the-demo)).
 
