@@ -398,11 +398,13 @@ describe('semantic models over MCP', () => {
     });
     expect(p.isError).toBeFalsy();
     const rid = p.structuredContent.requestId;
-    const detail = await adam('GET', `/mcp-requests/${rid}`);
+    // who asked for it reads it; the approver, who may create nothing in the module, neither sees nor decides it (0.24 fix)
+    const detail = await dana('GET', `/mcp-requests/${rid}`);
+    expect((await fail(adam('GET', `/mcp-requests/${rid}`))).status).toBe(404);
     expect(detail.proposal.semanticModels).toEqual([
       expect.objectContaining({ product: expect.objectContaining({ key: 'sem-orders' }), unchanged: false, currentVersion: 6, document: next }),
     ]);
-    // a viewer cannot apply it (they may not change the product); the approver may see but not change it either
+    // a viewer cannot apply it (they may not change the product)
     expect((await fail(vera('POST', `/mcp-requests/${rid}/decision`, { approve: true }))).status).toBeGreaterThanOrEqual(400);
     const { db } = await import('../src/db.js');
     expect(db().get('SELECT 1 FROM dp_semantic_versions WHERE product_id = ? AND version = 7', product)).toBeUndefined();
