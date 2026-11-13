@@ -200,6 +200,36 @@ describe('checks, links and file ports', () => {
     }
   });
 
+  it('a listing the key limit cuts proves freshness, never staleness – S3 lists the oldest partitions first', async () => {
+    const el = await element('s3://invented-shop-lake.example/exports/daily-sales/');
+    const { dataElementCheck } = await import('../src/dataproducts/checks/element.js');
+    const { setMockS3Bucket } = await import('../src/mock/mockAws.js');
+    const { DATA_DISCOVERY_LIMITS } = await import('@sm/shared');
+    const limits = DATA_DISCOVERY_LIMITS as { s3CheckKeys: number };
+    const check = (maxAgeMinutes: number) =>
+      dataElementCheck({ element: el.id, mode: 'freshness', maxAgeMinutes, failAs: 'down', warningAs: 'degraded' } as never, {
+        owner: 'admin',
+        now: () => Date.now(),
+      });
+    const day = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+    // five daily partitions, the newest today: the first three keys (the limit) are the oldest
+    setMockS3Bucket(
+      'invented-shop-lake.example',
+      [5, 4, 3, 2, 0].map((d, i) => ({ key: `exports/daily-sales/dt=2026-11-0${i + 1}/daily-sales.csv`, size: 10, lastModified: day(d) })),
+    );
+    const before = limits.s3CheckKeys;
+    limits.s3CheckKeys = 3;
+    try {
+      expect(await check(1440)).toMatchObject({ status: 'unknown', message: expect.stringContaining('newer ones may follow') });
+      // a recent object among the keys read is proof enough
+      expect(await check(4 * 1440)).toMatchObject({ status: 'up', message: expect.stringContaining('the first 3 keys') });
+    } finally {
+      limits.s3CheckKeys = before;
+      setMockS3Bucket('invented-shop-lake.example', null);
+    }
+    expect(await check(1440)).toMatchObject({ status: 'up' });
+  });
+
   it('proposes S3 prefix → stage and stage → table through the pipe after the Snowflake run', async () => {
     const items = [
       ...(await dana('GET', '/data-products/lineage-proposals?origin=snowflake&status=open')).items,

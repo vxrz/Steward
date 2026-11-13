@@ -12,7 +12,9 @@ import { finish } from './volume.js';
  *   volume     the number of objects (`measure: rows`) or their size in bytes (`bytes`) against the reading before –
  *              the same rules as a table's rows (minRows, minGrowth, maxChangePct)
  *
- * A prefix with more keys than the limit is judged on the keys read, and the message says so. Folder markers do not
+ * A prefix with more keys than the limit is judged on the keys read, and the message says so – its freshness only when
+ * the keys read hold a recent object: S3 lists the oldest partitions first, so a cut listing never proves staleness
+ * (unknown instead). Folder markers do not
  * count. The element's platform must be an AWS account platform; the monitor owner's use right on it is checked by the
  * caller (element.ts), as for every platform check.
  */
@@ -50,11 +52,20 @@ export async function filesFreshness(c: Check, el: ElementRow, platform: Platfor
   if ('error' in s) return { status: 'unknown', message: s.error! };
   if (!s.objects) return { status: c.failAs, message: `S3: no object below ${el.qualified_name}`, value: { objects: 0 } };
   const minutes = s.newest ? Math.max(0, Math.floor((now - Date.parse(s.newest)) / 60_000)) : null;
+  const maxAge = c.maxAgeMinutes ?? 1440;
+  // S3 lists keys in their order – the oldest partitions (dt=…) first: a listing the limit cut proves freshness when it
+  // found a recent object, never staleness (the newest objects may lie beyond the keys read)
+  if (s.partial && (minutes === null || !Number.isFinite(minutes) || minutes > maxAge))
+    return {
+      status: 'unknown',
+      message: `S3: ${el.qualified_name} – the first ${DL.s3CheckKeys.toLocaleString('en-GB')} keys hold no object changed within ${maxAge} minutes; newer ones may follow (name a narrower prefix)`,
+      value: { objects: s.objects, newest: s.newest, partial: true },
+    };
   return judgeAge(
     c,
     `S3: ${el.qualified_name}`,
     Number.isFinite(minutes) ? minutes : null,
-    c.maxAgeMinutes ?? 1440,
+    maxAge,
     { objects: s.objects, newest: s.newest },
     partialNote(s.partial),
   );
