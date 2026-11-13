@@ -84,6 +84,11 @@ test.describe('lineage from tools', () => {
     await expect(page).toHaveURL(/\/data-products\/lineage\/dpl_/);
     const sourceId = /\/data-products\/lineage\/(dpl_[^/?#]+)/.exec(page.url())![1]!;
     await expect(page.getByRole('heading', { level: 1 })).toContainText(`Airflow ${token}`);
+    // the source's page belongs to Discovery in the navigation, not to the product list
+    await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Discovery', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
 
     // a push token, shown once
     await page.getByTestId('lineage-token-new').click();
