@@ -108,7 +108,7 @@ function SinkElementModal({ assetId, collectionId, sink, onClose }: { assetId: s
             <TextInput
               label={t('sinkElement.topic')}
               required
-              className="mono"
+              classNames={{ input: 'mono' }}
               value={topic}
               onChange={(e) => setTopic(e.currentTarget.value)}
               maxLength={1000}
@@ -127,7 +127,7 @@ function SinkElementModal({ assetId, collectionId, sink, onClose }: { assetId: s
               <TextInput
                 label={t('sinkElement.broker')}
                 description={t('sinkElement.brokerHint')}
-                className="mono"
+                classNames={{ input: 'mono' }}
                 value={broker}
                 onChange={(e) => setBroker(e.currentTarget.value)}
                 maxLength={300}

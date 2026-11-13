@@ -213,7 +213,7 @@ function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnolog
               onChange={(e) => setKey(e.currentTarget.value)}
               error={v.error('key')}
               disabled={!!tech}
-              className="mono"
+              classNames={{ input: 'mono' }}
               data-testid="technology-key"
             />
             <Select
@@ -247,7 +247,7 @@ function TechnologyForm({ tech, keys, onClose, onSaved }: { tech?: DataTechnolog
             maxLength={TL.pattern}
             value={pattern}
             onChange={(e) => setPattern(e.currentTarget.value)}
-            className="mono"
+            classNames={{ input: 'mono' }}
             data-testid="technology-pattern"
           />
           <FormButtons busy={busy} testId="technology-save" />

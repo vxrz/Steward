@@ -86,6 +86,9 @@ test.describe('edge devices', () => {
     const dialog = page.getByRole('dialog', { name: 'Element from the sink Databus' });
     await expect(dialog.getByRole('textbox', { name: 'Topic' })).toHaveValue('ie/d/line-1/opcua/state');
     await expect(dialog.getByRole('textbox', { name: 'Broker (host:port)' })).toHaveValue('ie-databus:1883');
+    // the topic is set in monospace, its label is not
+    await expect(dialog.getByRole('textbox', { name: 'Topic' })).toHaveCSS('font-family', /mono/i);
+    await expect(dialog.locator('label').filter({ hasText: 'Topic' })).not.toHaveCSS('font-family', /mono/i);
     await expectAccessible(page, 'create element from a sink');
     // Esc closes this dialog only: the collection stays open and the button has the focus again
     await page.keyboard.press('Escape');
