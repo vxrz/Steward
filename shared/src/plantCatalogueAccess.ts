@@ -21,6 +21,8 @@ export const PLANT_HIDDEN = '~hidden';
 /** A placeholder for the id of an entry the reader may not see: `~hidden-<n>`, numbered per item. */
 export const PLANT_HIDDEN_REF_RE = /^~hidden-[1-9][0-9]{0,3}$/;
 export const plantHiddenRef = (n: number): string => `~hidden-${n}`;
+/** An id that names a device profile or KPI definition in another entry: a plant id or a placeholder (the file format). */
+export const PLANT_REF_RE = /^(?:[a-z0-9][a-z0-9._-]{0,79}|~hidden-[1-9][0-9]{0,3})$/;
 /** Whether a value is a placeholder for something the reader may not see (an id or a name). */
 export const isPlantHidden = (v: string | null | undefined): boolean => !!v && (v === PLANT_HIDDEN || PLANT_HIDDEN_REF_RE.test(v));
 

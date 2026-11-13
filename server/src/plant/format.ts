@@ -18,6 +18,7 @@ import {
   PLANT_DIRECTIONS,
   PLANT_FORMAT_VERSION,
   PLANT_ID_RE,
+  PLANT_REF_RE,
   PLANT_LANG_RE,
   PLANT_LIMITS,
   PLANT_PROTOCOLS,
@@ -62,6 +63,14 @@ import { NAME_HINT, NAME_RE } from './data-model.js';
 export const SCHEMA_ID = 'https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json';
 
 const id = z.string().regex(PLANT_ID_RE, ID_HINT).describe('Stable id: lower-case letters, digits, ".", "_" and "-"; never changes');
+/**
+ * 0.21.0 (#293): the id of a device profile or KPI definition another entry names – or the placeholder (`~hidden-1`) of
+ * one the exporting person may not see, which keeps it on import
+ */
+const catalogueRef = z
+  .string()
+  .regex(PLANT_REF_RE, ID_HINT)
+  .describe('Stable id of a device profile or KPI definition, or `~hidden-<n>`: one the person who exported the file may not see (kept on import)');
 const ref = id.nullable().optional();
 const name = z.string().min(1).max(PLANT_LIMITS.name).describe('Name in the installation’s default language');
 const names = boundedRecord(z.string().min(1).max(PLANT_LIMITS.name), PLANT_LIMITS.translations)
@@ -357,7 +366,7 @@ export const profileSchema = z
   .object({
     id,
     name,
-    extends: id
+    extends: catalogueRef
       .nullable()
       .optional()
       .describe(
@@ -415,9 +424,9 @@ export const kpiSchema = z
               .refine((v) => ['data_point', 'datapoint', 'other'].includes(v.toLowerCase().replace(/[\s-]/g, '_')), 'Use data_point or other')
               .optional()
               .describe('data_point (default) or other'),
-            profile: id.nullable().optional().describe('The device profile the data points belong to'),
+            profile: catalogueRef.nullable().optional().describe('The device profile the data points belong to'),
             profiles: z
-              .array(id)
+              .array(catalogueRef)
               .max(L.inputProfiles)
               .optional()
               .describe(
@@ -498,7 +507,7 @@ export const assignmentSchema = z
   .object({
     asset: id.describe('The asset'),
     site: id.optional().describe('The asset’s site (optional; checked when given)'),
-    profile: id.nullable().optional().describe('Its device profile'),
+    profile: catalogueRef.nullable().optional().describe('Its device profile'),
     firmware: versionText.describe('Controller firmware'),
     interfaces: z
       .array(z.object({ interface: pointId, active: z.boolean().nullable().optional(), endpoint: text(2000), notes: long }).strict())
@@ -566,7 +575,7 @@ export const assignmentSchema = z
       .array(
         z
           .object({
-            kpi: id.describe('The KPI definition'),
+            kpi: catalogueRef.describe('The KPI definition'),
             job: z.string().min(1).max(L.text).describe('The computation job, unique per asset'),
             active: z.boolean().nullable().optional(),
             params: boundedRecord(paramValue, L.params).optional(),

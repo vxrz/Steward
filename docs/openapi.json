@@ -24893,6 +24893,9 @@
                 },
                 "exists": {
                   "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -24902,7 +24905,7 @@
               ],
               "additionalProperties": false
             },
-            "description": "The bases, nearest first"
+            "description": "The bases, nearest first. 0.21.0: a base the token owner may not see has `hidden: true`, a placeholder id (`~hidden-1`) and the name `~hidden`; its items stay this profile’s model"
           },
           "extendedBy": {
             "type": "array",
@@ -24922,7 +24925,11 @@
               ],
               "additionalProperties": false
             },
-            "description": "Profiles that extend this one directly"
+            "description": "Profiles that extend this one directly (that the token owner may see)"
+          },
+          "extendedByHidden": {
+            "type": "integer",
+            "description": "0.21.0: profiles that extend this one that the token owner may not see (counted)"
           },
           "assets": {
             "type": "array",
@@ -26954,7 +26961,12 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "0.21.0: a profile the token owner may not see has the id `~hidden-1`, the name `~hidden` and no maker"
+          },
+          "profileHidden": {
+            "type": "boolean",
+            "description": "0.21.0 (#293): the device profile is one the token owner may not see – its interfaces are the asset’s model"
           },
           "model": {
             "type": "array",
@@ -27336,6 +27348,9 @@
                         },
                         "category": {
                           "type": "string"
+                        },
+                        "hidden": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -27349,7 +27364,8 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "0.21.0: a definition the token owner may not see has `hidden: true`, a placeholder id and the name `~hidden`"
                 }
               },
               "required": [

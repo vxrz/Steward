@@ -698,25 +698,26 @@ export function computeData(c: DataContext): PlantCheck[] {
       });
     }
   }
+  // an assignment's hidden profile or KPI definition it did not have reads like an unknown id (the same problems)
+  const unknownTo = new Map<string, Set<string>>();
   for (const pa of p.assignments.values()) {
     const cur = storedAssignments.get(pa.assetId);
     const was = cur ? assignmentValuesOf(cur) : null;
     const refs = assignmentRefs(was, was?.profileId ? (preProfiles.get(was.profileId)?.chain ?? []) : [], scope);
     const v = pa.values;
+    const refused = new Set<string>();
     if (v.profileId) {
       const x = refs.profiles.id(v.profileId);
-      if (x === undefined || (!scope.profile(x) && !refs.profiles.hides(x))) {
-        unknown(pa, 'profile', 'device profile', v.profileId);
-        v.profileId = null;
-      } else v.profileId = x;
+      if (x !== undefined) v.profileId = x;
+      if (x !== undefined && !scope.profile(x) && !refs.profiles.hides(x)) refused.add(x);
     }
     if (v.kpis)
-      v.kpis = v.kpis.map((k, n) => {
+      v.kpis = v.kpis.map((k) => {
         const x = refs.kpis.id(k.kpi);
-        if (x !== undefined && (scope.kpi(x) || refs.kpis.hides(x))) return { ...k, kpi: x };
-        if (x === undefined || storedKpis.has(x)) unknown(pa, `kpis[${n}].kpi`, 'KPI definition', k.kpi);
-        return k;
+        if (x !== undefined && !scope.kpi(x) && !refs.kpis.hides(x)) refused.add(x);
+        return x === undefined ? k : { ...k, kpi: x };
       });
+    if (refused.size) unknownTo.set(pa.assetId, refused);
   }
 
   // ---- what goes (replace, remove)
@@ -867,10 +868,11 @@ export function computeData(c: DataContext): PlantCheck[] {
     const cur = storedAssignments.get(pa.assetId);
     const before = cur ? assignmentValuesOf(cur) : null;
     const after: PlantAssignmentValues = { ...(before && !full ? before : ASSIGNMENT_DEFAULTS()), ...pa.values };
-    const profile = after.profileId ? postProfiles.get(after.profileId) : null;
+    const refused = unknownTo.get(pa.assetId);
+    const profile = after.profileId && !refused?.has(after.profileId) ? postProfiles.get(after.profileId) : null;
     // the preview names hidden profiles and KPI definitions by their placeholders (0.21.0)
     const arefs = assignmentRefs(before, before?.profileId ? (preProfiles.get(before.profileId)?.chain ?? []) : [], scope);
-    for (const pr of assignmentProblems(after, profile, (id) => postKpis.has(id)))
+    for (const pr of assignmentProblems(after, profile, (id) => postKpis.has(id) && !refused?.has(id)))
       problems.push({ file: pa.file, path: `${pa.path}.${pr.path}`, message: arefs.profiles.redact(arefs.kpis.redact(pr.message)) });
     postAssignments.set(pa.assetId, after);
     const name = c.storedAssets.get(pa.assetId)?.name ?? pa.assetId;
