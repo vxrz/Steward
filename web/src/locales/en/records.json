@@ -366,7 +366,9 @@
       "page-watch": "Page watch",
       "device-profile": "Device profile",
       "data-collection": "Data collection",
-      "data-sink": "Sink of a data collection"
+      "data-sink": "Sink of a data collection",
+      "data-product": "Data product",
+      "data-object": "Data object"
     },
     "target": "Target",
     "search": "Type to search",

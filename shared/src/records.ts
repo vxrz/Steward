@@ -460,6 +460,8 @@ export const LINK_KINDS = [
   'device-profile',
   'data-collection',
   'data-sink',
+  'data-product',
+  'data-object',
 ] as const;
 /**
  * Link kinds of the plant registry module: offered only while the module is on (conduits of the OT network, #220;
@@ -474,6 +476,8 @@ export const PLANT_LINK_KINDS = [
   'data-collection',
   'data-sink',
 ] as const satisfies readonly (typeof LINK_KINDS)[number][];
+/** Link kinds of the data products module (ADR 0036 part 17): offered only while the module is on. */
+export const DATA_PRODUCT_LINK_KINDS = ['data-product', 'data-object'] as const satisfies readonly (typeof LINK_KINDS)[number][];
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 /**

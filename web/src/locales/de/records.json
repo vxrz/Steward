@@ -366,7 +366,9 @@
       "page-watch": "Seitenüberwachung",
       "device-profile": "Geräteprofil",
       "data-collection": "Datenerfassung",
-      "data-sink": "Ziel einer Datenerfassung"
+      "data-sink": "Ziel einer Datenerfassung",
+      "data-product": "Datenprodukt",
+      "data-object": "Datenobjekt"
     },
     "target": "Ziel",
     "search": "Zum Suchen tippen",
