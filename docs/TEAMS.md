@@ -83,9 +83,9 @@ Kinds with **action rights** offer them beside the level (`use` on a platform, `
 The **Access** tab (_Zugriff_) of a resource shows, from top to bottom:
 
 - its **owning teams** with _Why do I have access?_,
-- its **scope**: the whole instance, its owning teams, or **Restricted** – no owning team, and roles in the instance give nothing on it: only its shares, its owners, administrators and auditors reach it, and – as on a team's item – only who may change it puts it on a status page or plans its maintenance. Administrators switch it; switching it off asks for the step-up,
+- its **scope**: the whole instance, its owning teams, or **Restricted** – no owning team, and roles in the instance give nothing on it: only its shares, its owners, administrators and auditors reach it, and – as on a team's item – only who may change it puts it on a status page or plans its maintenance. Administrators switch it; switching it off asks for the step-up. With the whole instance as scope the line says there are no owning teams, and who may set them gets _Set owning teams_, which puts the focus into their field,
 - **Shared with** (_Geteilt mit_): the shares, each with its level, action rights and end date; a share whose user or team no longer exists stays as an entry that matches nobody and is marked so,
-- the **implied shares** of owners: an owner has _Owner – Edit (implied)_, computed from the owner field and never stored; it is not removable there – removing the owner removes it.
+- the **implied shares** of owners: an owner has _Owner – Edit (implied)_, computed from the owner field and never stored; it is not removable there – removing the owner removes it. A team named as owner gets this share, not the scope: the hint below the implied shares says that the owner field does not limit who sees the item – owning teams do.
 
 **Who sees the list:** who manages the item, administrators and auditors. Everyone else who sees the item finds only their own reasons in _Why do I have access?_ (for example _Shared with team Payments – View_). A manager who may not list users and teams (a viewer given Manage) sees only their own subjects; the others are **counted, not named** (_And 2 shares with users or teams you may not see_) and kept when the list is saved.
 

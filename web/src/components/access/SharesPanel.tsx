@@ -69,7 +69,16 @@ export const accessKey = (kind: OwnedKind, id: string) => ['access-shares', kind
  * and who loses what, a widening asks for the step-up (the API helper asks and retries). One component for every
  * kind that is switched to shares.
  */
-export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
+export function SharesPanel({
+  kind,
+  id,
+  onOwningTeams,
+}: {
+  kind: OwnedKind;
+  id: string;
+  /** Who may set the owning teams: the way to their field (the panel above), from a scope of the whole instance */
+  onOwningTeams?: () => void;
+}) {
   const { t } = useTranslation(['access', 'common']);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: accessKey(kind, id), queryFn: () => get<ResourceAccessView>(`/access/${kind}/${id}/shares`) });
@@ -199,6 +208,17 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
         <Text size="sm" data-testid="shares-scope">
           {scopeText}
         </Text>
+        {v.kind !== 'platform_identity' && v.scope === 'instance' && onOwningTeams && (
+          // the owner field does not scope an item (a team as owner looked like one): who may, gets the way to the teams
+          <Group gap="xs" wrap="wrap" data-testid="shares-scope-teams">
+            <Text size="sm" c="dimmed">
+              {t('shares.scopeToTeams')}
+            </Text>
+            <Button size="compact-sm" variant="light" onClick={onOwningTeams}>
+              {t('shares.setOwningTeams')}
+            </Button>
+          </Group>
+        )}
         {v.canRestrict && v.scope !== 'teams' && (
           <Switch
             label={t('shares.restricted')}
@@ -225,8 +245,9 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                 )}
               </Group>
             ))}
-            <Text size="xs" c="dimmed">
-              {t('shares.impliedHint')}
+            {/* the owner field gives these shares – it does not scope the item (owning teams do) */}
+            <Text size="sm" c="dimmed" data-testid="shares-implied-hint">
+              {v.implied.every((x) => x.as === 'responsible') ? t('shares.impliedHintResponsible') : t('shares.impliedHint')}
             </Text>
           </Stack>
         )}

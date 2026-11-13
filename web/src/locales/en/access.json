@@ -147,7 +147,7 @@
     "loading": "Loading the shares …",
     "loadFailed": "The shares could not be loaded.",
     "scope": {
-      "instance": "Scope: the whole instance – everybody's roles apply, and the shares below add to them.",
+      "instance": "Scope: the whole instance – no owning teams, so everybody's roles apply, and the shares below add to them.",
       "teams": "Scope: the owning teams ({{teams}}) – their members have their roles, and the shares below add exceptions.",
       "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item.",
       "identity": "Closed by default: only administrators, members of its owning teams who design or operate, and the entries below use this identity – and only who may use the platform as well."
@@ -161,7 +161,10 @@
     },
     "outside": "outside the owning teams",
     "outsideRestricted": "gives access to a Restricted item",
-    "impliedHint": "Owners and responsibles have an implied share with the level shown: it is computed from the owner field and goes when the owner is removed.",
+    "impliedHint": "The owner field gives these shares, and they go when the owner is removed. They do not limit who sees the item – owning teams do.",
+    "impliedHintResponsible": "The responsible field gives these shares, and they go when the responsible is removed. They do not limit who sees the item – owning teams do.",
+    "scopeToTeams": "To keep this item to some teams, set its owning teams.",
+    "setOwningTeams": "Set owning teams",
     "notYours": "Only who manages this item, administrators and auditors see whom it is shared with. Why do I have access? shows your own reasons.",
     "empty": "Not shared with anyone.",
     "unknown": "No longer exists – this share matches nobody",

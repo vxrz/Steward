@@ -29,6 +29,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - **Industrial Edge examples #50 and #51** publish the report interval of each device (_Report interval (min)_) and the grace (`graceMinutes`), so the catalogue applies their online rule when it is read ([examples/README.md](examples/README.md)).
 - **dbt files are parsed in a worker thread**: `manifest.json` and `run_results.json` (pushes and uploads) no longer hold up the server – a 39 MB manifest blocked it for about 1.1 s, now no turn of the event loop takes more than about 50 ms. The six dbt files a minute per source stay.
 - **Data product imports read faster**: stored elements are looked up in bulk, JSON files are read with `JSON.parse`, members are added up to 500 at a time – an import of 20,000 elements took about 9 s in one transaction, now about 4 s in the background.
+- **The Access tab tells the owner field from owning teams** ([docs/TEAMS.md](docs/TEAMS.md)): a team named as owner looked as if it scoped the item. The scope line of the whole instance now says there are no owning teams, the implied shares say that the owner field does not limit who sees the item – owning teams do – and who may set owning teams gets _Set owning teams_.
 - **Fewer database statements** on a data product's page (26 → 20 beyond what every request costs) and its scorecard (51 → 37).
 
 ### Fixed

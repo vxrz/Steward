@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import { Badge, Button, Group, List, Modal, MultiSelect, Paper, SegmentedControl, Select, Stack, Table, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconHelpCircle, IconUsersGroup } from '@tabler/icons-react';
@@ -11,19 +11,34 @@ import { fmtDay } from '../format';
 import { OpenSupplierModal } from './suppliers/SharedSuppliers';
 import { useModuleUseText } from './modules/moduleUse';
 
-interface OwningTeamsResponse {
+export interface OwningTeamsResponse {
   teams: { id: string; name: string }[];
   canChange: boolean;
 }
+
+export const owningTeamsKey = (kind: OwnedKind, id: string) => ['owning-teams', kind, id];
 
 /**
  * Owning teams of a process or platform (#131): members of these teams have their roles in the team on it; everyone
  * else only what the access list below gives. Administrators change them; everybody can see why they have access.
  */
-export function OwningTeams({ kind, id, mt, restricted }: { kind: OwnedKind; id: string; mt?: 'md'; restricted?: boolean }) {
+export function OwningTeams({
+  kind,
+  id,
+  mt,
+  restricted,
+  fieldRef,
+}: {
+  kind: OwnedKind;
+  id: string;
+  mt?: 'md';
+  restricted?: boolean;
+  /** The teams field, for the way here from the Access tab's scope line */
+  fieldRef?: Ref<HTMLInputElement>;
+}) {
   const { t } = useTranslation(['access', 'common']);
   const qc = useQueryClient();
-  const key = ['owning-teams', kind, id];
+  const key = owningTeamsKey(kind, id);
   const q = useQuery({ queryKey: key, queryFn: () => get<OwningTeamsResponse>(`/owning-teams/${kind}/${id}`) });
   const canChange = !!q.data?.canChange;
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: canChange });
@@ -70,6 +85,7 @@ export function OwningTeams({ kind, id, mt, restricted }: { kind: OwnedKind; id:
         {canChange ? (
           <Group align="flex-end" wrap="wrap">
             <MultiSelect
+              ref={fieldRef}
               label={t('owning.label')}
               placeholder={value.length ? undefined : t('owning.none')}
               data={(teams.data ?? []).map((x) => ({ value: x.id, label: x.name }))}

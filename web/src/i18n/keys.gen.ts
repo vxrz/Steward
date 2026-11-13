@@ -143,6 +143,9 @@ export interface Resources {
     'shares.outside': string;
     'shares.outsideRestricted': string;
     'shares.impliedHint': string;
+    'shares.impliedHintResponsible': string;
+    'shares.scopeToTeams': string;
+    'shares.setOwningTeams': string;
     'shares.notYours': string;
     'shares.empty': string;
     'shares.unknown': string;
