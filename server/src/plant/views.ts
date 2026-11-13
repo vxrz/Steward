@@ -57,22 +57,41 @@ function destinationNodes(g: GraphBuilder, c: PlantCollectionValues): string[] {
     }
     const item = d.kind === 'system' || d.kind === 'platform' || d.kind === 'application';
     const label = item ? (resolveTarget(d.kind, d.ref)?.label ?? '') : d.ref || d.name;
-    return g.node({
+    const id = g.node({
       id: `tgt:${norm(`${d.kind}:${d.ref || d.name}`)}`,
       kind: 'target',
       label: label || '–',
-      detail: d.object,
+      detail: '',
       path: null,
       hidden: item && !label,
     });
+    addDetailLine(g, id, d.object);
+    return id;
   });
 }
 
-/** The collector of a collection as a node (one per collector; its label as the reader may see it). */
+/** Most lines a node's second line collects (the card shows the first and how many more; the table all of them). */
+const MAX_DETAIL_LINES = 50;
+/**
+ * Adds a line to a node's second line, once. A collector or target that several collections (or publications) share is
+ * one node: it names each of them, not only the first one drawn (0.23.0).
+ */
+function addDetailLine(g: GraphBuilder, id: string, line: string): void {
+  const n = g.nodes.get(id)!;
+  const value = line.trim();
+  if (!value) return;
+  const lines = n.detail ? n.detail.split('\n') : [];
+  if (lines.includes(value) || lines.length >= MAX_DETAIL_LINES) return;
+  n.detail = [...lines, value].join('\n');
+}
+
+/** The collector of a collection as a node (one per collector; its label as the reader may see it), naming `detail`. */
 function collectorNode(g: GraphBuilder, c: PlantCollectionValues, detail: string): string {
   const k = c.collector;
   const label = k.kind === 'job' ? k.ref : (resolveTarget(k.kind, k.ref)?.label ?? '');
-  return g.node({ id: `coll:${collectorKey(k)}`, kind: 'collector', label: label || '–', detail, path: null, hidden: k.kind !== 'job' && !label });
+  const id = g.node({ id: `coll:${collectorKey(k)}`, kind: 'collector', label: label || '–', detail: '', path: null, hidden: k.kind !== 'job' && !label });
+  addDetailLine(g, id, detail);
+  return id;
 }
 import { siteNetwork } from './network.js';
 import { monitorState, monitorVisible, readableDataset } from './live.js';
@@ -731,13 +750,8 @@ export function assetFlow(assetId: string, scope: CatalogueScope = catalogueScop
             const from = by ? collector(by) : ifId;
             const target = p.target.trim() || '–';
             const tId = g.node({ id: `tgt:${norm(target)}`, kind: 'target', label: target, detail: '', path: null });
-            const t = g.nodes.get(tId)!;
-            const where = [p.path, p.name].filter(Boolean).join(' / ');
-            // the target's paths (the first three, then how many more)
-            if (where) {
-              const shown = t.detail ? t.detail.split('\n') : [];
-              if (!shown.includes(where) && shown.length < 3) t.detail = [...shown, where].join('\n');
-            }
+            // the target's paths (the card shows the first and how many more)
+            addDetailLine(g, tId, [p.path, p.name].filter(Boolean).join(' / '));
             path.edges.push(g.edge(from, tId, point.id));
             if (!path.nodes.includes(tId)) path.nodes.push(tId);
             last.push(tId);
