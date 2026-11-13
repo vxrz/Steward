@@ -1,3 +1,4 @@
+import { hiddenCatalogue } from './catalogue-access.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ASSET_STATUSES, PLANT_LIMITS } from '@sm/shared';
@@ -540,6 +541,12 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- device profiles and KPI definitions: catalogues of the installation (#219) ----------
   app.get('/plant/profiles', async () => cat.listProfiles());
+  // 0.21.0 (#293): how many device profiles and KPI definitions the caller may not see (the lists count them)
+  app.get('/plant/catalogue/hidden', async (req) => {
+    requirePlant();
+    const q = z.object({ q: z.string().max(200).optional() }).parse(req.query).q;
+    return { ...hiddenCatalogue(), ...(q?.trim() ? { points: cat.hiddenPointMatches(q) } : {}) };
+  });
   app.post('/plant/profiles', async (req, reply) =>
     write(
       req,

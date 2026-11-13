@@ -520,9 +520,16 @@ export function getDataPoint(profileId: string, pointId: string, scope: Catalogu
 
 /**
  * Data points across every profile the caller may see whose id, name, address or description contains the text (no
- * pattern: a plain match). 0.21.0: profiles the caller may not see are counted (`hiddenProfiles`: those with a match).
+ * pattern: a plain match). 0.21.0: profiles the caller may not see are left out – counted by hiddenPointMatches().
  */
-export function explorePoints(q: string, scope: CatalogueScope = catalogueScope()): PlantPointExplore {
+export function explorePoints(q: string, scope: CatalogueScope = catalogueScope()): PlantPointHit[] {
+  return pointSearch(q, scope).hits;
+}
+
+/** How many profiles the caller may not see have data points that match (GET /plant/catalogue/hidden?q=). */
+export const hiddenPointMatches = (q: string, scope: CatalogueScope = catalogueScope()): number => pointSearch(q, scope).hiddenProfiles;
+
+function pointSearch(q: string, scope: CatalogueScope): PlantPointExplore {
   requirePlant();
   const needle = q.trim().toLowerCase();
   if (!needle) return { hits: [], hiddenProfiles: 0 };

@@ -980,7 +980,7 @@ export interface PlantCheck {
   params: Record<string, string | number>;
 }
 
-/** GET /api/plant/explore/points?q=: data points across the profiles (0.21.0: `{ hits, hiddenProfiles }`). */
+/** GET /api/plant/explore/points?q=: data points across the profiles the reader may see. */
 export interface PlantPointHit {
   profile: { id: string; name: string };
   interface: { id: string; name: string; protocol: PlantProtocol };
@@ -990,7 +990,7 @@ export interface PlantPointHit {
   deliveredBy: number;
 }
 
-/** GET /api/plant/explore/points?q= (0.21.0): the hits, and how many profiles the reader may not see have a match (counted). */
+/** The point search (0.21.0): the hits, and how many profiles the reader may not see have a match (counted). */
 export interface PlantPointExplore {
   hits: PlantPointHit[];
   hiddenProfiles: number;

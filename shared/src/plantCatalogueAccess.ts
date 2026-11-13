@@ -28,4 +28,6 @@ export const isPlantHidden = (v: string | null | undefined): boolean => !!v && (
 export interface PlantHiddenCatalogue {
   profiles: number;
   kpis: number;
+  /** With `?q=`: how many profiles the reader may not see have data points that match (Explore data) */
+  points?: number;
 }
