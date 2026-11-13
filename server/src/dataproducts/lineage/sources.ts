@@ -162,9 +162,12 @@ function checkTeams(ids: readonly string[]): void {
   if (unknown) throw new HttpError(400, `Unknown team "${unknown}"`, 'TEAM_NOT_FOUND', { name: unknown.slice(0, 100) });
 }
 
-/** Teams that reach people `before` did not, or none at all (the whole module) where there were teams. */
+/**
+ * Teams that reach people `before` did not, or none at all (the whole module) where there were teams. From none (every
+ * user of the module) to some narrows: nothing to confirm.
+ */
 const widens = (before: readonly string[], after: readonly string[]): boolean =>
-  after.some((t) => !before.includes(t)) || (before.length > 0 && after.length === 0);
+  before.length > 0 && (after.length === 0 || after.some((t) => !before.includes(t)));
 
 const teamNames = (ids: readonly string[]): string[] =>
   ids.length
@@ -190,13 +193,13 @@ export function createLineageSource(body: unknown): DataLineageSource {
   if (!canManageModule(u)) forbidden();
   const input = dataLineageSourceInput.parse(body);
   checkInput(u, input);
-  checkTeams(input.teamIds);
+  checkTeams(input.teamIds ?? []);
   const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_lineage_sources')!.n);
   if (n >= LL.sources)
     throw new HttpError(409, `Limit reached: at most ${LL.sources} lineage sources`, 'DATA_PRODUCT_LIMIT', { context: 'lineageSources', max: LL.sources });
   // a new source is the creator's teams' by default; other teams or none widen who sees it
   const mine = [...memberships(u).keys()];
-  const teams = [...new Set(input.teamIds)];
+  const teams = [...new Set(input.teamIds ?? mine)];
   const widening = widens(mine, teams);
   if (widening) requireStepUpNow('access.grant', u, 'grantAccess');
   const id = newId(DATA_LINEAGE_ID_PREFIX.source);
@@ -226,7 +229,8 @@ export function createLineageSource(body: unknown): DataLineageSource {
     });
     if (widening) auditTeams(u, id, input.name, mine, teams);
   });
-  return getLineageSource(id);
+  // as the person sees it now (owning teams they are not in leave them without sight of it)
+  return toSource(lineageSourceRow(id)!, u);
 }
 
 export function updateLineageSource(id: string, body: unknown): DataLineageSource {
@@ -235,9 +239,9 @@ export function updateLineageSource(id: string, body: unknown): DataLineageSourc
   if (input.kind !== row.kind)
     throw new HttpError(400, 'A lineage source keeps its kind – set up a new source', 'DATA_LINEAGE_SOURCE_PLATFORM', { context: 'kindChanged' });
   checkInput(u, input);
-  checkTeams(input.teamIds);
+  checkTeams(input.teamIds ?? []);
   const before = parseJson<string[]>(row.team_ids, []);
-  const after = [...new Set(input.teamIds)];
+  const after = [...new Set(input.teamIds ?? before)];
   const widening = widens(before, after);
   if (widening) requireStepUpNow('access.grant', u, 'grantAccess');
   db().tx(() => {
@@ -262,7 +266,7 @@ export function updateLineageSource(id: string, body: unknown): DataLineageSourc
     });
     if (before.join() !== after.join()) auditTeams(u, row.id, input.name, before, after);
   });
-  return getLineageSource(row.id);
+  return toSource(lineageSourceRow(row.id)!, u);
 }
 
 /** Deletes the source, its tokens, proposals and quality results; the steps made from its proposals stay. */

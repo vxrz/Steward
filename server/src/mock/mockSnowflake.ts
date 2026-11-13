@@ -651,9 +651,9 @@ function discoveryAnswer(tag: string, sql: string, args: string[]): { names: str
       };
       for (const db of ['SHOP', 'SHOP_DEV']) {
         dep(`${db}.STAGED.ORDERS`, `${db}.CURATED.ORDERS`);
-        dep(`${db}.CURATED.ORDERS`, `${db}.MART.DAILY_SALES`);
-        dep(`${db}.CURATED.CUSTOMERS`, `${db}.MART.DAILY_SALES`);
         dep(`${db}.CURATED.ORDERS`, `${db}.MART.ORDERS_BY_REGION`);
+        dep(`${db}.CURATED.CUSTOMERS`, `${db}.MART.ORDERS_BY_REGION`);
+        dep(`${db}.MART.ORDERS_BY_REGION`, `${db}.MART.DAILY_SALES`);
       }
       dep('SHOP.SALES.ORDERS', 'SHOP.REPORTING.DAILY_REVENUE');
       dep('FINANCE.PUBLIC.FX_RATES', 'SHOP.REPORTING.DAILY_REVENUE');

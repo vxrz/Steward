@@ -272,7 +272,8 @@ export const dataLineageSourceInput = z
       .array(z.object({ from: namespace(), to: namespace() }).strict())
       .max(DATA_LINEAGE_LIMITS.namespaceAliases)
       .default([]),
-    teamIds: z.array(z.string().trim().min(1).max(100)).max(DATA_LINEAGE_LIMITS.teams).default([]),
+    /** Owning teams; left out: the creator's teams (a new source) or the teams it has (a change) */
+    teamIds: z.array(z.string().trim().min(1).max(100)).max(DATA_LINEAGE_LIMITS.teams).optional(),
     enabled: z.boolean().default(true),
   })
   .strict();
