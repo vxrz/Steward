@@ -66,7 +66,7 @@ import type { PriceSight } from './estimate-model.js';
  * - A **contracted** book of a platform: who sees the platform's amounts reads it; who may change the platform's cost
  *   plan (its managers and owning teams' members) maintains it.
  * - Any other contracted book: its owning teams' members, administrators and auditors read it – and, when it names a
- *   supplier contract, who sees that contract; without owning teams the costs managers.
+ *   supplier contract, who sees that contract with its amounts (0.23.0); without owning teams the costs managers.
  * - Maintaining a book without a platform: with owning teams their members with the designer role; without, the costs
  *   managers (administrators and designers, until the Costs module's manager role of ADR 0034).
  * - Every write is a signed-in session's (the routes), audited with before and after.
@@ -207,8 +207,18 @@ export function bookRights(r: BookRow, u: AuthUser | null = currentUser()): Book
   const restricted = shared && !teams.length && isRestricted('cost_price_book', r.id);
   if ((r.kind === 'list' && !restricted) || edit || u.roles.includes('auditor') || share.has('view')) return { view: true, edit, manage };
   const member = teams.length > 0 && teamRoles(u, teams).length > 0;
-  const contract = !!r.supplier_contract_id && visibleContracts([r.supplier_contract_id], u).has(r.supplier_contract_id);
+  // the readers of the contract it names who see that contract's amounts: its prices are those amounts (with "Hide
+  // amounts from viewers" a reader of the contract sees neither its conditions nor the books made of them)
+  const contract = !!r.supplier_contract_id && amountsSight(u)(r.supplier_contract_id);
   return { view: member || contract || (!teams.length && !restricted && isCostsManager(u)), edit, manage };
+}
+
+/** Whose contracts' amounts `u` sees (conditionsSight), once per person object – a list asks it for every book. */
+const amountsSights = new WeakMap<AuthUser, (contractId: string) => boolean>();
+function amountsSight(u: AuthUser): (contractId: string) => boolean {
+  let sight = amountsSights.get(u);
+  if (!sight) amountsSights.set(u, (sight = conditionsSight(u)));
+  return sight;
 }
 
 /** A designer in one of their teams (adds books and calculators that its team then owns). */
