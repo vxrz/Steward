@@ -1,0 +1,85 @@
+# steward-min-version: 0.21.0
+name: Snowflake costs
+description: What a Snowflake account costs this month – so far, projected and last month, per service type, warehouse, database and query tag – and where it wastes credits or storage, fed by "Snowflake – Cost estimate and trend" (daily) and "Snowflake – Waste check" (weekly).
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Snowflake costs** – estimated by the processes *Snowflake – Cost estimate and trend* and *Snowflake – Waste check* from `SNOWFLAKE.ACCOUNT_USAGE` (up to three hours behind; query attribution up to eight). Opening this page never calls Snowflake.
+      Money is credits × the **price per credit** and storage × the **price per TB and month** the schedules pass as inputs (the column _Currency_ names theirs). **Projected** = the complete days of the month so far + the daily average of the last complete days (7 by default, an input) × the days left; storage keeps the latest day's bytes. The billed figures of the platform's cost source are under _Costs_.
+  - { id: mtdCost, type: kpi, title: Cost this month so far, dataset: snowflake.cost-services, metric: mtdCost, goodWhen: down, width: 3 }
+  - { id: projectedCost, type: kpi, title: Projected for the month, dataset: snowflake.cost-services, metric: projectedCost, goodWhen: down, width: 3 }
+  - { id: previousCost, type: kpi, title: Previous month, dataset: snowflake.cost-services, metric: previousCost, goodWhen: down, width: 2 }
+  - { id: changePct, type: kpi, title: Projection against last month (%), dataset: snowflake.cost-services, metric: changePct, goodWhen: down, width: 2 }
+  - { id: budget, type: kpi, title: Monthly budget (0 = none), dataset: snowflake.cost-services, metric: budget, width: 2 }
+  - id: costTrend
+    type: trend
+    title: Projection, month so far and previous month
+    dataset: snowflake.cost-services
+    metrics: [projectedCost, mtdCost, previousCost]
+    days: 90
+    trendLine: true
+    width: 8
+  - id: splitTrend
+    type: trend
+    title: Projection by kind
+    dataset: snowflake.cost-services
+    metrics: [computeProjectedCost, serverlessProjectedCost, storageProjectedCost]
+    days: 90
+    width: 4
+  - id: serviceChart
+    type: vega
+    title: Projected cost per service type
+    dataset: snowflake.cost-services
+    width: 6
+    spec:
+      description: The projected cost of the month per service type as bars, coloured by state (warning – grows by more than the threshold); the tick marks the previous month.
+      height: 220
+      encoding:
+        y: { field: Service, type: nominal, title: null, sort: { field: Projected cost, order: descending } }
+      layer:
+        - mark: { type: bar, cornerRadiusEnd: 2 }
+          encoding:
+            x: { field: Projected cost, type: quantitative, title: Projected cost }
+            color:
+              field: _status
+              type: nominal
+              title: State
+              scale: { domain: [good, warning, serious, critical, unknown], scheme: steward-status }
+              legend: null
+            tooltip:
+              - { field: Service }
+              - { field: Cost this month, type: quantitative }
+              - { field: Projected cost, type: quantitative }
+              - { field: Previous month, type: quantitative }
+              - { field: Currency }
+        - mark: { type: tick, thickness: 2 }
+          encoding:
+            x: { field: Previous month, type: quantitative }
+  - { id: services, type: table, title: Per service type, dataset: snowflake.cost-services, width: 6 }
+  - { id: warehouses, type: table, title: Per warehouse, dataset: snowflake.cost-warehouses, width: 12 }
+  - { id: storage, type: table, title: Storage per database, dataset: snowflake.cost-storage, width: 6 }
+  - { id: attribution, type: table, title: Query credits per query tag and user, dataset: snowflake.cost-attribution, width: 6 }
+  - { id: costChecks, type: checks, title: Latest cost checks, process: snowflake-cost-estimate, width: 12 }
+  - id: wasteIntro
+    type: markdown
+    width: 12
+    text: |
+      **Waste** – idle and oversized warehouses, late auto-suspend, tables nobody reads, large time travel, failing tasks and pipes, serverless features on objects hardly read and long failed queries, each with the estimated saving per month and the SQL to consider. Nothing is changed in Snowflake: a person decides and runs the statement.
+  - { id: findings, type: kpi, title: Findings, dataset: snowflake.waste, metric: findings, goodWhen: down, width: 3 }
+  - { id: saving, type: kpi, title: Possible saving per month, dataset: snowflake.waste, metric: saving, goodWhen: down, width: 3 }
+  - { id: savingCredits, type: kpi, title: Possible saving (credits per month), dataset: snowflake.waste, metric: savingCredits, goodWhen: down, width: 3 }
+  - { id: idleWarehouses, type: kpi, title: Idle warehouses, dataset: snowflake.waste, metric: idleWarehouses, goodWhen: down, width: 3 }
+  - id: wasteTrend
+    type: trend
+    title: Findings by kind
+    dataset: snowflake.waste
+    metrics: [autoSuspend, oversized, unusedTables]
+    days: 180
+    width: 6
+  - { id: savingTrend, type: trend, title: Possible saving per month, dataset: snowflake.waste, metrics: [saving], days: 180, width: 6 }
+  - { id: waste, type: table, title: Findings, dataset: snowflake.waste, width: 12 }
+  - { id: wasteChecks, type: checks, title: Latest waste checks, process: snowflake-waste-check, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

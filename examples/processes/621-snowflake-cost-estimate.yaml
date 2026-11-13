@@ -1,0 +1,542 @@
+# steward-min-version: 0.21.0
+name: "Snowflake – Cost estimate and trend"
+description: |
+  What a Snowflake account costs this month, from SNOWFLAKE.ACCOUNT_USAGE:
+  credits per warehouse (compute and cloud services,
+  WAREHOUSE_METERING_HISTORY), billed credits per service type including the
+  serverless ones – tasks, Snowpipe, automatic clustering, materialised
+  views, search optimisation (METERING_DAILY_HISTORY, after the cloud
+  services adjustment) – storage per database, fail-safe and stages
+  (DATABASE_STORAGE_USAGE_HISTORY, STORAGE_USAGE) and, where the account has
+  QUERY_ATTRIBUTION_HISTORY, the query credits per query tag and user. Credits
+  become money with the price per credit, storage with the price per TB and
+  month (inputs: your contracted prices – the process cannot read Steward's
+  price books). For each row: the month so far, the projection for the whole
+  month and the previous month. Checks warn when the projection is above your
+  monthly budget or grows by more than the threshold against last month.
+  Read-only (statements with bind parameters only).
+
+  Projection: the complete days of the month so far (UTC, today left out –
+  ACCOUNT_USAGE is not complete for it) plus the daily average of the last N
+  complete days (input, default 7) for each day left, today included; storage:
+  the bytes of the latest day for the days left. The previous month is the
+  whole calendar month. Credits of a warehouse include cloud services before
+  the daily 10 % allowance; the service types show what is billed.
+
+  Recommended schedule: daily (`20 9 * * *` – ACCOUNT_USAGE lags up to three
+  hours behind, QUERY_ATTRIBUTION_HISTORY up to eight). Publishes
+  `snowflake.cost-services` (one row per service type and storage; the
+  account totals as metrics), `snowflake.cost-warehouses`,
+  `snowflake.cost-storage` and `snowflake.cost-attribution` for the
+  "Snowflake costs" dashboard. Needs a Snowflake platform whose role has
+  IMPORTED PRIVILEGES on the SNOWFLAKE database (or the database role
+  SNOWFLAKE.USAGE_VIEWER) and a warehouse (docs/SNOWFLAKE.md).
+recommendedSchedule: "20 9 * * *"
+tags: [costs, finops, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only)
+inputs:
+  - name: pricePerCredit
+    label: Price per credit (your contracted price)
+    type: number
+    default: 3
+  - name: storagePricePerTb
+    label: Storage price per TB and month (TB = 2^40 bytes)
+    type: number
+    default: 23
+  - name: currency
+    label: Currency of the prices
+    type: string
+    default: USD
+  - name: runRateDays
+    label: Projection from the daily average of the last … complete days (1–60)
+    type: number
+    default: 7
+  - name: monthlyBudget
+    label: Monthly budget for the account (0 = no budget check)
+    type: number
+    default: 0
+  - name: growthPercent
+    label: Warn when the projection grows by more than (% against last month)
+    type: number
+    default: 20
+  - name: minGrowthCost
+    label: … only for warehouses and services projected above (money, per month)
+    type: number
+    default: 50
+  - name: maxAttributionRows
+    label: Query tags and users listed at most
+    type: number
+    default: 200
+constants:
+  serviceNames:
+    WAREHOUSE_METERING: Warehouses
+    WAREHOUSE_METERING_READER: Warehouses of reader accounts
+    SERVERLESS_TASK: Serverless tasks
+    SERVERLESS_TASK_FLEX: Serverless tasks (flexible)
+    PIPE: Snowpipe
+    SNOWPIPE_STREAMING: Snowpipe Streaming
+    AUTO_CLUSTERING: Automatic clustering
+    MATERIALIZED_VIEW: Materialised views
+    SEARCH_OPTIMIZATION: Search optimisation
+    QUERY_ACCELERATION: Query acceleration
+    REPLICATION: Replication
+    AI_SERVICES: AI services
+    SERVERLESS_ALERTS: Serverless alerts
+    TRUST_CENTER: Trust Center
+    STORAGE: Storage
+steps:
+  - id: period
+    type: set
+    name: The days of the estimate (UTC)
+    values:
+      today: "{{ $substring($now(), 0, 10) }}"
+      monthStart: "{{ $substring($now(), 0, 7) & '-01' }}"
+      nextMonthStart: "{{ $substring($fromMillis($ts(vars.monthStart) + 32 * 86400000), 0, 7) & '-01' }}"
+      prevMonthStart: "{{ $substring($fromMillis($ts(vars.monthStart) - 86400000), 0, 7) & '-01' }}"
+      daysInMonth: "{{ $round(($ts(vars.nextMonthStart) - $ts(vars.monthStart)) / 86400000) }}"
+      prevDays: "{{ $round(($ts(vars.monthStart) - $ts(vars.prevMonthStart)) / 86400000) }}"
+      daysDone: "{{ $round(($ts(vars.today) - $ts(vars.monthStart)) / 86400000) }}"
+      daysLeft: "{{ vars.daysInMonth - vars.daysDone }}"
+      rateDays: "{{ $max([1, $min([60, $round($number(inputs.runRateDays))])]) }}"
+      rateStart: "{{ $substring($fromMillis($ts(vars.today) - vars.rateDays * 86400000), 0, 10) }}"
+      firstDay: "{{ vars.rateStart < vars.prevMonthStart ? vars.rateStart : vars.prevMonthStart }}"
+      creditPrice: "{{ $number(inputs.pricePerCredit) }}"
+      tbPrice: "{{ $number(inputs.storagePricePerTb) }}"
+      # every statement below reads these five days as bind parameters, in this order, through the one-row subquery p
+      dayBindings:
+        "1": { type: TEXT, value: "{{ vars.monthStart }}" }
+        "2": { type: TEXT, value: "{{ vars.today }}" }
+        "3": { type: TEXT, value: "{{ vars.rateStart }}" }
+        "4": { type: TEXT, value: "{{ vars.prevMonthStart }}" }
+        "5": { type: TEXT, value: "{{ vars.firstDay }}" }
+  - id: readWarehouses
+    type: http
+    name: Credits per warehouse (ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT WAREHOUSE_NAME,
+        SUM(IFF(START_TIME >= p.MONTH_START, CREDITS_USED_COMPUTE, 0)) AS MTD_COMPUTE,
+        SUM(IFF(START_TIME >= p.MONTH_START, CREDITS_USED_CLOUD_SERVICES, 0)) AS MTD_CLOUD,
+        SUM(IFF(START_TIME >= p.MONTH_START, CREDITS_USED, 0)) AS MTD_CREDITS,
+        SUM(IFF(START_TIME >= p.RATE_START, CREDITS_USED, 0)) AS RATE_CREDITS,
+        SUM(IFF(START_TIME >= p.PREV_START AND START_TIME < p.MONTH_START, CREDITS_USED, 0)) AS PREV_CREDITS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY,
+        (SELECT TO_DATE(?) AS MONTH_START, TO_DATE(?) AS TODAY, TO_DATE(?) AS RATE_START, TO_DATE(?) AS PREV_START, TO_DATE(?) AS FIRST_DAY) p
+        WHERE START_TIME >= p.FIRST_DAY AND START_TIME < p.TODAY
+        GROUP BY WAREHOUSE_NAME ORDER BY MTD_CREDITS DESC
+      bindings: "{{ vars.dayBindings }}"
+      parameters: { timezone: UTC }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: warehousesRead
+  - id: readServices
+    type: http
+    name: Billed credits per service type (ACCOUNT_USAGE.METERING_DAILY_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT SERVICE_TYPE,
+        SUM(IFF(USAGE_DATE >= p.MONTH_START, CREDITS_USED_COMPUTE, 0)) AS MTD_COMPUTE,
+        SUM(IFF(USAGE_DATE >= p.MONTH_START, CREDITS_USED_CLOUD_SERVICES, 0)) AS MTD_CLOUD,
+        SUM(IFF(USAGE_DATE >= p.MONTH_START, CREDITS_ADJUSTMENT_CLOUD_SERVICES, 0)) AS MTD_ADJUSTMENT,
+        SUM(IFF(USAGE_DATE >= p.MONTH_START, CREDITS_BILLED, 0)) AS MTD_BILLED,
+        SUM(IFF(USAGE_DATE >= p.RATE_START, CREDITS_BILLED, 0)) AS RATE_BILLED,
+        SUM(IFF(USAGE_DATE >= p.PREV_START AND USAGE_DATE < p.MONTH_START, CREDITS_BILLED, 0)) AS PREV_BILLED
+        FROM SNOWFLAKE.ACCOUNT_USAGE.METERING_DAILY_HISTORY,
+        (SELECT TO_DATE(?) AS MONTH_START, TO_DATE(?) AS TODAY, TO_DATE(?) AS RATE_START, TO_DATE(?) AS PREV_START, TO_DATE(?) AS FIRST_DAY) p
+        WHERE USAGE_DATE >= p.FIRST_DAY AND USAGE_DATE < p.TODAY
+        GROUP BY SERVICE_TYPE ORDER BY MTD_BILLED DESC
+      bindings: "{{ vars.dayBindings }}"
+      parameters: { timezone: UTC }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: servicesRead
+  - id: readDatabaseStorage
+    type: http
+    name: Storage per database (ACCOUNT_USAGE.DATABASE_STORAGE_USAGE_HISTORY)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT DATABASE_NAME,
+        MAX_BY(AVERAGE_DATABASE_BYTES, USAGE_DATE) AS LATEST_BYTES,
+        MAX_BY(AVERAGE_FAILSAFE_BYTES, USAGE_DATE) AS LATEST_FAILSAFE_BYTES,
+        SUM(IFF(USAGE_DATE >= p.MONTH_START, AVERAGE_DATABASE_BYTES + AVERAGE_FAILSAFE_BYTES, 0)) AS MTD_BYTE_DAYS,
+        COUNT(DISTINCT IFF(USAGE_DATE >= p.MONTH_START, USAGE_DATE, NULL)) AS MTD_DAYS,
+        SUM(IFF(USAGE_DATE >= p.PREV_START AND USAGE_DATE < p.MONTH_START, AVERAGE_DATABASE_BYTES + AVERAGE_FAILSAFE_BYTES, 0)) AS PREV_BYTE_DAYS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.DATABASE_STORAGE_USAGE_HISTORY,
+        (SELECT TO_DATE(?) AS MONTH_START, TO_DATE(?) AS TODAY, TO_DATE(?) AS RATE_START, TO_DATE(?) AS PREV_START, TO_DATE(?) AS FIRST_DAY) p
+        WHERE USAGE_DATE >= p.FIRST_DAY AND USAGE_DATE < p.TODAY
+        GROUP BY DATABASE_NAME ORDER BY LATEST_BYTES DESC
+      bindings: "{{ vars.dayBindings }}"
+      parameters: { timezone: UTC }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: databaseStorageRead
+  - id: readStageStorage
+    type: http
+    name: Storage of the stages (ACCOUNT_USAGE.STORAGE_USAGE)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    body:
+      statement: >-
+        SELECT '(stages)' AS DATABASE_NAME,
+        MAX_BY(STAGE_BYTES, USAGE_DATE) AS LATEST_BYTES,
+        0 AS LATEST_FAILSAFE_BYTES,
+        SUM(IFF(USAGE_DATE >= p.MONTH_START, STAGE_BYTES, 0)) AS MTD_BYTE_DAYS,
+        COUNT(DISTINCT IFF(USAGE_DATE >= p.MONTH_START, USAGE_DATE, NULL)) AS MTD_DAYS,
+        SUM(IFF(USAGE_DATE >= p.PREV_START AND USAGE_DATE < p.MONTH_START, STAGE_BYTES, 0)) AS PREV_BYTE_DAYS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.STORAGE_USAGE,
+        (SELECT TO_DATE(?) AS MONTH_START, TO_DATE(?) AS TODAY, TO_DATE(?) AS RATE_START, TO_DATE(?) AS PREV_START, TO_DATE(?) AS FIRST_DAY) p
+        WHERE USAGE_DATE >= p.FIRST_DAY AND USAGE_DATE < p.TODAY
+      bindings: "{{ vars.dayBindings }}"
+      parameters: { timezone: UTC }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: stageStorageRead
+  - id: readAttribution
+    type: http
+    name: Query credits per query tag and user (ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY, where available)
+    connection: snowflake
+    method: POST
+    path: /api/v2/statements
+    mutating: false
+    # 422: the account or the role does not have the view – the estimate goes on without it
+    expectStatus: [200, 422]
+    body:
+      statement: >-
+        SELECT COALESCE(NULLIF(QUERY_TAG, ''), '(no tag)') AS QUERY_TAG, USER_NAME,
+        COUNT_IF(START_TIME >= p.MONTH_START) AS QUERIES,
+        SUM(IFF(START_TIME >= p.MONTH_START, CREDITS_ATTRIBUTED_COMPUTE + COALESCE(CREDITS_USED_QUERY_ACCELERATION, 0), 0)) AS MTD_CREDITS,
+        SUM(IFF(START_TIME >= p.RATE_START, CREDITS_ATTRIBUTED_COMPUTE + COALESCE(CREDITS_USED_QUERY_ACCELERATION, 0), 0)) AS RATE_CREDITS,
+        SUM(IFF(START_TIME >= p.PREV_START AND START_TIME < p.MONTH_START, CREDITS_ATTRIBUTED_COMPUTE + COALESCE(CREDITS_USED_QUERY_ACCELERATION, 0), 0)) AS PREV_CREDITS
+        FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_ATTRIBUTION_HISTORY,
+        (SELECT TO_DATE(?) AS MONTH_START, TO_DATE(?) AS TODAY, TO_DATE(?) AS RATE_START, TO_DATE(?) AS PREV_START, TO_DATE(?) AS FIRST_DAY) p
+        WHERE START_TIME >= p.FIRST_DAY AND START_TIME < p.TODAY
+        GROUP BY 1, 2 ORDER BY MTD_CREDITS DESC LIMIT ?
+      bindings: >-
+        {{ $merge([vars.dayBindings, { "6": { "type": "FIXED", "value": $string($max([1, $min([1000, $round($number(inputs.maxAttributionRows))])])) } }]) }}
+      parameters: { timezone: UTC }
+      timeout: 120
+      role: "{{ $pvar('snowflake', 'role') }}"
+      warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+    saveAs: attributionRead
+  - id: tables
+    type: set
+    name: Result sets as rows
+    values:
+      # the SQL API answers rows as arrays, with the column names in resultSetMetaData
+      warehouses: "{{ ($c := [vars.warehousesRead.body.resultSetMetaData.rowType.name]; [$map(vars.warehousesRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) }}"
+      services: "{{ ($c := [vars.servicesRead.body.resultSetMetaData.rowType.name]; [$map(vars.servicesRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) }}"
+      storage: >-
+        {{ [[vars.databaseStorageRead, vars.stageStorageRead].(
+          $c := [body.resultSetMetaData.rowType.name];
+          $map(body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })
+        )] }}
+      attributionAvailable: "{{ vars.attributionRead.status = 200 }}"
+      attribution: >-
+        {{ vars.attributionAvailable
+          ? ($c := [vars.attributionRead.body.resultSetMetaData.rowType.name]; [$map(vars.attributionRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })])
+          : [] }}
+  - id: noAttribution
+    type: log
+    name: Query attribution not available
+    when: "$not(vars.attributionAvailable)"
+    level: warn
+    message: "QUERY_ATTRIBUTION_HISTORY could not be read – no credits per query tag and user: {{ $string(vars.attributionRead.body.message) }}"
+  - id: estimate
+    type: set
+    name: Month so far, projection and previous month
+    values:
+      # the money of credits: a credit row (mtd, rate over rateDays, previous) → the figures of the dataset
+      storageRows: >-
+        {{ [vars.storage.(
+          $n := function($v) { $v ? $number($v) : 0 };
+          $tbMonth := 1099511627776 * $vars.daysInMonth;
+          $mtd := $n(MTD_BYTE_DAYS);
+          $latest := $n(LATEST_BYTES) + $n(LATEST_FAILSAFE_BYTES);
+          $projected := ($mtd + $latest * $vars.daysLeft) / $tbMonth * $vars.tbPrice;
+          $previous := $n(PREV_BYTE_DAYS) / (1099511627776 * $vars.prevDays) * $vars.tbPrice;
+          {
+            "key": DATABASE_NAME,
+            "database": DATABASE_NAME,
+            "sizeTb": $round($n(LATEST_BYTES) / 1099511627776, 3),
+            "failsafeTb": $round($n(LATEST_FAILSAFE_BYTES) / 1099511627776, 3),
+            "averageTb": $n(MTD_DAYS) > 0 ? $round($mtd / $n(MTD_DAYS) / 1099511627776, 3) : null,
+            "mtdCost": $round($mtd / $tbMonth * $vars.tbPrice, 2),
+            "projectedCost": $round($projected, 2),
+            "previousCost": $round($previous, 2),
+            "change": $previous > 0 ? $round(($projected - $previous) / $previous * 100, 1) : null
+          }
+        )] }}
+      warehouseRows: >-
+        {{ [vars.warehouses.(
+          $n := function($v) { $v ? $number($v) : 0 };
+          $mtd := $n(MTD_CREDITS);
+          $daily := $n(RATE_CREDITS) / $vars.rateDays;
+          $projected := $mtd + $daily * $vars.daysLeft;
+          $previous := $n(PREV_CREDITS);
+          {
+            "key": WAREHOUSE_NAME,
+            "warehouse": WAREHOUSE_NAME,
+            "compute": $round($n(MTD_COMPUTE), 2),
+            "cloud": $round($n(MTD_CLOUD), 2),
+            "mtdCredits": $round($mtd, 2),
+            "mtdCost": $round($mtd * $vars.creditPrice, 2),
+            "dailyCredits": $round($daily, 2),
+            "projectedCredits": $round($projected, 2),
+            "projectedCost": $round($projected * $vars.creditPrice, 2),
+            "previousCredits": $round($previous, 2),
+            "previousCost": $round($previous * $vars.creditPrice, 2),
+            "change": $previous > 0 ? $round(($projected - $previous) / $previous * 100, 1) : null,
+            "growing": $previous > 0 and $projected * $vars.creditPrice >= $inputs.minGrowthCost and ($projected - $previous) / $previous * 100 > $inputs.growthPercent
+          }
+        )] }}
+      serviceRows: >-
+        {{ [vars.services.(
+          $n := function($v) { $v ? $number($v) : 0 };
+          $mtd := $n(MTD_BILLED);
+          $daily := $n(RATE_BILLED) / $vars.rateDays;
+          $projected := $mtd + $daily * $vars.daysLeft;
+          $previous := $n(PREV_BILLED);
+          $name := $lookup($const.serviceNames, SERVICE_TYPE);
+          {
+            "key": SERVICE_TYPE,
+            "service": $name ? $name : SERVICE_TYPE,
+            "compute": $round($n(MTD_COMPUTE), 2),
+            "cloud": $round($n(MTD_CLOUD), 2),
+            "adjustment": $round($n(MTD_ADJUSTMENT), 2),
+            "mtdCredits": $round($mtd, 2),
+            "mtdCost": $round($mtd * $vars.creditPrice, 2),
+            "projectedCredits": $round($projected, 2),
+            "projectedCost": $round($projected * $vars.creditPrice, 2),
+            "previousCredits": $round($previous, 2),
+            "previousCost": $round($previous * $vars.creditPrice, 2),
+            "change": $previous > 0 ? $round(($projected - $previous) / $previous * 100, 1) : null,
+            "growing": $previous > 0 and $projected * $vars.creditPrice >= $inputs.minGrowthCost and ($projected - $previous) / $previous * 100 > $inputs.growthPercent
+          }
+        )] }}
+      storageTotal: >-
+        {{ (
+          $p := $sum(vars.storageRows.projectedCost);
+          $l := $sum(vars.storageRows.previousCost);
+          {
+            "key": "STORAGE",
+            "service": "Storage",
+            "compute": null, "cloud": null, "adjustment": null, "mtdCredits": null, "projectedCredits": null, "previousCredits": null,
+            "mtdCost": $round($sum(vars.storageRows.mtdCost), 2),
+            "projectedCost": $round($p, 2),
+            "previousCost": $round($l, 2),
+            "change": $l > 0 ? $round(($p - $l) / $l * 100, 1) : null,
+            "growing": $l > 0 and $p >= $inputs.minGrowthCost and ($p - $l) / $l * 100 > $inputs.growthPercent
+          }
+        ) }}
+      costRows: "{{ $append(vars.serviceRows, [vars.storageTotal]) }}"
+      attributionRows: >-
+        {{ [vars.attribution.(
+          $n := function($v) { $v ? $number($v) : 0 };
+          $mtd := $n(MTD_CREDITS);
+          $projected := $mtd + $n(RATE_CREDITS) / $vars.rateDays * $vars.daysLeft;
+          $previous := $n(PREV_CREDITS);
+          {
+            "key": QUERY_TAG & '|' & USER_NAME,
+            "tag": QUERY_TAG,
+            "user": USER_NAME,
+            "queries": $n(QUERIES),
+            "mtdCredits": $round($mtd, 2),
+            "mtdCost": $round($mtd * $vars.creditPrice, 2),
+            "projectedCost": $round($projected * $vars.creditPrice, 2),
+            "previousCost": $round($previous * $vars.creditPrice, 2),
+            "change": $previous > 0 ? $round(($projected - $previous) / $previous * 100, 1) : null
+          }
+        )] }}
+      total: >-
+        {{ (
+          $mtd := $sum(vars.costRows.mtdCost);
+          $projected := $sum(vars.costRows.projectedCost);
+          $previous := $sum(vars.costRows.previousCost);
+          $daily := vars.daysLeft > 0 ? ($projected - $mtd) / vars.daysLeft : 0;
+          $left := inputs.monthlyBudget - $mtd;
+          {
+            "mtdCost": $round($mtd, 2),
+            "projectedCost": $round($projected, 2),
+            "previousCost": $round($previous, 2),
+            "changePct": $previous > 0 ? $round(($projected - $previous) / $previous * 100, 1) : 0,
+            "mtdCredits": $round($sum(vars.serviceRows.mtdCredits), 2),
+            "projectedCredits": $round($sum(vars.serviceRows.projectedCredits), 2),
+            "previousCredits": $round($sum(vars.serviceRows.previousCredits), 2),
+            "daily": $round($daily, 2),
+            "budgetReachedOn": inputs.monthlyBudget > 0 and $projected > inputs.monthlyBudget
+              ? ($left <= 0 ? 'already' : $fromMillis($ts(vars.today) + $floor($left / $daily) * 86400000, '[D1] [MNn]'))
+              : null
+          }
+        ) }}
+      growingRows: "{{ [$append(vars.warehouseRows[growing].('warehouse ' & warehouse), vars.costRows[growing and key != 'WAREHOUSE_METERING'].service)] }}"
+      growingItems: >-
+        {{ [$append(
+          vars.warehouseRows[growing].('Warehouse ' & warehouse & ': ' & projectedCost & ' ' & $inputs.currency & ' projected, ' & previousCost & ' last month (+' & change & ' %)'),
+          vars.costRows[growing and key != 'WAREHOUSE_METERING'].(service & ': ' & projectedCost & ' ' & $inputs.currency & ' projected, ' & previousCost & ' last month (+' & change & ' %)')
+        )] }}
+  - id: publishServices
+    type: publish
+    name: Publish the costs per service type
+    dataset: snowflake.cost-services
+    title: Snowflake costs per service type
+    rows: vars.costRows
+    key: key
+    columns:
+      - { label: Service, value: service }
+      - { label: Credits this month, value: "mtdCredits != null ? mtdCredits : '–'" }
+      - { label: Cloud services adjustment, value: "adjustment != null ? adjustment : '–'" }
+      - { label: Cost this month, value: mtdCost }
+      - { label: Projected cost, value: projectedCost }
+      - { label: Previous month, value: previousCost }
+      - { label: Change (%), value: "change != null ? change : '–'" }
+      - { label: Currency, value: "$inputs.currency" }
+    status: "growing ? 'warning' : 'good'"
+    statusText: "growing ? 'projected ' & projectedCost & ', ' & change & ' % above last month' : ''"
+    metrics:
+      mtdCost: "vars.total.mtdCost"
+      projectedCost: "vars.total.projectedCost"
+      previousCost: "vars.total.previousCost"
+      changePct: "vars.total.changePct"
+      mtdCredits: "vars.total.mtdCredits"
+      projectedCredits: "vars.total.projectedCredits"
+      previousCredits: "vars.total.previousCredits"
+      computeProjectedCost: "$sum(vars.costRows[key = 'WAREHOUSE_METERING'].projectedCost)"
+      serverlessProjectedCost: "$round($sum(vars.costRows[key != 'WAREHOUSE_METERING' and key != 'STORAGE'].projectedCost), 2)"
+      storageProjectedCost: "vars.storageTotal.projectedCost"
+      budget: "inputs.monthlyBudget"
+      growing: "$count(vars.growingRows)"
+      daysLeft: "vars.daysLeft"
+    staleAfterMinutes: 2880
+  - id: publishWarehouses
+    type: publish
+    name: Publish the costs per warehouse
+    dataset: snowflake.cost-warehouses
+    title: Snowflake costs per warehouse
+    rows: vars.warehouseRows
+    key: key
+    columns:
+      - { label: Warehouse, value: warehouse }
+      - { label: Compute credits this month, value: compute }
+      - { label: Cloud services credits this month, value: cloud }
+      - { label: Credits this month, value: mtdCredits }
+      - { label: Credits per day (run rate), value: dailyCredits }
+      - { label: Projected credits, value: projectedCredits }
+      - { label: Cost this month, value: mtdCost }
+      - { label: Projected cost, value: projectedCost }
+      - { label: Previous month, value: previousCost }
+      - { label: Change (%), value: "change != null ? change : '–'" }
+      - { label: Currency, value: "$inputs.currency" }
+    status: "growing ? 'warning' : 'good'"
+    statusText: "growing ? 'projected ' & projectedCost & ', ' & change & ' % above last month' : ''"
+    metrics:
+      warehouses: "$count(vars.warehouseRows)"
+      mtdCredits: "$round($sum(vars.warehouseRows.mtdCredits), 2)"
+      projectedCredits: "$round($sum(vars.warehouseRows.projectedCredits), 2)"
+      previousCredits: "$round($sum(vars.warehouseRows.previousCredits), 2)"
+      projectedCost: "$round($sum(vars.warehouseRows.projectedCost), 2)"
+      growing: "$count(vars.warehouseRows[growing])"
+    staleAfterMinutes: 2880
+  - id: publishStorage
+    type: publish
+    name: Publish the storage per database
+    dataset: snowflake.cost-storage
+    title: Snowflake storage per database
+    rows: vars.storageRows
+    key: key
+    columns:
+      - { label: Database, value: database }
+      - { label: Size (TB), value: sizeTb }
+      - { label: Fail-safe (TB), value: failsafeTb }
+      - { label: Average this month (TB), value: "averageTb != null ? averageTb : '–'" }
+      - { label: Cost this month, value: mtdCost }
+      - { label: Projected cost, value: projectedCost }
+      - { label: Previous month, value: previousCost }
+      - { label: Change (%), value: "change != null ? change : '–'" }
+      - { label: Currency, value: "$inputs.currency" }
+    status: "'good'"
+    metrics:
+      databases: "$count(vars.storageRows[key != '(stages)'])"
+      storageTb: "$round($sum(vars.storageRows.sizeTb), 3)"
+      failsafeTb: "$round($sum(vars.storageRows.failsafeTb), 3)"
+      projectedCost: "vars.storageTotal.projectedCost"
+    staleAfterMinutes: 2880
+  - id: publishAttribution
+    type: publish
+    name: Publish the credits per query tag and user
+    dataset: snowflake.cost-attribution
+    title: Snowflake query credits per query tag and user
+    rows: vars.attributionRows
+    key: key
+    columns:
+      - { label: Query tag, value: tag }
+      - { label: User, value: user }
+      - { label: Queries this month, value: queries }
+      - { label: Credits this month, value: mtdCredits }
+      - { label: Cost this month, value: mtdCost }
+      - { label: Projected cost, value: projectedCost }
+      - { label: Previous month, value: previousCost }
+      - { label: Change (%), value: "change != null ? change : '–'" }
+      - { label: Currency, value: "$inputs.currency" }
+    status: "'good'"
+    metrics:
+      tags: "$count($distinct(vars.attributionRows.tag))"
+      users: "$count($distinct(vars.attributionRows.user))"
+      attributedCredits: "$round($sum(vars.attributionRows.mtdCredits), 2)"
+      available: "vars.attributionAvailable ? 1 : 0"
+    staleAfterMinutes: 2880
+  - id: budget
+    type: check
+    name: Projection within the monthly budget
+    severity: warning
+    when: "inputs.monthlyBudget > 0"
+    condition: "vars.total.projectedCost <= inputs.monthlyBudget"
+    message: >-
+      {{ 'Projected ' & vars.total.projectedCost & ' ' & inputs.currency & ' for the month (budget ' & inputs.monthlyBudget & ' ' & inputs.currency & ', '
+        & vars.total.mtdCost & ' ' & inputs.currency & ' so far, ' & vars.daysLeft & ' days left'
+        & (vars.total.budgetReachedOn = 'already' ? ', budget already used up'
+          : (vars.total.budgetReachedOn ? ', budget used up around ' & vars.total.budgetReachedOn : ''))
+        & ($t := $trend('snowflake.cost-services/projectedCost', '7d'); $t ? '; projection ' & ($t.change >= 0 ? '+' : '') & $round($t.change, 2) & ' in 7 days' : '')
+        & ')' }}
+    headline: "{{ 'Snowflake projected at ' & vars.total.projectedCost & ' ' & inputs.currency & ' this month (budget ' & inputs.monthlyBudget & ')' }}"
+    value: "vars.total.projectedCost"
+    items: "vars.costRows[projectedCost > 0].(service & ': ' & projectedCost & ' ' & $inputs.currency)"
+  - id: growth
+    type: check
+    name: Projection not growing against last month
+    severity: warning
+    when: "vars.total.previousCost > 0"
+    condition: "vars.total.changePct <= inputs.growthPercent"
+    message: "{{ 'Projected ' & vars.total.projectedCost & ' ' & inputs.currency & ' against ' & vars.total.previousCost & ' last month (' & (vars.total.changePct >= 0 ? '+' : '') & vars.total.changePct & ' %, at most +' & inputs.growthPercent & ' %)' }}"
+    headline: "{{ 'Snowflake costs projected ' & vars.total.changePct & ' % above last month' }}"
+    value: "vars.total.changePct"
+    items: "vars.growingItems"
+  - id: rowsGrowth
+    type: check
+    name: No warehouse or service grows by more than the threshold
+    severity: warning
+    condition: "$count(vars.growingRows) = 0"
+    message: "{{ $count(vars.growingRows) = 0 ? 'No warehouse or service projected above ' & inputs.minGrowthCost & ' ' & inputs.currency & ' grows by more than ' & inputs.growthPercent & ' %' : $join(vars.growingItems, '; ') }}"
+    headline: "{{ $count(vars.growingRows) & ' Snowflake warehouses and services grow by more than ' & inputs.growthPercent & ' %' }}"
+    value: "$count(vars.growingRows)"
+    items: "vars.growingItems"

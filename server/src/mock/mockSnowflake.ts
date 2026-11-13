@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
 
 /**
  * A demo Snowflake account (#115) under /mock/snowflake: the SQL API (POST /api/v2/statements) answering the
@@ -12,7 +13,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  *
  * Statements of processes (the example templates) are answered without a tag: SHOW GRANTS ON DATABASE, SHOW GRANTS OF
  * ROLE (from the same grants as GRANTS_TO_ROLES / GRANTS_TO_USERS), and SELECTs from ACCOUNT_USAGE.USERS,
- * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list.
+ * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list. The
+ * cost estimate and the waste check (0.21.0) are answered from mockSnowflakeUsage.ts, with SHOW WAREHOUSES.
  */
 
 export const DEMO_SNOWFLAKE = { account: 'DEMO12345', user: 'STEWARD_READER', role: 'STEWARD_READ', warehouse: 'STEWARD_WH' };
@@ -299,6 +301,7 @@ function rlike(pattern: string): (s: string) => boolean {
 
 /** Untagged statements: SHOW GRANTS ON DATABASE / OF ROLE, SELECTs from the ACCOUNT_USAGE views processes read. */
 function untagged(sql: string, arg: (i: number) => string): { names: string[]; rows: Cell[][] } | { error: string } {
+  if (/^SHOW WAREHOUSES ?;?$/i.test(sql.trim().replace(/\s+/g, ' '))) return showWarehouses();
   const ident = (raw: string) => (raw.startsWith('"') ? raw.slice(1, -1).replaceAll('""', '"') : raw.toUpperCase());
   // whitespace normalised first; the quoted name's alternatives start differently, so the pattern does not backtrack
   const show = /^SHOW GRANTS (ON DATABASE|OF ROLE) ("(?:[^"]|"")+"|[A-Za-z0-9_$]+) ?;?$/i.exec(sql.trim().replace(/\s+/g, ' '));
@@ -324,6 +327,8 @@ function untagged(sql: string, arg: (i: number) => string): { names: string[]; r
   }
   const view = /FROM\s+SNOWFLAKE\.ACCOUNT_USAGE\.([A-Z_]+)/i.exec(sql)?.[1]?.toUpperCase();
   const names = selectAliases(sql);
+  const usage = usageAnswer(sql, view, names, arg);
+  if (usage) return usage;
   if (view === 'USERS') {
     const technical = rlike(/\bRLIKE\s+\?/i.test(sql) ? arg(1) : '');
     const cell = (u: DemoUser, c: string): Cell => {
