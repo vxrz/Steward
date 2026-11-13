@@ -106,6 +106,9 @@ test.describe('module roles (own server)', () => {
     await expect(page).toHaveURL(/\/plant\/settings$/);
     await expect(page.getByTestId('plant-manager-settings-hint')).toContainText('Switching the module, who uses it and the map stay with administrators');
     await expect(page.getByTestId('plant-enabled')).toHaveCount(0);
+    // the way back to the sites, and not the switch's description ("off, nothing of it shows")
+    await expect(page.getByTestId('breadcrumb').getByRole('link', { name: 'Sites' })).toBeVisible();
+    await expect(page.getByRole('main')).not.toContainText('nothing of it shows');
     await expectAccessible(page, 'plant registry settings for managers');
     await page.getByLabel('Enterprise').fill('Invented Components AG (managed)');
     await page.getByRole('button', { name: 'Save' }).click();

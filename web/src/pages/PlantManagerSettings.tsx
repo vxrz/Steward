@@ -12,7 +12,7 @@ export function PlantManagerSettingsPage() {
   const { t } = useTranslation('plant');
   return (
     <Stack>
-      <PageHeader title={t('settings.managerTitle')} />
+      <PageHeader title={t('settings.managerTitle')} back="plantSites" />
       <PlantSettingsCard manager />
     </Stack>
   );
