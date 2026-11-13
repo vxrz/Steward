@@ -2308,7 +2308,7 @@ function fill(url: string): string {
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
       .replace(/:requestId/g, fx.dataRequest!)
-      .replace(/:reviewId/g, fx.dataReview!)
+      .replace(/^\/api\/data-products\/port-reviews\/:reviewId/, `/api/data-products/port-reviews/${fx.dataReview}`)
       .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
       .replace(/:environment/g, 'prod')
