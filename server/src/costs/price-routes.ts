@@ -22,7 +22,7 @@ import { dryRun } from './pricing.js';
 import { listRates, removeRate, setRate } from './fx.js';
 
 /**
- * Price books, calculators and estimates (0.21.0, ADR 0035, docs/PRICE-BOOKS.md, docs/COSTS.md#estimates) in the
+ * Price books, calculators and estimates (0.21.0, ADR 0035, docs/PRICE-BOOKS.md, docs/PRICE-BOOKS.md#estimates) in the
  * internal API. Rights are checked in the services; every write needs a signed-in session (ADR 0035 part 8: API tokens
  * and MCP read).
  *
