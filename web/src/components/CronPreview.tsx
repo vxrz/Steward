@@ -41,7 +41,18 @@ export function timeZoneOptions(current?: string | null): string[] {
 export function fmtRun(iso: string, timezone?: string | null): string {
   const other = !!timezone && timezone !== browserTimeZone();
   try {
-    return dateTimeFormat({ dateStyle: 'medium', timeStyle: 'short', ...(other ? { timeZone: timezone, timeZoneName: 'short' } : {}) }).format(new Date(iso));
+    // dateStyle/timeStyle cannot be combined with timeZoneName: the fields one by one
+    return other
+      ? dateTimeFormat({
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: timezone,
+          timeZoneName: 'short',
+        }).format(new Date(iso))
+      : dateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
   } catch {
     return dateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
   }
