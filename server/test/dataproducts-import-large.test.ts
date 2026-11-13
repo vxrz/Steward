@@ -238,6 +238,58 @@ describe('large imports', () => {
     expect(await elementCount('UNDOFAIL')).toBe(0);
   }, 600_000);
 
+  it('the undo keeps an added element that someone gave a cost match or made an input port’s source meanwhile', async () => {
+    const { db } = await import('../src/db.js');
+    const now = new Date().toISOString();
+    const product = db().get<{ id: string }>('SELECT id FROM dp_products ORDER BY created_at LIMIT 1')!.id;
+    const platform = db().get<{ id: string }>('SELECT id FROM platforms ORDER BY name LIMIT 1')!.id;
+    db().tx(() => {
+      db().run(
+        "INSERT INTO dp_import_jobs (id, state, phase, done, total, mode, created_by, created_at) VALUES ('dpj_used', 'running', 'elements', 3, 1200, 'add', 'dana', ?)",
+        now,
+      );
+      for (const i of [1, 2, 3]) {
+        db().run(
+          `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, source, created_at, created_by, updated_at, updated_by)
+           VALUES (?, '', 'other', ?, ?, 'x', 'prod', 'imported', ?, 'dana', ?, 'dana')`,
+          `dpe_used${i}`,
+          `INVENTED.USED.T${i}`,
+          `invented.used.t${i}`,
+          now,
+          now,
+        );
+        db().run('INSERT INTO dp_import_job_elements (job_id, element_id, before) VALUES (?, ?, NULL)', 'dpj_used', `dpe_used${i}`);
+      }
+      // meanwhile someone matched a cost line to the first and made the second an input port's source
+      db().run(
+        "INSERT INTO dp_cost_matches (id, product_id, element_id, environment, platform_id, match_kind, match_value, created_at, created_by) VALUES ('dcm_used', ?, 'dpe_used1', 'prod', ?, 'resource', 'invented', ?, 'vera')",
+        product,
+        platform,
+        now,
+      );
+      db().run(
+        `INSERT INTO dp_ports (id, product_id, direction, name, source_kind, source_element_id, created_at, created_by, updated_at, updated_by)
+         VALUES ('dpp_used', ?, 'input', 'invented used', 'element', 'dpe_used2', ?, 'vera', ?, 'vera')`,
+        product,
+        now,
+        now,
+      );
+    });
+    try {
+      const { runDataProductsJob } = await import('../src/dataproducts/discovery/job.js');
+      await runDataProductsJob();
+      expect(await dana('GET', '/data-products/import/jobs/dpj_used')).toMatchObject({ state: 'failed', undone: { removed: 1, kept: 2 } });
+      expect(
+        db()
+          .all<{ id: string }>("SELECT id FROM dp_elements WHERE name_norm LIKE 'invented.used.%' ORDER BY id")
+          .map((r) => r.id),
+      ).toEqual(['dpe_used1', 'dpe_used2']);
+    } finally {
+      db().run("DELETE FROM dp_cost_matches WHERE id = 'dcm_used'");
+      db().run("DELETE FROM dp_ports WHERE id = 'dpp_used'");
+    }
+  }, 120_000);
+
   it('a job a stopped server left running is taken back by the next run of the job', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();

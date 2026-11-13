@@ -224,7 +224,8 @@ async function undo(id: string, actor: string, error: DataProductImportJob['erro
     if (!rows.length) break;
     db().tx(() => {
       const ids = rows.map((r) => r.element_id);
-      // an element used meanwhile stays (a member, a port's element, a step's end, a check, a data object's element)
+      // an element used meanwhile stays (a member, a port's element, a step's end, a check, a data object's element, a
+      // cost match or an input port's source someone added – none of them can be from the job: its entries were taken back)
       const used = new Set(
         db()
           .all<{ id: string }>(
@@ -233,8 +234,12 @@ async function undo(id: string, actor: string, error: DataProductImportJob['erro
              UNION SELECT element_id FROM dp_step_elements WHERE element_id IN (${marks(ids.length)})
              UNION SELECT element_id FROM dp_check_links WHERE element_id IN (${marks(ids.length)})
              UNION SELECT element_id FROM dp_object_elements WHERE element_id IN (${marks(ids.length)})
+             UNION SELECT element_id FROM dp_cost_matches WHERE element_id IN (${marks(ids.length)})
+             UNION SELECT source_element_id FROM dp_ports WHERE source_element_id IN (${marks(ids.length)})
              UNION SELECT parent_id FROM dp_elements WHERE parent_id IN (${marks(ids.length)})
                AND id NOT IN (SELECT element_id FROM dp_import_job_elements WHERE job_id = ? AND before IS NULL)`,
+            ...ids,
+            ...ids,
             ...ids,
             ...ids,
             ...ids,
