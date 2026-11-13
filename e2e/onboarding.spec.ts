@@ -108,9 +108,10 @@ test('template bundles: set up together, with the result and the turn-on step', 
   // the gallery lists the bundles above the templates
   const section = gallery.getByTestId('bundle-section');
   // one card per bundle in examples/bundles
-  await expect(section.getByTestId('bundle-card')).toHaveCount(11);
+  await expect(section.getByTestId('bundle-card')).toHaveCount(12);
   await gallery.getByRole('textbox', { name: 'Search' }).fill('snowflake');
-  await expect(section.getByTestId('bundle-card')).toHaveCount(1);
+  // project access and hygiene, and costs (estimate and waste)
+  await expect(section.getByTestId('bundle-card')).toHaveCount(2);
   await section.getByRole('button', { name: 'Set up Snowflake (project access and account hygiene)' }).click();
   await setup.getByRole('checkbox', { name: 'Start one dry run per process' }).uncheck();
   await setup.getByTestId('bundle-submit').click();
