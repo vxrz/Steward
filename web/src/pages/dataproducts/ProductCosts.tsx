@@ -44,7 +44,7 @@ import { TableScroll } from '../../components/TableScroll';
 import { useLevel } from '../../components/catalogue/cia';
 import { fmtMoney, fmtMonth } from '../../components/costs/common';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
-import { fmtNumber, fmtRelative, numberFormat } from '../../format';
+import { fmtNumber, fmtRelative } from '../../format';
 import { estimatePath } from '../../components/costs/Estimates';
 import { useAllocations, useInvalidateDataProducts, usePlatforms, useProductCosts, useProductEstimates } from './api';
 import { Breakable, CardTable, EnvironmentSwitch, Fact, Section, useEnvironmentParam } from './parts';
