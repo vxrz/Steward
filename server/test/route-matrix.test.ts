@@ -426,6 +426,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-elements/:id': ALL,
   'PUT /api/data-elements/:id': DESIGN,
   'DELETE /api/data-elements/:id': DESIGN,
+  // the pictures (WP6): read like the product or element they show
+  'GET /api/data-products/map': ALL,
+  'GET /api/data-products/:id/views/pipeline': ALL,
+  'GET /api/data-elements/:id/lineage': ALL,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
