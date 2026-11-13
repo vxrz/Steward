@@ -1,33 +1,9 @@
 {
   "everyoneWithRole": "Alle mit der Rolle {{role}}",
-  "restrictedProcess": "<b>Eingeschränkt:</b> Nur die unten aufgeführten Einträge erhalten die markierten Rechte, zusätzlich Administratoren und der Eigentümer. Prüfer haben immer Lesezugriff.",
-  "restrictedPlatform": "<b>Eingeschränkt:</b> Nur die unten aufgeführten Einträge erhalten die markierten Rechte, zusätzlich Administratoren. Prüfer haben immer Lesezugriff.",
-  "defaultsProcess": "<b>Es gelten die Standardrechte der Rollen</b> (z. B. Designer bearbeiten und führen aus, Operatoren führen aus, Freigeber entscheiden, Betrachter lesen). Einträge hinzufügen, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
-  "defaultsPlatform": "<b>Es gelten die Standardrechte der Rollen</b> (z. B. Designer und Operatoren dürfen sie nutzen, nur Administratoren verwalten sie). Einträge hinzufügen, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
   "owner": "Eigentümer",
   "ownerHint": "Der Eigentümer hat immer alle Rechte an diesem Prozess.",
-  "who": "Wer",
-  "noEntries": "Keine Einträge – es gelten die Standardrechte der Rollen.",
-  "kinds": {
-    "user": "Benutzer",
-    "team": "Team",
-    "role": "Rolle"
-  },
-  "addLabel": "Benutzer, Team oder Rolle hinzufügen",
   "addPlaceholder": "user:alice · team:service desk · role:operator",
   "reset": "Zurücksetzen",
-  "save": "Zugriff speichern",
-  "help": {
-    "view": "Prozess und seine Ausführungen ansehen",
-    "run": "Ausführungen starten und planen, Auswahlentscheidungen treffen",
-    "edit": "Ablauf ändern (erzeugt neue Versionen)",
-    "approve": "Über Freigaben und Benutzeraufgaben entscheiden",
-    "manage": "Zugriff ändern, archivieren (Prozesse) · Konfiguration, Zugangsdaten und Zugriff ändern, schreibende Aufrufe im Explorer (Plattformen)",
-    "use": "Plattform in Ausführungen und Zeitplänen nutzen, lesende Aufrufe im Explorer",
-    "acknowledge": "Probleme bestätigen und Wartungsfenster planen (Monitore)"
-  },
-  "restrictedMonitor": "<b>Eingeschränkt:</b> Nur die unten aufgeführten Einträge erhalten die markierten Rechte, zusätzlich Administratoren und der Eigentümer. Prüfer haben immer Lesezugriff.",
-  "defaultsMonitor": "<b>Es gelten die Standardrechte der Rollen</b> (z. B. Designer bearbeiten, Operatoren bestätigen, alle anderen lesen). Einträge hinzufügen, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
   "ownerHintMonitor": "Der Eigentümer hat immer alle Rechte an diesem Monitor und wird darüber benachrichtigt.",
   "owning": {
     "title": "Zuständige Teams",
@@ -159,18 +135,6 @@
       }
     },
     "moduleNotUsed": "ohne das Modul gelten die Rechte unten nicht"
-  },
-  "restrictedSite": "<b>Eingeschränkt:</b> Nur die Einträge unten erhalten die genannten Rechte am Standort, seiner Hierarchie und seinen Anlagen, außerdem Administratoren. Auditoren können immer lesen.",
-  "defaultsSite": "<b>Es gelten die Rollenrechte</b> (alle, die in Steward arbeiten, sehen den Standort, Designer verwalten ihn). Fügen Sie Einträge hinzu, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
-  "helpSite": {
-    "view": "Den Standort, seine Hierarchie, Gebäude und Anlagen sehen",
-    "propose": "Entwürfe von Änderungen anlegen und vorschlagen; jemand, der den Standort verwaltet, übernimmt sie",
-    "manage": "Den Standort, seine Hierarchie, Gebäude und Anlagen ändern; in ihn importieren"
-  },
-  "restrictedIdentity": "<b>Freigegeben:</b> Neben Administratoren und Mitgliedern der zuständigen Teams dürfen nur die folgenden Einträge diese Identität verwenden – und nur, wenn sie die Plattform nutzen dürfen.",
-  "defaultsIdentity": "<b>Geschlossen:</b> Nur Administratoren und Mitglieder der zuständigen Teams (Designer, Operatoren) dürfen diese Identität verwenden. Fügen Sie die Benutzer, Teams oder Rollen hinzu, die sie benötigen.",
-  "helpIdentity": {
-    "use": "Diese Identität in Ausführungen, Zeitplänen, Triggern, Monitoren und über MCP verwenden (setzt „Nutzen“ auf der Plattform voraus)"
   },
   "namedOutside": {
     "hint_one": "{{names}} gehört nicht zu den zuständigen Teams ({{teams}}) und wird diesen Eintrag sehen und ändern können. Beim Speichern bestätigen Sie, dass Sie es sind.",

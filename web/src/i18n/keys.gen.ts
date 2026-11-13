@@ -4,30 +4,10 @@
 export interface Resources {
   access: {
     everyoneWithRole: string;
-    restrictedProcess: string;
-    restrictedPlatform: string;
-    defaultsProcess: string;
-    defaultsPlatform: string;
     owner: string;
     ownerHint: string;
-    who: string;
-    noEntries: string;
-    'kinds.user': string;
-    'kinds.team': string;
-    'kinds.role': string;
-    addLabel: string;
     addPlaceholder: string;
     reset: string;
-    save: string;
-    'help.view': string;
-    'help.run': string;
-    'help.edit': string;
-    'help.approve': string;
-    'help.manage': string;
-    'help.use': string;
-    'help.acknowledge': string;
-    restrictedMonitor: string;
-    defaultsMonitor: string;
     ownerHintMonitor: string;
     'owning.title': string;
     'owning.label': string;
@@ -144,14 +124,6 @@ export interface Resources {
     'owning.bulk.kinds.data_element': string;
     'owning.bulk.kinds.data_domain': string;
     'owning.moduleNotUsed': string;
-    restrictedSite: string;
-    defaultsSite: string;
-    'helpSite.view': string;
-    'helpSite.propose': string;
-    'helpSite.manage': string;
-    restrictedIdentity: string;
-    defaultsIdentity: string;
-    'helpIdentity.use': string;
     'namedOutside.hint_one': string;
     'namedOutside.hint_other': string;
     'namedOutside.platformHint_one': string;
