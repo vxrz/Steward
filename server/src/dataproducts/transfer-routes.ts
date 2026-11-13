@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ACCESS } from '../auth/access.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { LINK_PARAM } from '../auth/cookies.js';
 import { dataProductsJsonSchema } from './format.js';
 import { exportFile } from './export.js';
 import { odpsFile } from './odps.js';
@@ -30,6 +31,10 @@ const exportQuery = z
 const productExportQuery = exportQuery.omit({ domain: true });
 const odpsQuery = z.object({ environment: z.string().trim().max(60).optional() }).strict();
 
+/** The query without the link key: the downloads are links (`?_sk=` authenticates them, app.ts), the rest is strict. */
+const queryOf = (req: FastifyRequest): Record<string, unknown> =>
+  Object.fromEntries(Object.entries((req.query ?? {}) as Record<string, unknown>).filter(([k]) => k !== LINK_PARAM));
+
 const send = (reply: FastifyReply, f: { fileName: string; body: string; elementsLeftOut?: number }, type: string) => {
   reply.header('content-disposition', `attachment; filename="${f.fileName}"`);
   reply.header('cache-control', 'no-store');
@@ -47,15 +52,15 @@ export async function dataProductTransferRoutes(app: FastifyInstance): Promise<v
     return dataProductsJsonSchema();
   });
   app.get('/data-products/export', heavy, async (req, reply) => {
-    const q = exportQuery.parse(req.query ?? {});
+    const q = exportQuery.parse(queryOf(req));
     return send(reply, exportFile({ domainId: q.domain, environment: q.environment }, q.format), typeOf(q.format));
   });
   app.get('/data-products/:id/export', heavy, async (req, reply) => {
-    const q = productExportQuery.parse(req.query ?? {});
+    const q = productExportQuery.parse(queryOf(req));
     return send(reply, exportFile({ productId: idOf(req), environment: q.environment }, q.format), typeOf(q.format));
   });
   app.get('/data-products/:id/odps', async (req, reply) => {
-    const q = odpsQuery.parse(req.query ?? {});
+    const q = odpsQuery.parse(queryOf(req));
     return send(reply, odpsFile(idOf(req), q.environment), 'application/yaml; charset=utf-8');
   });
   app.post('/data-products/import/preview', imports, async (req) => previewImport(req.body));
