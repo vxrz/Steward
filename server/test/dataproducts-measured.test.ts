@@ -175,6 +175,8 @@ describe('Snowflake warehouses', () => {
       expect(x.sql).toMatch(/^\/\* steward:costs-measure-(warehouses|tags) \*\/ SELECT /);
       expect(x.sql).toMatch(/FROM SNOWFLAKE\.ACCOUNT_USAGE\.(WAREHOUSE_METERING_HISTORY|QUERY_ATTRIBUTION_HISTORY) /);
       expect(x.sql).not.toMatch(/TRANSFORM_WH|BI_WH/);
+      // the month in UTC, not in the session's time zone (START_TIME is TIMESTAMP_LTZ)
+      expect(x.sql).toContain("TO_VARCHAR(CONVERT_TIMEZONE('UTC', START_TIME), 'YYYY-MM') AS MONTH");
     }
     const al = ((await s.api('GET', `/data-products/cost-allocations?platformId=${snowflake}`)) as any[]).find((x) => x.value === 'MEAS-ACCT');
     expect(al.measured.readAt).toBeTruthy();
