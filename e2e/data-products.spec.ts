@@ -221,6 +221,13 @@ test.describe('the data products pages', () => {
     await expect(page.getByTestId('shares-implied')).toContainText('Dana Designer');
     await settle(page);
     await expectAccessible(page, 'data product access');
+    // the costs per month by name in the UI language, and the consumers counted in the singular where it is one
+    await page.goto(`/data-products/${id}/costs`);
+    const months = page.getByRole('table', { name: 'Costs per month' }).getByRole('button');
+    await expect(months.first()).toHaveText(/^[A-Z][a-z]{2,3} \d{4}$/);
+    await expect(page.getByTestId('cost-lines').getByRole('heading')).toHaveText(/^Costs in [A-Z][a-z]+ \d{4}$/);
+    await page.goto(`/data-products/${id}/ports`);
+    await expect(page.getByText(/^\d+ registered, 1 consuming product$/).first()).toBeVisible();
 
     // import: a file of the format, previewed before anything is written
     await page.goto('/data-products');
