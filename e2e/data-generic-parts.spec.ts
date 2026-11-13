@@ -138,6 +138,8 @@ test.describe('generic parts and bridges', () => {
     await expect(page.getByTestId('product-steps')).toBeVisible();
     await settle(page);
     await expectNoHorizontalScroll(page);
+    // the step cards: an input and an output link one below the other keep 24 px targets
+    await expectAccessible(page, 'pipeline steps as cards on a phone');
     await page.goto('/data-elements?kind=generic.endpoint');
     await expect(page.getByTestId('element-card').first()).toContainText('returns-desk/returns');
     await expectNoHorizontalScroll(page);
