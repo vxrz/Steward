@@ -67,24 +67,26 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Use day to day
 
-| Page                                                                     | What it covers                                                                              |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| [MONITORS.md](MONITORS.md)                                               | Dependency-aware health checks, check types, heartbeats from gateways, outputs              |
-| [DASHBOARDS.md](DASHBOARDS.md)                                           | Publishing datasets, widgets, sources, trends and forecasts, Vega-Lite charts               |
-| [REPORTS.md](REPORTS.md)                                                 | PDF/A run, summary and scheduled reports, branding, archiving and verification              |
-| [RECORDS.md](RECORDS.md)                                                 | Documents: change requests, decision records, incident reviews, living documents; services  |
-| [APPLICATIONS.md](APPLICATIONS.md)                                       | Applications, systems, components, tech stack, end of life, version watch, protection needs |
-| [SUPPLIERS.md](SUPPLIERS.md)                                             | Suppliers with contracts, notice dates, SLA, RTO/RPO and certificates; free-text vendors    |
-| [CREDENTIALS.md](CREDENTIALS.md)                                         | The credentials register: where credentials are kept, owners, expiry and rotation           |
-| [DUTIES.md](DUTIES.md)                                                   | Recurring tasks a service must have done, judged by the real runs                           |
-| [SCORECARD.md](SCORECARD.md)                                             | Availability objectives and the service scorecard                                           |
-| [COSTS.md](COSTS.md)                                                     | Platform costs per service, application and team (showback, FinOps FOCUS)                   |
-| [TICKETS.md](TICKETS.md)                                                 | Ticket references to incidents and vendor cases that live in other systems                  |
-| [DATA-CONTRACTS.md](DATA-CONTRACTS.md)                                   | Data contracts in ODCS v3: schema, quality rules, tests and their evidence                  |
-| [STATUS-PAGES.md](STATUS-PAGES.md)                                       | Service status pages for people outside the service team                                    |
-| [PLANT.md](PLANT.md)                                                     | The plant registry (preview): sites, assets, device profiles, KPIs, OT network              |
-| [ADVISORIES.md](ADVISORIES.md)                                           | Security advisories (CSAF 2.0) for OT devices, matched to assets by model and firmware      |
-| [plant/plant-registry-1.schema.json](plant/plant-registry-1.schema.json) | JSON Schema of the plant registry import format                                             |
+| Page                                                                                   | What it covers                                                                              |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [MONITORS.md](MONITORS.md)                                                             | Dependency-aware health checks, check types, heartbeats from gateways, outputs              |
+| [DASHBOARDS.md](DASHBOARDS.md)                                                         | Publishing datasets, widgets, sources, trends and forecasts, Vega-Lite charts               |
+| [REPORTS.md](REPORTS.md)                                                               | PDF/A run, summary and scheduled reports, branding, archiving and verification              |
+| [RECORDS.md](RECORDS.md)                                                               | Documents: change requests, decision records, incident reviews, living documents; services  |
+| [APPLICATIONS.md](APPLICATIONS.md)                                                     | Applications, systems, components, tech stack, end of life, version watch, protection needs |
+| [SUPPLIERS.md](SUPPLIERS.md)                                                           | Suppliers with contracts, notice dates, SLA, RTO/RPO and certificates; free-text vendors    |
+| [CREDENTIALS.md](CREDENTIALS.md)                                                       | The credentials register: where credentials are kept, owners, expiry and rotation           |
+| [DUTIES.md](DUTIES.md)                                                                 | Recurring tasks a service must have done, judged by the real runs                           |
+| [SCORECARD.md](SCORECARD.md)                                                           | Availability objectives and the service scorecard                                           |
+| [COSTS.md](COSTS.md)                                                                   | Platform costs per service, application and team (showback, FinOps FOCUS)                   |
+| [TICKETS.md](TICKETS.md)                                                               | Ticket references to incidents and vendor cases that live in other systems                  |
+| [DATA-CONTRACTS.md](DATA-CONTRACTS.md)                                                 | Data contracts in ODCS v3: schema, quality rules, tests and their evidence                  |
+| [DATA-PRODUCTS.md](DATA-PRODUCTS.md)                                                   | Data products (preview): domains, data objects, products, elements, ports and consumers     |
+| [STATUS-PAGES.md](STATUS-PAGES.md)                                                     | Service status pages for people outside the service team                                    |
+| [PLANT.md](PLANT.md)                                                                   | The plant registry (preview): sites, assets, device profiles, KPIs, OT network              |
+| [ADVISORIES.md](ADVISORIES.md)                                                         | Security advisories (CSAF 2.0) for OT devices, matched to assets by model and firmware      |
+| [plant/plant-registry-1.schema.json](plant/plant-registry-1.schema.json)               | JSON Schema of the plant registry import format                                             |
+| [data-products/data-products-1.schema.json](data-products/data-products-1.schema.json) | JSON Schema of the data products file format (import and export)                            |
 
 ## Integrations by platform
 

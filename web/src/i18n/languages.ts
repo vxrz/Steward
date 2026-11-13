@@ -59,6 +59,7 @@ export const NAMESPACES = [
   'suppliers',
   'corrective',
   'soa',
+  'dataProductViews',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

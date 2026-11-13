@@ -104,6 +104,10 @@ const EstimatePage = page(() => import('./pages/costs/Estimate'), 'EstimatePage'
 const DataContractsPage = page(() => import('./pages/DataContracts'), 'DataContractsPage');
 const DataContractNewPage = page(() => import('./pages/DataContractNew'), 'DataContractNewPage');
 const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 'DataContractDetailPage');
+// the pictures of the data products module (ADR 0036 WP6); the module's other pages follow (WP5)
+const DataProductMapPage = page(() => import('./pages/dataproducts/views/pages'), 'DataProductMapPage');
+const DataPipelinePage = page(() => import('./pages/dataproducts/views/pages'), 'DataPipelinePage');
+const DataLineagePage = page(() => import('./pages/dataproducts/views/pages'), 'DataLineagePage');
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
 const DutyDetailPage = page(() => import('./pages/DutyDetail'), 'DutyDetailPage');
@@ -489,6 +493,30 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="dataContracts">
                           <DataContractDetailPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/map"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataProductMapPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-products/:id/views/pipeline"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataPipelinePage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/data-elements/:id/views/lineage"
+                      element={
+                        <ModuleGate module="dataProducts">
+                          <DataLineagePage />
                         </ModuleGate>
                       }
                     />

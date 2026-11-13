@@ -83,10 +83,11 @@ describe('the registry', () => {
 });
 
 describe('Settings → Modules', () => {
-  it('has everything on by default, except the plant registry and its map', async () => {
+  it('has everything on by default, except the plant registry, its map and the modules declared off by default', async () => {
     const v = await s.api('GET', '/settings/modules');
     const on = Object.fromEntries(v.modules.map((m: { id: string; enabled: boolean }) => [m.id, m.enabled]));
-    for (const m of MODULES) expect(on[m.id], m.id).toBe(m.id !== 'plant' && m.id !== 'plantMap');
+    for (const m of MODULES) expect(on[m.id], m.id).toBe(m.id !== 'plant' && m.id !== 'plantMap' && m.defaultOn);
+    expect(on.dataProducts).toBe(false);
     const st = await s.api('GET', '/auth/status');
     expect(st.me.capabilities.modules.costs).toBe(true);
     expect(st.me.capabilities.modules.plant).toBe(false);
@@ -162,6 +163,20 @@ describe('Settings → Modules', () => {
     expect(await s.api('GET', '/data-contracts')).toEqual(contractsBefore);
     expect((await v1()).status).toBe(200);
     expect(reg.listJobs().find((j) => j.name === 'costs')?.switchedOff).toBeUndefined();
+  });
+
+  it('switches a module that is off by default on and off again (the data products, ADR 0036)', async () => {
+    expect(await status(s.api, 'GET', '/data-products')).toEqual({ status: 404, code: 'MODULE_OFF' });
+    await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
+    expect((await s.api('GET', '/data-products')).items).toEqual([]);
+    // switching another module keeps it on
+    await s.api('PUT', '/settings/modules/costs', { enabled: false });
+    await s.api('PUT', '/settings/modules/costs', { enabled: true });
+    expect((await s.api('GET', '/auth/status')).me.capabilities.modules).toMatchObject({ dataProducts: true, costs: true });
+    await s.api('PUT', '/settings/modules/dataProducts', { enabled: false });
+    expect(await status(s.api, 'GET', '/data-domains')).toEqual({ status: 404, code: 'MODULE_OFF' });
+    const audit = (await s.api('GET', '/audit?action=module.enabled')) as { entityId: string }[];
+    expect(audit.map((e) => e.entityId)).toContain('module:dataProducts');
   });
 
   it('switches the plant registry with its own setting; its own switch asks for the same step-up', async () => {

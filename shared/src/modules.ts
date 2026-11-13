@@ -6,7 +6,8 @@
  * data stays; switched on again, everything is back.
  *
  * Everything is on by default (new and upgraded installations), except the plant registry and its map, which keep
- * their own switches and stay off until an administrator turns them on (ADR 0007, ADR 0015).
+ * their own switches and stay off until an administrator turns them on (ADR 0007, ADR 0015), and modules declared
+ * `defaultOn: false` (the data products, ADR 0036), which stay off until an administrator switches them on.
  */
 
 /** How far an area or a connector is: stable · beta (complete, little use or only checked against mocks) · preview (new, may change). */
@@ -26,6 +27,7 @@ export const MODULE_IDS = [
   'changedetection',
   'plant',
   'plantMap',
+  'dataProducts',
 ] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 export const isModuleId = (x: unknown): x is ModuleId => typeof x === 'string' && (MODULE_IDS as readonly string[]).includes(x);
@@ -35,7 +37,7 @@ export interface ModuleDef {
   /** English name (audit entries, docs); the web app translates `settings:modules.items.<id>` */
   name: string;
   maturity: Maturity;
-  /** On in a new installation and after an upgrade (only the plant registry and its map are not) */
+  /** On in a new installation and after an upgrade (the plant registry, its map and the data products are not) */
   defaultOn: boolean;
   /** Only on while this module is on, too */
   requires?: ModuleId;
@@ -312,6 +314,27 @@ export const MODULES: readonly ModuleDef[] = [
     jobs: [],
     // it follows the plant registry: whoever uses the registry uses its map
     access: { restrictable: false, follows: 'plant' },
+  },
+  {
+    // ADR 0036: off by default (it brings discovery jobs and a large catalogue); restrictable once module access
+    // (ADR 0034) is built. The job data-products discovers elements (dataproducts/discovery/job.ts)
+    id: 'dataProducts',
+    name: 'Data products',
+    maturity: 'preview',
+    defaultOn: false,
+    switchable: true,
+    nav: [],
+    pages: ['/data-products', '/data-elements', '/data-objects', '/data-domains'],
+    routes: [
+      '/api/data-products',
+      '/api/data-elements',
+      '/api/data-objects',
+      '/api/data-domains',
+      '/api/v1/data-products',
+      '/api/v1/data-elements',
+      '/api/v1/data-objects',
+    ],
+    jobs: ['data-products'],
   },
 ];
 

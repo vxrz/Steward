@@ -11,6 +11,7 @@ import {
   DEFAULT_RECORD_TYPES,
   LINK_KINDS,
   PLANT_LINK_KINDS,
+  DATA_PRODUCT_LINK_KINDS,
   PLANT_SOURCE_RECORD_TYPE,
   RECORD_STATUS_COLORS,
   type Backlink,
@@ -321,9 +322,13 @@ function LinkModal({
   const [note, setNote] = useState(link?.note ?? '');
   const [busy, setBusy] = useState(false);
   const types = useLinkTypes();
-  // sites and assets only while the plant registry module is on (#218)
+  // sites and assets only while the plant registry module is on (#218); data products and objects while theirs is (ADR 0036)
   const { caps } = useMe();
-  const linkKinds = LINK_KINDS.filter((k) => caps.plant || !(PLANT_LINK_KINDS as readonly string[]).includes(k));
+  const linkKinds = LINK_KINDS.filter(
+    (k) =>
+      (caps.plant || !(PLANT_LINK_KINDS as readonly string[]).includes(k)) &&
+      (caps.modules?.dataProducts === true || !(DATA_PRODUCT_LINK_KINDS as readonly string[]).includes(k)),
+  );
   const typeName = useLinkTypeName();
   const targets = useQuery({
     queryKey: ['link-targets', kind, pick.term],

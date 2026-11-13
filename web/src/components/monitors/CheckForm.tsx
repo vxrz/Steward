@@ -29,6 +29,7 @@ const FORM_FIELDS = [
   'degradedRttMs',
   'description',
   'downAfterMissed',
+  'element',
   'endpointKey',
   'expectStatus',
   'expectedIntervalSeconds',

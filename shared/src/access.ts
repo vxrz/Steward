@@ -38,6 +38,11 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   // 0.21.0 (#293): the plant catalogues – proposing changes beside the level, as on sites
   device_profile: ['propose'],
   kpi_definition: ['propose'],
+  // the data products module (0.22.0, ADR 0036): no action rights of their own yet
+  data_product: [],
+  data_object: [],
+  data_element: [],
+  data_domain: [],
 };
 
 /** Kinds of the plant registry: the only ones a plant viewer (role `plant`) may be given a share on (ADR 0033 security notes). */

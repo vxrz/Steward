@@ -84,6 +84,11 @@ const TAGS = [
     description:
       'Suppliers of SaaS, managed platforms, software and services: contracts with notice-by dates, SLA and contractual RTO/RPO, certificates, and what links them – contacts without e-mail or phone',
   },
+  {
+    name: 'Data products',
+    description:
+      'Data products (opt-in module): products with their ports, bindings per environment and data contracts, health and lineage, ODPS v1.0.0 documents; the element catalogue (tables, views, topics, APIs) and data objects',
+  },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

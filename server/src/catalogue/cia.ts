@@ -167,7 +167,8 @@ export function levelLabel(d: CiaDimension, key: string | null | undefined, scal
 function usage(): Record<CiaDimension, Record<string, number>> {
   const rows = db().all<{ dimension: string; level: string; n: number }>(
     `SELECT dimension, level, COUNT(*) AS n FROM application_ratings GROUP BY dimension, level
-     UNION ALL SELECT dimension, level, COUNT(*) AS n FROM service_protection_overrides GROUP BY dimension, level`,
+     UNION ALL SELECT dimension, level, COUNT(*) AS n FROM service_protection_overrides GROUP BY dimension, level
+     UNION ALL SELECT dimension, level, COUNT(*) AS n FROM dp_ratings GROUP BY dimension, level`,
   );
   return byDimension((d) => {
     const counts = new Map<string, number>();
@@ -235,7 +236,10 @@ export type ScaleInput = z.infer<typeof scaleInput>;
 const mappingFor = (m: ScaleInput['mapping'], d: CiaDimension): Map<string, string | null> =>
   new Map([...Object.entries(m.all ?? {}), ...Object.entries(m[d] ?? {})]);
 
-/** The rows that hold a level: application ratings and service overrides (fixed statements). */
+/**
+ * The rows that hold a level: application ratings, service overrides and the ratings of data products and data objects
+ * (ADR 0036: rated and re-rated exactly as applications; item ids are unique across both kinds) – fixed statements.
+ */
 const RATED = {
   ratings: {
     select: 'SELECT application_id AS id, level, needs_rerating FROM application_ratings WHERE dimension = ?',
@@ -246,6 +250,11 @@ const RATED = {
     select: 'SELECT service_id AS id, level, needs_rerating FROM service_protection_overrides WHERE dimension = ?',
     map: 'UPDATE service_protection_overrides SET level = ?, previous_label = ? WHERE service_id = ? AND dimension = ?',
     flag: 'UPDATE service_protection_overrides SET needs_rerating = 1, previous_label = ? WHERE service_id = ? AND dimension = ?',
+  },
+  dataRatings: {
+    select: 'SELECT item_id AS id, level, needs_rerating FROM dp_ratings WHERE dimension = ?',
+    map: 'UPDATE dp_ratings SET level = ?, previous_label = ? WHERE item_id = ? AND dimension = ?',
+    flag: 'UPDATE dp_ratings SET needs_rerating = 1, previous_label = ? WHERE item_id = ? AND dimension = ?',
   },
 } as const;
 
@@ -334,6 +343,7 @@ export function saveScale(input: ScaleInput): CiaScale {
       };
       handle(RATED.ratings);
       handle(RATED.overrides);
+      handle(RATED.dataRatings);
       effects.set(d, e);
     }
     const describe = (ls: CiaLevel[]) => ls.map((l) => l.key).join(' < ');

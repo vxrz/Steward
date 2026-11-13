@@ -42,7 +42,7 @@ export const DEFAULT_QUIET_HOURS: QuietHours = {
 };
 
 /** The event groups of digests (decision 3 of ADR 0012): a new event joins a group. */
-export const DIGEST_GROUPS = ['decisions', 'runs', 'monitors', 'reminders', 'reports', 'costs'] as const;
+export const DIGEST_GROUPS = ['decisions', 'runs', 'monitors', 'reminders', 'reports', 'costs', 'dataProducts'] as const;
 export type DigestGroup = (typeof DIGEST_GROUPS)[number];
 
 /** Which group an event belongs to; null: never digested (security.emergency, the daily summary). */
@@ -87,6 +87,9 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'cost.booking_due': 'costs',
   'cost.volume': 'costs',
   'cost.price_review_due': 'costs',
+  'dataproduct.deprecated': 'dataProducts',
+  'dataproduct.elements_missing': 'dataProducts',
+  'dataproduct.discovery_failed': 'dataProducts',
   'summary.daily': null,
   'security.emergency': null,
 };
