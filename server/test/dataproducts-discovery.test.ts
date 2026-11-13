@@ -359,6 +359,15 @@ describe('Snowflake (information schema)', () => {
 });
 
 describe('Snowflake (account usage)', () => {
+  it('names OpenLineage datasets as Snowflake reports them (a quoted name keeps its case)', async () => {
+    const { openLineageDataset } = await import('@sm/shared');
+    expect(openLineageDataset('snowflake.table', 'Invented-Acct', 'SHOP.SALES.ORDERS')).toEqual({
+      namespace: 'snowflake://invented-acct',
+      name: 'SHOP.SALES.ORDERS',
+    });
+    expect(openLineageDataset('snowflake.view', 'invented-acct', 'SHOP.SALES.monthlyRevenue')!.name).toBe('SHOP.SALES.monthlyRevenue');
+  });
+
   it('reads the scope in one statement per view and keeps an element renamed by its TABLE_ID', async () => {
     const src = await dana('POST', '/data-products/discovery-sources', {
       name: 'CRM by account usage',
