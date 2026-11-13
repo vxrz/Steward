@@ -4,10 +4,12 @@ import {
   type PlantAssetBrief,
   type PlantAssignmentValues,
   type PlantCheck,
+  type PlantCataloguePermission,
   type PlantDataPointDetail,
   type PlantKpiDetail,
   type PlantKpiSummary,
   type PlantKpiValues,
+  type PlantPointExplore,
   type PlantPointHit,
   type PlantProfileDetail,
   type PlantProfileSummary,
@@ -16,7 +18,7 @@ import {
   type Translations,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { refuseAliasId } from './ids.js';
+import { aliasTarget, refuseAliasId } from './ids.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
@@ -48,12 +50,27 @@ import {
 import { assignmentChecks, canHave, deliveries, kpiChecks, kpiProfiles, namedInputPoints, readsProfile, unitMismatches } from './checks.js';
 import { collectedPoints, isCollected, partsByAsset } from './potential.js';
 import { descendantsOf, extendsProblems, isOrExtends, normalizeOwnPart, ownPartProblems, resolveAll, resolvedProblems } from './resolve.js';
+import {
+  HiddenRefs,
+  catalogueScope,
+  idUnavailable,
+  keptRef,
+  presentKpis,
+  presentProfiles,
+  presentResolved,
+  requireEntry,
+  requireRight,
+  type CatalogueScope,
+} from './catalogue-access.js';
+import { PLANT_HIDDEN } from '@sm/shared';
 
 /**
  * The catalogues of part 2 (#219): device profiles and KPI definitions. They belong to the installation, not to a
- * site: everyone who may see the plant registry sees them (the role "plant" included), whoever may add sites manages
- * them (designers and administrators). Counts and lists of assets in them show only assets of sites the reader may
- * see. Every change is audited (entity types device_profile and kpi_definition).
+ * site: without owning teams everyone who may see the plant registry sees them (the role "plant" included), whoever
+ * may add sites manages them (designers and administrators). Since 0.21.0 (#293) an entry may have owning teams and
+ * shares (plant/catalogue-access.ts): an entry the reader may not see is left out of lists (and counted), answers 404
+ * like an unknown one, and is not named where a visible entry or asset names it. Counts and lists of assets in them
+ * show only assets of sites the reader may see. Every change is audited (entity types device_profile and kpi_definition).
  */
 
 // ---------- the assets the reader may see ----------
@@ -94,6 +111,21 @@ function requireCatalogue(what: string): string {
   return u.username;
 }
 
+/** An existing entry the caller may see (404 like an unknown one otherwise) and may change as `need` says (403). */
+function requireEntryRight(
+  scope: CatalogueScope,
+  kind: 'device_profile' | 'kpi_definition',
+  id: string,
+  need: PlantCataloguePermission,
+  what: string,
+): string {
+  requirePlant();
+  const u = me();
+  const rights = requireEntry(scope, kind, id, kind === 'device_profile' ? profileNotFound : kpiNotFound);
+  requireRight(rights, need, what);
+  return u.username;
+}
+
 function invalid(kind: 'profile' | 'kpi', problems: { path: string; message: string }[]): HttpError {
   const { path, message } = problems[0]!;
   if (kind === 'profile') return new HttpError(400, `${path}: ${message}`, 'PLANT_PROFILE_INVALID', { path, message });
@@ -103,6 +135,19 @@ function invalid(kind: 'profile' | 'kpi', problems: { path: string; message: str
 const pick = <T extends object>(o: T, keys: string[]) => Object.fromEntries(keys.map((k) => [k, (o as Record<string, unknown>)[k]]));
 
 // ---------- device profiles ----------
+
+/** A new entry's id that is taken: named when the caller sees the entry that has it, neutral otherwise (0.21.0). */
+function idTaken(kind: 'profile' | 'kpi', id: string, visible: boolean): HttpError {
+  if (!visible) return idUnavailable(id);
+  return new HttpError(409, `A ${kind === 'profile' ? 'device profile' : 'KPI definition'} with the id ${id} exists already`, 'PLANT_ID_TAKEN', { id });
+}
+
+/** An old id of a renamed entry still leads there (0.11.0): it is not free – said neutrally when the entry is hidden. */
+function refuseCatalogueAlias(kind: 'profile' | 'kpi', id: string, scope: CatalogueScope): void {
+  const to = aliasTarget(kind, '', id);
+  if (to && !(kind === 'profile' ? scope.profile(to) : scope.kpi(to))) throw idUnavailable(id);
+  refuseAliasId(kind, '', id);
+}
 
 export function profileNotFound(id: string): HttpError {
   return new HttpError(404, `Device profile ${id} not found`, 'PLANT_PROFILE_NOT_FOUND', { id });
@@ -141,58 +186,75 @@ function assetsByProfile(v: Visible): Map<string, string[]> {
   return out;
 }
 
-export function listProfiles(): PlantProfileSummary[] {
+/** The device profiles the caller may see (0.21.0: entries of other teams are counted – GET /plant/catalogue/hidden). */
+export function listProfiles(scope: CatalogueScope = catalogueScope()): PlantProfileSummary[] {
   requirePlant();
   const v = visibleAssets();
   const using = assetsByProfile(v);
   const rows = db().all<import('./data-model.js').ProfileRow>('SELECT * FROM plant_profiles ORDER BY name, id');
   const resolved = resolveAll(new Map(rows.map((r) => [r.id, profileValuesOf(r)])));
-  return rows.map((r) =>
-    profileSummary({ ...resolved.get(r.id)!, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, (using.get(r.id) ?? []).length),
-  );
+  return rows
+    .filter((r) => scope.profile(r.id))
+    .map((r) => {
+      // a base the caller may not see: its placeholder (part 4)
+      const x = resolved.get(r.id)!;
+      const values = x.extends && !scope.profile(x.extends) ? { ...x, extends: new HiddenRefs(scope.profile, [x.extends]).ref(x.extends) } : x;
+      return profileSummary({ ...values, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, (using.get(r.id) ?? []).length);
+    });
 }
 
-export function getProfile(id: string): PlantProfileDetail {
+export function getProfile(id: string, scope: CatalogueScope = catalogueScope()): PlantProfileDetail {
   requirePlant();
   const r = profileRowOf(id);
   if (!r) throw profileNotFound(id);
+  const rights = requireEntry(scope, 'device_profile', id, profileNotFound);
   const own = ownProfiles();
   const resolved = resolveAll(own);
-  const values = resolved.get(id)!;
+  const whole = resolved.get(id)!;
+  // part 4: bases the caller may not see stay its model, unnamed ("Inherited from a base profile you may not see")
+  const refs = new HiddenRefs(scope.profile, whole.chain.slice(1));
+  const values = presentResolved(whole, refs);
   const v = visibleAssets();
   const assets = (assetsByProfile(v).get(id) ?? []).map((a) => v.briefs.get(a)!).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   // a KPI that reads a base profile reads this one, too (0.11.0); 0.13: any of an input's profiles, with its mapping
   const kpis = [...allKpis().values()]
+    .filter((k) => scope.kpi(k.id))
     .map((k) => ({
       id: k.id,
       name: k.name,
       names: k.names,
-      dataPoints: namedInputPoints(k, values),
-      reads: readsProfile(k, values),
+      dataPoints: namedInputPoints(k, whole),
+      reads: readsProfile(k, whole),
     }))
     .filter((k) => k.reads)
     .map(({ reads: _r, ...k }) => k);
-  const base = values.extends ? resolved.get(values.extends) : undefined;
-  const bases = values.chain.slice(1).map((b) => ({ id: b, name: own.get(b)?.name ?? b, exists: true }));
-  if (values.extends && !base) bases.push({ id: values.extends, name: values.extends, exists: false });
+  const base = whole.extends ? resolved.get(whole.extends) : undefined;
+  const bases = whole.chain
+    .slice(1)
+    .map((b) => (refs.hides(b) ? { id: refs.ref(b), name: PLANT_HIDDEN, exists: true, hidden: true } : { id: b, name: own.get(b)?.name ?? b, exists: true }));
+  if (whole.extends && !base) bases.push({ id: whole.extends, name: whole.extends, exists: false });
+  const ownPart = own.get(id)!;
   return {
     ...profileSummary({ ...values, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, assets.length),
     description: values.description,
     descriptionFrom: values.descriptionFrom,
     notes: values.notes,
     interfaces: values.interfaces,
-    own: own.get(id)!,
+    own: { ...ownPart, extends: refs.ref(ownPart.extends) },
     bases,
-    base: base ? { id: base.id, name: base.name, interfaces: base.interfaces } : null,
+    base: base ? { id: refs.ref(base.id), name: refs.hides(base.id) ? PLANT_HIDDEN : base.name, interfaces: base.interfaces } : null,
     origins: values.origins,
     notPresent: values.notPresent,
     unusedOverrides: values.unusedOverrides,
-    extendedBy: [...own.values()].filter((x) => x.extends === id && x.id !== id).map((x) => ({ id: x.id, name: x.name })),
+    // 0.21.0: profiles the caller may not see that extend it are counted, not named
+    extendedBy: [...own.values()].filter((x) => x.extends === id && x.id !== id && scope.profile(x.id)).map((x) => ({ id: x.id, name: x.name })),
+    extendedByHidden: [...own.values()].filter((x) => x.extends === id && x.id !== id && !scope.profile(x.id)).length,
     assets,
     kpis,
-    canManage: canManageCatalogue(),
-    // 0.13.0: who may propose on some site keeps drafts of changes to it
-    canPropose: plantProposesSome(),
+    canManage: rights.includes('edit'),
+    // 0.13.0: who may propose keeps drafts of changes to it (0.21.0: on this entry – its owning teams and shares)
+    canPropose: rights.includes('propose'),
+    permissions: [...rights],
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
@@ -203,11 +265,25 @@ export function getProfile(id: string): PlantProfileDetail {
  * Profile values from the API's input (groups without data points and names are kept as given), checked: its own
  * rules, its base (exists, no cycle) and – for a base – that every profile extending it still resolves (0.11.0).
  */
-function profileValues(id: string, b: z.infer<typeof profileUpdate>): PlantProfileValues {
-  const v: PlantProfileValues = { id, ...b };
-  return checkedProfile(v, ownProfiles(), (problems) => {
-    throw invalid('profile', problems);
+function profileValues(id: string, b: z.infer<typeof profileUpdate>, scope: CatalogueScope): PlantProfileValues {
+  const own = ownProfiles();
+  // 0.21.0 (#293): a base the caller may not see is kept as its placeholder; choosing one anew reads like an unknown one
+  const stored = own.get(id);
+  const refs = new HiddenRefs(scope.profile, stored ? (resolveAll(own).get(id)?.chain.slice(1) ?? []) : []);
+  const v: PlantProfileValues = { id, ...b, extends: b.extends ? keptRef(b.extends, refs, scope.profile, profileNotFound) : null };
+  return checkedProfile(v, own, (problems) => {
+    // a message naming a profile the caller may not see (a base, a profile that extends this one) names its placeholder
+    throw invalid(
+      'profile',
+      problems.map((x) => ({ path: x.path, message: hideDescendants(refs.redact(x.message), own, scope) })),
+    );
   });
+}
+
+/** `Device profile "<id>" extends this one: …` for a profile the caller may not see: "A device profile you may not see …". */
+function hideDescendants(message: string, own: Map<string, PlantProfileValues>, scope: CatalogueScope): string {
+  const m = /^Device profile "([^"]+)" extends this one: (.*)$/s.exec(message);
+  return m && own.has(m[1]!) && !scope.profile(m[1]!) ? `A device profile you may not see extends this one: ${m[2]}` : message;
 }
 
 /** The rules of a profile's save against the other profiles (`own`, which gets the profile); returns it normalised. */
@@ -246,14 +322,16 @@ export function checkedProfile(
 
 export function createProfile(input: z.infer<typeof profileInput>): PlantProfileDetail {
   const by = requireCatalogue('add device profiles');
-  if (profileRowOf(input.id)) throw new HttpError(409, `A device profile with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
-  // an old id of a renamed entry still leads there (0.11.0): it is not free
-  refuseAliasId('profile', '', input.id);
+  const scope = catalogueScope();
+  // an id taken by an entry the caller may not see is refused neutrally (part 4: "This id cannot be used")
+  if (profileRowOf(input.id)) throw idTaken('profile', input.id, scope.profile(input.id));
+  refuseCatalogueAlias('profile', input.id, scope);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_profiles')!.n) >= PLANT_DATA_LIMITS.profiles)
     throw new HttpError(409, `At most ${PLANT_DATA_LIMITS.profiles} device profiles`, 'PLANT_LIMIT', { max: PLANT_DATA_LIMITS.profiles });
   const { id, ...rest } = input;
-  const v = profileValues(id, rest);
+  const v = profileValues(id, rest, scope);
   db().tx(() => {
+    // decision 9: a new profile belongs to no team, whoever adds it (like suppliers); teams restrict it deliberately
     upsertProfile(v, { at: nowIso(), by });
     audit({
       action: 'device_profile.created',
@@ -294,11 +372,12 @@ function profileChanges(before: PlantProfileValues, after: PlantProfileValues) {
 }
 
 export function updateProfile(id: string, input: z.infer<typeof profileUpdate>): PlantProfileDetail {
-  const by = requireCatalogue('change device profiles');
+  const scope = catalogueScope();
   const r = profileRowOf(id);
   if (!r) throw profileNotFound(id);
+  const by = requireEntryRight(scope, 'device_profile', id, 'edit', 'change this device profile');
   const before = profileValuesOf(r);
-  const v = profileValues(id, input);
+  const v = profileValues(id, input, scope);
   if (v.template && !before.template) refuseTemplateInUse(id);
   const c = profileChanges(before, v);
   if (!c.changed) return getProfile(id);
@@ -339,20 +418,24 @@ function refuseTemplateInUse(id: string): void {
 }
 
 export function deleteProfile(id: string): void {
-  const by = requireCatalogue('delete device profiles');
+  const scope = catalogueScope();
   const r = profileRowOf(id);
   if (!r) throw profileNotFound(id);
+  const by = requireEntryRight(scope, 'device_profile', id, 'manage', 'delete this device profile');
   // an assignment names it: refused – with the count only when the caller sees every asset that has it
   const users = db().all<{ asset_id: string }>('SELECT asset_id FROM plant_assignments WHERE profile_id = ?', id);
   // a base that another profile extends stays (like a profile in use)
   const children = db().all<{ id: string; name: string }>('SELECT id, name FROM plant_profiles WHERE base_id = ? AND id <> ? ORDER BY name, id', id, id);
-  if (children.length)
-    throw new HttpError(
-      409,
-      `The profile is extended by ${children.map((c) => `"${c.name}"`).join(', ')} – change or delete those first`,
-      'PLANT_PROFILE_EXTENDED',
-      { count: children.length, profiles: children.map((c) => c.id).join(', ') },
-    );
+  if (children.length) {
+    // profiles the caller may not see are counted, not named (0.21.0)
+    const named = children.filter((c) => scope.profile(c.id));
+    const hidden = children.length - named.length;
+    const list = [...named.map((c) => `"${c.name}"`), ...(hidden ? [`${hidden} device profile(s) you may not see`] : [])].join(', ');
+    throw new HttpError(409, `The profile is extended by ${list} – change or delete those first`, 'PLANT_PROFILE_EXTENDED', {
+      count: children.length,
+      profiles: named.map((c) => c.id).join(', '),
+    });
+  }
   // 0.12: records link to it – the removal core takes them along only when asked ("also remove what belongs to it")
   const links = Number(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM item_links WHERE to_kind = 'device-profile' AND to_id = ?", id)?.n ?? 0);
   if (links)
@@ -388,11 +471,13 @@ export function pointNotFound(id: string): HttpError {
 }
 
 /** A data point of a profile, and which assets (that the caller may see) deliver it. */
-export function getDataPoint(profileId: string, pointId: string): PlantDataPointDetail {
+export function getDataPoint(profileId: string, pointId: string, scope: CatalogueScope = catalogueScope()): PlantDataPointDetail {
   requirePlant();
   if (!profileRowOf(profileId)) throw profileNotFound(profileId);
+  requireEntry(scope, 'device_profile', profileId, profileNotFound);
   const profiles = allProfiles();
   const p = profiles.get(profileId)!;
+  const refs = new HiddenRefs(scope.profile, p.chain.slice(1));
   const found = pointsOf(p).find((x) => x.point.id === pointId);
   if (!found) throw pointNotFound(pointId);
   const v = visibleAssets();
@@ -415,30 +500,43 @@ export function getDataPoint(profileId: string, pointId: string): PlantDataPoint
     });
   }
   assets.sort((a, b) => Number(b.delivers) - Number(a.delivers) || a.asset.name.localeCompare(b.asset.name) || a.asset.id.localeCompare(b.asset.id));
-  const kpis = [...allKpis().values()].filter((k) => namedInputPoints(k, p).includes(pointId)).map((k) => ({ id: k.id, name: k.name, names: k.names }));
+  const kpis = [...allKpis().values()]
+    .filter((k) => scope.kpi(k.id) && namedInputPoints(k, p).includes(pointId))
+    .map((k) => ({ id: k.id, name: k.name, names: k.names }));
   return {
     profile: { id: p.id, name: p.name, manufacturer: p.manufacturer, model: p.model },
     interface: { id: found.iface.id, name: found.iface.name, protocol: found.iface.protocol, direction: found.iface.direction },
     group: found.group,
     point: found.point,
-    origin: p.origins.points[pointId] ?? { kind: 'own', from: p.id, fields: [], changedBy: [], descriptionFrom: p.id },
+    // a base the caller may not see: "Inherited from a base profile you may not see" (part 4)
+    origin: presentResolved(p, refs).origins.points[pointId] ?? { kind: 'own', from: p.id, fields: [], changedBy: [], descriptionFrom: p.id },
     assets,
     kpis,
   };
 }
 
-/** Data points across every profile whose id, name, address or description contains the text (no pattern: a plain match). */
-export function explorePoints(q: string): PlantPointHit[] {
+/**
+ * Data points across every profile the caller may see whose id, name, address or description contains the text (no
+ * pattern: a plain match). 0.21.0: profiles the caller may not see are counted (`hiddenProfiles`: those with a match).
+ */
+export function explorePoints(q: string, scope: CatalogueScope = catalogueScope()): PlantPointExplore {
   requirePlant();
   const needle = q.trim().toLowerCase();
-  if (!needle) return [];
+  if (!needle) return { hits: [], hiddenProfiles: 0 };
   const v = visibleAssets();
   const assignments = [...allAssignments()].filter(([id]) => v.assets.has(id));
   const out: PlantPointHit[] = [];
+  const matches = (point: { id: string; name: string; address: string; description: string }) =>
+    [point.id, point.name, point.address, point.description].some((x) => x.toLowerCase().includes(needle));
+  let hiddenProfiles = 0;
   for (const p of allProfiles().values()) {
+    if (!scope.profile(p.id)) {
+      if (pointsOf(p).some((x) => matches(x.point))) hiddenProfiles++;
+      continue;
+    }
     const using = assignments.filter(([, a]) => a.profileId === p.id).map(([, a]) => deliveries(a, p));
     for (const { iface, group, point } of pointsOf(p)) {
-      if (![point.id, point.name, point.address, point.description].some((x) => x.toLowerCase().includes(needle))) continue;
+      if (!matches(point)) continue;
       out.push({
         profile: { id: p.id, name: p.name },
         interface: { id: iface.id, name: iface.name, protocol: iface.protocol },
@@ -446,10 +544,10 @@ export function explorePoints(q: string): PlantPointHit[] {
         point: { id: point.id, name: point.name, dataType: point.dataType, unit: point.unit, address: point.address },
         deliveredBy: using.filter((d) => d.get(point.id)?.delivers).length,
       });
-      if (out.length >= 500) return out;
+      if (out.length >= 500) return { hits: out, hiddenProfiles };
     }
   }
-  return out;
+  return { hits: out, hiddenProfiles };
 }
 
 // ---------- KPI definitions ----------
@@ -462,6 +560,7 @@ function kpiSummary(
   k: PlantKpiValues & { importId: string | null; notInSource: boolean; updatedAt: string },
   instanceCount: number,
   problemCount: number,
+  refs: HiddenRefs,
 ): PlantKpiSummary {
   return {
     id: k.id,
@@ -470,7 +569,7 @@ function kpiSummary(
     category: k.category,
     unit: k.unit,
     trend: k.trend,
-    profiles: kpiProfiles(k),
+    profiles: kpiProfiles(k).map((p) => refs.ref(p)),
     parameterCount: k.parameters.length,
     columnCount: k.columns.length,
     instanceCount,
@@ -481,7 +580,21 @@ function kpiSummary(
   };
 }
 
-export function listKpis(): PlantKpiSummary[] {
+/** The profiles a KPI definition's inputs name, as placeholders where the caller may not see them (in the order named). */
+export const kpiRefs = (k: Pick<PlantKpiValues, 'inputs'>, scope: CatalogueScope): HiddenRefs => new HiddenRefs(scope.profile, kpiProfiles(k));
+
+/** A KPI definition's inputs with the profiles the caller may not see as placeholders (`profile`, `profiles`, `mapping`). */
+export function presentInputs(k: Pick<PlantKpiValues, 'inputs'>, refs: HiddenRefs): PlantKpiValues['inputs'] {
+  return k.inputs.map((i) => ({
+    ...i,
+    profile: i.profile ? refs.ref(i.profile) : i.profile,
+    ...(i.profiles ? { profiles: i.profiles.map((p) => refs.ref(p)) } : {}),
+    ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([p, m]) => [refs.ref(p), m])) } : {}),
+  }));
+}
+
+/** The KPI definitions the caller may see (0.21.0: others are counted – GET /plant/catalogue/hidden). */
+export function listKpis(scope: CatalogueScope = catalogueScope()): PlantKpiSummary[] {
   requirePlant();
   const v = visibleAssets();
   const profiles = allProfiles();
@@ -489,22 +602,28 @@ export function listKpis(): PlantKpiSummary[] {
   for (const [assetId, a] of allAssignments()) if (v.assets.has(assetId)) for (const k of a.kpis) counts.set(k.kpi, (counts.get(k.kpi) ?? 0) + 1);
   return db()
     .all<import('./data-model.js').KpiRow>('SELECT * FROM plant_kpis ORDER BY name, id')
+    .filter((r) => scope.kpi(r.id))
     .map((r) => {
       const k = kpiValuesOf(r);
       return kpiSummary(
         { ...k, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at },
         counts.get(k.id) ?? 0,
         kpiChecks(k, profiles).length,
+        kpiRefs(k, scope),
       );
     });
 }
 
-export function getKpi(id: string): PlantKpiDetail {
+export function getKpi(id: string, scope: CatalogueScope = catalogueScope()): PlantKpiDetail {
   requirePlant();
   const r = kpiRowOf(id);
   if (!r) throw kpiNotFound(id);
+  const rights = requireEntry(scope, 'kpi_definition', id, kpiNotFound);
   const k = kpiValuesOf(r);
-  const profiles = allProfiles();
+  const whole = allProfiles();
+  // checks name profiles the caller may not see as "~hidden" (part 4); the computation reads every profile
+  const profiles = presentProfiles(whole, scope);
+  const refs = kpiRefs(k, scope);
   const kpis = new Map([[k.id, k]]);
   const v = visibleAssets();
   const instances: PlantKpiDetail['instances'] = [];
@@ -543,41 +662,66 @@ export function getKpi(id: string): PlantKpiDetail {
   instances.sort((a, b) => byName(a.asset, b.asset) || a.job.localeCompare(b.job));
   candidates.sort(byName);
   const checks = kpiChecks(k, profiles);
-  const profileNames: Record<string, string | null> = Object.fromEntries(kpiProfiles(k).map((p) => [p, profiles.get(p)?.name ?? null]));
+  const profileNames: Record<string, string | null> = Object.fromEntries(kpiProfiles(k).map((p) => [refs.ref(p), profiles.get(p)?.name ?? null]));
   return {
     ...k,
-    ...kpiSummary({ ...k, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, instances.length, checks.length),
+    inputs: presentInputs(k, refs),
+    ...kpiSummary({ ...k, importId: r.import_id, notInSource: !!r.not_in_source, updatedAt: r.updated_at }, instances.length, checks.length, refs),
     profileNames,
     checks,
     instances,
     candidates,
     candidateInfo,
-    canManage: canManageCatalogue(),
-    canPropose: plantProposesSome(),
+    canManage: rights.includes('edit'),
+    canPropose: rights.includes('propose'),
+    permissions: [...rights],
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
   };
 }
 
-function kpiValues(id: string, b: z.infer<typeof kpiUpdate>): PlantKpiValues {
-  const v: PlantKpiValues = { id, ...b };
-  // 0.13: a mapping to a data point a profile lacks is refused
-  const problems = kpiProblems(v, allProfiles());
-  if (problems.length) throw invalid('kpi', problems);
+/**
+ * A KPI definition's inputs as stored: placeholders become the profiles they stand for in the stored definition, a
+ * profile the caller may not see that it did not name is refused like an unknown one (0.21.0, part 4).
+ */
+export function keptInputs(inputs: PlantKpiValues['inputs'], stored: Pick<PlantKpiValues, 'inputs'> | null, scope: CatalogueScope): PlantKpiValues['inputs'] {
+  const refs = new HiddenRefs(scope.profile, stored ? kpiProfiles(stored) : []);
+  const kept = (p: string) => keptRef(p, refs, scope.profile, profileNotFound);
+  return inputs.map((i) => ({
+    ...i,
+    profile: i.profile ? kept(i.profile) : i.profile,
+    ...(i.profiles ? { profiles: i.profiles.map(kept) } : {}),
+    ...(i.mapping ? { mapping: Object.fromEntries(Object.entries(i.mapping).map(([p, m]) => [kept(p), m])) } : {}),
+  }));
+}
+
+function kpiValues(id: string, b: z.infer<typeof kpiUpdate>, scope: CatalogueScope): PlantKpiValues {
+  const stored = kpiRowOf(id);
+  const v: PlantKpiValues = { id, ...b, inputs: keptInputs(b.inputs, stored ? kpiValuesOf(stored) : null, scope) };
+  // 0.13: a mapping to a data point a profile lacks is refused – naming a profile the caller may not see by its placeholder
+  const problems = kpiProblems(v, presentProfiles(allProfiles(), scope));
+  if (problems.length) {
+    const refs = kpiRefs(v, scope);
+    throw invalid(
+      'kpi',
+      problems.map((x) => ({ path: x.path, message: refs.redact(x.message) })),
+    );
+  }
   return { ...v, inputs: normalizeKpiInputs(v.inputs) };
 }
 
 export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
   const by = requireCatalogue('add KPI definitions');
-  if (kpiRowOf(input.id)) throw new HttpError(409, `A KPI definition with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
-  // an old id of a renamed entry still leads there (0.11.0): it is not free
-  refuseAliasId('kpi', '', input.id);
+  const scope = catalogueScope();
+  if (kpiRowOf(input.id)) throw idTaken('kpi', input.id, scope.kpi(input.id));
+  refuseCatalogueAlias('kpi', input.id, scope);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_kpis')!.n) >= PLANT_DATA_LIMITS.kpis)
     throw new HttpError(409, `At most ${PLANT_DATA_LIMITS.kpis} KPI definitions`, 'PLANT_LIMIT', { max: PLANT_DATA_LIMITS.kpis });
   const { id, ...rest } = input;
-  const v = kpiValues(id, rest);
+  const v = kpiValues(id, rest, scope);
   db().tx(() => {
+    // decision 9: a new KPI definition belongs to no team, whoever adds it
     upsertKpi(v, { at: nowIso(), by });
     audit({
       action: 'kpi_definition.created',
@@ -591,11 +735,12 @@ export function createKpi(input: z.infer<typeof kpiInput>): PlantKpiDetail {
 }
 
 export function updateKpi(id: string, input: z.infer<typeof kpiUpdate>): PlantKpiDetail {
-  const by = requireCatalogue('change KPI definitions');
+  const scope = catalogueScope();
   const r = kpiRowOf(id);
   if (!r) throw kpiNotFound(id);
+  const by = requireEntryRight(scope, 'kpi_definition', id, 'edit', 'change this KPI definition');
   const before = kpiValuesOf(r);
-  const v = kpiValues(id, input);
+  const v = kpiValues(id, input, scope);
   const changes = changedKeys(before, v);
   if (!changes.length) return getKpi(id);
   db().tx(() => {
@@ -612,9 +757,10 @@ export function updateKpi(id: string, input: z.infer<typeof kpiUpdate>): PlantKp
 }
 
 export function deleteKpi(id: string): void {
-  requireCatalogue('delete KPI definitions');
+  const scope = catalogueScope();
   const r = kpiRowOf(id);
   if (!r) throw kpiNotFound(id);
+  requireEntryRight(scope, 'kpi_definition', id, 'manage', 'delete this KPI definition');
   const v = visibleAssets();
   const users = [...allAssignments()].filter(([, a]) => a.kpis.some((k) => k.kpi === id));
   // with the count only when the caller sees every asset that has an instance (see deleteProfile)
@@ -634,12 +780,16 @@ export function deleteKpi(id: string): void {
 /** A check with the KPI definition it concerns: an asset check of a KPI instance names the instance's definition. */
 export type CheckWithKpi = PlantCheck & { kpiId: string | null };
 
-/** Every check of the assets the caller may see (by asset name) and then of the KPI definitions (by name), unlimited. */
-export function allChecks(): CheckWithKpi[] {
+/**
+ * Every check of the assets the caller may see (by asset name) and then of the KPI definitions they may see (by name),
+ * unlimited. 0.21.0: a check naming a profile or KPI definition the caller may not see names it "~hidden"; `kpiId` is
+ * then null (the instance's definition is not named).
+ */
+export function allChecks(scope: CatalogueScope = catalogueScope()): CheckWithKpi[] {
   requirePlant();
   const v = visibleAssets();
-  const profiles = allProfiles();
-  const kpis = allKpis();
+  const profiles = presentProfiles(allProfiles(), scope);
+  const kpis = presentKpis(allKpis(), scope);
   const out: CheckWithKpi[] = [];
   const assignments: [string, PlantAssignmentValues][] = [...allAssignments()].filter(([id]) => v.assets.has(id));
   assignments.sort(([a], [b]) => v.briefs.get(a)!.name.localeCompare(v.briefs.get(b)!.name) || a.localeCompare(b));
@@ -647,11 +797,14 @@ export function allChecks(): CheckWithKpi[] {
     const b = v.briefs.get(assetId)!;
     const kpiOfJob = new Map(a.kpis.map((k) => [k.job, k.kpi]));
     for (const c of assignmentChecks({ kind: 'asset', id: assetId, name: b.name, siteId: b.siteId }, a, profiles, kpis))
-      out.push({ ...c, kpiId: c.job !== undefined ? (kpiOfJob.get(c.job) ?? null) : null });
+      out.push({ ...c, kpiId: c.job !== undefined ? (scopeKpi(scope, kpiOfJob.get(c.job)) ?? null) : null });
   }
-  for (const k of kpis.values()) for (const c of kpiChecks(k, profiles)) out.push({ ...c, kpiId: k.id });
+  for (const k of kpis.values()) if (scope.kpi(k.id)) for (const c of kpiChecks(k, profiles)) out.push({ ...c, kpiId: k.id });
   return out;
 }
+
+/** A KPI definition's id when the caller may see it. */
+const scopeKpi = (scope: CatalogueScope, id: string | undefined): string | undefined => (id && scope.kpi(id) ? id : undefined);
 
 /** Every check of the assets the caller may see and of the KPI definitions: Plant → Checks. */
 export function listChecks(): PlantCheck[] {
