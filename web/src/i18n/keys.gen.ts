@@ -145,6 +145,12 @@ export interface Resources {
     'shares.impliedHint': string;
     'shares.impliedHintResponsible': string;
     'shares.scopeToTeams': string;
+    'shares.scopeToTeamsAdmin': string;
+    'shares.teamOwnerHint_one': string;
+    'shares.teamOwnerHint_other': string;
+    'shares.scopeShort.instance': string;
+    'shares.scopeShort.teams': string;
+    'shares.scopeShort.restricted': string;
     'shares.setOwningTeams': string;
     'shares.notYours': string;
     'shares.empty': string;
