@@ -175,10 +175,10 @@ describe('downloads', () => {
   it('send a platform document whose name has characters outside Latin-1 (RFC 5987), not 500', async () => {
     const { ADMIN, authHeaders, loginCookie } = await import('./helpers.js');
     const cookie = await loginCookie(s.base, ADMIN.username, ADMIN.password);
-    const [p] = (await s.api('GET', '/platforms')) as { id: string }[];
+    const p = (await s.api('POST', '/platforms', { name: 'Invented docs platform', kind: 'rest', baseUrl: 'https://docs.invented.example' })) as { id: string };
     const form = new FormData();
     form.append('file', new Blob(['Invented notes\n'], { type: 'text/plain' }), 'Prüfbericht – Halle 3 ✓.txt');
-    const up = await fetch(`${s.base}/api/platforms/${p!.id}/docs`, { method: 'POST', headers: { 'x-sm-client': '1', ...authHeaders(cookie) }, body: form });
+    const up = await fetch(`${s.base}/api/platforms/${p.id}/docs`, { method: 'POST', headers: { 'x-sm-client': '1', ...authHeaders(cookie) }, body: form });
     expect(up.status).toBe(200);
     const doc = (await up.json()) as { id: string };
     const res = await fetch(`${s.base}/api/docs/${doc.id}/file`, { headers: authHeaders(cookie) });
