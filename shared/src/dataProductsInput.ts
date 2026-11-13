@@ -18,6 +18,8 @@ import {
   DATA_PORT_DIRECTIONS,
   DATA_PORT_LIFECYCLES,
   DATA_PORT_TYPES,
+  DATA_FILE_FORMATS,
+  DATA_PORT_PARTITION_KEYS,
   DATA_PRODUCT_CRITICALITIES,
   DATA_PRODUCT_KEY_RE,
   DATA_PRODUCT_LIFECYCLES,
@@ -233,6 +235,9 @@ export const dataPortInput = z
     source: dataPortSourceInput.nullable().default(null),
     objectIds: z.array(id()).max(L.objectsPerPort).default([]),
     position: z.number().int().min(0).max(1000).optional(),
+    /** 0.25.0: a file port's format and partition keys (left out: kept as they are) */
+    fileFormat: z.enum(DATA_FILE_FORMATS).nullable().optional(),
+    partitioning: z.array(z.string().trim().min(1).max(100)).max(DATA_PORT_PARTITION_KEYS).optional(),
   })
   .strict();
 export type DataPortInput = z.input<typeof dataPortInput>;

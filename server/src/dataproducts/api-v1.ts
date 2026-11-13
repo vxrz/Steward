@@ -114,6 +114,8 @@ const portOf = (x: DataPort) => ({
   })),
   consumers: x.consumers,
   consumesDeprecated: x.consumesDeprecated,
+  fileFormat: x.fileFormat,
+  partitioning: x.partitioning,
 });
 
 /** The scorecard of a product in an environment, summed up: maturity and the state of each part (WP4: scorecard.ts). */

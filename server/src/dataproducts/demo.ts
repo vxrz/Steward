@@ -24,7 +24,8 @@ import { takeScorecardSnapshots } from './scorecard-history.js';
  * The data products of the demo (0.22.0, ADR 0036 "Demo", docs/DATA-PRODUCTS.md): invented, on the simulated platforms.
  *
  *   1. Topics on "Kafka (demo)" – orders.v1 and the bundle's shop-events.web and shop-events.app – with messages.
- *   2. Two discovery sources, read once: "Snowflake (demo)" over the databases SHOP and SHOP_DEV (the name rule
+ *   2. Discovery sources, read once – 0.25.0: first "Shop files (demo)" on "AWS (demo)" over three invented S3 prefixes
+ *      (a landing area of Parquet files by day, CSV and JSON exports, an Iceberg table), then "Snowflake (demo)" over the databases SHOP and SHOP_DEV (the name rule
  *      `_DEV` → dev, the rest prod) and "Kafka (demo)" over the prefixes orders. and shop-events. (prod).
  *   3. The example files examples/data-products/*.yaml imported (add only): the domains Sales (with Orders), Customer
  *      and Manufacturing, the data objects Customer, Order and Machine measurement with their ratings, a topic bundle
@@ -87,7 +88,19 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
     ],
     intervalMinutes: 1440,
   });
-  for (const s of [sf, kf]) {
+  // 0.25.0 (ADR 0037 part 2): S3 prefixes of the demo AWS account – read first, so the Snowflake run links its external
+  // stage to the landing prefix it reads
+  const aws = platformId('AWS (demo)');
+  const s3 = aws
+    ? createSource({
+        name: 'Shop files (demo)',
+        platformId: aws,
+        scope: ['s3://invented-landing.example/orders/', 's3://invented-shop-lake.example/exports/', 's3://invented-shop-lake.example/iceberg/'],
+        environmentRules: [{ match: 'prefix', value: 'invented-', environment: 'prod' }],
+        intervalMinutes: 1440,
+      })
+    : null;
+  for (const s of [...(s3 ? [s3] : []), sf, kf]) {
     const run = await runSource(s.id, { trigger: 'manual', actor });
     if (run.status !== 'succeeded') logger.warn({ source: s.name, status: run.status, error: run.error }, 'demo discovery run did not succeed');
   }

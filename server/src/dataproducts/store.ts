@@ -204,6 +204,9 @@ export interface PortRow {
   source_element_id: string | null;
   source_text: string;
   position: number;
+  /** 0.25.0: a file port's format and partition keys */
+  file_format: string | null;
+  partitioning: string;
   revision: number;
   created_at: string;
   created_by: string;

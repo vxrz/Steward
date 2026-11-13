@@ -723,4 +723,12 @@ export const DATA_PRODUCT_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // 0.25.0, package C: file ports carry the format of their files and their partitioning (ADR 0037 part 2)
+    name: 'dataproducts-006c-file-ports',
+    sql: `
+      ALTER TABLE dp_ports ADD COLUMN file_format TEXT;
+      ALTER TABLE dp_ports ADD COLUMN partitioning TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];

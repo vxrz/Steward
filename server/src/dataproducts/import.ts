@@ -1365,6 +1365,9 @@ function portBody(r: Resolver, x: PortFile, row: PortRow | undefined, productPor
         : sourceInput(r, x.source),
     objectIds: (x.data_objects ?? []).map((k) => r.objectId(k)),
     ...(row ? { position: Number(row.position) } : {}),
+    // 0.25.0: left out, a file port keeps its format and partition keys
+    ...(x.file_format !== undefined ? { fileFormat: x.file_format } : {}),
+    ...(x.partitioning !== undefined ? { partitioning: x.partitioning } : {}),
   };
 }
 

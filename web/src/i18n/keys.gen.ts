@@ -8457,6 +8457,8 @@ export interface Resources {
     'codes.DATA_DISCOVERY_SCOPE_snowflake': string;
     'codes.DATA_DISCOVERY_SCOPE_kafka': string;
     'codes.DATA_DISCOVERY_SCOPE_sql': string;
+    'codes.DATA_DISCOVERY_SCOPE_s3': string;
+    'codes.DATA_DISCOVERY_SCOPE_s3Empty': string;
     'codes.DATA_DISCOVERY_PLATFORM': string;
     'codes.DATA_DISCOVERY_PLATFORM_kind': string;
     'codes.DATA_DISCOVERY_PLATFORM_use': string;
@@ -8467,6 +8469,8 @@ export interface Resources {
     'codes.DATA_DISCOVERY_TOO_LARGE_instance': string;
     'codes.DATA_DISCOVERY_TOO_LARGE_time': string;
     'codes.DATA_DISCOVERY_TOO_LARGE_snapshot': string;
+    'codes.DATA_DISCOVERY_TOO_LARGE_s3Keys': string;
+    'codes.DATA_DISCOVERY_TOO_LARGE_s3Prefixes': string;
     'codes.DATA_DISCOVERY_FAILED': string;
     'codes.DATA_DISCOVERY_FAILED_snowflakeDatabase': string;
     'codes.DATA_DISCOVERY_FAILED_interrupted': string;

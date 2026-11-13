@@ -336,7 +336,8 @@ export const DATA_ELEMENT_KIND_DEFS: Readonly<Record<DataElementKind, DataElemen
   'api.asyncapi': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
   'api.graphql': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
   'api.endpoint': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
-  'files.path': { platformKinds: ['aws'], platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'file' },
+  // 0.25.0: discovered on S3 through an AWS account platform (ADR 0037 part 2)
+  'files.path': { platformKinds: ['aws'], platformRequired: false, container: false, parentKinds: [], discovered: true, portType: 'file' },
   'insightsHub.aspect': { platformKinds: ['insights-hub'], platformRequired: true, container: false, parentKinds: [], discovered: false, portType: 'other' },
   other: { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'other' },
 };
@@ -368,6 +369,11 @@ export const elementShortName = (qualifiedName: string): string => {
  * `platformAddress` is what the platform's settings give (account, bootstrap server, host and port); null when unknown.
  */
 export function openLineageDataset(kind: DataElementKind, platformAddress: string | null, qualifiedName: string): { namespace: string; name: string } | null {
+  // 0.25.0: an S3 prefix is its own address – `s3://<bucket>` with the key prefix (no slash at the end), as OpenLineage names it
+  if (kind === 'files.path') {
+    const u = parseObjectStorageUrl(qualifiedName);
+    return u ? { namespace: `${u.scheme}://${u.bucket}`, name: u.prefix.replace(/\/+$/, '') || '/' } : null;
+  }
   if (!platformAddress) return null;
   // the names as Snowflake reports them: unquoted identifiers are upper case already, quoted ones keep their case
   if (kind.startsWith('snowflake.')) return { namespace: `snowflake://${platformAddress.toLowerCase()}`, name: qualifiedName };
@@ -730,6 +736,9 @@ export interface DataPort {
   consumers: { registered: number; derived: number };
   /** The port consumes a deprecated or retired port */
   consumesDeprecated: boolean;
+  /** 0.25.0: a file port's format and partition keys (in their order: `dt`, `region`) */
+  fileFormat: DataFileFormat | null;
+  partitioning: string[];
   position: number;
   revision: number;
 }
@@ -949,7 +958,45 @@ export const DATA_DISCOVERY_LIMITS = {
   registrySubjects: 2_000,
   /** Topics described per Kafka request */
   topicsPerRequest: 200,
+  /**
+   * 0.25.0, S3 (object storage): prefixes listed per run (each ListObjectsV2 call with a delimiter lists one) and object
+   * keys read per run – metadata only; a run cut by either says so and marks nothing missing
+   */
+  s3Prefixes: 2_000,
+  s3Keys: 200_000,
+  /** Keys one `data-element` check of a `files.path` element reads (freshness, volume): beyond, it says it counted a part */
+  s3CheckKeys: 20_000,
 } as const;
+
+/**
+ * Object storage (0.25.0, ADR 0037 part 2): a `files.path` element is named by its URL, `s3://<bucket>/<prefix>/` – the
+ * bucket as S3 names it (3–63 lower-case letters, digits, `.` and `-`), the prefix a key prefix ending in `/` (empty: the
+ * bucket's root, read only when a scope names it so). A discovery source of an AWS account names such prefixes.
+ */
+export const S3_DISCOVERY_SCOPE_RE = /^s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\/([^\s\\{}^%`\[\]"<>#|~]{0,900}\/)?$/;
+
+/** The parts of an object storage URL (`s3://bucket/prefix/`; a prefix as written – a folder ends in `/`), or null. */
+export function parseObjectStorageUrl(url: string): { scheme: 's3'; bucket: string; prefix: string } | null {
+  const m = /^s3:\/\/([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])(?:\/(.*))?$/.exec(url.trim());
+  return m ? { scheme: 's3', bucket: m[1]!, prefix: m[2] ?? '' } : null;
+}
+
+/** File formats of a `files.path` element and a file port (0.25.0): by the objects' suffixes, Iceberg by its metadata. */
+export const DATA_FILE_FORMATS = ['parquet', 'csv', 'json', 'avro', 'orc', 'iceberg', 'delta', 'mixed', 'other'] as const;
+export type DataFileFormat = (typeof DATA_FILE_FORMATS)[number];
+/** Partition keys of a file port at most */
+export const DATA_PORT_PARTITION_KEYS = 10;
+
+/** The format of an object key by its suffix (compression suffixes ignored); null: none Steward knows. */
+export function fileFormatOf(key: string): DataFileFormat | null {
+  const k = key.toLowerCase().replace(/\.(gz|gzip|snappy|zst|zstd|bz2|lz4|deflate)$/, '');
+  if (k.endsWith('.parquet') || k.endsWith('.parq')) return 'parquet';
+  if (k.endsWith('.csv') || k.endsWith('.tsv')) return 'csv';
+  if (k.endsWith('.json') || k.endsWith('.jsonl') || k.endsWith('.ndjson')) return 'json';
+  if (k.endsWith('.avro')) return 'avro';
+  if (k.endsWith('.orc')) return 'orc';
+  return null;
+}
 
 /** The scope entry that is a whole Snowflake database or a schema (`DB`, `DB.SCHEMA`; unquoted identifiers). */
 export const SNOWFLAKE_DISCOVERY_SCOPE_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}(\.[A-Za-z_][A-Za-z0-9_$]{0,254})?$/;

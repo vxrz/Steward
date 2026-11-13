@@ -72,7 +72,7 @@ const ageMinutes = (iso: string | null | undefined, now: number): number | null 
 
 const fmtAge = (m: number): string => (m < 120 ? `${m} minutes` : m < 2880 ? `${Math.round(m / 60)} hours` : `${Math.round(m / 1440)} days`);
 
-function judgeAge(c: Check, what: string, minutes: number | null, maxAge: number, value: Record<string, unknown>, note = ''): CheckResult {
+export function judgeAge(c: Check, what: string, minutes: number | null, maxAge: number, value: Record<string, unknown>, note = ''): CheckResult {
   if (minutes === null) return { status: 'unknown', message: `${what}: no time found${note}`, value };
   value.minutes = minutes;
   return minutes > maxAge

@@ -11,6 +11,7 @@ import {
   type DataPortLifecycle,
   type DataPortSource,
   type DataPortType,
+  type DataFileFormat,
   type DataRef,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -78,6 +79,12 @@ const objectives = (s: string): DataObjectives => parseJson<DataObjectives>(s, {
  * statements), as `u` sees them. `known`: data object rows the caller read already (the product page's rating floor
  * reads the exposed ones) – only the others are read here.
  */
+/** A file port's format and partition keys (0.25.0); what the input leaves out stays. */
+function writeFileFields(portId: string, input: { fileFormat?: string | null; partitioning?: string[] }): void {
+  if (input.fileFormat !== undefined) db().run('UPDATE dp_ports SET file_format = ? WHERE id = ?', input.fileFormat, portId);
+  if (input.partitioning !== undefined) db().run('UPDATE dp_ports SET partitioning = ? WHERE id = ?', json([...new Set(input.partitioning)]), portId);
+}
+
 export function portViews(u: AuthUser | null, productId: string, known?: ReadonlyMap<string, ObjectRow>, read?: ProductReads): DataPort[] {
   // the product page passes what its rating floor read of this product (ProductReads): read once, not twice
   const ports = read?.ports ?? portsOf([productId]);
@@ -175,6 +182,8 @@ export function portViews(u: AuthUser | null, productId: string, known?: Readonl
       consumers: { registered: registered.get(p.id) ?? 0, derived: derived.get(p.id) ?? 0 },
       consumesDeprecated,
       position: Number(p.position),
+      fileFormat: (p.file_format as DataFileFormat | null) ?? null,
+      partitioning: parseJson<string[]>(p.partitioning ?? '[]', []),
       revision: p.revision,
     };
   });
@@ -289,6 +298,7 @@ export function addPort(productId: string, productName: string, body: unknown): 
       actorName(),
     );
     writePortObjects(id, input.objectIds, false);
+    writeFileFields(id, input);
     audit({
       action: 'dataproduct.port_added',
       entityType: 'data_product',
@@ -329,6 +339,7 @@ export function updatePort(productId: string, productName: string, portId: strin
       cur.id,
     );
     writePortObjects(cur.id, input.objectIds, true);
+    writeFileFields(cur.id, input);
     audit({
       action: 'dataproduct.port_changed',
       entityType: 'data_product',
