@@ -65,12 +65,16 @@ const EVENT_COLORS: Record<string, string> = {
   'cost.booking_due': 'orange',
   'cost.volume': 'orange',
   'cost.price_review_due': 'yellow',
+  'cost.estimate_changed': 'yellow',
   'contract.failed': 'red',
   'plant.advisory_matched': 'red',
   'monitor.state': 'gray',
   'plant.change_proposed': 'violet',
   'plant.change_decided': 'blue',
   'soa.approval_waiting': 'violet',
+  'dataproduct.deprecated': 'orange',
+  'dataproduct.elements_missing': 'yellow',
+  'dataproduct.discovery_failed': 'red',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */

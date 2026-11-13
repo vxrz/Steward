@@ -112,6 +112,45 @@ checks:
 
 The platform's costs in money ([COSTS.md](COSTS.md#sources)): turned on under _Costs → the platform → Source_, Steward reads `SNOWFLAKE.ORGANIZATION_USAGE.USAGE_IN_CURRENCY_DAILY` once a day for the platform's account (`ACCOUNT_LOCATOR` or the name after `ORG-` in the variable `account`) – the organisation's usage views must be readable (`IMPORTED PRIVILEGES` on the `SNOWFLAKE` database in an account that has `ORGANIZATION_USAGE`; not for reseller contracts). Without them it reads the credits of `ACCOUNT_USAGE.METERING_DAILY_HISTORY` and multiplies them by the **price per credit** – since 0.21.0 the item `compute-credit` of the platform's contracted price book ([PRICE-BOOKS.md](PRICE-BOOKS.md#price-books)), still set on the source as well. The costs belong to the platform's application, else they are unassigned.
 
+## Data products discovery
+
+A discovery source of the data products module ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#discovery)) on a Snowflake platform reads the **databases and schemas of its scope** (`SHOP`, `SHOP.SALES`) into the element catalogue: databases, schemas, tables, views, dynamic tables, streams, tasks, stages and pipes, with row counts, bytes and the last change as metadata. Two modes (ADR 0036 decision 12):
+
+| Mode                             | Reads                                                                                                                                   | Needs                                                                                |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Information schema** (default) | per database `<DB>.INFORMATION_SCHEMA.SCHEMATA`, `TABLES` and `VIEWS` (the secure ones) – current                                       | privileges on the objects that show metadata, not data (below) – the least privilege |
+| **Account usage**                | `SNOWFLAKE.ACCOUNT_USAGE.DATABASES`, `SCHEMATA`, `TABLES` and `VIEWS` for the whole scope, one statement each – up to 90 minutes behind | `IMPORTED PRIVILEGES` on the `SNOWFLAKE` database (as for the readouts above)        |
+
+In both modes `SHOW DYNAMIC TABLES`, `SHOW STREAMS`, `SHOW TASKS`, `SHOW STAGES` and `SHOW PIPES` `IN DATABASE` (or `IN SCHEMA` for a schema in the scope) add what the views do not hold; of their output Steward keeps metadata columns only – never a definition. **Account usage** suits large accounts: one statement per view for all databases, and the `TABLE_ID` makes a renamed table the same element (people's descriptions, memberships and links stay). Its wider view is the whole account's metadata – `IMPORTED PRIVILEGES` shows every database's objects to the role; Steward still keeps only the scope. In **information schema** mode a role sees only the objects it has a privilege on, and there is no `TABLE_ID`: a renamed table is a new element and the old one goes missing.
+
+Grants for **information schema** mode – metadata, not data (`REFERENCES` shows a table's or view's definition of columns, never its rows; `MONITOR` shows a dynamic table, task or pipe):
+
+```sql
+GRANT USAGE ON DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT USAGE ON ALL SCHEMAS IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT USAGE ON FUTURE SCHEMAS IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT REFERENCES ON ALL TABLES IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT REFERENCES ON FUTURE TABLES IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT REFERENCES ON ALL VIEWS IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT REFERENCES ON FUTURE VIEWS IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT MONITOR ON ALL DYNAMIC TABLES IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT MONITOR ON ALL TASKS IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT MONITOR ON ALL PIPES IN DATABASE SHOP TO ROLE STEWARD_READ;
+GRANT USAGE ON ALL STAGES IN DATABASE SHOP TO ROLE STEWARD_READ;   -- external stages; internal ones need READ (a data right)
+```
+
+Streams are listed only to a role with `SELECT` on them, internal stages only with `READ` – both are data rights: grant them only if your policy allows, otherwise those objects are not discovered. (A database in the scope the role may not see fails the run: _does not exist or not authorized_.)
+
+**Statements.** Every statement starts with its tag (`/* steward:dp-tables */` …); the information schema views are named as a bound `IDENTIFIER(?)` (`SHOP.INFORMATION_SCHEMA.TABLES`), the database or schema of `SHOW` as a quoted identifier checked against the scope's rule (letters, digits, `_` and `$`), every other value is a binding. Results come partition by partition, at most 50,001 rows per statement, with a statement timeout of 120 s; a run stops after 10 minutes or 50,000 elements and then marks nothing missing. The tests check every statement discovery sends against this list and that none reads a table of the account.
+
+**Set it up:**
+
+1. A role with the grants above for the databases you want in the catalogue, for the platform's identity – mark the identity **read-only** ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#read-only-identities-and-the-operation-filter)); for _account usage_ mode also `IMPORTED PRIVILEGES` on `SNOWFLAKE`.
+2. With the module on, _Data → Discovery → New source_: the Snowflake platform, the **scope** (`SHOP`, `SHOP_DEV` – databases, or schemas as `SHOP.SALES`), include and exclude prefixes if you want only part of it, **environment rules** for databases named per environment (suffix `_DEV` → _dev_, prefix `SHOP` → _prod_ – the first that matches; else the platform's environment), the mode, the identity, how often (daily by default) and the owning teams of what it finds. You need to use the platform; the source runs as you.
+3. **Read now** and look at the run: added, changed, renamed, missing, and what it could not read. The elements are in _Data → Elements_ (prefix search `SHOP.CURATED.`); add them to products from there or from a product's _Elements_ tab.
+
+The demo's source _Shop warehouse (demo)_ is set up this way over `SHOP` and `SHOP_DEV` ([DATA-PRODUCTS.md](DATA-PRODUCTS.md#the-demo)).
+
 ## Templates
 
 Example processes that call the SQL API themselves (`POST /api/v2/statements` on the Snowflake platform, statements with bind parameters, read-only):
@@ -156,4 +195,4 @@ The estimates are rough on purpose – a smaller warehouse may run some queries 
 
 ## Demo
 
-The demo has _Snowflake (demo)_, account `DEMO12345` with the databases `SHOP`, `CRM` and the project database `PRD_SDC_OPQ_PBI_DEV` (roles `…_OWNER`, `…_READONLY`, `…_READWRITE` and the nested `PBI_REPORTING`), a failing task, four warehouses and twelve users: four with short names, seven with employee ids or technical names (one disabled, one with a password and no MFA, one with no login for 200 days, a technical user with a password) and an emergency administrator. Demo setup creates a key pair; the mock verifies every JWT with its public key. It answers `SHOW GRANTS ON DATABASE`, `SHOW GRANTS OF ROLE`, `SHOW WAREHOUSES` and SELECTs from the `ACCOUNT_USAGE` views the templates use (`server/src/mock/mockSnowflake.ts`). For the cost estimate and the waste check (`server/src/mock/mockSnowflakeUsage.ts`) the four warehouses have daily credits that add up to the hygiene check's 7 and 30 days – the transformation warehouse and the Power BI warehouse grow this month, `UNUSED_WH` has stopped – plus serverless tasks, Snowpipe, clustering, a materialised view and search optimisation, storage per database and stage, query tags, and the waste: `BI_WH` (Large, AUTO_SUSPEND 1800 s, short queries), `PBI_WH` (auto-suspend off), two tables nobody reads, a table with 0.9 TB of time travel, a task that always fails, a pipe with failing files and long cancelled queries. Tests switch views off with `setSnowflakeUnavailableViews`. The demo also has the access check _Platform access (demo) – Snowflake roles_ and the sample application _Webshop (demo)_ with the database `SHOP`.
+The demo has _Snowflake (demo)_, account `DEMO12345` with the databases `SHOP`, `CRM` and the project database `PRD_SDC_OPQ_PBI_DEV` (roles `…_OWNER`, `…_READONLY`, `…_READWRITE` and the nested `PBI_REPORTING`), a failing task, four warehouses and twelve users: four with short names, seven with employee ids or technical names (one disabled, one with a password and no MFA, one with no login for 200 days, a technical user with a password) and an emergency administrator. Demo setup creates a key pair; the mock verifies every JWT with its public key. It answers `SHOW GRANTS ON DATABASE`, `SHOW GRANTS OF ROLE`, `SHOW WAREHOUSES` and SELECTs from the `ACCOUNT_USAGE` views the templates use (`server/src/mock/mockSnowflake.ts`). For the cost estimate and the waste check (`server/src/mock/mockSnowflakeUsage.ts`) the four warehouses have daily credits that add up to the hygiene check's 7 and 30 days – the transformation warehouse and the Power BI warehouse grow this month, `UNUSED_WH` has stopped – plus serverless tasks, Snowpipe, clustering, a materialised view and search optimisation, storage per database and stage, query tags, and the waste: `BI_WH` (Large, AUTO_SUSPEND 1800 s, short queries), `PBI_WH` (auto-suspend off), two tables nobody reads, a table with 0.9 TB of time travel, a task that always fails, a pipe with failing files and long cancelled queries. Tests switch views off with `setSnowflakeUnavailableViews`. For data products discovery it has a catalogue of its own – `SHOP` and `SHOP_DEV` with the schemas `RAW`, `STAGED`, `CURATED` and `MART` (a transient table, a stream, an external stage, a pipe, a task, a dynamic table, a secure and a materialized view), `CRM` – each object with a `TABLE_ID`, and sends large results in partitions; tests add tens of thousands of tables (`server/test/dataproducts-discovery.test.ts`, `…-scale.test.ts`). The demo also has the access check _Platform access (demo) – Snowflake roles_ and the sample application _Webshop (demo)_ with the database `SHOP`.

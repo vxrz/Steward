@@ -6,7 +6,8 @@
  * data stays; switched on again, everything is back.
  *
  * Everything is on by default (new and upgraded installations), except the plant registry and its map, which keep
- * their own switches and stay off until an administrator turns them on (ADR 0007, ADR 0015).
+ * their own switches and stay off until an administrator turns them on (ADR 0007, ADR 0015), and modules declared
+ * `defaultOn: false` (the data products, ADR 0036), which stay off until an administrator switches them on.
  */
 
 import type { Role } from './api.js';
@@ -28,6 +29,7 @@ export const MODULE_IDS = [
   'changedetection',
   'plant',
   'plantMap',
+  'dataProducts',
 ] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 export const isModuleId = (x: unknown): x is ModuleId => typeof x === 'string' && (MODULE_IDS as readonly string[]).includes(x);
@@ -37,7 +39,7 @@ export interface ModuleDef {
   /** English name (audit entries, docs); the web app translates `settings:modules.items.<id>` */
   name: string;
   maturity: Maturity;
-  /** On in a new installation and after an upgrade (only the plant registry and its map are not) */
+  /** On in a new installation and after an upgrade (the plant registry, its map and the data products are not) */
   defaultOn: boolean;
   /** Only on while this module is on, too */
   requires?: ModuleId;
@@ -203,7 +205,7 @@ export const MODULES: readonly ModuleDef[] = [
       // administrators and designers before 0.23.0, so designers map to it; costs follow services and platforms otherwise
       roles: { manager: { costs: ['managePriceBooks', 'manageCalculators', 'manageFxRates'] } },
       fromCoreRoles: { admin: 'manager', designer: 'manager' },
-      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due'],
+      events: ['cost.budget', 'cost.booking_due', 'cost.volume', 'cost.price_review_due', 'cost.estimate_changed'],
       mcpTools: [
         'get_service_cost_plan',
         'get_platform_cost_plan',
@@ -234,7 +236,14 @@ export const MODULES: readonly ModuleDef[] = [
     jobs: [],
     platformKinds: ['datacontract'],
     // its data contracts have owning teams (owning-team kind `contract`): the access preview names those without it
-    access: { restrictable: true, events: ['contract.failed'], reportSections: ['contracts'], itemKinds: ['contract'] },
+    access: {
+      restrictable: true,
+      events: ['contract.failed'],
+      // the read tools (0.22.0, with the data products module's)
+      mcpTools: ['list_data_contracts', 'get_data_contract'],
+      reportSections: ['contracts'],
+      itemKinds: ['contract'],
+    },
   },
   {
     id: 'ai',
@@ -373,6 +382,62 @@ export const MODULES: readonly ModuleDef[] = [
     jobs: [],
     // it follows the plant registry: whoever uses the registry uses its map
     access: { restrictable: false, follows: 'plant' },
+  },
+  {
+    // ADR 0036: off by default (it brings discovery jobs and a large catalogue); restrictable (ADR 0034). The job
+    // data-products discovers elements (dataproducts/discovery/job.ts)
+    id: 'dataProducts',
+    name: 'Data products',
+    maturity: 'preview',
+    defaultOn: false,
+    switchable: true,
+    nav: ['dataProducts', 'dataElements', 'dataObjects', 'dataDomains', 'dataMap', 'dataDiscovery'],
+    pages: ['/data-products', '/data-elements', '/data-objects', '/data-domains'],
+    routes: [
+      '/api/data-products',
+      '/api/data-elements',
+      '/api/data-objects',
+      '/api/data-domains',
+      '/api/v1/data-products',
+      '/api/v1/data-elements',
+      '/api/v1/data-objects',
+    ],
+    jobs: ['data-products'],
+    // module access (ADR 0034 phase 1): restrictable to selected teams and users; within it the core roles give the
+    // module roles (designer → manager, other working roles → viewer – dataproducts/access.ts). Contributors as a
+    // module role of their own and a report section follow in phase 2; the instance export has no part of it yet.
+    access: {
+      restrictable: true,
+      // ADR 0036 part 12 with ADR 0034 phase 2 (0.23.0): the core roles give what 0.22.0 gave (designer → manager, other
+      // working roles → viewer – team roles included, server/src/dataproducts/access.ts); granted roles add, the
+      // contributor among them (creates entries)
+      roles: {
+        viewer: { data_product: ['view'], data_object: ['view'], data_element: ['view'], data_domain: ['view'] },
+        contributor: { data_product: ['view'], data_object: ['view'], data_element: ['view'], data_domain: ['view'], module: ['create'] },
+        manager: {
+          data_product: ['view', 'edit', 'manage'],
+          data_object: ['view', 'edit', 'manage'],
+          data_element: ['view', 'edit', 'manage'],
+          data_domain: ['view', 'edit', 'manage'],
+          module: ['create', 'manageModule'],
+        },
+      },
+      fromCoreRoles: { admin: 'manager', designer: 'manager', operator: 'viewer', approver: 'viewer', auditor: 'viewer', viewer: 'viewer' },
+      events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed'],
+      mcpTools: [
+        'list_data_products',
+        'get_data_product',
+        'search_data_elements',
+        'get_data_element',
+        'get_data_lineage',
+        'get_data_product_health',
+        'get_data_product_costs',
+        'list_data_objects',
+        'get_data_object',
+      ],
+      // owning-team kinds and link kinds: a link from a core item to one is counted, not named, for who does not use it
+      itemKinds: ['data_product', 'data_object', 'data_element', 'data_domain', 'data-product', 'data-object'],
+    },
   },
 ];
 

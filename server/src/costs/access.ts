@@ -20,7 +20,7 @@ import { HttpError, parseJson } from '../util.js';
  */
 
 const KEY = 'costs.settings';
-const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1 };
+const DEFAULTS: CostSettings = { hideAmountsFromViewers: false, defaultCurrency: 'USD', fiscalYearStartMonth: 1, estimateChangePct: 5 };
 
 /**
  * The settings are read for every scope of a list (security review 0.19.0 H2): kept for a while, read again after a
@@ -44,7 +44,11 @@ export function setCostSettings(body: unknown): CostSettings {
   const x = costSettingsInput.parse(body);
   const before = costSettings();
   // the fiscal year start stays as it is when left out (clients from before 0.16)
-  const next: CostSettings = { ...x, fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth };
+  const next: CostSettings = {
+    ...x,
+    fiscalYearStartMonth: x.fiscalYearStartMonth ?? before.fiscalYearStartMonth,
+    estimateChangePct: x.estimateChangePct ?? before.estimateChangePct,
+  };
   const moved = next.fiscalYearStartMonth !== before.fiscalYearStartMonth ? fiscalYearChange(next.fiscalYearStartMonth) : null;
   writeSetting(KEY, next);
   cached = null;
@@ -137,8 +141,8 @@ function teamInfo(u: AuthUser | null, id: string): ScopeInfo | null {
   return { scope: 'team', id, name: r.name, amounts: true, owner: member || isAdmin(u), canEditBudget: isAdmin(u), canManageSource: false, canEditPlan: false };
 }
 
-function platformInfo(u: AuthUser | null, id: string): ScopeInfo | null {
-  const r = db().get<{ id: string; name: string; acl: string }>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
+function platformInfo(u: AuthUser | null, id: string, row?: { id: string; name: string; acl: string }): ScopeInfo | null {
+  const r = row ?? db().get<{ id: string; name: string; acl: string }>('SELECT id, name, acl FROM platforms WHERE id = ?', id);
   if (!r) return null;
   if (!u) return { scope: 'platform', id, name: r.name, amounts: true, owner: true, canEditBudget: false, canManageSource: true, canEditPlan: true };
   const perms = platformPermissions(u, { id, acl: parseJson<AclEntry<PlatformPermission>[]>(r.acl, []) });
@@ -158,6 +162,26 @@ export function scopeInfo(scope: CostScope, id: string, u: AuthUser | null = cur
   if (scope === 'service' || scope === 'application') return catalogueInfo(u, scope, id, row);
   if (scope === 'team') return teamInfo(u, id);
   return platformInfo(u, id);
+}
+
+/**
+ * scopeInfo of many platforms at once (the data products' costs, ADR 0036 part 11): one statement whatever their
+ * number; platforms that do not exist or the reader may not see are missing from the map.
+ */
+export function platformScopes(ids: readonly string[], u: AuthUser | null = currentUser()): Map<string, ScopeInfo> {
+  const uniq = [...new Set(ids.filter(Boolean))];
+  const out = new Map<string, ScopeInfo>();
+  for (let i = 0; i < uniq.length; i += 500) {
+    const part = uniq.slice(i, i + 500);
+    for (const r of db().all<{ id: string; name: string; acl: string }>(
+      `SELECT id, name, acl FROM platforms WHERE id IN (${part.map(() => '?').join(', ')})`,
+      ...part,
+    )) {
+      const info = platformInfo(u, r.id, r);
+      if (info) out.set(r.id, info);
+    }
+  }
+  return out;
 }
 
 const SCOPE_NAMES: Record<CostScope, string> = { service: 'Service', application: 'Application', team: 'Team', platform: 'Platform' };

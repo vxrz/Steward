@@ -21,9 +21,10 @@ import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { requireScope, scopeInfo, type ScopeInfo } from './access.js';
 import { catalogueOf, checkOwnerTarget, startMonth, targetOf, thisMonth, type OwnerRef } from './plans.js';
-import { visibleBooks } from './price-books.js';
+import { bookRow, onVersionWritten, priceSight } from './price-books.js';
+import { onConditionsChanged } from './contract-conditions.js';
 import { calculateOne, viewResult, type StoredResult } from './pricing.js';
-import { listOnly, microsText, proposalsOf, type EstimateBasis } from './estimate-model.js';
+import { listOnly, microsText, proposalsOf, SEE_ALL, type EstimateBasis, type PriceSight } from './estimate-model.js';
 
 /**
  * Estimates (0.21.0, ADR 0035 part 6): a calculation kept – the inputs (values or ranges), the calculator and its
@@ -40,7 +41,7 @@ import { listOnly, microsText, proposalsOf, type EstimateBasis } from './estimat
  *   one; "Accept new prices" makes it current. The last 20 results stay as the history.
  */
 
-interface EstimateRow {
+export interface EstimateRow {
   id: string;
   owner_kind: 'service' | 'platform';
   owner_id: string;
@@ -54,10 +55,13 @@ interface EstimateRow {
   lines: string;
   adjustments: string;
   books: string;
+  contracts?: string;
   currency: string;
   applies_from: string;
   result: string | null;
   pending: string | null;
+  /** Why the job recalculates it next (0.23.0): RecalcCause as JSON */
+  recalc_cause?: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -84,11 +88,9 @@ function requireEstimate(id: string, need: 'view' | 'edit' = 'view'): { row: Est
   return { row, info };
 }
 
-/** Which books the reader may read (one statement for all books; per request). */
-function bookSight(u: AuthUser | null = currentUser()): (bookId: string) => boolean {
-  if (!u) return () => true;
-  const seen = new Set(visibleBooks(u).map((b) => b.row.id));
-  return (id) => seen.has(id);
+/** Which books, contracts' conditions and derived books' terms the reader may see (once per request). */
+function bookSight(u: AuthUser | null = currentUser()): PriceSight {
+  return priceSight(u);
 }
 
 const stored = (text: string | null): StoredResult | null => parseJson<StoredResult | null>(text, null);
@@ -106,7 +108,7 @@ function checkFor(o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | nul
 
 // ---------- reading ----------
 
-function summaryOf(r: EstimateRow, info: ScopeInfo, sight: (id: string) => boolean, planLines: number, calcNames: Map<string, string>): CostEstimateSummary {
+function summaryOf(r: EstimateRow, info: ScopeInfo, sight: PriceSight, planLines: number, calcNames: Map<string, string>): CostEstimateSummary {
   const s = info.amounts ? stored(r.result) : null;
   const v = s ? viewResult(s, sight) : null;
   const f = r.for_kind && r.for_id ? forOf(r) : null;
@@ -208,7 +210,7 @@ export function getEstimate(id: string): CostEstimate {
     let changed = false;
     if (basis && s) {
       const k = `${l.fiscal_year}|${basis.list}`;
-      if (!props.has(k)) props.set(k, proposalsOf(s, row.title, Number(l.fiscal_year), sm, basis.list ? listOnly(s) : () => true).lines);
+      if (!props.has(k)) props.set(k, proposalsOf(s, row.title, Number(l.fiscal_year), sm, basis.list ? listOnly(s) : SEE_ALL).lines);
       const now = props.get(k)!.find((p) => p.key === basis.key);
       changed = !now || now.months.join(',') !== basis.months.join(',');
     }
@@ -227,6 +229,10 @@ export function getEstimate(id: string): CostEstimate {
     lines: parseJson<CostEstimateHandLine[]>(row.lines, []),
     adjustments: parseJson<StoredAdjustment[]>(row.adjustments, []).map(({ found: _f, ...a }) => a),
     books: parseJson<{ provider: string; bookId: string }[]>(row.books, []),
+    // the contracts chosen – only those whose conditions the reader sees are named
+    contracts: parseJson<{ provider: string; contractId: string | null }[]>(row.contracts ?? '[]', []).filter(
+      (c) => !c.contractId || sight.conditions(c.contractId),
+    ),
     currency: row.currency,
     appliesFrom: row.applies_from,
     amountsVisible: info.amounts,
@@ -255,6 +261,12 @@ function platformOf(o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | n
   return t?.kind === 'platform' ? t.id : null;
 }
 
+/** What the pricing prefers for an estimate: the owner's (or target's) platform and the owning service. */
+const ownerOptions = (o: OwnerRef, t: { kind: CostPlanTargetKind; id: string } | null) => ({
+  platformId: platformOf(o, t),
+  serviceId: o.kind === 'service' ? o.id : null,
+});
+
 /** Keeps who added an adjustment and when; a new or changed one is the current person's. */
 function stampAdjustments(next: readonly CostAdjustment[], before: readonly StoredAdjustment[], found: Map<string, string>): StoredAdjustment[] {
   const same = (a: CostAdjustment, b: CostAdjustment) =>
@@ -277,10 +289,20 @@ function fixedFound(adj: readonly StoredAdjustment[]): Map<string, string> {
   return new Map(adj.filter((a) => a.kind === 'price' && a.line && a.found).map((a) => [a.line!, a.found!]));
 }
 
-function recordBooks(id: string, versionIds: readonly string[], keep: readonly string[] = []): void {
+function recordBooks(
+  id: string,
+  versionIds: readonly string[],
+  keep: readonly string[] = [],
+  contractIds: readonly string[] = [],
+  keepContracts: readonly string[] = [],
+): void {
   db().run('DELETE FROM cost_estimate_books WHERE estimate_id = ?', id);
   for (const v of new Set([...versionIds, ...keep]))
     db().run('INSERT INTO cost_estimate_books (estimate_id, version_id) VALUES (?, ?) ON CONFLICT DO NOTHING', id, v);
+  // the contracts whose conditions it used (a changed condition recalculates it)
+  db().run('DELETE FROM cost_estimate_contracts WHERE estimate_id = ?', id);
+  for (const c of new Set([...contractIds, ...keepContracts]))
+    db().run('INSERT INTO cost_estimate_contracts (estimate_id, contract_id) VALUES (?, ?) ON CONFLICT DO NOTHING', id, c);
 }
 
 function keepHistory(id: string, result: string | null): void {
@@ -293,7 +315,7 @@ function keepHistory(id: string, result: string | null): void {
 }
 
 const totalsText = (s: StoredResult): string => {
-  const v = viewResult(s, () => true);
+  const v = viewResult(s, SEE_ALL);
   const m = v.totals.monthly;
   return `${m.expected} ${s.currency}/month${s.ranged ? ` (${m.low}–${m.high})` : ''}${v.totals.oneOff.expected !== '0.00' ? ` + ${v.totals.oneOff.expected} ${s.currency} one-off` : ''}`;
 };
@@ -328,10 +350,11 @@ export async function createEstimate(body: unknown): Promise<CostEstimate> {
       lines: x.lines,
       adjustments: x.adjustments,
       books: x.books,
+      contracts: x.contracts,
       currency: x.currency,
       appliesFrom: x.appliesFrom,
     },
-    { platformId: platformOf(o, x.for) },
+    ownerOptions(o, x.for),
   );
   const r = calc.result;
   const adjustments = stampAdjustments(x.adjustments as CostAdjustment[], [], calc.found);
@@ -340,8 +363,8 @@ export async function createEstimate(body: unknown): Promise<CostEstimate> {
   db().tx(() => {
     db().run(
       `INSERT INTO cost_estimates (id, owner_kind, owner_id, for_kind, for_id, title, description, calculator_id, calculator_version, inputs, lines, adjustments, books,
-         currency, applies_from, result, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         contracts, currency, applies_from, result, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       o.kind,
       o.id,
@@ -355,6 +378,7 @@ export async function createEstimate(body: unknown): Promise<CostEstimate> {
       JSON.stringify(x.lines),
       JSON.stringify(adjustments),
       JSON.stringify(x.books),
+      JSON.stringify(x.contracts),
       x.currency,
       r.appliesFrom,
       JSON.stringify(r),
@@ -363,7 +387,7 @@ export async function createEstimate(body: unknown): Promise<CostEstimate> {
       now,
       currentActor(),
     );
-    recordBooks(id, calc.versionIds);
+    recordBooks(id, calc.versionIds, [], calc.contractIds);
     audit({
       action: 'cost.estimate_added',
       entityType: o.kind,
@@ -379,7 +403,7 @@ export async function createEstimate(body: unknown): Promise<CostEstimate> {
         books: r.books.map((b) => ({ id: b.id, version: b.version })),
         rates: r.rates,
         adjustments: adjustmentsOf(adjustments),
-        totals: viewResult(r, () => true).totals,
+        totals: viewResult(r, SEE_ALL).totals,
       },
     });
   });
@@ -400,10 +424,11 @@ export async function updateEstimate(id: string, body: unknown): Promise<CostEst
       lines: x.lines,
       adjustments: x.adjustments,
       books: x.books,
+      contracts: x.contracts,
       currency: x.currency,
       appliesFrom: x.appliesFrom,
     },
-    { platformId: platformOf(o, x.for), fixedFound: fixedFound(before) },
+    { ...ownerOptions(o, x.for), fixedFound: fixedFound(before) },
   );
   const r = calc.result;
   const adjustments = stampAdjustments(x.adjustments as CostAdjustment[], before, calc.found);
@@ -412,7 +437,7 @@ export async function updateEstimate(id: string, body: unknown): Promise<CostEst
     keepHistory(id, row.result);
     db().run(
       `UPDATE cost_estimates SET for_kind = ?, for_id = ?, title = ?, description = ?, calculator_id = ?, calculator_version = ?, inputs = ?, lines = ?, adjustments = ?,
-         books = ?, currency = ?, applies_from = ?, result = ?, pending = NULL, updated_at = ?, updated_by = ? WHERE id = ?`,
+         books = ?, contracts = ?, currency = ?, applies_from = ?, result = ?, pending = NULL, updated_at = ?, updated_by = ? WHERE id = ?`,
       x.for?.kind ?? null,
       x.for?.id ?? null,
       x.title,
@@ -423,6 +448,7 @@ export async function updateEstimate(id: string, body: unknown): Promise<CostEst
       JSON.stringify(x.lines),
       JSON.stringify(adjustments),
       JSON.stringify(x.books),
+      JSON.stringify(x.contracts),
       x.currency,
       r.appliesFrom,
       JSON.stringify(r),
@@ -430,7 +456,7 @@ export async function updateEstimate(id: string, body: unknown): Promise<CostEst
       currentActor(),
       id,
     );
-    recordBooks(id, calc.versionIds);
+    recordBooks(id, calc.versionIds, [], calc.contractIds);
     audit({
       action: 'cost.estimate_changed',
       entityType: o.kind,
@@ -443,14 +469,14 @@ export async function updateEstimate(id: string, body: unknown): Promise<CostEst
           calculatorVersion: row.calculator_version,
           inputs: parseJson(row.inputs, []),
           adjustments: adjustmentsOf(before),
-          totals: prev ? viewResult(prev, () => true).totals : null,
+          totals: prev ? viewResult(prev, SEE_ALL).totals : null,
         },
         after: {
           title: x.title,
           calculatorVersion: r.calculator?.version ?? null,
           inputs: x.inputs,
           adjustments: adjustmentsOf(adjustments),
-          totals: viewResult(r, () => true).totals,
+          totals: viewResult(r, SEE_ALL).totals,
         },
       },
     });
@@ -473,10 +499,11 @@ export async function recalculateEstimate(id: string): Promise<CostEstimate> {
       lines: parseJson(row.lines, []),
       adjustments: adj.map(({ by: _b, at: _a, found: _f, ...a }) => a),
       books: parseJson(row.books, []),
+      contracts: parseJson(row.contracts ?? '[]', []),
       currency: row.currency,
       appliesFrom: row.applies_from,
     },
-    { platformId: platformOf(ownerOf(row), row.for_kind && row.for_id ? { kind: row.for_kind, id: row.for_id } : null), fixedFound: fixedFound(adj) },
+    { ...ownerOptions(ownerOf(row), row.for_kind && row.for_id ? { kind: row.for_kind, id: row.for_id } : null), fixedFound: fixedFound(adj) },
   );
   const cur = stored(row.result);
   const sameAs = (a: StoredResult | null, b: StoredResult) =>
@@ -488,7 +515,10 @@ export async function recalculateEstimate(id: string): Promise<CostEstimate> {
       const keep = db()
         .all<{ version_id: string }>('SELECT version_id FROM cost_estimate_books WHERE estimate_id = ?', id)
         .map((v) => v.version_id);
-      recordBooks(id, calc.versionIds, keep);
+      const keepContracts = db()
+        .all<{ contract_id: string }>('SELECT contract_id FROM cost_estimate_contracts WHERE estimate_id = ?', id)
+        .map((v) => v.contract_id);
+      recordBooks(id, calc.versionIds, keep, calc.contractIds, keepContracts);
     }
   });
   return getEstimate(id);
@@ -503,7 +533,12 @@ export function acceptEstimate(id: string): CostEstimate {
   db().tx(() => {
     keepHistory(id, row.result);
     db().run('UPDATE cost_estimates SET result = ?, pending = NULL, updated_at = ?, updated_by = ? WHERE id = ?', row.pending, nowIso(), currentActor(), id);
-    recordBooks(id, pend.versionIds ?? []);
+    recordBooks(
+      id,
+      pend.versionIds ?? [],
+      [],
+      (pend.contracts ?? []).map((c) => c.id),
+    );
     audit({
       action: 'cost.estimate_accepted',
       entityType: row.owner_kind,
@@ -512,8 +547,8 @@ export function acceptEstimate(id: string): CostEstimate {
       details: {
         estimateId: id,
         books: pend.books.map((b) => ({ id: b.id, version: b.version })),
-        before: prev ? viewResult(prev, () => true).totals : null,
-        after: viewResult(pend, () => true).totals,
+        before: prev ? viewResult(prev, SEE_ALL).totals : null,
+        after: viewResult(pend, SEE_ALL).totals,
       },
     });
   });
@@ -527,6 +562,7 @@ export function removeEstimate(id: string): void {
     const lines = db().run('UPDATE cost_plan_lines SET estimate_id = NULL, estimate_basis = NULL WHERE estimate_id = ?', id).changes;
     db().run('DELETE FROM cost_estimate_results WHERE estimate_id = ?', id);
     db().run('DELETE FROM cost_estimate_books WHERE estimate_id = ?', id);
+    db().run('DELETE FROM cost_estimate_contracts WHERE estimate_id = ?', id);
     db().run('DELETE FROM cost_estimates WHERE id = ?', id);
     audit({
       action: 'cost.estimate_removed',
@@ -544,6 +580,7 @@ export function forgetEstimates(kind: 'service' | 'platform', id: string): numbe
   for (const r of rows) {
     db().run('DELETE FROM cost_estimate_results WHERE estimate_id = ?', r.id);
     db().run('DELETE FROM cost_estimate_books WHERE estimate_id = ?', r.id);
+    db().run('DELETE FROM cost_estimate_contracts WHERE estimate_id = ?', r.id);
   }
   db().run('DELETE FROM cost_estimates WHERE owner_kind = ? AND owner_id = ?', kind, id);
   return rows.length;
@@ -563,7 +600,7 @@ export function estimateProposals(id: string, fiscalYear?: number): CostEstimate
   const sm = startMonth();
   const sight = bookSight();
   const p = s ? proposalsOf(s, row.title, fy, sm, sight) : { lines: [], hidden: false };
-  const hiddenRates = !!s && s.books.some((b) => b.kind !== 'list');
+  const hiddenRates = !!s && confidential(s);
   const existing = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM cost_plan_lines WHERE estimate_id = ? AND fiscal_year = ?', id, fy)?.n ?? 0);
   return {
     fiscalYear: fy,
@@ -576,6 +613,9 @@ export function estimateProposals(id: string, fiscalYear?: number): CostEstimate
   };
 }
 
+/** Priced with rates not every reader may see: a contracted or derived book, or a contract's conditions (0.23.0). */
+const confidential = (s: StoredResult): boolean => s.books.some((b) => b.kind !== 'list') || s.lines.some((l) => !!l.cid);
+
 /** "Add to plan": the chosen proposals become plan lines of the fiscal year, each remembering the estimate. */
 export function confirmEstimateProposals(id: string, body: unknown): { added: number; lineIds: string[] } {
   const { row, info } = requireEstimate(id, 'edit');
@@ -586,7 +626,7 @@ export function confirmEstimateProposals(id: string, body: unknown): { added: nu
   const p = proposalsOf(s, row.title, x.fiscalYear, startMonth(), sight);
   const chosen = p.lines.filter((l) => x.keys.includes(l.key));
   if (!chosen.length) throw new HttpError(400, 'Choose lines of the proposal', 'COST_PROPOSAL_NONE', { year: fiscalYearLabel(x.fiscalYear, startMonth()) });
-  if (s.books.some((b) => b.kind !== 'list') && !x.confirmHidden)
+  if (confidential(s) && !x.confirmHidden)
     throw new HttpError(409, 'Readers of this plan will see these amounts', 'COST_ESTIMATE_HIDDEN_RATES', { title: row.title });
   const o = ownerOf(row);
   const col = o.kind === 'service' ? 'service_id' : 'platform_id';
@@ -740,4 +780,110 @@ function planMonthsOf(l: { amount: number; cadence: string; once_index: number |
   const to = l.to_index === null ? 11 : Number(l.to_index);
   for (let i = from; i <= to; i++) out[i] = amount;
   return out;
+}
+
+// ---------- recalculation in the background (0.23.0, ADR 0035 part 6) ----------
+
+/** What made an estimate due for recalculation: a new version of a book it used, or a changed contract condition. */
+export interface RecalcCause {
+  book?: { id: string; name: string; version: number };
+  contract?: { id: string; title: string; at: string };
+}
+
+/** Marks the estimates that used a book or a contract's conditions: the job "costs" recalculates them. */
+function markRecalc(sql: string, cause: RecalcCause, ...params: unknown[]): void {
+  db().run(`UPDATE cost_estimates SET recalc_cause = ? WHERE id IN (${sql})`, JSON.stringify(cause), ...params);
+}
+onVersionWritten((bookId, version) => {
+  const b = bookRow(bookId);
+  markRecalc(
+    'SELECT b.estimate_id FROM cost_estimate_books b JOIN cost_price_book_versions v ON v.id = b.version_id WHERE v.book_id = ?',
+    { book: { id: bookId, name: b?.name ?? bookId, version } },
+    bookId,
+  );
+});
+onConditionsChanged((contractId) => {
+  const c = db().get<{ title: string }>('SELECT title FROM supplier_contracts WHERE id = ?', contractId);
+  // an order form inheriting them is recorded under its own id: its estimates follow too
+  markRecalc(
+    'SELECT estimate_id FROM cost_estimate_contracts WHERE contract_id = ? OR contract_id IN (SELECT id FROM supplier_contracts WHERE parent_id = ?)',
+    { contract: { id: contractId, title: c?.title ?? contractId, at: nowIso() } },
+    contractId,
+    contractId,
+  );
+});
+
+/**
+ * The choices a background recalculation pins: per provider the book and the contract the current result used (or
+ * the ones the estimate chose) – the job sees every book and contract, so it must not choose others than its editor did.
+ * Null when a book it used is gone.
+ */
+function pinnedChoices(
+  row: EstimateRow,
+  cur: StoredResult | null,
+): { books: { provider: string; bookId: string }[]; contracts: { provider: string; contractId: string | null }[] } | null {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const books = new Map(parseJson<{ provider: string; bookId: string }[]>(row.books, []).map((b) => [norm(b.provider), b]));
+  const contracts = new Map(parseJson<{ provider: string; contractId: string | null }[]>(row.contracts ?? '[]', []).map((c) => [norm(c.provider), c]));
+  // the book each provider was priced from: its contracted or derived book before a list book it fell back to
+  for (const b of [...(cur?.books ?? [])].sort((x, y) => (x.kind === 'list' ? 1 : 0) - (y.kind === 'list' ? 1 : 0)))
+    if (!books.has(norm(b.provider))) books.set(norm(b.provider), { provider: b.provider, bookId: b.id });
+  // the contract whose conditions it used – or none: the job must not apply a contract its editor did not
+  for (const c of cur?.contracts ?? []) if (!contracts.has(norm(c.provider))) contracts.set(norm(c.provider), { provider: c.provider, contractId: c.id });
+  for (const l of cur?.lines ?? []) if (!contracts.has(norm(l.provider))) contracts.set(norm(l.provider), { provider: l.provider, contractId: null });
+  for (const b of books.values()) if (!bookRow(b.bookId)) return null;
+  return { books: [...books.values()], contracts: [...contracts.values()] };
+}
+
+/**
+ * Recalculates an estimate in the job (no reader): the same books and contracts, their current versions and
+ * conditions; the result goes beside the current one (pending) when it differs. Returns the results for the notice.
+ */
+export async function recalculateInBackground(row: EstimateRow): Promise<{ before: StoredResult | null; after: StoredResult | null }> {
+  const cur = stored(row.result);
+  const pin = pinnedChoices(row, cur);
+  if (!pin) {
+    db().run('UPDATE cost_estimates SET recalc_cause = NULL WHERE id = ?', row.id);
+    return { before: cur, after: null };
+  }
+  const adj = parseJson<StoredAdjustment[]>(row.adjustments, []);
+  const calc = await calculateOne(
+    {
+      calculatorId: row.calculator_id,
+      calculatorVersion: row.calculator_version,
+      inputs: parseJson(row.inputs, []),
+      lines: parseJson(row.lines, []),
+      adjustments: adj.map(({ by: _b, at: _a, found: _f, ...a }) => a),
+      books: pin.books,
+      contracts: pin.contracts,
+      currency: row.currency,
+      appliesFrom: row.applies_from,
+    },
+    { ...ownerOptions(ownerOf(row), row.for_kind && row.for_id ? { kind: row.for_kind, id: row.for_id } : null), fixedFound: fixedFound(adj) },
+  );
+  const same =
+    !!cur && JSON.stringify({ ...cur, calculatedAt: '', calculatedBy: '' }) === JSON.stringify({ ...calc.result, calculatedAt: '', calculatedBy: '' });
+  db().tx(() => {
+    if (same) db().run('UPDATE cost_estimates SET pending = NULL, recalc_cause = NULL WHERE id = ?', row.id);
+    else {
+      db().run('UPDATE cost_estimates SET pending = ?, recalc_cause = NULL WHERE id = ?', JSON.stringify(calc.result), row.id);
+      const keep = db()
+        .all<{ version_id: string }>('SELECT version_id FROM cost_estimate_books WHERE estimate_id = ?', row.id)
+        .map((v) => v.version_id);
+      const keepContracts = db()
+        .all<{ contract_id: string }>('SELECT contract_id FROM cost_estimate_contracts WHERE estimate_id = ?', row.id)
+        .map((v) => v.contract_id);
+      recordBooks(row.id, calc.versionIds, keep, calc.contractIds, keepContracts);
+    }
+  });
+  return { before: cur, after: same ? null : calc.result };
+}
+
+/** The estimates due for recalculation (at most `limit`). */
+export const dueEstimates = (limit: number): EstimateRow[] =>
+  db().all<EstimateRow>('SELECT * FROM cost_estimates WHERE recalc_cause IS NOT NULL ORDER BY updated_at, id LIMIT ?', limit);
+
+/** The amounts a reader sees of a stored result (per month, expected), or null without amounts. */
+export function monthlyFor(r: StoredResult, sight: PriceSight): number {
+  return Number(viewResult(r, sight).totals.monthly.expected);
 }

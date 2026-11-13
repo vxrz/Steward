@@ -51,7 +51,11 @@
       "cost_price_book": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen dieses Preisbuch; ein Listenpreisbuch lesen alle, die Kosten verwenden.",
       "cost_calculator": "Kein zuständiges Team: Die Kostenverantwortlichen (Administratoren und Designer) pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn.",
       "device_profile": "Dieses Geräteprofil gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen es; Designer und Administratoren ändern es. Zuständige Teams beschränken es auf ihre Mitglieder – Anlagen mit diesem Profil zeigen weiterhin die Daten, die sie liefern.",
-      "kpi_definition": "Diese KPI-Definition gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen sie; Designer und Administratoren ändern sie."
+      "kpi_definition": "Diese KPI-Definition gehört der ganzen Instanz: Alle, die das Anlagenregister sehen, sehen sie; Designer und Administratoren ändern sie.",
+      "data_product": "Dieses Datenprodukt gehört der ganzen Instanz: Alle, die in Steward arbeiten, sehen es; Designer und seine Produktverantwortlichen ändern es.",
+      "data_object": "Dieses Datenobjekt gehört der ganzen Instanz: Alle, die in Steward arbeiten, sehen es; Designer ändern es.",
+      "data_element": "Dieses Element gehört der ganzen Instanz: Alle, die in Steward arbeiten, sehen es; Designer ändern es.",
+      "data_domain": "Diese Datendomäne gehört der ganzen Instanz: Alle, die in Steward arbeiten, sehen sie; Designer und ihre Verantwortlichen ändern sie."
     },
     "hintOwned": {
       "process": "Mitglieder dieser Teams haben auf diesem Prozess ihre Rollen im Team. Alle anderen sehen ihn nur über die Zugriffsliste unten; Administratoren immer, Auditoren dürfen ihn ansehen.",
@@ -71,7 +75,11 @@
       "cost_price_book": "Designer dieser Teams pflegen dieses Preisbuch; ein vertragliches Buch lesen nur die Mitglieder der Teams, Administratoren und Auditoren.",
       "cost_calculator": "Designer dieser Teams pflegen diesen Rechner; alle, die Kosten verwenden, lesen ihn.",
       "device_profile": "Nur Mitglieder dieser Teams sehen dieses Geräteprofil (Designer unter ihnen verwalten es), außerdem Administratoren und Auditoren. Andere sehen die Schnittstellen und Datenpunkte, die es einer für sie sichtbaren Anlage gibt, ohne seinen Namen.",
-      "kpi_definition": "Nur Mitglieder dieser Teams sehen diese KPI-Definition (Designer unter ihnen verwalten sie), außerdem Administratoren und Auditoren. Ihre KPI-Instanzen an Anlagen, die andere sehen, laufen weiter, ohne ihren Namen."
+      "kpi_definition": "Nur Mitglieder dieser Teams sehen diese KPI-Definition (Designer unter ihnen verwalten sie), außerdem Administratoren und Auditoren. Ihre KPI-Instanzen an Anlagen, die andere sehen, laufen weiter, ohne ihren Namen.",
+      "data_product": "Nur Mitglieder dieser Teams sehen dieses Datenprodukt (Designer unter ihnen ändern es), außerdem seine Produktverantwortlichen, Administratoren und Prüfer.",
+      "data_object": "Nur Mitglieder dieser Teams sehen dieses Datenobjekt (Designer unter ihnen ändern es), außerdem sein Dateneigentümer und seine Data Stewards, Administratoren und Prüfer.",
+      "data_element": "Nur Mitglieder dieser Teams sehen dieses Element des Katalogs (Designer unter ihnen ändern es), außerdem Administratoren und Prüfer. Datenprodukte, zu denen es gehört, zeigen es weiter als ihren Inhalt.",
+      "data_domain": "Nur Mitglieder dieser Teams sehen diese Datendomäne (Designer unter ihnen ändern sie), außerdem ihre Verantwortlichen, Administratoren und Prüfer."
     },
     "hintRestricted": "Eingeschränkt: kein zuständiges Team, und Rollen in der Instanz geben darauf nichts – nur die Einträge unter „Geteilt mit“, seine Eigentümer, Administratoren und Prüfer erreichen ihn.",
     "saved": "Zuständige Teams gespeichert",
@@ -143,7 +151,11 @@
         "cost_price_book": "Preisbücher",
         "cost_calculator": "Rechner",
         "device_profile": "Geräteprofile",
-        "kpi_definition": "KPI-Definitionen"
+        "kpi_definition": "KPI-Definitionen",
+        "data_product": "Datenprodukt",
+        "data_object": "Datenobjekt",
+        "data_element": "Datenelement",
+        "data_domain": "Datendomäne"
       }
     },
     "moduleNotUsed": "ohne das Modul gelten die Rechte unten nicht"

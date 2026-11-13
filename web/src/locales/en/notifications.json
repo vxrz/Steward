@@ -224,6 +224,10 @@
       "price_review_due": {
         "label": "Prices to review",
         "info": "A price book you maintain by hand is due for its review (Mark as checked when its prices are still right)"
+      },
+      "estimate_changed": {
+        "label": "Estimate changed",
+        "info": "An estimate of a service or platform you own was recalculated with new prices and its monthly total moved by the threshold (Accept new prices to make them current)"
       }
     },
     "contract": {
@@ -261,6 +265,20 @@
         "label": "Statement of applicability waits",
         "info": "A version of a statement of applicability was submitted and waits for your approval (approvers and administrators)"
       }
+    },
+    "dataproduct": {
+      "deprecated": {
+        "label": "Data product deprecated",
+        "info": "A data product or port you consume was deprecated (registered consumers and the owners of products that use it), with its sunset date and successor"
+      },
+      "elements_missing": {
+        "label": "Data product elements missing",
+        "info": "A discovery run no longer found elements of a data product you own (once per product and run)"
+      },
+      "discovery_failed": {
+        "label": "Data product discovery failing",
+        "info": "A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)"
+      }
     }
   },
   "quiet": {
@@ -292,7 +310,8 @@
       "monitors": "Monitors and platforms",
       "reminders": "Reminders",
       "reports": "Reports and releases",
-      "costs": "Budgets and costs"
+      "costs": "Budgets and costs",
+      "dataProducts": "Data products"
     },
     "groupHints": {
       "decisions": "Decision steps, AI requests, skipped duties, plant changes to review. A run waits: at most hourly.",
@@ -300,7 +319,8 @@
       "monitors": "Monitor status, platform connection tests, objectives, maintenance.",
       "reminders": "Credentials, document reviews, tickets, duties, measures, access changes, decided plant changes, supplier certificates and notice dates.",
       "reports": "Scheduled reports, end of life and new releases.",
-      "costs": "AI token budgets and cost budgets."
+      "costs": "AI token budgets and cost budgets.",
+      "dataProducts": "Deprecated data products and ports, missing elements, failing discovery."
     },
     "rhythms": {
       "immediately": "Immediately",

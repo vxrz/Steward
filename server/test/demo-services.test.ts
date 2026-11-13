@@ -163,4 +163,36 @@ describe('demo services', () => {
     expect(again.services).toBe(0);
     expect(((await s.api('GET', '/services')) as unknown[]).length).toBe(services.length);
   }, 120_000);
+
+  it('loads the data products of the demo with it – there once the module is switched on', async () => {
+    await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
+    try {
+      const list = (await s.api('GET', '/data-products')) as { items: { id: string; key: string; lifecycle: string }[]; total: number };
+      expect(list.items.map((p) => p.key).sort()).toEqual(['customer-360', 'machine-measurements', 'orders', 'sales-mart']);
+      const orders = list.items.find((p) => p.key === 'orders')!;
+      const p = await s.api('GET', `/data-products/${orders.id}`);
+      expect(p).toMatchObject({ lifecycle: 'active', type: 'sourceAligned' });
+      expect(p.environmentDetails.map((e: { environment: string }) => e.environment)).toEqual(['prod', 'dev']);
+      // the ports: v2 under the contract Shop orders, v1 deprecated with its sunset date
+      const v2 = p.ports.find((x: { version: string }) => x.version === 'v2');
+      expect(v2.bindings.find((b: { environment: string }) => b.environment === 'prod').contract).toMatchObject({ key: 'shop-orders' });
+      expect(p.ports.find((x: { version: string }) => x.version === 'v1')).toMatchObject({ lifecycle: 'deprecated', sunsetDate: '2027-06-30' });
+      // discovered with the name rule (SHOP_DEV → dev), the pipeline, a draft monitor, costs and the missing stage
+      const dev = await s.api('GET', '/data-elements?prefix=SHOP_DEV.CURATED.');
+      expect(dev.items.every((e: { environment: string }) => e.environment === 'dev')).toBe(true);
+      // its pipeline: its own five steps and the two of other products that read its elements
+      const steps = ((await s.api('GET', `/data-products/${orders.id}/steps`)) as { name: string }[]).map((x) => x.name);
+      expect(steps).toEqual(expect.arrayContaining(['Ingest orders', 'Stage orders', 'Curate orders', 'Region report', 'Build customer 360']));
+      expect(p.environmentDetails.find((e: { environment: string }) => e.environment === 'prod').monitorId).toBeTruthy();
+      const facts = await s.api('GET', `/data-products/facts?ids=${orders.id}`);
+      expect(facts[0].maturity).toBeGreaterThanOrEqual(1);
+      expect(facts[0].lastMonth.totals.length).toBeGreaterThan(0);
+      expect((await s.api('GET', '/data-elements?prefix=SHOP_DEV.RAW.LANDING')).items[0].missingSince).toBeTruthy();
+      // Customer 360 is below the rating of its data object, with a reason
+      const c360 = await s.api('GET', `/data-products/${list.items.find((x) => x.key === 'customer-360')!.id}`);
+      expect(c360.ratingFloor.findings.some((f: { dimension: string; reason: string | null }) => f.dimension === 'confidentiality' && !!f.reason)).toBe(true);
+    } finally {
+      await s.api('PUT', '/settings/modules/dataProducts', { enabled: false });
+    }
+  }, 120_000);
 });

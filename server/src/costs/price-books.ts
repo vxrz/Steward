@@ -1,7 +1,13 @@
 import {
   moduleRoleAtLeast,
+  COST_DERIVATION_KINDS,
   COST_PRICE_CSV_FIELDS,
   COST_PRICE_LIMITS,
+  conditionOverlap,
+  conditionValidIn,
+  costConditionsInput,
+  deriveEntries,
+  normaliseCondition,
   costPriceBookInput,
   costPriceEntriesInput,
   costPriceEntryInput,
@@ -23,18 +29,31 @@ import {
   type CostPriceVersionSource,
   type CostPriceCsvField,
   type CostTierMode,
+  type CostCondition,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
-import { assignCreatorTeams, catalogueAccess, forgetOwningTeams, memberships, owningTeams, teamRoles } from '../auth/policy.js';
+import {
+  assignCreatorTeams,
+  CATALOGUE_SHARE_MODEL,
+  catalogueAccess,
+  forgetOwningTeams,
+  memberships,
+  owningTeams,
+  shareReasons,
+  teamRoles,
+} from '../auth/policy.js';
+import { forgetShares, isRestricted, type ShareKindDef } from '../auth/shares.js';
 import { visibleContracts } from '../suppliers/links.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { scopeInfo } from './access.js';
 import { decodeCursor, pageRows } from '../api/v1/pagination.js';
 import { readCsv } from './csv.js';
 import { moduleRole } from '../modules/access.js';
+import { conditionsSight, onConditionsChanged, pricingContracts } from './contract-conditions.js';
+import type { PriceSight } from './estimate-model.js';
 
 /**
  * Price books (0.21.0, ADR 0035 parts 1, 2 and 8, docs/PRICE-BOOKS.md): books of item prices in immutable versions,
@@ -64,6 +83,12 @@ export interface BookRow {
   currency: string;
   description: string;
   source: string;
+  /** A derived book's base (0.23.0) */
+  base_book_id?: string | null;
+  /** A rate card's own terms (a derived book without a contract): { conditions: CostCondition[] } */
+  derivation?: string | null;
+  /** A book read from a source (0.23.0): its kind, who set it and the state of the last read (price-sources.ts) */
+  source_settings?: string | null;
   review_days: number;
   checked_at: string | null;
   checked_by: string | null;
@@ -77,6 +102,8 @@ export interface BookRow {
 interface VersionRow {
   id: string;
   book_id: string;
+  /** A derived book's version: what it was computed from (DerivationRecord) */
+  derivation?: string | null;
   number: number;
   sha256: string;
   entry_count: number;
@@ -152,25 +179,36 @@ export const usesCosts = (u: AuthUser | null): boolean => !u || u.roles.some((r)
 export interface BookRights {
   view: boolean;
   edit: boolean;
+  /** Changes its shares (ADR 0033; 0.23.0): who may edit it – never for a contracted book (its readers follow the contract) */
+  manage: boolean;
 }
 
 /** What `u` may do with a book (null: a job – everything). */
 export function bookRights(r: BookRow, u: AuthUser | null = currentUser()): BookRights {
-  if (!u) return { view: true, edit: true };
-  if (!usesCosts(u)) return { view: false, edit: false };
+  if (!u) return { view: true, edit: true, manage: true };
+  if (!usesCosts(u)) return { view: false, edit: false, manage: false };
+  // shares (ADR 0033, 0.23.0): list and derived books – a contracted book's readers follow its contract or platform
+  const shared = r.kind !== 'contracted';
+  const share = shared
+    ? new Set(shareReasons(u, { kind: 'cost_price_book', id: r.id }, CATALOGUE_SHARE_MODEL).flatMap((x) => x.permissions))
+    : new Set<string>();
   if (r.platform_id) {
     const info = scopeInfo('platform', r.platform_id, u);
-    const edit = !!info?.canEditPlan;
-    // a contracted book of a platform: who sees the platform's amounts (they read its bill already)
-    const view = r.kind === 'list' ? true : edit || (!!info && info.amounts);
-    return { view, edit };
+    const edit = !!info?.canEditPlan || share.has('edit');
+    // a contracted book or rate card of a platform: who sees the platform's amounts (they read its bill already)
+    const view = r.kind === 'list' ? true : edit || (!!info && info.amounts) || share.has('view');
+    return { view, edit, manage: shared && (!!info?.canEditPlan || share.has('manage')) };
   }
   const teams = owningTeams('cost_price_book', r.id);
-  const edit = isAdmin(u) || (teams.length ? teamRoles(u, teams).some((m) => m.roles.includes('designer')) : isCostsManager(u));
-  if (r.kind === 'list' || edit || u.roles.includes('auditor')) return { view: true, edit };
+  const byRole = isAdmin(u) || (teams.length ? teamRoles(u, teams).some((m) => m.roles.includes('designer')) : isCostsManager(u));
+  const edit = byRole || share.has('edit');
+  const manage = shared && (byRole || share.has('manage'));
+  // Restricted (ADR 0033): a book without owning teams that only its shares reach
+  const restricted = shared && !teams.length && isRestricted('cost_price_book', r.id);
+  if ((r.kind === 'list' && !restricted) || edit || u.roles.includes('auditor') || share.has('view')) return { view: true, edit, manage };
   const member = teams.length > 0 && teamRoles(u, teams).length > 0;
   const contract = !!r.supplier_contract_id && visibleContracts([r.supplier_contract_id], u).has(r.supplier_contract_id);
-  return { view: member || contract || (!teams.length && isCostsManager(u)), edit };
+  return { view: member || contract || (!teams.length && !restricted && isCostsManager(u)), edit, manage };
 }
 
 /** A designer in one of their teams (adds books and calculators that its team then owns). */
@@ -200,6 +238,14 @@ export function requireBook(id: string, need: 'view' | 'edit' = 'view'): { row: 
   return { row, rights };
 }
 
+/** A derived book's prices come from its base and terms only: no entries by hand, no CSV. */
+function refuseDerived(row: BookRow): void {
+  if (row.kind === 'derived')
+    throw new HttpError(400, 'A derived book follows its base book and terms – its prices are not written by hand', 'COST_PRICE_DERIVATION', {
+      reason: 'byHand',
+    });
+}
+
 /** Every book `u` may read (one statement for the books; owning teams are read once per request). */
 export function visibleBooks(u: AuthUser | null = currentUser()): { row: BookRow; rights: BookRights }[] {
   return db()
@@ -208,15 +254,67 @@ export function visibleBooks(u: AuthUser | null = currentUser()): { row: BookRow
     .filter((b) => b.rights.view);
 }
 
+/**
+ * What a derived book's version was computed from (0.23.0, ADR 0035 part 4): the base book and version, the terms used
+ * and why it was written (a new base version, changed terms). Stored on the version; read by the pricing for the
+ * breakdown of a line.
+ */
+export interface DerivationRecord {
+  baseBookId: string;
+  baseVersion: number;
+  baseVersionId: string;
+  terms: CostCondition[];
+  cause: string;
+}
+
+/**
+ * Whether `u` sees a derived book's terms (and so the breakdown of its prices): its base book, and – terms on a
+ * contract – the conditions of that contract (who sees the contract with its amounts), or – a rate card's own terms –
+ * who maintains the book (its Manage holders).
+ */
+export function seesTerms(r: BookRow, u: AuthUser | null, sees: { book: (id: string) => boolean; conditions: (id: string) => boolean }): boolean {
+  if (r.kind !== 'derived') return false;
+  if (!u) return true;
+  if (!r.base_book_id || !sees.book(r.base_book_id)) return false;
+  return r.supplier_contract_id ? sees.conditions(r.supplier_contract_id) : bookRights(r, u).edit;
+}
+
+/** What `u` may see of the prices behind an estimate: books, contracts' conditions, derived books' terms (one request). */
+export function priceSight(u: AuthUser | null = currentUser()): PriceSight {
+  if (!u) return { book: () => true, conditions: () => true, terms: () => true };
+  const visible = new Map(visibleBooks(u).map((b) => [b.row.id, b.row]));
+  const conditions = conditionsSight(u);
+  const book = (id: string) => visible.has(id);
+  const terms = new Map<string, boolean>();
+  return {
+    book,
+    conditions,
+    terms: (id) => {
+      let v = terms.get(id);
+      if (v === undefined) {
+        const r = visible.get(id);
+        v = !!r && seesTerms(r, u, { book, conditions });
+        terms.set(id, v);
+      }
+      return v;
+    },
+  };
+}
+
 // ---------- reading ----------
 
 export const reviewDue = (r: BookRow, now = Date.now()): boolean =>
-  (r.source === 'manual' || r.source === 'csv') && Date.parse(r.checked_at ?? r.created_at) + Number(r.review_days) * 86_400_000 < now;
+  r.kind !== 'derived' && (r.source === 'manual' || r.source === 'csv') && Date.parse(r.checked_at ?? r.created_at) + Number(r.review_days) * 86_400_000 < now;
 
 const versionIdOf = (bookId: string, n: number): string | null =>
   n > 0 ? (db().get<{ id: string }>('SELECT id FROM cost_price_book_versions WHERE book_id = ? AND number = ?', bookId, n)?.id ?? null) : null;
 
-function names(rows: BookRow[]): { platforms: Map<string, string>; suppliers: Map<string, string>; contracts: Map<string, string> } {
+function names(rows: BookRow[]): {
+  platforms: Map<string, string>;
+  suppliers: Map<string, string>;
+  contracts: Map<string, string>;
+  bases: Map<string, { id: string; name: string; version: number }>;
+} {
   const ids = (k: 'platform_id' | 'supplier_id' | 'supplier_contract_id') => [...new Set(rows.map((r) => r[k]).filter((x): x is string => !!x))];
   const read = (table: string, col: string, list: string[]) => {
     const out = new Map<string, string>();
@@ -238,10 +336,21 @@ function names(rows: BookRow[]): { platforms: Map<string, string>; suppliers: Ma
     ))
       if (supplierVisible(r)) suppliers.set(r.id, r.name);
   }
+  const baseIds = [...new Set(rows.map((r) => r.base_book_id).filter((x): x is string => !!x))];
+  const bases = new Map<string, { id: string; name: string; version: number }>();
+  for (let i = 0; i < baseIds.length; i += 500) {
+    const part = baseIds.slice(i, i + 500);
+    for (const b of db().all<{ id: string; name: string; current_version: number }>(
+      `SELECT id, name, current_version FROM cost_price_books WHERE id IN (${part.map(() => '?').join(', ')})`,
+      ...part,
+    ))
+      bases.set(b.id, { id: b.id, name: b.name, version: Number(b.current_version) });
+  }
   return {
     platforms: read('platforms', 'name', ids('platform_id')),
     suppliers,
     contracts: read('supplier_contracts', 'title', ids('supplier_contract_id')),
+    bases,
   };
 }
 
@@ -252,9 +361,11 @@ function supplierVisible(r: { id: string; owners: string } | undefined, u: AuthU
 }
 const supplierRow = (id: string) => db().get<{ id: string; owners: string }>('SELECT id, owners FROM suppliers WHERE id = ?', id);
 
-function toBook(r: BookRow, rights: BookRights, n: ReturnType<typeof names>, entries: number): CostPriceBook {
+function toBook(r: BookRow, rights: BookRights, n: ReturnType<typeof names>, entries: number, sight?: PriceSight): CostPriceBook {
   const u = currentUser();
   const contract = r.supplier_contract_id && visibleContracts([r.supplier_contract_id], u).has(r.supplier_contract_id);
+  const terms = r.kind === 'derived' && !!sight?.terms(r.id);
+  const base = terms && r.base_book_id ? n.bases.get(r.base_book_id) : undefined;
   return {
     id: r.id,
     name: r.name,
@@ -265,7 +376,16 @@ function toBook(r: BookRow, rights: BookRights, n: ReturnType<typeof names>, ent
     platform: r.platform_id ? { id: r.platform_id, name: n.platforms.get(r.platform_id) ?? r.platform_id } : null,
     supplier: r.supplier_id && n.suppliers.has(r.supplier_id) ? { id: r.supplier_id, name: n.suppliers.get(r.supplier_id)! } : null,
     supplierContract: contract ? { id: r.supplier_contract_id!, title: n.contracts.get(r.supplier_contract_id!) ?? '' } : null,
-    source: r.source === 'csv' ? 'csv' : 'manual',
+    source:
+      r.kind === 'derived'
+        ? 'derived'
+        : r.source === 'csv' || r.source === 'snowflakeRateSheet' || r.source === 'confluentObserved'
+          ? (r.source as CostPriceBook['source'])
+          : 'manual',
+    sourceState: sourceStateOf(r),
+    base: base ?? null,
+    termsOn: r.kind !== 'derived' ? null : r.supplier_contract_id ? 'contract' : 'book',
+    termsVisible: terms,
     reviewDays: Number(r.review_days),
     checkedAt: r.checked_at,
     checkedBy: r.checked_by,
@@ -291,20 +411,25 @@ export function listBooks(): CostPriceBook[] {
       .map((v) => [`${v.book_id}#${v.number}`, Number(v.entry_count)]),
   );
   const n = names(rows);
-  return list.map((b) => toBook(b.row, b.rights, n, counts.get(`${b.row.id}#${b.row.current_version}`) ?? 0));
+  const sight = rows.some((r) => r.kind === 'derived') ? priceSight() : undefined;
+  return list.map((b) => toBook(b.row, b.rights, n, counts.get(`${b.row.id}#${b.row.current_version}`) ?? 0, sight));
 }
 
-const toVersion = (v: VersionRow, inUse: Set<string>): CostPriceVersion => ({
+const toVersion = (v: VersionRow, inUse: Set<string>, terms = false): CostPriceVersion => ({
+  derivation: terms && v.derivation ? derivationSummary(parseJson<DerivationRecord | null>(v.derivation, null)) : null,
   number: Number(v.number),
   source: v.source,
   sha256: v.sha256,
   entries: Number(v.entry_count),
-  note: v.note,
+  // a derived version's note names its cause (the base, the terms): only for who sees the terms
+  note: v.source === 'derived' && !terms ? '' : v.note,
   diff: summaryDiff(parseJson<CostPriceDiff | null>(v.diff, null)),
   createdAt: v.created_at,
   createdBy: v.created_by,
   inUse: inUse.has(v.id),
 });
+
+const derivationSummary = (d: DerivationRecord | null): CostPriceVersion['derivation'] => (d ? { baseVersion: Number(d.baseVersion), cause: d.cause } : null);
 
 /** The list of versions carries the counts only; one version's page has the items. */
 const summaryDiff = (d: CostPriceDiff | null): CostPriceDiff | null =>
@@ -344,17 +469,21 @@ export function getBook(id: string, o: { offset?: number; q?: string } = {}): Co
         offset,
       )
     : [];
+  const sight = row.kind === 'derived' ? priceSight() : undefined;
+  const terms = !!sight?.terms(row.id);
   return {
-    ...toBook(row, rights, names([row]), cur ? Number(cur.entry_count) : 0),
+    ...toBook(row, rights, names([row]), cur ? Number(cur.entry_count) : 0, sight),
+    terms: terms ? termsAll(row) : null,
     items: items.slice(0, ITEMS_PAGE).map(entryOfRow),
     more: items.length > ITEMS_PAGE,
-    versions: versions.map((v) => toVersion(v, inUse)),
+    versions: versions.map((v) => toVersion(v, inUse, terms)),
   };
 }
 
 /** One version: its difference to the one before (all items listed, up to the stored limit) and, optionally, its entries. */
 export function getVersion(id: string, n: number): CostPriceVersion & { items: CostPriceEntry[] } {
-  requireBook(id);
+  const { row } = requireBook(id);
+  const terms = row.kind === 'derived' && priceSight().terms(id);
   const v = db().get<VersionRow>('SELECT * FROM cost_price_book_versions WHERE book_id = ? AND number = ?', id, n);
   if (!v) throw new HttpError(404, `Version ${n} not found`, 'COST_PRICE_BOOK_NOT_FOUND', { id });
   const inUse = new Set(
@@ -365,7 +494,7 @@ export function getVersion(id: string, n: number): CostPriceVersion & { items: C
   const items = db()
     .all<ItemRow>(`SELECT ${ITEM_COLUMNS} FROM cost_price_items WHERE version_id = ? ORDER BY sku_id, sku_price_id, valid_from LIMIT ?`, v.id, ITEMS_PAGE)
     .map(entryOfRow);
-  return { ...toVersion(v, inUse), diff: parseJson<CostPriceDiff | null>(v.diff, null), items };
+  return { ...toVersion(v, inUse, terms), diff: parseJson<CostPriceDiff | null>(v.diff, null), items };
 }
 
 /** A page of a book's current items in the order of their key (the public API and MCP): by the row id, which follows it. */
@@ -390,6 +519,16 @@ export function entriesPage(row: BookRow, q: { cursor?: string; limit: number; q
   const page = pageRows(rows, q.limit, (r) => [Number(r.id)], filters);
   return { items: page.items.map(entryOfRow), nextCursor: page.nextCursor };
 }
+
+/** The state of a source read (only for a book read from one). */
+function sourceStateOf(r: BookRow): CostPriceBook['sourceState'] {
+  if (r.source !== 'snowflakeRateSheet' && r.source !== 'confluentObserved') return null;
+  const s = parseJson<{ lastReadAt?: string | null; lastNote?: string | null; lastError?: string | null }>(r.source_settings ?? '{}', {});
+  return { lastReadAt: s.lastReadAt ?? null, note: s.lastNote ?? null, error: s.lastError ?? null };
+}
+
+/** The entries of a book's current version. */
+export const entriesOfBook = (r: BookRow): CostPriceEntry[] => entriesOf(versionIdOf(r.id, Number(r.current_version)));
 
 /** Every entry of a version (writing a new version, the CSV preview). */
 function entriesOf(versionId: string | null): CostPriceEntry[] {
@@ -574,6 +713,9 @@ export function writeVersion(
   source: CostPriceVersionSource,
   note: string,
   extra: Record<string, unknown> = {},
+  /** A derived book's version: what it was computed from (0.23.0) */
+  derivation: DerivationRecord | null = null,
+  depth = 0,
 ): VersionWritten {
   // stored in the order of their key: pages of items follow the row id
   const entries = [...unsorted].sort((a, b) => (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : entryKey(a) < entryKey(b) ? -1 : entryKey(a) > entryKey(b) ? 1 : 0));
@@ -582,13 +724,17 @@ export function writeVersion(
   const before = entriesOf(curId);
   const sha = hashOf(entries);
   const diff = diffEntries(before, entries);
-  if (curId && hashOf(before) === sha) return { version: Number(row.current_version), created: false, diff };
+  if (curId && hashOf(before) === sha) {
+    // the same prices from a newer base: the version keeps them, and now names the base version they come from
+    if (derivation) db().run('UPDATE cost_price_book_versions SET derivation = ? WHERE id = ?', JSON.stringify(derivation), curId);
+    return { version: Number(row.current_version), created: false, diff };
+  }
   const number = Number(row.current_version) + 1;
   const id = newId('cpv_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      'INSERT INTO cost_price_book_versions (id, book_id, number, sha256, entry_count, diff, source, note, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO cost_price_book_versions (id, book_id, number, sha256, entry_count, diff, source, note, derivation, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       id,
       row.id,
       number,
@@ -597,6 +743,7 @@ export function writeVersion(
       JSON.stringify(diff),
       source,
       note.slice(0, 500),
+      derivation ? JSON.stringify(derivation) : null,
       now,
       currentActor(),
     );
@@ -604,10 +751,11 @@ export function writeVersion(
     db().run('UPDATE cost_price_books SET current_version = ?, updated_at = ?, updated_by = ? WHERE id = ?', number, now, currentActor(), row.id);
     const pruned = pruneVersions(row.id);
     audit({
-      action: 'cost.price_book_version_added',
+      // a derived book's new version names its cause (a new base version, changed terms)
+      action: derivation ? 'cost.price_book_derived' : 'cost.price_book_version_added',
       entityType: 'cost_price_book',
       entityId: row.id,
-      summary: `Price book "${row.name}" version ${number} (${source}): ${diff.added} added, ${diff.changed} changed, ${diff.removed} removed`,
+      summary: `Price book "${row.name}" version ${number} (${derivation ? `derived: ${derivation.cause}` : source}): ${diff.added} added, ${diff.changed} changed, ${diff.removed} removed`,
       details: {
         version: number,
         source,
@@ -621,11 +769,154 @@ export function writeVersion(
         addedItems: diff.items.added.slice(0, 200).map((c) => ({ sku: c.sku, priceId: c.priceId, price: c.after })),
         removedItems: diff.items.removed.slice(0, 200).map((c) => ({ sku: c.sku, priceId: c.priceId, price: c.before })),
         pruned,
+        ...(derivation ? { cause: derivation.cause, baseBookId: derivation.baseBookId, baseVersion: derivation.baseVersion } : {}),
         ...extra,
       },
     });
+    for (const fn of versionHooks) fn(row.id, number);
   });
+  // derived books follow their base: a new version of this book writes theirs in the same step (two levels at most)
+  if (depth < 3) for (const d of derivedOf(row.id)) derive(d, `${row.name} v${number}`, depth + 1);
   return { version: number, created: true, diff };
+}
+
+/** Hooks run after a new version was written (estimates using the book are recalculated by the job). */
+const versionHooks: ((bookId: string, version: number) => void)[] = [];
+export function onVersionWritten(fn: (bookId: string, version: number) => void): void {
+  versionHooks.push(fn);
+}
+
+// ---------- derived books (0.23.0, ADR 0035 part 4) ----------
+
+const derivedOf = (baseId: string): BookRow[] =>
+  db().all<BookRow>("SELECT * FROM cost_price_books WHERE base_book_id = ? AND kind = 'derived' ORDER BY id", baseId);
+
+/** A rate card's own terms (stored on the book). */
+const ownTerms = (r: BookRow): CostCondition[] => parseJson<{ conditions?: CostCondition[] }>(r.derivation ?? null, {}).conditions ?? [];
+
+/**
+ * The terms of a derived book valid today: a contract's conditions of the derivation kinds (an order form without its
+ * own: its master's), or a rate card's own.
+ */
+export function termsOfBook(r: BookRow, day = nowIso().slice(0, 10)): CostCondition[] {
+  const all = r.supplier_contract_id ? (pricingContracts([r.supplier_contract_id]).get(r.supplier_contract_id)?.conditions ?? []) : ownTerms(r);
+  return all.filter(
+    (c) =>
+      COST_DERIVATION_KINDS.includes(c.kind) &&
+      conditionValidIn(c, day.slice(0, 7)) &&
+      (!c.validFrom || c.validFrom <= day) &&
+      (!c.validTo || c.validTo >= day),
+  );
+}
+
+/**
+ * Writes the derived book's prices from its base book's current version and its terms (a new version when they
+ * differ; its record names the base version and the cause). Runs as part of the change that caused it – whoever wrote
+ * the base or changed the terms – without the rights of a reader: the book's own readers decide who sees the result.
+ */
+export function derive(r: BookRow, cause: string, depth = 0): VersionWritten | null {
+  if (r.kind !== 'derived' || !r.base_book_id) return null;
+  const base = bookRow(r.base_book_id);
+  if (!base) return null;
+  // terms on a contract that is gone: the last prices stay (never the base's without the provider's terms)
+  if (r.supplier_contract_id && !db().get('SELECT 1 FROM supplier_contracts WHERE id = ?', r.supplier_contract_id)) return null;
+  const baseVid = versionIdOf(base.id, Number(base.current_version));
+  const terms = termsOfBook(r);
+  const feeName = r.supplier_id ? (db().get<{ name: string }>('SELECT name FROM suppliers WHERE id = ?', r.supplier_id)?.name ?? r.name) : r.name;
+  const { entries, skipped } = deriveEntries(entriesOf(baseVid), terms, { feeName, bookId: base.id });
+  const rec: DerivationRecord = {
+    baseBookId: base.id,
+    baseVersion: Number(base.current_version),
+    baseVersionId: baseVid ?? '',
+    terms,
+    cause: cause.slice(0, 200),
+  };
+  const fresh = bookRow(r.id)!;
+  return writeVersion(fresh, entries, 'derived', `Derived: ${cause}`, { skippedFees: skipped.slice(0, 50) }, rec, depth);
+}
+
+/** A derived book's terms changed (a contract's conditions, a rate card's own): its prices follow. */
+function deriveForContract(contractId: string): void {
+  const children = db()
+    .all<{ id: string }>('SELECT id FROM supplier_contracts WHERE parent_id = ?', contractId)
+    .map((c) => c.id);
+  const ids = [contractId, ...children];
+  const rows = db().all<BookRow>(
+    `SELECT * FROM cost_price_books WHERE kind = 'derived' AND supplier_contract_id IN (${ids.map(() => '?').join(', ')}) ORDER BY id`,
+    ...ids,
+  );
+  for (const r of rows) derive(r, 'terms of the contract changed');
+}
+onConditionsChanged(deriveForContract);
+
+/** Derived books whose terms start or end today get a new version (the job, once a day). */
+export function rederiveAll(): number {
+  let n = 0;
+  for (const r of db().all<BookRow>("SELECT * FROM cost_price_books WHERE kind = 'derived' ORDER BY id")) if (derive(r, 'terms valid from today')?.created) n++;
+  return n;
+}
+
+/** The depth of a book's derivation chain (0: not derived); null when the chain loops. */
+function derivationDepth(baseId: string, selfId: string | null): number | null {
+  let depth = 1;
+  let cur = bookRow(baseId);
+  const seen = new Set<string>(selfId ? [selfId] : []);
+  while (cur && cur.kind === 'derived' && cur.base_book_id) {
+    if (seen.has(cur.id)) return null;
+    seen.add(cur.id);
+    depth++;
+    cur = bookRow(cur.base_book_id);
+  }
+  return cur && seen.has(cur.id) ? null : depth;
+}
+
+/** All terms of a derived book (whatever their validity): its contract's of the derivation kinds, or its own. */
+function termsAll(r: BookRow): CostCondition[] {
+  return r.supplier_contract_id
+    ? (pricingContracts([r.supplier_contract_id]).get(r.supplier_contract_id)?.conditions ?? []).filter((c) => COST_DERIVATION_KINDS.includes(c.kind))
+    : ownTerms(r);
+}
+
+/** Sets a rate card's own terms (the derivation kinds only) and derives its prices again. */
+export function setBookTerms(id: string, body: unknown): CostPriceBookDetail {
+  const { row } = requireBook(id, 'edit');
+  if (row.kind !== 'derived' || row.supplier_contract_id)
+    throw new HttpError(400, "A derived book with a contract takes its terms from the contract's Prices", 'COST_PRICE_DERIVATION', { reason: 'contractTerms' });
+  if (!row.base_book_id || !bookRights(bookRow(row.base_book_id) ?? row).view)
+    throw new HttpError(404, 'Base book not found', 'COST_PRICE_BOOK_NOT_FOUND', { id: row.base_book_id ?? '' });
+  const x = costConditionsInput.parse(body);
+  const before = ownTerms(row);
+  const keep = new Set(before.map((c) => c.id));
+  const next = x.conditions.map((c) => normaliseCondition(c, c.id && keep.has(c.id) ? c.id : newId('ccd_')));
+  const wrong = next.find((c) => !COST_DERIVATION_KINDS.includes(c.kind));
+  if (wrong)
+    throw new HttpError(400, 'A rate card takes a discount on the base, a markup, fees per unit and a fixed fee', 'COST_PRICE_DERIVATION', { reason: 'kind' });
+  const overlap = conditionOverlap(next);
+  if (overlap)
+    throw new HttpError(400, 'Two terms of the same kind for the same scope overlap in time', 'COST_CONDITION_OVERLAP', {
+      provider: next[overlap.a]!.provider,
+      target: next[overlap.a]!.target || next[overlap.a]!.provider,
+      first: overlap.a + 1,
+      second: overlap.b + 1,
+    });
+  db().tx(() => {
+    db().run(
+      'UPDATE cost_price_books SET derivation = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      JSON.stringify({ conditions: next }),
+      nowIso(),
+      currentActor(),
+      id,
+    );
+    audit({
+      action: 'cost.price_book_changed',
+      entityType: 'cost_price_book',
+      entityId: id,
+      summary: `Terms of the rate card "${row.name}": ${next.length} term(s)`,
+      details: { terms: { before, after: next } },
+    });
+    derive(bookRow(id)!, 'terms changed');
+  });
+  return getBook(id);
 }
 
 /**
@@ -637,8 +928,20 @@ function checkBookInput(x: ReturnType<typeof costPriceBookInput.parse>, row?: Bo
   if (x.platformId) {
     const info = scopeInfo('platform', x.platformId);
     if (!info) throw new HttpError(404, `Platform ${x.platformId} not found`, 'COST_SCOPE_NOT_FOUND', { scope: 'platform', id: x.platformId });
-    if (x.kind !== 'contracted') throw new HttpError(400, "A platform's book holds the prices of its contract: kind contracted", 'COST_PRICE_BOOK_KIND');
+    // a platform's book: its contracted prices, or its rate card (a derived book, 0.23.0)
+    if (x.kind === 'list') throw new HttpError(400, "A platform's book holds the prices of its contract or its rate card", 'COST_PRICE_BOOK_KIND');
   }
+  if (x.kind === 'derived') {
+    // the maintainers of a derived book must see its base: nobody publishes prices they cannot see
+    const base = x.baseBookId ? bookRow(x.baseBookId) : undefined;
+    if (!base || !bookRights(base).view)
+      throw new HttpError(404, `Price book ${x.baseBookId ?? ''} not found`, 'COST_PRICE_BOOK_NOT_FOUND', { id: x.baseBookId ?? '' });
+    const depth = derivationDepth(base.id, row?.id ?? null);
+    if (depth === null || depth > 2)
+      throw new HttpError(400, 'A derived book is at most two levels above its base, never in a loop', 'COST_PRICE_DERIVATION', { reason: 'depth' });
+    if (norm(base.provider) !== norm(x.provider))
+      throw new HttpError(400, `A derived book prices the items of its base: provider ${base.provider}`, 'COST_PRICE_DERIVATION', { reason: 'provider' });
+  } else if (x.baseBookId) throw new HttpError(400, 'Only a derived book has a base book', 'COST_PRICE_DERIVATION', { reason: 'base' });
   if (x.supplierContractId && x.supplierContractId !== row?.supplier_contract_id) {
     const c = visibleContracts([x.supplierContractId]).get(x.supplierContractId);
     if (!c) throw new HttpError(404, 'Contract not found', 'SUPPLIER_CONTRACT_NOT_FOUND', { id: x.supplierContractId });
@@ -647,6 +950,8 @@ function checkBookInput(x: ReturnType<typeof costPriceBookInput.parse>, row?: Bo
   if (x.supplierId && x.supplierId !== row?.supplier_id && !supplierVisible(supplierRow(x.supplierId)))
     throw new HttpError(404, 'Supplier not found', 'SUPPLIER_NOT_FOUND', { id: x.supplierId });
 }
+
+const norm = (s: string) => s.trim().toLowerCase();
 
 /**
  * What the editor sends for a supplier or contract the book names but they may not see (the form shows none): the
@@ -660,8 +965,12 @@ function keepHidden(x: ReturnType<typeof costPriceBookInput.parse>, row: BookRow
 }
 
 const snapshot = (
-  r: Pick<BookRow, 'name' | 'kind' | 'provider' | 'currency' | 'platform_id' | 'supplier_id' | 'supplier_contract_id' | 'review_days' | 'description'>,
+  r: Pick<
+    BookRow,
+    'name' | 'kind' | 'provider' | 'currency' | 'platform_id' | 'supplier_id' | 'supplier_contract_id' | 'review_days' | 'description' | 'base_book_id'
+  >,
 ) => ({
+  baseBookId: r.base_book_id ?? null,
   name: r.name,
   kind: r.kind,
   provider: r.provider,
@@ -685,8 +994,9 @@ export function createBook(body: unknown): CostPriceBookDetail {
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO cost_price_books (id, name, kind, provider, supplier_id, supplier_contract_id, platform_id, currency, description, source, review_days, current_version, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, 0, ?, ?, ?, ?)`,
+      `INSERT INTO cost_price_books (id, name, kind, provider, supplier_id, supplier_contract_id, platform_id, currency, description, source, review_days, current_version,
+         base_book_id, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
       id,
       x.name,
       x.kind,
@@ -696,7 +1006,9 @@ export function createBook(body: unknown): CostPriceBookDetail {
       x.platformId,
       x.currency,
       x.description,
+      x.kind === 'derived' ? 'derived' : 'manual',
       x.reviewDays,
+      x.kind === 'derived' ? x.baseBookId : null,
       now,
       currentActor(),
       now,
@@ -710,9 +1022,18 @@ export function createBook(body: unknown): CostPriceBookDetail {
       entityId: id,
       summary: `Price book "${x.name}" (${x.kind}, ${x.provider}, ${x.currency}) added`,
       details: {
-        after: snapshot({ ...x, platform_id: x.platformId, supplier_id: x.supplierId, supplier_contract_id: x.supplierContractId, review_days: x.reviewDays }),
+        after: snapshot({
+          ...x,
+          platform_id: x.platformId,
+          supplier_id: x.supplierId,
+          supplier_contract_id: x.supplierContractId,
+          review_days: x.reviewDays,
+          base_book_id: x.baseBookId,
+        }),
       },
     });
+    // a derived book's first prices: its base through its terms
+    if (x.kind === 'derived') derive(bookRow(id)!, 'made');
   });
   return getBook(id);
 }
@@ -722,12 +1043,14 @@ export function updateBook(id: string, body: unknown): CostPriceBookDetail {
   const x = keepHidden(costPriceBookInput.parse(body), row);
   if ((x.platformId ?? null) !== (row.platform_id ?? null))
     throw new HttpError(400, 'The platform of a book cannot change – add a book for the other platform', 'COST_PRICE_BOOK_KIND');
+  if ((x.kind === 'derived') !== (row.kind === 'derived'))
+    throw new HttpError(400, 'A derived book stays derived, another book stays what it is', 'COST_PRICE_DERIVATION', { reason: 'kind' });
   checkBookInput(x, row);
   const now = nowIso();
   db().tx(() => {
     db().run(
       `UPDATE cost_price_books SET name = ?, kind = ?, provider = ?, supplier_id = ?, supplier_contract_id = ?, currency = ?, description = ?, review_days = ?,
-         updated_at = ?, updated_by = ? WHERE id = ?`,
+         base_book_id = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
       x.name,
       x.kind,
       x.provider,
@@ -736,6 +1059,7 @@ export function updateBook(id: string, body: unknown): CostPriceBookDetail {
       x.currency,
       x.description,
       x.reviewDays,
+      x.kind === 'derived' ? x.baseBookId : null,
       now,
       currentActor(),
       id,
@@ -747,9 +1071,18 @@ export function updateBook(id: string, body: unknown): CostPriceBookDetail {
       summary: `Price book "${x.name}" changed`,
       details: {
         before: snapshot(row),
-        after: snapshot({ ...x, platform_id: x.platformId, supplier_id: x.supplierId, supplier_contract_id: x.supplierContractId, review_days: x.reviewDays }),
+        after: snapshot({
+          ...x,
+          platform_id: x.platformId,
+          supplier_id: x.supplierId,
+          supplier_contract_id: x.supplierContractId,
+          review_days: x.reviewDays,
+          base_book_id: x.baseBookId,
+        }),
       },
     });
+    if (x.kind === 'derived' && (x.baseBookId !== row.base_book_id || x.supplierContractId !== row.supplier_contract_id))
+      derive(bookRow(id)!, x.baseBookId !== row.base_book_id ? 'another base book' : 'another contract');
   });
   return getBook(id);
 }
@@ -763,6 +1096,8 @@ export function removeBook(id: string): void {
     )?.n ?? 0,
   );
   if (used) throw new HttpError(409, `${used} estimate(s) use this price book`, 'COST_PRICE_BOOK_IN_USE', { count: used });
+  const derived = derivedOf(id).length;
+  if (derived) throw new HttpError(409, `${derived} derived book(s) are based on this price book`, 'COST_PRICE_BOOK_IN_USE', { count: derived });
   db().tx(() => {
     const versions = db().all<{ id: string }>('SELECT id FROM cost_price_book_versions WHERE book_id = ?', id);
     for (const v of versions) db().run('DELETE FROM cost_price_items WHERE version_id = ?', v.id);
@@ -770,6 +1105,7 @@ export function removeBook(id: string): void {
     db().run('DELETE FROM cost_price_review_notices WHERE book_id = ?', id);
     db().run('DELETE FROM cost_price_books WHERE id = ?', id);
     forgetOwningTeams('cost_price_book', id);
+    forgetShares('cost_price_book', id);
     audit({
       action: 'cost.price_book_removed',
       entityType: 'cost_price_book',
@@ -783,6 +1119,7 @@ export function removeBook(id: string): void {
 /** A new version by hand: entries added or replaced (by SKU, price id and first day), removed – or the whole book. */
 export function saveEntries(id: string, body: unknown): CostPriceBookDetail & { written: VersionWritten } {
   const { row } = requireBook(id, 'edit');
+  refuseDerived(row);
   const x = costPriceEntriesInput.parse(body);
   const incoming = x.entries.map((e) => normaliseEntry(costPriceEntryInput.parse(e)));
   let next: CostPriceEntry[];
@@ -941,6 +1278,7 @@ function importedEntries(row: BookRow, p: ParsedFile, mode: 'replace' | 'add'): 
 /** What an import of this file would do – nothing is stored. */
 export function previewImport(id: string, body: unknown): CostPriceImportPreview {
   const { row } = requireBook(id, 'edit');
+  refuseDerived(row);
   const x = costPriceImportInput.parse(body);
   const p = parseFile(x, row.currency);
   const { before, next } = importedEntries(row, p, x.mode);
@@ -960,6 +1298,7 @@ export function previewImport(id: string, body: unknown): CostPriceImportPreview
 /** Imports the file as a new version: all or nothing – a file with problems is refused with the first of them. */
 export function importBook(id: string, body: unknown): CostPriceBookDetail & { written: VersionWritten } {
   const { row } = requireBook(id, 'edit');
+  refuseDerived(row);
   const x = costPriceImportInput.parse(body);
   const p = parseFile(x, row.currency);
   if (p.problems.length) {
@@ -1075,3 +1414,26 @@ export function setCreditPrice(platformId: string, platformName: string, price: 
         ];
   writeVersion(b, next, 'manual', 'The price per credit of the cost source');
 }
+
+// ---------- shares (ADR 0033; 0.23.0) ----------
+
+/**
+ * Price books switched to shares: a list or derived book's Manage holders give other teams, users or roles View – an
+ * internal rate card published to its consumers – or Edit (a widening: the step-up `access.grant`, audited
+ * `access.shares_changed`). A share gives the customer prices only: the terms stay with who sees them (seesTerms). A
+ * contracted book's readers follow its contract or platform – shares do not count for it and only administrators
+ * could set one (rights below never include Manage for it).
+ */
+export const priceBookShareKind: ShareKindDef<'view' | 'edit' | 'manage'> = {
+  kind: 'cost_price_book',
+  model: CATALOGUE_SHARE_MODEL,
+  name: (id) => bookRow(id)?.name,
+  link: (id) => `/costs/price-books/${id}`,
+  rights: (u, id) => {
+    const r = bookRow(id);
+    if (!r) return [];
+    const b = bookRights(r, u);
+    return (['view', 'edit', 'manage'] as const).filter((p) => b[p]);
+  },
+  restrictBy: 'admin',
+};

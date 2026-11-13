@@ -1,0 +1,232 @@
+{
+  "nav": {
+    "products": "Data products",
+    "elements": "Elements"
+  },
+  "pipeline": {
+    "title": "Pipeline of {{name}}",
+    "titlePlain": "Pipeline",
+    "help": "The elements of the product by role and layer, the steps between them and the elements outside it that its steps read or write. Health comes from linked checks.",
+    "elements": "Elements"
+  },
+  "map": {
+    "title": "Product map",
+    "help": "Data products in their domains and how they depend on each other: from a product's output port to the products whose input ports consume it.",
+    "products": "Products",
+    "neighbour": "Depends on or feeds a match",
+    "matches": "Matches the filters"
+  },
+  "lineage": {
+    "title": "Lineage of {{name}}",
+    "titlePlain": "Lineage",
+    "help": "Where the data of this element comes from and where it goes, across products.",
+    "elements": "Elements",
+    "this": "This element"
+  },
+  "filters": {
+    "environment": "Environment",
+    "domain": "Domain",
+    "type": "Type",
+    "lifecycle": "Lifecycle",
+    "depth": "Steps up and down",
+    "steps_one": "{{count}} step",
+    "steps_other": "{{count}} steps"
+  },
+  "toolbar": {
+    "fit": "Fit to screen"
+  },
+  "search": {
+    "label": "Find in the picture",
+    "placeholder": "Find and select …",
+    "nothing": "Nothing found"
+  },
+  "empty": "Nothing to show here yet.",
+  "graph": {
+    "label": "Picture: {{title}}",
+    "nodeHelp": "Tab moves to the next part, Enter opens its page, Space selects it and highlights what it connects to.",
+    "edgeHelp": "A way the data takes.",
+    "controls": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fitView": "Show everything"
+  },
+  "export": {
+    "subtitle": "Data products · documented as of {{date}}"
+  },
+  "notes": {
+    "truncated_one": "{{count}} element is left out: a picture holds at most 2,000.",
+    "truncated_other": "{{count}} elements are left out: a picture holds at most 2,000.",
+    "lineageTruncated": "Left out at the limit of 200 elements: {{upstream}} upstream, {{downstream}} downstream.",
+    "collapsed": "The picture groups elements to stay readable; the table lists every one of them.",
+    "hidden": "Includes elements ({{elements}}) and products ({{products}}) you may not see: drawn without a name."
+  },
+  "selection": {
+    "hint": "Select a part (click, or Space on the keyboard) to highlight everything upstream and downstream of it.",
+    "connected_one": "Connected to {{count}} other part",
+    "connected_other": "Connected to {{count}} other parts",
+    "only": "Show only what is connected",
+    "open": "Open",
+    "clear": "Clear selection"
+  },
+  "legend": {
+    "healthTitle": "Health:",
+    "health": "only from checks linked to an element or a product's monitor. Without one it says “No data” – never OK.",
+    "flowMoving": "The way data takes – the moving dashes show its direction",
+    "flowStatic": "The way data takes – the arrow shows its direction",
+    "hidden": "Something you may not see: no name",
+    "outside": "Outside the product (dashed, grey)",
+    "step": "A step with many inputs and outputs",
+    "deprecated": "Consumes a deprecated or retired port",
+    "neighbour": "Outside the filters, connected to a match",
+    "plant": "A plant registry data collection that writes to an element"
+  },
+  "table": {
+    "filter": "Filter the table",
+    "count_one": "{{count}} entry",
+    "count_other": "{{count}} entries",
+    "kind": "Kind",
+    "name": "Name",
+    "health": "Health",
+    "more_one": "Show {{count}} more",
+    "more_other": "Show {{count}} more",
+    "place": "Where",
+    "ports": "Ports",
+    "alsoIn": "Also in",
+    "steps": "Steps",
+    "step": "Step",
+    "runner": "Runs on",
+    "from": "From",
+    "to": "To",
+    "domain": "Domain",
+    "type": "Type",
+    "lifecycle": "Lifecycle",
+    "takesFrom": "Takes from",
+    "givesTo": "Gives to",
+    "inFilter": "Shown because",
+    "dependencies": "Dependencies",
+    "distance": "Distance",
+    "product": "Product"
+  },
+  "columns": {
+    "upstream": "Upstream",
+    "input": "Inputs",
+    "output": "Outputs",
+    "downstream": "Downstream",
+    "noLayer": "No layer"
+  },
+  "kinds": {
+    "element": "Element",
+    "step": "Step",
+    "stepOf": "Step · {{kind}}",
+    "products": "Products",
+    "elements": "Elements",
+    "product": "Data product",
+    "domain": "Domain",
+    "plant": "Plant collection"
+  },
+  "collapsed": {
+    "parent_one": "{{count}} element of {{name}}",
+    "parent_other": "{{count}} elements of {{name}}",
+    "column_one": "{{count}} element",
+    "column_other": "{{count}} elements",
+    "domain_one": "{{count}} product in {{name}}",
+    "domain_other": "{{count}} products in {{name}}",
+    "noDomain_one": "{{count}} product without a domain",
+    "noDomain_other": "{{count}} products without a domain",
+    "hidden_one": "{{count}} you may not see",
+    "hidden_other": "{{count}} you may not see"
+  },
+  "hidden": {
+    "element": "An element you may not see",
+    "product": "A product you may not see",
+    "step": "A step you may not see",
+    "plant": "A data collection you may not see"
+  },
+  "node": {
+    "missing": "Missing",
+    "hiddenProducts_one": "{{count}} product you may not see",
+    "hiddenProducts_other": "{{count}} products you may not see"
+  },
+  "aria": {
+    "health": "Health: {{status}}",
+    "checks_one": "{{count}} linked check",
+    "checks_other": "{{count}} linked checks",
+    "role": "Role: {{role}}.",
+    "layer": "Layer: {{layer}}.",
+    "inProducts": "Part of {{names}}.",
+    "outside": "Outside the product.",
+    "outsideFilter": "Outside the filters.",
+    "upstream_one": "{{count}} step upstream",
+    "upstream_other": "{{count}} steps upstream",
+    "downstream_one": "{{count}} step downstream",
+    "downstream_other": "{{count}} steps downstream",
+    "opens": "Enter opens its page."
+  },
+  "edge": {
+    "from": "From {{from}} to {{to}}",
+    "more_one": "{{names}} and {{count}} more",
+    "more_other": "{{names}} and {{count}} more",
+    "count_one": "{{count}} step",
+    "count_other": "{{count}} steps",
+    "deprecated": "Deprecated"
+  },
+  "health": {
+    "up": "Up",
+    "degraded": "Degraded",
+    "down": "Down",
+    "unknown": "Unknown",
+    "blocked": "Blocked",
+    "maintenance": "Maintenance",
+    "off": "Off",
+    "noData": "No data"
+  },
+  "roles": {
+    "input": "Input",
+    "internal": "Internal",
+    "output": "Output"
+  },
+  "lifecycle": {
+    "proposed": "Proposed",
+    "draft": "Draft",
+    "active": "Active",
+    "deprecated": "Deprecated",
+    "retired": "Retired"
+  },
+  "types": {
+    "sourceAligned": "Source-aligned",
+    "aggregate": "Aggregate",
+    "consumerAligned": "Consumer-aligned"
+  },
+  "stepKinds": {
+    "ingest": "Ingest",
+    "stage": "Stage",
+    "transform": "Transform",
+    "curate": "Curate",
+    "publish": "Publish",
+    "replicate": "Replicate",
+    "other": "Other"
+  },
+  "elementKinds": {
+    "snowflake.database": "Snowflake database",
+    "snowflake.schema": "Snowflake schema",
+    "snowflake.table": "Snowflake table",
+    "snowflake.view": "Snowflake view",
+    "snowflake.dynamicTable": "Dynamic table",
+    "snowflake.stream": "Snowflake stream",
+    "snowflake.task": "Snowflake task",
+    "snowflake.stage": "Snowflake stage",
+    "snowflake.pipe": "Snowpipe",
+    "kafka.topic": "Kafka topic",
+    "kafka.topicBundle": "Topic bundle",
+    "sql.schema": "SQL schema",
+    "sql.table": "SQL table",
+    "sql.view": "SQL view",
+    "api.openapi": "OpenAPI",
+    "api.asyncapi": "AsyncAPI",
+    "api.graphql": "GraphQL API",
+    "api.endpoint": "API endpoint",
+    "files.path": "File path",
+    "insightsHub.aspect": "Insights Hub aspect",
+    "other": "Other"
+  }
+}

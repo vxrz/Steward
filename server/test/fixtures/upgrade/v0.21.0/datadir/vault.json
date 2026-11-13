@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "kdf": {
+    "alg": "scrypt",
+    "salt": "pxsKaZ6HIDivH9VR4z/GuQ==",
+    "N": 131072,
+    "r": 8,
+    "p": 1
+  },
+  "keyId": "vk_75YnpdrSnIy4",
+  "wrapped": "v1:KR9L8scBjSIqa2ex:3e/w5VzeoZqf3TqqCSHoRA==:LF+nFlhSTZ6yQyZWcXRh1MnXP4or8vOJQ+taOYHT5Q8wYwqCptJiysBBQUJ/wQgiVBVdn2IN9JNmhJY2od8DY4yWf0ScqMLewdQyQKZTWGQGSnWxNbt7TChP4uCaCDDkD2ycseba/rjGikPuvTq3zZ9PSdpsSe0VHrtPjFuSvGorTTLcHVQJOcXhqWFk+yi27CL8I0oHrNKXpHRyVNGg+OU70XAw4xYr+pI2b9K7C2HMQmIkbvSkFanWiU06rhCxXE9sB35er3dQc4Q5190hCnuYDTiX04re2B1B1KkFjIJG23+mg8uilvNkuGghk2aF0aA=",
+  "signingPublicKey": "MCowBQYDK2VwAyEAyKkAwers2/pQ2chBLLwZSlB2mPY7OCrTL+KkIqzDHbI=",
+  "createdAt": "2026-11-13T07:31:32.531Z",
+  "updatedAt": "2026-11-13T07:31:32.997Z"
+}

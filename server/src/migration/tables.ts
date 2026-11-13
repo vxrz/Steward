@@ -90,6 +90,13 @@ export const NOT_MOVED: Record<string, string> = {
   cost_booking_reminders: 'send bookkeeping of the source (a reminder of contract payments not booked may be sent again on the target)',
   cost_volume_notices: 'send bookkeeping of the source (a warning of a contract volume may be sent again on the target)',
   cost_price_review_notices: 'send bookkeeping of the source (a price book due for its review may be reminded of again on the target)',
+  // the data products module (0.22.0, ADR 0036): discovery belongs to the platforms and people of this instance
+  dp_discovery_sources:
+    'discovery sources of the data products (0.22.0) run as a person of this instance with its platforms: set them up again on the target (the elements they found move)',
+  dp_discovery_runs: 'the run history of the discovery sources (not moved, as the sources)',
+  dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
+  dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
+  cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
 };
 
 /** Rows keyed by user id: moved for mapped users only, with the target user's id. */
@@ -186,6 +193,15 @@ export const USER_REFS: UserRef[] = [
   // module access (0.21.0, ADR 0034): the teams and users that use a restricted module; a deleted team stays as a grant
   // that matches nobody, so the list still says whom the administrator chose (a dropped team on import: the row goes)
   { table: 'module_grants', column: 'subject', kind: 'subject', keepDeletedTeams: true },
+  // the data products module (0.22.0, ADR 0036): owners of domains and products, the data owner, stewards and custodians
+  // of data objects, registered consumers (a team or a user) and who is told about a port's deprecation
+  { table: 'dp_domains', column: 'owners', kind: 'subjects' },
+  { table: 'dp_products', column: 'owners', kind: 'subjects' },
+  { table: 'dp_objects', column: 'owner', kind: 'username' },
+  { table: 'dp_objects', column: 'stewards', kind: 'subjects' },
+  { table: 'dp_objects', column: 'custodians', kind: 'subjects' },
+  { table: 'dp_consumers', column: 'consumer_subjects', kind: 'subjects' },
+  { table: 'dp_consumers', column: 'contacts', kind: 'subjects' },
 ];
 
 /**
@@ -227,6 +243,9 @@ export const HISTORY_COLUMNS: string[] = [
   'cost_estimates.created_by',
   'cost_estimates.updated_by',
   'cost_estimate_results.replaced_by',
+  // contract conditions (0.23.0, ADR 0035 phase 2): who made and changed one
+  'supplier_contract_conditions.created_by',
+  'supplier_contract_conditions.updated_by',
   // suppliers (0.17.0, ADR 0029): who made and changed one, who looked at a certificate
   'suppliers.created_by',
   'suppliers.updated_by',
@@ -418,6 +437,29 @@ export const HISTORY_COLUMNS: string[] = [
   'ticket_ref_events.actor',
   'ticket_refs.created_by',
   'ticket_refs.updated_by',
+  // the data products module (0.22.0, ADR 0036): who made, changed, rated, added and linked
+  'dp_domains.created_by',
+  'dp_domains.updated_by',
+  'dp_objects.created_by',
+  'dp_objects.updated_by',
+  'dp_products.created_by',
+  'dp_products.updated_by',
+  'dp_ratings.rated_by',
+  'dp_product_environments.updated_by',
+  'dp_elements.created_by',
+  'dp_elements.updated_by',
+  'dp_members.added_by',
+  'dp_ports.created_by',
+  'dp_ports.updated_by',
+  'dp_port_bindings.updated_by',
+  'dp_object_elements.added_by',
+  'dp_consumers.created_by',
+  'dp_consumers.updated_by',
+  'dp_steps.created_by',
+  'dp_steps.updated_by',
+  'dp_check_links.created_by',
+  'dp_cost_matches.created_by',
+  'dp_cost_allocations.updated_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */
@@ -449,6 +491,8 @@ export const NOT_PEOPLE_COLUMNS: string[] = [
   'db_schema_snapshots.subject_id',
   'db_schema_settings.subject_kind',
   'db_schema_settings.subject_id',
+  // the data subjects of a data object (customers, employees …): categories of people, never persons (ADR 0036 part 2)
+  'dp_objects.subjects',
 ];
 
 /** Tables whose automation is paused after the import: an administrator reviews and turns them on again. */
