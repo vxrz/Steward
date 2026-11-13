@@ -31,7 +31,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
+import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
 import { forbid, me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, type OwningTeam } from '../auth/policy.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
@@ -70,8 +70,18 @@ import { onLifecycleChanged } from './notices.js';
 
 // ---------- environments ----------
 
+/** Settings → Environments, read once per request (sorting the environments of every product of a page in a loop). */
+const environmentsOfRequest = new WeakMap<object, CatalogueEnvironment[]>();
+function requestEnvironments(): CatalogueEnvironment[] {
+  const store = currentStore();
+  if (!store) return environmentList();
+  let list = environmentsOfRequest.get(store);
+  if (!list) environmentsOfRequest.set(store, (list = environmentList()));
+  return list;
+}
+
 /** Production first, then the order of Settings → Environments, unlisted ones after, by name. */
-export function sortEnvironments(names: Iterable<string>, list: CatalogueEnvironment[] = environmentList()): string[] {
+export function sortEnvironments(names: Iterable<string>, list: CatalogueEnvironment[] = requestEnvironments()): string[] {
   return [...new Set(names)].sort(
     (a, b) =>
       Number(isProductionEnvironment(list, b)) - Number(isProductionEnvironment(list, a)) ||
