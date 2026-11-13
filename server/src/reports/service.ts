@@ -1,6 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BRAND, type ReportBranding, type ReportLang, type ReportRecord, type ReportVerification, type RunStatus } from '@sm/shared';
+import {
+  BRAND,
+  accessModule,
+  isModuleId,
+  moduleOfReportSection,
+  moduleRestrictable,
+  type ModuleId,
+  type ReportBranding,
+  type ReportLang,
+  type ReportRecord,
+  type ReportVerification,
+  type RunStatus,
+} from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit, authenticRows, importedSourceOf } from '../audit.js';
@@ -13,6 +25,8 @@ import type { RenderResult } from './run-report.js';
 import { drawPdf } from './pdf/pool.js';
 import { buildSummaryModel } from './summary-report.js';
 import { buildScheduledModel } from './scheduled-report.js';
+import { reportSectionIds } from './sections.js';
+import { usesModule } from '../modules/access.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { getUser } from '../auth/users.js';
 
@@ -55,6 +69,7 @@ interface Row {
   protocol_hash: string | null;
   content_hash: string;
   schedule_id?: string | null;
+  modules?: string | null;
 }
 
 const toRecord = (r: Row): ReportRecord => ({
@@ -79,6 +94,7 @@ const toRecord = (r: Row): ReportRecord => ({
   from: r.period_from,
   to: r.period_to,
   scheduleId: r.schedule_id ?? null,
+  ...(r.modules ? { modules: parseJson<string[]>(r.modules, []).filter(isModuleId) } : {}),
 });
 
 export function listRunReports(runId: string): ReportRecord[] {
@@ -148,8 +164,8 @@ function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<stri
     db().tx(() => {
       db().run(
         `INSERT INTO reports (id, kind, run_id, process_ids, version, title, lang, comment, classification, interim, auto, period_from, period_to,
-           created_by, created_at, path, filename, sha256, size, protocol_hash, content_hash, schedule_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           created_by, created_at, path, filename, sha256, size, protocol_hash, content_hash, schedule_id, modules)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         rec.id,
         rec.kind,
         rec.runId ?? null,
@@ -172,6 +188,7 @@ function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<stri
         rec.protocolHash ?? null,
         rec.contentHash,
         rec.scheduleId ?? null,
+        rec.modules?.length ? JSON.stringify(rec.modules) : null,
       );
       audit({
         actor,
@@ -354,11 +371,30 @@ export interface ScheduledOptions extends GenerateOptions {
   teamId?: string | null;
 }
 
+/** The sections of a schedule whose module (if any) `uses` says yes to: the stored ids, in their order. */
+export function reportSectionsFor(sections: Record<string, unknown>, uses: (m: ModuleId) => boolean): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const id of reportSectionIds()) {
+    if (!(id in sections)) continue;
+    const m = moduleOfReportSection(id);
+    if (!m || uses(m)) out[id] = sections[id];
+  }
+  return out;
+}
+
+/** The modules that can be restricted whose sections are among `ids` (ADR 0034). */
+export function restrictableModulesOf(ids: readonly string[]): ModuleId[] {
+  return [...new Set(ids.flatMap((id) => moduleOfReportSection(id) ?? []))].filter((m) => moduleRestrictable(accessModule(m)));
+}
+
 /** Scheduled summary report: collected as the owner, archived (immutable, hashed, audited) like every report. */
 export async function generateScheduledReport(o: ScheduledOptions): Promise<ReportRecord & { texts: string[]; pdf: Buffer }> {
   if (o.to <= o.from) throw new HttpError(400, 'The end of the period must be after its start', 'PERIOD_END_BEFORE_START');
   const id = newId('rpt_');
   const ctx = context({ ...o, actor: o.owner.username }, id, 1, o.teamId);
+  // a section of a module the owner does not use is left out (ADR 0034 decision 12): the report runs with their rights
+  const sections = reportSectionsFor(o.sections, (m) => usesModule(o.owner, m));
+  if (!Object.keys(sections).length) throw new HttpError(409, 'Every section of this report belongs to a module its owner does not use', 'REPORT_NO_SECTIONS');
   const model = runAs(o.owner, () =>
     buildScheduledModel(
       {
@@ -369,7 +405,7 @@ export async function generateScheduledReport(o: ScheduledOptions): Promise<Repo
         from: o.from,
         to: o.to,
         now: Date.now(),
-        sections: o.sections,
+        sections,
       },
       ctx,
     ),
@@ -398,6 +434,7 @@ export async function generateScheduledReport(o: ScheduledOptions): Promise<Repo
     from: model.from,
     to: model.to,
     scheduleId: o.scheduleId,
+    modules: restrictableModulesOf(Object.keys(sections)),
   };
   store(
     rec,

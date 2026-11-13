@@ -19,6 +19,7 @@ import { currentUser, requestContext, type AuthUser } from './auth/context.js';
 import { ACCESS, hasRole, isStatusViewer, type ResolvedAccess, type RouteAccess } from './auth/access.js';
 import { plantOnly } from './auth/policy.js';
 import { moduleOff, switchedOffModuleOfRoute } from './modules/registry.js';
+import { moduleNoAccess, unusedModuleOfRoute } from './modules/access.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/cookies.js';
 import { connectVaultToDatabase } from './vault-rotation.js';
@@ -402,11 +403,16 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   // A switched-off module (0.11.0, ADR 0016): its routes answer 404 as if they did not exist – after authentication
   // (a caller who is not signed in learns nothing about the modules), before step-up and the route's own code.
+  // A module the caller does not use (0.21.0, ADR 0034) the same way, with MODULE_NO_ACCESS: the signed-in person, or
+  // the owner of the API token of /api/v1 (api/index.ts authenticated it before this hook). No person – a webhook
+  // with its own secret – is the instance.
   app.addHook('preHandler', (req, reply, done) => {
     const url = req.routeOptions.url;
     const off = url ? switchedOffModuleOfRoute(url) : undefined;
-    if (!off) return done();
-    const err = moduleOff(off);
+    const caller = (req as unknown as { smAuthUser?: AuthUser | null }).smAuthUser ?? (req as unknown as { smApi?: { user?: AuthUser } }).smApi?.user ?? null;
+    const notYours = !off && url ? unusedModuleOfRoute(url, caller) : undefined;
+    if (!off && !notYours) return done();
+    const err = off ? moduleOff(off) : moduleNoAccess(notYours!);
     if (isPublicApiPath(url!))
       return void reply
         .code(404)

@@ -1,4 +1,4 @@
-import type { ModuleStates } from './modules.js';
+import type { ModuleId, ModuleStates, ModuleUseState } from './modules.js';
 import type { LibraryOrigin } from './libraries.js';
 import type { AiGatewaySettings } from './ai.js';
 import type { DatabaseSettings } from './database.js';
@@ -449,8 +449,13 @@ export interface Capabilities {
   plantManage?: boolean;
   /** A plant viewer: role "plant" and no other working role – the web app shows the Plant area and the profile only. Missing means false. */
   plantOnly?: boolean;
-  /** The modules (0.11.0, ADR 0016) and whether each is on; a module missing here is on. Only in GET /auth/status. */
+  /**
+   * The modules (0.11.0, ADR 0016) and whether each is on for the person; a module missing here is on. False also for a
+   * module the person does not use (ADR 0034): the web app hides it the same way. Only in GET /auth/status.
+   */
   modules?: ModuleStates;
+  /** Per module: on, switched off, or on but not used by the person (ADR 0034); tells the pages which message to show. Only in GET /auth/status. */
+  moduleAccess?: Partial<Record<ModuleId, ModuleUseState>>;
 }
 
 export interface Me {

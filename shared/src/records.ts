@@ -6,6 +6,7 @@
 
 import type { ErrorParams } from './errors.js';
 import type { ImportedHistoryRef } from './api.js';
+import type { ModuleId } from './modules.js';
 import type { DocumentApplicationRef, ServiceApplication, ServiceProtectionNeed } from './catalogue.js';
 import { FIREWALL_RECORD_TYPE, FIREWALL_RULES_RECORD_TYPE } from './network.js';
 
@@ -548,6 +549,11 @@ export interface ItemLink {
   path: string | null;
   /** A living document: its current edition */
   edition?: string | null;
+  /**
+   * An item of a module the reader does not use (ADR 0034): counted, not named – the module only, no label, id, path or
+   * note (visible is false)
+   */
+  module?: ModuleId;
   createdAt: string;
   createdBy: string;
 }

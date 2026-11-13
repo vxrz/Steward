@@ -175,5 +175,9 @@
   "state": {
     "on": "Ein",
     "off": "Aus"
+  },
+  "notYours": {
+    "title": "Sie nutzen dieses Modul nicht",
+    "text": "Fragen Sie einen Administrator, wenn Sie es brauchen."
   }
 }

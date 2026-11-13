@@ -2,8 +2,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { isModuleId, type ModuleId } from '@sm/shared';
 import { ACCESS } from '../auth/access.js';
+import { accessGrantRule } from '../auth/access-change.js';
 import { HttpError } from '../util.js';
 import { modulesView, switchChanges, switchModule } from './registry.js';
+import { moduleAccessBody, moduleAccessView, moduleAccessWidens, previewModuleAccess, setModuleAccess } from './access-change.js';
 import { visibilitySummary } from './visibility.js';
 import { plantDemo } from '../plant/routes.js';
 
@@ -12,6 +14,10 @@ import { plantDemo } from '../plant/routes.js';
  *
  *   GET /api/settings/modules        every module, on or off, with its maturity (administrators)
  *   PUT /api/settings/modules/:id    { enabled } – switch one on or off (administrators, signed-in session, step-up)
+ *   GET /api/settings/modules/:id/access           who uses it: everyone signed in, or selected teams and users (ADR 0034)
+ *   PUT /api/settings/modules/:id/access           { mode, grants } – administrators, signed-in session; widening asks
+ *                                                  for the step-up grantAccess (control point access.grant)
+ *   POST /api/settings/modules/:id/access/preview  { mode, grants } – who would gain and who would lose it, nothing changed
  *   GET /api/me/visibility           the areas the signed-in person may see (the sidebar, honest empty states)
  */
 
@@ -30,10 +36,24 @@ const switching = (req: FastifyRequest): boolean => {
   return isModuleId(id) && b.success && switchChanges(id, b.data.enabled);
 };
 
+/** Widening who uses a module asks for the step-up (opening it, or naming a team or user not on its list). */
+const widening = (req: FastifyRequest): boolean => {
+  const id = (req.params as { id?: string }).id;
+  const b = moduleAccessBody.safeParse(req.body);
+  return isModuleId(id) && b.success && moduleAccessWidens(id, b.data);
+};
+
 export async function moduleRoutes(app: FastifyInstance): Promise<void> {
   app.get('/settings/modules', { config: { access: ACCESS.admin } }, async () => modulesView());
   app.put('/settings/modules/:id', { config: { access: ACCESS.adminSession, stepUp: { action: 'changeModules', when: switching } } }, async (req) =>
     switchModule(moduleParam(req), switchBody.parse(req.body).enabled, plantDemo),
+  );
+  app.get('/settings/modules/:id/access', { config: { access: ACCESS.adminSession } }, async (req) => moduleAccessView(moduleParam(req)));
+  app.put('/settings/modules/:id/access', { config: { access: ACCESS.adminSession, stepUp: accessGrantRule(widening, 'manageUsers') } }, async (req) =>
+    setModuleAccess(moduleParam(req), moduleAccessBody.parse(req.body)),
+  );
+  app.post('/settings/modules/:id/access/preview', { config: { access: ACCESS.adminSession } }, async (req) =>
+    previewModuleAccess(moduleParam(req), moduleAccessBody.parse(req.body)),
   );
   app.get('/me/visibility', async () => visibilitySummary());
 }

@@ -1,4 +1,16 @@
-import { MAP_SOURCES, MODULES, moduleDef, moduleOfRoute, type ModuleId, type ModuleStates, type ModulesView, type ModuleState } from '@sm/shared';
+import {
+  MAP_SOURCES,
+  MODULES,
+  moduleDef,
+  moduleOfRoute,
+  moduleRestrictable,
+  type ModuleAccessMode,
+  type ModuleId,
+  type ModuleStates,
+  type ModulesView,
+  type ModuleState,
+} from '@sm/shared';
+import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { me } from '../auth/access.js';
@@ -79,6 +91,16 @@ export function switchedOffModuleOfRoute(url: string): ModuleId | undefined {
   return id && !moduleEnabled(id) ? id : undefined;
 }
 
+/**
+ * Who uses a module (ADR 0034): `everyone` signed in – the default, no row – or `selected` teams and users
+ * (module_access; only restrictable modules). Deciding for a person: access.ts.
+ */
+export function moduleAccessMode(id: ModuleId): ModuleAccessMode {
+  if (!moduleRestrictable(id)) return 'everyone';
+  const r = db().get<{ mode: string }>('SELECT mode FROM module_access WHERE module_id = ?', id);
+  return r?.mode === 'selected' ? 'selected' : 'everyone';
+}
+
 // ---------- Settings → Modules ----------
 
 export function modulesView(): ModulesView {
@@ -92,6 +114,8 @@ export function modulesView(): ModulesView {
     switchable: m.switchable,
     requires: m.requires ?? null,
     settingsArea: m.id === 'plant' || m.id === 'plantMap' ? 'modules' : null,
+    restrictable: moduleRestrictable(m.id),
+    accessMode: moduleAccessMode(m.id),
   }));
   return { modules, updatedAt: s.updatedAt, updatedBy: s.updatedBy };
 }

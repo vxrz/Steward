@@ -8,13 +8,19 @@ import { get } from './api';
 /**
  * The modules (0.11.0, ADR 0016) as the web app sees them: the server says in /auth/status which are on
  * (Capabilities.modules; a module missing there is on – older servers), and the pages, the sidebar and the search
- * leave out what is switched off.
+ * leave out what is switched off – and (0.21.0) what the person does not use, the same way.
  */
 export const moduleOn = (caps: Capabilities, id: ModuleId): boolean => {
   // the plant registry kept its own flag (it also says whether the person may use it)
   if (id === 'plant') return caps.modules?.plant ?? caps.plant === true;
   return caps.modules?.[id] !== false;
 };
+
+/**
+ * A module that is on but not used by the person (ADR 0034): hidden like a switched-off one (Capabilities.modules
+ * says false), its pages say "You do not use this module" instead of "switched off".
+ */
+export const moduleNotYours = (caps: Capabilities, id: ModuleId): boolean => caps.moduleAccess?.[id] === 'notYours';
 
 /** Whether a sidebar entry's module (if it has one) is on. */
 export const navModuleOn = (caps: Capabilities, key: string): boolean => {

@@ -1,6 +1,7 @@
 import {
   EVENT_DIGEST_GROUP,
   OWNED_KINDS,
+  moduleOfEvent,
   QUIET_LIMITS,
   type DigestPrefs,
   type Locale,
@@ -17,6 +18,7 @@ import { runAs } from '../auth/context.js';
 import { getUser, toAuthUser } from '../auth/users.js';
 import { processPermissions } from '../auth/permissions.js';
 import { canSeeResource } from '../auth/scope-routes.js';
+import { subjectUsesModule, usesModule } from '../modules/access.js';
 import { formatDateTime, t, type MessageKey } from '../i18n/index.js';
 import { failingChecks } from '../engine/check-alerts.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
@@ -366,7 +368,9 @@ export function renderHeld(rows: Row[], kind: 'catchup' | 'digest', locale: Loca
       continue;
     }
     const about = parseJson<HeldAbout | null>(r.about, null);
-    if (user && !stillVisible(user, about)) {
+    // checked again at release, like the item: an event of a module the person no longer uses is left out (ADR 0034)
+    const mod = moduleOfEvent(r.event);
+    if (user && ((mod && !usesModule(user, mod)) || !stillVisible(user, about))) {
       leftOut++;
       continue;
     }
@@ -536,7 +540,13 @@ export async function runOutbox(now = Date.now()): Promise<number> {
       continue;
     const locale = due.rows[0]!.locale;
     try {
-      const content = renderHeld(due.rows, due.kind, locale, target.user, at);
+      const content = renderHeld(
+        due.rows.filter((r) => teamUsesEventModule(name, r.event)),
+        due.kind,
+        locale,
+        target.user,
+        at,
+      );
       if (!content) {
         setOutcome(name, period, 'empty');
         continue;
@@ -551,6 +561,14 @@ export async function runOutbox(now = Date.now()): Promise<number> {
     }
   }
   return count;
+}
+
+/** A team's own channel gets a module's held messages only while the team uses the module (ADR 0034); other targets: yes. */
+function teamUsesEventModule(target: string, event: string): boolean {
+  const mod = moduleOfEvent(event);
+  if (!mod || !target.startsWith('team:')) return true;
+  const team = db().get<{ name: string }>('SELECT name FROM teams WHERE id = ?', target.slice('team:'.length));
+  return !!team && subjectUsesModule(`team:${team.name}`, mod);
 }
 
 /** The catch-up or digest as a message: e-mail parts, and the markdown body for a Teams card. */

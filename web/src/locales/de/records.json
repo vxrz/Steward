@@ -380,6 +380,7 @@
     "labelPlaceholder": "z. B. ServiceNow CHG0042",
     "empty": "Noch keine Verweise.",
     "notVisible": "Für Sie nicht sichtbar",
+    "otherModule": "Ein Eintrag eines Moduls, das Sie nicht nutzen ({{module}})",
     "remove": "Verweis entfernen",
     "removeNamed": "Verweis auf {{name}} entfernen",
     "removeConfirm": "Diesen Verweis entfernen?",

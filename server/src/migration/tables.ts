@@ -102,6 +102,8 @@ export const USER_ID_TABLES: Record<string, string> = {
 export type RefKind =
   /** a plain user name */
   | 'username'
+  /** one subject: "user:x" | "team:y" (module access, ADR 0034) */
+  | 'subject'
   /** JSON array of { subject: "user:x" | "team:y" | "role:z", … } */
   | 'acl'
   /** JSON array of subjects */
@@ -180,6 +182,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'plant_sites', column: 'acl', kind: 'acl' },
   // shares (0.21.0, ADR 0033): who a resource is shared with; a deleted team stays a share that matches nobody
   { table: 'resource_shares', column: 'subject', kind: 'subject', keepDeletedTeams: true, key: ['kind', 'resource_id'] },
+  // module access (0.21.0, ADR 0034): the teams and users that use a restricted module; a deleted team stays as a grant
+  // that matches nobody, so the list still says whom the administrator chose (a dropped team on import: the row goes)
+  { table: 'module_grants', column: 'subject', kind: 'subject', keepDeletedTeams: true },
 ];
 
 /**
@@ -190,6 +195,9 @@ export const HISTORY_COLUMNS: string[] = [
   // who shared a resource and who made it Restricted (0.21.0, ADR 0033)
   'resource_shares.created_by',
   'resource_restrictions.created_by',
+  // module access (0.21.0, ADR 0034): who restricted a module, who gave a team or user its use
+  'module_access.updated_by',
+  'module_grants.created_by',
   'ai_usage.actor',
   'ai_budgets.updated_by',
   // platform costs (#226)

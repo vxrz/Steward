@@ -27,7 +27,7 @@ import { resolveTarget } from '../records/links.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { dashboardVisible, datasetsOf } from '../dashboards/service.js';
 import { readableDataset } from '../plant/live.js';
-import { plantEnabled } from '../plant/settings.js';
+import { moduleAvailable } from '../modules/access.js';
 import { plantImpact, type ImpactFound, type ImpactSink } from '../plant/impact.js';
 import {
   announceImpact,
@@ -296,7 +296,7 @@ export function impactOf(targets: TargetRef[], w: { kind: MaintenanceKind; quiet
     contacts: [...contacts.values()].sort((a, z) => Number(z.notifiable) - Number(a.notifiable) || a.label.localeCompare(z.label)),
     truncated: b.truncated,
     addableMonitors: monitors.filter((m) => m.canAdd).length,
-    plant: plantEnabled(),
+    plant: moduleAvailable('plant'),
   };
 }
 

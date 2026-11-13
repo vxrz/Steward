@@ -82,11 +82,12 @@ export function LinksPanel({
   self?: { kind: LinkKind; id: string };
 }) {
   const { t } = useTranslation('records');
+  const { t: tm } = useTranslation('modules');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ItemLink | null>(null);
   const types = useLinkTypes();
   const typeName = useLinkTypeName();
-  const internal = links.filter((l) => l.kind !== null);
+  const internal = links.filter((l) => l.kind !== null || !!l.module);
   // external links grouped by type, in the order of the types (built-in first); untyped ones under "Other"
   const groups = new Map<string, { type: ReturnType<typeof linkTypeOf>; links: ItemLink[] }>();
   for (const l of links.filter((x) => x.kind === null)) {
@@ -171,9 +172,14 @@ export function LinksPanel({
               <Table.Tbody>
                 {internalShown.map((l) => (
                   <Table.Tr key={l.id}>
-                    <Table.Td className="nowrap">{t(`links.kinds.${l.kind ?? 'external'}`)}</Table.Td>
+                    <Table.Td className="nowrap">{l.module ? tm(`items.${l.module}.name`) : t(`links.kinds.${l.kind ?? 'external'}`)}</Table.Td>
                     <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                      {l.kind === null ? (
+                      {l.module ? (
+                        // an item of a module the reader does not use (ADR 0034): counted, not named
+                        <Text size="sm" c="dimmed">
+                          {t('links.otherModule', { module: tm(`items.${l.module}.name`) })}
+                        </Text>
+                      ) : l.kind === null ? (
                         <Anchor href={l.url ?? undefined} target="_blank" rel="noopener noreferrer nofollow" size="sm">
                           {l.label || l.url} <IconExternalLink size={12} aria-hidden />
                         </Anchor>

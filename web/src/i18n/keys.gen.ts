@@ -5838,6 +5838,9 @@ export interface Resources {
     'codes.MODULE_OFF': string;
     'codes.MODULE_NOT_FOUND': string;
     'codes.MODULE_NOT_SWITCHABLE': string;
+    'codes.MODULE_NO_ACCESS': string;
+    'codes.MODULE_NOT_RESTRICTABLE': string;
+    'codes.REPORT_NO_SECTIONS': string;
     'codes.PLANT_MAP_OFF': string;
     'codes.PLANT_MAP_NO_TILE': string;
     'codes.PLANT_MAP_ATTRIBUTION': string;
@@ -7142,6 +7145,8 @@ export interface Resources {
     'glossary.terms.module.text': string;
     'state.on': string;
     'state.off': string;
+    'notYours.title': string;
+    'notYours.text': string;
   };
   monitors: {
     'wall.back': string;
@@ -13118,6 +13123,7 @@ export interface Resources {
     'links.labelPlaceholder': string;
     'links.empty': string;
     'links.notVisible': string;
+    'links.otherModule': string;
     'links.remove': string;
     'links.removeNamed': string;
     'links.removeConfirm': string;

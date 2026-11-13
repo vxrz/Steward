@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { STEP_UP_ACTIONS, type AuthStatus, type Me, BRAND, isSsoErrorCode, SSO_REFERENCE, type SsoErrorCode } from '@sm/shared';
+import { STEP_UP_ACTIONS, type AuthStatus, type Me, type ModuleId, BRAND, isSsoErrorCode, SSO_REFERENCE, type SsoErrorCode } from '@sm/shared';
 import { config } from '../config.js';
 import { vault, publicKeyPem } from '../vault.js';
 import { audit, flushPendingAudit } from '../audit.js';
@@ -39,7 +39,7 @@ import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { ACCESS, isStatusViewer, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
-import { moduleStates } from '../modules/registry.js';
+import { moduleUseStates } from '../modules/access.js';
 import { plantManagesSome } from '../plant/access.js';
 import { plantOnly } from '../auth/policy.js';
 import { assuranceStepUpStatus, ssoMfaAsk } from '../auth/assurance.js';
@@ -99,15 +99,19 @@ function meInfo(): Me | null {
   const user = users.getUser(u.id);
   if (u.emergency) user.mustChangePassword = false;
   // what the sidebar shows besides the capabilities (pages that are of no use to the user are left out)
-  // the plant registry module (#218): its area and link kinds while it is on (never for status viewers)
+  // the plant registry module (#218): its area and link kinds while it is on and theirs (never for status viewers)
+  const use = moduleUseStates(u);
+  const usesPlant = plantEnabled() && use.plant === 'on' && !isStatusViewer(u.roles);
   const nav = {
     viewAutomation: viewsAutomation(u),
     viewCredentials: credentials.mayReadSomeCredential(u),
-    plant: plantEnabled() && !isStatusViewer(u.roles),
-    plantManage: plantEnabled() && !isStatusViewer(u.roles) && plantManagesSome(u),
+    plant: usesPlant,
+    plantManage: usesPlant && plantManagesSome(u),
     plantOnly: plantOnly(u),
-    // the modules (0.11.0, ADR 0016): the sidebar, the pages and the search leave out what is switched off
-    modules: moduleStates(),
+    // the modules (0.11.0, ADR 0016): the sidebar, the pages and the search leave out what is switched off – and
+    // (0.21.0, ADR 0034) what the person does not use, the same way; moduleAccess says which of the two it is
+    modules: Object.fromEntries(Object.entries(use).map(([id, st]) => [id, st === 'on'])) as Record<ModuleId, boolean>,
+    moduleAccess: use,
   };
   return { user, capabilities: { ...capabilities(u), ...nav }, ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }

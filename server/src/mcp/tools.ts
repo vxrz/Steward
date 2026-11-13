@@ -5,7 +5,8 @@
  * paginated with opaque cursors and capped in size.
  */
 import { z } from 'zod';
-import { DATASET_STATUSES, MONITOR_STATUSES, TICKET_LINK_KINDS, TICKET_STATUSES, type DatasetRow } from '@sm/shared';
+import { DATASET_STATUSES, MONITOR_STATUSES, TICKET_LINK_KINDS, TICKET_STATUSES, moduleOfMcpTool, type DatasetRow } from '@sm/shared';
+import { db } from '../db.js';
 import { queryAudit } from '../audit.js';
 import { config } from '../config.js';
 import { currentUser } from '../auth/context.js';
@@ -25,6 +26,7 @@ import { planYear, platformPlanYear } from '../costs/plans.js';
 import { commitments } from '../costs/commitments.js';
 import type { CostCommitment, CostPlanYear } from '@sm/shared';
 import { moduleEnabled } from '../modules/registry.js';
+import { moduleAvailable } from '../modules/access.js';
 import { systemStatus } from '../system/routes.js';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
@@ -923,10 +925,21 @@ function inputSchema(t: ToolDef): Record<string, unknown> {
   return s;
 }
 
+/**
+ * Whether the token owner may have a tool: its own rule, and – for a tool of a module (shared/src/modules.ts,
+ * `access.mcpTools`) – the module is on and the owner uses it (ADR 0034), checked on every request, so taking access
+ * away works at once. tools/call refuses a tool that is not open like an unknown one.
+ */
+export function toolOpen(t: ToolDef, ctx: ToolContext): boolean {
+  const mod = moduleOfMcpTool(t.name);
+  if (mod && !moduleAvailable(mod, ctx.principal.user)) return false;
+  return !t.visible || t.visible(ctx);
+}
+
 /** The tool list for this token owner, in a fixed order (stable for client-side caching). */
 export function listTools(ctx: ToolContext): Record<string, unknown>[] {
   return allTools()
-    .filter((t) => !t.visible || t.visible(ctx))
+    .filter((t) => toolOpen(t, ctx))
     .map((t) => ({
       name: t.name,
       title: t.title,

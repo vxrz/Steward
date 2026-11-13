@@ -1,4 +1,5 @@
 import type { ImportedHistoryRef } from './api.js';
+import type { ModuleId } from './modules.js';
 import { BRAND } from './brand.js';
 import { contrastRatio } from './theme.js';
 /** Archived PDF reports (run reports and periodic summaries) and their branding. */
@@ -42,6 +43,11 @@ export interface ReportRecord {
   to?: string | null;
   /** Scheduled reports: the report schedule */
   scheduleId?: string | null;
+  /**
+   * Scheduled reports: the modules that can be restricted (ADR 0034) whose sections it holds – someone who does not use
+   * one of them does not read it (the recipients' copy without those sections instead)
+   */
+  modules?: ModuleId[];
 }
 
 export interface GenerateRunReportRequest {
