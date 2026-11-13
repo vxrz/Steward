@@ -31,8 +31,7 @@ import { DetailState, EmptyState } from '../components/common';
 import { ChangeIdModal, useAliasRedirect, useChangeId, type EntryRef } from '../components/plant/ids';
 import { DetailHeader } from '../components/page/DetailPage';
 import { Field, LinksPanel } from '../components/records/common';
-import { OwningTeams } from '../components/OwningTeams';
-import { AccessEditor } from '../components/AccessEditor';
+import { AccessTab } from '../components/access/AccessTab';
 import { confirmDanger } from '../components/confirm';
 import { fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
@@ -383,14 +382,6 @@ export function PlantSitePage() {
             {canManage && <SiteReviewSwitch site={s} onSaved={saved} />}
             {/* 0.14: how often the site's documentation should be confirmed as still current (a hint when due) */}
             {canManage && <SiteDocReviewSetting key={s.docReviewMonths ?? 0} site={s} onSaved={saved} />}
-            {canManage && s.acl && (
-              <Stack gap="xs" data-testid="site-access">
-                <Title order={2} fz="h4">
-                  {t('site.access')}
-                </Title>
-                <AccessEditor kind="site" acl={s.acl} onSave={async (acl) => saved(await put<PlantSiteDetail>(`${base}/access`, { acl }))} />
-              </Stack>
-            )}
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>
@@ -459,7 +450,8 @@ export function PlantSitePage() {
               </Text>
             </Stack>
           </Paper>
-          <OwningTeams kind="site" id={s.id} mt="md" />
+          {/* owning teams and shares (0.23.0, ADR 0033 phase 2: the access list became shares) */}
+          <AccessTab kind="site" id={s.id} mt="md" />
         </Grid.Col>
       </Grid>
       {editing && <SiteFormModal site={s} onClose={() => setEditing(false)} onSaved={saved} />}

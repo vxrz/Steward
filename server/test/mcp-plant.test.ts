@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 
 /**
  * The plant registry for AI assistants (0.12.0): read tools with the token owner's rights (site rights; not listed and
@@ -591,14 +591,14 @@ describe('security advisories (0.14)', () => {
     const hill = (await call(tok.vera, 'list_plant_advisories', { site: 'hillcrest' })).data;
     expect(hill.items[0]).toMatchObject({ trackingId: 'EXPM-SA-2026-007', affectedAssets: 0, possibleMatches: 2 });
     // a site the token owner may not see: nothing named
-    (await db()).run('UPDATE plant_sites SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:admin', permissions: ['view', 'manage'] }]), 'hillcrest');
+    await storeAcl('site', 'hillcrest', [{ subject: 'user:admin', permissions: ['view', 'manage'] }]);
     try {
       expect((await call(tok.vera, 'list_plant_advisories', { site: 'hillcrest' })).data.items).toEqual([]);
       const all = (await call(tok.vera, 'list_plant_advisories', { all: true })).data;
       expect(all.items.find((x: { trackingId: string }) => x.trackingId === 'EXPM-SA-2026-007')).toMatchObject({ sites: [], possibleMatches: 0 });
       expect((await call(tok.vera, 'get_plant_advisory', { id: 'adv_nope' })).isError).toBe(true);
     } finally {
-      (await db()).run("UPDATE plant_sites SET acl = '[]' WHERE id = ?", 'hillcrest');
+      await storeAcl('site', 'hillcrest', []);
     }
   });
 });

@@ -15,6 +15,7 @@ import { validateMonitorFile } from './validation.js';
 import { db } from '../db.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS } from '../auth/access.js';
+import { markDeprecated } from '../auth/acl-shares.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { monitorAccess } from '../auth/step-up-rules.js';
@@ -117,11 +118,21 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     svc.deleteMonitor(params(req).id!);
     return { ok: true };
   });
-  app.put('/monitors/:id/access', { config: { stepUp: { action: 'grantAccess', ...monitorAccess } } }, async (req) => {
+  // deprecated since 0.23.0 (ADR 0033 phase 2): the access list is written as shares (PUT /api/access/monitor/:id/shares);
+  // the owner stays here. Session only: share lists name people and are changed in the app
+  app.put('/monitors/:id/access', { config: { access: ACCESS.session, stepUp: { action: 'grantAccess', ...monitorAccess } } }, async (req, reply) => {
     const b = z
-      .object({ acl: z.array(z.object({ subject: z.string(), permissions: z.array(z.string()).max(50) })).max(500), owner: z.string().optional() })
+      .object({
+        acl: z
+          .array(z.object({ subject: z.string().max(200), permissions: z.array(z.string().max(40)).max(50) }))
+          .max(500)
+          .optional(),
+        owner: z.string().max(64).optional(),
+      })
       .parse(req.body);
-    return svc.setAccess(params(req).id!, b);
+    const out = svc.setAccess(params(req).id!, b);
+    if (b.acl !== undefined) markDeprecated(reply, 'monitor', out.id);
+    return out;
   });
   app.get('/monitors/:id/export', async (req, reply) => {
     const r = svc.requireMonitor(params(req).id!);

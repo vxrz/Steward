@@ -6,6 +6,7 @@ import {
   SHARE_LIMIT,
   latestShareEnd,
   levelIncludes,
+  shareLevelsOf,
   shareInputSchema,
   type OwnedKind,
   moduleOfItemKind,
@@ -60,8 +61,11 @@ export interface ShareKindDef<P extends string = string> {
   implied?: (id: string) => { subject: string; level: ShareLevel; as: 'owner' | 'responsible' }[];
   /** The teams that scope the item (default: its owning teams; an application without its own: its services') */
   teams?: (id: string) => OwningTeam[];
-  /** Who may switch Restricted (decision 15): administrators (the default) or the item's Manage holders as well */
-  restrictBy?: 'admin' | 'manage';
+  /**
+   * Who may switch Restricted (decision 15): administrators (the default), the item's Manage holders as well, or nobody
+   * (a kind whose instance roles give nothing anyway: platform identities)
+   */
+  restrictBy?: 'admin' | 'manage' | 'never';
 }
 
 const KINDS = new Map<OwnedKind, ShareKindDef>();
@@ -109,6 +113,8 @@ export function shareGains(before: ShareState, after: ShareState, now: number = 
       const rights = out.get(s.subject) ?? new Set<string>();
       for (const l of SHARE_LEVELS) if (levelIncludes(s.level, l)) rights.add(l);
       for (const a of s.actions) rights.add(a);
+      // Custom: its own rights count beside its level (changing it to a level gains what the level adds)
+      for (const r of s.rights ?? []) rights.add(`custom:${r}`);
       out.set(s.subject, rights);
     }
     // switching Restricted off gives the role defaults back (as emptying an access list did)
@@ -174,37 +180,74 @@ function endOf(v: string | null | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
+/**
+ * A share as the service writes it: what a form sends, and – for the deprecated access-list routes, which write a
+ * migrated entry's exact rights – Custom rights (`rights`, ADR 0033 "Migration"). Routes never pass `rights` (the schema
+ * strips it); left out, a share that keeps its level, action rights and end date keeps its Custom rights.
+ */
+export type ShareWrite = ShareInput & { rights?: readonly string[] | null };
+type CleanShare = Omit<ResourceShare, 'createdBy' | 'createdAt' | 'rights'> & { rights?: string[] | null };
+
 /** The shares of a request, cleaned: subjects in lower case, one share per subject (the last wins), action rights of the kind. */
-function cleanShares(kind: OwnedKind, input: readonly ShareInput[]): Omit<ResourceShare, 'createdBy' | 'createdAt'>[] {
+function cleanShares(kind: OwnedKind, input: readonly ShareWrite[]): CleanShare[] {
   const offered = SHARE_ACTIONS[kind] as readonly string[];
-  const out = new Map<string, Omit<ResourceShare, 'createdBy' | 'createdAt'>>();
+  const levels = shareLevelsOf(kind);
+  const out = new Map<string, CleanShare>();
   for (const raw of input) {
     const s = shareInputSchema.parse(raw);
+    if (!levels.includes(s.level))
+      throw new HttpError(400, `A share of a ${kind} cannot have the level ${s.level}`, 'SHARE_LEVEL_UNAVAILABLE', { level: s.level, kind });
     const subject = s.subject.trim().toLowerCase();
     const m = /^(user|team|role):(.+)$/.exec(subject);
     if (!m || (m[1] === 'role' && !(ROLES as readonly string[]).includes(m[2]!)))
       throw new HttpError(400, `Invalid subject "${subject}" – use user:<name>, team:<name> or role:<role>`, 'ACL_SUBJECT_INVALID', { subject });
     const unknown = s.actions.find((a) => !offered.includes(a));
     if (unknown) throw new HttpError(400, `A share of a ${kind} has no action right "${unknown}"`, 'SHARE_ACTION_UNKNOWN', { action: unknown });
-    out.set(subject, { subject, level: s.level, actions: [...new Set(s.actions)].sort(), expiresAt: endOf(s.expiresAt) });
+    const rights = raw.rights === undefined ? undefined : raw.rights === null ? null : [...new Set(raw.rights)].sort();
+    out.set(subject, {
+      subject,
+      level: s.level,
+      actions: [...new Set(s.actions)].sort(),
+      expiresAt: endOf(s.expiresAt),
+      ...(rights === undefined ? {} : { rights }),
+    });
   }
   return [...out.values()].sort((a, b) => a.subject.localeCompare(b.subject));
 }
 
-const describe = (s: Pick<ResourceShare, 'level' | 'actions' | 'expiresAt'>): string =>
-  `${s.level}${s.actions.length ? ` + ${s.actions.join(', ')}` : ''}${s.expiresAt ? ` until ${s.expiresAt.slice(0, 10)}` : ''}`;
-const plain = (s: Pick<ResourceShare, 'level' | 'actions' | 'expiresAt'>) => ({ level: s.level, actions: [...s.actions], expiresAt: s.expiresAt });
-const sameShare = (a: Pick<ResourceShare, 'level' | 'actions' | 'expiresAt'>, b: Pick<ResourceShare, 'level' | 'actions' | 'expiresAt'>) =>
-  a.level === b.level && a.expiresAt === b.expiresAt && a.actions.join() === [...b.actions].sort().join();
+/**
+ * The Custom rights of each new share: given ones as they are; left out, a share that keeps its level, action rights
+ * and end date keeps the stored ones, any other has none.
+ */
+function withRights(next: readonly CleanShare[], before: readonly ResourceShare[]): (Omit<ResourceShare, 'rights'> & { rights: string[] | null })[] {
+  const had = new Map(before.map((s) => [s.subject, s]));
+  return next.map((s) => {
+    const old = had.get(s.subject);
+    const rights = s.rights !== undefined ? s.rights : old && sameShare(s, old, false) ? (old.rights ?? null) : null;
+    return { ...s, rights: rights?.length ? rights : null, createdBy: '', createdAt: '' };
+  });
+}
+
+type ShareTerms = Pick<ResourceShare, 'level' | 'actions' | 'expiresAt' | 'rights'>;
+const describe = (s: ShareTerms): string =>
+  `${s.rights?.length ? `custom (${s.rights.join(', ')})` : `${s.level}${s.actions.length ? ` + ${s.actions.join(', ')}` : ''}`}${s.expiresAt ? ` until ${s.expiresAt.slice(0, 10)}` : ''}`;
+const plain = (s: ShareTerms) => ({ level: s.level, actions: [...s.actions], expiresAt: s.expiresAt, ...(s.rights?.length ? { rights: [...s.rights] } : {}) });
+/** Whether two shares are the same (`rights`: Custom rights compared as well). */
+const sameShare = (a: ShareTerms, b: ShareTerms, rights = true) =>
+  a.level === b.level &&
+  a.expiresAt === b.expiresAt &&
+  a.actions.join() === [...b.actions].sort().join() &&
+  (!rights || (a.rights ?? []).join() === (b.rights ?? []).join());
 
 /**
  * Whether replacing a resource's shares with `input` would give anyone a right – for a route's step-up rule
  * (`accessGrantRule(req => sharesWiden(…))`); throws on a list the service refuses (the route answers then).
  */
-export function sharesWiden(kind: OwnedKind, id: string, input: readonly ShareInput[]): boolean {
+export function sharesWiden(kind: OwnedKind, id: string, input: readonly ShareWrite[], restrictedAfter?: boolean): boolean {
   const restricted = isRestricted(kind, id);
-  const next = cleanShares(kind, input).map((s) => ({ ...s, createdBy: '', createdAt: '' }));
-  return shareGains({ restricted, shares: sharesOf(kind, id) }, { restricted, shares: next }).length > 0;
+  const before = sharesOf(kind, id);
+  const next = withRights(cleanShares(kind, input), before);
+  return shareGains({ restricted, shares: before }, { restricted: restrictedAfter ?? restricted, shares: next }).length > 0;
 }
 
 /**
@@ -220,7 +263,7 @@ export function previewShares(
   const before: ShareState = { restricted: isRestricted(kind, id), shares: sharesOf(kind, id) };
   const after: ShareState = {
     restricted: change.restricted ?? before.restricted,
-    shares: change.shares ? cleanShares(kind, change.shares).map((s) => ({ ...s, createdBy: '', createdAt: '' })) : before.shares,
+    shares: change.shares ? withRights(cleanShares(kind, change.shares), before.shares) : before.shares,
   };
   const losses = shareGains(after, before).map((g) => ({ ...g, rights: g.rights.map((r) => (r === 'extended' ? 'shortened' : r)) }));
   return { gains: shareGains(before, after), losses };
@@ -234,9 +277,14 @@ export interface ShareChange {
   id: string;
   /** What `heldShare()` / `heldOn()` say the author holds; only Manage changes shares */
   held: HeldShare | 'all';
-  shares: readonly ShareInput[];
+  shares: readonly ShareWrite[];
   /** The item for audit summaries, e.g. `service "Order intake"` (default: the kind's name for it) */
   label?: string;
+  /**
+   * Whether the change widens access, when the caller decided it in its own terms (the deprecated access-list routes
+   * compare the role defaults an emptied list gave back, auth/acl-shares.ts); default: any share gain
+   */
+  widens?: boolean;
 }
 
 /**
@@ -247,10 +295,10 @@ export interface ShareChange {
 export function setShares(c: ShareChange): ResourceShare[] {
   if (!managesShares(c.held)) throw forbidden();
   const now = Date.now();
-  const next = cleanShares(c.kind, c.shares);
   const label = c.label ?? labelOf(c.kind, c.id);
   expireShares(now, { kind: c.kind, id: c.id });
   const before = sharesOf(c.kind, c.id);
+  const next = withRights(cleanShares(c.kind, c.shares), before);
   // the shares a reader may not see are kept beside the ones they send (share-routes.ts): the limit holds for the sum
   if (next.length > SHARE_LIMIT && next.length > before.length)
     throw new HttpError(400, `An item has at most ${SHARE_LIMIT} shares`, 'LIMIT_REACHED', { max: SHARE_LIMIT });
@@ -276,17 +324,18 @@ export function setShares(c: ShareChange): ResourceShare[] {
       );
   }
   const restricted = isRestricted(c.kind, c.id);
-  const gains = shareGains({ restricted, shares: before }, { restricted, shares: next.map((s) => ({ ...s, createdBy: '', createdAt: '' })) }, now);
+  const gains = shareGains({ restricted, shares: before }, { restricted, shares: next }, now);
   // nobody shares more than they hold: every share that gives a right is within the author's own (ADR 0033 part 5)
   if (c.held !== 'all') {
     const held = c.held;
     for (const g of gains) {
       const s = next.find((x) => x.subject === g.subject)!;
-      if (!held.level || !levelIncludes(held.level, s.level) || s.actions.some((a) => !held.actions.includes(a)))
+      // (Custom rights come only from a migrated entry through the deprecated routes: they are never above their level's Manage)
+      if (!held.level || !levelIncludes(held.level, s.level) || s.actions.some((a) => !held.actions.includes(a)) || (s.rights && held.level !== 'manage'))
         throw new HttpError(403, `You cannot share more than you hold yourself (${s.subject})`, 'SHARE_EXCEEDS_OWN_RIGHTS', { subject: s.subject });
     }
   }
-  if (gains.length) requireAccessGrant();
+  if (c.widens ?? gains.length > 0) requireAccessGrant();
   const d = db();
   const ts = nowIso();
   const actor = currentActor();
@@ -307,13 +356,14 @@ export function setShares(c: ShareChange): ResourceShare[] {
       const granted = gains.find((g) => g.subject === s.subject)?.rights ?? [];
       if (!old) {
         d.run(
-          'INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, rights, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
           c.kind,
           c.id,
           s.subject,
           s.level,
           JSON.stringify(s.actions),
           s.expiresAt,
+          s.rights ? JSON.stringify(s.rights) : null,
           actor,
           ts,
         );
@@ -327,10 +377,11 @@ export function setShares(c: ShareChange): ResourceShare[] {
       } else if (!sameShare(s, old)) {
         // a new end date arms the reminder again
         d.run(
-          `UPDATE resource_shares SET level = ?, actions = ?, expires_at = ?${s.expiresAt !== old.expiresAt ? ', reminded_at = NULL' : ''} WHERE kind = ? AND resource_id = ? AND subject = ?`,
+          `UPDATE resource_shares SET level = ?, actions = ?, expires_at = ?, rights = ?${s.expiresAt !== old.expiresAt ? ', reminded_at = NULL' : ''} WHERE kind = ? AND resource_id = ? AND subject = ?`,
           s.level,
           JSON.stringify(s.actions),
           s.expiresAt,
+          s.rights ? JSON.stringify(s.rights) : null,
           c.kind,
           c.id,
           s.subject,
@@ -354,12 +405,20 @@ export function setShares(c: ShareChange): ResourceShare[] {
  * holders, administrators). Switching it off gives the role defaults back and asks for the step-up; switching it on
  * narrows. Audited as `access.scope_changed`. Returns whether anything changed.
  */
-export function setRestricted(c: { kind: OwnedKind; id: string; restricted: boolean; held: HeldShare | 'all'; label?: string }): boolean {
+export function setRestricted(c: {
+  kind: OwnedKind;
+  id: string;
+  restricted: boolean;
+  held: HeldShare | 'all';
+  label?: string;
+  /** Whether opening it widens access, when the caller decided it (see ShareChange.widens); default: always */
+  widens?: boolean;
+}): boolean {
   if (!managesShares(c.held)) throw forbidden();
   const before = isRestricted(c.kind, c.id);
   if (before === c.restricted) return false;
   const label = c.label ?? labelOf(c.kind, c.id);
-  if (!c.restricted) requireAccessGrant();
+  if (!c.restricted && c.widens !== false) requireAccessGrant();
   const teams = owningTeams(c.kind, c.id).map((t) => t.name);
   db().tx(() => {
     if (c.restricted)
@@ -388,6 +447,40 @@ export function setRestricted(c: { kind: OwnedKind; id: string; restricted: bool
   });
   sharesChanged();
   return true;
+}
+
+/**
+ * Copies the shares and the scope of a resource to its copy (_Duplicate_ with _Copy the access settings_, which only
+ * who manages the original may ask for, with the step-up): ended shares are left out. No audit of its own – the
+ * duplication is audited (`<kind>.duplicated`).
+ */
+export function copyShares(kind: OwnedKind, fromId: string, toId: string): void {
+  const ts = nowIso();
+  const actor = currentActor();
+  db().tx(() => {
+    for (const s of sharesOf(kind, fromId))
+      db().run(
+        'INSERT INTO resource_shares (kind, resource_id, subject, level, actions, expires_at, rights, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        kind,
+        toId,
+        s.subject,
+        s.level,
+        JSON.stringify(s.actions),
+        s.expiresAt,
+        s.rights?.length ? JSON.stringify(s.rights) : null,
+        actor,
+        ts,
+      );
+    if (isRestricted(kind, fromId))
+      db().run(
+        'INSERT INTO resource_restrictions (kind, resource_id, created_by, created_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        kind,
+        toId,
+        actor,
+        ts,
+      );
+  });
+  sharesChanged();
 }
 
 /** Removes the shares and the scope of a deleted resource (no audit: the deletion is). */

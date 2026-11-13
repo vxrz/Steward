@@ -73,7 +73,7 @@ A platform is one system Steward works with: an Insights Hub tenant, an Industri
 1. Create it with its kind, base URL and sign-in ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md)). Credentials go into the vault and are never shown again.
 2. Import its OpenAPI specs (by file, paste or URL), so the editor and the API explorer list its operations.
 3. **Test connection.** Use the API explorer to look at a real answer.
-4. Restrict it with an access list if only one team may use it, for example the production tenant ([USERS.md](USERS.md#platform-access-list)).
+4. Keep it to one team if only that team may use it, for example the production tenant: give it an owning team, or share it and make it Restricted on its _Access_ tab ([USERS.md](USERS.md#processes-and-platforms)).
 
 Requests that processes and monitors control may only reach the hosts the outbound policy allows. The default allows the configured platforms ([SECURITY-HARDENING.md](SECURITY-HARDENING.md#outbound-connections)).
 

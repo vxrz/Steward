@@ -217,9 +217,11 @@ describe('managing identities', () => {
       body: { code: 'IDENTITY_DEFAULT_NO_ACCESS_LIST' },
     });
     // managing is not using: a platform manager who is not listed may configure, not use
-    expect((await auditOf(`entityId=${p.id}&action=platform.identity_access_changed`))[0].details.acl).toEqual([
-      { subject: 'user:olivia', permissions: ['use'] },
-    ]);
+    // (since 0.23.0 the list is the identity's shares: audited as an access change on the identity)
+    expect((await auditOf(`entityId=${i.id}&action=access.share_added`))[0].details).toMatchObject({
+      subject: 'user:olivia',
+      after: { level: 'view', actions: ['use'] },
+    });
   });
 
   it('switches the default identity: audited, the new default is open to everyone, the former one closed', async () => {

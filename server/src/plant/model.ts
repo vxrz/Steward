@@ -830,6 +830,9 @@ export function removeSiteRows(id: string): void {
   db().run("DELETE FROM plant_refs WHERE kind = 'site' AND item_id = ?", id);
   db().run("DELETE FROM item_links WHERE from_kind = 'site' AND from_id = ?", id);
   db().run("DELETE FROM resource_teams WHERE kind = 'site' AND resource_id = ?", id);
+  // its shares and scope go with it (0.23.0): a later site with the same id does not inherit them
+  db().run("DELETE FROM resource_shares WHERE kind = 'site' AND resource_id = ?", id);
+  db().run("DELETE FROM resource_restrictions WHERE kind = 'site' AND resource_id = ?", id);
   db().run('DELETE FROM plant_sites WHERE id = ?', id);
 }
 

@@ -48,8 +48,8 @@ import { CopiedFromNote, DuplicateButton } from '../components/duplicate/Duplica
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { LibraryOriginBadge } from '../components/libraries/parts';
 import { RunDialog, loadBindings } from '../components/RunDialog';
-import { AccessEditor } from '../components/AccessEditor';
-import { OwningTeams } from '../components/OwningTeams';
+import { AccessTab } from '../components/access/AccessTab';
+import { OwnerField } from '../components/access/OwnerField';
 import { SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs';
 import { SettingsTab } from '../components/editor/SettingsTab';
 import { FlowEditor } from '../components/flow/FlowEditor';
@@ -433,25 +433,18 @@ export function ProcessEditorPage() {
             />
           </Tabs.Panel>
           <Tabs.Panel value="access" pt="md">
-            <OwningTeams kind="process" id={p.id} />
-            <AccessEditor
+            {/* 0.23.0 (ADR 0033 phase 2): the access list became shares – the Access tab, the owner beside it */}
+            <OwnerField
               kind="process"
-              acl={p.acl}
-              owner={p.owner}
-              readOnly={!p.permissions.includes('manage')}
-              onSave={async (acl, owner) => {
-                try {
-                  const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
-                  qc.setQueryData(processKeys.detail(id), (old: ProcessDetail | undefined) =>
-                    old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved,
-                  );
-                  qc.invalidateQueries({ queryKey: processKeys.all });
-                  notifyOk(t('page.accessSaved'));
-                } catch (e) {
-                  notifyError(e, t('page.accessNotSaved'));
-                }
+              id={p.id}
+              owner={p.owner ?? null}
+              canChange={p.permissions.includes('manage')}
+              onSaved={() => {
+                void qc.invalidateQueries({ queryKey: processKeys.detail(id) });
+                void qc.invalidateQueries({ queryKey: processKeys.all });
               }}
             />
+            <AccessTab kind="process" id={p.id} />
           </Tabs.Panel>
         </Tabs>
       </ExprProvider>

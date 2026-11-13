@@ -6,7 +6,7 @@ import { me } from '../auth/access.js';
 import { createMonitor, getMonitor } from '../monitors/service.js';
 import { canCreateMonitors } from '../monitors/model.js';
 import * as engine from '../monitors/engine.js';
-import { copyOwningTeams, type CopyInput, type Duplicator } from './common.js';
+import { copyAccessSettings, type CopyInput, type Duplicator } from './common.js';
 
 type Check = Record<string, unknown> & { id: string; type: string };
 type Def = Record<string, unknown> & { checks?: Check[]; links?: { from: string; to: string }[] };
@@ -114,8 +114,7 @@ export const monitorDuplicator: Duplicator<MonitorDetail> = {
     const id = r.monitor.id;
     if (input.copyAccess) {
       db().tx(() => {
-        db().run('UPDATE monitors SET acl = ? WHERE id = ?', JSON.stringify(m.acl), id);
-        copyOwningTeams('monitor', m.id, id);
+        copyAccessSettings('monitor', m.id, id);
       });
       engine.reloadMonitor(id);
     }

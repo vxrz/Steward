@@ -2478,6 +2478,7 @@
             "items": {
               "type": "string",
               "enum": [
+                "view",
                 "use",
                 "manage"
               ]

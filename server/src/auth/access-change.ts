@@ -49,6 +49,8 @@ export const ACCESS_AUDIT = {
   shareRemoved: 'access.share_removed',
   shareExpired: 'access.share_expired',
   scopeChanged: 'access.scope_changed',
+  /** The owner of a process or monitor changed: the new one has every right on it (0.23.0) */
+  ownerChanged: 'access.owner_changed',
 } as const;
 export type AccessAuditAction = (typeof ACCESS_AUDIT)[keyof typeof ACCESS_AUDIT] | `access.${string}`;
 

@@ -1,10 +1,9 @@
-import { PLANT_PERMISSIONS, coreRoleDefaults, moduleRoleRights, type AclEntry, type AccessReason, type PlantPermission, type Role } from '@sm/shared';
+import { PLANT_PERMISSIONS, coreRoleDefaults, moduleRoleRights, type AccessReason, type PlantPermission, type Role } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
-import { decide } from '../auth/policy.js';
+import { SITE_SHARE_MODEL, decide } from '../auth/policy.js';
 import { forbid } from '../auth/access.js';
 import { db } from '../db.js';
-import { parseJson } from '../util.js';
 import { moduleRole, usesModule } from '../modules/access.js';
 
 /**
@@ -23,15 +22,15 @@ import { moduleRole, usesModule } from '../modules/access.js';
  */
 export const DEFAULT_PLANT: Record<Role, PlantPermission[]> = coreRoleDefaults('plant', 'site', PLANT_PERMISSIONS);
 
-export function siteAccess(
-  u: AuthUser | null,
-  s: { id: string; acl: AclEntry<PlantPermission>[] | string },
-): { permissions: PlantPermission[]; reasons: AccessReason[] } {
+/** The rights on a site: owning teams, shares and the Restricted scope (the `acl` passed is no longer read, 0.23.0). */
+export function siteAccess(u: AuthUser | null, s: { id: string; acl?: unknown }): { permissions: PlantPermission[]; reasons: AccessReason[] } {
   // someone who does not use the plant registry (ADR 0034) has no right on a site: wherever a core page names a site
   // or an asset (maintenance targets, impact, links), they see nothing of it
   if (u && !usesModule(u, 'plant')) return { permissions: [], reasons: [] };
-  const acl = typeof s.acl === 'string' ? parseJson<AclEntry<PlantPermission>[]>(s.acl, []) : s.acl;
-  const d = decide(u, { kind: 'site', id: s.id, acl }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view', { module: { id: 'plant', kind: 'site' } });
+  const d = decide(u, { kind: 'site', id: s.id, acl: [] }, PLANT_PERMISSIONS, DEFAULT_PLANT, 'view', {
+    module: { id: 'plant', kind: 'site' },
+    shares: SITE_SHARE_MODEL,
+  });
   // managing a site includes seeing it and proposing changes; proposing includes seeing it
   if (d.permissions.includes('manage')) d.permissions = [...PLANT_PERMISSIONS];
   else if (d.permissions.includes('propose') && !d.permissions.includes('view')) d.permissions = ['view', 'propose'];
@@ -40,7 +39,7 @@ export function siteAccess(
   return d;
 }
 
-export const sitePermissions = (s: { id: string; acl: string }, u: AuthUser | null = currentUser()): PlantPermission[] => siteAccess(u, s).permissions;
+export const sitePermissions = (s: { id: string; acl?: unknown }, u: AuthUser | null = currentUser()): PlantPermission[] => siteAccess(u, s).permissions;
 
 /** Who may add sites (and import files with new sites): the plant module's managers – administrators and designers by default. */
 const createsSites = (u: AuthUser | null): boolean => moduleRoleRights('plant', moduleRole('plant', u), 'registry').includes('createSites');

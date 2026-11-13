@@ -63,7 +63,7 @@ export interface UserModuleRole {
 
 export const PROCESS_PERMISSIONS = ['view', 'run', 'edit', 'approve', 'manage'] as const;
 export type ProcessPermission = (typeof PROCESS_PERMISSIONS)[number];
-export const PLATFORM_PERMISSIONS = ['use', 'manage'] as const;
+export const PLATFORM_PERMISSIONS = ['view', 'use', 'manage'] as const;
 export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[number];
 
 /** subject: user:<username> | team:<team name> | role:<role> */
@@ -467,6 +467,8 @@ export interface AccessReason {
   level?: ShareLevel;
   actions?: ShareAction[];
   expiresAt?: string | null;
+  /** source share: a Custom share (a migrated access-list entry no level expresses) – it gives exactly `permissions` */
+  custom?: boolean;
   permissions: string[];
 }
 
@@ -853,8 +855,13 @@ export interface PlatformIdentity {
   operationFilter: IdentityOperationFilter | null;
   /** Operations of the filter that no longer resolve (a spec was removed or changed): they match nothing (0.13.0) */
   staleOperations?: number;
-  /** Who may use it besides the platform's users (0.13.0): never set on the default identity (everyone with "use") */
+  /**
+   * Who may use it besides the platform's users (0.13.0): never set on the default identity (everyone with "use").
+   * Deprecated since 0.23.0: computed from the identity's shares, for who manages the platform (empty for others)
+   */
   acl?: AclEntry<'use'>[];
+  /** How many shares say who may use it (0.23.0; not set on the default identity) */
+  shared?: number;
   /**
    * Kept but not usable (0.13.0): it was added or changed outside Steward when an administrator confirmed the platform's
    * settings – no credentials are sent with it until an administrator enables it (POST …/identities/:iid/enable).
@@ -969,7 +976,10 @@ export interface Platform {
    * changed outside the application (e.g. directly in the database) – no requests until an administrator confirms.
    */
   integrity?: 'ok' | 'unsealed' | 'mismatch' | 'locked';
+  /** Deprecated since 0.23.0 (ADR 0033): the shares as the former access list, for who manages it (empty for others) */
   acl: AclEntry<PlatformPermission>[];
+  /** Restricted (0.23.0): instance roles give nothing on it – only its owning teams and shares */
+  restricted?: boolean;
   /** What the current user may do with this platform. */
   permissions: PlatformPermission[];
   createdAt: string;
@@ -1096,7 +1106,10 @@ export interface ProcessSummary {
   updatedAt: string;
   lastRun?: { id: string; status: RunStatus; outcome?: RunOutcome; startedAt: string } | null;
   owner?: string | null;
+  /** Deprecated since 0.23.0 (ADR 0033): the shares as the former access list, for who manages it (empty for others) */
   acl: AclEntry<ProcessPermission>[];
+  /** Restricted (0.23.0): instance roles give nothing on it – only its owning teams and shares */
+  restricted?: boolean;
   /** What the current user may do with this process. */
   permissions: ProcessPermission[];
 }

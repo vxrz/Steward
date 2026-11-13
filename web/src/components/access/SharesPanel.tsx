@@ -15,8 +15,7 @@ import {
   type ShareLevel,
 } from '@sm/shared';
 import { get, notifyError, notifyOk, post, put } from '../../api';
-import { useSubjectLabel, useSubjects } from '../SubjectsInput';
-import { subjectOptionLabel } from '../AccessEditor';
+import { subjectOptionLabel, useSubjectLabel, useSubjects } from '../SubjectsInput';
 
 /** One share as the form edits it (end date as a day, empty: none). */
 interface Draft {
@@ -25,6 +24,8 @@ interface Draft {
   actions: ShareAction[];
   until: string;
   known: boolean;
+  /** Custom: the exact rights of a migrated access-list entry (kept while the share is left as it is) */
+  custom: string[] | null;
 }
 
 const toDraft = (v: ResourceAccessView): Draft[] =>
@@ -34,6 +35,7 @@ const toDraft = (v: ResourceAccessView): Draft[] =>
     actions: [...s.actions],
     until: s.expiresAt ? s.expiresAt.slice(0, 10) : '',
     known: s.known,
+    custom: s.rights?.length ? [...s.rights] : null,
   }));
 const toInput = (d: Draft[]): ShareInput[] => d.map((s) => ({ subject: s.subject, level: s.level, actions: s.actions, expiresAt: s.until || null }));
 const same = (a: Draft[], b: Draft[]) => JSON.stringify(toInput(a)) === JSON.stringify(toInput(b));
@@ -127,12 +129,24 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
     }
   };
 
-  const update = (i: number, change: Partial<Draft>) => setDraft((d) => d.map((s, j) => (j === i ? { ...s, ...change } : s)));
+  // changing a share replaces its Custom rights with its level and action rights
+  const update = (i: number, change: Partial<Draft>) => setDraft((d) => d.map((s, j) => (j === i ? { ...s, ...change, custom: null } : s)));
   const held = v.held;
   const mayLevel = (l: ShareLevel) => held === 'all' || (!!held.level && levelIncludes(held.level, l));
   const mayAction = (a: ShareAction) => held === 'all' || held.actions.includes(a);
-  const levelData = SHARE_LEVELS.map((l) => ({ value: l, label: t(`owning.level.${l}`), disabled: !mayLevel(l) }));
-  const scopeText = v.scope === 'teams' ? t('shares.scope.teams', { teams: v.owningTeams.map((x) => x.name).join(', ') }) : t(`shares.scope.${v.scope}`);
+  // the levels the kind offers (a platform and a site: View and Manage; an identity: View with "use")
+  const levelData = v.levels.map((l) => ({ value: l, label: t(`owning.level.${l}`), disabled: !mayLevel(l) }));
+  const oneLevel = v.levels.length === 1;
+  // an identity's share means nothing without "use": a new one carries it
+  const newActions: ShareAction[] = oneLevel ? v.actions.filter(mayAction) : [];
+  const rightName = (r: string) => t(`common:permissions.${r}`, { defaultValue: r });
+  // an identity is closed by default whatever its scope (ADR 0009): instance roles give nothing on it
+  const scopeText =
+    v.kind === 'platform_identity'
+      ? t('shares.scope.identity')
+      : v.scope === 'teams'
+        ? t('shares.scope.teams', { teams: v.owningTeams.map((x) => x.name).join(', ') })
+        : t(`shares.scope.${v.scope}`);
   const maxDay = v.maxEnd.slice(0, 10);
 
   return (
@@ -203,18 +217,25 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                           {t('shares.unknown')}
                         </Text>
                       )}
+                      {s.custom && (
+                        <Text size="xs" c="dimmed" data-testid="share-custom">
+                          {t('shares.custom', { rights: s.custom.map(rightName).join(', ') })}
+                        </Text>
+                      )}
                     </Stack>
                     {v.canManage ? (
                       <>
-                        <Select
-                          label={t('shares.level')}
-                          data={levelData}
-                          value={s.level}
-                          onChange={(l) => l && update(i, { level: l as ShareLevel })}
-                          allowDeselect={false}
-                          w={140}
-                          aria-label={t('shares.levelFor', { name })}
-                        />
+                        {!oneLevel && (
+                          <Select
+                            label={t('shares.level')}
+                            data={levelData}
+                            value={s.level}
+                            onChange={(l) => l && update(i, { level: l as ShareLevel })}
+                            allowDeselect={false}
+                            w={140}
+                            aria-label={t('shares.levelFor', { name })}
+                          />
+                        )}
                         {v.actions.map((a) => (
                           <Checkbox
                             key={a}
@@ -245,7 +266,7 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                       </>
                     ) : (
                       <Badge variant="light">
-                        {[t(`owning.level.${s.level}`), ...s.actions.map((a) => t(`common:permissions.${a}`, { defaultValue: a }))].join(', ')}
+                        {(s.custom ? [t('shares.customShort')] : [t(`owning.level.${s.level}`), ...s.actions.map(rightName)]).join(', ')}
                         {s.until ? ` · ${t('shares.untilShort', { date: s.until })}` : ''}
                       </Badge>
                     )}
@@ -264,7 +285,7 @@ export function SharesPanel({ kind, id }: { kind: OwnedKind; id: string }) {
                   restricted={v.restricted}
                   taken={draft.map((s) => s.subject)}
                   levels={levelData}
-                  onAdd={(subject, level) => setDraft((d) => [...d, { subject, level, actions: [], until: '', known: true }])}
+                  onAdd={(subject, level) => setDraft((d) => [...d, { subject, level, actions: newActions, until: '', known: true, custom: null }])}
                 />
                 <Group gap="xs">
                   <Button onClick={() => void askSave()} disabled={!dirty} loading={busy && !preview}>
@@ -300,7 +321,8 @@ function AddShare({
   const subjects = useSubjects();
   const [subject, setSubject] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
-  const [level, setLevel] = useState<ShareLevel>('view');
+  const first = (levels.find((l) => !l.disabled)?.value ?? 'view') as ShareLevel;
+  const [level, setLevel] = useState<ShareLevel>(first);
   const list = useMemo(
     () =>
       (subjects.data ?? []).filter(
@@ -341,15 +363,17 @@ function AddShare({
           data-testid="share-subject"
         />
       )}
-      <Select
-        label={t('shares.level')}
-        data={levels}
-        value={level}
-        onChange={(l) => l && setLevel(l as ShareLevel)}
-        allowDeselect={false}
-        w={140}
-        aria-label={t('shares.newLevel')}
-      />
+      {levels.length > 1 && (
+        <Select
+          label={t('shares.level')}
+          data={levels}
+          value={level}
+          onChange={(l) => l && setLevel(l as ShareLevel)}
+          allowDeselect={false}
+          w={140}
+          aria-label={t('shares.newLevel')}
+        />
+      )}
       <Button
         variant="light"
         disabled={!valid}
@@ -358,7 +382,7 @@ function AddShare({
           onAdd(value, level);
           setSubject(null);
           setTyped('');
-          setLevel('view');
+          setLevel(first);
         }}
       >
         {t('shares.addButton')}
@@ -392,7 +416,9 @@ function PreviewModal({
           ? t(`owning.level.${x as ShareLevel}`)
           : ['extended', 'shortened', 'roleDefaults'].includes(x)
             ? t(`shares.change.${x as 'extended'}`)
-            : t(`common:permissions.${x}`, { defaultValue: x }),
+            : x.startsWith('custom:')
+              ? t('shares.customRight', { right: t(`common:permissions.${x.slice(7)}`, { defaultValue: x.slice(7) }) })
+              : t(`common:permissions.${x}`, { defaultValue: x }),
       )
       .join(', ');
   const who = (s: string) => (s === 'scope' ? t('shares.everyoneByRole') : subjectName(s));

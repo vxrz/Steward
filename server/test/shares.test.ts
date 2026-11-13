@@ -201,12 +201,11 @@ describe('the policy', () => {
     expect(decideFor('pat', 'ended').reasons[0]!.expiresAt).toBeTruthy();
   });
 
-  it('counts nothing for a kind that passes no share model (no kind is switched yet)', async () => {
+  it('counts nothing for a kind that passes no share model', async () => {
     await store('nomodel', 'user:vic', 'manage');
     await restrict('nomodel');
     const d = ctx.runAs(null, () => policy.decide(userOf('vic'), { kind: 'contract', id: 'nomodel', acl: [] }, ALL, DEFAULTS, 'view'));
     expect(d.permissions).toEqual(['view']); // the viewer's role default, the share and Restricted ignored
-    expect(ctx.runAs(null, () => policy.contractAccess(userOf('vic'), { id: 'nomodel' })).reasons.some((r) => r.source === 'share')).toBe(false);
   });
 
   it('says what someone holds in share terms; only Manage changes shares', () => {

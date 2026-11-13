@@ -185,7 +185,8 @@
     "scope": {
       "instance": "Scope: the whole instance – everybody's roles apply, and the shares below add to them.",
       "teams": "Scope: the owning teams ({{teams}}) – their members have their roles, and the shares below add exceptions.",
-      "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item."
+      "restricted": "Scope: Restricted – only the shares below, owners, administrators and auditors reach this item.",
+      "identity": "Closed by default: only administrators, members of its owning teams who design or operate, and the entries below use this identity – and only who may use the platform as well."
     },
     "restricted": "Restricted",
     "restrictedHint": "Instance roles give nothing on this item: only its shares, owners, administrators and auditors reach it.",
@@ -195,7 +196,7 @@
       "responsible": "Responsible"
     },
     "outside": "outside the owning teams",
-    "impliedHint": "Owners have an implied Edit share: it is computed from the owner field and goes when the owner is removed.",
+    "impliedHint": "Owners and responsibles have an implied share with the level shown: it is computed from the owner field and goes when the owner is removed.",
     "notYours": "Only who manages this item, administrators and auditors see whom it is shared with. Why do I have access? shows your own reasons.",
     "empty": "Not shared with anyone.",
     "unknown": "No longer exists – this share matches nobody",
@@ -227,6 +228,13 @@
       "roleDefaults": "the defaults of their roles"
     },
     "stepUpHint": "Giving access asks you to confirm it is you.",
-    "confirm": "Save"
-  }
+    "confirm": "Save",
+    "custom": "Custom: {{rights}} – exactly the rights of its former access-list entry. Changing the share replaces them with its level.",
+    "customShort": "Custom",
+    "customRight": "{{right}} (custom)"
+  },
+  "ownerSave": "Save owner",
+  "ownerSaved": "Owner saved",
+  "ownerNotSaved": "The owner could not be saved",
+  "ownerNotYours": "Who manages this item changes its owner."
 }

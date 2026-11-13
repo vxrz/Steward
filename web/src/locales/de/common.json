@@ -98,7 +98,8 @@
     "manage": "Verwalten",
     "use": "Nutzen",
     "acknowledge": "Bestätigen",
-    "test": "Testen"
+    "test": "Testen",
+    "relax": "Regel für inkompatible Änderungen lockern"
   },
   "breadcrumb": "Navigationspfad",
   "loadFailed": "Die Seite konnte nicht geladen werden",

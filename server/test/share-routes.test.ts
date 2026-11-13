@@ -99,7 +99,7 @@ describe('reading the Access tab', () => {
       owningTeams: [],
       hidden: 0,
       implied: [],
-      actions: ['test'],
+      actions: ['test', 'relax'],
       canManage: true,
       canRestrict: false,
       held: { level: 'manage', actions: [] },

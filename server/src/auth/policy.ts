@@ -24,6 +24,8 @@ import {
   type NewResourceTeams,
   type TeamNewResourceMode,
   type OwnedKind,
+  type MonitorPermission,
+  type PlantPermission,
   type PlatformPermission,
   type ProcessPermission,
   type Role,
@@ -321,7 +323,11 @@ export function shareReasons<P extends string>(u: AuthUser, r: { kind: OwnedKind
     level: s.level,
     ...(s.actions.length ? { actions: [...s.actions] } : {}),
     ...(s.expiresAt ? { expiresAt: s.expiresAt } : {}),
-    permissions: [...new Set<string>([...model.levels[s.level], ...s.actions.flatMap((a) => model.actions?.[a] ?? [])])],
+    // Custom (a migrated access-list entry no level expresses): exactly its rights
+    permissions: s.rights?.length
+      ? [...new Set(s.rights)]
+      : [...new Set<string>([...model.levels[s.level], ...s.actions.flatMap((a) => model.actions?.[a] ?? [])])],
+    ...(s.rights?.length ? { custom: true } : {}),
   }));
 }
 
@@ -401,17 +407,63 @@ export function decide<P extends string>(
   return { permissions: all.filter((x) => granted.has(x)), reasons };
 }
 
-export function processAccess(u: AuthUser | null, p: { id: string; owner?: string | null; acl: AclEntry<ProcessPermission>[] }): Decision<ProcessPermission> {
-  const d = decide(u, { kind: 'process', ...p }, PROCESS_PERMISSIONS, DEFAULT_PROCESS, 'view');
+// ---------- the kinds whose access lists became shares (0.23.0, ADR 0033 phase 2) ----------
+
+/**
+ * The access lists of processes, platforms, identities, monitors and sites were migrated to shares one to one
+ * (migrations/access.ts): their `acl` columns are no longer read – the `acl` the callers still pass is ignored – and
+ * shares and the Restricted scope decide instead. A share's level and action rights give the kind's own rights below.
+ */
+export type Legacy = { acl?: unknown };
+
+/** Process: View sees it and what follows it, Edit changes the definition, Manage also its shares, owner and archive. */
+export const PROCESS_SHARE_MODEL: ShareModel<ProcessPermission> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+  actions: { run: ['view', 'run'], approve: ['view', 'approve'] },
+};
+
+/** Platform: View sees the page and its health, Manage changes it and its shares; `use` calls it (Edit is not offered yet). */
+export const PLATFORM_SHARE_MODEL: ShareModel<PlatformPermission> = {
+  levels: { view: ['view'], edit: ['view'], manage: ['view', 'use', 'manage'] },
+  actions: { use: ['view', 'use'] },
+};
+
+/** A platform identity: its share is View with `use`; Manage is the platform's (who manages it changes the identities' shares). */
+export const IDENTITY_SHARE_MODEL: ShareModel<'use' | 'manage'> = {
+  levels: { view: [], edit: [], manage: ['manage'] },
+  actions: { use: ['use'] },
+};
+
+/** Monitor: Manage includes acknowledging, as `manage` did. */
+export const MONITOR_SHARE_MODEL: ShareModel<MonitorPermission> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage', 'acknowledge'] },
+  actions: { acknowledge: ['view', 'acknowledge'] },
+};
+
+/**
+ * Plant site: View sees it and what follows it, Manage changes it, its entries and its shares (one right, `manage`, as
+ * before – Edit is not offered yet); `propose` beside.
+ */
+export const SITE_SHARE_MODEL: ShareModel<PlantPermission> = {
+  levels: { view: ['view'], edit: ['view'], manage: ['view', 'propose', 'manage'] },
+  actions: { propose: ['view', 'propose'] },
+};
+
+export function processAccess(u: AuthUser | null, p: { id: string; owner?: string | null } & Legacy): Decision<ProcessPermission> {
+  const d = decide(u, { kind: 'process', id: p.id, owner: p.owner, acl: [] }, PROCESS_PERMISSIONS, DEFAULT_PROCESS, 'view', { shares: PROCESS_SHARE_MODEL });
   // any right on a process includes seeing it
   if (d.permissions.length && !d.permissions.includes('view')) d.permissions = PROCESS_PERMISSIONS.filter((x) => x === 'view' || d.permissions.includes(x));
   return d;
 }
 
-export function platformAccess(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }): Decision<PlatformPermission> {
-  const d = decide(u, { kind: 'platform', ...p }, PLATFORM_PERMISSIONS, DEFAULT_PLATFORM);
-  // manage includes use
-  if (d.permissions.includes('manage') && !d.permissions.includes('use')) d.permissions = [...PLATFORM_PERMISSIONS];
+export function platformAccess(u: AuthUser | null, p: { id: string } & Legacy): Decision<PlatformPermission> {
+  // auditors view every platform (0.23.0, decision 8): also a team's and a Restricted one
+  const d = decide(u, { kind: 'platform', id: p.id, acl: [] }, PLATFORM_PERMISSIONS, DEFAULT_PLATFORM, 'view', { shares: PLATFORM_SHARE_MODEL });
+  // manage includes use; any right includes seeing it
+  const out = new Set(d.permissions);
+  if (out.has('manage')) out.add('use');
+  if (out.size) out.add('view');
+  d.permissions = PLATFORM_PERMISSIONS.filter((x) => out.has(x));
   return d;
 }
 
@@ -428,10 +480,9 @@ const DEFAULT_IDENTITY_USE: Record<Role, readonly 'use'[]> = {
 };
 
 /** What identityAccess needs to know of an identity. */
-export interface IdentityForAccess {
+export interface IdentityForAccess extends Legacy {
   id: string;
   default: boolean;
-  acl: AclEntry<'use'>[];
 }
 
 /**
@@ -440,13 +491,14 @@ export interface IdentityForAccess {
  * other identity is closed by default: only administrators, members of its owning teams whose role gives `use`
  * (designer, operator) and its access list. Managing the platform does not make someone a user of its identities.
  */
-export function identityAccess(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }, identity: IdentityForAccess): Decision<'use'> {
+export function identityAccess(u: AuthUser | null, p: { id: string } & Legacy, identity: IdentityForAccess): Decision<'use'> {
   const platform = platformAccess(u, p);
   const viaPlatform = platform.reasons.filter((r) => r.permissions.includes('use')).map((r) => ({ ...r, permissions: ['use'] }));
   if (!platform.permissions.includes('use')) return { permissions: [], reasons: [] };
   if (identity.default) return { permissions: ['use'], reasons: viaPlatform };
-  const d = decide(u, { kind: 'platform_identity', id: identity.id, acl: identity.acl }, ['use'] as const, DEFAULT_IDENTITY_USE, undefined, {
+  const d = decide(u, { kind: 'platform_identity', id: identity.id, acl: [] }, ['use'] as const, DEFAULT_IDENTITY_USE, undefined, {
     instanceDefaults: false,
+    shares: IDENTITY_SHARE_MODEL as ShareModel<'use'>,
   });
   return d.permissions.includes('use') ? { permissions: ['use'], reasons: [...viaPlatform, ...d.reasons] } : { permissions: [], reasons: [] };
 }
@@ -455,30 +507,54 @@ export function identityAccess(u: AuthUser | null, p: { id: string; acl: AclEntr
  * Whether `u` may see data read from a platform (dataset partitions, #142): from a platform of the whole instance
  * without an access list everyone who sees the dataset; otherwise members of its owning teams and whoever may use it.
  */
-export function platformDataVisible(u: AuthUser | null, p: { id: string; acl: AclEntry<PlatformPermission>[] }): boolean {
+export function platformDataVisible(u: AuthUser | null, p: { id: string } & Legacy): boolean {
   if (!u) return false;
   const d = platformAccess(u, p);
   if (d.permissions.includes('use')) return true;
   const teams = owningTeams('platform', p.id);
-  if (!teams.length) return !p.acl.length;
+  // (a Restricted platform: as one whose access list had entries)
+  if (!teams.length) return !isRestricted('platform', p.id);
   const mine = memberships(u);
   return teams.some((t) => mine.has(t.id));
 }
 
 // ---------- data contracts (#221) ----------
 
+/**
+ * The rights on a data contract as deciding knows them (0.23.0): `relax` switches off "breaking changes need a change
+ * record" (decision 12, the former `manage`), `share` changes its shares – Manage (decision 13: designers among the
+ * members, all designers while it has no owning teams). The public `permissions` name `relax` also `manage` (its
+ * former name, for one release) and leave `share` out.
+ */
+export type ContractRight = 'view' | 'test' | 'edit' | 'relax' | 'share';
+const CONTRACT_RIGHTS: readonly ContractRight[] = ['view', 'test', 'edit', 'relax', 'share'];
+
 /** What each role may do with a data contract: see it, run its tests, change it (new versions, links, settings). */
-export const DEFAULT_CONTRACT: Record<Role, readonly DataContractPermission[]> = {
-  admin: DATA_CONTRACT_PERMISSIONS,
-  designer: ['view', 'test', 'edit'],
+export const DEFAULT_CONTRACT: Record<Role, readonly ContractRight[]> = {
+  admin: CONTRACT_RIGHTS,
+  designer: ['view', 'test', 'edit', 'share'],
   operator: ['view', 'test'],
   // approvers approve changes: they may also switch off the rule that breaking changes need a change record (0.9.0)
-  approver: ['view', 'manage'],
+  approver: ['view', 'relax'],
   auditor: ['view'],
   viewer: ['view'],
   status: [],
   plant: [],
 };
+
+/** How a share gives rights on a data contract: View, Edit (new versions, links), Manage (its shares); test and relax beside. */
+export const CONTRACT_SHARE_MODEL: ShareModel<ContractRight> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'share'] },
+  actions: { test: ['view', 'test'], relax: ['view', 'relax'] },
+};
+
+/** The rights on a data contract as deciding knows them (shares, Restricted), with `share` (the Access tab). */
+export function contractRights(u: AuthUser | null, c: { id: string }): Decision<ContractRight> {
+  const d = decide(u, { kind: 'contract', id: c.id, acl: [] }, CONTRACT_RIGHTS, DEFAULT_CONTRACT, 'view', { shares: CONTRACT_SHARE_MODEL });
+  // any right on a contract includes seeing it
+  if (d.permissions.length && !d.permissions.includes('view')) d.permissions = CONTRACT_RIGHTS.filter((x) => x === 'view' || d.permissions.includes(x));
+  return d;
+}
 
 /**
  * The rights on a data contract (#221): without owning teams every role that works in Steward sees it, operators run
@@ -487,11 +563,11 @@ export const DEFAULT_CONTRACT: Record<Role, readonly DataContractPermission[]> =
  * administrators may do everything. Contracts have no access list.
  */
 export function contractAccess(u: AuthUser | null, c: { id: string }): Decision<DataContractPermission> {
-  const d = decide(u, { kind: 'contract', id: c.id, acl: [] }, DATA_CONTRACT_PERMISSIONS, DEFAULT_CONTRACT, 'view');
-  // any right on a contract includes seeing it
-  if (d.permissions.length && !d.permissions.includes('view'))
-    d.permissions = DATA_CONTRACT_PERMISSIONS.filter((x) => x === 'view' || d.permissions.includes(x));
-  return d;
+  const d = contractRights(u, c);
+  const has = new Set<string>(d.permissions);
+  // relax under its former name as well (deprecated, one release)
+  if (has.has('relax')) has.add('manage');
+  return { permissions: DATA_CONTRACT_PERMISSIONS.filter((x) => has.has(x)), reasons: d.reasons };
 }
 
 // ---------- the service catalogue: services, applications, systems ----------
@@ -629,8 +705,20 @@ export interface RecordDecision {
   view: boolean;
   edit: boolean;
   approve: boolean;
+  /** Changing its shares and naming an owner from outside its owning teams (0.23.0, ADR 0033 decision 3) */
+  manage: boolean;
   reasons: AccessReason[];
 }
+
+/**
+ * How a share gives rights on a record, a credential, a ticket reference or a dashboard (0.23.0, ADR 0033 phase 2):
+ * View sees it, Edit changes it, Manage also changes its shares.
+ */
+export const ITEM_SHARE_MODEL: ShareModel<'view' | 'edit' | 'manage'> = {
+  levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
+};
+/** Who manages a record by role (who named outside owners before shares): designers – in its owning teams, when it has some. */
+const RECORD_MANAGERS: readonly Role[] = ['admin', 'designer'];
 
 /**
  * Seeing, changing and approving a record (#131). Without owning teams: everybody signed in sees it, editors by role
@@ -639,28 +727,35 @@ export interface RecordDecision {
  * Document editions, reviews, attachments and links follow their record.
  */
 export function recordAccess(u: AuthUser | null, r: { id: string; owner: string }): RecordDecision {
-  if (!u) return { view: false, edit: false, approve: false, reasons: [] };
-  const all = ['view', 'edit', 'approve'];
-  if (isAdmin(u)) return { view: true, edit: true, approve: true, reasons: [{ source: 'admin', role: 'admin', permissions: all }] };
+  if (!u) return { view: false, edit: false, approve: false, manage: false, reasons: [] };
+  const all = ['view', 'edit', 'approve', 'manage'];
+  if (isAdmin(u)) return { view: true, edit: true, approve: true, manage: true, reasons: [{ source: 'admin', role: 'admin', permissions: all }] };
   const reasons: AccessReason[] = [];
   const rights = (roles: readonly Role[]) => [
     'view',
     ...(roles.some((x) => RECORD_EDITORS.includes(x)) ? ['edit'] : []),
     ...(roles.some((x) => RECORD_APPROVERS.includes(x)) ? ['approve'] : []),
+    ...(roles.some((x) => RECORD_MANAGERS.includes(x)) ? ['manage'] : []),
   ];
   // the plant role (#218) gives nothing on records and documents: plant viewers see the plant registry only
   const working = (roles: readonly Role[]) => roles.filter((x) => x !== 'plant');
-  if (r.owner && r.owner.toLowerCase() === u.username.toLowerCase()) reasons.push({ source: 'owner', permissions: ['view', 'edit'] });
+  // its owner: an implied Edit share (0.23.0, ADR 0033 part 2)
+  if (r.owner && r.owner.toLowerCase() === u.username.toLowerCase())
+    reasons.push({ source: 'implied', as: 'owner', subject: `user:${r.owner.toLowerCase()}`, level: 'edit', permissions: ['view', 'edit'] });
   const teams = owningTeams('record', r.id);
   if (!teams.length) {
-    for (const role of working(u.roles)) reasons.push({ source: 'instanceRole', role, permissions: rights([role]) });
+    // Restricted (0.23.0): instance roles give nothing, auditors still see it
+    if (isRestricted('record', r.id)) {
+      if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
+    } else for (const role of working(u.roles)) reasons.push({ source: 'instanceRole', role, permissions: rights([role]) });
   } else {
     if (u.roles.includes('auditor')) reasons.push({ source: 'auditor', role: 'auditor', permissions: ['view'] });
     for (const m of teamRoles(u, teams))
       for (const role of working(m.roles)) reasons.push({ source: 'teamRole', role, team: m.team, permissions: rights([role]) });
   }
+  reasons.push(...shareReasons(u, { kind: 'record', id: r.id }, ITEM_SHARE_MODEL));
   const granted = new Set(reasons.flatMap((x) => x.permissions));
-  return { view: granted.has('view'), edit: granted.has('edit'), approve: granted.has('approve'), reasons };
+  return { view: granted.has('view'), edit: granted.has('edit'), approve: granted.has('approve'), manage: granted.has('manage'), reasons };
 }
 
 // ---------- credentials, dashboards, ticket references: their own rules while they have no owning teams ----------
@@ -677,9 +772,13 @@ export function teamScoped<P extends string>(
     all: readonly P[];
     byRole: (role: Role) => readonly P[];
     /** `as`: a named owner or responsible (#195) – the subject that matched; without it the item's own owner */
-    personal?: { permissions: readonly P[]; subject?: string; as?: 'owner' | 'responsible' } | null;
+    personal?: { permissions: readonly P[]; subject?: string; as?: 'owner' | 'responsible'; level?: ShareLevel } | null;
     auditor?: readonly P[];
     unscoped: () => P[];
+    /** The kind's share model (0.23.0, ADR 0033): its shares add rights, and Restricted keeps instance roles out */
+    shares?: ShareModel<P>;
+    /** The rights each instance role has without owning teams, for the reasons (default: byRole) */
+    instanceByRole?: (role: Role) => readonly P[];
   },
 ): Decision<P> {
   if (!u) return { permissions: [], reasons: [] };
@@ -688,18 +787,33 @@ export function teamScoped<P extends string>(
   const add = (reason: AccessReason) => reason.permissions.length && reasons.push(reason);
   if (o.personal)
     add({
-      source: o.personal.as ? 'named' : 'owner',
+      // an implied share (0.23.0, ADR 0033 part 2): the level its owner field gives
+      source: o.personal.level ? 'implied' : o.personal.as ? 'named' : 'owner',
+      ...(o.personal.level ? { level: o.personal.level } : {}),
       ...(o.personal.as ? { as: o.personal.as } : {}),
       ...(o.personal.subject ? { subject: o.personal.subject } : {}),
       permissions: [...o.personal.permissions],
     });
   const teams = owningTeams(r.kind, r.id);
+  const shared = () => (o.shares ? shareReasons(u, r, o.shares) : []);
   if (!teams.length) {
-    for (const role of policyRoles(u)) add({ source: 'instanceRole', role, permissions: [...o.byRole(role)] });
-    return { permissions: o.unscoped(), reasons };
+    // Restricted (ADR 0033): instance roles give nothing – its owners, auditors and shares only
+    if (o.shares && isRestricted(r.kind, r.id)) {
+      if (o.auditor && u.roles.includes('auditor')) add({ source: 'auditor', role: 'auditor', permissions: [...o.auditor] });
+      for (const x of shared()) add(x);
+      const granted = new Set(reasons.flatMap((x) => x.permissions));
+      return { permissions: o.all.filter((x) => granted.has(x)), reasons };
+    }
+    for (const role of policyRoles(u)) add({ source: 'instanceRole', role, permissions: [...(o.instanceByRole ?? o.byRole)(role)] });
+    const extra = shared();
+    for (const x of extra) add(x);
+    if (!extra.length) return { permissions: o.unscoped(), reasons };
+    const granted = new Set<string>([...o.unscoped(), ...extra.flatMap((x) => x.permissions)]);
+    return { permissions: o.all.filter((x) => granted.has(x)), reasons };
   }
   if (o.auditor && u.roles.includes('auditor')) add({ source: 'auditor', role: 'auditor', permissions: [...o.auditor] });
   for (const m of teamRoles(u, teams)) for (const role of m.roles) add({ source: 'teamRole', role, team: m.team, permissions: [...o.byRole(role)] });
+  for (const x of shared()) add(x);
   const granted = new Set(reasons.flatMap((x) => x.permissions));
   return { permissions: o.all.filter((x) => granted.has(x)), reasons };
 }

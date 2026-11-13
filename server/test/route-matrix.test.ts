@@ -68,6 +68,8 @@ const RUN: Role[] = ['admin', 'designer', 'operator'];
 const ACTIVE: Role[] = ['admin', 'designer', 'operator', 'approver'];
 /** Roles with a default right to use platforms. */
 const USE: Role[] = ['admin', 'designer', 'operator'];
+/** Who sees a platform and reads its pages: who may use it, and auditors (0.23.0, ADR 0033 decision 8). */
+const SEE_PLATFORM: Role[] = ['admin', 'designer', 'operator', 'auditor'];
 /** Everyone but viewers (credentials register entries, report schedules). */
 const NOT_VIEWER: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor'];
 
@@ -263,7 +265,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/platform-types/:kind/export': ALL, // connector types are shareable templates (see docs/reviews/REVIEW-2026-10.md)
   'GET /api/platforms': ALL,
   'POST /api/platforms': ADMIN,
-  'GET /api/platforms/:id': USE,
+  'GET /api/platforms/:id': SEE_PLATFORM,
   'PUT /api/platforms/:id': ADMIN,
   'DELETE /api/platforms/:id': ADMIN,
   'PUT /api/platforms/:id/access': ADMIN,
@@ -276,14 +278,14 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/database': ADMIN,
   // database schemas (#222), here of the demo database platform: whoever sees it sees its schema, "use" reads it,
   // "manage" imports and changes the settings
-  'GET /api/db-schemas/:kind/:id': USE,
+  'GET /api/db-schemas/:kind/:id': SEE_PLATFORM,
   'POST /api/db-schemas/:kind/:id/read': USE,
   'PUT /api/db-schemas/:kind/:id/settings': ADMIN,
   'POST /api/db-schemas/:kind/:id/import/preview': ADMIN,
   'POST /api/db-schemas/:kind/:id/import': ADMIN,
-  'GET /api/db-schemas/:kind/:id/snapshots/:snapshotId': USE,
-  'GET /api/db-schemas/:kind/:id/snapshots/:snapshotId/export': USE,
-  'GET /api/db-schemas/:kind/:id/compare': USE,
+  'GET /api/db-schemas/:kind/:id/snapshots/:snapshotId': SEE_PLATFORM,
+  'GET /api/db-schemas/:kind/:id/snapshots/:snapshotId/export': SEE_PLATFORM,
+  'GET /api/db-schemas/:kind/:id/compare': SEE_PLATFORM,
   // push tokens of the tbls import from CI: who may manage the target; the push itself takes its push token only
   'GET /api/db-schemas/:kind/:id/push-tokens': ADMIN,
   'POST /api/db-schemas/:kind/:id/push-tokens': ADMIN,
@@ -466,11 +468,11 @@ const EXPECT: Record<string, Access> = {
   // may use the platform; set up and read now by the module's managers and the platform's managers who may use it
   'GET /api/data-products/discovery-sources': ALL,
   'POST /api/data-products/discovery-sources': DESIGN,
-  'GET /api/data-products/discovery-sources/:id': USE,
+  'GET /api/data-products/discovery-sources/:id': SEE_PLATFORM,
   'PUT /api/data-products/discovery-sources/:id': DESIGN,
   'DELETE /api/data-products/discovery-sources/:id': DESIGN,
   'POST /api/data-products/discovery-sources/:id/run': DESIGN,
-  'GET /api/data-products/discovery-sources/:id/runs': USE,
+  'GET /api/data-products/discovery-sources/:id/runs': SEE_PLATFORM,
   'GET /api/data-elements': ALL,
   'POST /api/data-elements': DESIGN,
   'GET /api/data-elements/:id': ALL,
@@ -518,8 +520,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/secrets': ADMIN,
   'POST /api/platforms/:id/test': USE,
   // what's next with a platform and its health (v0.4.0): like the platform itself; the periodic test by its managers
-  'GET /api/platforms/:id/get-started': USE,
-  'GET /api/platforms/:id/health': USE,
+  'GET /api/platforms/:id/get-started': SEE_PLATFORM,
+  'GET /api/platforms/:id/health': SEE_PLATFORM,
   'PUT /api/platforms/:id/health': ADMIN,
   'POST /api/platforms/:id/request': USE,
   // recorded responses (#105): read like the explorer, changed like the platform
@@ -529,7 +531,7 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/platforms/:id/recordings/:recId': ADMIN,
   'POST /api/platforms/:id/token/renew': ADMIN,
   // platform identities (0.13.0, ADR 0009): listed for whoever sees the platform, managed with "manage"
-  'GET /api/platforms/:id/identities': USE,
+  'GET /api/platforms/:id/identities': SEE_PLATFORM,
   'POST /api/platforms/:id/identities': ADMIN,
   'GET /api/platforms/:id/identities/:identityId/settings': ADMIN,
   'PUT /api/platforms/:id/identities/:identityId': ADMIN,
@@ -544,34 +546,34 @@ const EXPECT: Record<string, Access> = {
   // Kafka peek (#112): platform managers only, and only where the platform allows it
   'POST /api/platforms/:id/kafka/peek': ADMIN,
   // Kafka Connect (#223): the readout for who sees the platform, "Read now" and a connector's configuration (audited) for who may use it
-  'GET /api/platforms/:id/kafka-connect': USE,
+  'GET /api/platforms/:id/kafka-connect': SEE_PLATFORM,
   'POST /api/platforms/:id/kafka-connect/read': USE,
   'GET /api/platforms/:id/kafka-connect/connectors/:name/config': USE,
   // Confluent Cloud (#123): the readout for who sees the platform, "Read now" for who may use it
-  'GET /api/platforms/:id/confluent': USE,
+  'GET /api/platforms/:id/confluent': SEE_PLATFORM,
   'POST /api/platforms/:id/confluent/read': USE,
-  'GET /api/platforms/:id/specs': USE,
+  'GET /api/platforms/:id/specs': SEE_PLATFORM,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
   'PATCH /api/platforms/:id/specs/:specId': ADMIN,
   'POST /api/platforms/:id/specs/:specId/copy': ADMIN,
   'POST /api/platforms/:id/specs/built-in': ADMIN,
-  'GET /api/platforms/:id/operations': USE,
+  'GET /api/platforms/:id/operations': SEE_PLATFORM,
   // Postman export (#204): who sees the platform (its page shows the same, no secret); audited
-  'GET /api/platforms/:id/export/postman': USE,
-  'GET /api/platforms/:id/docs': USE,
+  'GET /api/platforms/:id/export/postman': SEE_PLATFORM,
+  'GET /api/platforms/:id/docs': SEE_PLATFORM,
   'POST /api/platforms/:id/docs': ADMIN,
   'DELETE /api/platforms/:id/docs/:docId': ADMIN,
-  'GET /api/docs/:docId/file': USE,
-  'GET /api/specs/:specId/content': USE,
+  'GET /api/docs/:docId/file': SEE_PLATFORM,
+  'GET /api/specs/:specId/content': SEE_PLATFORM,
   'GET /api/gatus/sources': ALL,
-  'GET /api/gatus/sources/:platformId': USE,
+  'GET /api/gatus/sources/:platformId': SEE_PLATFORM,
   'PUT /api/gatus/sources/:platformId': ADMIN,
   'DELETE /api/gatus/sources/:platformId': ADMIN,
   'POST /api/gatus/sources/:platformId/scrape': USE,
-  'GET /api/gatus/sources/:platformId/endpoints': USE,
+  'GET /api/gatus/sources/:platformId/endpoints': SEE_PLATFORM,
   // changedetection.io (#242): watches as components of the platform
-  'GET /api/changedetection/:platformId/watches': USE,
+  'GET /api/changedetection/:platformId/watches': SEE_PLATFORM,
   'POST /api/changedetection/:platformId/watches/read': USE,
   'PUT /api/changedetection/:platformId/watches/:uuid/link': ADMIN,
   'GET /api/changedetection/:platformId/watches/:uuid/history': USE,
@@ -978,7 +980,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/maintenance-windows/:id/impact': ALL,
   'POST /api/maintenance-windows/:id/impact/downtime': DESIGN,
   'POST /api/maintenance-windows/:id/impact/notify': DESIGN,
-  'GET /api/platforms/:id/application': USE,
+  'GET /api/platforms/:id/application': SEE_PLATFORM,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
   'PUT /api/services/:id/protection-need': DESIGN,
@@ -1066,7 +1068,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/processes/:processId/versions': ALL,
   'GET /api/v1/processes/:processId/versions/:version': ALL,
   'GET /api/v1/platforms': ALL,
-  'GET /api/v1/platforms/:platformId': USE,
+  'GET /api/v1/platforms/:platformId': SEE_PLATFORM,
   'GET /api/v1/runs': ALL,
   'GET /api/v1/runs/:runId': ALL,
   'GET /api/v1/runs/:runId/steps': ALL,
@@ -1154,14 +1156,14 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/change-sets/:changeSetId/operations': PLANT,
   'POST /api/v1/plant/proposals': PROPOSE,
   // database schemas (#222): of the demo database platform (who sees it) and of the matrix system (everyone);
-  'GET /api/v1/platforms/:platformId/schema/snapshots': USE,
+  'GET /api/v1/platforms/:platformId/schema/snapshots': SEE_PLATFORM,
   // platform costs (#226): the overview for everyone (each sees what they may see); one scope as in the web app
   'GET /api/v1/costs': ALL,
   'GET /api/v1/costs/:scope/:id': RECON_READ,
-  'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId': USE,
-  'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId/export': USE,
-  'GET /api/v1/platforms/:platformId/schema/changes': USE,
-  'GET /api/v1/platforms/:platformId/schema/compare': USE,
+  'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId': SEE_PLATFORM,
+  'GET /api/v1/platforms/:platformId/schema/snapshots/:snapshotId/export': SEE_PLATFORM,
+  'GET /api/v1/platforms/:platformId/schema/changes': SEE_PLATFORM,
+  'GET /api/v1/platforms/:platformId/schema/compare': SEE_PLATFORM,
   'GET /api/v1/systems/:systemId/schema/snapshots': ALL,
   'GET /api/v1/systems/:systemId/schema/snapshots/:snapshotId': ALL,
   'GET /api/v1/systems/:systemId/schema/snapshots/:snapshotId/export': ALL,
@@ -1551,6 +1553,12 @@ const SESSION_ONLY = [
   'PUT /api/access/:kind/:id/shares',
   'PUT /api/access/:kind/:id/scope',
   'POST /api/access/:kind/:id/preview',
+  // the deprecated access-list routes (0.23.0): they write shares
+  'PUT /api/processes/:id/access',
+  'PUT /api/platforms/:id/access',
+  'PUT /api/platforms/:id/identities/:identityId/access',
+  'PUT /api/monitors/:id/access',
+  'PUT /api/plant/sites/:siteId/access',
   // module access (ADR 0034): tokens act with their owner's module access, they never change it
   'GET /api/settings/modules/:id/access',
   'PUT /api/settings/modules/:id/access',
@@ -1854,7 +1862,8 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   },
   // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   // an access list of a plant registry site gives rights to others (#218)
-  'PUT /api/plant/sites/:siteId/access': 'always',
+  // deprecated since 0.23.0 (shares): only a widening asks, as on every kind
+  'PUT /api/plant/sites/:siteId/access': { sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] }, harmless: { acl: 'not a list' } },
   // 0.14: where Steward reads security advisories from (plant.advisorySources)
   'POST /api/plant/advisory-sources': 'always',
   'PUT /api/plant/advisory-sources/:advisorySourceId': 'always',

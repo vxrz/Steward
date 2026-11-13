@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer, storeAcl } from './helpers.js';
 import { timeLimit } from './time.js';
 
 /**
@@ -43,7 +43,6 @@ const csv = (...rows: string[]) => [HEAD, ...rows].join('\n');
 const eur = (d: { currencies: { currency: string; thisMonth: string | null; lastMonth: string | null }[] }) => d.currencies.find((c) => c.currency === 'EUR');
 
 async function newPlatform(name: string): Promise<string> {
-  const { db } = await import('../src/db.js');
   const id = (
     await s.api('POST', '/platforms', {
       name,
@@ -52,7 +51,7 @@ async function newPlatform(name: string): Promise<string> {
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' } },
     })
   ).id;
-  db().run('UPDATE platforms SET acl = ? WHERE id = ?', JSON.stringify([{ subject: 'user:olivia', permissions: ['use', 'manage'] }]), id);
+  await storeAcl('platform', id, [{ subject: 'user:olivia', permissions: ['use', 'manage'] }]);
   return id;
 }
 
