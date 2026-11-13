@@ -354,13 +354,15 @@ export const MODULES: readonly ModuleDef[] = [
       '/api/v1/data-elements',
       '/api/v1/data-objects',
     ],
-    jobs: ['data-products'],
+    jobs: ['data-products', 'data-products-scorecard'],
     // module access (ADR 0034 phase 1): restrictable to selected teams and users; within it the core roles give the
     // module roles (designer → manager, other working roles → viewer – dataproducts/access.ts). Contributors as a
-    // module role of their own and a report section follow in phase 2; the instance export has no part of it yet.
+    // module role of their own follow in phase 2 (the report section came in 0.24.0); the instance export has no part of it yet.
     access: {
       restrictable: true,
-      events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed'],
+      events: ['dataproduct.deprecated', 'dataproduct.elements_missing', 'dataproduct.discovery_failed', 'dataproduct.contract_breaking'],
+      // 0.24.0 (ADR 0036 phase 2): maturity, health and quality per product
+      reportSections: ['dataProducts'],
       mcpTools: [
         'list_data_products',
         'get_data_product',

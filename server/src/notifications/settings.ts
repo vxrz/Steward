@@ -72,6 +72,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'dataproduct.deprecated',
     'dataproduct.elements_missing',
     'dataproduct.discovery_failed',
+    'dataproduct.contract_breaking',
   ];
   // emergency access: every channel that is set up, so nobody can use it unnoticed
   return Object.fromEntries(

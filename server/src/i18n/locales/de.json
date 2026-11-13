@@ -696,6 +696,19 @@
       "title": "Erkennung schlägt fehl: {{source}}",
       "body": "Die Erkennungsquelle „{{source}}“ auf {{platform}} ist fehlgeschlagen, seit {{since}}: {{error}}",
       "hint": "Sie erhalten diese Nachricht einmal, bis die Erkennung wieder gelingt, weil Sie die Quelle eingerichtet haben oder die Plattform verwalten."
+    },
+    "breaking": {
+      "title": "Inkompatible Vertragsänderung: {{port}} von {{product}}",
+      "body_one": "Version {{version}} des Datenvertrags „{{contract}}“ ({{key}}), dem der Port „{{port}}“ des Datenprodukts „{{product}}“ folgt, enthält {{count}} inkompatible Änderung:",
+      "body_other": "Version {{version}} des Datenvertrags „{{contract}}“ ({{key}}), dem der Port „{{port}}“ des Datenprodukts „{{product}}“ folgt, enthält {{count}} inkompatible Änderungen:",
+      "bodyHidden_one": "Version {{version}} des Datenvertrags des Ports „{{port}}“ des Datenprodukts „{{product}}“ enthält {{count}} inkompatible Änderung.",
+      "bodyHidden_other": "Version {{version}} des Datenvertrags des Ports „{{port}}“ des Datenprodukts „{{product}}“ enthält {{count}} inkompatible Änderungen.",
+      "environments": "Gebunden in: {{environments}}.",
+      "more_one": "… und {{count}} weitere",
+      "more_other": "… und {{count}} weitere",
+      "registered": "Sie sind als Nutzer von {{port}} registriert.",
+      "consuming": "Ihre Datenprodukte, die ihn nutzen: {{products}}.",
+      "hint": "Sie erhalten dies einmal je Vertragsversion, weil Sie als Nutzer registriert sind oder ein Datenprodukt besitzen, das den Port nutzt. Prüfen Sie, was die Änderung für Sie bedeutet, und sprechen Sie mit den Besitzern des Produkts."
     }
   }
 }

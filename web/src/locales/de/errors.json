@@ -1212,7 +1212,7 @@
     "DATA_CONTRACT_NOT_A_SERVICE": "„{{name}}“ ist kein Datenvertragsdienst.",
     "DATA_CONTRACT_NO_SERVICE": "Für diesen Vertrag ist kein Datenvertragsdienst eingestellt.",
     "DATA_CONTRACT_RUN_NOT_FOUND": "Testlauf {{id}} nicht gefunden.",
-    "DATA_CONTRACT_SERVER_NOT_LINKED": "Server „{{server}}“ ist mit keiner Datenbank-Plattform verknüpft – verknüpfen Sie ihn, damit der Test seine Zugangsdaten erhält.",
+    "DATA_CONTRACT_SERVER_NOT_LINKED": "Server „{{server}}“ ist mit keiner Plattform verknüpft – verknüpfen Sie ihn, damit der Test seine Zugangsdaten erhält.",
     "DATA_CONTRACT_SERVER_REQUIRED": "Wählen Sie den zu testenden Server: Der Vertrag nennt mehrere (oder keinen).",
     "DATA_CONTRACT_SERVER_TYPE": "Server „{{server}}“ (Typ {{type}}) kann nicht von „{{name}}“ beantwortet werden.",
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED": "Server vom Typ {{type}} kann Steward noch nicht testen.",
@@ -1522,7 +1522,11 @@
     "FORBIDDEN_priceBook": "Sie dürfen dieses Preisbuch nicht ändern.",
     "FORBIDDEN_calculator": "Sie dürfen Rechner nicht ändern und ihre Formeln nicht ausprobieren.",
     "FORBIDDEN_costEstimate": "Sie dürfen die Schätzungen dieses Kostenplans nicht ändern.",
-    "FORBIDDEN_fxRates": "Nur die Kostenverantwortlichen legen Wechselkurse fest."
+    "FORBIDDEN_fxRates": "Nur die Kostenverantwortlichen legen Wechselkurse fest.",
+    "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_noKey": "„{{name}}“ hat keinen privaten Schlüssel, der an den Datenvertragsdienst gehen könnte.",
+    "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_sasl": "Die Kafka-Anmeldung {{sasl}} kann nicht an den Datenvertragsdienst gegeben werden – PLAIN und SCRAM können es.",
+    "DATA_CONTRACT_SERVER_HOST": "Der Host von Server „{{server}}“ ist kein Bootstrap-Server von „{{name}}“.",
+    "DATA_CONTRACT_SQL_PLATFORM": "SQL-Qualitätsregeln werden nur auf Datenbank-Plattformen getestet – Server „{{server}}“ hat den Typ {{type}}."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

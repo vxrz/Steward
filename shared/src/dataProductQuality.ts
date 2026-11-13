@@ -47,6 +47,8 @@ export function qualityDimensionOf(hint: string | null | undefined, name?: strin
   const norm = (x: string | null | undefined) =>
     (x ?? '')
       .trim()
+      // ODCS library metrics are camelCase (nullValues, duplicateValues)
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
       .toLowerCase()
       .replace(/[\s-]+/g, '_');
   const h = norm(hint);
@@ -70,6 +72,9 @@ export function qualityDimensionOf(hint: string | null | undefined, name?: strin
   // by the model (not_null_orders_id) – the first known word wins
   const words: [string, DataQualityDimension][] = [
     ['not_null', 'completeness'],
+    ['null_values', 'completeness'],
+    ['missing_values', 'completeness'],
+    ['invalid_values', 'accuracy'],
     ['null_count', 'completeness'],
     ['null_percent', 'completeness'],
     ['blank_count', 'completeness'],
@@ -165,9 +170,7 @@ export interface DataPersonalField {
 
 /** The personal and classified fields of one contract version, where it is bound. */
 export interface DataPersonalFieldGroup {
-  contract: { id: string; key: string; name: string } | null;
-  /** A contract the reader may not see: counted, never named – its fields are not shown */
-  hidden: boolean;
+  contract: { id: string; key: string; name: string };
   version: number;
   /** Bound to: the port and the environment (product pages), else empty */
   ports: { productId: string; portId: string; portName: string; environment: string }[];
@@ -182,7 +185,7 @@ export interface DataPersonalFields {
   /** Personal fields in all groups the reader may see */
   personal: number;
   classified: number;
-  /** Contracts the reader may not see */
+  /** Contracts the reader may not see: counted, never named – their fields are not shown */
   hiddenContracts: number;
 }
 

@@ -1,8 +1,10 @@
 import {
   DATA_CONTRACT_LIMITS,
+  DATA_CONTRACT_PLATFORM_SERVER_TYPES,
   DATA_CONTRACT_SERVER_DIALECTS,
   DATA_CONTRACT_SERVICE_KIND,
   DATABASE_KIND,
+  bootstrapList,
   type DataContractLintFinding,
   type DataContractResult,
   type DataContractRun,
@@ -33,6 +35,8 @@ import { notify, titleName } from '../notifications/service.js';
 import { sourceOfRun } from '../engine/notify-source.js';
 import { t } from '../i18n/index.js';
 import { HttpError, newId, nowIso, sha256 } from '../util.js';
+import { moduleEnabled } from '../modules/registry.js';
+import { assertKafkaBrokerAllowed, DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { currentDoc, getRun, lastRun, permissionsOf, visibleContract, type ContractRow, type RunRow } from './service.js';
 import { assertSqlRules, sqlRules } from './sqlrules.js';
 
@@ -70,7 +74,7 @@ export interface TestOptions {
   timeoutMs?: number;
 }
 
-function usable(id: string, kind: string, what: string): Platform {
+function usable(id: string, kind: string, what: string, code?: string): Platform {
   let p: Platform;
   try {
     p = getPlatform(id);
@@ -81,8 +85,8 @@ function usable(id: string, kind: string, what: string): Platform {
   if (p.kind !== kind)
     throw new HttpError(
       400,
-      `"${p.name}" is not a ${kind === DATABASE_KIND ? 'database platform' : 'data contract service'}`,
-      kind === DATABASE_KIND ? 'DATA_CONTRACT_LINK_NOT_DATABASE' : 'DATA_CONTRACT_NOT_A_SERVICE',
+      `"${p.name}" is not a ${kind === DATABASE_KIND ? 'database platform' : kind === DATA_CONTRACT_SERVICE_KIND ? 'data contract service' : `${kind} platform`}`,
+      code ?? (kind === DATABASE_KIND ? 'DATA_CONTRACT_LINK_NOT_DATABASE' : 'DATA_CONTRACT_NOT_A_SERVICE'),
       { name: p.name },
     );
   if (currentUser() && !p.permissions.includes('use'))
@@ -90,15 +94,20 @@ function usable(id: string, kind: string, what: string): Platform {
   return p;
 }
 
-interface Target {
+interface Common {
   row: ContractRow;
   yaml: string;
   version: number;
   server: string;
   service: Platform;
-  database: Platform;
-  settings: DatabaseSettings;
+  /** schema object name → its physical name (quality results of data products, 0.24.0) */
+  physical: Map<string, string>;
 }
+
+/** A database server (PostgreSQL, MySQL, SQL Server), or – 0.24.0 – a Snowflake or Kafka server answered by such a platform. */
+type Target =
+  | (Common & { kind: 'database'; database: Platform; settings: DatabaseSettings })
+  | (Common & { kind: 'snowflake' | 'kafka'; database: Platform; host: string | null });
 
 /** Everything a test needs, checked before anything is sent. */
 function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target {
@@ -111,27 +120,31 @@ function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target 
   if (!server) throw new HttpError(409, 'Choose the server to test: the contract names several (or none)', 'DATA_CONTRACT_SERVER_REQUIRED');
   const def = facts.servers.find((s) => s.server === server);
   if (!def) throw new HttpError(400, `"${server}" is not a server of the contract`, 'DATA_CONTRACT_LINK_SERVER', { server });
+  const physical = new Map(
+    (Array.isArray(doc.schema) ? doc.schema : []).flatMap((o) =>
+      o && typeof o === 'object' && typeof (o as Obj).name === 'string'
+        ? [[String((o as Obj).name), String((o as Obj).physicalName ?? (o as Obj).name)] as [string, string]]
+        : [],
+    ),
+  );
+  // 0.24.0: Snowflake and Kafka servers, answered by a platform of that kind
+  const platformKind = Object.hasOwn(DATA_CONTRACT_PLATFORM_SERVER_TYPES, def.type) ? DATA_CONTRACT_PLATFORM_SERVER_TYPES[def.type] : undefined;
+  if (platformKind) {
+    const link = linkedPlatform(row.id, server);
+    const platform = usable(link, platformKind, platformKind === 'snowflake' ? 'Snowflake platform' : 'Kafka platform', 'DATA_CONTRACT_SERVER_TYPE');
+    // the CLI runs SQL quality rules with the platform's identity: Steward checks SQL for database platforms only
+    if (sqlRules(doc).length)
+      throw new HttpError(409, 'SQL quality rules are tested on database platforms only', 'DATA_CONTRACT_SQL_PLATFORM', { type: def.type, server });
+    const rawHost = (doc.servers as Obj[] | undefined)?.find((x) => x && x.server === server)?.host;
+    return { kind: platformKind, row, yaml, version, server, service, database: platform, host: typeof rawHost === 'string' ? rawHost : null, physical };
+  }
   const dialect = Object.hasOwn(DATA_CONTRACT_SERVER_DIALECTS, def.type) ? DATA_CONTRACT_SERVER_DIALECTS[def.type] : undefined;
   if (!dialect)
     throw new HttpError(409, `Servers of type ${def.type} cannot be tested by Steward yet`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
       server,
       type: def.type,
     });
-  const link = db().get<{ target_id: string }>(
-    "SELECT target_id FROM data_contract_links WHERE contract_id = ? AND kind = 'server' AND detail = ?",
-    row.id,
-    server,
-  );
-  if (!link)
-    throw new HttpError(
-      409,
-      `Server "${server}" is not linked to a database platform – link it, so the test gets its credentials`,
-      'DATA_CONTRACT_SERVER_NOT_LINKED',
-      {
-        server,
-      },
-    );
-  const database = usable(link.target_id, DATABASE_KIND, 'Database platform');
+  const database = usable(linkedPlatform(row.id, server), DATABASE_KIND, 'Database platform');
   const settings = databaseSettings(database);
   if (settings.dialect !== dialect)
     throw new HttpError(400, `Server "${server}" (type ${def.type}) cannot be answered by "${database.name}"`, 'DATA_CONTRACT_SERVER_TYPE', {
@@ -150,7 +163,75 @@ function prepare(contractId: string, opts: Pick<TestOptions, 'server'>): Target 
     assertSqlRules(rules, [settings.dialect]);
   }
   assertTlsTestable(database, settings);
-  return { row, yaml, version, server, service, database, settings };
+  return { kind: 'database', row, yaml, version, server, service, database, settings, physical };
+}
+
+/** The platform linked to a server of the contract (its credentials and address answer for it). */
+function linkedPlatform(contractId: string, server: string): string {
+  const link = db().get<{ target_id: string }>(
+    "SELECT target_id FROM data_contract_links WHERE contract_id = ? AND kind = 'server' AND detail = ?",
+    contractId,
+    server,
+  );
+  if (!link)
+    throw new HttpError(409, `Server "${server}" is not linked to a platform – link it, so the test gets its credentials`, 'DATA_CONTRACT_SERVER_NOT_LINKED', {
+      server,
+    });
+  return link.target_id;
+}
+
+const SASL: Record<string, string> = { plain: 'PLAIN', 'scram-sha-256': 'SCRAM-SHA-256', 'scram-sha-512': 'SCRAM-SHA-512' };
+
+/**
+ * 0.24.0: the datacontract-* headers of a Snowflake or Kafka server (the CLI's configuration options, per request).
+ * Snowflake: the platform's account pins where the CLI connects (`snowflake-account` overrides the contract's), with
+ * its user, role, warehouse and key pair – the platform's read-only identity. Kafka: nothing pins the broker (the CLI
+ * connects to the contract's `host`), so the contract's host must be one of the platform's bootstrap servers and is
+ * checked by the outbound policy like a connection of Steward's own; SASL PLAIN or SCRAM with the platform's key; at most
+ * 1,000 messages read, under a consumer group prefix of Steward's.
+ */
+export async function platformServerHeaders(x: Extract<Target, { kind: 'snowflake' | 'kafka' }>, secrets: Record<string, string>): Promise<Record<string, string>> {
+  const v = x.database.config.variables ?? {};
+  if (x.kind === 'snowflake') {
+    // the account's address goes through the outbound policy as Steward's own statements do
+    await serviceUrl(x.database, secrets, '/');
+    if (!secrets.privateKey)
+      throw new HttpError(409, `"${x.database.name}" has no private key for the data contract service`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
+        server: x.server,
+        type: 'snowflake',
+        context: 'noKey',
+        name: x.database.name,
+      });
+    const h: Record<string, string> = { 'datacontract-snowflake-account': String(v.account ?? '').toUpperCase(), 'datacontract-snowflake-username': String(v.user ?? '') };
+    if (v.role) h['datacontract-snowflake-role'] = String(v.role);
+    if (v.warehouse) h['datacontract-snowflake-warehouse'] = String(v.warehouse);
+    h['datacontract-snowflake-private-key'] = secrets.privateKey;
+    if (secrets.privateKeyPassphrase) h['datacontract-snowflake-private-key-passphrase'] = secrets.privateKeyPassphrase;
+    return h;
+  }
+  const declared = bootstrapList(v.bootstrap);
+  const host = (x.host ?? '').trim();
+  const [name, port] = host.includes(':') ? [host.slice(0, host.lastIndexOf(':')), Number(host.slice(host.lastIndexOf(':') + 1))] : [host, 9092];
+  if (!declared.some((d) => d.host.toLowerCase() === name.toLowerCase() && d.port === port))
+    throw new HttpError(409, `The host of server "${x.server}" is not a bootstrap server of "${x.database.name}"`, 'DATA_CONTRACT_SERVER_HOST', {
+      server: x.server,
+      name: x.database.name,
+    });
+  // the demo cluster answers only in demo mode and has no address
+  if (!(config.demo && `${name}:${port}`.toLowerCase() === DEMO_KAFKA_BOOTSTRAP)) await assertKafkaBrokerAllowed(x.database, name, port);
+  const mechanism = SASL[String(v.sasl ?? 'plain').toLowerCase()];
+  if (!mechanism)
+    throw new HttpError(409, `Kafka sign-in ${String(v.sasl)} cannot be given to the data contract service`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
+      server: x.server,
+      type: 'kafka',
+      context: 'sasl',
+      sasl: String(v.sasl),
+    });
+  const h: Record<string, string> = { 'datacontract-kafka-max-messages': '1000', 'datacontract-kafka-group-prefix': 'steward-contract-test' };
+  if (secrets.username) h['datacontract-kafka-sasl-username'] = secrets.username;
+  if (secrets.password) h['datacontract-kafka-sasl-password'] = secrets.password;
+  if (secrets.username) h['datacontract-kafka-sasl-mechanism'] = mechanism;
+  return h;
 }
 
 /**
@@ -282,7 +363,8 @@ export async function runContractTest(contractId: string, opts: TestOptions): Pr
   const allSecrets = maskable(serviceSecrets, dbSecrets);
   // the tested server goes through the outbound policy as a connection of Steward's own would, and the service is sent
   // the address Steward checked
-  const host = await testedHost(x.settings);
+  const testedHeaders =
+    x.kind === 'database' ? serverHeaders(x.settings.dialect, x.settings, dbSecrets, await testedHost(x.settings)) : await platformServerHeaders(x, dbSecrets);
   await serviceUrl(service, serviceSecrets, '/test');
   const started = Date.now();
   const startedAt = nowIso();
@@ -299,7 +381,7 @@ export async function runContractTest(contractId: string, opts: TestOptions): Pr
           method: 'POST',
           url: '/test',
           query: { server: x.server },
-          headers: { 'content-type': 'application/yaml', accept: 'application/json', ...serverHeaders(x.settings.dialect, x.settings, dbSecrets, host) },
+          headers: { 'content-type': 'application/yaml', accept: 'application/json', ...testedHeaders },
           body: x.yaml,
           bodyType: 'text',
           maxResponseBytes: 20 * 1024 * 1024,
@@ -391,7 +473,36 @@ export async function runContractTest(contractId: string, opts: TestOptions): Pr
   });
   if (!opts.dryRun && (run.result === 'failed' || run.result === 'error') && !(before && (before.result === 'failed' || before.result === 'error')))
     notifyContractFailed(x.row, run, opts);
+  // 0.24.0 (ADR 0036 phase 2): the checks become quality results of the data product elements bound to the contract
+  if (!opts.dryRun && moduleEnabled('dataProducts')) await recordForDataProducts(x, run, report);
   return getRun(x.row.id, run.id);
+}
+
+/** The run's checks – type, name, model, field and result, never a reason (it can carry values) – to the data products. */
+async function recordForDataProducts(x: Target, run: RunRow, report: unknown): Promise<void> {
+  try {
+    const r = report && typeof report === 'object' ? (report as Obj) : {};
+    const checks = (Array.isArray(r.checks) ? r.checks : []).filter((c): c is Obj => !!c && typeof c === 'object').slice(0, 5_000);
+    const { onContractTested } = await import('../dataproducts/contract-hooks.js');
+    onContractTested({
+      contractId: x.row.id,
+      version: x.version,
+      current: x.row.current_version,
+      server: x.server,
+      runId: run.id,
+      startedAt: run.started_at,
+      physical: x.physical,
+      checks: checks.map((c) => ({
+        type: String(c.type ?? ''),
+        name: String(c.name ?? ''),
+        model: typeof c.model === 'string' ? c.model : null,
+        field: typeof c.field === 'string' ? c.field : null,
+        result: String(c.result ?? ''),
+      })),
+    });
+  } catch (err) {
+    logger.warn({ err, contract: x.row.id }, 'contract test results could not be given to the data products');
+  }
 }
 
 /** Credential fields that identify rather than authenticate: not masked (as platforms/http.ts secretValues). */

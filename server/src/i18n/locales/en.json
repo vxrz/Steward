@@ -696,6 +696,19 @@
       "title": "Discovery failing: {{source}}",
       "body": "The discovery source “{{source}}” on {{platform}} failed and fails since {{since}}: {{error}}",
       "hint": "You get this once until it succeeds again, because you set up the source or manage the platform."
+    },
+    "breaking": {
+      "title": "Breaking contract change: {{port}} of {{product}}",
+      "body_one": "Version {{version}} of the data contract “{{contract}}” ({{key}}), which the port “{{port}}” of the data product “{{product}}” follows, has {{count}} breaking change:",
+      "body_other": "Version {{version}} of the data contract “{{contract}}” ({{key}}), which the port “{{port}}” of the data product “{{product}}” follows, has {{count}} breaking changes:",
+      "bodyHidden_one": "Version {{version}} of the data contract of the port “{{port}}” of the data product “{{product}}” has {{count}} breaking change.",
+      "bodyHidden_other": "Version {{version}} of the data contract of the port “{{port}}” of the data product “{{product}}” has {{count}} breaking changes.",
+      "environments": "Bound in: {{environments}}.",
+      "more_one": "… and {{count}} more",
+      "more_other": "… and {{count}} more",
+      "registered": "You are registered as a consumer of {{port}}.",
+      "consuming": "Your data products that use it: {{products}}.",
+      "hint": "You get this once per contract version because you are a registered consumer or you own a data product that uses the port. Check what the change means for you, and talk to the product's owners."
     }
   }
 }

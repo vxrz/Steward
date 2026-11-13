@@ -90,6 +90,7 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'dataproduct.deprecated': 'dataProducts',
   'dataproduct.elements_missing': 'dataProducts',
   'dataproduct.discovery_failed': 'dataProducts',
+  'dataproduct.contract_breaking': 'dataProducts',
   'summary.daily': null,
   'security.emergency': null,
 };

@@ -1212,7 +1212,7 @@
     "DATA_CONTRACT_NOT_A_SERVICE": "“{{name}}” is not a data contract service.",
     "DATA_CONTRACT_NO_SERVICE": "No data contract service is set for this contract.",
     "DATA_CONTRACT_RUN_NOT_FOUND": "Test run {{id}} not found.",
-    "DATA_CONTRACT_SERVER_NOT_LINKED": "Server “{{server}}” is not linked to a database platform – link it, so the test gets its credentials.",
+    "DATA_CONTRACT_SERVER_NOT_LINKED": "Server “{{server}}” is not linked to a platform – link it, so the test gets its credentials.",
     "DATA_CONTRACT_SERVER_REQUIRED": "Choose the server to test: the contract names several (or none).",
     "DATA_CONTRACT_SERVER_TYPE": "Server “{{server}}” (type {{type}}) cannot be answered by “{{name}}”.",
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED": "Servers of type {{type}} cannot be tested by Steward yet.",
@@ -1522,7 +1522,11 @@
     "FORBIDDEN_priceBook": "You may not change this price book.",
     "FORBIDDEN_calculator": "You may not change calculators or try their formulas.",
     "FORBIDDEN_costEstimate": "You may not change the estimates of this cost plan.",
-    "FORBIDDEN_fxRates": "Only the costs managers set exchange rates."
+    "FORBIDDEN_fxRates": "Only the costs managers set exchange rates.",
+    "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_noKey": "“{{name}}” has no private key to give to the data contract service.",
+    "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_sasl": "Kafka sign-in {{sasl}} cannot be given to the data contract service – PLAIN and SCRAM can.",
+    "DATA_CONTRACT_SERVER_HOST": "The host of server “{{server}}” is not a bootstrap server of “{{name}}”.",
+    "DATA_CONTRACT_SQL_PLATFORM": "SQL quality rules are tested on database platforms only – server “{{server}}” is of type {{type}}."
   },
   "boundary": {
     "title": "Something went wrong on this page",

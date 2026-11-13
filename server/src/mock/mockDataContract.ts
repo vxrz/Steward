@@ -3,6 +3,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { DEMO_DB, DEMO_DB_HOST } from '../dbms/demo.js';
 import { demoSchemaRows } from '../dbms/demo-schema.js';
 import { parseYaml } from '../yaml-safe.js';
+import { DEMO_SNOWFLAKE } from './mockSnowflake.js';
+import { DEMO_KAFKA } from './mockKafka.js';
+import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 
 /**
  * A simulated datacontract CLI API (`datacontract api`, https://cli.datacontract.com) for the demo and the tests (#221,
@@ -76,7 +79,10 @@ const fits = (logical: string, sqlType: string): boolean => {
   return true;
 };
 
-const PREFIX: Record<string, string> = { postgres: 'postgres', postgresql: 'postgres', mysql: 'mysql', sqlserver: 'sqlserver' };
+const PREFIX: Record<string, string> = { postgres: 'postgres', postgresql: 'postgres', mysql: 'mysql', sqlserver: 'sqlserver', snowflake: 'snowflake', kafka: 'kafka' };
+
+/** Headers that carry a credential: never recorded with their value. */
+const SECRET_HEADER = /(username|password|private-key|passphrase)$/;
 
 function run(contract: Obj, serverName: string | null, headers: FastifyRequest['headers']): { body: Obj; matched: boolean } {
   const now = new Date().toISOString();
@@ -103,11 +109,18 @@ function run(contract: Obj, serverName: string | null, headers: FastifyRequest['
     return typeof v === 'string' ? v : undefined;
   };
   const host = h('host') ?? (typeof server.host === 'string' ? server.host : '');
+  // 0.24.0: the demo Snowflake account (key pair) and the demo Kafka cluster (SASL) answer too – their tables and topics
+  // have whatever fields the contract names
+  const platformServer = p === 'snowflake' || p === 'kafka';
   const matched =
-    host === DEMO_DB_HOST &&
-    h('username') === DEMO_DB.username &&
-    h('password') === DEMO_DB.password &&
-    (h('database') ?? server.database) === DEMO_DB.database;
+    p === 'snowflake'
+      ? h('account') === DEMO_SNOWFLAKE.account && h('username') === DEMO_SNOWFLAKE.user && (h('private-key') ?? '').includes('PRIVATE KEY')
+      : p === 'kafka'
+        ? host === DEMO_KAFKA_BOOTSTRAP && h('sasl-username') === DEMO_KAFKA.username && h('sasl-password') === DEMO_KAFKA.password
+        : host === DEMO_DB_HOST &&
+          h('username') === DEMO_DB.username &&
+          h('password') === DEMO_DB.password &&
+          (h('database') ?? server.database) === DEMO_DB.database;
   if (!matched) {
     checks.push({ type: 'connection', name: 'Connect to the server', result: 'error', reason: 'Could not connect: authentication failed or unknown host' });
     return { body: { ...base, timestampEnd: now, result: 'error', checks, logs }, matched };
@@ -116,7 +129,13 @@ function run(contract: Obj, serverName: string | null, headers: FastifyRequest['
   for (const s of (Array.isArray(contract.schema) ? contract.schema : []).filter(isObj)) {
     const model = String(s.name ?? '');
     const physical = String(s.physicalName ?? s.name ?? '');
-    const table = tables.get(physical.includes('.') ? physical.slice(physical.lastIndexOf('.') + 1) : physical);
+    const table = platformServer
+      ? new Map(
+          (Array.isArray(s.properties) ? s.properties : [])
+            .filter(isObj)
+            .map((x) => [String(x.physicalName ?? x.name ?? ''), String(x.logicalType ?? 'string') === 'integer' ? 'int' : 'text'] as [string, string]),
+        )
+      : tables.get(physical.includes('.') ? physical.slice(physical.lastIndexOf('.') + 1) : physical);
     if (!table) {
       checks.push({
         type: 'model_exists',
@@ -147,8 +166,8 @@ function run(contract: Obj, serverName: string | null, headers: FastifyRequest['
           name: `Check that field ${field} has type ${prop.logicalType}`,
           model,
           field,
-          result: fits(prop.logicalType, col) ? 'passed' : 'failed',
-          ...(fits(prop.logicalType, col) ? {} : { reason: `Type is ${col}` }),
+          result: platformServer || fits(prop.logicalType, col) ? 'passed' : 'failed',
+          ...(platformServer || fits(prop.logicalType, col) ? {} : { reason: `Type is ${col}` }),
         });
       for (const q of (Array.isArray(prop.quality) ? prop.quality : []).filter(isObj)) {
         const failed = typeof q.mustBeLessThan === 'number' && q.mustBeLessThan < 1;
@@ -199,9 +218,7 @@ export async function mockDataContract(app: FastifyInstance): Promise<void> {
       const headerNames = Object.keys(req.headers)
         .filter((k) => k.startsWith('datacontract-'))
         .sort();
-      const settings = Object.fromEntries(
-        headerNames.filter((k) => !k.endsWith('-username') && !k.endsWith('-password')).map((k) => [k, String(req.headers[k])]),
-      );
+      const settings = Object.fromEntries(headerNames.filter((k) => !SECRET_HEADER.test(k)).map((k) => [k, String(req.headers[k])]));
       if (!contract) {
         remember({ path: '/test', server, headerNames, credentialsMatched: false, contractId: null });
         return {

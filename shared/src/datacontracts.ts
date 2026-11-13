@@ -79,6 +79,13 @@ export const DATA_CONTRACT_SERVER_DIALECTS: Record<string, 'postgresql' | 'mysql
   sqlserver: 'sqlserver',
 };
 
+/**
+ * 0.24.0 (ADR 0036 phase 2): ODCS server types answered by a platform of Steward other than a database platform – a
+ * Snowflake platform (key-pair sign-in; the CLI is given the platform's account, user, role, warehouse and key) or a
+ * Kafka platform (SASL; the contract's host must be one of the platform's bootstrap servers).
+ */
+export const DATA_CONTRACT_PLATFORM_SERVER_TYPES: Record<string, 'snowflake' | 'kafka'> = { snowflake: 'snowflake', kafka: 'kafka' };
+
 /** Steward's own checks of a contract (no service needed), also modes of the monitor check. */
 export const DATA_CONTRACT_FINDING_KINDS = ['noOwner', 'notTested', 'lastTestFailed', 'columnsMissing', 'columnsExtra', 'lint'] as const;
 export type DataContractFindingKind = (typeof DATA_CONTRACT_FINDING_KINDS)[number];
