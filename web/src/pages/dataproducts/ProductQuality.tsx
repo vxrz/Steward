@@ -121,7 +121,14 @@ function TrendPicture({ points }: { points: DataScorecardHistory['points'] }) {
         </g>
       ))}
       <path d={path} fill="none" stroke="var(--mantine-primary-color-filled)" strokeWidth={2} strokeLinejoin="round" />
-      <circle cx={x(points.length - 1)} cy={y(last.maturity)} r={4} fill="var(--mantine-primary-color-filled)" stroke="var(--mantine-color-body)" strokeWidth={2} />
+      <circle
+        cx={x(points.length - 1)}
+        cy={y(last.maturity)}
+        r={4}
+        fill="var(--mantine-primary-color-filled)"
+        stroke="var(--mantine-color-body)"
+        strokeWidth={2}
+      />
       <text x={pad.l} y={H - 6} fontSize={10} fill="var(--mantine-color-dimmed)">
         {fmtDay(first.day)}
       </text>
