@@ -51,7 +51,7 @@ function Links({ w }: { w: PageWatch }) {
   const parts = [
     w.application &&
       (w.application.visible && w.application.path ? (
-        <Anchor key="a" component={Link} to={w.application.path} size="sm">
+        <Anchor key="a" component={Link} to={w.application.path} size="sm" className="stacked-target">
           {w.application.label}
         </Anchor>
       ) : (
@@ -61,7 +61,7 @@ function Links({ w }: { w: PageWatch }) {
       )),
     w.service &&
       (w.service.visible && w.service.path ? (
-        <Anchor key="s" component={Link} to={w.service.path} size="sm">
+        <Anchor key="s" component={Link} to={w.service.path} size="sm" className="stacked-target">
           {w.service.label}
         </Anchor>
       ) : (
@@ -70,7 +70,7 @@ function Links({ w }: { w: PageWatch }) {
         </Text>
       )),
     w.supplier ? (
-      <Anchor key="v" component={Link} to={`/suppliers/${w.supplier.id}`} size="sm">
+      <Anchor key="v" component={Link} to={`/suppliers/${w.supplier.id}`} size="sm" className="stacked-target">
         {t('watches.vendorIs', { vendor: w.supplier.name })}
       </Anchor>
     ) : (

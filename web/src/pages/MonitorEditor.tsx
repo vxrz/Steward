@@ -455,7 +455,7 @@ export function MonitorEditorPage() {
         <Alert color="red" mb="sm" title={t('editor.problemsTitle', { count: issues.length })} data-testid="monitor-problems">
           <Stack gap={2}>
             {issues.slice(0, 20).map((i) => (
-              <Anchor key={i.path} component="button" type="button" size="sm" ta="left" onClick={() => goTo(i)}>
+              <Anchor key={i.path} component="button" type="button" size="sm" ta="left" className="stacked-target" onClick={() => goTo(i)}>
                 {labelOf(i)}:{' '}
                 {i.index !== null && i.field && isEmpty((def.checks[i.index] as Record<string, unknown> | undefined)?.[i.field])
                   ? t('editor.required')

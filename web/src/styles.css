@@ -317,6 +317,12 @@ p .mantine-Anchor-root,
   min-height: 24px;
   border-radius: var(--mantine-radius-sm);
 }
+/* Links stacked one below the other (a watch's links, a list of problems): each at least 24 px high (WCAG 2.5.8). */
+.stacked-target {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+}
 .tag-target:focus-visible {
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: 1px;
