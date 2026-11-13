@@ -94,7 +94,12 @@ export function ModuleAccessModal({ id, name, onClose, onSaved }: { id: ModuleId
           </Text>
           <Radio.Group label={t('access.modeLabel')} value={mode} onChange={(v) => setMode(v as ModuleAccessMode)}>
             <Stack gap="xs" mt={6}>
-              <Radio value="everyone" label={t('access.mode.everyone')} description={t('access.modeHint.everyone')} data-testid="module-access-everyone" />
+              <Radio
+                value="everyone"
+                label={t('access.mode.everyone')}
+                description={t('access.modeHint.everyone', { brand: BRAND.name })}
+                data-testid="module-access-everyone"
+              />
               <Radio value="selected" label={t('access.mode.selected')} description={t('access.modeHint.selected')} data-testid="module-access-selected" />
             </Stack>
           </Radio.Group>

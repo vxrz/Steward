@@ -54,7 +54,7 @@ test.describe('who may use a module (own server)', () => {
     await expect(page.getByTestId('module-statusPages-access')).toHaveCount(0);
 
     // narrowing: the preview names who loses the module, and the dialog asks once more
-    await row.getByRole('button', { name: 'Who may use Costs' }).click();
+    await row.getByRole('button', { name: 'Who may use it: Costs' }).click();
     const dialog = page.getByRole('dialog', { name: 'Who may use Costs' });
     await expect(dialog).toContainText('Now: everyone signed in uses this module.');
     await dialog.getByRole('radio', { name: 'Selected teams and users' }).check();
@@ -81,7 +81,7 @@ test.describe('who may use a module (own server)', () => {
 
     // widening: the preview names who gains it, saving asks for the step-up
     await srv.api('DELETE', '/auth/step-up');
-    await row.getByRole('button', { name: 'Who may use Costs' }).click();
+    await row.getByRole('button', { name: 'Who may use it: Costs' }).click();
     await expect(dialog).toContainText('Now: Dana');
     await dialog.getByTestId('subjects-input').click();
     await page.keyboard.type(USERS.vera.username);
@@ -91,14 +91,14 @@ test.describe('who may use a module (own server)', () => {
     await expect(dialog).toContainText('saving asks you to confirm that it is you');
     await dialog.getByRole('button', { name: 'Save' }).click();
     const stepUp = page.getByRole('dialog', { name: 'Confirm it is you' });
-    await expect(stepUp.getByTestId('step-up-actions')).toContainText('Give rights in an access list');
+    await expect(stepUp.getByTestId('step-up-actions')).toContainText('Give someone rights in an access list');
     await stepUp.getByLabel('Your password').fill(USERS.admin.password);
     await stepUp.getByRole('button', { name: 'Confirm' }).click();
     await expect(dialog).toBeHidden();
     expect((await grants('costs')).sort()).toEqual([`user:${USERS.dana.username}`, `user:${USERS.vera.username}`]);
 
     // open to everyone again (the confirmation is still fresh)
-    await row.getByRole('button', { name: 'Who may use Costs' }).click();
+    await row.getByRole('button', { name: 'Who may use it: Costs' }).click();
     await dialog.getByRole('radio', { name: 'Everyone signed in' }).check();
     await expect(dialog.getByTestId('module-access-gains')).toContainText(/gain/);
     await dialog.getByRole('button', { name: 'Save' }).click();
@@ -113,7 +113,7 @@ test.describe('who may use a module (own server)', () => {
     await page.goto('/settings/modules');
     const row = page.getByTestId('module-plant');
     await expect(row.getByTestId('module-plant-access-mode')).toContainText('Alle angemeldeten Personen');
-    await row.getByRole('button', { name: 'Wer darf Werksregister nutzen' }).click();
+    await row.getByRole('button', { name: 'Wer darf es nutzen: Werksregister' }).click();
     const dialog = page.getByRole('dialog', { name: 'Wer darf Werksregister nutzen' });
     await expect(dialog).toContainText('Administratoren und Auditoren nutzen immer jedes Modul.');
     await dialog.getByRole('radio', { name: 'Ausgewählte Teams und Benutzer' }).check();
@@ -138,7 +138,7 @@ test.describe('who may use a module (own server)', () => {
       const dialog = page.getByRole('dialog');
       await dialog.getByRole('textbox', { name: 'Name' }).fill('Invented weekly review (modules)');
       await dialog.getByRole('checkbox', { name: 'Service scorecard' }).check();
-      await dialog.getByRole('textbox', { name: 'Users' }).click();
+      await dialog.getByLabel('Users', { exact: true }).click();
       await page.keyboard.type(USERS.vera.username);
       await page.getByRole('option', { name: `(${USERS.vera.username})` }).click();
       await page.keyboard.press('Escape');
@@ -147,7 +147,7 @@ test.describe('who may use a module (own server)', () => {
       await expect(hint).toContainText(`(${USERS.vera.username})`);
       await expectAccessible(page, 'report schedule with recipients who do not use a module');
       // Dana uses it: only Vera is named
-      await dialog.getByRole('textbox', { name: 'Users' }).click();
+      await dialog.getByLabel('Users', { exact: true }).click();
       await page.keyboard.type(USERS.dana.username);
       await page.getByRole('option', { name: `(${USERS.dana.username})` }).click();
       await page.keyboard.press('Escape');

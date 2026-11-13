@@ -183,7 +183,7 @@
   "access": {
     "usedBy": "Used by",
     "open": "Who may use it",
-    "openLabel": "Who may use {{name}}",
+    "openLabel": "Who may use it: {{name}}",
     "title": "Who may use {{name}}",
     "intro": "Everyone signed in uses a module by default. Restricted to selected teams and users, it is left out for everyone else – its pages, menu entries, notifications and report sections. Administrators and auditors always use every module.",
     "modeLabel": "Who uses it",

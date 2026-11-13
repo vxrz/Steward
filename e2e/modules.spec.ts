@@ -53,7 +53,7 @@ test.describe('switching a module (own server)', () => {
     await expect(card.getByTestId('module-compliance').getByTestId('maturity-badge')).toHaveText(/stable/);
     // who may use it (ADR 0034): everyone signed in by default; the status pages cannot be restricted
     await expect(costs.getByTestId('module-costs-access-mode')).toContainText('Everyone signed in');
-    await expect(costs.getByRole('button', { name: 'Who may use Costs' })).toBeVisible();
+    await expect(costs.getByRole('button', { name: 'Who may use it: Costs' })).toBeVisible();
     await expect(card.getByTestId('module-statusPages-access')).toHaveCount(0);
     // the plant registry and its map are switched in their own cards below, off by default
     await expect(card.getByTestId('module-plant-state')).toHaveText('Off');

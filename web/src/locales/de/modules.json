@@ -183,7 +183,7 @@
   "access": {
     "usedBy": "Genutzt von",
     "open": "Wer darf es nutzen",
-    "openLabel": "Wer darf {{name}} nutzen",
+    "openLabel": "Wer darf es nutzen: {{name}}",
     "title": "Wer darf {{name}} nutzen",
     "intro": "Ein Modul nutzen standardmäßig alle angemeldeten Personen. Auf ausgewählte Teams und Benutzer beschränkt, fehlt es für alle anderen – seine Seiten, Menüeinträge, Benachrichtigungen und Berichtsabschnitte. Administratoren und Auditoren nutzen immer jedes Modul.",
     "modeLabel": "Wer es nutzt",
