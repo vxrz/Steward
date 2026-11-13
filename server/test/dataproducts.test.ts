@@ -370,6 +370,35 @@ describe('steps and lineage', () => {
     expect((await vera('GET', `/data-products/${p.id}/steps`))[0].canEdit).toBe(false);
     expect((await fail(vera('DELETE', `/data-products/${p.id}/steps/${curate.id}`))).status).toBe(403);
   });
+
+  it('keeps a runner the editor may not see when they save the step without one', async () => {
+    const p = await dana('POST', '/data-products', { key: 'hidden-runner', name: 'Hidden runner' });
+    const mk = (name: string) => dana('POST', '/data-elements', { platformId: snowflake, kind: 'snowflake.table', qualifiedName: name, environment: 'prod' });
+    const a = await mk('RUNNER.RAW.A');
+    const b = await mk('RUNNER.STAGED.B');
+    await dana('POST', `/data-products/${p.id}/members`, { elementIds: [a.id, b.id], role: 'internal' });
+    // the runner: an element of a team dana is not in
+    const job = await s.api('POST', '/data-elements', {
+      platformId: snowflake,
+      kind: 'snowflake.task',
+      qualifiedName: 'RUNNER.OPS.LOAD_TASK',
+      environment: 'prod',
+    });
+    const team = (await s.api('POST', '/teams', { name: 'Runner team', members: ['olivia'] })).id;
+    await s.api('PUT', `/owning-teams/data_element/${job.id}`, { teamIds: [team] });
+    const step = await dana('POST', `/data-products/${p.id}/steps`, { name: 'load', kind: 'stage', inputs: [a.id], outputs: [b.id] });
+    const body = { name: 'load', kind: 'stage', inputs: [a.id], outputs: [b.id] };
+    await s.api('PUT', `/data-products/${p.id}/steps/${step.id}`, { ...body, runner: { kind: 'element', id: job.id } });
+    const seen = (await dana('GET', `/data-products/${p.id}/steps`))[0];
+    expect(seen).toMatchObject({ runner: null, runnerHidden: true });
+    // dana's form has no runner to send: the stored one stays
+    const saved = await dana('PUT', `/data-products/${p.id}/steps/${step.id}`, { ...body, schedule: 'hourly', runner: null });
+    expect(saved).toMatchObject({ runner: null, runnerHidden: true, schedule: 'hourly' });
+    expect((await s.api('GET', `/data-products/${p.id}/steps`))[0].runner).toEqual({ kind: 'element', id: job.id });
+    // a runner of her own replaces it
+    await dana('PUT', `/data-products/${p.id}/steps/${step.id}`, { ...body, runner: { kind: 'tool', tool: 'dbt', text: '' } });
+    expect((await s.api('GET', `/data-products/${p.id}/steps`))[0].runner).toMatchObject({ kind: 'tool', tool: 'dbt' });
+  });
 });
 
 describe('team scope', () => {
@@ -531,5 +560,36 @@ describe('statements per request', () => {
     console.log('statements', { ...after, overhead });
     expect(after.read - overhead).toBeLessThanOrEqual(25);
     expect(after.list - overhead).toBeLessThanOrEqual(25);
+  });
+});
+
+describe('module access (ADR 0034)', () => {
+  it('restricted to a team: who is not on the list neither reaches the routes nor the items through other surfaces', async () => {
+    // made by the administrator: no owning teams, so every working role sees it while the module is open
+    const p = await s.api('POST', '/data-products', { key: 'restricted-module', name: 'Restricted module product' });
+    const team = (await s.api('POST', '/teams', { name: 'Module users', members: ['dana'] })).id as string;
+    expect(team).toBeTruthy();
+    await s.api('PUT', '/settings/modules/dataProducts/access', { mode: 'selected', grants: [{ subject: 'team:module users' }] });
+    try {
+      // the module's routes: 404 MODULE_NO_ACCESS for vera, as before for dana and the auditor
+      expect(await fail(vera('GET', '/data-products'))).toMatchObject({ status: 404, code: 'MODULE_NO_ACCESS' });
+      // a new sign-in: the session knows dana's teams of its start
+      const danaNow = await s.as('dana', PW);
+      expect((await danaNow('GET', `/data-products/${p.id}`)).name).toBe('Restricted module product');
+      expect((await audrey('GET', `/data-products/${p.id}`)).name).toBe('Restricted module product');
+      // the owning-team routes and the link pickers are not the module's: they answer like a missing item
+      expect((await fail(vera('GET', `/owning-teams/data_product/${p.id}`))).status).toBe(404);
+      expect(JSON.stringify(await vera('GET', '/link-targets?kind=data-product&q=restricted'))).not.toContain(p.id);
+      // the rights themselves: none for vera, the module role from the core roles for dana
+      const { moduleRoleOf, productAccess } = await import('../src/dataproducts/access.js');
+      const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+      const user = (name: string) => toAuthUser(findUserByName(name)!);
+      expect(moduleRoleOf(user('vera'))).toBeNull();
+      expect(moduleRoleOf(user('dana'))).toBe('manager');
+      expect(productAccess(user('vera'), { id: p.id, owners: ['user:vera'] }).permissions).toEqual([]);
+    } finally {
+      await s.api('PUT', '/settings/modules/dataProducts/access', { mode: 'everyone', grants: [] });
+    }
+    expect((await vera('GET', `/data-products/${p.id}`)).name).toBe('Restricted module product');
   });
 });
