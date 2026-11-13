@@ -197,6 +197,35 @@ describe('declared against actual consumers', () => {
     setMockAccessHistoryAvailable(true);
   });
 
+  it('reads now only the platforms the person may use – the others keep their last read, not marked failed', async () => {
+    const { db } = await import('../src/db.js');
+    const before = db().get<{ status: string; read_at: string; read_by: string }>(
+      'SELECT status, read_at, read_by FROM dp_actual_reads WHERE port_id = ? AND environment = ? AND platform_id = ?',
+      port,
+      'prod',
+      kafka,
+    )!;
+    expect(before.status).toBe('ok');
+    // the Kafka platform becomes a team's that dana is not in
+    const team = (await s.api('POST', '/teams', { name: 'Invented Kafka team', members: ['adam'] })).id;
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('platform', ?, ?, ?)", kafka, team, new Date().toISOString());
+    try {
+      const v = await dana('POST', `/data-products/${product}/ports/${port}/actual/read`, { environment: 'prod' });
+      const after = db().get<{ status: string; read_at: string; read_by: string }>(
+        'SELECT status, read_at, read_by FROM dp_actual_reads WHERE port_id = ? AND environment = ? AND platform_id = ?',
+        port,
+        'prod',
+        kafka,
+      )!;
+      expect(after).toEqual(before);
+      // what the last read found stays (dana sees it counted, not named: the platform is no longer hers to see)
+      expect(v.reads.map((r: { platformKind: string }) => r.platformKind)).toContain('snowflake');
+      expect(db().get("SELECT 1 FROM dp_actual_consumers WHERE port_id = ? AND platform_id = ? AND name = 'gov-billing'", port, kafka)).toBeTruthy();
+    } finally {
+      db().run("DELETE FROM resource_teams WHERE kind = 'platform' AND resource_id = ? AND team_id = ?", kafka, team);
+    }
+  });
+
   it('reads the comparison with a fixed number of statements, however many registrations there are', async () => {
     const url = `/data-products/${product}/ports/${port}/actual?environment=prod`;
     await dana('GET', url);

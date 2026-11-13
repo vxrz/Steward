@@ -244,12 +244,15 @@ async function readPlatform(owner: string, platformId: string, elements: Element
   }
 }
 
-/** Stores what a read found (replaces the previous read of the port, environment and platform). */
-function store(portId: string, environment: string, owner: string, reads: PlatformRead[]): void {
+/**
+ * Stores what a read found (replaces the previous read of the port, environment and platform) – each platform's read as
+ * the person who read it; platforms still bound that were not read keep their last state.
+ */
+function store(portId: string, environment: string, reads: (PlatformRead & { owner: string })[], boundIds: readonly string[]): void {
   const at = nowIso();
   db().tx(() => {
     // platforms no longer bound: their old answers go
-    const keep = reads.map((r) => r.platformId);
+    const keep = [...boundIds];
     const stale = db()
       .all<{ platform_id: string }>('SELECT platform_id FROM dp_actual_reads WHERE port_id = ? AND environment = ?', portId, environment)
       .map((r) => r.platform_id)
@@ -271,7 +274,7 @@ function store(portId: string, environment: string, owner: string, reads: Platfo
         G.actualWindowDays,
         r.objects,
         at,
-        owner,
+        r.owner,
       );
       // a failed read keeps what the last good one found (a hiccup does not make every consumer silent)
       if (r.status === 'failed') continue;
@@ -293,13 +296,19 @@ function store(portId: string, environment: string, owner: string, reads: Platfo
   });
 }
 
-/** Reads a port's actual consumers in an environment as `owner` and stores them. */
-export async function readPort(port: PortRow, environment: string, owner: string): Promise<PlatformRead[]> {
+/**
+ * Reads a port's actual consumers in an environment and stores them: each bound platform as the person `readerOf` names
+ * for it (null: not read now – it keeps its last state).
+ */
+export async function readPort(port: PortRow, environment: string, readerOf: (platformId: string) => string | null): Promise<PlatformRead[]> {
   const bound = boundByPlatform(port, environment);
-  const reads: PlatformRead[] = [];
-  for (const [platformId, elements] of bound) reads.push(await readPlatform(owner, platformId, elements));
-  store(port.id, environment, owner, reads);
-  return reads;
+  const reads: (PlatformRead & { owner: string })[] = [];
+  for (const [platformId, elements] of bound) {
+    const owner = readerOf(platformId);
+    if (owner) reads.push({ ...(await readPlatform(owner, platformId, elements)), owner });
+  }
+  store(port.id, environment, reads, [...bound.keys()]);
+  return reads.map(({ owner: _owner, ...r }) => r);
 }
 
 /** POST …/ports/:portId/actual/read – who may change the product and use one of the bound platforms (session only). */
@@ -312,7 +321,8 @@ export async function readNow(productId: string, portId: string, environment: st
     throw new HttpError(409, `The port has no elements on a platform in ${environment}`, 'DATA_PORT_BINDING', { context: 'noPlatform', environment });
   const usable = usablePlatforms(u, [...bound.keys()]);
   if (!usable.size) forbid('use the platforms of this port', 'dataProducts');
-  const reads = await readPort(port, environment, u.username);
+  // only the platforms the person may use: the others keep what their last reader found
+  const reads = await readPort(port, environment, (id) => (usable.has(id) ? u.username : null));
   audit({
     action: 'dataproduct.consumers_read',
     entityType: 'data_product',
@@ -516,6 +526,14 @@ export async function refreshActualConsumers(now = Date.now(), max = 50): Promis
     before,
     max,
   );
+  // each platform again as the person who read it last (a platform bound since: as the port's first reader)
+  const readers = new Map<string, string>();
+  for (const part of chunks([...new Set(due.map((d) => d.port_id))]))
+    for (const r of db().all<{ port_id: string; environment: string; platform_id: string; read_by: string }>(
+      `SELECT port_id, environment, platform_id, read_by FROM dp_actual_reads WHERE port_id IN (${marks(part.length)})`,
+      ...part,
+    ))
+      readers.set(`${r.port_id}\u0000${r.environment}\u0000${r.platform_id}`, r.read_by);
   let n = 0;
   for (const d of due) {
     const port = portRow(d.port_id);
@@ -525,7 +543,7 @@ export async function refreshActualConsumers(now = Date.now(), max = 50): Promis
       continue;
     }
     try {
-      await readPort(port, d.environment, d.read_by);
+      await readPort(port, d.environment, (platformId) => readers.get(`${d.port_id}\u0000${d.environment}\u0000${platformId}`) ?? d.read_by);
       n++;
     } catch (err) {
       logger.warn({ err, portId: d.port_id }, 'actual consumers could not be read');
