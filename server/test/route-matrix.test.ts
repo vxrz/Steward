@@ -2292,6 +2292,8 @@ const STEP_UP_BY_POLICY = [
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // 0.25.0: a background import's progress – only its starter's (and the fixtures start none: 404)
+  'GET /api/data-products/import/jobs/:id',
   // the Teams app package needs the bot's app id (none in the fixtures: 409)
   'GET /api/settings/teams-bot/package',
   // OAuth sign-in for MCP clients is off in the fixtures (#12)
