@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Anchor, Badge, Button, Group, Modal, Paper, SegmentedControl, Select, Stack, Text, TextInput, Tooltip } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { Link } from 'react-router-dom';
 import { IconAlertTriangle, IconCheck, IconEyeOff, IconGitBranch, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -84,6 +85,8 @@ function Ends({ ends, hidden, unmatched, unmatchedCount }: { ends: DataLineageEn
         <Tooltip
           multiline
           w={320}
+          // the names also for the keyboard and on touch screens, not only on hover
+          events={{ hover: true, focus: true, touch: true }}
           label={
             <Stack gap={0}>
               <Text size="xs" fw={600}>
@@ -170,6 +173,8 @@ function AcceptModal({ p, onClose, onDone }: { p: DataLineageProposal; onClose: 
 export function ProposalInbox({ sourceId, sources }: { sourceId?: string; sources?: { id: string; name: string }[] }) {
   const { t } = useTranslation(['dataLineage', 'dataProductViews', 'common']);
   const [status, setStatus] = useState<DataLineageProposalStatus>('open');
+  // four statuses do not fit beside each other on a phone ("Bereits dokumentiert"): one below the other there
+  const narrow = useMediaQuery('(max-width: 40em)') ?? false;
   const [source, setSource] = useState<string | null>(null);
   const q = useProposals({ status, sourceId: sourceId ?? source ?? undefined });
   const invalidate = useInvalidateDataProducts();
@@ -272,6 +277,9 @@ export function ProposalInbox({ sourceId, sources }: { sourceId?: string; source
           data={DATA_LINEAGE_PROPOSAL_STATUSES.map((s) => ({ value: s, label: t(`proposals.statuses.${s}`) }))}
           value={status}
           onChange={(s) => setStatus(s as DataLineageProposalStatus)}
+          orientation={narrow ? 'vertical' : 'horizontal'}
+          fullWidth={narrow}
+          w={narrow ? '100%' : undefined}
           data-testid="proposal-status"
         />
         {!sourceId && sources && sources.length > 1 && (

@@ -189,7 +189,12 @@ test.describe('lineage from tools', () => {
     await expect(page.getByTestId('lineage-sources')).toBeVisible();
     await expect(page.getByTestId('proposal-card').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await expectAccessible(page, 'discovery with lineage on a phone');
+    // the four statuses one below the other: the filter stays inside the page, none is cut off at the edge
+    const filter = page.getByTestId('lineage-inbox').getByTestId('proposal-status');
+    await expect(filter).toHaveAttribute('data-orientation', 'vertical');
+    const box = await filter.boundingBox();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await expectAccessible(page, 'discovery with lineage on a phone', { wcag22: true });
     await page.goto(`/data-products/lineage/${src.id}`);
     await expect(page.getByTestId('proposal-card').filter({ hasText: `phone_${token}` })).toBeVisible();
     await expectNoHorizontalScroll(page);
