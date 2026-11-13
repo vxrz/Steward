@@ -32,7 +32,7 @@
     "vibe": "Mistral Vibe",
     "vibeHint": "For Mistral Vibe CLI (3.x), in <c>{{file}}</c> (or <c>.vibe/config.toml</c> in a project). Vibe reads the token from the environment variable <c>{{env}}</c> and sends it as <c>Authorization: Bearer …</c>: set it before you start vibe, e.g. in your shell profile or a password manager, not in the file.",
     "claudeCode": "Claude Code",
-    "claudeCodeHint": "Claude Code (command line; replace <c>&lt;token&gt;</c> – a command with the token itself would stay in the shell history):"
+    "claudeCodeHint": "Claude Code (command line; the shell takes the token from the environment variable <c>{{env}}</c>, so it does not end up in your shell history):"
   },
   "gateway": {
     "intro": "The MCP gateway lets AI assistants call this platform’s API through Steward, with the credentials stored here, which the assistant never sees. Reads (GET and HEAD) run at once; changing calls only where you allow them below, and only after a person approves each one in Steward. Every call is written to the audit log.",

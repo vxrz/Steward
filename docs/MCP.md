@@ -167,10 +167,10 @@ VS Code asks for the token when it starts the server, so the token is not in the
 **Claude Code** (command line):
 
 ```bash
-claude mcp add --transport http steward https://steward.example.com/api/mcp --header "Authorization: Bearer <token>"
+claude mcp add --transport http steward https://steward.example.com/api/mcp --header "Authorization: Bearer $STEWARD_MCP_TOKEN"
 ```
 
-Replace `<token>` when you run it. The command line, token included, may stay in your shell's history – remove it from there afterwards.
+Set the environment variable `STEWARD_MCP_TOKEN` to the token first (the same one Mistral Vibe reads, see below): the shell fills it in, so the token itself does not end up in your shell's history.
 
 **Mistral Vibe CLI** (3.x; `~/.vibe/config.toml`, or `.vibe/config.toml` in a project):
 

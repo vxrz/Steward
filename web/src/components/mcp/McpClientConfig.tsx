@@ -36,8 +36,8 @@ export function CopyCode({ text, label }: { text: string; label: string }) {
 
 type Kind = 'stdio' | 'http' | 'vibe';
 
-/** The environment variable Mistral Vibe reads the token from (`api_key_env`). */
-const VIBE_TOKEN_ENV = 'STEWARD_MCP_TOKEN';
+/** The environment variable that holds the token for Mistral Vibe (`api_key_env`) and the Claude Code command. */
+const TOKEN_ENV = 'STEWARD_MCP_TOKEN';
 
 /**
  * Ready-to-copy client configuration: the stdio bridge for desktop clients (Claude Desktop style
@@ -71,10 +71,10 @@ export function McpClientConfig({ status, token }: { status: McpServerStatus; to
     `name = ${JSON.stringify('steward')}`,
     `transport = ${JSON.stringify('streamable-http')}`,
     `url = ${JSON.stringify(endpoint)}`,
-    `api_key_env = ${JSON.stringify(VIBE_TOKEN_ENV)}`,
+    `api_key_env = ${JSON.stringify(TOKEN_ENV)}`,
   ].join('\n');
-  // a placeholder even with the real token: a command line ends up in the shell's history
-  const claudeCode = `claude mcp add --transport http steward ${endpoint} --header "Authorization: Bearer <token>"`;
+  // the shell fills in the token from the environment: a command line with the token itself stays in the shell's history
+  const claudeCode = `claude mcp add --transport http steward ${endpoint} --header "Authorization: Bearer $${TOKEN_ENV}"`;
   return (
     <Stack gap="xs">
       <SegmentedControl
@@ -106,14 +106,14 @@ export function McpClientConfig({ status, token }: { status: McpServerStatus; to
           </Text>
           <CopyCode text={http} label={t('config.http')} />
           <Text size="sm">
-            <Trans t={t} i18nKey="config.claudeCodeHint" components={{ c: <Code /> }} />
+            <Trans t={t} i18nKey="config.claudeCodeHint" components={{ c: <Code /> }} values={{ env: TOKEN_ENV }} />
           </Text>
           <CopyCode text={claudeCode} label={t('config.claudeCode')} />
         </>
       ) : (
         <>
           <Text size="sm">
-            <Trans t={t} i18nKey="config.vibeHint" components={{ c: <Code /> }} values={{ file: '~/.vibe/config.toml', env: VIBE_TOKEN_ENV }} />
+            <Trans t={t} i18nKey="config.vibeHint" components={{ c: <Code /> }} values={{ file: '~/.vibe/config.toml', env: TOKEN_ENV }} />
           </Text>
           <CopyCode text={vibe} label={t('config.vibe')} />
         </>

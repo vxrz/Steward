@@ -150,7 +150,9 @@ test('admin requires signed commits from named signers and sees why a fetch is r
   await api.delete(`/api/sync-sources/${src.id}`);
 });
 
-test("a GitHub rate limit is shown as such, in the reader's time, and nothing is staged", async ({ page, request, apiAs }) => {
+test("a GitHub rate limit is shown as such, in the reader's time, and nothing is staged", async ({ page, request, apiAs, allowConsole }) => {
+  // the fetch is refused on purpose: Steward answers 502 for the Git host's error
+  allowConsole(/the server responded with a status of 502/);
   const tag = uniq('e2e').split(' ')[1]!;
   const repo = `e2e/limited-${tag}`;
   await request.post('/mock/git/_commit', {
