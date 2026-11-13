@@ -78,6 +78,9 @@ describe('Why do I have access? names the module layer', () => {
     try {
       const p = await s.api('POST', '/settings/modules/dataContracts/access/preview', { mode: 'selected', grants: [] });
       expect(p.owningTeamsWithout).toContain('Invented contract owners');
+      // status viewers reach the status pages only: they neither gain nor lose a module
+      expect(p.loses.map((u: { username: string }) => u.username)).toContain('vera');
+      expect(p.loses.map((u: { username: string }) => u.username)).not.toContain('stella');
       const with_ = await s.api('POST', '/settings/modules/dataContracts/access/preview', {
         mode: 'selected',
         grants: [{ subject: 'team:invented contract owners' }],

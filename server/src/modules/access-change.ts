@@ -13,9 +13,10 @@ import {
 import { z } from 'zod';
 import { db } from '../db.js';
 import { auditAccessChange } from '../auth/access-change.js';
-import { me } from '../auth/access.js';
+import { isStatusViewer, me } from '../auth/access.js';
 import { assertKnownSubjects, subjectExists } from '../auth/subjects.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
+import { plantOnly } from '../auth/policy.js';
 import { HttpError, newId, nowIso } from '../util.js';
 import { forgetModuleAccess, moduleAccessMode, moduleGrantSubjects, usesWith } from './access.js';
 
@@ -94,8 +95,11 @@ export function previewModuleAccess(id: ModuleId, input: ModuleAccessInput): Mod
   const after = subjectsOf(input);
   const gains: ModuleAccessPreview['gains'] = [];
   const loses: ModuleAccessPreview['loses'] = [];
-  for (const u of listUsers().filter((x) => x.active)) {
+  // status viewers reach the status pages only (which cannot be restricted), plant viewers the plant registry only:
+  // they neither gain nor lose another module
+  for (const u of listUsers().filter((x) => x.active && !isStatusViewer(x.roles))) {
     const au = toAuthUser(u);
+    if (id !== 'plant' && plantOnly(au)) continue;
     const was = usesWith(au, mode, before);
     const will = usesWith(au, input.mode, after);
     if (was !== will) (will ? gains : loses).push({ username: u.username, displayName: u.displayName });
