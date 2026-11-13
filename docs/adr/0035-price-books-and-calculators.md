@@ -1,6 +1,6 @@
 # 0035. Price books, cost drivers and calculators
 
-- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ and added three points the same day: derived price books for providers with a fee on top, ad-hoc adjustments in estimates, and price ranges with variants in the MCP dry run (decisions 22–24, worked into parts 4, 6 and 10) (2026-11-12); nothing is built yet
+- **Status:** Accepted – the owner accepted every recommendation under _Owner decisions_ and added three points the same day: derived price books for providers with a fee on top, ad-hoc adjustments in estimates, and price ranges with variants in the MCP dry run (decisions 22–24, worked into parts 4, 6 and 10) (2026-11-12); built in 0.21.0 (phase 1: items, books by hand and CSV, calculators, estimates with ranges and adjustments, the MCP dry run) – phase 2 (contract conditions, derived books, sources) to come
 - **Date:** 2026-11-12
 - **Since:** 0.21.0 at the earliest (phase 1, see _Phases_); builds on [ADR 0026](0026-service-cost-planning.md), [0030](0030-contract-payments-and-recorded-costs.md), [0031](0031-supplier-contracts-and-contacts-scope.md) and [0032](0032-cost-attribution-platform-plans.md), and on [0033](0033-one-access-model.md) and [0034](0034-module-access.md) for rights
 

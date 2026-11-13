@@ -104,7 +104,7 @@ const { basePath, publicUrl } = check('SM_BASE_PATH', () => resolveBasePath(proc
 const examplesDir = env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples');
 
 export const config = {
-  version: '0.20.0',
+  version: '0.21.0',
   host: env.SM_HOST,
   port: env.SM_PORT,
   /** The Teams bot listener (ADR 0013): undefined = none */

@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.20.0 (November 2026)._
+_Last reviewed for 0.21.0 (November 2026)._
 
 ## What Steward is for
 
@@ -79,10 +79,10 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.18.0:** multi-year supplier contracts with payment schedules that propose the plan lines of each fiscal year, commitments to contract end and earliest exit, costs booked by hand or imported from CSV; suppliers shared by services with contracts, owners and contacts of their own; InfluxDB 1.x and 2.x as a source of the freshness check; dependency updates and the follow-ups of the 0.17 review.
 - **0.19.0:** platform cost plans and contract volumes (prepaid or by use, with a minimum or a ceiling), costs and contracts of applications and systems; plant imports that keep what people changed in Steward, Revert of removed entries and proposals from CI; named owners from outside the owning teams confirmed and audited; the fixes of a review of security, performance, UI and accessibility.
 - **0.20.0:** a review of the whole application (bugs, security, performance, architecture, UI/UX and accessibility) with its fixes; Industrial Edge examples on the real IEM fields; data paths that follow the direction of the data (receive transfers, applications and platforms as peers, systems and platforms in zones); off beyond the maximum as Down (#288); Git sync rate limits and an all-or-nothing fetch; decision records for shares, module access, price books and data products.
+- **0.21.0:** one access model, phase 1 – shares with an _Access_ tab on services, applications, systems, suppliers, device profiles and KPI definitions, owners as implied shares, _Restricted_ items; who may use a module; price books, calculators and estimates with ranges, variants and the MCP dry run; Snowflake cost estimate and waste check examples; a security review of the access changes.
 
 ## Next
 
-- **0.21.0:** one access model, phase 1 – shares on services, applications, systems, suppliers, device profiles and KPI definitions ([ADR 0033](adr/0033-one-access-model.md), #289–#293); who may use a module ([ADR 0034](adr/0034-module-access.md), #294, #295); price books, cost drivers and calculators, phase 1 ([ADR 0035](adr/0035-price-books-and-calculators.md)).
 - **0.22.0:** the data products module, phase 1 ([ADR 0036](adr/0036-data-products-module.md)).
 - **Then:** the access model phase 2 and module roles (#297), price books phase 2, data products phase 2.
 
