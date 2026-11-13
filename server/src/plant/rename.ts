@@ -698,9 +698,17 @@ export function checkRename(kind: PlantIdKind, scope: string, from: string, to: 
   if (from === to) return { entry, problem: { code: 'PLANT_ID_SAME', message: 'The new id is the id it has' } };
   const format = idFormatProblem(kind, to);
   if (format) return { entry, problem: { code: 'PLANT_ID_FORMAT', message: format } };
-  const busy = taken?.(to) ?? (!!entryOf(kind, scope, to) || familyHas(kind, scope, to));
+  const other = entryOf(kind, scope, to);
+  const busy = taken?.(to) ?? (!!other || familyHas(kind, scope, to));
+  // 0.21.0 (#293): an id a device profile or KPI definition the caller may not see has is refused neutrally
+  const catalogue = kind === 'profile' || kind === 'kpi';
+  if (busy && catalogue && other && !entryPermissions(other).includes('view'))
+    return { entry, problem: { code: 'PLANT_ID_UNAVAILABLE', message: `The id "${to}" cannot be used – choose another one` } };
   if (busy) return { entry, problem: { code: 'PLANT_ID_TAKEN', message: `Another ${kind} has the id "${to}" already` } };
   const alias = aliasTarget(kind, scope, to);
+  const aliased = alias ? entryOf(kind, scope, alias) : null;
+  if (alias && alias !== from && catalogue && aliased && !entryPermissions(aliased).includes('view'))
+    return { entry, problem: { code: 'PLANT_ID_UNAVAILABLE', message: `The id "${to}" cannot be used – choose another one` } };
   if (alias && alias !== from)
     return {
       entry,
@@ -889,6 +897,8 @@ function refuse(p: { code: string; message: string }, kind: PlantIdKind, id: str
       throw new HttpError(409, p.message, 'PLANT_ID_SAME', params);
     case 'PLANT_ID_TAKEN':
       throw new HttpError(409, p.message, 'PLANT_ID_TAKEN', params);
+    case 'PLANT_ID_UNAVAILABLE':
+      throw new HttpError(409, p.message, 'PLANT_ID_UNAVAILABLE', { id: params.id });
     default:
       throw new HttpError(409, p.message, 'PLANT_ID_ALIAS', params);
   }

@@ -1,3 +1,4 @@
+import { presentEntryValues, seesEntry } from '../catalogue-access.js';
 import type { PlantChangeSetSource, PlantEntryHistory, PlantEntryHistoryItem, PlantEntryKind, PlantMoveInput, PlantMovedKind } from '@sm/shared';
 import { PLANT_CHANGESET_LIMITS, PLANT_ENTRY_SCOPE } from '@sm/shared';
 import { db } from '../../db.js';
@@ -52,10 +53,15 @@ function checkVisible(kind: PlantEntryKind, scope: string, id: string, u: AuthUs
   const sees =
     site === '' ? [...rights.values()].some((p) => p.includes('view')) || plantProposesSome(u) : site !== null && !!rights.get(site)?.includes('view');
   if (!sees) throw new HttpError(404, `There is no ${kind} "${id}"`, 'PLANT_ENTRY_NOT_FOUND', { kind, id });
+  // 0.21.0 (#293): a device profile or KPI definition the reader may not see has no history for them
+  if (CATALOGUE_KINDS.includes(kind) && !seesEntry(u, kind === 'profile' ? 'device_profile' : 'kpi_definition', id))
+    throw new HttpError(404, `There is no ${kind} "${id}"`, 'PLANT_ENTRY_NOT_FOUND', { kind, id });
 }
 
 const valuesOf = (stored: string) => historyValues<Record<string, unknown> | null>(stored, null) ?? {};
-const diffOf = (r: Pick<HistoryRow, 'op' | 'before_values' | 'after_values'>) => fieldDiff(valuesOf(r.before_values), valuesOf(r.after_values));
+/** The diff as the reader may see it: hidden profiles and KPI definitions by their placeholders (0.21.0). */
+const shownDiff = (r: Pick<HistoryRow, 'op' | 'before_values' | 'after_values' | 'kind' | 'entry_id'>) =>
+  fieldDiff(presentEntryValues(r.kind, r.entry_id, valuesOf(r.before_values)), presentEntryValues(r.kind, r.entry_id, valuesOf(r.after_values)));
 
 const ROWS = `SELECT h.*, c.title AS title, c.source AS source, c.import_id AS import_id
   FROM plant_entry_history h LEFT JOIN plant_change_sets c ON c.id = h.change_set_id`;
@@ -93,7 +99,7 @@ export function entryHistory(kind: PlantEntryKind, scope: string, id: string, u:
     by: r.author,
     appliedBy: r.applied_by,
     changeSet: r.title !== null ? { id: r.change_set_id, title: r.title, source: r.source!, importId: r.import_id } : null,
-    diff: diffOf(r),
+    diff: shownDiff(r),
     // 0.19.0: a removal is reverted by adding the entry again – while it is not there (a site is added again by hand)
     canRevert:
       revert &&

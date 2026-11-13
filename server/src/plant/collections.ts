@@ -1,3 +1,5 @@
+import { currentUser } from '../auth/context.js';
+import { seesEntry } from './catalogue-access.js';
 import type { z } from 'zod';
 import YAML from 'yaml';
 import {
@@ -417,6 +419,8 @@ export function collectorCollections(kind: string, ref: string): PlantCollection
 
 /** The collections that read a data point of a profile (or of one that extends it), on assets the caller may see. */
 export function pointCollections(profileId: string, pointId: string): PlantCollectionBrief[] {
+  // 0.21.0 (#293): a profile the caller may not see reads like one that does not exist (no collections)
+  if (!seesEntry(currentUser(), 'device_profile', profileId)) return [];
   const v = visibleAssets();
   const profiles = allProfiles();
   const assignments = allAssignments();

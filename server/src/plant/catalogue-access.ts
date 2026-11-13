@@ -21,6 +21,7 @@ import { usesModule } from '../modules/access.js';
 import { HttpError } from '../util.js';
 import { canManageCatalogue, plantProposesSome, proposing } from './access.js';
 import { kpiProfiles } from './checks.js';
+import { resolvedProfile } from './data-model.js';
 
 /**
  * Device profiles and KPI definitions with owning teams and shares (0.21.0, #293; ADR 0033 parts 3 and 4).
@@ -379,4 +380,27 @@ export function assignmentRefs(
 /** An assignment as the reader may see it: hidden profiles and KPI definitions by their placeholders. */
 export function presentAssignment<T extends Pick<PlantAssignmentValues, 'profileId' | 'kpis'>>(a: T, refs: { profiles: HiddenRefs; kpis: HiddenRefs }): T {
   return { ...a, profileId: refs.profiles.ref(a.profileId), kpis: a.kpis.map((k) => ({ ...k, kpi: refs.kpis.ref(k.kpi) })) };
+}
+
+/**
+ * An entry's values (a change set's base and current, a 409's merge) as the reader may see them: an assignment's,
+ * a profile's base and a KPI definition's input profiles by their placeholders. Other kinds are returned as they are.
+ */
+export function presentEntryValues(kind: string, id: string, v: Record<string, unknown>, scope: CatalogueScope = catalogueScope()): Record<string, unknown> {
+  if (scope.open()) return v;
+  if (kind === 'assignment' && ('profileId' in v || 'kpis' in v)) {
+    const a = { profileId: (v.profileId as string | null) ?? null, kpis: (v.kpis as PlantAssignmentValues['kpis'] | undefined) ?? [] };
+    const chain = resolvedProfile(a.profileId)?.chain ?? [];
+    const shown = presentAssignment(a, assignmentRefs(a, chain, scope));
+    return { ...v, ...('profileId' in v ? { profileId: shown.profileId } : {}), ...('kpis' in v ? { kpis: shown.kpis } : {}) };
+  }
+  if (kind === 'profile' && typeof v.extends === 'string') {
+    const refs = new HiddenRefs(scope.profile, resolvedProfile(id)?.chain.slice(1) ?? [v.extends]);
+    return { ...v, extends: refs.ref(v.extends) };
+  }
+  if (kind === 'kpi' && Array.isArray(v.inputs)) {
+    const k = { inputs: v.inputs as PlantKpiValues['inputs'] };
+    return { ...v, inputs: presentInputs(k, kpiRefs(k, scope)) };
+  }
+  return v;
 }

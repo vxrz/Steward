@@ -12,11 +12,13 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
+import { currentUser } from '../auth/context.js';
 import { HttpError, nowIso, sha256 } from '../util.js';
 import { allSiteRights, entryOf, entryPermissions } from './ids.js';
 import { canManageCatalogue, plantManagesSome } from './access.js';
 import { planRemoval, type Target } from './removal.js';
 import { requirePlant } from './settings.js';
+import { catalogueEntryAccess, seesEntry } from './catalogue-access.js';
 import {
   assetRowOf,
   assetValuesOf,
@@ -104,7 +106,8 @@ function editAsset(id: string, set: PlantBulkSet, rights: Map<string, PlantPermi
     const cur = assignmentRowOf(id);
     const a = cur ? assignmentValuesOf(cur) : ASSIGNMENT_DEFAULTS();
     if (a.profileId !== set.profileId) {
-      const target = set.profileId ? profileRowOf(set.profileId) : undefined;
+      // 0.21.0 (#293): a profile the caller may not see reads like one that does not exist
+      const target = set.profileId && seesEntry(currentUser(), 'device_profile', set.profileId) ? profileRowOf(set.profileId) : undefined;
       if (set.profileId && !target)
         return { item: { ...base, outcome: 'refused', reason: reason('PLANT_PROFILE_NOT_FOUND', `There is no device profile "${set.profileId}"`) } };
       // 0.12.0: a template is only for other profiles to extend
@@ -118,7 +121,7 @@ function editAsset(id: string, set: PlantBulkSet, rights: Map<string, PlantPermi
             outcome: 'refused',
             reason: reason(
               'PLANT_ASSIGNMENT_HAS_SETTINGS',
-              `Asset "${id}" has interface settings for profile "${a.profileId}" – change its profile on its page`,
+              `Asset "${id}" has interface settings for ${seesEntry(currentUser(), 'device_profile', a.profileId) ? `profile "${a.profileId}"` : 'its device profile'} – change its profile on its page`,
             ),
           },
         };
@@ -144,9 +147,12 @@ function editAsset(id: string, set: PlantBulkSet, rights: Map<string, PlantPermi
 
 function editCatalogue(kind: 'profile' | 'kpi', id: string, set: PlantBulkSet, at: string, by: string): Edited {
   const row = kind === 'profile' ? profileRowOf(id) : kpiRowOf(id);
-  if (!row) return { item: { scope: '', id, name: id, outcome: 'refused', reason: reason('PLANT_ENTRY_NOT_FOUND', `There is no ${kind} "${id}"`) } };
+  // 0.21.0 (#293): its own rights – one the caller may not see reads like one that does not exist, Edit changes it
+  const rights = row ? catalogueEntryAccess(currentUser(), kind === 'profile' ? 'device_profile' : 'kpi_definition', id).permissions : [];
+  if (!row || !rights.includes('view'))
+    return { item: { scope: '', id, name: id, outcome: 'refused', reason: reason('PLANT_ENTRY_NOT_FOUND', `There is no ${kind} "${id}"`) } };
   const base = { scope: '', id, name: row.name };
-  if (!entryPermissions({ siteId: null }).includes('manage'))
+  if (!rights.includes('edit'))
     return { item: { ...base, outcome: 'skipped', reason: reason('FORBIDDEN', `You may not change ${kind} "${id}"`) } };
   if (kind === 'profile') {
     const before = profileValuesOf(row as Parameters<typeof profileValuesOf>[0]);
