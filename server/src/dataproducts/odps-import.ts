@@ -132,7 +132,11 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   }
   if (Array.isArray(raw.support)) {
     const s = raw.support.find((x) => isObj(x) && str(x.url));
-    if (isObj(s)) product.support = { channel: str(s.channel) ?? '', url: str(s.url) ?? '' };
+    if (isObj(s)) {
+      // Steward exports the support hours as the description "Hours: …"
+      const d = str(s.description) ?? '';
+      product.support = { channel: str(s.channel) ?? '', url: str(s.url) ?? '', ...(d.startsWith('Hours: ') ? { hours: d.slice(7).slice(0, 200) } : {}) };
+    }
   }
 
   // Steward's extras

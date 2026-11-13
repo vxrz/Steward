@@ -170,6 +170,7 @@ describe('ODPS import', () => {
       tags: ['odps'],
       owners: ['user:dana'],
       externalRefs: [{ label: 'Wiki', url: 'https://wiki.example/odps' }],
+      support: { channel: '#odps', url: 'https://wiki.example/odps-support', hours: '8–17' },
     });
     await dana('PUT', `/data-products/${p.id}/environments/prod`, { state: 'available' });
     await dana('POST', `/data-products/${p.id}/ports`, { direction: 'output', name: 'facts', version: 'v3', type: 'table', description: 'The facts' });
