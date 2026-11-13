@@ -511,46 +511,48 @@ function Versions({ book, onOpen }: { book: CostPriceBookDetail; onOpen: (n: num
       <Title order={3} size="h5">
         {t('prices.versions.title')}
       </Title>
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('prices.columns.version')}</Table.Th>
-            <Table.Th>{t('prices.versions.when')}</Table.Th>
-            <Table.Th>{t('prices.versions.source')}</Table.Th>
-            <Table.Th>{t('prices.versions.changes')}</Table.Th>
-            <Table.Th />
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {book.versions.map((v) => (
-            <Table.Tr key={v.number}>
-              <Table.Td>
-                v{v.number}
-                {v.inUse && (
-                  <Badge size="xs" variant="light" ml={4}>
-                    {t('prices.versions.inUse')}
-                  </Badge>
-                )}
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm">{fmtDay(v.createdAt)}</Text>
-                <Text size="xs" c="dimmed">
-                  {v.createdBy}
-                </Text>
-              </Table.Td>
-              <Table.Td>{t(`prices.sources.${v.source}`)}</Table.Td>
-              <Table.Td>
-                <DiffCounts diff={v.diff} />
-              </Table.Td>
-              <Table.Td>
-                <Button size="xs" variant="subtle" onClick={() => onOpen(v.number)} data-testid={`version-${v.number}`}>
-                  {t('prices.versions.whatChanged')}
-                </Button>
-              </Table.Td>
+      <Table.ScrollContainer minWidth={480}>
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>{t('prices.columns.version')}</Table.Th>
+              <Table.Th>{t('prices.versions.when')}</Table.Th>
+              <Table.Th>{t('prices.versions.source')}</Table.Th>
+              <Table.Th>{t('prices.versions.changes')}</Table.Th>
+              <Table.Th />
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {book.versions.map((v) => (
+              <Table.Tr key={v.number}>
+                <Table.Td>
+                  v{v.number}
+                  {v.inUse && (
+                    <Badge size="xs" variant="light" ml={4}>
+                      {t('prices.versions.inUse')}
+                    </Badge>
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{fmtDay(v.createdAt)}</Text>
+                  <Text size="xs" c="dimmed">
+                    {v.createdBy}
+                  </Text>
+                </Table.Td>
+                <Table.Td>{t(`prices.sources.${v.source}`)}</Table.Td>
+                <Table.Td>
+                  <DiffCounts diff={v.diff} />
+                </Table.Td>
+                <Table.Td>
+                  <Button size="xs" variant="subtle" onClick={() => onOpen(v.number)} data-testid={`version-${v.number}`}>
+                    {t('prices.versions.whatChanged')}
+                  </Button>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Table.ScrollContainer>
     </Stack>
   );
 }
@@ -1034,30 +1036,32 @@ function FxRates() {
         {t('prices.fx.help')}
       </Text>
       {(q.data ?? []).length > 0 && (
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('prices.fx.date')}</Table.Th>
-              <Table.Th>{t('prices.fx.rate')}</Table.Th>
-              <Table.Th>{t('prices.fx.setBy')}</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(q.data ?? []).map((r) => (
-              <Table.Tr key={`${r.date}${r.base}${r.quote}`}>
-                <Table.Td>{r.date}</Table.Td>
-                <Table.Td className="viz-num">{t('prices.fx.text', { base: r.base, rate: r.rate, quote: r.quote })}</Table.Td>
-                <Table.Td>{r.setBy}</Table.Td>
-                <Table.Td>
-                  <ActionIcon variant="subtle" color="red" aria-label={t('prices.fx.remove')} onClick={() => void remove(r)}>
-                    <IconTrash size={14} />
-                  </ActionIcon>
-                </Table.Td>
+        <Table.ScrollContainer minWidth={480}>
+          <Table striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('prices.fx.date')}</Table.Th>
+                <Table.Th>{t('prices.fx.rate')}</Table.Th>
+                <Table.Th>{t('prices.fx.setBy')}</Table.Th>
+                <Table.Th />
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {(q.data ?? []).map((r) => (
+                <Table.Tr key={`${r.date}${r.base}${r.quote}`}>
+                  <Table.Td>{r.date}</Table.Td>
+                  <Table.Td className="viz-num">{t('prices.fx.text', { base: r.base, rate: r.rate, quote: r.quote })}</Table.Td>
+                  <Table.Td>{r.setBy}</Table.Td>
+                  <Table.Td>
+                    <ActionIcon variant="subtle" color="red" aria-label={t('prices.fx.remove')} onClick={() => void remove(r)}>
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       )}
       <Group gap="xs" align="flex-end" wrap="wrap">
         <TextInput size="xs" label={t('prices.fx.date')} value={date} onChange={(e) => setDate(e.currentTarget.value)} w={120} />

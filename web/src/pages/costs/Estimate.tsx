@@ -848,6 +848,15 @@ export function ResultView({ r }: { r: CostEstimateResult }) {
             <Text size="xs" c="dimmed">
               {qty(l.quantity)} {unit(l.unit)} · {howFound(t, l)}
             </Text>
+            {l.adjustment && (
+              <Text size="xs" c="grape" data-testid="line-adjustment">
+                {t(l.adjustment.kind === 'percent' ? 'estimates.adjust.shownPercent' : 'estimates.adjust.shownPrice', {
+                  value: l.adjustment.value,
+                  currency: l.adjustment.currency ?? '',
+                  reason: l.adjustment.reason,
+                })}
+              </Text>
+            )}
             <Group justify="space-between">
               <RangeText range={l.amount} currency={r.currency} size="xs" />
               <RangeBar range={l.amount} max={max} width={90} />
@@ -888,26 +897,28 @@ function MonthsChart({ r }: { r: CostEstimateResult }) {
         {t('estimates.months.help')}
       </Text>
       {table ? (
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t('estimates.months.month')}</Table.Th>
-              <Table.Th>{t('estimates.inputs.low')}</Table.Th>
-              <Table.Th>{t('estimates.inputs.expected')}</Table.Th>
-              <Table.Th>{t('estimates.inputs.high')}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {months.map((m) => (
-              <Table.Tr key={m.month}>
-                <Table.Td>{fmtMonth(m.month)}</Table.Td>
-                <Table.Td className="viz-num">{fmtMoney(m.monthly.low, r.currency)}</Table.Td>
-                <Table.Td className="viz-num">{fmtMoney(m.monthly.expected, r.currency)}</Table.Td>
-                <Table.Td className="viz-num">{fmtMoney(m.monthly.high, r.currency)}</Table.Td>
+        <Table.ScrollContainer minWidth={480}>
+          <Table striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('estimates.months.month')}</Table.Th>
+                <Table.Th>{t('estimates.inputs.low')}</Table.Th>
+                <Table.Th>{t('estimates.inputs.expected')}</Table.Th>
+                <Table.Th>{t('estimates.inputs.high')}</Table.Th>
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {months.map((m) => (
+                <Table.Tr key={m.month}>
+                  <Table.Td>{fmtMonth(m.month)}</Table.Td>
+                  <Table.Td className="viz-num">{fmtMoney(m.monthly.low, r.currency)}</Table.Td>
+                  <Table.Td className="viz-num">{fmtMoney(m.monthly.expected, r.currency)}</Table.Td>
+                  <Table.Td className="viz-num">{fmtMoney(m.monthly.high, r.currency)}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       ) : (
         <svg
           viewBox={`0 0 ${W} ${H}`}
@@ -1052,51 +1063,53 @@ function Compare({ e, draft, defs }: { e: CostEstimate; draft: Draft; defs: Cost
               );
             })}
           </svg>
-          <Table striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('estimates.compare.variantCol')}</Table.Th>
-                <Table.Th>{t('estimates.result.monthly')}</Table.Th>
-                <Table.Th>{t('estimates.compare.difference')}</Table.Th>
-                <Table.Th>{t('estimates.result.oneOff')}</Table.Th>
-                <Table.Th>{t('estimates.compare.lines')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {result.variants.map((v, i) => {
-                const c = result.comparison[i]!;
-                return (
-                  <Table.Tr key={i}>
-                    <Table.Td>
-                      {v.name}{' '}
-                      {i === result.cheapest.expected && (
-                        <Badge size="xs" color="teal" variant="light">
-                          {t('estimates.compare.cheapest')}
-                        </Badge>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      <RangeText range={v.result.totals.monthly} currency={v.result.currency} />
-                    </Table.Td>
-                    <Table.Td className="viz-num">{i === 0 ? '–' : fmtMoney(c.monthly.expected, v.result.currency)}</Table.Td>
-                    <Table.Td>
-                      <RangeText range={v.result.totals.oneOff} currency={v.result.currency} />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="xs">
-                        {i === 0
-                          ? '–'
-                          : c.lines
-                              .slice(0, 3)
-                              .map((l) => `${l.sku}: ${fmtMoney(l.difference, v.result.currency)}`)
-                              .join(', ')}
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
-                );
-              })}
-            </Table.Tbody>
-          </Table>
+          <Table.ScrollContainer minWidth={480}>
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('estimates.compare.variantCol')}</Table.Th>
+                  <Table.Th>{t('estimates.result.monthly')}</Table.Th>
+                  <Table.Th>{t('estimates.compare.difference')}</Table.Th>
+                  <Table.Th>{t('estimates.result.oneOff')}</Table.Th>
+                  <Table.Th>{t('estimates.compare.lines')}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {result.variants.map((v, i) => {
+                  const c = result.comparison[i]!;
+                  return (
+                    <Table.Tr key={i}>
+                      <Table.Td>
+                        {v.name}{' '}
+                        {i === result.cheapest.expected && (
+                          <Badge size="xs" color="teal" variant="light">
+                            {t('estimates.compare.cheapest')}
+                          </Badge>
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        <RangeText range={v.result.totals.monthly} currency={v.result.currency} />
+                      </Table.Td>
+                      <Table.Td className="viz-num">{i === 0 ? '–' : fmtMoney(c.monthly.expected, v.result.currency)}</Table.Td>
+                      <Table.Td>
+                        <RangeText range={v.result.totals.oneOff} currency={v.result.currency} />
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs">
+                          {i === 0
+                            ? '–'
+                            : c.lines
+                                .slice(0, 3)
+                                .map((l) => `${l.sku}: ${fmtMoney(l.difference, v.result.currency)}`)
+                                .join(', ')}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         </Stack>
       )}
     </Stack>
