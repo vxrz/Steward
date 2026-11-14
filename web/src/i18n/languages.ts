@@ -57,6 +57,7 @@ export const NAMESPACES = [
   'contracts',
   'libraries',
   'suppliers',
+  'contacts',
   'corrective',
   'soa',
   'dataProductViews',

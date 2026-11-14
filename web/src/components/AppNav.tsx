@@ -54,6 +54,7 @@ import {
   IconWebhook,
   type Icon,
   IconGitPullRequest,
+  IconAddressBook,
   IconTruckDelivery,
   IconPackages,
   IconTable,
@@ -94,6 +95,7 @@ export type NavKey =
   | 'applications'
   | 'systems'
   | 'suppliers'
+  | 'contacts'
   | 'maintenance'
   | 'statusPages'
   | 'duties'
@@ -205,6 +207,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/systems', key: 'systems', icon: IconServer2 },
       // suppliers (0.17.0, ADR 0029): who runs, backs up and recovers what the services use
       { to: '/suppliers', key: 'suppliers', icon: IconTruckDelivery },
+      // the contacts directory (0.25.1, ADR 0038): the people and groups items name for their business side
+      { to: '/contacts', key: 'contacts', icon: IconAddressBook },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: (c) => !dataProducts(c) },
     ],

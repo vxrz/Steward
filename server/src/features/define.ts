@@ -8,6 +8,8 @@ import type { BuiltinDataset } from '../dashboards/builtin.js';
 import type { LinkResolver } from '../records/links.js';
 import type { ReportSectionDef } from '../reports/sections.js';
 import type { ShareKindDef } from '../auth/shares.js';
+import type { ContactHooks, ContactKindDef } from '../contacts/registry.js';
+import type { ContactLinkKind } from '@sm/shared';
 
 /**
  * The manifest of a feature (docs/ARCHITECTURE.md "How features are wired"): everything it brings to the rest of
@@ -38,6 +40,13 @@ export interface FeatureManifest {
   linkKinds?: readonly { kind: string; resolver: LinkResolver }[];
   /** Kinds of resources it switches to shares (ADR 0033, auth/shares.ts): their share model, name, link and rights */
   shareKinds?: readonly ShareKindDef[];
+  /**
+   * Link kinds of the contacts directory it names contacts on (ADR 0038, contacts/registry.ts): who sees and changes
+   * its items, their names and addresses
+   */
+  contactKinds?: readonly { kind: ContactLinkKind; def: ContactKindDef }[];
+  /** What it adds to the contacts directory: counting documented decisions, nulling erased contacts in snapshots */
+  contactHooks?: ContactHooks;
   /**
    * Its migration lists (server/src/migrations/). Named for ownership only: they run in the order of
    * migrations/index.ts, which is history and never changes (upgraded and new databases must end up the same).

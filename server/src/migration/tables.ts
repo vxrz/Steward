@@ -121,6 +121,15 @@ export const USER_ID_TABLES: Record<string, string> = {
   notification_opt_ins: 'user_id',
 };
 
+/**
+ * Columns of moved rows that hold a users.id as documentation (the row moves whatever the user's mapping): the target
+ * user's id on import (an archived account too: it is still that person), null for a user who is not moved.
+ */
+export const USER_ID_COLUMNS: { table: string; column: string }[] = [
+  // the Steward user a contact is (0.25.1, ADR 0038): documentation only, never a right
+  { table: 'contacts', column: 'user_id' },
+];
+
 export type RefKind =
   /** a plain user name */
   | 'username'
@@ -228,6 +237,10 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // the contacts directory (0.25.1, ADR 0038): who made and changed a contact, who linked it to an item
+  'contacts.created_by',
+  'contacts.updated_by',
+  'contact_links.created_by',
   // 0.25.0 (ADR 0037 part 3): who dismissed a suggestion of the Industrial Edge installations readout
   'edge_suggestion_dismissals.dismissed_by',
   // who shared a resource and who made it Restricted (0.21.0, ADR 0033)

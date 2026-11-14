@@ -4,6 +4,7 @@ import { registerMcpTools } from '../mcp/tools.js';
 import { registerBuiltinDataset } from '../dashboards/builtin.js';
 import { registerLinkKind } from '../records/links.js';
 import { registerShareKind } from '../auth/shares.js';
+import { registerContactHooks, registerContactKind } from '../contacts/registry.js';
 import type { ApiV1Plugin, FeatureManifest } from './define.js';
 import auth from './auth.js';
 import settings from './settings.js';
@@ -22,6 +23,7 @@ import credentials from './credentials.js';
 import records from './records.js';
 import catalogue from './catalogue.js';
 import suppliers from './suppliers.js';
+import contacts from './contacts.js';
 import versions from './versions.js';
 import backup from './backup.js';
 import tickets from './tickets.js';
@@ -79,6 +81,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   records,
   catalogue,
   suppliers,
+  contacts,
   versions,
   backup,
   tickets,
@@ -114,7 +117,7 @@ let installed = false;
 
 /**
  * Registers what the features bring into the registries the rest of Steward reads: report sections, MCP tools,
- * built-in datasets, link kinds, kinds switched to shares. Called once by buildApp() (app.ts), before anything is served; later calls do
+ * built-in datasets, link kinds, kinds switched to shares, link kinds of the contacts directory. Called once by buildApp() (app.ts), before anything is served; later calls do
  * nothing. Routes, the public API and jobs are not registered here: their entry points read them (featureApiRoutes(),
  * registerFeatureJobs(), routes/index.ts).
  */
@@ -127,6 +130,8 @@ export function installFeatures(): void {
     for (const d of f.datasets ?? []) registerBuiltinDataset(d);
     for (const l of f.linkKinds ?? []) registerLinkKind(l.kind, l.resolver);
     for (const k of f.shareKinds ?? []) registerShareKind(k);
+    for (const k of f.contactKinds ?? []) registerContactKind(k.kind, k.def);
+    if (f.contactHooks) registerContactHooks(f.contactHooks);
   }
 }
 

@@ -58,7 +58,7 @@ import {
   type PackageTeam,
   type PackageUser,
 } from './format.js';
-import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_TABLES, USER_REFS } from './tables.js';
+import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_COLUMNS, USER_ID_TABLES, USER_REFS } from './tables.js';
 import { mapValue, type NameMaps } from './refs.js';
 import { DATA_PREFIX } from './export.js';
 import { checkScaleRows } from '../catalogue/cia.js';
@@ -1261,6 +1261,8 @@ function copyIntoTarget(
           if (!to || archived || d.get(`SELECT 1 FROM ${quoteIdent(t)} WHERE ${quoteIdent(userCol)} = ?`, to)) continue;
           r[userCol] = to;
         }
+        // user ids kept as documentation (a contact's Steward user): the target's id, or none
+        for (const c of USER_ID_COLUMNS) if (c.table === t && r[c.column] != null) r[c.column] = userIds.get(String(r[c.column])) ?? null;
         d.run(insert, ...cols.map((c) => r[c] ?? null));
         n++;
       }

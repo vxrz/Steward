@@ -141,6 +141,12 @@
         "description": "Removes a deactivated person's name, e-mail and settings for good."
       }
     },
+    "contact": {
+      "erase": {
+        "label": "Erase a contact",
+        "description": "Deletes a contact of the contacts directory and its links for good (GDPR Art. 17); documented decisions keep the name."
+      }
+    },
     "team": {
       "members": {
         "label": "Add team members or roles in a team",
