@@ -55,6 +55,10 @@ const API_ONLY: Record<string, string> = {
   'PUT /api/platforms/:id/access': 'deprecated access-list route (docs/TEAMS.md#access-lists-became-shares)',
   'PUT /api/platforms/:id/identities/:identityId/access': 'deprecated access-list route (docs/TEAMS.md#access-lists-became-shares)',
   'PUT /api/plant/sites/:siteId/access': 'deprecated access-list route (docs/TEAMS.md#access-lists-became-shares)',
+  // access requests (0.24.0) are retired in 0.25.1 – access is documented, not requested; the web app no longer calls them
+  'POST /api/data-products/:id/ports/:portId/access-requests': 'retired in 0.25.1 (ADR 0038): answers 410 DATA_ACCESS_DOCUMENTED_ONLY for one release',
+  'POST /api/data-products/access-requests/:requestId/decision': 'retired in 0.25.1 (ADR 0038): answers 410 DATA_ACCESS_DOCUMENTED_ONLY for one release',
+  'POST /api/data-products/access-requests/:requestId/withdraw': 'retired in 0.25.1 (ADR 0038): answers 410 DATA_ACCESS_DOCUMENTED_ONLY for one release',
   // the public API, its documentation, MCP and OAuth for MCP clients
   'GET /api/v1/*': 'public API (docs/API.md)',
   'POST /api/v1/*': 'public API (docs/API.md)',
