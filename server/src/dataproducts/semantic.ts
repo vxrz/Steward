@@ -426,13 +426,13 @@ export function rewriteSources(u: AuthUser, productId: string, doc: unknown, env
 function pointer(doc: unknown, path: string): Record<string, unknown> | null {
   let cur: unknown = doc;
   for (const part of path.split('/').slice(1)) {
-    // the path comes from the document: only its own keys and array indexes are walked, never a prototype
-    if (part === '__proto__' || part === 'constructor' || part === 'prototype') return null;
-    if (Array.isArray(cur)) {
-      if (!/^\d+$/.test(part)) return null;
-      cur = cur[Number(part)];
-    } else if (isObj(cur) && Object.hasOwn(cur, part)) cur = cur[part];
-    else return null;
+    // the path comes from the document: read only, own properties and array indexes only – "__proto__",
+    // "constructor" and the like never resolve
+    if (cur === null || typeof cur !== 'object') return null;
+    if (Array.isArray(cur) && !/^\d+$/.test(part)) return null;
+    const own = Object.getOwnPropertyDescriptor(cur, part);
+    if (!own) return null;
+    cur = own.value;
   }
   return isObj(cur) ? cur : null;
 }
