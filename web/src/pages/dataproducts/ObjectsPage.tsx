@@ -224,7 +224,15 @@ export function DataObjectsPage() {
               cell: (o) => (o.personalData === 'none' ? t('personalData.none') : <PersonalDataBadge value={o.personalData} size="xs" />),
             },
             { key: 'rating', header: t('products.rating'), cell: (o) => <RatingBadges rating={o.rating} /> },
-            { key: 'owner', header: t('objects.owner'), cell: (o) => o.owner ?? '–' },
+            {
+              key: 'owner',
+              header: t('objects.owner'),
+              cell: (o) =>
+                o.contacts
+                  .filter((c) => c.role === 'dataOwner')
+                  .map((c) => c.contact.name)
+                  .join(', ') || '–',
+            },
             { key: 'updated', header: t('products.updated'), sortValue: (o) => o.updatedAt, nowrap: true, cell: (o) => fmtRelative(o.updatedAt) },
           ]}
           footer={
