@@ -92,7 +92,8 @@ export function ServicesPage() {
   const list = all.filter(
     (s) =>
       tagsMatch(s.tags, tag) &&
-      (!needle || [s.name, s.cmdb?.id ?? '', ...s.contacts.map((c) => c.email), ...s.tags].some((x) => x.toLowerCase().includes(needle))) &&
+      (!needle ||
+        [s.name, s.cmdb?.id ?? '', ...s.contacts.map((c) => `${c.email} ${c.name ?? ''}`), ...s.tags].some((x) => x.toLowerCase().includes(needle))) &&
       (!criticality.length || (s.criticality !== null && criticality.includes(s.criticality))) &&
       (!owner || s.owners.includes(owner)),
   );
@@ -134,11 +135,11 @@ export function ServicesPage() {
     {
       key: 'contacts',
       header: t('contacts'),
-      sortValue: (s) => s.contacts[0]?.email,
+      sortValue: (s) => s.contacts[0]?.email || s.contacts[0]?.name,
       cell: (s) =>
         s.contacts.map((c) => (
-          <Text key={`${c.role}${c.email}`} size="xs">
-            {t(`contactRoles.${c.role}`)}: {c.email}
+          <Text key={`${c.role}${c.email}${c.name ?? ''}`} size="xs">
+            {t(`contactRoles.${c.role}`)}: {c.email || c.name}
           </Text>
         )),
     },
@@ -262,7 +263,7 @@ export function ServicesPage() {
               </Group>
               <NeedBadges need={s.protectionNeed} />
               <Text size="xs" c="dimmed">
-                {s.contacts.map((c) => c.email).join(', ') || t('noContacts')}
+                {s.contacts.map((c) => c.email || c.name).join(', ') || t('noContacts')}
               </Text>
             </Paper>
           )}

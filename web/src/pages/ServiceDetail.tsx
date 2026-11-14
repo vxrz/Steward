@@ -267,11 +267,15 @@ function ServiceFacts({ service: s }: { service: ServiceDetail }) {
             </Text>
           ) : (
             s.contacts.map((c) => (
-              <Text key={`${c.role}${c.email}`} size="sm">
-                {t(`contactRoles.${c.role}`)}:{' '}
-                <Anchor href={`mailto:${c.email}`} size="sm">
-                  {c.name ? `${c.name} <${c.email}>` : c.email}
-                </Anchor>
+              <Text key={`${c.role}${c.email}${c.name ?? ''}`} size="sm">
+                {t(`contactRoles.${c.role}`)}: {/* a contact of the directory may have no e-mail address (0.25.1): its name then, without a link */}
+                {c.email ? (
+                  <Anchor href={`mailto:${c.email}`} size="sm">
+                    {c.name ? `${c.name} <${c.email}>` : c.email}
+                  </Anchor>
+                ) : (
+                  c.name
+                )}
               </Text>
             ))
           )}

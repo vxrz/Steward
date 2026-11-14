@@ -316,10 +316,10 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
             <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
               <Fact label={t('form.domain')}>{p.domain ? <RefLink r={p.domain} base="/data-domains" /> : '–'}</Fact>
               <Fact label={t('form.owners')} testId="product-contacts">
-                {p.contacts.some((c) => c.role === 'productOwner') ? (
-                  <ContactLinksView links={p.contacts} kind="data_product" />
-                ) : (
-                  <Text span c="orange" size="sm">
+                {/* the business contacts too; a missing product owner is said (it is needed for Active) */}
+                {p.contacts.length > 0 && <ContactLinksView links={p.contacts} kind="data_product" />}
+                {!p.contacts.some((c) => c.role === 'productOwner') && (
+                  <Text c="orange" size="sm">
                     {t('product.noOwner')}
                   </Text>
                 )}
