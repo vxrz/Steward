@@ -32,7 +32,7 @@ const AT = '2026-11-01T08:00:00.000Z';
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-upg-0251-'));
 const sqlite: DatabaseTarget = { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') };
 const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_gov_0251_${process.pid}`;
-const pg: DatabaseTarget | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
+const pg: Extract<DatabaseTarget, { kind: 'postgres' }> | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
 let proc: ChildProcess | undefined;
 let base = '';
 
