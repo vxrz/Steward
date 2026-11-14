@@ -375,6 +375,7 @@
     "purpose": "Zweck",
     "since": "Seit",
     "endDate": "Bis",
+    "approval": "Genehmigung",
     "agreement": "Vereinbarung",
     "agreementKind": "Art",
     "agreementKinds": {

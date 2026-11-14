@@ -375,6 +375,7 @@
     "purpose": "Purpose",
     "since": "Since",
     "endDate": "Until",
+    "approval": "Approval",
     "agreement": "Agreement",
     "agreementKind": "Kind",
     "agreementKinds": {

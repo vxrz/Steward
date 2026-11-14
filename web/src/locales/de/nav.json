@@ -54,7 +54,6 @@
     "dataDomains": "Domänen",
     "dataMap": "Produktkarte",
     "dataDiscovery": "Erkennung",
-    "dataAccessRequests": "Zugriffsanträge",
     "dataRecordsOfProcessing": "Verarbeitungs\u00adtätigkeiten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",

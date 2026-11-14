@@ -2,8 +2,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
- * Governance of data products (0.24.0, ADR 0036 phase 2): port access reviews (frozen entries, decisions, four eyes,
- * the seal, registrations ended), their due dates and reminders once; promotion between environments by the name rules
+ * Governance of data products (0.24.0, ADR 0036 phase 2; 0.25.1, ADR 0038 part 4): port access reviews (frozen
+ * entries, the outcome recorded by the IT maintainers with a documented decision, four eyes as a module setting, the
+ * seal of old and new reviews, registrations ended), their due dates and reminders once to the maintainers; promotion between environments by the name rules
  * with a preview, the fingerprint and its audit entry; the GDPR Art. 30 view with team scope, its exports (CSV, PDF)
  * and a fixed number of statements.
  */
@@ -65,7 +66,27 @@ describe('port access reviews', () => {
   let keep = '';
   let drop = '';
   let review = '';
-  it('freeze the registrations and who really reads; the owner decides, a second person approves and the seal holds', async () => {
+  const documented = async (id: string) => {
+    // the documented decision of the review (who decided elsewhere, when, the evidence)
+    const { db } = await import('../src/db.js');
+    db().run(
+      'UPDATE dp_port_reviews SET decision = ? WHERE id = ?',
+      JSON.stringify({
+        decidedBy: [{ contactId: null, name: 'Invented data owner', role: 'dataOwner' }],
+        decidedOn: '2026-11-01',
+        evidence: [{ kind: 'text', value: 'Review meeting' }],
+        note: '',
+        recordedBy: 'dana',
+        recordedAt: '2026-11-02T00:00:00.000Z',
+      }),
+      id,
+    );
+  };
+  it('freeze the registrations and who really reads; the IT maintainers record the outcome, a second IT person approves and the seal holds', async () => {
+    // four eyes is a module setting (off by default): on for this review
+    expect(await dana('GET', '/data-products/governance-settings')).toEqual({ portReviewFourEyes: false, mayChange: false });
+    expect((await fail(dana('PUT', '/data-products/governance-settings', { portReviewFourEyes: true }))).status).toBe(403);
+    await s.api('PUT', '/data-products/governance-settings', { portReviewFourEyes: true });
     const { setMockAccessHistory } = await import('../src/mock/mockDataConsumers.js');
     setMockAccessHistory([{ object: 'GOVR.SALES.ORDERS', user: 'SVC_STRAY', role: 'STRAY', reads: 3, hoursAgo: 4 }]);
     product = (await dana('POST', '/data-products', { key: 'govr-orders', name: 'Reviewed orders', owners: ['user:dana'] })).id;
@@ -81,12 +102,16 @@ describe('port access reviews', () => {
     const { runGovernanceJob } = await import('../src/dataproducts/governance-job.js');
     await runGovernanceJob(Date.now(), true);
     await runGovernanceJob(Date.now(), true);
-    expect(await notes(dana, 'dataproduct.access_review_due')).toHaveLength(1);
+    // to the IT maintainers (dana may change the product), with the link to the consumers' contacts
+    const due = await notes(dana, 'dataproduct.access_review_due');
+    expect(due).toHaveLength(1);
+    expect((due[0] as unknown as { body: string }).body).toContain(`/data-products/${product}/ports?contacts=${port}`);
     expect(await notes(vera, 'dataproduct.access_review_due')).toHaveLength(0);
 
     expect(await fail(vera('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' }))).toMatchObject({ status: 403 });
     const r = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
     review = r.id;
+    expect(r.fourEyes).toBe(true);
     expect(r.entries.map((e: { kind: string; label: string; finding: string }) => [e.kind, e.label, e.finding])).toEqual([
       ['registered', 'Finance reports', 'unknown'],
       ['registered', 'Old export', 'unknown'],
@@ -114,15 +139,20 @@ describe('port access reviews', () => {
         { itemId: id('role:STRAY'), decision: 'remove', comment: 'Not registered' },
       ],
     });
+    // a review started since 0.25.1 records who decided the outcome first
+    expect(await fail(dana('POST', `/data-products/port-reviews/${review}/submit`))).toMatchObject({ params: { context: 'decisionMissing' } });
+    await documented(review);
     const submitted = await dana('POST', `/data-products/port-reviews/${review}/submit`);
     expect(submitted).toMatchObject({ status: 'submitted', mayApprove: false });
     // never the submitter; a second person approves
     expect(await fail(dana('POST', `/data-products/port-reviews/${review}/approval`, { approve: true }))).toMatchObject({
       params: { context: 'secondPerson' },
     });
+    // an approver who may not change the product no longer approves (a second IT person does)
     expect(await fail(olivia('POST', `/data-products/port-reviews/${review}/approval`, { approve: true }))).toMatchObject({ status: 403 });
-    const approved = await adam('POST', `/data-products/port-reviews/${review}/approval`, { approve: true, comment: 'Agreed' });
-    expect(approved).toMatchObject({ status: 'approved', approvedBy: 'adam', removals: 3 });
+    expect(await fail(adam('POST', `/data-products/port-reviews/${review}/approval`, { approve: true }))).toMatchObject({ status: 403 });
+    const approved = await s.api('POST', `/data-products/port-reviews/${review}/approval`, { approve: true, comment: 'Agreed' });
+    expect(approved).toMatchObject({ status: 'approved', approvedBy: 'admin', removals: 3 });
     expect(approved.sealHash).toMatch(/^[0-9a-f]{64}$/);
     expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: true });
     // the registration decided "remove" ended today; the kept one did not
@@ -152,6 +182,9 @@ describe('port access reviews', () => {
     expect(await tampered('dp_port_review_items', 'decided_at', item.id, '2020-01-01T00:00:00.000Z', item.decided_at)).toBe(false);
     expect(await tampered('dp_port_reviews', 'four_eyes', review, 0, 1)).toBe(false);
     expect(await tampered('dp_port_reviews', 'approval_comment', review, 'Waved through', 'Agreed')).toBe(false);
+    // and the documented decision
+    const decision = db().get<{ decision: string }>('SELECT decision FROM dp_port_reviews WHERE id = ?', review)!.decision;
+    expect(await tampered('dp_port_reviews', 'decision', review, decision.replace('Invented data owner', 'Someone else'), decision)).toBe(false);
     expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: true });
     // the next one is due in 6 months; the confidentiality evidence names the review
     const after = await dana('GET', `/data-products/${product}/port-reviews`);
@@ -161,6 +194,7 @@ describe('port access reviews', () => {
     expect(conf.evidence.map((e: { key: string }) => e.key)).toContain('evidence.confidentiality.accessReviewed');
     // four eyes: who decided an entry never approves, even when someone else submitted
     const next = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
+    await documented(next.id);
     // entries frozen before the facts (text in detail, no facts) are sealed and verified as they were
     db().run(
       "UPDATE dp_port_review_items SET facts = NULL, detail = 'Close · role:REPORTING · seen as role:REPORTING' WHERE review_id = ? AND label = 'Finance reports'",
@@ -174,13 +208,39 @@ describe('port access reviews', () => {
     expect(await fail(s.api('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true }))).toMatchObject({
       params: { context: 'secondPerson' },
     });
-    const sealed = await adam('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true });
+    // a third IT person – olivia, with an Edit share – approves
+    await dana('PUT', `/access/data_product/${product}/shares`, { shares: [{ subject: 'user:olivia', level: 'edit' }] });
+    const sealed = await olivia('POST', `/data-products/port-reviews/${next.id}/approval`, { approve: true });
     expect(sealed).toMatchObject({ status: 'approved' });
     expect(sealed.entries.find((e: { label: string }) => e.label === 'Finance reports')).toMatchObject({
       facts: null,
       detail: 'Close · role:REPORTING · seen as role:REPORTING',
     });
     expect(await dana('GET', `/data-products/port-reviews/${next.id}/verify`)).toMatchObject({ sealed: true, ok: true });
+  });
+
+  it('seals at once when four eyes is off; a review of 0.25.0 (no documented decision) is submitted and verified as it was', async () => {
+    await s.api('PUT', '/data-products/governance-settings', { portReviewFourEyes: false });
+    const r = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
+    expect(r.fourEyes).toBe(false);
+    await dana('PUT', `/data-products/port-reviews/${r.id}/decisions`, {
+      decisions: r.entries.map((e: { id: string }) => ({ itemId: e.id, decision: 'keep' })),
+    });
+    await documented(r.id);
+    expect(await dana('POST', `/data-products/port-reviews/${r.id}/submit`)).toMatchObject({ status: 'approved', approvedBy: 'dana' });
+    expect(await dana('GET', `/data-products/port-reviews/${r.id}/verify`)).toMatchObject({ sealed: true, ok: true });
+    // a review started before 0.25.1 (four eyes on, no decision needed) keeps its way: a second IT person approves
+    const { db } = await import('../src/db.js');
+    const old = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
+    db().run('UPDATE dp_port_reviews SET documented = 0, four_eyes = 1 WHERE id = ?', old.id);
+    await dana('PUT', `/data-products/port-reviews/${old.id}/decisions`, {
+      decisions: old.entries.map((e: { id: string }) => ({ itemId: e.id, decision: 'keep' })),
+    });
+    expect(await dana('POST', `/data-products/port-reviews/${old.id}/submit`)).toMatchObject({ status: 'submitted', fourEyes: true });
+    const sealed = await s.api('POST', `/data-products/port-reviews/${old.id}/approval`, { approve: true });
+    expect(sealed.status).toBe('approved');
+    expect(db().get<{ decision: string | null }>('SELECT decision FROM dp_port_reviews WHERE id = ?', old.id)!.decision).toBeNull();
+    expect(await dana('GET', `/data-products/port-reviews/${old.id}/verify`)).toMatchObject({ sealed: true, ok: true });
   });
 });
 

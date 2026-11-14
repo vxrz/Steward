@@ -571,6 +571,8 @@ export const SETTINGS_MOVED = [
   'catalogue.environments',
   'plant.settings',
   'compliance.corrective',
+  // 0.25.1 (ADR 0038 part 4): four eyes for port access reviews
+  'modules.dataProducts.governance',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

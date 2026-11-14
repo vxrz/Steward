@@ -709,7 +709,7 @@ describe('module access (ADR 0034)', () => {
       const user = (name: string) => toAuthUser(findUserByName(name)!);
       expect(moduleRoleOf(user('vera'))).toBeNull();
       expect(moduleRoleOf(user('dana'))).toBe('manager');
-      expect(productAccess(user('vera'), { id: p.id, owners: ['user:vera'] }).permissions).toEqual([]);
+      expect(productAccess(user('vera'), { id: p.id }).permissions).toEqual([]);
     } finally {
       await s.api('PUT', '/settings/modules/dataProducts/access', { mode: 'everyone', grants: [] });
     }

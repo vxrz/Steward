@@ -101,7 +101,6 @@ export function EndorsementSection({ p }: { p: DataProduct }) {
         )}
         <Text size="xs" c="dimmed">
           {v.endorsers.length ? t('endorsement.endorsers', { list: v.endorsers.map(subject).join(', ') }) : t('endorsement.managers')}
-          {v.whyNot === 'ownProduct' && ` ${t('endorsement.ownProduct')}`}
         </Text>
       </Stack>
       {editing && (

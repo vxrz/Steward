@@ -4664,9 +4664,10 @@ export interface Resources {
     'reviews.portEnvironment': string;
     'reviews.check': string;
     'reviews.checkHelp': string;
-    'reviews.fourEyes': string;
-    'reviews.fourEyesYes': string;
-    'reviews.fourEyesNo': string;
+    'reviews.fourEyesOn': string;
+    'reviews.fourEyesOff': string;
+    'reviews.fourEyesSwitch': string;
+    'reviews.fourEyesSwitchHelp': string;
     'reviews.fourEyesShort': string;
     'reviews.due': string;
     'reviews.overdue': string;
@@ -4820,6 +4821,22 @@ export interface Resources {
     'ropa.dpa.unknown': string;
     'ropa.csvNamed': string;
     'ropa.pdfNamed': string;
+    'documented.approval.documented': string;
+    'documented.approval.notDocumented': string;
+    'documented.decidedLine': string;
+    'documented.ticket': string;
+    'documented.run': string;
+    'documented.fulfil': string;
+    'documented.fulfilNamed': string;
+    'documented.fulfilTitle': string;
+    'documented.fulfilHelp': string;
+    'documented.ticketNumber': string;
+    'documented.ticketUrl': string;
+    'documented.urlInvalid': string;
+    'documented.startProcess': string;
+    'documented.fulfilNothing': string;
+    'documented.fulfilled': string;
+    'documented.fulfilProblems': string;
   };
   dataProductSemantic: {
     tab: string;
@@ -5503,6 +5520,7 @@ export interface Resources {
     'consumers.purpose': string;
     'consumers.since': string;
     'consumers.endDate': string;
+    'consumers.approval': string;
     'consumers.agreement': string;
     'consumers.agreementKind': string;
     'consumers.agreementKinds.record': string;

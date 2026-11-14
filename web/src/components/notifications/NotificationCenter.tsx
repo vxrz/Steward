@@ -76,8 +76,6 @@ const EVENT_COLORS: Record<string, string> = {
   'dataproduct.elements_missing': 'yellow',
   'dataproduct.discovery_failed': 'red',
   'dataproduct.contract_breaking': 'orange',
-  'dataproduct.access_requested': 'violet',
-  'dataproduct.access_decided': 'blue',
   'dataproduct.endorsement_review': 'yellow',
   'dataproduct.access_review_due': 'yellow',
 };

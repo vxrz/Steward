@@ -1,6 +1,7 @@
 import { CIA_DIMENSIONS, levelRank, type ApplicationRating, type CiaDimension, type CiaLevel, type CiaColor } from './catalogue.js';
 import type { MonitorStatus } from './monitors.js';
 import type { CostEstimateSummary } from './costCalculators.js';
+import type { DocumentedDecision } from './contacts.js';
 
 /**
  * The data products module (0.22.0, ADR 0036, docs/DATA-PRODUCTS.md): data objects say what the business data is, how
@@ -813,11 +814,26 @@ export interface DataConsumer {
   agreement: DataAgreement | null;
   /** Who is told when the port is deprecated (users and teams) */
   contacts: DataSubject[];
+  /**
+   * 0.25.1 (ADR 0038 part 3): the access decided elsewhere and documented here – `documented` with its decision, or
+   * `notDocumented` (registrations made before 0.25.1, pending requests the upgrade converted) for the IT maintainers
+   * to complete
+   */
+  approval: DataConsumerApproval;
+  decision: DocumentedDecision | null;
+  /** The optional fulfilment: the platform ticket (a ticket reference) and the run of the platform team's process */
+  ticketId: string | null;
+  runId: string | null;
+  /** The access request it came from (approved before 0.25.1, or pending then) */
+  requestId: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
 }
+
+export const DATA_CONSUMER_APPROVALS = ['documented', 'notDocumented'] as const;
+export type DataConsumerApproval = (typeof DATA_CONSUMER_APPROVALS)[number];
 
 // ---------- the element catalogue (part 5) ----------
 

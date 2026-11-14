@@ -1,28 +1,29 @@
 import type { Locale, UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
-import { nowIso, parseJson } from '../util.js';
+import { nowIso } from '../util.js';
 import type { AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
 import { t as translate, type MessageKey, type Vars } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
+import { absoluteLink } from '../notifications/settings.js';
 import { productAccess } from './access.js';
 import type { ProductRow } from './store.js';
 
 /**
- * The notifications of consumers, access and governance (0.24.0, ADR 0036 part 17 phase 2), each sent once
- * (dp_notices: kind, item, key – claimed before sending) and only to who may see the product:
+ * The notifications of consumers, access and governance (0.24.0, ADR 0036 part 17 phase 2; 0.25.1, ADR 0038 part 6),
+ * each sent once (dp_notices: kind, item, key – claimed before sending) and only to who may see the product. They go to
+ * the product's **IT maintainers** – who may edit it through owning teams, roles and shares (administrators only when
+ * nobody else may) – never to contacts: Steward never e-mails a contact. Each carries a link to the affected
+ * consumers' contacts, which the product's Ports tab lists with copy and CSV, so the maintainers can inform them:
  *
- *  - `dataproduct.access_requested` – someone asks for access to an output port: to who decides (the product owners,
- *    else who manages the product), never the requester; once per request (and once more when a first approval of
- *    four eyes waits for the second person).
- *  - `dataproduct.access_decided` – a request was approved or refused: to the requester, once per request.
  *  - `dataproduct.endorsement_review` – an endorsement is due for its review (30 days ahead, passed, or flagged by a
- *    breaking change or a rating below the floor): to the endorsers and the product owners, once per product, review
- *    date and reason.
- *  - `dataproduct.access_review_due` – a port's periodic access review is due: to the product owners, once per port,
- *    environment and due date.
+ *    breaking change or a rating below the floor): once per product, review date and reason.
+ *  - `dataproduct.access_review_due` – a port's periodic access review is due: once per port, environment and due date.
+ *
+ * `dataproduct.deprecated` and `dataproduct.contract_breaking` (notices.ts, contract-hooks.ts) use maintainersOf too.
+ * `dataproduct.access_requested` and `dataproduct.access_decided` were retired in 0.25.1 with the access requests.
  */
 
 /** Claims a notice (true: not sent before, send it now). */
@@ -45,28 +46,29 @@ export function people(): Person[] {
     .map((info) => ({ info, auth: toAuthUser(info) }));
 }
 
-/** The people `subjects` (`user:`, `team:`) name. */
-export const namedPeople = (all: Person[], subjects: readonly string[]): Person[] =>
-  subjects.length ? all.filter((p) => subjects.some((s) => matches(p.auth, s))) : [];
-
 export const seesProduct = (p: Person, product: ProductRow): boolean => productAccess(p.auth, product).permissions.length > 0;
 
 /**
- * Who decides access requests of a product: its named product owners; without any, who may manage it (its owning
- * teams' designers, the module's managers) – administrators only when nobody else does.
+ * The product's IT maintainers: who may edit it (its owning teams' members with an editing role, the module's managers
+ * on a product without owning teams, Edit and Manage shares) – administrators only when nobody else may. Owner fields
+ * and contacts never make anyone a recipient (ADR 0038 part 6).
  */
-export function decidersOf(all: Person[], product: ProductRow): Person[] {
-  const owners = namedPeople(all, parseJson<string[]>(product.owners, []));
-  if (owners.length) return owners.filter((p) => seesProduct(p, product));
-  const managers = all.filter((p) => !isAdmin(p.auth) && productAccess(p.auth, product).permissions.includes('manage'));
-  return managers.length ? managers : all.filter((p) => isAdmin(p.auth));
+export function maintainersOf(all: Person[], product: ProductRow): Person[] {
+  const editors = all.filter((p) => !isAdmin(p.auth) && productAccess(p.auth, product).permissions.includes('edit'));
+  return editors.length ? editors : all.filter((p) => isAdmin(p.auth));
 }
+
+/** The in-app page that lists the consumers' contacts of a product (or of one of its ports), with copy and CSV. */
+export const consumerContactsLink = (productId: string, portId?: string): string =>
+  `/data-products/${encodeURIComponent(productId)}/ports?contacts=${portId ? encodeURIComponent(portId) : 'all'}`;
 
 /** Sends a notice in the recipients' languages; never throws (a notice that cannot be sent is logged). */
 export function send(o: {
-  event: 'dataproduct.access_requested' | 'dataproduct.access_decided' | 'dataproduct.endorsement_review' | 'dataproduct.access_review_due';
+  event: 'dataproduct.endorsement_review' | 'dataproduct.access_review_due';
   recipients: Person[];
   link: string;
+  /** The consumers' contacts page (consumerContactsLink): a button in e-mail and Teams, a line in the app */
+  contacts?: string;
   key: string;
   title: (l: Locale) => string;
   lines: (l: Locale) => string[];
@@ -77,7 +79,11 @@ export function send(o: {
   try {
     notify({
       event: o.event,
-      text: (l) => ({ title: o.title(l), body: o.lines(l).join('\n') }),
+      text: (l) => ({
+        title: o.title(l),
+        body: o.lines(l).join('\n'),
+        ...(o.contacts ? { parts: { actions: [{ label: t(l, 'dataProductGovernance.contactsAction'), href: absoluteLink(o.contacts) }] } } : {}),
+      }),
       link: o.link,
       recipients: recipients.map((p) => p.info),
       inAppKey: o.key,

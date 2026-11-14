@@ -17,6 +17,19 @@ import type { NamedMigration } from '../db.js';
  *   of the conversion; the access-change audit entries (`access.share_added`, `access.share_changed`) are written once
  *   the vault is open (dataproducts/governance-upgrade.ts: the audit log needs its key), and `audited_at` says so. The
  *   owner fields stay as they were. Running the conversion twice changes nothing (it only adds what is missing).
+ *
+ * dataproducts-007b-documented-access (ADR 0038 parts 3 and 4 – access is documented, not requested):
+ *   dp_consumers.approval: `documented` (a decision made elsewhere is recorded) or `notDocumented` (none yet – every
+ *     registration made before 0.25.1, and the pending requests the upgrade turns into registrations);
+ *   dp_consumers.decision: the documented decision (JSON, DocumentedDecision of shared/src/contacts.ts), NULL: none;
+ *   dp_consumers.ticket_id, run_id: the optional fulfilment – the platform ticket as a ticket reference and the run of
+ *     the platform team's process (as before on an approval);
+ *   dp_consumers.request_id: the access request a registration came from (approved before 0.25.1, or pending then);
+ *   dp_access_requests stay as read-only history; the upgrade (dataproducts/governance-upgrade.ts, audited) turns
+ *     pending ones into registrations (status `converted`, consumer_id set).
+ *   dp_port_reviews.decision: the review's documented decision (JSON, NULL for reviews before 0.25.1 – their seal does
+ *     not cover it and still verifies); documented: 1 for reviews started since 0.25.1, which need one to be submitted. Four eyes is the module setting `portReviewFourEyes` (off by default); a review
+ *     keeps the four_eyes it was started with.
  */
 
 type Dialect = 'sqlite' | 'pg';
@@ -101,5 +114,17 @@ export const DATA_GOVERNANCE_MIGRATIONS: NamedMigration[] = [
     name: 'dataproducts-007a-owner-shares',
     sql: ownerShares('sqlite'),
     pg: ownerShares('pg'),
+  },
+  {
+    name: 'dataproducts-007b-documented-access',
+    sql: `
+      ALTER TABLE dp_consumers ADD COLUMN approval TEXT NOT NULL DEFAULT 'notDocumented';
+      ALTER TABLE dp_consumers ADD COLUMN decision TEXT;
+      ALTER TABLE dp_consumers ADD COLUMN ticket_id TEXT;
+      ALTER TABLE dp_consumers ADD COLUMN run_id TEXT;
+      ALTER TABLE dp_consumers ADD COLUMN request_id TEXT;
+      ALTER TABLE dp_port_reviews ADD COLUMN decision TEXT;
+      ALTER TABLE dp_port_reviews ADD COLUMN documented INTEGER NOT NULL DEFAULT 0;
+    `,
   },
 ];

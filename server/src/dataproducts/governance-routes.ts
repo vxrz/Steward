@@ -8,25 +8,28 @@ import * as requests from './access-requests.js';
 import * as reviews from './port-reviews.js';
 import * as promotion from './promotion.js';
 import * as endorsements from './endorsements.js';
+import * as govSettings from './governance-settings.js';
 import * as ropa from './ropa.js';
 
 /**
- * Consumers, access and governance of data products (0.24.0, ADR 0036 phase 2) in the internal API. Rights are checked
- * in the services (a product the caller may not see answers like a missing one). Session-only: reading the platforms
- * now, decisions on requests, the access settings, port reviews' steps, promotions and endorsements (ADR 0036 security
- * notes: changes of access come from a person signed in); approving a request asks for the step-up `access.grant` in
- * the service (it widens access).
+ * Consumers, access and governance of data products (0.24.0, ADR 0036 phase 2; 0.25.1, ADR 0038: Steward documents
+ * governance, it doesn't run it) in the internal API. Rights are checked in the services (a product the caller may not
+ * see answers like a missing one). Session-only: reading the platforms now, the fulfilment of a registration, the access
+ * settings, port reviews' steps, promotions and endorsements (ADR 0036 security notes). Access requests are read-only
+ * history for one release: asking, deciding and withdrawing answer 410 DATA_ACCESS_DOCUMENTED_ONLY.
  *
  *   GET        /api/data-products/:id/ports/:portId/actual?environment=      declared against actual consumers
  *   POST       /api/data-products/:id/ports/:portId/actual/read             read the platforms now { environment }
  *   PUT        /api/data-products/:id/ports/:portId/consumers/:consumerId/identities
- *   GET        /api/data-products/access-requests?scope=&status=            requests of products the reader may see
- *   GET        /api/data-products/access-requests/:requestId
- *   POST       /api/data-products/access-requests/:requestId/decision       approve | refuse
- *   POST       /api/data-products/access-requests/:requestId/withdraw
- *   GET        /api/data-products/:id/access-requests
- *   POST       /api/data-products/:id/ports/:portId/access-requests         ask for access
+ *   POST       /api/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment   ticket reference, process run
+ *   GET        /api/data-products/access-requests?scope=&status=            history (deprecated, read-only)
+ *   GET        /api/data-products/access-requests/:requestId                history (deprecated, read-only)
+ *   POST       /api/data-products/access-requests/:requestId/decision       410 DATA_ACCESS_DOCUMENTED_ONLY
+ *   POST       /api/data-products/access-requests/:requestId/withdraw       410 DATA_ACCESS_DOCUMENTED_ONLY
+ *   GET        /api/data-products/:id/access-requests                       history (deprecated, read-only)
+ *   POST       /api/data-products/:id/ports/:portId/access-requests         410 DATA_ACCESS_DOCUMENTED_ONLY
  *   GET|PUT    /api/data-products/:id/access-settings                       process, ticket source, review interval
+ *   GET|PUT    /api/data-products/governance-settings                       four eyes for port access reviews (module)
  *   GET        /api/data-products/:id/port-reviews                          reviews and when the next are due
  *   POST       /api/data-products/:id/ports/:portId/reviews                 start a port access review
  *   GET        /api/data-products/port-reviews/:reviewId[/verify]
@@ -90,15 +93,22 @@ export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise
     return reply.type('application/pdf').send(pdf);
   });
 
-  // ---------- access requests (before /data-products/:id) ----------
+  // ---------- access requests: read-only history (deprecated in 0.25.1, before /data-products/:id) ----------
   app.get('/data-products/access-requests', async (req) => requests.listRequests(requests.listQuery.parse(req.query ?? {})));
   app.get('/data-products/access-requests/:requestId', async (req) => requests.getRequest(param(req, 'requestId')));
-  app.post('/data-products/access-requests/:requestId/decision', { config: { access: ACCESS.session } }, async (req) =>
-    requests.decideRequest(param(req, 'requestId'), req.body),
-  );
-  app.post('/data-products/access-requests/:requestId/withdraw', async (req) => requests.withdrawRequest(param(req, 'requestId')));
+  app.post('/data-products/access-requests/:requestId/decision', { config: { access: ACCESS.session } }, async () => {
+    throw requests.documentedOnly();
+  });
+  app.post('/data-products/access-requests/:requestId/withdraw', async () => {
+    throw requests.documentedOnly();
+  });
   app.get('/data-products/:id/access-requests', async (req) => requests.productRequests(param(req, 'id')));
-  app.post('/data-products/:id/ports/:portId/access-requests', async (req) => requests.requestAccess(param(req, 'id'), param(req, 'portId'), req.body));
+  app.post('/data-products/:id/ports/:portId/access-requests', async () => {
+    throw requests.documentedOnly();
+  });
+  app.post('/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment', { config: { access: ACCESS.session } }, async (req) =>
+    requests.fulfilConsumer(param(req, 'id'), param(req, 'portId'), param(req, 'consumerId'), req.body),
+  );
   app.get('/data-products/:id/access-settings', async (req) => requests.getSettings(param(req, 'id')));
   app.put('/data-products/:id/access-settings', { config: { access: ACCESS.session } }, async (req) => requests.putSettings(param(req, 'id'), req.body));
 
@@ -114,6 +124,10 @@ export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise
   app.put('/data-products/:id/ports/:portId/consumers/:consumerId/identities', async (req) =>
     actual.setConsumerIdentities(param(req, 'id'), param(req, 'portId'), param(req, 'consumerId'), req.body),
   );
+
+  // ---------- the module's governance settings (0.25.1) ----------
+  app.get('/data-products/governance-settings', async () => govSettings.governanceSettingsView());
+  app.put('/data-products/governance-settings', { config: { access: ACCESS.session } }, async (req) => govSettings.putGovernanceSettings(req.body));
 
   // ---------- port access reviews ----------
   app.get('/data-products/:id/port-reviews', async (req) => reviews.productReviews(param(req, 'id')));

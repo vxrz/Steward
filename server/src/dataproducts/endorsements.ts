@@ -11,12 +11,11 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { forbid, me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageModule } from './access.js';
-import { isProductOwner } from './access-requests.js';
-import { claimNotice, namedPeople, people, productLink, send, seesProduct, t, titleName, type Person } from './governance-notices.js';
+import { canManageModule, productAccess } from './access.js';
+import { claimNotice, consumerContactsLink, maintainersOf, people, productLink, send, seesProduct, t, titleName, type Person } from './governance-notices.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
 import { visibleProduct } from './service.js';
 import { chunks, domainRow, marks, productRow, productsByIds, type ProductRow } from './store.js';
@@ -56,10 +55,7 @@ export function endorsersOf(p: Pick<ProductRow, 'domain_id'>): string[] {
 
 /** Whether `u` may endorse (and revoke) a product's endorsement, and why not. */
 function endorseRight(u: AuthUser, p: ProductRow): { may: boolean; whyNot: DataEndorsementView['whyNot'] } {
-  if (isProductOwner(u, p)) return { may: false, whyNot: 'ownProduct' };
-  const endorsers = endorsersOf(p);
-  const may = endorsers.length ? endorsers.some((s) => matches(u, s)) : canManageModule(u);
-  return may ? { may: true, whyNot: null } : { may: false, whyNot: 'notEndorser' };
+  return productAccess(u, p).permissions.includes('edit') ? { may: true, whyNot: null } : { may: false, whyNot: 'notMaintainer' };
 }
 
 /** The endorsements of these products (bulk). */
@@ -114,7 +110,7 @@ export function endorse(productId: string, body: unknown): DataEndorsementView {
   const u = me();
   const { row: p } = visibleProduct(productId, u);
   const right = endorseRight(u, p);
-  if (!right.may) forbid(right.whyNot === 'ownProduct' ? 'endorse a data product you own' : 'endorse this data product', 'dataProducts');
+  if (!right.may) forbid('record the endorsement of this data product', 'dataProducts');
   if (p.lifecycle === 'retired' || p.lifecycle === 'deprecated') throw invalid('Only products in use are endorsed', 'lifecycle');
   const input = dataEndorsementInput.parse(body);
   const on = today();
@@ -225,9 +221,7 @@ export function noticeEndorsementReviews(onlyIds?: readonly string[], on = today
       const e = endorsementOf(r, !!floors.get(p.id), on);
       if (!e.review || !claimNotice('endorsement', p.id, `${e.reviewDate}:${e.review}`)) continue;
       all ??= people();
-      const to = namedPeople(all, [...endorsersOf(p), ...parseJson<string[]>(p.owners, []), `user:${r.endorsed_by.toLowerCase()}`]).filter((x) =>
-        seesProduct(x, p),
-      );
+      const to = maintainersOf(all, p).filter((x) => seesProduct(x, p));
       sent += send({
         event: 'dataproduct.endorsement_review',
         recipients: to,
@@ -239,6 +233,7 @@ export function noticeEndorsementReviews(onlyIds?: readonly string[], on = today
           t(l, 'dataProductGovernance.endorsementReview.by', { by: r.endorsed_by, date: r.endorsed_at.slice(0, 10) }),
           t(l, 'dataProductGovernance.endorsementReview.hint'),
         ],
+        contacts: consumerContactsLink(p.id),
         data: { productId: p.id, reviewDate: e.reviewDate, reason: e.review },
       });
     }

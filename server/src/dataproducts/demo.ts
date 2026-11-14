@@ -6,7 +6,6 @@ import { logger } from '../log.js';
 import { addKafkaMessages, addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
 import { dropSnowflakeObject } from '../mock/mockSnowflake.js';
 import { newId, nowIso } from '../util.js';
-import { requestAccess } from './access-requests.js';
 import { readNow, writeIdentities } from './consumers-actual.js';
 import { addProductMatch, setAllocation } from './costs.js';
 import { runSource } from './discovery/job.js';
@@ -373,7 +372,7 @@ function qualityDemo(el: ElementOf): void {
   ]);
 }
 
-/** Orders' output port: a registration the platform sees and one that stays silent, read once; an access request. */
+/** Orders' output port: a registration the platform sees and one that stays silent, read once; a registration whose approval is not documented yet. */
 async function consumersDemo(orders: string, customer360: string): Promise<void> {
   const port = (productId: string, name: string) =>
     db().get<{ id: string }>(
@@ -392,11 +391,13 @@ async function consumersDemo(orders: string, customer360: string): Promise<void>
     await readNow(orders, ordersPort, 'prod');
   }
   const customerPort = port(customer360, 'customer');
-  if (customerPort)
-    requestAccess(customer360, customerPort, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Invented marketing analytics' },
+  if (customerPort) {
+    // access agreed elsewhere and not documented yet (0.25.1, ADR 0038): the IT maintainers complete it
+    const marketing = addConsumer(customer360, 'Customer 360', customerPort, {
+      kind: 'text',
+      text: 'Invented marketing analytics',
       purpose: 'Segments for the spring campaign',
-      identities: ['role:MARKETING'],
     });
+    db().tx(() => writeIdentities(marketing.id, ['role:MARKETING']));
+  }
 }
