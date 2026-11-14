@@ -10,6 +10,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { forbid, me } from '../auth/access.js';
+import { viaApiToken } from '../auth/context.js';
 import type { ContactHooks, ContactKindDef } from '../contacts/registry.js';
 import { contactForGroup, contactForUser, importContact, linksOf, setLinks, type ContactSurface } from '../contacts/service.js';
 import { t } from '../i18n/index.js';
@@ -162,7 +163,8 @@ export function contactOfSubject(subject: string, opts: { audit?: boolean } = {}
   const s = subject.trim();
   const name = s.replace(/^(user|team):/i, '').trim();
   if (!name) return null;
-  if (/^team:/i.test(s)) return contactForGroup(name, opts).id;
+  // a team's group contact is named as the team is written (subjects are lower case), else as given
+  if (/^team:/i.test(s)) return contactForGroup(db().get<{ name: string }>('SELECT name FROM teams WHERE lower(name) = lower(?)', name)?.name ?? name, opts).id;
   if (/^user:/i.test(s)) return (contactForUser(name, opts) ?? importContact({ kind: 'person', name }, opts)).id;
   return null;
 }
@@ -184,8 +186,31 @@ export const namesOf = (links: readonly ContactLink[] | undefined): { role: stri
   (links ?? []).map((l) => ({ role: l.role, name: l.contact.name }));
 
 /**
+ * The links of one role after an old subject field (`owners`, `owner`, `stewards`, a consumer's `contacts` as
+ * subjects) was written (0.25.1, deprecated): such a field can only name Steward users and teams, and reads back as the
+ * linked users of the role (userSubjectsOf). So it manages the role's contacts linked to a user – one it no longer
+ * names goes, one it names is the item's own contact of that user, else the person contact of the account – and adds a
+ * team's group contact; the role's other contacts (a person without an account, a group, a contact of a team) stay. A
+ * client of before that sends back the `owners` it read changes nothing.
+ */
+export function legacyRoleLinks(current: readonly ContactLink[], role: string, subjects: readonly string[]): ContactLinkInput[] {
+  const mine = current.filter((k) => k.role === role);
+  const wanted = [...new Set(subjects.map((x) => x.trim().toLowerCase()))];
+  const userOf = (k: ContactLink) => (k.contact.user ? `user:${k.contact.user.toLowerCase()}` : null);
+  const out: ContactLinkInput[] = mine.filter((k) => !userOf(k) || wanted.includes(userOf(k)!)).map((k) => ({ role, contactId: k.contact.id }));
+  const have = new Set(mine.map(userOf).filter(Boolean));
+  for (const l of linksOfSubjects(
+    wanted.filter((x) => !have.has(x)),
+    role,
+  ))
+    if (!out.some((o) => o.contactId === l.contactId)) out.push(l);
+  return out;
+}
+
+/**
  * Writes an item's contacts inside the caller's transaction and returns what changed (for its audit entry): the new
- * `contacts` when given, else the old fields as subjects per role, else nothing (the item keeps its contacts).
+ * `contacts` when given, else the old fields as subjects per role (legacyRoleLinks: they change only what they can
+ * express), else nothing (the item keeps its contacts).
  */
 export function writeContacts(
   kind: ContactLinkKind,
@@ -199,7 +224,7 @@ export function writeContacts(
     links = input.legacy.flatMap((l) =>
       l.subjects === undefined
         ? keep.filter((k) => k.role === l.role).map((k) => ({ role: k.role, contactId: k.contact.id }))
-        : linksOfSubjects(l.subjects, l.role),
+        : legacyRoleLinks(keep, l.role, l.subjects),
     );
     // roles the old fields do not cover (a business contact) stay
     const covered = new Set(input.legacy.map((l) => l.role));
@@ -210,9 +235,12 @@ export function writeContacts(
   return { added: r.added.map((a) => `${a.role}: ${a.name}`), removed: r.removed.map((a) => `${a.role}: ${a.name}`) };
 }
 
-/** Contacts of items for a surface (bulk). */
+/**
+ * Contacts of items for a surface (bulk). The app's internal API called with an API token is an API like /api/v1
+ * (CONTACT_EXPOSURE `names`): names and roles, no e-mail address, phone or address – the full contact is the web app's.
+ */
 export const contactsOf = (kind: ContactLinkKind, ids: readonly string[], surface: ContactSurface = 'app'): Map<string, ContactLink[]> =>
-  ids.length ? linksOf(kind, ids, { surface }) : new Map();
+  ids.length ? linksOf(kind, ids, { surface: surface === 'app' && viaApiToken() ? 'api' : surface }) : new Map();
 
 // ---------- the consumers' contacts (ADR 0038 part 6) ----------
 
@@ -231,7 +259,8 @@ function readable(productId: string) {
 
 export function consumerContacts(productId: string, portId?: string | null): DataConsumerContacts {
   const { p, perms } = readable(productId);
-  const maintainer = can(perms, 'edit');
+  // e-mail addresses for the IT maintainers in the app (an API token gets names and roles, as on /api/v1)
+  const maintainer = can(perms, 'edit') && !viaApiToken();
   const ports = portsOf([p.id]).filter((x) => x.direction === 'output' && (!portId || x.id === portId));
   const consumers: ConsumerRow[] = consumersOf(ports.map((x) => x.id));
   const links = contactsOf(

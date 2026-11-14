@@ -131,7 +131,8 @@ export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise
   // ---------- the consumers' contacts (0.25.1, ADR 0038 part 6) ----------
   const portQuery = z.object({ port: z.string().trim().min(1).max(100).optional() }).strict();
   app.get('/data-products/:id/consumer-contacts', async (req) => contacts.consumerContacts(param(req, 'id'), portQuery.parse(queryOf(req)).port ?? null));
-  app.get('/data-products/:id/consumer-contacts.csv', async (req, reply) => {
+  // the CSV with e-mail addresses: an export from the app by an IT maintainer (session only, audited)
+  app.get('/data-products/:id/consumer-contacts.csv', { config: { access: ACCESS.session } }, async (req, reply) => {
     const q = portQuery.extend({ lang: z.enum(['en', 'de']).optional() }).parse(queryOf(req));
     const csv = contacts.consumerContactsCsv(param(req, 'id'), q.port ?? null, q.lang ?? (await localeOf()));
     reply.header('content-disposition', 'attachment; filename="consumer-contacts.csv"');

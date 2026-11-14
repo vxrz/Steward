@@ -477,17 +477,23 @@ interface MakeOpts {
  * The person contact of a Steward account: an existing one linked to that user that the current user may see, else a
  * new one with the account's display name and e-mail address. Null when there is no such account. Documentation only:
  * the contact gives the user no right.
+ *
+ * The account's e-mail address goes into a new contact only where the current user may see it – administrators, jobs
+ * and the upgrade (no user), or the account itself: only administrators list accounts with their addresses, so naming
+ * `user:<name>` (an old subject field, a file's `user`) must not tell anyone else an address. Otherwise the contact gets
+ * `opts.email` (what a file says), else none.
  */
-export function contactForUser(userName: string, opts: MakeOpts = {}): ContactRef | null {
+export function contactForUser(userName: string, opts: MakeOpts & { email?: string } = {}): ContactRef | null {
   const user = db().get<{ id: string; username: string; display_name: string; email: string | null }>(
     'SELECT id, username, display_name, email FROM users WHERE lower(username) = lower(?)',
     userName.replace(/^user:/i, '').trim(),
   );
   if (!user) return null;
   const rows = db().all<ContactRow>(`SELECT ${CONTACT_COLUMNS} FROM ${FROM_CONTACTS} WHERE c.user_id = ?`, user.id);
-  const found = firstVisible(rows, currentUser());
+  const me = currentUser();
+  const found = firstVisible(rows, me);
   if (found) return refOf(found);
-  const email = (user.email ?? '').trim();
+  const email = (!me || isAdmin(me) || me.id === user.id ? (user.email ?? '') : (opts.email ?? '')).trim();
   const c = insertContact(
     contactInput.parse({
       kind: 'person',

@@ -520,4 +520,18 @@ describe('endorsement', () => {
     expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(['dataproduct.endorsed', 'dataproduct.endorsement_flagged']));
     expect((await dana('DELETE', `/data-products/${p}/endorsement?reason=Owner%20left`)).endorsement).toBeNull();
   });
+
+  it('names the domain owners only of a domain the reader may see', async () => {
+    // a domain only its team sees (adam's), with a product in it that everyone sees
+    const domain = (await s.api('POST', '/data-domains', { key: 'gov-secret-domain', name: 'Secret domain', owners: ['user:adam'] })).id;
+    const team = ((await s.api('GET', '/teams')) as { id: string; name: string }[]).find((t) => t.name === 'Invented governance team')!.id;
+    const { db } = await import('../src/db.js');
+    db().run("INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES ('data_domain', ?, ?, ?)", domain, team, new Date().toISOString());
+    const p = (await s.api('POST', '/data-products', { key: 'gov-in-secret-domain', name: 'In a secret domain', domainId: domain })).id;
+    expect(await fail(dana('GET', `/data-domains/${domain}`))).toMatchObject({ status: 404 });
+    expect((await dana('GET', `/data-products/${p}/endorsement`)).domainOwners).toEqual([]);
+    expect((await adam('GET', `/data-products/${p}/endorsement`)).domainOwners).toEqual([
+      expect.objectContaining({ role: 'domainOwner', contact: expect.objectContaining({ user: 'adam' }) }),
+    ]);
+  });
 });

@@ -26,7 +26,7 @@ import { factsOf, parseContract } from '../datacontracts/odcs.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { onLifecycleChanged, onPortDeleted } from './notices.js';
-import { CONSUMER_CONTACT_ROLE, contactsOf, linksOfSubjects } from './contacts.js';
+import { CONSUMER_CONTACT_ROLE, contactsOf, legacyRoleLinks, linksOfSubjects } from './contacts.js';
 import { decisionView, documentDecision } from './decisions.js';
 import { setLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
@@ -656,9 +656,15 @@ const consumerValues = (input: ConsumerInput): unknown[] => [
   input.agreement ? json(input.agreement) : null,
 ];
 
-/** The consumer's contacts from its input: contacts as given, subjects of before 0.25.1 as contacts; omitted: kept. */
-function consumerContactsInput(input: ConsumerInput): ContactLinkInput[] | undefined {
+/**
+ * The consumer's contacts from its input: contacts as given, subjects of before 0.25.1 as contacts; omitted: kept. Only
+ * subjects (the old shape): they change the contacts linked to Steward users and keep the others (legacyRoleLinks).
+ */
+function consumerContactsInput(input: ConsumerInput, consumerId?: string): ContactLinkInput[] | undefined {
   if (!input.contacts) return undefined;
+  const subjects = input.contacts.filter((c): c is string => typeof c === 'string');
+  if (consumerId && subjects.length === input.contacts.length)
+    return legacyRoleLinks(contactsOf('data_consumer', [consumerId]).get(consumerId) ?? [], CONSUMER_CONTACT_ROLE, subjects);
   return input.contacts.flatMap((c) =>
     typeof c === 'string' ? linksOfSubjects([c], CONSUMER_CONTACT_ROLE) : [{ ...c, role: c.role || CONSUMER_CONTACT_ROLE }],
   );
@@ -761,7 +767,7 @@ export function updateConsumer(productId: string, productName: string, portId: s
       actorName(),
       cur.id,
     );
-    const contacts = consumerContactsInput(input);
+    const contacts = consumerContactsInput(input, cur.id);
     if (contacts) setLinks('data_consumer', cur.id, contacts);
     writeDecision(productId, productName, port.name, cur.id, input);
     audit({

@@ -15,9 +15,9 @@ import type { AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageModule, productAccess } from './access.js';
+import { canManageModule, domainAccess, productAccess } from './access.js';
 import { decisionView, documentDecision } from './decisions.js';
-import { linksOf } from '../contacts/service.js';
+import { contactsOf } from './contacts.js';
 import { claimNotice, consumerContactsLink, maintainersOf, people, productLink, send, seesProduct, t, titleName, type Person } from './governance-notices.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
 import { visibleProduct } from './service.js';
@@ -50,13 +50,16 @@ interface EndorsementRow {
 const today = () => nowIso().slice(0, 10);
 const invalid = (message: string, context: string) => new HttpError(400, message, 'DATA_ENDORSEMENT_INVALID', { context });
 
-/** The owners of a product's domain and of the domain above it (contacts): who typically endorses it. */
-export function domainOwnersOf(p: Pick<ProductRow, 'domain_id'>): ContactLink[] {
+/**
+ * The owners of a product's domain and of the domain above it (contacts): who typically endorses it – of the domains
+ * `u` may see only (a domain's contacts are seen with the domain, never through a product of it).
+ */
+export function domainOwnersOf(p: Pick<ProductRow, 'domain_id'>, u: AuthUser): ContactLink[] {
   if (!p.domain_id) return [];
   const d = domainRow(p.domain_id);
   if (!d) return [];
-  const ids = [d.id, ...(d.parent_id ? [d.parent_id] : [])];
-  const links = linksOf('data_domain', ids);
+  const ids = [d.id, ...(d.parent_id ? [d.parent_id] : [])].filter((id) => domainAccess(u, { id }).permissions.length > 0);
+  const links = contactsOf('data_domain', ids);
   const out: ContactLink[] = [];
   for (const id of ids) for (const l of links.get(id) ?? []) if (!out.some((o) => o.contact.id === l.contact.id)) out.push(l);
   return out;
@@ -109,7 +112,7 @@ export function getEndorsement(productId: string): DataEndorsementView {
   const right = endorseRight(u, p);
   return {
     endorsement: r ? endorsementOf(r, !!belowFloor([p]).get(p.id)) : null,
-    domainOwners: domainOwnersOf(p),
+    domainOwners: domainOwnersOf(p, u),
     mayEndorse: right.may,
     whyNot: right.whyNot,
   };
