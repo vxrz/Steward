@@ -87,8 +87,8 @@
     "markdown": "Markdown",
     "purpose": "Purpose",
     "purposeHint": "What the product is for and who it serves.",
-    "owners": "Product owners",
-    "ownersHint": "Who answers for the product on the business side – documentation: it gives no right in Steward.",
+    "owners": "Contacts",
+    "ownersHint": "Product owners and business contacts – documentation, never a right in Steward.",
     "support": "Support",
     "supportChannel": "Channel",
     "supportUrl": "Web address",
@@ -390,7 +390,11 @@
     "agreementInvalid": "Give the agreement's reference (a web address starts with http:// or https://)",
     "noAgreement": "None",
     "contacts": "Contacts",
-    "contactsHint": "Told when the port is deprecated."
+    "contactsHint": "Who the IT maintainers inform when the port is deprecated or its contract breaks – Steward never e-mails them.",
+    "documented": "The access was decided and is documented",
+    "documentedHint": "Steward documents access decided elsewhere. Without it the registration shows “approval not documented”.",
+    "decision": "Who decided the access",
+    "decisionHelp": "The access was decided outside Steward – by the product owner, in a meeting, in a ticket. Record who decided it, when and the evidence."
   },
   "steps": {
     "title": "Steps",
@@ -1071,10 +1075,9 @@
     "flags": "Regulatory flags",
     "flagsHint": "Tags with a meaning – nothing is enforced.",
     "roles": "Roles",
-    "rolesHint": "Responsibility, not rights: the data owner decides classification and access, stewards keep definitions and quality, custodians run where it is stored. Editing follows the owning teams.",
+    "rolesHint": "Documentation, not rights: the data owner and stewards are contacts – they need no Steward account. Technical custodians (IT) run where it is stored. Editing follows the owning teams and shares.",
     "owner": "Data owner",
-    "ownerHint": "One user.",
-    "ownerUser": "The data owner is a user",
+    "ownerHint": "People or groups from the contacts, each with its role.",
     "ownerLine": "data owner: {{owner}}",
     "stewards": "Data stewards",
     "custodians": "Technical custodians",
@@ -1095,7 +1098,8 @@
       "label": "Parts of the data object",
       "overview": "Overview",
       "links": "Links"
-    }
+    },
+    "contacts": "Data owner and stewards"
   },
   "domains": {
     "title": "Domains",
@@ -1117,8 +1121,8 @@
     "parentLocked": "It has sub-domains, so it stays a top-level domain.",
     "topLevel": "A top-level domain",
     "colour": "Colour",
-    "owners": "Owners",
-    "ownersHint": "Users or teams who answer for the domain.",
+    "owners": "Domain owners",
+    "ownersHint": "Who answers for the domain on the business side – contacts; documentation, no right in Steward.",
     "ownersLine": "owners: {{owners}}",
     "teamsLine": "teams: {{teams}}",
     "products_one": "{{count}} product",

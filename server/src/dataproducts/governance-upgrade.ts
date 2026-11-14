@@ -1,4 +1,7 @@
-import { DATA_PRODUCT_ID_PREFIX } from '@sm/shared';
+import { DATA_PRODUCT_ID_PREFIX, type ContactLinkInput, type ContactSnapshot } from '@sm/shared';
+import { contactForUser, importContact, linksOf, setLinks } from '../contacts/service.js';
+import { linksOfSubjects } from './contacts.js';
+import { decisionOfUsers } from './decisions.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { ACCESS_AUDIT, auditAccessChange } from '../auth/access-change.js';
@@ -17,6 +20,17 @@ import { newId, nowIso, parseJson } from '../util.js';
  *    the IT maintainers to complete or remove: the consumer, purpose, end date, agreement and identities of the
  *    request, the requester as its contact; the request is `converted` and names the registration. Audited per
  *    request (`dataproduct.access_request_converted`). A request whose port is gone stays as it was.
+ * 3. **Owner fields become contacts** (part 2, after the shares of step 1 were made): a product's owners (productOwner),
+ *    a domain's owners (domainOwner), a data object's data owner and stewards (dataOwner, dataSteward) and a
+ *    registration's contacts (consumerContact) – `user:` the person contact linked to that account (made with the
+ *    account's name and e-mail address when there is none), `team:` a group contact named after the team. The item's
+ *    other contacts stay; its old field is emptied in the same transaction, so a second run finds nothing. Audited per
+ *    item (`dataproduct.contacts_converted`, `datadomain.…`, `dataobject.…`).
+ * 4. **Approved requests** (part 3): the registration an approval made gets a documented decision from it – the
+ *    approvers as contacts linked to their accounts, the day, the request as evidence, the comment as note.
+ * 5. **Endorsements and semantic model sign-offs** (part 5) keep their Steward users as contacts linked to them.
+ *
+ * Steps 3–5 need the contacts directory's tables (an earlier migration list).
  */
 
 interface ConversionRow {
@@ -145,11 +159,189 @@ export function convertPendingRequests(): number {
   return rows.length;
 }
 
+// ---------- 3. owner fields become contacts ----------
+
+const OWNER_FIELDS: readonly {
+  kind: 'data_product' | 'data_domain' | 'data_object' | 'data_consumer';
+  table: string;
+  label: string;
+  action: string;
+  entity: string;
+  columns: readonly { column: string; role: string; username?: true }[];
+}[] = [
+  {
+    kind: 'data_product',
+    table: 'dp_products',
+    label: 'Data product',
+    action: 'dataproduct.contacts_converted',
+    entity: 'data_product',
+    columns: [{ column: 'owners', role: 'productOwner' }],
+  },
+  {
+    kind: 'data_domain',
+    table: 'dp_domains',
+    label: 'Data domain',
+    action: 'datadomain.contacts_converted',
+    entity: 'data_domain',
+    columns: [{ column: 'owners', role: 'domainOwner' }],
+  },
+  {
+    kind: 'data_object',
+    table: 'dp_objects',
+    label: 'Data object',
+    action: 'dataobject.contacts_converted',
+    entity: 'data_object',
+    columns: [
+      { column: 'owner', role: 'dataOwner', username: true },
+      { column: 'stewards', role: 'dataSteward' },
+    ],
+  },
+  {
+    kind: 'data_consumer',
+    table: 'dp_consumers',
+    label: 'Consumer',
+    action: 'dataproduct.contacts_converted',
+    entity: 'data_product',
+    columns: [{ column: 'contacts', role: 'consumerContact' }],
+  },
+];
+
+/** The owner fields of before 0.25.1 as contact links, once (part 2). Returns the number of items converted. */
+export function convertOwnerFields(): number {
+  let n = 0;
+  for (const f of OWNER_FIELDS) {
+    const where = f.columns
+      .map((c) => (c.username ? `(${c.column} IS NOT NULL AND ${c.column} <> '')` : `(${c.column} IS NOT NULL AND ${c.column} <> '[]')`))
+      .join(' OR ');
+    const extra = f.kind === 'data_consumer' ? ', (SELECT product_id FROM dp_ports WHERE id = t.port_id) AS product_id' : ', t.name AS name';
+    const rows = db().all<Record<string, string | null>>(`SELECT t.* ${extra} FROM ${f.table} t WHERE ${where}`);
+    for (const r of rows)
+      db().tx(() => {
+        const keep = linksOf(f.kind, [r.id!]).get(r.id!) ?? [];
+        const links: ContactLinkInput[] = keep.map((k) => ({ role: k.role, contactId: k.contact.id }));
+        const named: string[] = [];
+        for (const c of f.columns) {
+          const subjects = c.username ? (r[c.column] ? [`user:${r[c.column]}`] : []) : parseJson<unknown[]>(r[c.column] ?? '[]', []).map(String);
+          for (const l of linksOfSubjects(subjects, c.role, { audit: false }))
+            if (!links.some((x) => x.role === l.role && x.contactId === l.contactId)) {
+              links.push(l);
+              named.push(`${c.role}: ${subjects.join(', ')}`);
+            }
+        }
+        setLinks(f.kind, r.id!, links);
+        db().run(`UPDATE ${f.table} SET ${f.columns.map((c) => `${c.column} = ${c.username ? 'NULL' : "'[]'"}`).join(', ')} WHERE id = ?`, r.id);
+        audit({
+          actor: 'system',
+          action: f.action,
+          entityType: f.entity,
+          entityId: f.kind === 'data_consumer' ? (r.product_id ?? r.id!) : r.id!,
+          summary: `${f.label} ${f.kind === 'data_consumer' ? r.id : `"${r.name}"`}: the people named in it became contacts (upgrade to 0.25.1) – documentation, no right`,
+          details: { kind: f.kind, itemId: r.id, contacts: links.map((l) => ({ role: l.role, contactId: l.contactId })), release: '0.25.1' },
+        });
+        n++;
+      });
+  }
+  return n;
+}
+
+// ---------- 4. and 5. documented decisions of before 0.25.1 ----------
+
+/** The person contacts of Steward users, frozen with a role (an account that is gone: a person contact of that name). */
+function snapshotsOfUsers(usernames: readonly string[], role: string): ContactSnapshot[] {
+  const out: ContactSnapshot[] = [];
+  for (const name of [...new Set(usernames.filter(Boolean))]) {
+    const c = contactForUser(name, { audit: false }) ?? importContact({ kind: 'person', name }, { audit: false });
+    out.push({ contactId: c.id, name: c.name, role });
+  }
+  return out;
+}
+
+/** The registrations of approved requests get a documented decision from the approval (part 3). */
+export function documentApprovedRequests(): number {
+  const rows = db().all<{
+    id: string;
+    product_id: string;
+    consumer_id: string;
+    approvals: string;
+    decided_by: string | null;
+    decided_at: string | null;
+    decision_comment: string;
+    created_at: string;
+  }>(
+    `SELECT r.id, r.product_id, r.consumer_id, r.approvals, r.decided_by, r.decided_at, r.decision_comment, r.created_at FROM dp_access_requests r
+       JOIN dp_consumers c ON c.id = r.consumer_id WHERE r.status = 'approved' AND c.decision IS NULL`,
+  );
+  for (const r of rows)
+    db().tx(() => {
+      const by = parseJson<{ by: string }[]>(r.approvals, []).map((a) => a.by);
+      const at = r.decided_at ?? r.created_at;
+      const d = decisionOfUsers(snapshotsOfUsers(by.length ? by : [r.decided_by ?? ''], 'approver'), at, r.decided_by ?? 'system', r.decision_comment, [
+        { kind: 'text', value: `Access request ${r.id}, approved in Steward before 0.25.1` },
+      ]);
+      db().run(
+        "UPDATE dp_consumers SET decision = ?, approval = 'documented', request_id = COALESCE(request_id, ?) WHERE id = ?",
+        JSON.stringify(d),
+        r.id,
+        r.consumer_id,
+      );
+      audit({
+        actor: 'system',
+        action: 'dataproduct.access_documented',
+        entityType: 'data_product',
+        entityId: r.product_id,
+        summary: `A registration approved through an access request is documented: decided by ${d.decidedBy.map((x) => x.name).join(', ')} on ${d.decidedOn} (upgrade to 0.25.1)`,
+        details: { requestId: r.id, consumerId: r.consumer_id, decidedBy: d.decidedBy, decidedOn: d.decidedOn, release: '0.25.1' },
+      });
+    });
+  return rows.length;
+}
+
+/** Endorsements and sign-offs of before 0.25.1 keep their Steward users as contacts linked to them (part 5). */
+export function documentApprovals(): number {
+  let n = 0;
+  for (const r of db().all<{ product_id: string; endorsed_by: string; endorsed_at: string; note: string }>(
+    'SELECT product_id, endorsed_by, endorsed_at, note FROM dp_endorsements WHERE decision IS NULL',
+  ))
+    db().tx(() => {
+      const d = decisionOfUsers(snapshotsOfUsers([r.endorsed_by], 'domainOwner'), r.endorsed_at, r.endorsed_by, r.note);
+      db().run('UPDATE dp_endorsements SET decision = ? WHERE product_id = ?', JSON.stringify(d), r.product_id);
+      audit({
+        actor: 'system',
+        action: 'dataproduct.endorsement_documented',
+        entityType: 'data_product',
+        entityId: r.product_id,
+        summary: `Endorsement by ${r.endorsed_by} kept as a documented endorsement of the contact linked to that user (upgrade to 0.25.1)`,
+        details: { decidedBy: d.decidedBy, decidedOn: d.decidedOn, release: '0.25.1' },
+      });
+      n++;
+    });
+  for (const r of db().all<{ id: string; product_id: string; version: number; signed_by: string; signed_at: string; note: string }>(
+    'SELECT id, product_id, version, signed_by, signed_at, note FROM dp_semantic_signoffs WHERE decision IS NULL',
+  ))
+    db().tx(() => {
+      const d = decisionOfUsers(snapshotsOfUsers([r.signed_by], 'approver'), r.signed_at, r.signed_by, r.note);
+      db().run('UPDATE dp_semantic_signoffs SET decision = ? WHERE id = ?', JSON.stringify(d), r.id);
+      audit({
+        actor: 'system',
+        action: 'dataproduct.semantic_model_documented',
+        entityType: 'data_product',
+        entityId: r.product_id,
+        summary: `Sign-off of semantic model version ${r.version} by ${r.signed_by} kept as a documented approval of the contact linked to that user (upgrade to 0.25.1)`,
+        details: { version: Number(r.version), decidedBy: d.decidedBy, decidedOn: d.decidedOn, release: '0.25.1' },
+      });
+      n++;
+    });
+  return n;
+}
+
 /** Every open step of the upgrade (idempotent; never throws – a step that fails is tried again at the next start). */
 export function convertDataProductGovernance(): void {
   for (const [name, step] of [
     ['owner shares', auditOwnerShareConversions],
     ['pending requests', convertPendingRequests],
+    ['owner fields', convertOwnerFields],
+    ['approved requests', documentApprovedRequests],
+    ['endorsements and sign-offs', documentApprovals],
   ] as const)
     try {
       step();

@@ -321,3 +321,87 @@ describe('owner fields become shares (0.25.1): nobody gains or loses a right', (
     expect(db().all('SELECT 1 FROM dp_owner_share_conversions WHERE audited_at IS NULL')).toEqual([]);
   });
 });
+
+describe('owner fields and decisions become contacts (0.25.1, after the shares)', () => {
+  it('links the people of owner fields as contacts – a user the contact linked to the account, a team a group – once, audited, rights unchanged', async () => {
+    const { db: d } = await import('../src/db.js');
+    // an approved request of before (its registration), an endorsement and a sign-off by Steward users
+    const p = items.find((x) => x.kind === 'data_product' && x.named.includes('user:vera'))!;
+    d().run(
+      "INSERT INTO dp_ports (id, product_id, direction, name, version, lifecycle, created_at, created_by, updated_at, updated_by) VALUES ('dpp_c', ?, 'output', 'orders', 'v1', 'active', ?, 'admin', ?, 'admin')",
+      p.id,
+      at,
+      at,
+    );
+    d().run(
+      `INSERT INTO dp_consumers (id, port_id, consumer_kind, consumer_text, purpose, contacts, created_at, created_by, updated_at, updated_by)
+       VALUES ('dpc_c', 'dpp_c', 'text', 'Invented report', 'Close', '["user:tess","team:qa"]', ?, 'admin', ?, 'admin')`,
+      at,
+      at,
+    );
+    d().run(
+      `INSERT INTO dp_access_requests (id, product_id, port_id, environment, requester, consumer_kind, consumer_text, purpose, status, approvals, decided_by, decided_at, decision_comment, consumer_id, created_at, updated_at)
+       VALUES ('dpx_c', ?, 'dpp_c', 'prod', 'tess', 'text', 'Invented report', 'Close', 'approved', '[{"by":"vera","at":"2026-09-01T00:00:00.000Z","comment":""}]', 'vera', '2026-09-01T00:00:00.000Z', 'Fine', 'dpc_c', ?, ?)`,
+      p.id,
+      at,
+      at,
+    );
+    d().run(
+      "INSERT INTO dp_endorsements (product_id, endorsed_by, endorsed_at, review_date, note) VALUES (?, 'olivia', '2026-08-01T00:00:00.000Z', '2027-08-01', 'Trusted')",
+      p.id,
+    );
+    d().run(
+      "INSERT INTO dp_semantic_versions (id, product_id, version, format, sha256, size, note, origin, lint_count, document, created_by, created_at) VALUES ('sv_c', ?, 1, 'yaml', 'abc', 3, '', 'page', 0, 'x: 1', 'dana', ?)",
+      p.id,
+      at,
+    );
+    d().run(
+      "INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at) VALUES ('so_c', ?, 'sv_c', 1, 'abc', '2026-09-02', '', 'adam', '2026-09-02T00:00:00.000Z')",
+      p.id,
+    );
+    const g = await import('../src/dataproducts/governance-upgrade.js');
+    const converted = ctx.runAs(null, () => g.convertOwnerFields());
+    expect(converted).toBeGreaterThan(20);
+    expect(ctx.runAs(null, () => g.convertOwnerFields())).toBe(0);
+    expect(ctx.runAs(null, () => g.documentApprovedRequests())).toBe(1);
+    expect(ctx.runAs(null, () => g.documentApprovedRequests())).toBe(0);
+    expect(ctx.runAs(null, () => g.documentApprovals())).toBe(2);
+    expect(ctx.runAs(null, () => g.documentApprovals())).toBe(0);
+    const { linksOf } = await import('../src/contacts/service.js');
+    // a user: the person contact linked to that account; a team: a group contact; the old columns are empty
+    const links = linksOf('data_product', [p.id]).get(p.id)!;
+    expect(links).toEqual([expect.objectContaining({ role: 'productOwner', contact: expect.objectContaining({ kind: 'person', user: 'vera' }) })]);
+    const obj = items.find((x) => x.kind === 'data_object' && x.named.includes('user:adam') && x.named.includes('team:qa'))!;
+    const objLinks = linksOf('data_object', [obj.id]).get(obj.id)!;
+    expect(objLinks.map((l) => [l.role, l.contact.kind])).toEqual(expect.arrayContaining([['dataSteward', 'group']]));
+    expect(objLinks.find((l) => l.contact.kind === 'group')!.contact.name.toLowerCase()).toBe('qa');
+    expect(d().all("SELECT id FROM dp_products WHERE owners <> '[]'")).toEqual([]);
+    expect(d().all("SELECT id FROM dp_objects WHERE owner IS NOT NULL OR stewards <> '[]'")).toEqual([]);
+    // one contact per person: vera is one contact wherever she was named
+    const veras = d().all<{ n: number }>("SELECT COUNT(*) AS n FROM contacts c JOIN users u ON u.id = c.user_id WHERE u.username = 'vera'");
+    expect(Number(veras[0]!.n)).toBe(1);
+    // the registration's contacts, and its approval documented from the request
+    const cLinks = linksOf('data_consumer', ['dpc_c']).get('dpc_c')!;
+    expect(cLinks.map((l) => l.contact.kind).sort()).toEqual(['group', 'person']);
+    const consumer = d().get<{ approval: string; decision: string }>("SELECT approval, decision FROM dp_consumers WHERE id = 'dpc_c'")!;
+    expect(consumer.approval).toBe('documented');
+    expect(JSON.parse(consumer.decision)).toMatchObject({ decidedBy: [{ role: 'approver' }], decidedOn: '2026-09-01', note: 'Fine', recordedBy: 'vera' });
+    // endorsement and sign-off keep their users as contacts linked to them
+    const e = JSON.parse(d().get<{ decision: string }>('SELECT decision FROM dp_endorsements WHERE product_id = ?', p.id)!.decision);
+    expect(e).toMatchObject({ decidedBy: [{ role: 'domainOwner' }], decidedOn: '2026-08-01', recordedBy: 'olivia' });
+    expect(JSON.parse(d().get<{ decision: string }>("SELECT decision FROM dp_semantic_signoffs WHERE id = 'so_c'")!.decision)).toMatchObject({
+      decidedBy: [{ role: 'approver' }],
+      decidedOn: '2026-09-02',
+    });
+    // contacts give no right: everyone's rights are still those of 0.25.0
+    const diffs: string[] = [];
+    ctx.runAs(null, () => {
+      for (const it of items) for (const u of people) if (before.get(key(u, it)) !== rightsOf(u, it).join('/')) diffs.push(`${u.username} on ${it.id}`);
+    });
+    expect(diffs).toEqual([]);
+    expect(
+      d().all("SELECT 1 FROM audit_log WHERE action IN ('dataproduct.contacts_converted', 'datadomain.contacts_converted', 'dataobject.contacts_converted')")
+        .length,
+    ).toBe(converted);
+  });
+});

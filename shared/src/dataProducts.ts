@@ -1,7 +1,7 @@
 import { CIA_DIMENSIONS, levelRank, type ApplicationRating, type CiaDimension, type CiaLevel, type CiaColor } from './catalogue.js';
 import type { MonitorStatus } from './monitors.js';
 import type { CostEstimateSummary } from './costCalculators.js';
-import type { DocumentedDecision } from './contacts.js';
+import type { ContactLink, DocumentedDecision } from './contacts.js';
 
 /**
  * The data products module (0.22.0, ADR 0036, docs/DATA-PRODUCTS.md): data objects say what the business data is, how
@@ -466,7 +466,10 @@ export interface DataDomain {
   description: string;
   parentId: string | null;
   colour: CiaColor | null;
+  /** Deprecated (0.25.1): the linked Steward users of its domain owners as `user:` subjects – see contacts */
   owners: DataSubject[];
+  /** 0.25.1 (ADR 0038): its domain owners (contacts; documentation, never a right) */
+  contacts: ContactLink[];
   owningTeams: OwningTeamRef[];
   /** Products and data objects in it the reader may see */
   products: number;
@@ -496,7 +499,10 @@ export interface DataObjectSummary {
   classification: DataClassification | null;
   personalData: PersonalDataLevel;
   rating: DataRating;
+  /** Deprecated (0.25.1): the user name of the data owner's linked Steward user – see contacts */
   owner: string | null;
+  /** 0.25.1 (ADR 0038): its data owner and data stewards (contacts; documentation, never a right) */
+  contacts: ContactLink[];
   permissions: DataProductPermission[];
   updatedAt: string;
 }
@@ -515,7 +521,9 @@ export interface DataObject extends DataObjectSummary {
   deletionRule: string;
   regulatoryFlags: string[];
   attributes: DataObjectAttribute[];
+  /** Deprecated (0.25.1): the linked Steward users of its data stewards as `user:` subjects – see contacts */
   stewards: DataSubject[];
+  /** Technical custodians (IT): teams and users */
   custodians: DataSubject[];
   externalRefs: DataExternalRef[];
   owningTeams: OwningTeamRef[];
@@ -639,7 +647,10 @@ export interface DataProductSummary {
   valueTier: DataValueTier | null;
   /** The environments it exists in (production first) */
   environments: string[];
+  /** Deprecated (0.25.1): the linked Steward users of its product owners as `user:` subjects – see contacts */
   owners: DataSubject[];
+  /** 0.25.1 (ADR 0038): its product owners and business contacts (contacts; documentation, never a right) */
+  contacts: ContactLink[];
   owningTeams: OwningTeamRef[];
   tags: string[];
   version: string;
@@ -812,8 +823,11 @@ export interface DataConsumer {
   since: string | null;
   endDate: string | null;
   agreement: DataAgreement | null;
-  /** Who is told when the port is deprecated (users and teams) */
-  contacts: DataSubject[];
+  /**
+   * The consumer's contacts (0.25.1: contacts with the role consumerContact) – the IT maintainers inform them of a
+   * deprecation or a breaking change; Steward never e-mails a contact
+   */
+  contacts: ContactLink[];
   /**
    * 0.25.1 (ADR 0038 part 3): the access decided elsewhere and documented here – `documented` with its decision, or
    * `notDocumented` (registrations made before 0.25.1, pending requests the upgrade converted) for the IT maintainers
@@ -830,6 +844,26 @@ export interface DataConsumer {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+}
+
+/**
+ * The contacts of a product's registered consumers (0.25.1, ADR 0038 part 6), for its IT maintainers to inform them of
+ * a deprecation or a breaking change – Steward never e-mails a contact. E-mail addresses only for who may change the
+ * product (`withEmail`).
+ */
+export interface DataConsumerContacts {
+  productId: string;
+  portId: string | null;
+  withEmail: boolean;
+  entries: {
+    consumerId: string;
+    portId: string;
+    portName: string;
+    consumer: string;
+    kind: DataConsumerKind;
+    endDate: string | null;
+    contacts: { name: string; role: string; status: 'active' | 'left'; email?: string }[];
+  }[];
 }
 
 export const DATA_CONSUMER_APPROVALS = ['documented', 'notDocumented'] as const;
@@ -1480,7 +1514,10 @@ export function maturityLevel(state: (id: DataScorecardPartId) => DataScorecardS
 
 // ---------- lifecycle rules (part 3) ----------
 
-/** What a lifecycle change needs: active an owner and an output port; deprecated a sunset date; retired a confirmation while consumed. */
+/**
+ * What a lifecycle change needs: active a product owner (0.25.1: a contact with the role productOwner – `owners` counts
+ * them) and an output port; deprecated a sunset date; retired a confirmation while consumed.
+ */
 export type LifecycleProblem = 'needsOwner' | 'needsOutputPort' | 'needsSunsetDate' | 'consumersRegistered';
 
 export function lifecycleProblems(

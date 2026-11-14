@@ -27,6 +27,7 @@ import {
   type DataMemberRole,
   type RatingFloor,
   type RatingFloorDimension,
+  type ContactLink,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -60,6 +61,8 @@ import {
 } from './store.js';
 import { portViews } from './ports.js';
 import { onLifecycleChanged } from './notices.js';
+import { contactsOf, userSubjectsOf, writeContacts } from './contacts.js';
+import { removeItemLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 
 /**
@@ -132,7 +135,12 @@ function domainCounts(u: AuthUser | null): Map<string, { products: number; objec
   return out;
 }
 
-function domainView(d: DomainRow, perms: DataProductPermission[], counts: { products: number; objects: number } | undefined): DataDomain {
+function domainView(
+  d: DomainRow,
+  perms: DataProductPermission[],
+  counts: { products: number; objects: number } | undefined,
+  contacts: ContactLink[] = [],
+): DataDomain {
   return {
     id: d.id,
     key: d.key,
@@ -140,7 +148,8 @@ function domainView(d: DomainRow, perms: DataProductPermission[], counts: { prod
     description: d.description,
     parentId: d.parent_id,
     colour: (d.colour as DataDomain['colour']) ?? null,
-    owners: parseJson<string[]>(d.owners, []),
+    owners: userSubjectsOf(contacts, 'domainOwner'),
+    contacts,
     owningTeams: owningTeams('data_domain', d.id),
     products: counts?.products ?? 0,
     objects: counts?.objects ?? 0,
@@ -156,10 +165,14 @@ function domainView(d: DomainRow, perms: DataProductPermission[], counts: { prod
 export function listDomains(): DataDomain[] {
   const u = me();
   const counts = domainCounts(u);
-  return allDomains()
+  const seen = allDomains()
     .map((d) => ({ d, perms: domainAccess(u, d).permissions }))
-    .filter((x) => x.perms.length)
-    .map((x) => domainView(x.d, x.perms, counts.get(x.d.id)));
+    .filter((x) => x.perms.length);
+  const links = contactsOf(
+    'data_domain',
+    seen.map((x) => x.d.id),
+  );
+  return seen.map((x) => domainView(x.d, x.perms, counts.get(x.d.id), links.get(x.d.id)));
 }
 
 function visibleDomain(id: string): { row: DomainRow; perms: DataProductPermission[] } {
@@ -172,7 +185,7 @@ function visibleDomain(id: string): { row: DomainRow; perms: DataProductPermissi
 
 export function getDomain(id: string): DataDomain {
   const { row, perms } = visibleDomain(id);
-  return domainView(row, perms, domainCounts(me()).get(row.id));
+  return domainView(row, perms, domainCounts(me()).get(row.id), contactsOf('data_domain', [row.id]).get(row.id));
 }
 
 /** The key of a domain, data object or product is unique; one the reader may not see is not named. */
@@ -210,19 +223,21 @@ export function createDomain(body: unknown): DataDomain {
       input.description,
       input.parentId,
       input.colour,
-      json(input.owners),
+      '[]',
       now,
       u.username,
       now,
       u.username,
     );
     assignCreatorTeams('data_domain', id, u);
+    // its domain owners: contacts (0.25.1) – documentation, never a right
+    const changed = writeContacts('data_domain', id, { contacts: input.contacts, legacy: [{ role: 'domainOwner', subjects: input.owners }] });
     audit({
       action: 'datadomain.created',
       entityType: 'data_domain',
       entityId: id,
       summary: `Data domain "${input.name}" (${input.key}) created`,
-      details: { key: input.key, parentId: input.parentId },
+      details: { key: input.key, parentId: input.parentId, ...(changed ? { contacts: changed } : {}) },
     });
   });
   return getDomain(id);
@@ -235,14 +250,14 @@ export function updateDomain(id: string, body: unknown): DataDomain {
   refuseTakenKey('dp_domains', input.key, row.id);
   checkParent(row.id, input.parentId);
   db().tx(() => {
+    const changed = writeContacts('data_domain', row.id, { contacts: input.contacts, legacy: [{ role: 'domainOwner', subjects: input.owners }] });
     db().run(
-      `UPDATE dp_domains SET key = ?, name = ?, description = ?, parent_id = ?, colour = ?, owners = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+      `UPDATE dp_domains SET key = ?, name = ?, description = ?, parent_id = ?, colour = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
       input.key,
       input.name,
       input.description,
       input.parentId,
       input.colour,
-      json(input.owners),
       nowIso(),
       actorName(),
       row.id,
@@ -252,7 +267,11 @@ export function updateDomain(id: string, body: unknown): DataDomain {
       entityType: 'data_domain',
       entityId: row.id,
       summary: `Data domain "${input.name}" changed`,
-      details: { before: { key: row.key, name: row.name, parentId: row.parent_id }, after: { key: input.key, name: input.name, parentId: input.parentId } },
+      details: {
+        before: { key: row.key, name: row.name, parentId: row.parent_id },
+        after: { key: input.key, name: input.name, parentId: input.parentId },
+        ...(changed ? { contacts: changed } : {}),
+      },
     });
   });
   return getDomain(row.id);
@@ -272,6 +291,7 @@ export function deleteDomain(id: string): void {
     db().run('DELETE FROM dp_domains WHERE id = ?', row.id);
     forgetOwningTeams('data_domain', row.id);
     forgetShares('data_domain', row.id);
+    removeItemLinks('data_domain', row.id);
     audit({ action: 'datadomain.deleted', entityType: 'data_domain', entityId: row.id, summary: `Data domain "${row.name}" (${row.key}) deleted` });
   });
 }
@@ -285,7 +305,13 @@ function usableDomain(id: string | null): void {
 
 // ---------- data objects ----------
 
-function objectSummary(o: ObjectRow, perms: DataProductPermission[], domains: Map<string, DataRef>, rating: DataObjectSummary['rating']): DataObjectSummary {
+function objectSummary(
+  o: ObjectRow,
+  perms: DataProductPermission[],
+  domains: Map<string, DataRef>,
+  rating: DataObjectSummary['rating'],
+  contacts: ContactLink[] = [],
+): DataObjectSummary {
   return {
     id: o.id,
     key: o.key,
@@ -295,7 +321,8 @@ function objectSummary(o: ObjectRow, perms: DataProductPermission[], domains: Ma
     classification: (o.classification as DataClassification | null) ?? null,
     personalData: o.personal_data as DataObjectSummary['personalData'],
     rating,
-    owner: o.owner,
+    owner: userSubjectsOf(contacts, 'dataOwner')[0]?.slice(5) ?? null,
+    contacts,
     permissions: perms,
     updatedAt: o.updated_at,
   };
@@ -328,8 +355,9 @@ export function listObjects(q: DataObjectListQuery): DataPage<DataObjectSummary>
   const full = objectsByIds(page.items.map((x) => x.o.id));
   const ratings = ratingsByItem('object', [...full.keys()]);
   const domains = domainRefs(u);
+  const links = contactsOf('data_object', [...full.keys()]);
   return {
-    items: page.items.map((x) => objectSummary(full.get(x.o.id)!, x.perms, domains, ratings.get(x.o.id)!)),
+    items: page.items.map((x) => objectSummary(full.get(x.o.id)!, x.perms, domains, ratings.get(x.o.id)!, links.get(x.o.id))),
     total: rows.length,
     next: page.next,
   };
@@ -369,8 +397,9 @@ export function getObject(id: string): DataObject {
       ...scope.params,
     )!.n,
   );
+  const contacts = contactsOf('data_object', [o.id]).get(o.id) ?? [];
   return {
-    ...objectSummary(o, perms, domainRefs(u), rating),
+    ...objectSummary(o, perms, domainRefs(u), rating, contacts),
     definition: o.definition,
     synonyms: parseJson(o.synonyms, []),
     categories: parseJson(o.categories, []),
@@ -383,7 +412,7 @@ export function getObject(id: string): DataObject {
     deletionRule: o.deletion_rule,
     regulatoryFlags: parseJson(o.regulatory_flags, []),
     attributes: parseJson(o.attributes, []),
-    stewards: parseJson(o.stewards, []),
+    stewards: userSubjectsOf(contacts, 'dataSteward'),
     custodians: parseJson(o.custodians, []),
     externalRefs: refs(o.external_refs),
     owningTeams: owningTeams('data_object', o.id),
@@ -417,12 +446,22 @@ function objectValues(input: ReturnType<typeof dataObjectInput.parse>): unknown[
     input.deletionRule,
     json(input.regulatoryFlags),
     json(input.attributes),
-    input.owner ? input.owner.toLowerCase() : null,
-    json(input.stewards),
+    // the data owner and stewards are contacts since 0.25.1 (writeContacts): the old columns stay empty
+    null,
+    '[]',
     json(input.custodians),
     json(input.externalRefs),
   ];
 }
+/** A data object's contacts from its input: the contacts given, else the old fields (the owner's user name, stewards). */
+const objectContactsInput = (input: ReturnType<typeof dataObjectInput.parse>) => ({
+  contacts: input.contacts,
+  legacy: [
+    { role: 'dataOwner', subjects: input.owner === undefined ? undefined : input.owner ? [`user:${input.owner}`] : [] },
+    { role: 'dataSteward', subjects: input.stewards },
+  ],
+});
+
 const OBJECT_COLUMNS =
   'key, name, name_norm, definition, synonyms, domain_id, lifecycle, classification, personal_data, categories, special_categories, subjects, legal_basis, legal_note, purposes, retention, deletion_rule, regulatory_flags, attributes, owner, stewards, custodians, external_refs';
 
@@ -447,12 +486,13 @@ export function createObject(body: unknown): DataObject {
       u.username,
     );
     assignCreatorTeams('data_object', id, u);
+    const changed = writeContacts('data_object', id, objectContactsInput(input));
     audit({
       action: 'dataobject.created',
       entityType: 'data_object',
       entityId: id,
       summary: `Data object "${input.name}" (${input.key}) created`,
-      details: { key: input.key },
+      details: { key: input.key, ...(changed ? { contacts: changed } : {}) },
     });
   });
   return getObject(id);
@@ -477,12 +517,19 @@ export function updateObject(id: string, body: unknown): DataObject {
       actorName(),
       row.id,
     );
+    const changed = writeContacts('data_object', row.id, objectContactsInput(input));
     audit({
       action: 'dataobject.updated',
       entityType: 'data_object',
       entityId: row.id,
       summary: `Data object "${input.name}" changed${input.lifecycle !== row.lifecycle ? ` (${row.lifecycle} → ${input.lifecycle})` : ''}`,
-      details: { key: input.key, classification: input.classification, personalData: input.personalData, lifecycle: input.lifecycle },
+      details: {
+        key: input.key,
+        classification: input.classification,
+        personalData: input.personalData,
+        lifecycle: input.lifecycle,
+        ...(changed ? { contacts: changed } : {}),
+      },
     });
   });
   return getObject(row.id);
@@ -498,6 +545,7 @@ export function deleteObject(id: string): void {
     db().run('DELETE FROM dp_objects WHERE id = ?', row.id);
     forgetOwningTeams('data_object', row.id);
     forgetShares('data_object', row.id);
+    removeItemLinks('data_object', row.id);
     audit({ action: 'dataobject.deleted', entityType: 'data_object', entityId: row.id, summary: `Data object "${row.name}" (${row.key}) deleted` });
   });
 }
@@ -549,6 +597,7 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     read,
   );
   const domains = domainRefs(u);
+  const links = contactsOf('data_product', ids);
   const envRows = environmentsOf(ids);
   const envs = new Map<string, string[]>();
   for (const e of envRows) envs.set(e.product_id, [...(envs.get(e.product_id) ?? []), e.environment]);
@@ -567,7 +616,8 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     ratingBelowObjects: !!floors.get(p.id)?.warning,
     valueTier: (p.value_tier as DataProductSummary['valueTier']) ?? null,
     environments: sortEnvironments(envs.get(p.id) ?? [], list),
-    owners: parseJson<string[]>(p.owners, []),
+    owners: userSubjectsOf(links.get(p.id), 'productOwner'),
+    contacts: links.get(p.id) ?? [],
     owningTeams: owningTeams('data_product', p.id),
     tags: parseJson<string[]>(p.tags, []),
     version: p.version,
@@ -746,7 +796,8 @@ function productValues(input: ReturnType<typeof dataProductInput.parse>): unknow
     input.purpose,
     input.type,
     input.domainId,
-    json(input.owners),
+    // the product owners are contacts since 0.25.1 (writeContacts): the old column stays empty
+    '[]',
     json(input.support),
     input.criticality,
     input.tier,
@@ -785,12 +836,13 @@ export function createProduct(body: unknown): DataProduct {
       u.username,
     );
     assignCreatorTeams('data_product', id, u);
+    const changed = writeContacts('data_product', id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
     audit({
       action: 'dataproduct.created',
       entityType: 'data_product',
       entityId: id,
       summary: `Data product "${input.name}" (${input.key}) created`,
-      details: { key: input.key, type: input.type, domainId: input.domainId },
+      details: { key: input.key, type: input.type, domainId: input.domainId, ...(changed ? { contacts: changed } : {}) },
     });
   });
   return getProduct(id);
@@ -812,6 +864,7 @@ export function updateProduct(id: string, body: unknown): DataProduct {
       actorName(),
       row.id,
     );
+    const changed = writeContacts('data_product', row.id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
     audit({
       action: 'dataproduct.updated',
       entityType: 'data_product',
@@ -820,6 +873,7 @@ export function updateProduct(id: string, body: unknown): DataProduct {
       details: {
         before: { key: row.key, name: row.name, domainId: row.domain_id, type: row.type },
         after: { key: input.key, name: input.name, domainId: input.domainId, type: input.type },
+        ...(changed ? { contacts: changed } : {}),
       },
     });
   });
@@ -948,7 +1002,8 @@ export function changeLifecycle(id: string, body: unknown): DataProduct {
   const outputPorts = portsOf([row.id]).filter((p) => p.direction === 'output').length;
   const consumers = input.lifecycle === 'retired' ? consumersOfProduct(row.id) : 0;
   const problems = lifecycleProblems(input.lifecycle, {
-    owners: parseJson(row.owners, []),
+    // 0.25.1: a product owner is a contact with that role (documentation, never a right)
+    owners: (contactsOf('data_product', [row.id]).get(row.id) ?? []).filter((l) => l.role === 'productOwner').map((l) => l.contact.id),
     outputPorts,
     sunsetDate: sunset,
     consumers,

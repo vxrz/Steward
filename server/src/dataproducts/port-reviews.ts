@@ -25,6 +25,7 @@ import { logger } from '../log.js';
 import { HttpError, canonicalJson, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { reviewMonthsOf } from './access-requests.js';
 import { governanceSettings } from './governance-settings.js';
+import { decisionView, documentDecision, sealedDecision } from './decisions.js';
 import { portNotFound } from './common.js';
 import { actualView } from './consumers-actual.js';
 import { claimNotice, consumerContactsLink, maintainersOf, people, productLink, send, t, titleName } from './governance-notices.js';
@@ -216,6 +217,8 @@ export function getReview(id: string): DataPortReview {
     sealHash: r.seal_hash,
     check: parseJson<DataPortReview['check']>(r.check_info, null),
     entries: items.map(itemView),
+    decision: decisionView(r.decision, u),
+    needsDecision: !!Number(r.documented),
     mayDecide: mayDecide(u, r, p),
     mayApprove: mayApprove(u, r, p, items),
   };
@@ -373,6 +376,32 @@ export function decideItems(id: string, body: unknown): DataPortReview {
 }
 
 /**
+ * PUT /api/data-products/port-reviews/:reviewId/decision (session only, the IT maintainers, while the review is open):
+ * the review's documented decision – who decided the outcome elsewhere (contacts), on which date, the evidence. The
+ * seal covers it.
+ */
+export function documentReview(id: string, body: unknown): DataPortReview {
+  const u = me();
+  const { r, p } = visibleReview(id, u);
+  if (!mayDecide(u, r, p)) {
+    if (r.status !== 'open') throw reviewState('The review is not open', 'notOpen');
+    forbid('review the consumers of this data product', 'dataProducts');
+  }
+  const decision = documentDecision(body, u);
+  db().tx(() => {
+    db().run('UPDATE dp_port_reviews SET decision = ? WHERE id = ?', JSON.stringify(decision), r.id);
+    audit({
+      action: 'dataproduct.access_review_documented',
+      entityType: 'data_product',
+      entityId: p.id,
+      summary: `Data product "${p.name}": the outcome of an access review (${r.environment}) decided by ${decision.decidedBy.map((x) => x.name).join(', ')} on ${decision.decidedOn} recorded`,
+      details: { reviewId: r.id, portId: r.port_id, decidedBy: decision.decidedBy, decidedOn: decision.decidedOn, evidence: decision.evidence },
+    });
+  });
+  return getReview(id);
+}
+
+/**
  * The seal: SHA-256 over the canonical review and its decisions – everything the evidence says: four eyes or not, the
  * approver's comment, per entry what was frozen (its detail too: purposes, identities, who was seen) and who entered
  * its decision when, and (0.25.1) the review's documented decision. A review sealed before 0.25.1 has none, so its
@@ -394,7 +423,8 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
       approvedAt: r.approved_at,
       approvalComment: r.approval_comment,
       check: parseJson(r.check_info, null),
-      ...(r.decision === null || r.decision === undefined ? {} : { decision: parseJson<unknown>(r.decision, null) }),
+      // the documented decision without the contacts' ids: erasing a contact (GDPR Art. 17) keeps the seal
+      ...(r.decision === null || r.decision === undefined ? {} : { decision: sealedDecision(r.decision) }),
       items: items.map((i) => ({
         seq: Number(i.seq),
         kind: i.kind,

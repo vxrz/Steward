@@ -25,6 +25,9 @@ import {
  * named – a reference to it is `{ hidden: true }` without a name or id.
  */
 
+/** Contacts by name and role (0.25.1, ADR 0038: no e-mail addresses on this API). */
+const ContactNames = z.array(z.object({ role: z.string(), name: z.string() }));
+
 const ts = () => z.string().describe('ISO 8601 timestamp (UTC)');
 const limit = z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)');
 const cursor = z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)');
@@ -78,7 +81,10 @@ export const DataProductEntry = z.object({
   ratingBelowObjects: z.boolean().describe('Rated below the data objects it exposes without a reason'),
   valueTier: z.enum(DATA_VALUE_TIERS).nullable(),
   environments: z.array(z.string()).describe('Production first'),
-  owners: z.array(z.string()).describe('Product owners: user:<name> or team:<name>'),
+  owners: z
+    .array(z.string())
+    .describe('Deprecated (0.25.1, removed in a later release): the Steward users linked to its product owner contacts, as user:<name> – see contacts'),
+  contacts: ContactNames.describe('Product owners and business contacts (0.25.1): documentation, never a right in Steward'),
   owningTeams: z.array(z.object({ id: z.string(), name: z.string() })),
   tags: z.array(z.string()),
   version: z.string(),
@@ -198,7 +204,8 @@ export const DataObjectEntry = z.object({
   classification: z.enum(DATA_CLASSIFICATIONS).nullable(),
   personalData: z.enum(PERSONAL_DATA_LEVELS),
   rating: Rating,
-  owner: z.string().nullable(),
+  owner: z.string().nullable().describe('Deprecated (0.25.1): the Steward user linked to its data owner contact – see contacts'),
+  contacts: ContactNames.describe('Data owner and data stewards (0.25.1): documentation, never a right in Steward'),
   updatedAt: ts(),
 });
 
@@ -215,8 +222,8 @@ export const DataObjectDetail = DataObjectEntry.extend({
   deletionRule: z.string(),
   regulatoryFlags: z.array(z.string()),
   attributes: z.array(z.object({ name: z.string(), description: z.string(), personal: z.boolean() })),
-  stewards: z.array(z.string()),
-  custodians: z.array(z.string()),
+  stewards: z.array(z.string()).describe('Deprecated (0.25.1): the Steward users linked to its data steward contacts, as user:<name> – see contacts'),
+  custodians: z.array(z.string()).describe('Technical custodians (IT): teams and users'),
   externalRefs: z.array(z.object({ label: z.string(), url: z.string() })),
   owningTeams: z.array(z.object({ id: z.string(), name: z.string() })),
   elements: z.object({ visible: z.number().int(), hidden: z.number().int() }).describe('Elements that implement it'),
@@ -296,9 +303,17 @@ const SemanticVersion = z.object({
   createdBy: z.string(),
   createdAt: ts(),
   signOff: z
-    .object({ by: z.string(), at: ts(), validFrom: z.string().describe('The day from which it is the valid version'), note: z.string(), sha256: z.string() })
+    .object({
+      by: z.string().describe('Who recorded it in Steward'),
+      at: ts(),
+      validFrom: z.string().describe('The day from which it is the valid version'),
+      note: z.string(),
+      sha256: z.string(),
+      approvedBy: ContactNames.describe('0.25.1: who approved it (the documented approval: names and roles)'),
+      approvedOn: z.string().nullable().describe('0.25.1: the day it was approved'),
+    })
     .nullable()
-    .describe('Who signed the version off and from when it is valid; null: not signed off'),
+    .describe('The documented approval of the version and from when it is valid; null: not approved'),
 });
 
 /** 0.25.0 (ADR 0037 part 4): the versions of a product's semantic model with their sign-offs. */

@@ -1,5 +1,19 @@
 import { useState } from 'react';
-import { Alert, MultiSelect, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, TagsInput, Text, Textarea, TextInput } from '@mantine/core';
+import {
+  Alert,
+  Checkbox,
+  MultiSelect,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  TagsInput,
+  Text,
+  Textarea,
+  TextInput,
+} from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -31,7 +45,8 @@ import {
 } from '@sm/shared';
 import { get, getOptional, post, put } from '../../api';
 import { FormModal } from '../FormModal';
-import { SubjectsInput } from '../SubjectsInput';
+import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../contacts';
+import { DecisionFields, draftOf, toDecisionInput, useDecisionErrors, type DecisionDraft } from './DecisionFields';
 import { useFieldErrors } from '../common';
 import { useModuleOn } from '../../modules';
 import { ElementPicker, type PickedElement } from './ElementPicker';
@@ -547,7 +562,11 @@ export function ConsumerForm({
   const [agreementKind, setAgreementKind] = useState<DataAgreementKind | null>(c?.agreement?.kind ?? null);
   const [agreementRef, setAgreementRef] = useState(c?.agreement?.ref ?? '');
   const [agreementLabel, setAgreementLabel] = useState(c?.agreement?.label ?? '');
-  const [contacts, setContacts] = useState<string[]>(c?.contacts ?? []);
+  const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(c?.contacts ?? []));
+  // 0.25.1 (ADR 0038 part 3): the access decided elsewhere, documented here – or not yet
+  const [documented, setDocumented] = useState(c ? c.approval === 'documented' : true);
+  const [decision, setDecision] = useState<DecisionDraft>(draftOf(c?.decision));
+  const decisionErrors = useDecisionErrors(decision);
   const [busy, run] = useBusy();
   const subjects = useQuery({
     queryKey: ['subjects'],
@@ -581,6 +600,7 @@ export function ConsumerForm({
         : false,
     since: !!since && !isDate(since) && t('common:validation.invalid'),
     agreement: !!agreementKind && (!agreementRef.trim() || (agreementKind === 'url' && !isHttpUrl(agreementRef))) && t('consumers.agreementInvalid'),
+    decision: documented && Object.values(decisionErrors).some(Boolean) && (Object.values(decisionErrors).find(Boolean) as string),
   });
   const save = () =>
     run(async () => {
@@ -593,7 +613,13 @@ export function ConsumerForm({
         since: since || null,
         endDate: endDate || null,
         agreement: agreementKind ? { kind: agreementKind, ref: agreementRef.trim(), label: agreementLabel.trim() } : null,
-        contacts,
+        contacts: toLinkInputs(contacts),
+        // a decision recorded unchanged is kept as it was (recorded by whom, when)
+        ...(documented
+          ? c?.decision && JSON.stringify(toDecisionInput(draftOf(c.decision))) === JSON.stringify(toDecisionInput(decision))
+            ? {}
+            : { decision: toDecisionInput(decision) }
+          : { decision: null }),
       };
       const base = `/data-products/${enc(productId)}/ports/${enc(portId)}/consumers`;
       if (c) await put(`${base}/${enc(c.id)}`, body);
@@ -701,7 +727,33 @@ export function ConsumerForm({
               )}
             </SimpleGrid>
           </Paper>
-          <SubjectsInput label={t('consumers.contacts')} description={t('consumers.contactsHint')} value={contacts} onChange={setContacts} max={L.subjects} />
+          <ContactPicker
+            kind="data_consumer"
+            label={t('consumers.contacts')}
+            description={t('consumers.contactsHint')}
+            value={contacts}
+            onChange={setContacts}
+            testId="consumer-contacts"
+          />
+          <Checkbox
+            label={t('consumers.documented')}
+            description={t('consumers.documentedHint')}
+            checked={documented}
+            onChange={(e) => setDocumented(e.currentTarget.checked)}
+            data-testid="consumer-documented"
+          />
+          {documented && (
+            <DecisionFields
+              legend={t('consumers.decision')}
+              help={t('consumers.decisionHelp')}
+              value={decision}
+              onChange={setDecision}
+              errors={v.error('decision') ? decisionErrors : {}}
+              defaultRole="productOwner"
+              roles={['productOwner', 'dataOwner', 'businessContact']}
+              testId="consumer-decision"
+            />
+          )}
           <FormButtons busy={busy} testId="consumer-save" />
         </Stack>
       </form>

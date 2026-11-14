@@ -129,7 +129,11 @@
       "reads_other": "{{n}} Lesezugriffe",
       "lastSeen": "zuletzt {{date}}",
       "subjectType": "Typ {{type}}"
-    }
+    },
+    "decisionLegend": "Wer das Ergebnis entschieden hat",
+    "decisionAgain": "Die Entscheidung neu erfassen",
+    "decisionHelp": "Das Ergebnis wurde mit der Fachseite anderswo entschieden – in einer Besprechung, einer E-Mail, einem Ticket. Erfassen Sie, wer es wann entschieden hat und wo es nachzuprüfen ist; das Siegel umfasst es.",
+    "decisionSave": "Entscheidung speichern"
   },
   "settings": {
     "title": "Zugriffseinstellungen",
@@ -203,26 +207,26 @@
     "title": "Bestätigung",
     "badge": "Bestätigt",
     "badgeReview": "Bestätigung prüfen",
-    "endorse": "Bestätigen",
-    "again": "Erneut bestätigen",
-    "revoke": "Widerrufen",
-    "revokeConfirm": "Bestätigung von {{name}} widerrufen?",
-    "line": "Bestätigt von {{user}} am {{date}}, zu prüfen bis {{review}}.",
+    "endorse": "Bestätigung erfassen",
+    "again": "Neue Bestätigung erfassen",
+    "revoke": "Entfernen",
+    "revokeConfirm": "Die Bestätigung von {{name}} entfernen?",
+    "line": "Gültig bis zur Prüfung am {{review}}.",
     "reviews": {
       "reviewDue": "Die Prüfung ist am {{date}} fällig.",
       "expired": "Am {{date}} abgelaufen – sie zählt nicht mehr für Reifegrad 5.",
       "breakingChange": "Ein gebundener Datenvertrag hatte eine inkompatible Änderung: Bestätigen Sie es nach einer Prüfung erneut.",
       "belowFloor": "Die Einstufung liegt ohne Begründung unter der seiner Datenobjekte: Bestätigen Sie es nach einer Prüfung erneut."
     },
-    "none": "Nicht bestätigt. Die Verantwortlichen der Domäne bestätigen ein Produkt, auf das man sich verlassen kann; Reifegrad 5 zählt eine gültige Bestätigung zusätzlich zu Reifegrad 4.",
-    "endorsers": "Wer es bestätigen darf: die Verantwortlichen der Domäne – {{list}}.",
-    "managers": "Die Domäne hat keine Verantwortlichen: Die Verwaltenden des Moduls bestätigen.",
-    "ownProduct": "Niemand bestätigt ein Produkt, das er selbst verantwortet.",
-    "formTitle": "{{name}} bestätigen",
-    "formHelp": "Eine Bestätigung sagt, dass man sich auf das Produkt verlassen kann. Sie gilt bis zum Prüfdatum (höchstens 12 Monate) und muss nach einer inkompatiblen Änderung eines gebundenen Vertrags oder einer Einstufung unter der Untergrenze geprüft werden.",
+    "none": "Nicht bestätigt. Erfassen Sie die Bestätigung, die (typischerweise) die Verantwortlichen seiner Domäne gegeben haben; Reifegrad 5 zählt eine gültige Bestätigung über Stufe 4.",
+    "endorsers": "Verantwortliche seiner Domäne: {{list}}.",
+    "managers": "Seine Domäne nennt keine Verantwortlichen.",
+    "formTitle": "Die Bestätigung von {{name}} erfassen",
+    "formHelp": "Eine anderswo gegebene Bestätigung sagt, dass man sich auf das Produkt verlassen kann. Sie gilt bis zum Prüfdatum (höchstens 12 Monate) und muss nach einer inkompatiblen Änderung eines gebundenen Vertrags oder einer Einstufung unter der Untergrenze geprüft werden.",
     "reviewDate": "Prüfdatum (optional)",
     "reviewDateHelp": "Standard: in 12 Monaten.",
-    "note": "Notiz"
+    "decision": "Wer es bestätigt hat",
+    "record": "Bestätigung erfassen"
   },
   "ropa": {
     "title": "Verarbeitungs­tätigkeiten",
@@ -276,6 +280,53 @@
     "startProcess": "Den Prozess „{{name}}“ starten",
     "fulfilNothing": "Geben Sie eine Ticketnummer an oder starten Sie den Prozess",
     "fulfilled": "Umsetzung erfasst",
-    "fulfilProblems": "Umsetzung teilweise erfasst: {{list}}"
+    "fulfilProblems": "Umsetzung teilweise erfasst: {{list}}",
+    "decidedBy": "Entschieden von",
+    "decidedByHelp": "Die Personen oder Gruppen, die entschieden haben – Kontakte, höchstens {{max}}. Ihre Namen werden so festgehalten, wie sie jetzt sind.",
+    "decidedByRequired": "Nennen Sie, wer entschieden hat",
+    "decidedOn": "Entschieden am",
+    "dateRequired": "Geben Sie das Datum der Entscheidung an",
+    "dateFuture": "Das Datum liegt nicht in der Zukunft",
+    "evidence": "Nachweis",
+    "evidenceKind": "Art des Nachweises",
+    "evidenceKinds": {
+      "record": "Dokument",
+      "ticket": "Ticketverweis",
+      "url": "Webadresse",
+      "document": "Lebendes Dokument",
+      "text": "Text"
+    },
+    "evidenceValue": {
+      "record": "Dokument-ID",
+      "ticket": "ID des Ticketverweises",
+      "url": "https://…",
+      "document": "Dokument-ID",
+      "text": "Wo entschieden wurde (Protokoll vom 3. März …)"
+    },
+    "evidenceRemove": "Diesen Nachweis entfernen",
+    "evidenceAdd": "Nachweis hinzufügen",
+    "evidenceHidden": "ein Eintrag, den Sie nicht sehen dürfen",
+    "note": "Notiz",
+    "line": "Entschieden von {{names}} am {{date}}",
+    "recorded": "Erfasst von {{user}}, {{date}}"
+  },
+  "contactsList": {
+    "open": "Kontakte der Konsumenten",
+    "title": "Kontakte der Konsumenten",
+    "titlePort": "Kontakte der Konsumenten von {{port}}",
+    "copy_one": "{{count}} E-Mail-Adresse kopieren",
+    "copy_other": "{{count}} E-Mail-Adressen kopieren",
+    "copied": "Kopiert",
+    "csv": "CSV herunterladen",
+    "close": "Schließen",
+    "helpMaintainer": "Steward schreibt Kontakten nie eine E-Mail: Informieren Sie sie selbst, wenn das Produkt oder ein Port abgekündigt wird oder sein Vertrag bricht. Die CSV ist ein Export durch Sie und wird im Prüfprotokoll vermerkt.",
+    "helpReader": "Namen und Rollen der Kontakte der Konsumenten. Wer das Produkt ändern darf, sieht auch ihre E-Mail-Adressen.",
+    "none": "Keine registrierten Konsumenten.",
+    "port": "Port",
+    "consumer": "Konsument",
+    "contact": "Kontakt",
+    "email": "E-Mail-Adresse",
+    "left": "Ausgeschieden",
+    "noContact": "Kein Kontakt – fügen Sie der Registrierung einen hinzu"
   }
 }

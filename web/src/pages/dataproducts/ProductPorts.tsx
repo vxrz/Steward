@@ -14,6 +14,7 @@ import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from
 import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam, useRetentionText } from './parts';
 import { ActualConsumers } from './governance/ActualConsumers';
 import { ConsumerApproval, FulfilButton } from './governance/ConsumerApproval';
+import { ConsumerContactsPanel } from './governance/ConsumerContacts';
 import { PeekButton, PortPreviewButton } from './semantic/Previews';
 
 const enc = encodeURIComponent;
@@ -145,6 +146,8 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
         </Text>
         <EnvironmentSwitch names={envNames} value={environment} onChange={setEnvironment} testId="ports-environment" />
       </Group>
+      {/* 0.25.1 (ADR 0038 part 6): the consumers' contacts, for the maintainers to inform them */}
+      <ConsumerContactsPanel p={p} />
       {group('output')}
       {group('input')}
       {editing?.kind === 'port' && (

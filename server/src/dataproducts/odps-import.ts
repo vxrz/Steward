@@ -16,6 +16,7 @@ import { environmentList } from '../catalogue/environments.js';
 import { domainAccess, productAccess } from './access.js';
 import { odpsProblems } from './odps.js';
 import type { DomainRow, ProductRow } from './store.js';
+import type { ContactFile } from './format.js';
 
 /**
  * The ODPS import (ADR 0036 part 15, decision 22, phase 2): an Open Data Product Standard v1.0.0 document (`apiVersion:
@@ -119,16 +120,31 @@ export function odpsToFile(raw: Obj): OdpsConversion {
       .filter((r) => /^https?:\/\//i.test(r.url));
     if (refs.length) product.external_refs = refs.slice(0, 20);
   }
-  // the product owners: team members with the role productOwner, teams named as owners
+  // the product owners and business contacts (0.25.1: contacts): team members with those roles – an e-mail address as
+  // username is the contact's address, another username a Steward user (Steward's exports of before 0.25.1); teams
+  // named as owners (ownerTeams of before) become group contacts
   if (isObj(raw.team)) {
-    const owners: string[] = [];
-    for (const m of Array.isArray(raw.team.members) ? raw.team.members : [])
-      if (isObj(m) && str(m.username) && (str(m.role) ?? '').toLowerCase() === 'productowner') owners.push(`user:${str(m.username)}`);
+    const contacts: ContactFile[] = [];
+    const roleOf = (r: string) => (r === 'productowner' ? 'productOwner' : r === 'businesscontact' ? 'businessContact' : null);
+    for (const m of Array.isArray(raw.team.members) ? raw.team.members : []) {
+      if (!isObj(m)) continue;
+      const role = roleOf((str(m.role) ?? '').toLowerCase());
+      const username = str(m.username);
+      if (!role || !username) continue;
+      const email = /^[^\s@]+@[^\s@]+$/.test(username) ? username : undefined;
+      // a member with a name is that contact; one with only a username (Steward's exports of before 0.25.1) the account's
+      const name = str(m.name);
+      contacts.push({ role, name: name ?? username, ...(email ? { email } : name ? {} : { user: username }) });
+    }
     const ownerTeams = customOf(raw.team.customProperties).get('ownerTeams');
-    if (Array.isArray(ownerTeams)) for (const t of ownerTeams) if (typeof t === 'string' && t.trim()) owners.push(`team:${t.trim()}`);
-    if (owners.length) product.owners = [...new Set(owners)];
-    if (Array.isArray(raw.team.members) && raw.team.members.some((m) => isObj(m) && (str(m.role) ?? '').toLowerCase() !== 'productowner'))
-      warnings.push(`ODPS ${key}: team members other than product owners are not kept (owning teams are set in Steward)`);
+    if (Array.isArray(ownerTeams))
+      for (const t of ownerTeams) if (typeof t === 'string' && t.trim()) contacts.push({ role: 'productOwner', name: t.trim(), kind: 'group' });
+    if (contacts.length) product.contacts = contacts;
+    if (
+      Array.isArray(raw.team.members) &&
+      raw.team.members.some((m) => isObj(m) && !['productowner', 'businesscontact'].includes((str(m.role) ?? '').toLowerCase()))
+    )
+      warnings.push(`ODPS ${key}: team members other than product owners and business contacts are not kept (owning teams are set in Steward)`);
   }
   if (Array.isArray(raw.support)) {
     const s = raw.support.find((x) => isObj(x) && str(x.url));

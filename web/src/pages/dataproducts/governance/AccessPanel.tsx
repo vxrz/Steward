@@ -13,6 +13,14 @@ import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate, fmtDay, fmtNumber } from '../../../format';
 import { CardTable, Section, useSortedEnvironments } from '../parts';
+import {
+  DecisionFields,
+  DecisionLine,
+  emptyDecision,
+  toDecisionInput,
+  useDecisionErrors,
+  type DecisionDraft,
+} from '../../../components/dataproducts/DecisionFields';
 import { ProductRequests } from './AccessRequests';
 import { govKeys, useAccessSettings, useGovernanceSettings, useInvalidateGovernance, useProductReviews, useReview } from './api';
 
@@ -380,9 +388,12 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
               },
             ]}
           />
+          {/* 0.25.1 (ADR 0038 part 4): who decided the outcome elsewhere, when, the evidence – the seal covers it */}
+          {r.decision && <DecisionLine d={r.decision} testId="review-decision-line" />}
+          {r.mayDecide && r.needsDecision && <ReviewDecisionForm id={id} recorded={!!r.decision} />}
           {r.mayDecide && (
             <Group justify="flex-end">
-              <Button onClick={() => void step('submit')} loading={busy} data-testid="review-submit">
+              <Button onClick={() => void step('submit')} loading={busy} disabled={r.needsDecision && !r.decision} data-testid="review-submit">
                 {t('reviews.submit')}
               </Button>
             </Group>
@@ -421,6 +432,45 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
         </Stack>
       )}
     </Modal>
+  );
+}
+
+/** The review's documented decision: who decided the outcome elsewhere, on which date, the evidence. */
+function ReviewDecisionForm({ id, recorded }: { id: string; recorded: boolean }) {
+  const { t } = useTranslation('dataProductGovernance');
+  const invalidate = useInvalidateGovernance();
+  const [decision, setDecision] = useState<DecisionDraft>(emptyDecision());
+  const errors = useDecisionErrors(decision);
+  const [tried, setTried] = useState(false);
+  const [busy, run] = useBusy();
+  const save = () => {
+    setTried(true);
+    if (Object.values(errors).some(Boolean)) return;
+    void run(async () => {
+      await put(`/data-products/port-reviews/${enc(id)}/decision`, toDecisionInput(decision));
+      setDecision(emptyDecision());
+      setTried(false);
+      invalidate();
+    });
+  };
+  return (
+    <Stack gap="xs">
+      <DecisionFields
+        legend={recorded ? t('reviews.decisionAgain') : t('reviews.decisionLegend')}
+        help={t('reviews.decisionHelp')}
+        value={decision}
+        onChange={setDecision}
+        errors={tried ? errors : {}}
+        defaultRole="productOwner"
+        roles={['productOwner', 'dataOwner', 'businessContact']}
+        testId="review-decision-form"
+      />
+      <Group justify="flex-end">
+        <Button variant="default" onClick={save} loading={busy} data-testid="review-decision-save">
+          {t('reviews.decisionSave')}
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 

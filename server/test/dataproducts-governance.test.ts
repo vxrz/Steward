@@ -46,6 +46,15 @@ const fail = async (p: Promise<unknown>) => {
   throw new Error('expected the call to fail');
 };
 
+/** A contact of the directory (0.25.1) and a documented decision naming it. */
+const contact = async (who: Client, name: string): Promise<string> => (await who('POST', '/contacts', { name })).id;
+const yesterday = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const decision = (contactId: string, role = 'productOwner', more: Record<string, unknown> = {}) => ({
+  decidedBy: [{ contactId, role }],
+  decidedOn: yesterday(),
+  ...more,
+});
+
 beforeAll(async () => {
   s = await startTestServer({
     routes: (app) =>
@@ -276,9 +285,11 @@ describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals
 
   it('turns pending requests into registrations whose approval is not documented at the upgrade, once and audited', async () => {
     const pending = await legacyRequest('pending', 'Invented pending report');
-    const { convertPendingRequests } = await import('../src/dataproducts/governance-upgrade.js');
+    const { convertOwnerFields, convertPendingRequests } = await import('../src/dataproducts/governance-upgrade.js');
     expect(convertPendingRequests()).toBe(1);
     expect(convertPendingRequests()).toBe(0);
+    // the requester, its contact of before, becomes a contact linked to the account (step 3 of the upgrade)
+    expect(convertOwnerFields()).toBeGreaterThan(0);
     const r = await dana('GET', `/data-products/access-requests/${pending}`);
     expect(r.status).toBe('converted');
     const consumers = (await dana('GET', `/data-products/${product}/ports/${port}/consumers`)) as Record<string, unknown>[];
@@ -291,12 +302,70 @@ describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals
       approval: 'notDocumented',
       decision: null,
       requestId: pending,
-      contacts: ['user:olivia'],
     });
+    expect(c.contacts).toEqual([expect.objectContaining({ role: 'consumerContact', contact: expect.objectContaining({ user: 'olivia' }) })]);
     const actual = await dana('GET', `/data-products/${product}/ports/${port}/actual?environment=prod`);
     expect(actual.declared.find((d: { consumerId: string }) => d.consumerId === r.consumerId).identities).toEqual(['role:FINANCE', 'user:OLIVIA']);
     const audit = (await s.api('GET', `/audit?action=dataproduct.access_request_converted&limit=10`)) as { entityId: string; actor: string }[];
     expect(audit).toEqual([expect.objectContaining({ entityId: product, actor: 'system' })]);
+  });
+
+  it('documents access on a registration: who decided, when, the evidence – recorded by an IT maintainer, audited', async () => {
+    const owner = await contact(dana, 'Invented product owner');
+    const url = `/data-products/${product}/ports/${port}/consumers`;
+    // a viewer documents nothing
+    expect((await fail(olivia('POST', url, { kind: 'text', text: 'x', decision: decision(owner) }))).status).toBe(403);
+    // a decision in the future, or naming a contact the recorder may not see, is refused
+    expect(await fail(dana('POST', url, { kind: 'text', text: 'Invented BI', decision: { ...decision(owner), decidedOn: '2999-01-01' } }))).toMatchObject({
+      code: 'DATA_DECISION_INVALID',
+      params: { context: 'decidedOn' },
+    });
+    expect(await fail(dana('POST', url, { kind: 'text', text: 'Invented BI', decision: decision('ct_nobody') }))).toMatchObject({
+      status: 404,
+      code: 'CONTACT_NOT_FOUND',
+    });
+    const c = await dana('POST', url, {
+      kind: 'text',
+      text: 'Invented BI',
+      purpose: 'Dashboards',
+      contacts: [{ role: 'consumerContact', contact: { name: 'Invented BI lead', email: 'bi.lead@invented.example' } }],
+      decision: decision(owner, 'productOwner', { evidence: [{ kind: 'url', value: 'https://tickets.invented.example/ACC-12' }], note: 'Steering board' }),
+    });
+    expect(c).toMatchObject({
+      approval: 'documented',
+      decision: {
+        decidedBy: [{ contactId: owner, name: 'Invented product owner', role: 'productOwner' }],
+        decidedOn: yesterday(),
+        evidence: [{ kind: 'url', value: 'https://tickets.invented.example/ACC-12' }],
+        recordedBy: 'dana',
+      },
+    });
+    expect(c.contacts).toEqual([expect.objectContaining({ role: 'consumerContact', contact: expect.objectContaining({ name: 'Invented BI lead' }) })]);
+    // the names are frozen: renaming the contact keeps the decision's name
+    await dana('PUT', `/contacts/${owner}`, { name: 'Invented renamed owner' });
+    const again = ((await dana('GET', url)) as { id: string; decision: { decidedBy: { name: string }[] } }[]).find((x) => x.id === c.id)!;
+    expect(again.decision.decidedBy[0]!.name).toBe('Invented product owner');
+    // clearing it: not documented
+    const cleared = await dana('PUT', `${url}/${c.id}`, { kind: 'text', text: 'Invented BI', decision: null });
+    expect(cleared).toMatchObject({ approval: 'notDocumented', decision: null });
+    // the contact's page counts the decisions that name it
+    expect((await dana('GET', `/contacts/${owner}`)).decisions).toBe(0);
+    await dana('PUT', `${url}/${c.id}`, { kind: 'text', text: 'Invented BI', decision: decision(owner) });
+    expect((await dana('GET', `/contacts/${owner}`)).decisions).toBe(1);
+    const audit = (await s.api('GET', `/audit?action=dataproduct.access_documented&entityId=${product}&limit=10`)) as unknown[];
+    expect(audit.length).toBeGreaterThanOrEqual(2);
+    // the consumers' contacts: names and roles for readers, e-mail addresses (and the CSV) for the maintainers
+    const forReader = await olivia('GET', `/data-products/${product}/consumer-contacts`);
+    const entry = forReader.entries.find((e: { consumerId: string }) => e.consumerId === c.id);
+    expect(forReader.withEmail).toBe(false);
+    expect(entry.contacts).toEqual([{ name: 'Invented BI lead', role: 'consumerContact', status: 'active' }]);
+    const forMaintainer = await dana('GET', `/data-products/${product}/consumer-contacts?port=${port}`);
+    expect(forMaintainer.entries.find((e: { consumerId: string }) => e.consumerId === c.id).contacts[0].email).toBe('bi.lead@invented.example');
+    expect((await fail(olivia('GET', `/data-products/${product}/consumer-contacts.csv`))).status).toBe(403);
+    const csv = (await dana('GET', `/data-products/${product}/consumer-contacts.csv?lang=en`)) as string;
+    expect(csv).toContain('bi.lead@invented.example');
+    expect(csv).toContain('Consumer contact');
+    expect(await s.api('GET', `/audit?action=dataproduct.consumer_contacts_exported&entityId=${product}&limit=5`)).toHaveLength(1);
   });
 
   it('fulfils a registration as the IT maintainer: the platform team’s process, with their run right (session only)', async () => {
@@ -358,14 +427,27 @@ describe('endorsement', () => {
     expect(view).toMatchObject({ endorsement: null, mayEndorse: true, whyNot: null });
     // the domain owner without a right on the product records nothing, nor does a reader
     expect((await adam('GET', `/data-products/${p}/endorsement`)).whyNot).toBe('notMaintainer');
-    expect(await fail(adam('PUT', `/data-products/${p}/endorsement`, {}))).toMatchObject({ status: 403 });
-    expect(await fail(olivia('PUT', `/data-products/${p}/endorsement`, {}))).toMatchObject({ status: 403 });
-    expect(await fail(dana('PUT', `/data-products/${p}/endorsement`, { reviewDate: '2099-01-01' }))).toMatchObject({
+    const owner = await contact(dana, 'Invented domain owner');
+    expect(await fail(adam('PUT', `/data-products/${p}/endorsement`, { decision: decision(owner, 'domainOwner') }))).toMatchObject({ status: 403 });
+    expect(await fail(olivia('PUT', `/data-products/${p}/endorsement`, { decision: decision(owner, 'domainOwner') }))).toMatchObject({ status: 403 });
+    expect(await fail(dana('PUT', `/data-products/${p}/endorsement`, { reviewDate: '2099-01-01', decision: decision(owner, 'domainOwner') }))).toMatchObject({
       code: 'DATA_ENDORSEMENT_INVALID',
       params: { context: 'reviewDate' },
     });
-    const e = await dana('PUT', `/data-products/${p}/endorsement`, { note: 'Good contract and owners' });
-    expect(e.endorsement).toMatchObject({ endorsedBy: 'dana', valid: true, review: null });
+    // a contact who has left endorses nothing new
+    const gone = await contact(dana, 'Invented former owner');
+    await dana('PUT', `/contacts/${gone}`, { name: 'Invented former owner', status: 'left' });
+    expect(await fail(dana('PUT', `/data-products/${p}/endorsement`, { decision: decision(gone, 'domainOwner') }))).toMatchObject({
+      status: 409,
+      code: 'CONTACT_LEFT',
+    });
+    const e = await dana('PUT', `/data-products/${p}/endorsement`, { note: 'Good contract and owners', decision: decision(owner, 'domainOwner') });
+    expect(e.endorsement).toMatchObject({
+      endorsedBy: 'dana',
+      valid: true,
+      review: null,
+      decision: { decidedBy: [{ name: 'Invented domain owner', role: 'domainOwner' }] },
+    });
     // a breaking change of a bound contract flags it (the data contracts' hook), it then no longer counts
     const { flagEndorsementReview } = await import('../src/dataproducts/endorsements.js');
     expect(flagEndorsementReview([p], 'breakingChange')).toEqual([p]);
@@ -376,7 +458,7 @@ describe('endorsement', () => {
     expect(flagEndorsementReview([p], 'breakingChange')).toEqual([]);
     expect(await notes(dana, 'dataproduct.endorsement_review')).toHaveLength(1);
     // endorsed again: valid; the maturity counts it only on top of level 4
-    expect((await dana('PUT', `/data-products/${p}/endorsement`, {})).endorsement.valid).toBe(true);
+    expect((await dana('PUT', `/data-products/${p}/endorsement`, { decision: decision(owner, 'domainOwner') })).endorsement.valid).toBe(true);
     const card = await dana('GET', `/data-products/${p}/scorecard`);
     expect(card.maturity).toBeLessThan(4);
     const audit = (await s.api('GET', `/audit?entityType=data_product&entityId=${p}&limit=100`)) as { action: string }[];

@@ -12,6 +12,7 @@ import { dataProductApiRoutes } from '../dataproducts/api-v1.js';
 import { dataProductTools } from '../dataproducts/mcp.js';
 import { dataProductProposalTools } from '../dataproducts/proposals.js';
 import { DATA_PRODUCT_MODULE_SHARE_KINDS } from '../dataproducts/shares.js';
+import { DATA_PRODUCT_CONTACT_HOOKS, DATA_PRODUCT_CONTACT_KINDS } from '../dataproducts/contacts.js';
 import { dataProductQualityRoutes } from '../dataproducts/quality-routes.js';
 import { dataProductsSection } from '../dataproducts/report-section.js';
 import { dataProductGovernanceRoutes } from '../dataproducts/governance-routes.js';
@@ -59,6 +60,10 @@ export default defineFeature({
   // ADR 0033: products, domains (0.25.1) and data objects (0.25.1) are shared with people and teams on their Access
   // tabs; elements keep their owning teams
   shareKinds: [...DATA_PRODUCT_MODULE_SHARE_KINDS],
+  // 0.25.1 (ADR 0038): product owners, domain owners, data owners and stewards, consumers' contacts are contacts of the
+  // directory – seen and changed with the item; documented decisions name contacts (counted, erased ids nulled)
+  contactKinds: DATA_PRODUCT_CONTACT_KINDS,
+  contactHooks: DATA_PRODUCT_CONTACT_HOOKS,
   // 0.25.1 (ADR 0038): documented governance, after the access lists' conversion (shares with their rights column)
   migrations: [DATA_PRODUCT_MIGRATIONS, DATA_GOVERNANCE_MIGRATIONS],
   jobs: [

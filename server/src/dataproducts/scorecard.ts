@@ -15,6 +15,7 @@ import {
   type MonitorStatus,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { linksOf } from '../contacts/service.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { currentScale } from '../catalogue/cia.js';
@@ -37,6 +38,7 @@ import {
   membersOf,
   portsOf,
   productsByIds,
+  type ProductRow,
   stepsAround,
   type BindingWithElements,
   type ElementRow,
@@ -109,9 +111,21 @@ function rowsIn<T>(sql: (m: string) => string, ids: readonly string[], ...before
  * The scorecards of these products, each in `environment` (else its first: production first), as `u` sees them – in
  * bulk. Products that do not exist are left out; rights are the caller's.
  */
-export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], environment?: string, now = Date.now()): Map<string, DataProductScorecard> {
+export function scorecardsOf(
+  u: AuthUser | null,
+  productIds: readonly string[],
+  environment?: string,
+  now = Date.now(),
+  /** Product rows the caller read already (the product's own scorecard: not read twice) */
+  known?: readonly ProductRow[],
+): Map<string, DataProductScorecard> {
   const out = new Map<string, DataProductScorecard>();
-  const products = productsByIds(productIds);
+  const products =
+    known && known.length === productIds.length && known.every((k) => productIds.includes(k.id))
+      ? new Map(known.map((k) => [k.id, k]))
+      : productsByIds(productIds);
+  // 0.25.1: a product owner is a contact with that role (one statement for every product)
+  const owned = new Set([...linksOf('data_product', [...products.keys()])].filter(([, l]) => l.some((x) => x.role === 'productOwner')).map(([id]) => id));
   const ids = [...products.keys()];
   if (!ids.length) return out;
   const scale = currentScale();
@@ -232,7 +246,7 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
     // documented
     const doc = {
       description: !!p.description.trim(),
-      owner: parseJson<string[]>(p.owners, []).length > 0,
+      owner: owned.has(p.id),
       domain: !!p.domain_id,
       type: !!p.type,
       objects: floor.objectIds.length > 0,
@@ -507,5 +521,5 @@ export function scorecardsOf(u: AuthUser | null, productIds: readonly string[], 
 export function productScorecard(productId: string, q: { environment?: string }): DataProductScorecard {
   const u = me();
   const { row } = visibleProduct(productId, u);
-  return scorecardsOf(u, [row.id], q.environment).get(row.id)!;
+  return scorecardsOf(u, [row.id], q.environment, Date.now(), [row]).get(row.id)!;
 }

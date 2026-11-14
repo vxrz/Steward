@@ -129,7 +129,11 @@
       "reads_other": "{{n}} reads",
       "lastSeen": "last {{date}}",
       "subjectType": "type {{type}}"
-    }
+    },
+    "decisionLegend": "Who decided the outcome",
+    "decisionAgain": "Record the decision anew",
+    "decisionHelp": "The outcome was decided with the business side elsewhere – in a meeting, an e-mail, a ticket. Record who decided it, when and where it can be checked; the seal covers it.",
+    "decisionSave": "Save the decision"
   },
   "settings": {
     "title": "Access settings",
@@ -203,26 +207,26 @@
     "title": "Endorsement",
     "badge": "Endorsed",
     "badgeReview": "Endorsement to review",
-    "endorse": "Endorse",
-    "again": "Endorse again",
-    "revoke": "Revoke",
-    "revokeConfirm": "Revoke the endorsement of {{name}}?",
-    "line": "Endorsed by {{user}} on {{date}}, review by {{review}}.",
+    "endorse": "Record endorsement",
+    "again": "Record a new endorsement",
+    "revoke": "Remove",
+    "revokeConfirm": "Remove the endorsement of {{name}}?",
+    "line": "Valid until its review on {{review}}.",
     "reviews": {
       "reviewDue": "The review is due on {{date}}.",
       "expired": "Expired on {{date}} – it no longer counts for maturity level 5.",
       "breakingChange": "A bound data contract had a breaking change: endorse it again after a review.",
       "belowFloor": "The rating is below its data objects without a reason: endorse it again after a review."
     },
-    "none": "Not endorsed. The owners of its domain endorse a product they trust; maturity level 5 counts a valid endorsement on top of level 4.",
-    "endorsers": "Who may endorse it: the owners of its domain – {{list}}.",
-    "managers": "Its domain has no owners: the module’s managers endorse it.",
-    "ownProduct": "Nobody endorses a product they own.",
-    "formTitle": "Endorse {{name}}",
-    "formHelp": "An endorsement says the product can be relied on. It is valid until the review date (at most 12 months) and needs a review after a breaking change of a bound contract or a rating below the floor.",
+    "none": "Not endorsed. Record the endorsement the owners of its domain (typically) gave; maturity level 5 counts a valid endorsement on top of level 4.",
+    "endorsers": "Its domain owners: {{list}}.",
+    "managers": "Its domain names no owners.",
+    "formTitle": "Record the endorsement of {{name}}",
+    "formHelp": "An endorsement given elsewhere says the product can be relied on. It is valid until the review date (at most 12 months) and needs a review after a breaking change of a bound contract or a rating below the floor.",
     "reviewDate": "Review date (optional)",
     "reviewDateHelp": "Default: in 12 months.",
-    "note": "Note"
+    "decision": "Who endorsed it",
+    "record": "Record endorsement"
   },
   "ropa": {
     "title": "Records of processing",
@@ -276,6 +280,53 @@
     "startProcess": "Start the process “{{name}}”",
     "fulfilNothing": "Give a ticket number or start the process",
     "fulfilled": "Fulfilment recorded",
-    "fulfilProblems": "Fulfilment partly recorded: {{list}}"
+    "fulfilProblems": "Fulfilment partly recorded: {{list}}",
+    "decidedBy": "Decided by",
+    "decidedByHelp": "The people or groups who decided it – contacts, at most {{max}}. Their names are kept as they are now.",
+    "decidedByRequired": "Name who decided it",
+    "decidedOn": "Decided on",
+    "dateRequired": "Give the date of the decision",
+    "dateFuture": "The date is not in the future",
+    "evidence": "Evidence",
+    "evidenceKind": "Kind of evidence",
+    "evidenceKinds": {
+      "record": "Document",
+      "ticket": "Ticket reference",
+      "url": "Web address",
+      "document": "Living document",
+      "text": "Text"
+    },
+    "evidenceValue": {
+      "record": "Document id",
+      "ticket": "Ticket reference id",
+      "url": "https://…",
+      "document": "Document id",
+      "text": "Where it was decided (minutes of 3 March …)"
+    },
+    "evidenceRemove": "Remove this evidence",
+    "evidenceAdd": "Add evidence",
+    "evidenceHidden": "an entry you may not see",
+    "note": "Note",
+    "line": "Decided by {{names}} on {{date}}",
+    "recorded": "Recorded by {{user}}, {{date}}"
+  },
+  "contactsList": {
+    "open": "Consumers’ contacts",
+    "title": "Consumers’ contacts",
+    "titlePort": "Consumers’ contacts of {{port}}",
+    "copy_one": "Copy {{count}} e-mail address",
+    "copy_other": "Copy {{count}} e-mail addresses",
+    "copied": "Copied",
+    "csv": "Download CSV",
+    "close": "Close",
+    "helpMaintainer": "Steward never e-mails a contact: inform them yourself when the product or a port is deprecated or its contract breaks. The CSV is an export by you, recorded in the audit log.",
+    "helpReader": "Names and roles of the consumers’ contacts. Who may change the product also sees their e-mail addresses.",
+    "none": "No registered consumers.",
+    "port": "Port",
+    "consumer": "Consumer",
+    "contact": "Contact",
+    "email": "E-mail address",
+    "left": "Left",
+    "noContact": "No contact – add one to the registration"
   }
 }

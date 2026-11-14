@@ -1,11 +1,11 @@
 {
   "tab": "Semantic model",
   "title": "Semantic model",
-  "help": "Steward keeps the governed copy of the product’s Apache Ossie semantic model: stored as written, every save a version, signed off by a second person. Metrics are defined in dbt, Snowflake semantic views or BI tools – Steward drafts none.",
+  "help": "Steward keeps the governed copy of the product’s Apache Ossie semantic model: stored as written, every save a version, the approval given elsewhere recorded for the version shown. Metrics are defined in dbt, Snowflake semantic views or BI tools – Steward drafts none.",
   "none": "No semantic model yet.",
   "newVersion": "New version",
   "startFrom": "Start from the bound contracts",
-  "validToday": "Valid today: version {{version}}, signed off by {{by}} on {{date}}",
+  "validToday": "Valid today: version {{version}}, approved by {{by}} on {{date}}",
   "noValid": "No version is signed off yet.",
   "current": "Newest: version {{version}}, saved by {{by}} on {{date}}",
   "versions": "Versions",
@@ -16,7 +16,7 @@
   "lint": "Lint",
   "lintCount_one": "{{count}} finding",
   "lintCount_other": "{{count}} findings",
-  "signOff": "Sign-off",
+  "signOff": "Approval",
   "note": "Note",
   "origins": {
     "page": "Editor",
@@ -24,18 +24,16 @@
     "proposal": "Assistant’s proposal",
     "api": "API"
   },
-  "signedOff": "Signed off by {{by}}, valid from {{date}}",
-  "notSignedOff": "Not signed off",
+  "signedOff": "Approved by {{by}}, valid from {{date}}",
+  "notSignedOff": "Not approved",
   "validBadge": "Valid today",
   "view": "Show version {{n}}",
   "export": "Download version {{n}}",
-  "signOffAction": "Sign off",
-  "signOffNamed": "Sign off version {{n}}",
-  "signOffTitle": "Sign off version {{n}}",
-  "signOffHelp": "You sign off the text shown here (SHA-256 {{sha}}). From today it is the valid version of the semantic model. Who saved or proposed a version cannot sign it off.",
-  "signOffNote": "Note (optional)",
+  "signOffAction": "Record approval",
+  "signOffNamed": "Record the approval of version {{n}}",
+  "signOffTitle": "Record the approval of version {{n}}",
+  "signOffHelp": "Record the approval of the text shown here (SHA-256 {{sha}}) given elsewhere: who approved it, when and the evidence. It is the valid version from the day it was approved.",
   "signedOffOk": "Version {{n}} signed off",
-  "ownVersion": "You saved or proposed this version: a second person signs it off.",
   "validOn": {
     "title": "Which model was valid on a day?",
     "date": "Date",
@@ -179,5 +177,6 @@
     "lint_other": "{{count}} lint findings against Ossie {{revision}}",
     "size": "{{bytes}} bytes",
     "show": "Show the document"
-  }
+  },
+  "signOffDecision": "Who approved it"
 }

@@ -711,6 +711,16 @@
       "maintainer_other": "Sie betreuen es: {{count}} registrierte Konsumenten von {{port}} – informieren Sie sie über ihre Kontakte.",
       "consuming": "Ihre Datenprodukte, die ihn nutzen: {{products}}.",
       "hint": "Sie erhalten dies einmal je Vertragsversion, weil Sie dieses Datenprodukt oder ein Datenprodukt, das den Port nutzt, ändern dürfen. Prüfen Sie, was die Änderung bedeutet, und informieren Sie die Konsumenten."
+    },
+    "consumerContacts": {
+      "port": "Port",
+      "consumer": "Konsument",
+      "name": "Kontakt",
+      "role": "Rolle",
+      "email": "E-Mail-Adresse",
+      "roles": {
+        "consumerContact": "Kontakt des Konsumenten"
+      }
     }
   },
   "dataProductGovernance": {

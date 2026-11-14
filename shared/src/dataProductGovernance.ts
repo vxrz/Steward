@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { documentedDecisionInput, type ContactLink, type DocumentedDecision } from './contacts.js';
 import {
   DATA_PRODUCT_LIMITS as L,
   type DataAgreement,
@@ -403,6 +404,10 @@ export interface DataPortReview extends DataPortReviewSummary {
   /** The access check read for grants, if any */
   check: { id: string; name: string; origin: 'live' | 'snapshot'; takenAt: string | null; error: string | null } | null;
   entries: DataPortReviewItem[];
+  /** 0.25.1: who decided the outcome elsewhere, when, the evidence (reviews of before 0.25.1: none) */
+  decision: DocumentedDecision | null;
+  /** Started since 0.25.1: it is submitted only with a documented decision */
+  needsDecision: boolean;
   mayDecide: boolean;
   mayApprove: boolean;
 }
@@ -533,6 +538,8 @@ export const dataEndorsementInput = z
     /** The review date (at most 12 months ahead; default 12 months) */
     reviewDate: isoDate().nullable().default(null),
     note: z.string().trim().max(DATA_GOVERNANCE_LIMITS.comment).default(''),
+    /** 0.25.1 (ADR 0038 part 5): who endorsed it elsewhere (the domain owners, typically), when, the evidence */
+    decision: documentedDecisionInput,
   })
   .strict();
 export type DataEndorsementInput = z.input<typeof dataEndorsementInput>;
@@ -543,8 +550,11 @@ export type DataEndorsementReviewReason = (typeof DATA_ENDORSEMENT_REVIEW_REASON
 
 export interface DataEndorsement {
   productId: string;
+  /** Who recorded it in Steward (before 0.25.1: who endorsed it in Steward) */
   endorsedBy: string;
   endorsedAt: string;
+  /** 0.25.1: the documented endorsement – endorsed by (contacts, frozen), on which date, the evidence */
+  decision: DocumentedDecision | null;
   reviewDate: string;
   note: string;
   /** Counts for maturity level 5: not expired and not flagged for review */
@@ -555,8 +565,8 @@ export interface DataEndorsement {
 /** GET /api/data-products/:id/endorsement */
 export interface DataEndorsementView {
   endorsement: DataEndorsement | null;
-  /** Who endorses: the owners of the product's domain (and of its parent domain); without any, the module's managers */
-  endorsers: string[];
+  /** The owners of the product's domain (and of its parent domain): who typically endorses – suggested in the form */
+  domainOwners: ContactLink[];
   mayEndorse: boolean;
   /** Why the reader may not record it: they may not change the product (0.25.1: the IT maintainers record it) */
   whyNot: 'notMaintainer' | null;
@@ -619,6 +629,7 @@ export interface DataRopaEntry {
   retention: string;
   deletionRule: string;
   regulatoryFlags: string[];
+  /** The data owner and stewards by name (0.25.1: contacts – names and roles leave the app, e-mail addresses do not) */
   owner: string | null;
   stewards: string[];
   products: DataRopaProduct[];

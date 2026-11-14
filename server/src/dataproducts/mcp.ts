@@ -18,6 +18,8 @@ import { moduleEnabled } from '../modules/registry.js';
 import { ToolError, cursorArg, defineTool, type ToolDef } from '../mcp/tooling.js';
 import { HttpError } from '../util.js';
 import { productAccess, objectAccess, usesModule } from './access.js';
+import { namesOf } from './contacts.js';
+import { decisionNames } from './decisions.js';
 import * as svc from './service.js';
 import * as el from './elements.js';
 import { elementChecks } from './check-links.js';
@@ -88,7 +90,8 @@ const productLine = (p: DataProductSummary, status: string | undefined) => ({
   classification: p.classification,
   ...(p.ratingBelowObjects ? { ratingBelowObjects: true } : {}),
   criticality: p.criticality,
-  owners: p.owners,
+  // 0.25.1 (ADR 0038): product owners and business contacts by name and role – documentation, no right
+  contacts: namesOf(p.contacts),
   tags: p.tags,
 });
 
@@ -97,7 +100,7 @@ export const dataProductTools: ToolDef[] = [
     name: 'list_data_products',
     title: 'List data products',
     description:
-      'Data products you may see, ordered by name: key, type, domain, lifecycle, environments (production first), health in the default environment, classification and owners. Filter by domain (id; its sub-domains too), type, lifecycle, environment, owning team (id) or text. Use get_data_product for ports, contracts, members and steps.',
+      'Data products you may see, ordered by name: key, type, domain, lifecycle, environments (production first), health in the default environment, classification and contacts (product owners, business contacts – by name and role). Filter by domain (id; its sub-domains too), type, lifecycle, environment, owning team (id) or text. Use get_data_product for ports, contracts, members and steps.',
     input: z
       .object({
         domain: z.string().max(200).optional(),
@@ -135,7 +138,7 @@ export const dataProductTools: ToolDef[] = [
     name: 'get_data_product',
     title: 'Get a data product',
     description:
-      'One data product: description, purpose, owners, rating and rating floor, lifecycle, environments, its ports (input and output, with bindings per environment, the data contract each is held to – Steward id and ODCS id –, objectives, data objects, consumer counts), health per environment, the scorecard summary, the data objects it exposes, a page of its members (elements with role, layer, environment) and its pipeline steps. Elements of the product you may not see otherwise are shown as its content.',
+      'One data product: description, purpose, contacts (product owners and business contacts, by name and role), rating and rating floor, lifecycle, environments, its ports (input and output, with bindings per environment, the data contract each is held to – Steward id and ODCS id –, objectives, data objects, consumer counts), health per environment, the scorecard summary, the data objects it exposes, a page of its members (elements with role, layer, environment) and its pipeline steps. Elements of the product you may not see otherwise are shown as its content.',
     input: z
       .object({
         productId: idOrKey('Data product'),
@@ -396,7 +399,7 @@ export const dataProductTools: ToolDef[] = [
     name: 'list_data_objects',
     title: 'List data objects',
     description:
-      'Data objects – the business data such as Customer or Order, the module’s glossary – you may see, ordered by name: key, domain, lifecycle, classification, personal data, CIA rating and data owner. Filter by domain (id), lifecycle, classification, personal data or text.',
+      'Data objects – the business data such as Customer or Order, the module’s glossary – you may see, ordered by name: key, domain, lifecycle, classification, personal data, CIA rating and contacts (data owner, data stewards – by name and role). Filter by domain (id), lifecycle, classification, personal data or text.',
     input: z
       .object({
         domain: z.string().max(200).optional(),
@@ -430,7 +433,7 @@ export const dataProductTools: ToolDef[] = [
             classification: o.classification,
             personalData: o.personalData,
             rating: Object.fromEntries(Object.entries(o.rating).map(([k, v]) => [k, v?.level ?? null])),
-            owner: o.owner,
+            contacts: namesOf(o.contacts),
           })),
           total: p.total,
           nextCursor: p.next,
@@ -441,15 +444,16 @@ export const dataProductTools: ToolDef[] = [
     name: 'get_data_object',
     title: 'Get a data object',
     description:
-      'One data object: definition, synonyms, key attributes, CIA rating with justifications, classification, personal data (categories, special categories, data subjects), legal basis, purposes, retention and deletion rule, regulatory flags, data owner, stewards and custodians, the elements that implement it (counted) and the products that expose it.',
+      'One data object: definition, synonyms, key attributes, CIA rating with justifications, classification, personal data (categories, special categories, data subjects), legal basis, purposes, retention and deletion rule, regulatory flags, contacts (data owner and stewards, by name and role) and technical custodians, the elements that implement it (counted) and the products that expose it.',
     input: z.object({ objectId: idOrKey('Data object') }).strict(),
     visible,
     handler: (a) =>
       read(() => {
         const o = svc.getObject(objectIdOf(a.objectId));
-        const { permissions: _p, revision: _r, ...rest } = o;
+        const { permissions: _p, revision: _r, owner: _o, stewards: _s, ...rest } = o;
         return {
           ...rest,
+          contacts: namesOf(o.contacts),
           definition: short(o.definition, 4000),
           domain: refName(o.domain),
           products: { items: o.products.items.map((x) => ({ id: x.id, key: x.key, name: x.name })), hidden: o.products.hidden },
@@ -486,7 +490,12 @@ export const dataProductTools: ToolDef[] = [
         return {
           productId: view.productId,
           version: x.version,
-          validToday: view.validToday ? { version: view.validToday.version, signOff: view.validToday.signOff } : null,
+          validToday: view.validToday
+            ? {
+                version: view.validToday.version,
+                signOff: view.validToday.signOff && { ...view.validToday.signOff, decision: decisionNames(view.validToday.signOff.decision) },
+              }
+            : null,
           ...(a.date ? { validOn: validAnswer(view.productId, a.date) } : {}),
           versions: view.versions.length,
           format: x.version.format,

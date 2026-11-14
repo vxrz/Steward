@@ -127,4 +127,15 @@ export const DATA_GOVERNANCE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE dp_port_reviews ADD COLUMN documented INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    // ADR 0038 part 5: endorsements and semantic model sign-offs are documented approvals – who approved elsewhere
+    // (contacts, frozen), when, the evidence (JSON, DocumentedDecision). NULL for those of before 0.25.1 until the
+    // upgrade (dataproducts/governance-upgrade.ts) gives them one from the Steward user who endorsed or signed off – a
+    // person contact linked to that user. The contacts directory's tables come from an earlier list.
+    name: 'dataproducts-007c-documented-approvals',
+    sql: `
+      ALTER TABLE dp_endorsements ADD COLUMN decision TEXT;
+      ALTER TABLE dp_semantic_signoffs ADD COLUMN decision TEXT;
+    `,
+  },
 ];

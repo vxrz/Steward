@@ -66,21 +66,15 @@ describe('port access reviews', () => {
   let keep = '';
   let drop = '';
   let review = '';
+  let decider = '';
+  /** The review's documented decision: who decided the outcome elsewhere, when, the evidence (0.25.1). */
   const documented = async (id: string) => {
-    // the documented decision of the review (who decided elsewhere, when, the evidence)
-    const { db } = await import('../src/db.js');
-    db().run(
-      'UPDATE dp_port_reviews SET decision = ? WHERE id = ?',
-      JSON.stringify({
-        decidedBy: [{ contactId: null, name: 'Invented data owner', role: 'dataOwner' }],
-        decidedOn: '2026-11-01',
-        evidence: [{ kind: 'text', value: 'Review meeting' }],
-        note: '',
-        recordedBy: 'dana',
-        recordedAt: '2026-11-02T00:00:00.000Z',
-      }),
-      id,
-    );
+    decider ||= (await dana('POST', '/contacts', { name: 'Invented data owner' })).id;
+    return dana('PUT', `/data-products/port-reviews/${id}/decision`, {
+      decidedBy: [{ contactId: decider, role: 'dataOwner' }],
+      decidedOn: new Date().toISOString().slice(0, 10),
+      evidence: [{ kind: 'text', value: 'Review meeting' }],
+    });
   };
   it('freeze the registrations and who really reads; the IT maintainers record the outcome, a second IT person approves and the seal holds', async () => {
     // four eyes is a module setting (off by default): on for this review
@@ -141,7 +135,11 @@ describe('port access reviews', () => {
     });
     // a review started since 0.25.1 records who decided the outcome first
     expect(await fail(dana('POST', `/data-products/port-reviews/${review}/submit`))).toMatchObject({ params: { context: 'decisionMissing' } });
-    await documented(review);
+    // who may not change the product records no decision
+    expect(
+      (await fail(vera('PUT', `/data-products/port-reviews/${review}/decision`, { decidedBy: [], decidedOn: '2026-01-01' }))).status,
+    ).toBeGreaterThanOrEqual(400);
+    expect((await documented(review)).decision).toMatchObject({ decidedBy: [{ name: 'Invented data owner', role: 'dataOwner' }], recordedBy: 'dana' });
     const submitted = await dana('POST', `/data-products/port-reviews/${review}/submit`);
     expect(submitted).toMatchObject({ status: 'submitted', mayApprove: false });
     // never the submitter; a second person approves
@@ -185,6 +183,12 @@ describe('port access reviews', () => {
     // and the documented decision
     const decision = db().get<{ decision: string }>('SELECT decision FROM dp_port_reviews WHERE id = ?', review)!.decision;
     expect(await tampered('dp_port_reviews', 'decision', review, decision.replace('Invented data owner', 'Someone else'), decision)).toBe(false);
+    // erasing the contact (GDPR Art. 17) keeps its name in the decision and the seal intact
+    await s.api('DELETE', `/contacts/${decider}`);
+    const erased = await dana('GET', `/data-products/port-reviews/${review}`);
+    expect(erased.decision.decidedBy).toEqual([{ contactId: null, name: 'Invented data owner', role: 'dataOwner' }]);
+    expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: true });
+    decider = '';
     expect(await dana('GET', `/data-products/port-reviews/${review}/verify`)).toMatchObject({ sealed: true, ok: true });
     // the next one is due in 6 months; the confidentiality evidence names the review
     const after = await dana('GET', `/data-products/${product}/port-reviews`);

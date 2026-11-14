@@ -6,6 +6,8 @@ import {
   DATA_AGREEMENT_KINDS,
   DATA_CLASSIFICATIONS,
   DATA_CONSUMER_KINDS,
+  CONTACT_KINDS,
+  CONTACT_LIMITS,
   DATA_GOVERNANCE_LIMITS,
   DATA_IDENTITY_RE,
   DATA_ELEMENT_KINDS,
@@ -153,6 +155,31 @@ const ciaRating = () => ({ confidentiality: ratingDimension(), integrity: rating
 
 // ---------- domains ----------
 
+/**
+ * A contact named on an entry (0.25.1, ADR 0038): its role, the person's or group's name and – in this file format and
+ * ODPS only – e-mail address; `user` names the Steward account it is (documentation, never a right). Imported, it is
+ * the contact the importer may see with the same e-mail address (else the one of the same name already linked to the
+ * entry), else a new one. The old subject fields (owners, owner, stewards, a consumer's contacts as user:/team:) are
+ * still read and become contacts.
+ */
+export const contactFileSchema = z
+  .object({
+    role: z.string().min(1).max(CONTACT_LIMITS.role),
+    name: z.string().min(1).max(CONTACT_LIMITS.name),
+    kind: z.enum(CONTACT_KINDS).optional().describe('person (default) or group – a shared mailbox, a board, an office'),
+    email: z.string().max(CONTACT_LIMITS.email).optional(),
+    user: z.string().max(L.short).optional().describe('The Steward user this contact is, if any – documentation, never a right'),
+  })
+  .strict()
+  .meta({ id: 'Contact' });
+export type ContactFile = z.infer<typeof contactFileSchema>;
+const contacts = (roles: string) =>
+  z
+    .array(contactFileSchema)
+    .max(L.subjects * 2)
+    .optional()
+    .describe(`Contacts with their role: ${roles} (0.25.1)`);
+
 export const domainFileSchema = z
   .object({
     key: key('Unique key of the domain'),
@@ -160,7 +187,8 @@ export const domainFileSchema = z
     description: text(L.description).optional(),
     parent: key('The parent domain (a sub-domain belongs to a top-level domain)').nullable().optional(),
     colour: z.enum(CIA_COLORS).nullable().optional(),
-    owners: list(L.subjects, subject()).optional(),
+    owners: list(L.subjects, subject()).optional().describe('Deprecated (0.25.1): domain owners as user:/team: – read as contacts'),
+    contacts: contacts('domainOwner'),
   })
   .strict()
   .meta({ id: 'DataDomain' });
@@ -191,9 +219,10 @@ export const objectFileSchema = z
       .array(z.object({ name: name(), description: text().optional(), personal: z.boolean().optional() }).strict())
       .max(L.attributes)
       .optional(),
-    owner: z.string().max(L.short).nullable().optional().describe('The data owner: a user name'),
-    stewards: list(L.subjects, subject()).optional(),
-    custodians: list(L.subjects, subject()).optional(),
+    owner: z.string().max(L.short).nullable().optional().describe('Deprecated (0.25.1): the data owner as a user name – read as a contact'),
+    stewards: list(L.subjects, subject()).optional().describe('Deprecated (0.25.1): stewards as user:/team: – read as contacts'),
+    custodians: list(L.subjects, subject()).optional().describe('Technical custodians (IT): teams and users'),
+    contacts: contacts('dataOwner, dataSteward'),
     external_refs: externalRefs().optional(),
     rating: z.object(ciaRating()).strict().optional(),
     elements: z
@@ -257,7 +286,11 @@ const consumerSchema = z
       .strict()
       .nullable()
       .optional(),
-    contacts: list(L.subjects, subject()).optional(),
+    contacts: z
+      .array(z.union([subject(), contactFileSchema]))
+      .max(L.subjects)
+      .optional()
+      .describe('Its contacts (role consumerContact); user:/team: subjects of before 0.25.1 are read as contacts'),
     identities: list(
       DATA_GOVERNANCE_LIMITS.identitiesPerConsumer,
       z.string().max(DATA_GOVERNANCE_LIMITS.identity).regex(DATA_IDENTITY_RE, 'user:<name>, role:<name> or group:<name>'),
@@ -372,7 +405,8 @@ export const productFileSchema = z
     purpose: text(L.description).optional(),
     type: z.enum(DATA_PRODUCT_TYPES).nullable().optional(),
     domain: key('Its domain or sub-domain').nullable().optional(),
-    owners: list(L.subjects, subject()).optional().describe('The product owners'),
+    owners: list(L.subjects, subject()).optional().describe('Deprecated (0.25.1): product owners as user:/team: – read as contacts'),
+    contacts: contacts('productOwner, businessContact'),
     support: z
       .object({ channel: text(L.short).optional(), url: z.union([httpUrl(), z.literal('')]).optional(), hours: text(L.short).optional() })
       .strict()

@@ -8,7 +8,6 @@ import { del, notifyError } from '../../api';
 import { QueryState } from '../../components/common';
 import { ListPage } from '../../components/page/ListPage';
 import { confirmDanger } from '../../components/confirm';
-import { useSubjectLabel } from '../../components/SubjectsInput';
 import { AccessTab } from '../../components/access/AccessTab';
 import { ColorSwatchDot, DomainForm } from '../../components/dataproducts/ObjectForm';
 import { useDomains, useInvalidateDataProducts } from './api';
@@ -24,7 +23,6 @@ export function DataDomainsPage() {
   const q = useDomains();
   const canManage = useCanManageModule();
   const invalidate = useInvalidateDataProducts();
-  const subject = useSubjectLabel();
   const [editing, setEditing] = useState<{ domain?: DataDomain } | null>(null);
   const [params, setParams] = useSearchParams();
   const all = q.data ?? [];
@@ -78,7 +76,7 @@ export function DataDomainsPage() {
           </Group>
           <Text size="xs" c="dimmed">
             {[
-              d.owners.length ? t('domains.ownersLine', { owners: d.owners.map(subject).join(', ') }) : '',
+              d.contacts.length ? t('domains.ownersLine', { owners: d.contacts.map((c) => c.contact.name).join(', ') }) : '',
               d.owningTeams.length ? t('domains.teamsLine', { teams: d.owningTeams.map((x) => x.name).join(', ') }) : '',
             ]
               .filter(Boolean)

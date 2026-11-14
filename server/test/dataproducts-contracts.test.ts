@@ -315,7 +315,9 @@ describe('dataproduct.contract_breaking', () => {
     const p = (await dana('POST', '/data-products', { key: 'dp-b-endorsed', name: 'Invented endorsed orders', owners: ['user:dana'], domainId: domain })).id;
     const pp = (await dana('POST', `/data-products/${p}/ports`, { direction: 'output', name: 'orders', type: 'table' })).id;
     await dana('PUT', `/data-products/${p}/ports/${pp}/bindings/prod`, { elementIds: [element], contractId: contract });
-    expect((await dana('PUT', `/data-products/${p}/endorsement`, {})).endorsement).toMatchObject({ valid: true, review: null });
+    const owner = (await dana('POST', '/contacts', { name: 'Invented endorsing owner' })).id;
+    const decision = { decidedBy: [{ contactId: owner, role: 'domainOwner' }], decidedOn: new Date().toISOString().slice(0, 10) };
+    expect((await dana('PUT', `/data-products/${p}/endorsement`, { decision })).endorsement).toMatchObject({ valid: true, review: null });
     const v5 = ordersYaml((d) => {
       d.version = '4.0.0';
       d.schema[0].properties = d.schema[0].properties.filter((x: { name: string }) => !['TOTAL', 'REGION'].includes(x.name));
@@ -328,7 +330,7 @@ describe('dataproduct.contract_breaking', () => {
     }
     expect(e).toMatchObject({ valid: false, review: 'breakingChange' });
     // endorsed again: the same version does not flag it again
-    expect((await dana('PUT', `/data-products/${p}/endorsement`, {})).endorsement.valid).toBe(true);
+    expect((await dana('PUT', `/data-products/${p}/endorsement`, { decision })).endorsement.valid).toBe(true);
     const { onContractVersionSaved } = await import('../src/dataproducts/contract-hooks.js');
     const version = Number((await dana('GET', `/data-contracts/${contract}`)).currentVersion);
     onContractVersionSaved({ contractId: contract, contractName: 'x', contractKey: 'x', version, breaking: 1, changes: [] });

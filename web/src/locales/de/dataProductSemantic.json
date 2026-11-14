@@ -1,7 +1,7 @@
 {
   "tab": "Semantisches Modell",
   "title": "Semantisches Modell",
-  "help": "Steward führt die gesteuerte Kopie des semantischen Modells (Apache Ossie) des Produkts: so gespeichert, wie es geschrieben wurde, jede Speicherung eine Version, freigegeben von einer zweiten Person. Kennzahlen werden in dbt, semantischen Views von Snowflake oder BI-Werkzeugen definiert – Steward entwirft keine.",
+  "help": "Steward hält die verwaltete Kopie des semantischen Modells (Apache Ossie) des Produkts: gespeichert wie geschrieben, jede Speicherung eine Version, die anderswo gegebene Freigabe für die gezeigte Version erfasst. Kennzahlen werden in dbt, Snowflake Semantic Views oder BI-Werkzeugen definiert – Steward entwirft keine.",
   "none": "Noch kein semantisches Modell.",
   "newVersion": "Neue Version",
   "startFrom": "Von den gebundenen Verträgen ausgehen",
@@ -29,13 +29,11 @@
   "validBadge": "Heute gültig",
   "view": "Version {{n}} anzeigen",
   "export": "Version {{n}} herunterladen",
-  "signOffAction": "Freigeben",
-  "signOffNamed": "Version {{n}} freigeben",
-  "signOffTitle": "Version {{n}} freigeben",
-  "signOffHelp": "Sie geben den hier gezeigten Text frei (SHA-256 {{sha}}). Ab heute ist er die gültige Version des semantischen Modells. Wer eine Version gespeichert oder vorgeschlagen hat, kann sie nicht freigeben.",
-  "signOffNote": "Notiz (optional)",
+  "signOffAction": "Freigabe erfassen",
+  "signOffNamed": "Die Freigabe von Version {{n}} erfassen",
+  "signOffTitle": "Die Freigabe von Version {{n}} erfassen",
+  "signOffHelp": "Erfassen Sie die anderswo gegebene Freigabe des hier gezeigten Texts (SHA-256 {{sha}}): wer ihn freigegeben hat, wann und den Nachweis. Ab dem Tag der Freigabe ist er die gültige Version.",
   "signedOffOk": "Version {{n}} freigegeben",
-  "ownVersion": "Sie haben diese Version gespeichert oder vorgeschlagen: Eine zweite Person gibt sie frei.",
   "validOn": {
     "title": "Welches Modell war an einem Tag gültig?",
     "date": "Datum",
@@ -179,5 +177,6 @@
     "lint_other": "{{count}} Prüfbefunde gegen Ossie {{revision}}",
     "size": "{{bytes}} Bytes",
     "show": "Dokument anzeigen"
-  }
+  },
+  "signOffDecision": "Wer sie freigegeben hat"
 }

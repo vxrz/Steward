@@ -711,6 +711,16 @@
       "maintainer_other": "You maintain it: {{count}} registered consumers of {{port}} – inform them using their contacts.",
       "consuming": "Your data products that use it: {{products}}.",
       "hint": "You get this once per contract version because you may change this data product, or a data product that uses the port. Check what the change means, and inform the consumers."
+    },
+    "consumerContacts": {
+      "port": "Port",
+      "consumer": "Consumer",
+      "name": "Contact",
+      "role": "Role",
+      "email": "E-mail address",
+      "roles": {
+        "consumerContact": "Consumer contact"
+      }
     }
   },
   "dataProductGovernance": {

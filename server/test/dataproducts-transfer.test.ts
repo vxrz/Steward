@@ -432,7 +432,7 @@ describe('ODPS', () => {
       description: { purpose: 'Order analytics' },
       tags: ['shop'],
       outputPorts: [{ name: 'orders', version: 'v2', contractId: 'shop-orders' }],
-      team: { members: [{ username: 'dana', role: 'productOwner' }] },
+      team: { members: [{ username: 'dana', name: expect.any(String), role: 'productOwner' }] },
       support: [{ channel: '#orders', url: 'https://wiki.example/orders' }],
     });
     // an input port without a contract is not an ODPS input port (it needs one): kept under customProperties
