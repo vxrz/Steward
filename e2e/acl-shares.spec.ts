@@ -72,8 +72,14 @@ test('a process: its access list is shares with a Custom one, the owner above th
       level: (await card.getByRole('combobox', { name: /^Level for / }).boundingBox())!,
       until: (await card.getByLabel(/^End date for /).boundingBox())!,
     });
-    // (the layout follows the viewport after a render)
-    await expect.poll(async () => Math.abs((await boxes()).level.y - (await boxes()).until.y)).toBeLessThan(4);
+    // (the layout follows the viewport after a render: while the table becomes cards, a box can be missing for a moment)
+    await expect
+      .poll(async () => {
+        const level = await card.getByRole('combobox', { name: /^Level for / }).boundingBox();
+        const until = await card.getByLabel(/^End date for /).boundingBox();
+        return level && until ? Math.abs(level.y - until.y) : Infinity;
+      })
+      .toBeLessThan(4);
     const { until } = await boxes();
     expect(until.x + until.width).toBeLessThanOrEqual(390);
     await expectNoHorizontalScroll(page);

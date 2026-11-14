@@ -95,15 +95,19 @@ export function decisionFieldOf(e: unknown, decidedBy: readonly { name: string }
  */
 export function useDecisionServerErrors(d: DecisionDraft): { errors: DecisionErrors; capture: (e: unknown) => boolean } {
   const [errors, setErrors] = useState<DecisionErrors>({});
+  // the field to focus once the error is rendered (an effect runs after the commit, so aria-invalid is there)
+  const [focus, setFocus] = useState<{ field: string } | null>(null);
   useEffect(() => setErrors({}), [d]);
+  useEffect(() => {
+    if (!focus) return;
+    const box = `[data-decision-field="${focus.field}"]`;
+    (document.querySelector<HTMLElement>(`${box} [aria-invalid="true"]`) ?? document.querySelector<HTMLElement>(`${box}[tabindex]`))?.focus();
+  }, [focus]);
   const capture = (e: unknown): boolean => {
     const field = decisionFieldOf(e, d.decidedBy);
     if (!field) return false;
     setErrors({ [field]: errorText(e) });
-    requestAnimationFrame(() => {
-      const box = `[data-decision-field="${field}"]`;
-      (document.querySelector<HTMLElement>(`${box} [aria-invalid="true"]`) ?? document.querySelector<HTMLElement>(`${box}[tabindex]`))?.focus();
-    });
+    setFocus({ field });
     return true;
   };
   return { errors, capture };
