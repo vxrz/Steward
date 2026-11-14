@@ -5,6 +5,7 @@ import { capabilities } from '../auth/permissions.js';
 import { currentUser } from '../auth/context.js';
 import { SUPPLIER_MIGRATIONS } from '../migrations/suppliers.js';
 import { catalogueShareKind } from '../catalogue/shares.js';
+import { supplierContactKind } from '../suppliers/contacts.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** Suppliers (0.17.0, ADR 0029 part 1): core catalogue, linked from applications, systems, tickets, watches, cost plans and duties. */
@@ -24,4 +25,6 @@ export default defineFeature({
   migrations: [SUPPLIER_MIGRATIONS],
   // shares (ADR 0033, #292): the company record; contracts and scoped contacts keep their own rules (ADR 0031)
   shareKinds: [catalogueShareKind('supplier')],
+  // the contacts directory (0.25.1, ADR 0038): the person of each contact entry (its scope and note stay the supplier's)
+  contactKinds: [{ kind: 'supplier', def: supplierContactKind }],
 });

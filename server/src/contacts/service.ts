@@ -30,7 +30,7 @@ import { forbid, hasRole, me, requireAdmin } from '../auth/access.js';
 import { isAdmin } from '../auth/permissions.js';
 import { likeEscape } from '../database/sql.js';
 import { HttpError, newId, nowIso } from '../util.js';
-import { contactHooks, contactKind } from './registry.js';
+import { contactHooks, contactKind, contactKinds } from './registry.js';
 
 /**
  * The contacts directory (0.25.1, ADR 0038 part 1, docs/CONTACTS.md): one entry per person or group, linked to items
@@ -265,8 +265,20 @@ export function setLinks(kind: ContactLinkKind, itemId: string, input: readonly 
   const roles = roleList(kind);
   const scope = opts.roles ? new Set(opts.roles) : null;
   const perRole = new Map<string, number>();
+  // a free-text role the item has already may stay as it is (plant sites' roles of before 0.25.1: up to 200, or none)
+  const hadRoles = roles
+    ? new Set<string>()
+    : new Set(
+        db()
+          .all<{ role: string }>('SELECT DISTINCT role FROM contact_links WHERE kind = ? AND item_id = ?', kind, itemId)
+          .map((r) => r.role),
+      );
   for (const l of links) {
-    if ((roles && !roles.includes(l.role)) || (scope && !scope.has(l.role)))
+    if (
+      (roles && !roles.includes(l.role)) ||
+      (scope && !scope.has(l.role)) ||
+      (!roles && !hadRoles.has(l.role) && (!l.role || l.role.length > CONTACT_LIMITS.role))
+    )
       throw new HttpError(400, `"${l.role}" is not a contact role here`, 'CONTACT_ROLE_UNKNOWN', { role: l.role });
     perRole.set(l.role, (perRole.get(l.role) ?? 0) + 1);
   }
@@ -688,7 +700,8 @@ export class LegacyContactMatcher {
 // ---------- the directory's pages ----------
 
 /** Who may create contacts on the Contacts page: who works in Steward (the picker creates them on the item). */
-export const canCreateContacts = (u: AuthUser | null = currentUser()): boolean => hasRole(u, ['admin', 'designer', 'operator', 'approver']);
+export const canCreateContacts = (u: AuthUser | null = currentUser()): boolean =>
+  hasRole(u, ['admin', 'designer', 'operator', 'approver']) || (!!u && contactKinds().some((k) => k.createsContacts?.(u) ?? false));
 
 export const contactListQuery = z
   .object({

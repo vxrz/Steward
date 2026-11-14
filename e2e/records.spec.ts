@@ -114,7 +114,14 @@ test('a service is created and linked to a record, with backlinks both ways', as
   await page.getByRole('button', { name: 'New service' }).click();
   const form = page.getByRole('dialog', { name: 'New service' });
   await form.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
-  await form.getByRole('textbox', { name: 'E-mail' }).first().fill('erika@example.com');
+  // a business contact, new in the contacts directory (0.25.1)
+  await form.getByTestId('service-contacts-new').click();
+  const contact = page.getByRole('dialog', { name: 'New contact' });
+  await contact.getByRole('textbox', { name: 'Name', exact: true }).fill('Erika Example');
+  await contact.getByRole('textbox', { name: 'E-mail address' }).fill('erika@example.com');
+  await contact.getByTestId('contact-submit').click();
+  await expect(contact).toBeHidden();
+  await expect(form.getByTestId('service-contacts')).toContainText('Erika Example');
   // the list behind the dialog has a Criticality filter of its own
   await form.getByRole('combobox', { name: 'Criticality' }).click();
   await animationsDone(page);

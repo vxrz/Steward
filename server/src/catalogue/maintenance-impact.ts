@@ -29,6 +29,7 @@ import { dashboardVisible, datasetsOf } from '../dashboards/service.js';
 import { readableDataset } from '../plant/live.js';
 import { moduleAvailable } from '../modules/access.js';
 import { plantImpact, type ImpactFound, type ImpactSink } from '../plant/impact.js';
+import { siteContactsOf } from '../plant/contacts.js';
 import {
   announceImpact,
   canPlan,
@@ -276,10 +277,11 @@ export function impactOf(targets: TargetRef[], w: { kind: MaintenanceKind; quiet
   for (const [id, x] of b.groups.platforms) if (x.visible) for (const t of owningTeams('platform', id)) contact(`team:${t.name}`, x.name);
   for (const [id, x] of b.groups.monitors) if (x.visible && rows.get(id)?.owner) contact(`user:${rows.get(id)!.owner}`, x.name);
   for (const siteId of plant.sites) {
-    const s = db().get<{ name: string; contacts: string }>('SELECT name, contacts FROM plant_sites WHERE id = ?', siteId);
+    const s = db().get<{ id: string; name: string; contacts: string }>('SELECT id, name, contacts FROM plant_sites WHERE id = ?', siteId);
     if (!s) continue;
     for (const t of owningTeams('site', siteId)) contact(`team:${t.name}`, s.name);
-    for (const c of parseJson<{ name: string; email?: string }[]>(s.contacts, [])) {
+    // the site's contacts (0.25.1: from the contacts directory)
+    for (const c of siteContactsOf([s]).get(s.id) ?? []) {
       const user = c.email ? users.find((x) => x.active && x.email && x.email.toLowerCase() === c.email!.toLowerCase()) : undefined;
       contact(user ? `user:${user.username}` : `contact:${c.name}`, s.name);
     }

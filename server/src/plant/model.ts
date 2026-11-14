@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  contactLinkInput,
+  type ContactLinkInput,
   ASSET_STATUSES,
   BUILDING_KINDS,
   boundedRecord,
@@ -25,6 +27,8 @@ import {
 import { db } from '../db.js';
 import { HttpError, parseJson } from '../util.js';
 import { fieldValuesInput, isDate, isHttpUrl } from './settings.js';
+import { writeSiteContacts } from './contacts.js';
+import { removeItemLinks } from '../contacts/service.js';
 
 /**
  * The plant registry's records as stored (rows), as values (what an edit or an import says) and the rules that hold
@@ -172,14 +176,15 @@ export interface AssetValues {
   fields: FieldValues;
 }
 
-export const siteValuesOf = (r: SiteRow, refs: ExternalRef[]): SiteValues => ({
+/** A site's values; its contacts come from the contacts directory (plant/contacts.ts siteContactsOf, in bulk). */
+export const siteValuesOf = (r: SiteRow, refs: ExternalRef[], contacts: SiteContact[]): SiteValues => ({
   id: r.id,
   code: r.code,
   name: r.name,
   names: parseJson<Translations>(r.names, {}),
   description: r.description,
   geo: r.lat !== null && r.lon !== null ? { lat: Number(r.lat), lon: Number(r.lon), zoom: r.zoom === null ? null : Number(r.zoom) } : null,
-  contacts: parseJson<SiteContact[]>(r.contacts, []),
+  contacts,
   refs,
   fields: parseJson<FieldValues>(r.fields, {}),
 });
@@ -298,6 +303,8 @@ export const siteInput = z
     description: text(PLANT_LIMITS.description),
     geo: geoInput.nullable().default(null),
     contacts: z.array(contactInput).max(PLANT_LIMITS.contacts).default([]),
+    /** The contacts as directory links (0.25.1, ADR 0038: the web app's picker); when given, `contacts` is ignored */
+    contactLinks: z.array(contactLinkInput).max(PLANT_LIMITS.contacts).optional(),
     refs: z.array(refInput).max(PLANT_LIMITS.refs).default([]),
     fields: fieldValuesInput.default({}),
   })
@@ -653,7 +660,8 @@ interface Meta {
 
 const src = (m: Meta) => [m.importId ?? null, m.notInSource ? 1 : 0] as const;
 
-export function upsertSite(v: SiteValues, m: Meta, opts: { keepSource?: boolean } = {}): void {
+/** Writes a site; its contacts go to the contacts directory (0.25.1, ADR 0038) – `contactLinks`: as the picker sent them. */
+export function upsertSite(v: SiteValues, m: Meta, opts: { keepSource?: boolean; contactLinks?: ContactLinkInput[] } = {}): void {
   db().run(
     `INSERT INTO plant_sites (id, code, name, names, description, lat, lon, zoom, contacts, fields, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -668,7 +676,7 @@ export function upsertSite(v: SiteValues, m: Meta, opts: { keepSource?: boolean 
     v.geo?.lat ?? null,
     v.geo?.lon ?? null,
     v.geo?.zoom ?? null,
-    JSON.stringify(v.contacts),
+    '[]',
     JSON.stringify(v.fields),
     ...src(m),
     m.at,
@@ -677,6 +685,7 @@ export function upsertSite(v: SiteValues, m: Meta, opts: { keepSource?: boolean 
     m.by,
   );
   writeRefs('site', v.id, v.refs);
+  writeSiteContacts(v.id, v.contacts, opts.contactLinks);
 }
 
 export function upsertNode(siteId: string, v: NodeValues, position: number, m: Meta, opts: { keepSource?: boolean } = {}): void {
@@ -833,6 +842,8 @@ export function removeSiteRows(id: string): void {
   // its shares and scope go with it (0.23.0): a later site with the same id does not inherit them
   db().run("DELETE FROM resource_shares WHERE kind = 'site' AND resource_id = ?", id);
   db().run("DELETE FROM resource_restrictions WHERE kind = 'site' AND resource_id = ?", id);
+  // its contact links (0.25.1): the contacts stay in the directory
+  removeItemLinks('plant_site', id);
   db().run('DELETE FROM plant_sites WHERE id = ?', id);
 }
 

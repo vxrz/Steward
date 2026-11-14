@@ -18571,6 +18571,8 @@ export interface Resources {
     'contacts.roles.security': string;
     'contacts.roles.dataProtection': string;
     'contacts.roles.other': string;
+    'contacts.fromDirectory': string;
+    'contacts.otherPerson': string;
     'contracts.title': string;
     'contracts.help': string;
     'contracts.empty': string;

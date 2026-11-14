@@ -126,7 +126,9 @@
       "security": "Security contact",
       "dataProtection": "Data protection officer",
       "other": "Other"
-    }
+    },
+    "fromDirectory": "Choose from the contacts directory",
+    "otherPerson": "Other person"
   },
   "contracts": {
     "title": "Contracts",

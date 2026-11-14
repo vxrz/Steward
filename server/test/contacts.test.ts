@@ -145,6 +145,21 @@ describe('who sees a contact', () => {
   });
 });
 
+describe('who creates a contact', () => {
+  it('who works in Steward, and whom a link kind lets (a module-only contributor)', async () => {
+    expect(await refusal(vic('POST', '/contacts', { name: 'Invented viewer contact' }))).toMatchObject({ status: 403 });
+    const { registerContactKind, contactKind } = await import('../src/contacts/registry.js');
+    const before = contactKind('data_consumer');
+    registerContactKind('data_consumer', { ...before, createsContacts: (u) => u.username === 'vic' });
+    try {
+      expect((await vic('POST', '/contacts', { name: 'Invented viewer contact' })).createdBy).toBe('vic');
+      expect((await vic('GET', '/contacts?q=viewer%20contact')).canCreate).toBe(true);
+    } finally {
+      registerContactKind('data_consumer', { ...before, createsContacts: () => false });
+    }
+  });
+});
+
 describe('who changes a contact', () => {
   it('who may change one item it is linked to, and administrators; audited without the e-mail address', async () => {
     expect(await refusal(vic('PUT', `/contacts/${ids.carol}`, { name: 'Invented carol', email: 'x@invented.example' }))).toMatchObject({ status: 403 });
@@ -316,6 +331,53 @@ describe('Erase', () => {
     const entry = (await s.api('GET', '/audit?action=contact.erased&limit=1'))[0];
     expect(entry).toMatchObject({ entityId: ids.bob });
     expect(JSON.stringify(entry)).not.toContain('Invented bob');
+  });
+});
+
+describe('the upgrade of stored contacts (0.25.1)', () => {
+  it('converts the lists services, suppliers and sites kept, once, and shows them as before', async () => {
+    const db = (await import('../src/db.js')).db();
+    const { convertItemContacts } = await import('../src/contacts/upgrade.js');
+    const stored = [
+      { role: 'business', email: 'gus@invented.example', name: 'Gus Invented' },
+      { role: 'it', email: 'it-desk@invented.example' },
+    ];
+    const svcC = (await s.api('POST', '/services', { name: 'Invented legacy service', owners: [] })).id;
+    db.run('UPDATE services SET contacts = ? WHERE id = ?', JSON.stringify(stored), svcC);
+    const sup = (await s.api('POST', '/suppliers', { name: 'Invented Legacy AG', type: 'saas' })).id;
+    db.run(
+      "INSERT INTO supplier_contacts (id, supplier_id, name, role, email, phone, note, created_at) VALUES ('spc_legacy', ?, 'Gus Invented', 'support', 'gus@invented.example', '+49 30 5', 'Old', ?)",
+      sup,
+      new Date().toISOString(),
+    );
+    db.run(
+      "INSERT INTO plant_sites (id, name, contacts, created_at, created_by, updated_at, updated_by) VALUES ('legacy-site', 'Invented legacy site', ?, 'now', 'admin', 'now', 'admin')",
+      JSON.stringify([{ name: 'Gus Invented', role: '', email: '', phone: '', url: '' }]),
+    );
+    // before: the stored lists, as 0.25.0 showed them
+    expect((await s.api('GET', `/services/${svcC}`)).contacts).toEqual(stored);
+    expect((await s.api('GET', `/suppliers/${sup}`)).contacts[0]).toMatchObject({
+      id: 'spc_legacy',
+      name: 'Gus Invented',
+      email: 'gus@invented.example',
+      phone: '+49 30 5',
+      contactId: null,
+    });
+    expect(convertItemContacts()).toMatchObject({ services: 1, suppliers: 1, sites: 1 });
+    expect(convertItemContacts()).toEqual({ services: 0, suppliers: 0, sites: 0 });
+    // after: the same, from the directory – three contacts for Gus (kinds are never merged), one for the IT desk
+    expect((await s.api('GET', `/services/${svcC}`)).contacts).toEqual(stored);
+    const after = (await s.api('GET', `/suppliers/${sup}`)).contacts[0];
+    expect(after).toMatchObject({ id: 'spc_legacy', name: 'Gus Invented', email: 'gus@invented.example', phone: '+49 30 5', note: 'Old' });
+    expect(after.contactId).toMatch(/^ct_/);
+    expect(
+      svc
+        .linksOf('plant_site', ['legacy-site'])
+        .get('legacy-site')!
+        .map((l) => [l.role, l.contact.name]),
+    ).toEqual([['', 'Gus Invented']]);
+    expect(db.get<{ n: number }>("SELECT COUNT(*) AS n FROM contacts WHERE name = 'Gus Invented'")!.n).toBe(3);
+    expect(db.get<{ c: string }>('SELECT contacts AS c FROM services WHERE id = ?', svcC)!.c).toBe('[]');
   });
 });
 

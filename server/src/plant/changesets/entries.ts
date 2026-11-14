@@ -25,6 +25,7 @@ import {
   type NodeRow,
   type SiteRow,
 } from '../model.js';
+import { siteContactsOf } from '../contacts.js';
 import { assignmentValuesOf, kpiInput, kpiUpdate, kpiValuesOf, profileInput, profileUpdate, profileValuesOf } from '../data-model.js';
 import type { AssignmentRow, KpiRow, ProfileRow } from '../data-model.js';
 import {
@@ -126,6 +127,7 @@ export const KINDS: Record<PlantEntryKind, KindDef> = {
         'site',
         rows.map((r) => str(r.id)),
       );
+      const contacts = siteContactsOf(rows.map((r) => ({ id: str(r.id), contacts: str(r.contacts) })));
       return rows.map((r) => ({
         kind: 'site',
         scope: '',
@@ -133,7 +135,7 @@ export const KINDS: Record<PlantEntryKind, KindDef> = {
         revision: n(r.revision),
         name: str(r.name),
         siteId: str(r.id),
-        values: { ...siteValuesOf(r as unknown as SiteRow, refs.get(str(r.id)) ?? []) },
+        values: { ...siteValuesOf(r as unknown as SiteRow, refs.get(str(r.id)) ?? [], contacts.get(str(r.id)) ?? []) },
       }));
     },
     update: siteUpdate,

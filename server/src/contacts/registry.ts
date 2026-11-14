@@ -23,6 +23,12 @@ export interface ContactKindDef {
    * whose items keep rows of their own per link (a supplier's contact entry with its scope and note) deletes them here.
    */
   onLinksErased?(itemIds: readonly string[]): void;
+  /**
+   * Optional: whether the user may create contacts on the Contacts page and in the pickers (POST /api/contacts) because
+   * of this kind – e.g. a module-only user who may change the module's items (a data products contributor). Who works in
+   * Steward with a core role may anyway. Inline contacts in setLinks need only the right to change the item.
+   */
+  createsContacts?(u: AuthUser): boolean;
 }
 
 /** What other modules add to the directory besides link kinds. */
@@ -64,5 +70,7 @@ const UNREGISTERED: ContactKindDef = {
 };
 
 export const contactKind = (kind: string): ContactKindDef => kinds.get(kind) ?? UNREGISTERED;
+/** The registered kinds (for createsContacts). */
+export const contactKinds = (): readonly ContactKindDef[] => [...kinds.values()];
 export const contactKindRegistered = (kind: string): boolean => kinds.has(kind);
 export const contactHooks = (): readonly ContactHooks[] => hooks;

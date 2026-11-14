@@ -105,6 +105,8 @@ export function plantApiRoutes(getRoute: Get): void {
         acl: _a,
         permissions: _p,
         backlinks: _b,
+        // the directory links (0.25.1) are the web app's: /api/v1 keeps the contacts of before
+        contactLinks: _l,
         refs,
         links,
         ...s

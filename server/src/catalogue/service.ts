@@ -9,6 +9,7 @@ import {
   type ServiceProtectionNeed,
   type ServiceSummary,
   emailAddressSchema,
+  contactLinkInput,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -23,6 +24,7 @@ import { serviceApplications } from './applications.js';
 import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
+import { serviceContactsOf, writeServiceContacts } from './contacts.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -70,6 +72,11 @@ export const serviceInput = z
       .array(z.object({ role: z.enum(SERVICE_CONTACT_ROLES), email: emailAddressSchema({ max: 200 }), name: optionalText(120) }).strict())
       .max(20)
       .default([]),
+    /**
+     * The contacts as directory links (0.25.1, ADR 0038: the web app's picker): existing contacts by id or new ones;
+     * when given, `contacts` is ignored
+     */
+    contactLinks: z.array(contactLinkInput).max(40).optional(),
     owners: z
       .array(
         z
@@ -101,6 +108,7 @@ function cmdbOf(r: ServiceRow): ServiceSummary['cmdb'] {
 
 function toSummary(
   r: ServiceRow,
+  contacts: ServiceContact[],
   links: number,
   docs: { documents: number; overdue: number },
   apps: { count: number; need: ServiceProtectionNeed },
@@ -109,7 +117,7 @@ function toSummary(
     id: r.id,
     name: r.name,
     criticality: (r.criticality as ServiceSummary['criticality']) ?? null,
-    contacts: parseJson<ServiceContact[]>(r.contacts, []),
+    contacts,
     owners: parseJson<string[]>(r.owners, []),
     tags: parseJson<string[]>(r.tags, []),
     cmdb: cmdbOf(r),
@@ -207,6 +215,7 @@ function listRows(o: { archived?: boolean }): { r: ServiceRow; s: ServiceSummary
     .all<ServiceRow>(`SELECT * FROM services${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`)
     .filter((r) => canViewCatalogue(u, { kind: 'service', id: r.id, owners: parseJson<string[]>(r.owners, []) }));
   const links = visibleLinkCounts(new Set(rows.map((r) => r.id)));
+  const contacts = serviceContactsOf(rows);
   const docs = serviceDocumentCounts(u);
   const needs = protectionNeeds(rows.map((r) => r.id));
   // applications the reader may see (#131)
@@ -217,7 +226,10 @@ function listRows(o: { archived?: boolean }): { r: ServiceRow; s: ServiceSummary
     if (catalogueVisibleNow('application', { id: x.application_id, owners: x.owners })) apps.set(x.service_id, (apps.get(x.service_id) ?? 0) + 1);
   return rows.map((r) => ({
     r,
-    s: toSummary(r, links.get(r.id) ?? 0, docs.get(r.id) ?? { documents: 0, overdue: 0 }, { count: apps.get(r.id) ?? 0, need: needs.get(r.id)! }),
+    s: toSummary(r, contacts.get(r.id)?.contacts ?? [], links.get(r.id) ?? 0, docs.get(r.id) ?? { documents: 0, overdue: 0 }, {
+      count: apps.get(r.id) ?? 0,
+      need: needs.get(r.id)!,
+    }),
   }));
 }
 
@@ -244,8 +256,10 @@ export function getService(id: string): ServiceDetail {
   const documents = serviceDocuments(r.id, u);
   const links = listLinks('service', r.id);
   const applications = serviceApplications(r.id, u);
+  const contacts = serviceContactsOf([r]).get(r.id)!;
   const s = toSummary(
     r,
+    contacts.contacts,
     links.filter((l) => l.visible).length,
     { documents: documents.length, overdue: documents.filter((d) => d.reviewStatus === 'overdue').length },
     { count: applications.length, need: protectionNeedOf(r.id) },
@@ -261,6 +275,7 @@ export function getService(id: string): ServiceDetail {
     documents,
     applications,
     canEdit: canEditService(u, { kind: 'service', id: r.id, owners: s.owners }),
+    contactLinks: contacts.links,
   };
 }
 
@@ -309,7 +324,7 @@ export function createService(input: ServiceInput): ServiceDetail {
       id,
       input.name,
       input.description,
-      JSON.stringify(dedupe(input.contacts, (c) => `${c.role}:${c.email.toLowerCase()}`)),
+      '[]',
       JSON.stringify([...new Set(input.owners)]),
       input.criticality,
       input.cmdb?.system || null,
@@ -321,6 +336,8 @@ export function createService(input: ServiceInput): ServiceDetail {
       now,
       u.username,
     );
+    // the contacts directory (0.25.1, ADR 0038)
+    writeServiceContacts(id, { contacts: dedupe(input.contacts, (c) => `${c.role}:${c.email.toLowerCase()}`), contactLinks: input.contactLinks });
     assignCreatorTeams('service', id, currentUser());
     audit({
       action: 'service.created',
@@ -340,10 +357,15 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
   if (!canEditService(u, { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) forbid('change this service', 'changeService');
   assertKnownSubjects(input.owners, parseJson<string[]>(cur.owners, []));
   refuseTakenName(input.name, id);
+  const contacts = dedupe(input.contacts, (c) => `${c.role}:${c.email.toLowerCase()}`);
+  const shown = serviceContactsOf([cur]).get(id)!;
   const next = {
     name: input.name,
     description: input.description,
-    contacts: JSON.stringify(dedupe(input.contacts, (c) => `${c.role}:${c.email.toLowerCase()}`)),
+    // compared with what the service shows now; written to the contacts directory (0.25.1, ADR 0038)
+    contacts: input.contactLinks
+      ? JSON.stringify(input.contactLinks.map((l) => (l.contactId ? { role: l.role, contactId: l.contactId } : l)))
+      : JSON.stringify(contacts),
     owners: JSON.stringify([...new Set(input.owners)]),
     criticality: input.criticality,
     cmdb_system: input.cmdb?.system || null,
@@ -351,17 +373,20 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
     cmdb_url: input.cmdb?.url || null,
     tags: JSON.stringify([...new Set(input.tags)].sort()),
   };
-  const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
+  const now = {
+    ...cur,
+    contacts: input.contactLinks ? JSON.stringify(shown.links.map((l) => ({ role: l.role, contactId: l.contact.id }))) : JSON.stringify(shown.contacts),
+  };
+  const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (now[k] ?? null));
   if (!changes.length) return getService(id);
   // owners from outside the owning teams: confirmed like an access list (#195)
   const grant = catalogueGrant('service', cur, input.name, input.owners);
   const named = requireNamedGrant(grant);
   db().tx(() => {
     db().run(
-      'UPDATE services SET name = ?, description = ?, contacts = ?, owners = ?, criticality = ?, cmdb_system = ?, cmdb_id = ?, cmdb_url = ?, tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE services SET name = ?, description = ?, owners = ?, criticality = ?, cmdb_system = ?, cmdb_id = ?, cmdb_url = ?, tags = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       next.name,
       next.description,
-      next.contacts,
       next.owners,
       next.criticality,
       next.cmdb_system,
@@ -372,6 +397,7 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
       u.username,
       id,
     );
+    if (changes.includes('contacts')) writeServiceContacts(id, { contacts, contactLinks: input.contactLinks });
     audit({
       action: 'service.updated',
       entityType: 'service',
