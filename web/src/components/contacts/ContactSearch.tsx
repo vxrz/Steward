@@ -40,6 +40,8 @@ export function ContactLine({ contact, isNew }: { contact: Pick<ContactRef, 'nam
  */
 export function ContactSearchSelect({
   label,
+  description,
+  error,
   exclude = [],
   onPick,
   disabled,
@@ -47,6 +49,9 @@ export function ContactSearchSelect({
   testId,
 }: {
   label: string;
+  description?: string;
+  /** Marks the field invalid (the message is shown by the picker) */
+  error?: boolean;
   exclude?: readonly string[];
   onPick: (c: ContactListItem) => void;
   disabled?: boolean;
@@ -62,11 +67,16 @@ export function ContactSearchSelect({
   return (
     <Select
       label={label}
+      description={description}
+      error={error}
       placeholder={t('picker.searchPlaceholder')}
       searchable
       searchValue={q}
       onSearchChange={setQ}
       onDropdownOpen={() => setOpen(true)}
+      // opened by typing, a click or the arrow keys – not by the focus alone (tabbing through a form, the focus moved
+      // to a field with an error, or back after a removal)
+      openOnFocus={false}
       value={null}
       disabled={disabled}
       // the server searched already: show what it found

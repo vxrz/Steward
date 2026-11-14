@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Paper, Select, Stack, Text, TextInput, Tooltip } from '@mantine/core';
+import { useMemo, useRef, useState } from 'react';
+import { ActionIcon, Badge, Button, Group, Paper, Select, Stack, Text, TextInput, Tooltip, VisuallyHidden } from '@mantine/core';
 import { IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -68,14 +68,29 @@ export function ContactPicker({
   const roleOptions = useMemo(() => (kindRoles ? kindRoles.filter((r) => !roles || roles.includes(r)) : null), [kindRoles, roles]);
   const [role, setRole] = useState<string>(roleOptions?.[0] ?? '');
   const [creating, setCreating] = useState(false);
+  // what changed, for screen readers (the list itself changes silently)
+  const [said, setSaid] = useState('');
+  const box = useRef<HTMLDivElement>(null);
   const perRole = (r: string) => value.filter((v) => v.role === r).length;
   const full = !!role && perRole(role) >= CONTACT_LIMITS.perRole;
   const freeRoleOk = !!role.trim() && role.trim().length <= CONTACT_LIMITS.role;
+  const rowName = (v: ContactPickerValue) => v.display?.name ?? v.contact?.name ?? '';
+  const shownRole = (r: string) => (roleOptions ? roleLabel(r) : r);
   const add = (v: ContactPickerValue) => {
     if (v.contactId && value.some((x) => x.contactId === v.contactId && x.role === v.role)) return;
     onChange([...value, v]);
+    setSaid(t('picker.added', { name: rowName(v), role: shownRole(v.role) }));
   };
-  const rowName = (v: ContactPickerValue) => v.display?.name ?? v.contact?.name ?? '';
+  /** Removes row i; the focus goes to the next row's remove button, else the previous one, else the search. */
+  const remove = (i: number) => {
+    const name = rowName(value[i]!);
+    onChange(value.filter((_, j) => j !== i));
+    setSaid(t('picker.removed', { name }));
+    requestAnimationFrame(() => {
+      const buttons = box.current?.querySelectorAll<HTMLElement>('[data-contact-remove]') ?? [];
+      (buttons[Math.min(i, buttons.length - 1)] ?? box.current?.querySelector<HTMLElement>(`[data-testid="${testId}-search"]`))?.focus();
+    });
+  };
   const chosenIds = value.filter((v) => v.role === role && v.contactId).map((v) => v.contactId!);
   const roleField = roleOptions ? (
     <Select
@@ -101,7 +116,7 @@ export function ContactPicker({
     />
   );
   return (
-    <Stack gap={6} data-testid={testId} role="group" aria-label={label}>
+    <Stack gap={6} data-testid={testId} role="group" aria-label={label} ref={box}>
       <div>
         <Text size="sm" fw={500} component="div">
           {label}
@@ -125,7 +140,7 @@ export function ContactPicker({
                 <Group justify="space-between" wrap="nowrap" align="center" gap="xs">
                   <Group gap="xs" wrap="wrap" style={{ minWidth: 0, flex: 1 }}>
                     <Badge variant="light" tt="none" style={{ flexShrink: 0 }}>
-                      {roleOptions ? roleLabel(v.role) : v.role}
+                      {shownRole(v.role)}
                     </Badge>
                     <ContactLine
                       contact={v.display ?? { name, email: v.contact?.email ?? '', orgUnit: v.contact?.orgUnit ?? '', status: 'active' }}
@@ -139,7 +154,8 @@ export function ContactPicker({
                         color="red"
                         size="lg"
                         aria-label={t('picker.remove', { name })}
-                        onClick={() => onChange(value.filter((_, j) => j !== i))}
+                        onClick={() => remove(i)}
+                        data-contact-remove
                       >
                         <IconTrash size={16} />
                       </ActionIcon>
@@ -157,7 +173,10 @@ export function ContactPicker({
           <div style={{ flex: 1, minWidth: 220 }}>
             <ContactSearchSelect
               label={t('picker.search')}
+              // a free-text role (plant sites) comes first: say so instead of a search that is just disabled
+              description={!roleOptions && !freeRoleOk ? t('picker.roleFirst') : undefined}
               exclude={chosenIds}
+              error={!!error}
               disabled={full || (!roleOptions && !freeRoleOk)}
               onPick={(c) => add({ role: role.trim(), contactId: c.id, display: c })}
               testId={`${testId}-search`}
@@ -184,6 +203,9 @@ export function ContactPicker({
           {error}
         </Text>
       )}
+      <VisuallyHidden role="status" aria-live="polite" data-testid={`${testId}-status`}>
+        {said}
+      </VisuallyHidden>
       {creating && (
         <ContactForm
           title={t('picker.createTitle')}

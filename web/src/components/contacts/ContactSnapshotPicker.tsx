@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, TextInput, Tooltip } from '@mantine/core';
+import { useRef, useState } from 'react';
+import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, TextInput, Tooltip, VisuallyHidden } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -52,10 +52,24 @@ export function ContactSnapshotPicker({
   const roleLabel = useContactRoleLabel();
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
+  // what changed, for screen readers (the list itself changes silently)
+  const [said, setSaid] = useState('');
+  const box = useRef<HTMLDivElement>(null);
   const full = value.length >= CONTACT_LIMITS.decidedBy;
   const add = (contactId: string, name: string) => {
     if (full || value.some((v) => v.contactId === contactId)) return;
     onChange([...value, { contactId, name, role: defaultRole }]);
+    setSaid(t('picker.addedDecider', { name }));
+  };
+  /** Removes row i; the focus goes to the next row's remove button, else the previous one, else the search. */
+  const remove = (i: number) => {
+    const name = value[i]!.name;
+    onChange(value.filter((_, j) => j !== i));
+    setSaid(t('picker.removed', { name }));
+    requestAnimationFrame(() => {
+      const buttons = box.current?.querySelectorAll<HTMLElement>('[data-contact-remove]') ?? [];
+      (buttons[Math.min(i, buttons.length - 1)] ?? box.current?.querySelector<HTMLElement>(`[data-testid="${testId}-search"]`))?.focus();
+    });
   };
   const create = useMutation({
     mutationFn: (c: ContactInput) => post<ContactDetail>('/contacts', c),
@@ -68,7 +82,7 @@ export function ContactSnapshotPicker({
   });
   const shownRole = (r: string) => (roles?.includes(r) ? roleLabel(r) : r);
   return (
-    <Stack gap={6} data-testid={testId} role="group" aria-label={label ?? t('snapshot.label')}>
+    <Stack gap={6} data-testid={testId} role="group" aria-label={label ?? t('snapshot.label')} ref={box}>
       <div>
         <Text size="sm" fw={500} component="div">
           {label ?? t('snapshot.label')}
@@ -106,7 +120,8 @@ export function ContactSnapshotPicker({
                       color="red"
                       size="lg"
                       aria-label={t('picker.remove', { name: v.name })}
-                      onClick={() => onChange(value.filter((_, j) => j !== i))}
+                      onClick={() => remove(i)}
+                      data-contact-remove
                     >
                       <IconTrash size={16} />
                     </ActionIcon>
@@ -123,21 +138,30 @@ export function ContactSnapshotPicker({
             label={t('picker.search')}
             exclude={value.map((v) => v.contactId)}
             disabled={full}
+            error={!!error}
             onPick={(c) => add(c.id, c.name)}
             testId={`${testId}-search`}
           />
         </div>
         {canCreate && (
-          <Button variant="default" leftSection={<IconUserPlus size={16} />} disabled={full} onClick={() => setCreating(true)}>
+          <Button variant="default" leftSection={<IconUserPlus size={16} />} disabled={full} onClick={() => setCreating(true)} data-testid={`${testId}-new`}>
             {t('picker.createNew')}
           </Button>
         )}
       </Group>
+      {full && (
+        <Text size="xs" c="dimmed">
+          {t('snapshot.limit', { max: CONTACT_LIMITS.decidedBy })}
+        </Text>
+      )}
       {error && (
         <Text size="xs" c="red" role="alert">
           {error}
         </Text>
       )}
+      <VisuallyHidden role="status" aria-live="polite" data-testid={`${testId}-status`}>
+        {said}
+      </VisuallyHidden>
       {creating && (
         <ContactForm
           title={t('picker.createTitle')}

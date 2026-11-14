@@ -44,6 +44,8 @@ export function ContactForm({
   const [status, setStatus] = useState<ContactStatus>(initial?.status ?? 'active');
   const [tried, setTried] = useState(false);
   const matches = useEmailMatches(offerMatches ? email : '');
+  const active = matches.filter((m) => m.status === 'active');
+  const left = matches.filter((m) => m.status === 'left');
   const errors = {
     name: !name.trim() ? t('common:validation.required') : null,
     email: email.trim() && !EMAIL.test(email.trim()) ? t('fields.emailInvalid') : null,
@@ -128,14 +130,24 @@ export function ContactForm({
           )}
           {offerMatches && onUseExisting && matches.length > 0 && (
             <Alert color="blue" variant="light" data-testid="contact-matches">
-              <Text size="sm">{t('picker.matches', { names: matches.map((m) => m.name).join(', ') })}</Text>
-              <Group gap="xs" mt="xs">
-                {matches.slice(0, 3).map((m) => (
-                  <Button key={m.id} size="xs" variant="light" onClick={() => onUseExisting(m)}>
-                    {t('picker.useMatch', { name: m.name })}
-                  </Button>
-                ))}
-              </Group>
+              {active.length > 0 && (
+                <>
+                  <Text size="sm">{t('picker.matches', { names: active.map((m) => m.name).join(', ') })}</Text>
+                  <Group gap="xs" mt="xs">
+                    {active.slice(0, 3).map((m) => (
+                      <Button key={m.id} size="xs" variant="light" onClick={() => onUseExisting(m)}>
+                        {t('picker.useMatch', { name: m.name })}
+                      </Button>
+                    ))}
+                  </Group>
+                </>
+              )}
+              {/* a contact who has left is offered nowhere new (ADR 0038): named, not offered */}
+              {left.length > 0 && (
+                <Text size="sm" mt={active.length ? 'xs' : 0} data-testid="contact-matches-left">
+                  {t('picker.matchesLeft', { names: left.map((m) => m.name).join(', ') })}
+                </Text>
+              )}
             </Alert>
           )}
           <Group justify="flex-end">

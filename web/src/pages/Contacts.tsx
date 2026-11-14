@@ -19,7 +19,8 @@ type Status = 'active' | 'left' | 'all';
 function StatusBadge({ status }: { status: ContactListItem['status'] }) {
   const { t } = useTranslation('contacts');
   return (
-    <Badge size="sm" variant="light" color={status === 'left' ? 'gray' : 'teal'}>
+    // never squeezed by a long name beside it on a phone's card
+    <Badge size="sm" variant="light" color={status === 'left' ? 'gray' : 'teal'} style={{ flexShrink: 0 }}>
       {t(`status.${status}`)}
     </Badge>
   );

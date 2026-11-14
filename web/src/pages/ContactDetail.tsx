@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Checkbox, Group, Paper, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Checkbox, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconArrowsExchange, IconPencil, IconTrash } from '@tabler/icons-react';
@@ -11,7 +11,7 @@ import { DetailState } from '../components/common';
 import { DetailPage } from '../components/page/DetailPage';
 import { confirmDanger } from '../components/confirm';
 import { FormModal, FormModalCancel } from '../components/FormModal';
-import { TableScroll } from '../components/TableScroll';
+import { DataTable } from '../components/DataTable';
 import { ContactForm } from '../components/contacts/ContactForm';
 import { ContactLine, ContactSearchSelect } from '../components/contacts/ContactSearch';
 import { useContactRoleLabel } from '../components/contacts/hooks';
@@ -101,6 +101,15 @@ export function ContactDetailPage() {
     onError: (e) => notifyError(e),
   });
   const back = { to: '/contacts', label: t('title') };
+  const linkRole = (l: ContactDetail['links'][number]) => (CONTACT_LINK_ROLES[l.kind] ? roleLabel(l.role) : l.role);
+  const itemLink = (l: ContactDetail['links'][number]) =>
+    l.href ? (
+      <Anchor component={Link} to={l.href} size="sm" fw={500}>
+        {l.itemName}
+      </Anchor>
+    ) : (
+      <Text size="sm">{l.itemName}</Text>
+    );
   if (!q.data) return <DetailState query={q} back={back} />;
   const c = q.data;
   const erase = async () => {
@@ -183,34 +192,28 @@ export function ContactDetailPage() {
               {t('detail.noLinks')}
             </Text>
           ) : (
-            <TableScroll>
-              <Table striped data-testid="contact-where-used">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>{t('detail.kind')}</Table.Th>
-                    <Table.Th>{t('detail.item')}</Table.Th>
-                    <Table.Th>{t('detail.role')}</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {c.links.map((l) => (
-                    <Table.Tr key={`${l.kind}:${l.itemId}:${l.role}`}>
-                      <Table.Td>{t(`linkKinds.${l.kind}`)}</Table.Td>
-                      <Table.Td>
-                        {l.href ? (
-                          <Anchor component={Link} to={l.href} size="sm">
-                            {l.itemName}
-                          </Anchor>
-                        ) : (
-                          l.itemName
-                        )}
-                      </Table.Td>
-                      <Table.Td>{CONTACT_LINK_ROLES[l.kind] ? roleLabel(l.role) : l.role}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </TableScroll>
+            // a card per link on a phone, as the other lists
+            <DataTable
+              rows={c.links}
+              rowKey={(l) => `${l.kind}:${l.itemId}:${l.role}`}
+              ariaLabel={t('detail.whereUsed')}
+              testId="contact-where-used"
+              columns={[
+                { key: 'kind', header: t('detail.kind'), sortValue: (l) => t(`linkKinds.${l.kind}`), cell: (l) => t(`linkKinds.${l.kind}`) },
+                { key: 'item', header: t('detail.item'), sortValue: (l) => l.itemName.toLowerCase(), cell: (l) => itemLink(l) },
+                { key: 'role', header: t('detail.role'), sortValue: (l) => linkRole(l), cell: (l) => linkRole(l) },
+              ]}
+              card={(l) => (
+                <Paper withBorder p="sm">
+                  <Stack gap={2}>
+                    {itemLink(l)}
+                    <Text size="xs" c="dimmed">
+                      {t(`linkKinds.${l.kind}`)} · {linkRole(l)}
+                    </Text>
+                  </Stack>
+                </Paper>
+              )}
+            />
           )}
           {c.hiddenLinks > 0 && (
             <Text size="sm" c="dimmed" mt="xs" data-testid="contact-hidden-links">
