@@ -12,7 +12,9 @@ data_products:
     domain: orders
     description: Every confirmed order of the shop, from the event on the topic to a curated table – in dev and prod.
     purpose: One trusted list of orders for fulfilment, finance and the sales mart.
-    owners: [user:dana]
+    contacts:
+      - { role: productOwner, name: Max Example, email: max.example@shop.example }
+      - { role: businessContact, name: Shop controlling (invented), kind: group, email: controlling@shop.example }
     support: { channel: "#orders-data (invented)", url: "https://wiki.example/orders-data", hours: "Mo–Fr 08–17" }
     criticality: high
     tier: 1
@@ -60,7 +62,11 @@ data_products:
           - environment: dev
             elements: [{ platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP_DEV.CURATED.ORDERS, environment: dev }]
         consumers:
-          - { kind: team, subject: team:service desk, purpose: Answers questions about orders, since: "2026-01-15" }
+          - kind: team
+            subject: team:service desk
+            purpose: Answers questions about orders
+            since: "2026-01-15"
+            contacts: [{ role: consumerContact, name: Service desk (invented), kind: group, email: service-desk@shop.example }]
           - {
               kind: text,
               text: Finance controlling (invented),
@@ -146,7 +152,7 @@ data_products:
     domain: customer
     description: One record per customer with their orders and the channels they use – names and e-mails pseudonymised.
     purpose: Segmentation and service without access to the customer master data itself.
-    owners: [user:dana]
+    contacts: [{ role: productOwner, name: Max Example, email: max.example@shop.example }]
     criticality: medium
     tier: 2
     value_statement: Campaigns and the service desk use it instead of copies of the CRM.
@@ -194,7 +200,7 @@ data_products:
     type: consumerAligned
     domain: sales
     description: Daily sales per region for the finance tools and the management report – a table and an API.
-    owners: [user:dana]
+    contacts: [{ role: productOwner, name: Max Example, email: max.example@shop.example }]
     criticality: medium
     value_statement: The monthly management report reads it.
     value_tier: medium
@@ -268,7 +274,7 @@ data_products:
     domain: sales
     description: The daily sales as CSV files on object storage, one folder per day – for the invented finance tools that read files.
     purpose: Hand the daily sales to tools that read files, without access to the warehouse.
-    owners: [user:dana]
+    contacts: [{ role: productOwner, name: Max Example, email: max.example@shop.example }]
     members:
       - { element: { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }, role: input }
       - {
