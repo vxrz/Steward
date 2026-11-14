@@ -51,15 +51,26 @@ function regionHint(r: HttpResult): string | null {
   return region && /^[a-z]{2}(-[a-z]+)+-\d$/.test(region) ? region : null;
 }
 
-function s3Error(r: HttpResult, bucket: string): Error {
+/** A refused listing: the HTTP status and S3's error code beside the message. */
+export class S3ListError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly s3Code: string | null,
+  ) {
+    super(message);
+    this.name = 'S3ListError';
+  }
+}
+
+function s3Error(r: HttpResult, bucket: string): S3ListError {
   const body = typeof r.body === 'string' ? r.body : '';
   const code = xmlOne(body, 'Code');
   const message = xmlOne(body, 'Message');
-  return Object.assign(
-    new Error(
-      `S3 ListObjectsV2 of ${bucket} failed with HTTP ${r.status}${code ? ` (${code}${message ? `: ${unescapeXml(message).slice(0, 300)}` : ''})` : ''}`,
-    ),
-    { status: r.status, s3Code: code ?? null },
+  return new S3ListError(
+    `S3 ListObjectsV2 of ${bucket} failed with HTTP ${r.status}${code ? ` (${code}${message ? `: ${unescapeXml(message).slice(0, 300)}` : ''})` : ''}`,
+    r.status,
+    code ?? null,
   );
 }
 
