@@ -6,7 +6,7 @@
   "newVersion": "New version",
   "startFrom": "Start from the bound contracts",
   "validToday": "Valid today: version {{version}}, approved by {{by}} on {{date}}",
-  "noValid": "No version is signed off yet.",
+  "noValid": "No version is approved yet.",
   "current": "Newest: version {{version}}, saved by {{by}} on {{date}}",
   "versions": "Versions",
   "version": "Version",
@@ -33,7 +33,7 @@
   "signOffNamed": "Record approval of version {{n}}",
   "signOffTitle": "Record the approval of version {{n}}",
   "signOffHelp": "Record the approval of the text shown here (SHA-256 {{sha}}) given elsewhere: who approved it, when and the evidence. It is the valid version from the day it was approved.",
-  "signedOffOk": "Version {{n}} signed off",
+  "signedOffOk": "Approval of version {{n}} recorded",
   "validOn": {
     "title": "Which model was valid on a day?",
     "date": "Date",

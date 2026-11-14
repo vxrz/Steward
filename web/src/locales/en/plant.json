@@ -107,14 +107,7 @@
     "access": "Access"
   },
   "contacts": {
-    "title": "Contacts",
-    "name": "Name",
-    "role": "Role",
-    "email": "E-mail",
-    "phone": "Phone",
-    "add": "Add contact",
-    "remove": "Remove contact {{name}}",
-    "invalid": "Each contact needs a name; check the e-mail addresses."
+    "title": "Contacts"
   },
   "refs": {
     "title": "External references",

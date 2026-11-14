@@ -33,7 +33,7 @@
   "signOffNamed": "Freigabe erfassen – Version {{n}}",
   "signOffTitle": "Die Freigabe von Version {{n}} erfassen",
   "signOffHelp": "Erfassen Sie die anderswo gegebene Freigabe des hier gezeigten Texts (SHA-256 {{sha}}): wer ihn freigegeben hat, wann und den Nachweis. Ab dem Tag der Freigabe ist er die gültige Version.",
-  "signedOffOk": "Version {{n}} freigegeben",
+  "signedOffOk": "Freigabe von Version {{n}} erfasst",
   "validOn": {
     "title": "Welches Modell war an einem Tag gültig?",
     "date": "Datum",

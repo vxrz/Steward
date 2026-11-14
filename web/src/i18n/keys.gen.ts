@@ -57,6 +57,7 @@ export interface Resources {
     'owning.hintOwned.data_element': string;
     'owning.hintOwned.data_domain': string;
     'owning.hintRestricted': string;
+    'owning.hintRestrictedData': string;
     'owning.saved': string;
     'owning.notSaved': string;
     'owning.why': string;
@@ -2269,9 +2270,15 @@ export interface Resources {
     'picker.limit': string;
     'picker.matches': string;
     'picker.useMatch': string;
+    'picker.matchesLeft': string;
+    'picker.roleFirst': string;
+    'picker.added': string;
+    'picker.addedDecider': string;
+    'picker.removed': string;
     'snapshot.label': string;
     'snapshot.role': string;
     'snapshot.frozen': string;
+    'snapshot.limit': string;
   };
   contracts: {
     'results.passed': string;
@@ -4805,6 +4812,7 @@ export interface Resources {
     'reviews.statuses.open': string;
     'reviews.statuses.submitted': string;
     'reviews.statuses.approved': string;
+    'reviews.statuses.sealed': string;
     'reviews.modalTitle': string;
     'reviews.checkLive': string;
     'reviews.checkSnapshot': string;
@@ -4826,6 +4834,7 @@ export interface Resources {
     'reviews.sendBack': string;
     'reviews.approve': string;
     'reviews.sealed': string;
+    'reviews.sealedBy': string;
     'reviews.verify': string;
     'reviews.verifyOk': string;
     'reviews.verifyBad': string;
@@ -4841,6 +4850,7 @@ export interface Resources {
     'reviews.decisionAgain': string;
     'reviews.decisionHelp': string;
     'reviews.decisionSave': string;
+    'reviews.decisionSaved': string;
     'settings.title': string;
     'settings.editTitle': string;
     'settings.process': string;
@@ -4918,6 +4928,7 @@ export interface Resources {
     'endorsement.reviewDateHelp': string;
     'endorsement.decision': string;
     'endorsement.record': string;
+    'endorsement.saved': string;
     'ropa.title': string;
     'ropa.help': string;
     'ropa.disclaimer': string;
@@ -4977,14 +4988,15 @@ export interface Resources {
     'documented.evidenceKinds.url': string;
     'documented.evidenceKinds.document': string;
     'documented.evidenceKinds.text': string;
-    'documented.evidenceValue.record': string;
-    'documented.evidenceValue.ticket': string;
     'documented.evidenceValue.url': string;
-    'documented.evidenceValue.document': string;
     'documented.evidenceValue.text': string;
     'documented.evidenceRemove': string;
     'documented.evidenceAdd': string;
     'documented.evidenceHidden': string;
+    'documented.evidenceSearch.record': string;
+    'documented.evidenceSearch.document': string;
+    'documented.evidenceSearch.ticket': string;
+    'documented.evidenceNothingFound': string;
     'documented.note': string;
     'documented.line': string;
     'documented.recorded': string;
@@ -4994,6 +5006,9 @@ export interface Resources {
     'contactsList.copy_one': string;
     'contactsList.copy_other': string;
     'contactsList.copied': string;
+    'contactsList.copiedStatus_one': string;
+    'contactsList.copiedStatus_other': string;
+    'contactsList.csvStarted': string;
     'contactsList.csv': string;
     'contactsList.close': string;
     'contactsList.helpMaintainer': string;
@@ -5705,6 +5720,7 @@ export interface Resources {
     'consumers.documentedHint': string;
     'consumers.decision': string;
     'consumers.decisionHelp': string;
+    'consumers.saved': string;
     'steps.title': string;
     'steps.help': string;
     'steps.add': string;
@@ -11912,13 +11928,6 @@ export interface Resources {
     'site.showAssets': string;
     'site.access': string;
     'contacts.title': string;
-    'contacts.name': string;
-    'contacts.role': string;
-    'contacts.email': string;
-    'contacts.phone': string;
-    'contacts.add': string;
-    'contacts.remove': string;
-    'contacts.invalid': string;
     'refs.title': string;
     'refs.help': string;
     'refs.system': string;
@@ -17603,13 +17612,8 @@ export interface Resources {
     'criticalities.high': string;
     'criticalities.critical': string;
     contacts: string;
-    contactRole: string;
     'contactRoles.business': string;
     'contactRoles.it': string;
-    email: string;
-    contactName: string;
-    addContact: string;
-    removeContact: string;
     noContacts: string;
     owners: string;
     ownersHelp: string;

@@ -394,7 +394,8 @@
     "documented": "The access was decided and is documented",
     "documentedHint": "Steward documents access decided elsewhere. Without it the registration shows “approval not documented”.",
     "decision": "Who decided the access",
-    "decisionHelp": "The access was decided outside Steward – by the product owner, in a meeting, in a ticket. Record who decided it, when and the evidence."
+    "decisionHelp": "The access was decided outside Steward – by the product owner, in a meeting, in a ticket. Record who decided it, when and the evidence.",
+    "saved": "Registration saved"
   },
   "steps": {
     "title": "Steps",
@@ -782,8 +783,8 @@
         "notRated": "Confidentiality not rated",
         "rated": "Confidentiality rated {{level}}",
         "belowFloor": "Confidentiality {{level}}: below its data objects",
-        "accessReviewed": "An approved access review of its ports within 12 months.",
-        "notReviewed": "No approved access review of its ports within 12 months.",
+        "accessReviewed": "A sealed access review of its ports within 12 months.",
+        "notReviewed": "No sealed access review of its ports within 12 months.",
         "personalFields_one": "{{count}} personal field in the bound contracts",
         "personalFields_other": "{{count}} personal fields in the bound contracts",
         "personalFieldsUndocumented_one": "{{count}} personal field in the bound contracts, but no exposed data object holds personal data",
@@ -796,7 +797,7 @@
     }
   },
   "access": {
-    "owners": "Product owners",
+    "owners": "Contacts",
     "ownersHint": "Documentation, not a right: product owners are named for the business side and need no Steward account. Who may see or change the product comes from its owning teams, roles and shares above.",
     "rules": "Who may do what",
     "who": "Who",

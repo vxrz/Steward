@@ -1,11 +1,11 @@
 {
   "title": "Contacts",
-  "description": "The people and groups items name for their business side: business and IT contacts of services, people at suppliers, the contacts of sites and data products. A contact never gives a right in Steward.",
+  "description": "People and groups named as contacts on items: the business and IT contacts of services, people at suppliers, the contacts of sites and data products. A contact never gives a right in Steward.",
   "searchLabel": "Search contacts",
   "searchPlaceholder": "Name or e-mail address",
   "new": "New contact",
   "more": "More contacts match. Narrow the search to see them.",
-  "noRight": "A contact never gives a right in Steward, also when it is a Steward user. Rights come from roles, owning teams and shares.",
+  "noRight": "A contact never gives a right in Steward, even when it is a Steward user. Rights come from roles, owning teams and shares.",
   "kinds": {
     "person": "Person",
     "group": "Group"
@@ -112,8 +112,8 @@
     "data_consumer": "Consumer registration"
   },
   "roles": {
-    "business": "Business",
-    "it": "IT",
+    "business": "Business owner",
+    "it": "IT operations",
     "accountManager": "Account manager",
     "support": "Support",
     "security": "Security",
@@ -142,11 +142,17 @@
     "left": "Left",
     "limit": "At most {{max}} contacts per role.",
     "matches": "Contacts you may see with this e-mail address: {{names}}. Pick one of them instead of a new entry?",
-    "useMatch": "Use {{name}}"
+    "useMatch": "Use {{name}}",
+    "matchesLeft": "Also with this e-mail address, but left: {{names}}. A contact who has left is offered nowhere new – set it active again on its page if the person is back.",
+    "roleFirst": "Give the role first, then pick or create the contact.",
+    "added": "{{name}} added as {{role}}",
+    "addedDecider": "{{name}} added",
+    "removed": "{{name}} removed"
   },
   "snapshot": {
     "label": "Decided by",
     "role": "Role of {{name}}",
-    "frozen": "Names are frozen when the decision is recorded."
+    "frozen": "Names are frozen when the decision is recorded.",
+    "limit": "At most {{max}} contacts."
   }
 }

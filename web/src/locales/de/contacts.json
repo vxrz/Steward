@@ -1,6 +1,6 @@
 {
   "title": "Kontakte",
-  "description": "Die Personen und Gruppen, die Elemente für ihre fachliche Seite nennen: fachliche und IT-Kontakte von Services, Ansprechpartner bei Lieferanten, die Kontakte von Standorten und Datenprodukten. Ein Kontakt gibt nie ein Recht in Steward.",
+  "description": "Personen und Gruppen, die bei Elementen als Kontakte genannt sind: fachliche und IT-Kontakte von Services, Ansprechpartner bei Lieferanten, die Kontakte von Standorten und Datenprodukten. Ein Kontakt gibt nie ein Recht in Steward.",
   "searchLabel": "Kontakte suchen",
   "searchPlaceholder": "Name oder E-Mail-Adresse",
   "new": "Neuer Kontakt",
@@ -112,8 +112,8 @@
     "data_consumer": "Registrierung eines Nutzers"
   },
   "roles": {
-    "business": "Fachlich",
-    "it": "IT",
+    "business": "Fachlich verantwortlich",
+    "it": "IT-Betrieb",
     "accountManager": "Account Manager",
     "support": "Supportkontakt",
     "security": "Sicherheit",
@@ -142,11 +142,17 @@
     "left": "Ausgeschieden",
     "limit": "Höchstens {{max}} Kontakte je Rolle.",
     "matches": "Kontakte mit dieser E-Mail-Adresse, die Sie sehen dürfen: {{names}}. Statt eines neuen Eintrags einen davon wählen?",
-    "useMatch": "{{name}} verwenden"
+    "useMatch": "{{name}} verwenden",
+    "matchesLeft": "Ebenfalls mit dieser E-Mail-Adresse, aber ausgeschieden: {{names}}. Ein ausgeschiedener Kontakt wird nirgends neu angeboten – setzen Sie ihn auf seiner Seite wieder aktiv, wenn die Person zurück ist.",
+    "roleFirst": "Geben Sie zuerst die Rolle an, dann wählen oder erstellen Sie den Kontakt.",
+    "added": "{{name}} als {{role}} hinzugefügt",
+    "addedDecider": "{{name}} hinzugefügt",
+    "removed": "{{name}} entfernt"
   },
   "snapshot": {
     "label": "Entschieden von",
     "role": "Rolle von {{name}}",
-    "frozen": "Die Namen werden eingefroren, wenn die Entscheidung erfasst wird."
+    "frozen": "Die Namen werden eingefroren, wenn die Entscheidung erfasst wird.",
+    "limit": "Höchstens {{max}} Kontakte."
   }
 }

@@ -92,7 +92,8 @@
     "statuses": {
       "open": "Offen",
       "submitted": "Eingereicht",
-      "approved": "Freigegeben"
+      "approved": "Freigegeben",
+      "sealed": "Versiegelt"
     },
     "modalTitle": "Zugriffsprüfung von {{port}} in {{environment}}",
     "checkLive": "Berechtigungen jetzt aus der Zugriffsprüfung „{{name}}“ gelesen ({{date}}).",
@@ -117,6 +118,7 @@
     "sendBack": "Zurückgeben",
     "approve": "Freigeben und versiegeln",
     "sealed": "Freigegeben von {{user}}, {{date}} – versiegelt:",
+    "sealedBy": "Erfasst und versiegelt von {{user}}, {{date}}:",
     "verify": "Siegel prüfen",
     "verifyOk": "Das Siegel passt zur Prüfung.",
     "verifyBad": "Das Siegel passt nicht – die Prüfung wurde in der Datenbank geändert.",
@@ -133,7 +135,8 @@
     "decisionLegend": "Wer das Ergebnis entschieden hat",
     "decisionAgain": "Die Entscheidung neu erfassen",
     "decisionHelp": "Das Ergebnis wurde mit der Fachseite anderswo entschieden – in einer Besprechung, einer E-Mail, einem Ticket. Erfassen Sie, wer es wann entschieden hat und wo es nachzuprüfen ist; das Siegel umfasst es.",
-    "decisionSave": "Entscheidung speichern"
+    "decisionSave": "Entscheidung speichern",
+    "decisionSaved": "Entscheidung erfasst"
   },
   "settings": {
     "title": "Zugriffseinstellungen",
@@ -144,7 +147,7 @@
     "ticketSource": "Ticket-Quelle",
     "ticketSourceHelp": "Das Ticket des Plattform-Teams kann an einer Registrierung als Ticketverweis dieser Quelle erfasst werden.",
     "reviewMonths": "Prüfintervall",
-    "reviewMonthsHelp": "So viele Monate nach der letzten freigegebenen Prüfung ist eine Zugriffsprüfung des Ports fällig (leer: keine regelmäßige Prüfung).",
+    "reviewMonthsHelp": "So viele Monate nach der letzten versiegelten Prüfung ist eine Zugriffsprüfung des Ports fällig (leer: keine regelmäßige Prüfung).",
     "months_one": "alle {{count}} Monat",
     "months_other": "alle {{count}} Monate",
     "noReview": "keine regelmäßige Prüfung",
@@ -226,7 +229,8 @@
     "reviewDate": "Prüfdatum (optional)",
     "reviewDateHelp": "Standard: in 12 Monaten.",
     "decision": "Wer es bestätigt hat",
-    "record": "Bestätigung erfassen"
+    "record": "Bestätigung erfassen",
+    "saved": "Bestätigung erfasst"
   },
   "ropa": {
     "title": "Verarbeitungs­tätigkeiten",
@@ -286,7 +290,7 @@
     "decidedByRequired": "Nennen Sie, wer entschieden hat",
     "decidedOn": "Entschieden am",
     "dateRequired": "Geben Sie das Datum der Entscheidung an",
-    "dateFuture": "Das Datum liegt nicht in der Zukunft",
+    "dateFuture": "Das Datum darf nicht in der Zukunft liegen",
     "evidence": "Nachweis",
     "evidenceKind": "Art des Nachweises",
     "evidenceKinds": {
@@ -297,15 +301,18 @@
       "text": "Text"
     },
     "evidenceValue": {
-      "record": "Dokument-ID",
-      "ticket": "ID des Ticketverweises",
       "url": "https://…",
-      "document": "Dokument-ID",
       "text": "Wo entschieden wurde (Protokoll vom 3. März …)"
     },
     "evidenceRemove": "Diesen Nachweis entfernen",
     "evidenceAdd": "Nachweis hinzufügen",
     "evidenceHidden": "ein Eintrag, den Sie nicht sehen dürfen",
+    "evidenceSearch": {
+      "record": "Dokumente nach Nummer oder Titel suchen",
+      "document": "Lebende Dokumente nach Nummer oder Titel suchen",
+      "ticket": "Ticketverweise nach Nummer oder Titel suchen"
+    },
+    "evidenceNothingFound": "Nichts gefunden, das Sie sehen dürfen.",
     "note": "Notiz",
     "line": "Entschieden von {{names}} am {{date}}",
     "recorded": "Erfasst von {{user}}, {{date}}"
@@ -317,6 +324,9 @@
     "copy_one": "{{count}} E-Mail-Adresse kopieren",
     "copy_other": "{{count}} E-Mail-Adressen kopieren",
     "copied": "Kopiert",
+    "copiedStatus_one": "{{count}} E-Mail-Adresse kopiert",
+    "copiedStatus_other": "{{count}} E-Mail-Adressen kopiert",
+    "csvStarted": "Der Download der CSV hat begonnen",
     "csv": "CSV herunterladen",
     "close": "Schließen",
     "helpMaintainer": "Steward schreibt Kontakten nie eine E-Mail: Informieren Sie sie selbst, wenn das Produkt oder ein Port abgekündigt wird oder sein Vertrag bricht. Die CSV ist ein Export durch Sie und wird im Prüfprotokoll vermerkt.",

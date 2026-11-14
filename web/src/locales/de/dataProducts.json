@@ -394,7 +394,8 @@
     "documented": "Der Zugriff wurde entschieden und ist dokumentiert",
     "documentedHint": "Steward dokumentiert Zugriffe, die anderswo entschieden wurden. Ohne dies zeigt die Registrierung „Genehmigung nicht dokumentiert“.",
     "decision": "Wer den Zugriff entschieden hat",
-    "decisionHelp": "Der Zugriff wurde außerhalb von Steward entschieden – von der Produktverantwortung, in einer Besprechung, in einem Ticket. Erfassen Sie, wer ihn wann entschieden hat, und den Nachweis."
+    "decisionHelp": "Der Zugriff wurde außerhalb von Steward entschieden – von der Produktverantwortung, in einer Besprechung, in einem Ticket. Erfassen Sie, wer ihn wann entschieden hat, und den Nachweis.",
+    "saved": "Registrierung gespeichert"
   },
   "steps": {
     "title": "Schritte",
@@ -798,8 +799,8 @@
         "notRated": "Vertraulichkeit nicht eingestuft",
         "rated": "Vertraulichkeit als {{level}} eingestuft",
         "belowFloor": "Vertraulichkeit {{level}}: unter seinen Datenobjekten",
-        "accessReviewed": "Eine freigegebene Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
-        "notReviewed": "Keine freigegebene Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
+        "accessReviewed": "Eine versiegelte Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
+        "notReviewed": "Keine versiegelte Zugriffsprüfung seiner Ports in den letzten 12 Monaten.",
         "personalFields_one": "{{count}} personenbezogenes Feld in den gebundenen Verträgen",
         "personalFields_other": "{{count}} personenbezogene Felder in den gebundenen Verträgen",
         "personalFieldsUndocumented_one": "{{count}} personenbezogenes Feld in den gebundenen Verträgen, aber kein bereitgestelltes Datenobjekt enthält personenbezogene Daten",
@@ -812,7 +813,7 @@
     }
   },
   "access": {
-    "owners": "Produktverantwortliche",
+    "owners": "Kontakte",
     "ownersHint": "Dokumentation, kein Recht: Produktverantwortliche werden für die Fachseite benannt und brauchen kein Steward-Konto. Wer das Produkt sehen oder ändern darf, ergibt sich aus den zuständigen Teams, Rollen und Freigaben oben.",
     "rules": "Wer was darf",
     "who": "Wer",

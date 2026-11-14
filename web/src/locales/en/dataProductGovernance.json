@@ -92,7 +92,8 @@
     "statuses": {
       "open": "Open",
       "submitted": "Submitted",
-      "approved": "Approved"
+      "approved": "Approved",
+      "sealed": "Sealed"
     },
     "modalTitle": "Access review of {{port}} in {{environment}}",
     "checkLive": "Grants read now from the access check “{{name}}” ({{date}}).",
@@ -117,6 +118,7 @@
     "sendBack": "Send back",
     "approve": "Approve and seal",
     "sealed": "Approved by {{user}}, {{date}} – sealed:",
+    "sealedBy": "Recorded and sealed by {{user}}, {{date}}:",
     "verify": "Verify the seal",
     "verifyOk": "The seal matches the review.",
     "verifyBad": "The seal does not match – the review was changed in the database.",
@@ -133,7 +135,8 @@
     "decisionLegend": "Who decided the outcome",
     "decisionAgain": "Record the decision anew",
     "decisionHelp": "The outcome was decided with the business side elsewhere – in a meeting, an e-mail, a ticket. Record who decided it, when and where it can be checked; the seal covers it.",
-    "decisionSave": "Save the decision"
+    "decisionSave": "Save the decision",
+    "decisionSaved": "Decision recorded"
   },
   "settings": {
     "title": "Access settings",
@@ -144,7 +147,7 @@
     "ticketSource": "Ticket source",
     "ticketSourceHelp": "The ticket of the platform team can be recorded on a registration as a ticket reference of this source.",
     "reviewMonths": "Review interval",
-    "reviewMonthsHelp": "A port access review is due this many months after the last approved one (empty: no periodic review).",
+    "reviewMonthsHelp": "A port access review is due this many months after the last sealed one (empty: no periodic review).",
     "months_one": "every {{count}} month",
     "months_other": "every {{count}} months",
     "noReview": "no periodic review",
@@ -226,7 +229,8 @@
     "reviewDate": "Review date (optional)",
     "reviewDateHelp": "Default: in 12 months.",
     "decision": "Who endorsed it",
-    "record": "Record endorsement"
+    "record": "Record endorsement",
+    "saved": "Endorsement recorded"
   },
   "ropa": {
     "title": "Records of processing",
@@ -286,7 +290,7 @@
     "decidedByRequired": "Name who decided it",
     "decidedOn": "Decided on",
     "dateRequired": "Give the date of the decision",
-    "dateFuture": "The date is not in the future",
+    "dateFuture": "The date cannot be in the future",
     "evidence": "Evidence",
     "evidenceKind": "Kind of evidence",
     "evidenceKinds": {
@@ -297,15 +301,18 @@
       "text": "Text"
     },
     "evidenceValue": {
-      "record": "Document id",
-      "ticket": "Ticket reference id",
       "url": "https://…",
-      "document": "Document id",
       "text": "Where it was decided (minutes of 3 March …)"
     },
     "evidenceRemove": "Remove this evidence",
     "evidenceAdd": "Add evidence",
     "evidenceHidden": "an entry you may not see",
+    "evidenceSearch": {
+      "record": "Search documents by number or title",
+      "document": "Search living documents by number or title",
+      "ticket": "Search ticket references by number or title"
+    },
+    "evidenceNothingFound": "Nothing found that you may see.",
     "note": "Note",
     "line": "Decided by {{names}} on {{date}}",
     "recorded": "Recorded by {{user}}, {{date}}"
@@ -317,6 +324,9 @@
     "copy_one": "Copy {{count}} e-mail address",
     "copy_other": "Copy {{count}} e-mail addresses",
     "copied": "Copied",
+    "copiedStatus_one": "{{count}} e-mail address copied",
+    "copiedStatus_other": "{{count}} e-mail addresses copied",
+    "csvStarted": "The CSV download has started",
     "csv": "Download CSV",
     "close": "Close",
     "helpMaintainer": "Steward never e-mails a contact: inform them yourself when the product or a port is deprecated or its contract breaks. The CSV is an export by you, recorded in the audit log.",
