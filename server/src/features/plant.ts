@@ -9,6 +9,7 @@ import { plantProposalTools } from '../plant/proposals.js';
 import { advisoryTools } from '../plant/advisories/mcp.js';
 import { PLANT_CATALOGUE_SHARE_KINDS } from '../plant/catalogue-shares.js';
 import { SITE_SHARE_KIND } from '../plant/site-shares.js';
+import { plantSiteContactKind } from '../plant/contacts.js';
 import { MINUTE, defineFeature, every5Minutes } from './define.js';
 
 /** The plant registry (#218, opt-in): sites, assets, their network and map. Its routes answer 404 while it is off. */
@@ -25,6 +26,8 @@ export default defineFeature({
   migrations: [PLANT_MIGRATIONS],
   // 0.21.0 (#293, ADR 0033 part 3): device profiles and KPI definitions take owning teams and shares
   shareKinds: [...PLANT_CATALOGUE_SHARE_KINDS, SITE_SHARE_KIND],
+  // the contacts directory (0.25.1, ADR 0038): a site's contacts
+  contactKinds: [{ kind: 'plant_site', def: plantSiteContactKind }],
   jobs: [
     // 0.13.0 (ADR 0020): open change sets expire; closed ones and the history of removed entries go after their retention
     // (plant settings since 0.15.0: 90 days and 3 years by default), baselines beyond the last ones of an entry; rows

@@ -185,7 +185,13 @@ const contactScopeItem = z.object({ kind: z.enum(SUPPLIER_CONTACT_SCOPE_KINDS), 
 
 export const supplierContactInput = z
   .object({
-    name: z.string().trim().min(1).max(SUPPLIER_LIMITS.text),
+    /**
+     * The person from the contacts directory (0.25.1, ADR 0038: the web app's picker) – one the person may see; then
+     * name, e-mail and phone are the contact's. Without it, name, e-mail and phone name the person as before 0.25.1:
+     * the contact with that e-mail address the person may see, else a new one.
+     */
+    contactId: z.string().trim().min(1).max(100).optional(),
+    name: z.string().trim().max(SUPPLIER_LIMITS.text).default(''),
     role: z.enum(SUPPLIER_CONTACT_ROLES).default('other'),
     email: z.union([z.string().trim().max(254).email(), z.literal('')]).default(''),
     phone: z
@@ -201,7 +207,8 @@ export const supplierContactInput = z
      */
     scope: z.array(contactScopeItem).max(SUPPLIER_LIMITS.contactScope).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => !!v.contactId || v.name.length > 0, { message: 'A name, or a contact from the directory', path: ['name'] });
 export type SupplierContactInput = z.input<typeof supplierContactInput>;
 
 const hours = z.number().min(0).max(SUPPLIER_LIMITS.hours).nullable().default(null);
@@ -352,6 +359,8 @@ export interface SupplierRef {
 
 export interface SupplierContact {
   id: string;
+  /** The person in the contacts directory (0.25.1, ADR 0038; null only before the upgrade converted it) */
+  contactId: string | null;
   name: string;
   role: SupplierContactRole;
   /** Personal data of people outside Steward: shown in the app only, never in /api/v1, MCP, datasets or exports */

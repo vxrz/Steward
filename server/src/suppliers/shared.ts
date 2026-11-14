@@ -31,7 +31,8 @@ import {
   ownersOf,
   supplierRow,
   type CertificateRow,
-  type ContactRow,
+  supplierContactRows,
+  deleteSupplierContacts,
   type ContractRow,
   type SupplierRow,
 } from './service.js';
@@ -189,7 +190,7 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
       .map((r) => r.reference.toLowerCase()),
   );
   // the target's company-wide contacts and certificates: what the sources' are combined into
-  const targetContacts = db().all<ContactRow>('SELECT * FROM supplier_contacts WHERE supplier_id = ?', target.id);
+  const targetContacts = supplierContactRows(target.id);
   const targetCertificates = db().all<CertificateRow>('SELECT * FROM supplier_certificates WHERE supplier_id = ?', target.id);
   for (const src of all) {
     const srcTeams = owningTeams('supplier', src.id);
@@ -253,7 +254,7 @@ function plan(target: SupplierRow, sources: SupplierRow[], choices: Record<strin
       }
     }
     // contacts: the same person (name and e-mail, letter case aside) becomes one with the wider scope
-    for (const k of db().all<ContactRow>('SELECT * FROM supplier_contacts WHERE supplier_id = ? ORDER BY lower(name), id', src.id)) {
+    for (const k of supplierContactRows(src.id)) {
       const scoped = scopeRows(k.id).length > 0;
       // a scoped contact of the target never becomes company-wide by a merge (security review 0.18.0, L1; ADR 0031
       // part 6): a company-wide source contact stays a contact of its own beside it
@@ -360,9 +361,7 @@ function forReader(p: SupplierMergePreview, u: AuthUser, target: SupplierRow, so
       .filter((r) => readable.has(r.id))
       .map((r) => r.reference.toLowerCase()),
   );
-  const seenContacts = new Set(
-    all.flatMap((x) => contactViews(x, db().all<ContactRow>('SELECT * FROM supplier_contacts WHERE supplier_id = ?', x.id), ctx).map((c) => c.id)),
-  );
+  const seenContacts = new Set(all.flatMap((x) => contactViews(x, supplierContactRows(x.id), ctx).map((c) => c.id)));
   const items = new Map<string, boolean>();
   const seesItem = (i: ScopeItem): boolean => {
     if (i.kind === 'contract') return readable.has(i.id);
@@ -411,7 +410,7 @@ function protect(p: Plan, supplierId: string): void {
       for (const i of x.scope) db().run('INSERT INTO supplier_contact_scopes (contact_id, kind, item_id) VALUES (?, ?, ?)', k.id, i.kind, i.id);
     else if (x.action === 'remove') {
       db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', k.id);
-      db().run('DELETE FROM supplier_contacts WHERE id = ?', k.id);
+      deleteSupplierContacts('id', k.id);
     } else if (x.action === 'combined' && x.into) {
       // a company-wide target stays company-wide; two scoped contacts get both scopes together. A company-wide source
       // is never combined into a scoped target (plan): that would show the target's e-mail and phone to everyone
@@ -421,7 +420,7 @@ function protect(p: Plan, supplierId: string): void {
         for (const i of mine)
           db().run('INSERT INTO supplier_contact_scopes (contact_id, kind, item_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', x.into, i.kind, i.item_id);
       db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', k.id);
-      db().run('DELETE FROM supplier_contacts WHERE id = ?', k.id);
+      deleteSupplierContacts('id', k.id);
     }
   }
 }

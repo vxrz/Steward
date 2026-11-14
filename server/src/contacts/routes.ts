@@ -7,7 +7,7 @@ import * as svc from './service.js';
 /**
  * The contacts directory (mounted under /api; ADR 0038, docs/CONTACTS.md). Personal data of people who often have no
  * account: every route needs a signed-in session (no API token), and the service decides who sees and changes each
- * contact. A plant viewer may use the picker on the plant sites they manage.
+ * contact. Module-only users (a plant viewer, a data products contributor) reach them too: the picker on their items.
  *   GET    /contacts                 search and list (?q=&status=active|left|all&limit=&offset=): visible ones only
  *   GET    /contacts/duplicates      administrators: contacts that share an e-mail address
  *   GET    /contacts/:id             the where-used page (links on hidden items counted, never named)
@@ -17,9 +17,12 @@ import * as svc from './service.js';
  *   DELETE /contacts/:id             erase (administrators, step-up, GDPR Art. 17)
  */
 
-/** Reading: a plant viewer too (the picker on the plant sites they manage) */
+/**
+ * A module-only user too (a plant viewer, a data products contributor): the picker on the items they may change. The
+ * service decides who sees, creates and changes each contact.
+ */
 const READ: RouteAccess = { auth: 'session', plantViewer: true };
-const SESSION: RouteAccess = { auth: 'session' };
+const SESSION = READ;
 
 export async function contactRoutes(app: FastifyInstance): Promise<void> {
   app.get('/contacts', { config: { access: READ } }, async (req) => svc.listContacts((req.query ?? {}) as Record<string, string>));

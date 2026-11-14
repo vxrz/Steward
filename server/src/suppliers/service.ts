@@ -71,6 +71,7 @@ import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { moduleAvailable } from '../modules/access.js';
 import { supplierVisible, visibleContracts } from './links.js';
+import { removeItemLinks, snapshotsOf, writeItemLinks, writeLegacyLinks } from '../contacts/service.js';
 import { forgetShares } from '../auth/shares.js';
 import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
 import { dropSchedules, type ScheduleRow } from '../costs/schedule-model.js';
@@ -114,6 +115,39 @@ export interface ContactRow {
   phone: string;
   note: string;
   created_at: string;
+  /** The person in the contacts directory (0.25.1); null before the upgrade converted the entry */
+  contact_id: string | null;
+}
+
+/**
+ * A supplier's contacts (0.25.1, ADR 0038, docs/CONTACTS.md): each row of supplier_contacts is the supplier's entry –
+ * role, note, scope (ADR 0031) – and its link to the person in the contacts directory (contact_links, kind 'supplier',
+ * the entry's id as the item). Name, e-mail and phone are the directory contact's; the entry's own columns are empty
+ * once the upgrade converted it (and read only until then).
+ */
+const SC_FROM = "supplier_contacts sc LEFT JOIN contact_links cl ON cl.kind = 'supplier' AND cl.item_id = sc.id LEFT JOIN contacts ct ON ct.id = cl.contact_id";
+const SC_COLUMNS =
+  'sc.id, sc.supplier_id, COALESCE(ct.name, sc.name) AS name, sc.role, COALESCE(ct.email, sc.email) AS email, COALESCE(ct.phone, sc.phone) AS phone, sc.note, sc.created_at, ct.id AS contact_id';
+/** The order of contacts: by name, then id */
+const SC_ORDER = 'lower(COALESCE(ct.name, sc.name)), sc.id';
+/** The contacts of a supplier (or of all, without an id), with the directory's person data. */
+export const supplierContactRows = (supplierId?: string): ContactRow[] =>
+  supplierId
+    ? db().all<ContactRow>(`SELECT ${SC_COLUMNS} FROM ${SC_FROM} WHERE sc.supplier_id = ? ORDER BY ${SC_ORDER}`, supplierId)
+    : db().all<ContactRow>(`SELECT ${SC_COLUMNS} FROM ${SC_FROM} ORDER BY ${SC_ORDER}`);
+/** Contact entries by id (bulk, 500 per statement). */
+export function supplierContactRowsById(ids: readonly string[]): ContactRow[] {
+  const out: ContactRow[] = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    out.push(...db().all<ContactRow>(`SELECT ${SC_COLUMNS} FROM ${SC_FROM} WHERE sc.id IN (${part.map(() => '?').join(', ')})`, ...part));
+  }
+  return out;
+}
+/** Deletes contact entries with their directory links (the persons stay in the directory). */
+export function deleteSupplierContacts(where: 'id' | 'supplier_id', value: string): void {
+  for (const r of db().all<{ id: string }>(`SELECT id FROM supplier_contacts WHERE ${where} = ?`, value)) removeItemLinks('supplier', r.id);
+  db().run(`DELETE FROM supplier_contacts WHERE ${where} = ?`, value);
 }
 
 export interface ContractRow {
@@ -331,8 +365,9 @@ function toCertificate(c: CertificateRow, today: string, u: AuthUser | null): Su
   };
 }
 
-const toContact = (c: ContactRow): Pick<SupplierContact, 'id' | 'name' | 'role' | 'email' | 'phone' | 'note'> => ({
+const toContact = (c: ContactRow): Pick<SupplierContact, 'id' | 'contactId' | 'name' | 'role' | 'email' | 'phone' | 'note'> => ({
   id: c.id,
+  contactId: c.contact_id ?? null,
   name: c.name,
   role: c.role,
   email: c.email,
@@ -672,7 +707,7 @@ function detailsOf(rows: SupplierRow[], u: AuthUser, now: number): SupplierDetai
   const byId = new Map(all.map((c) => [c.id, c]));
   const contracts = visibleContractsOf(rows, all, ctx);
   const certificates = groupBy(db().all<CertificateRow>(`SELECT * FROM supplier_certificates ${where} ORDER BY kind, valid_until, id`, ...args));
-  const contacts = groupBy(db().all<ContactRow>(`SELECT * FROM supplier_contacts ${where} ORDER BY lower(name), id`, ...args));
+  const contacts = groupBy(one ? supplierContactRows(one) : supplierContactRows());
   const usage = usageOf(ids);
   const crit = criticalityOf(usage, contracts, ctx);
   // the cost plan lines that pay for each contract (services the reader may see)
@@ -1165,7 +1200,7 @@ export function dismissSupplier(id: string): { ok: true; unlinked: Record<string
   db().tx(() => {
     for (const t of LINKING_TABLES) db().run(`UPDATE ${t} SET supplier_id = NULL WHERE supplier_id = ?`, id);
     db().run("UPDATE supplier_text_migrations SET outcome = 'notSupplier', supplier_id = NULL WHERE supplier_id = ?", id);
-    db().run('DELETE FROM supplier_contacts WHERE supplier_id = ?', id);
+    deleteSupplierContacts('supplier_id', id);
     db().run('DELETE FROM suppliers WHERE id = ?', id);
     forgetOwningTeams('supplier', id);
     forgetShares('supplier', id);
@@ -1183,7 +1218,7 @@ export function dismissSupplier(id: string): { ok: true; unlinked: Record<string
 // ---------- contacts (scoped since 0.18.0, ADR 0031 part 6) ----------
 
 function contactRow(supplierId: string, contactId: string): ContactRow {
-  const c = db().get<ContactRow>('SELECT * FROM supplier_contacts WHERE id = ? AND supplier_id = ?', contactId, supplierId);
+  const c = db().get<ContactRow>(`SELECT ${SC_COLUMNS} FROM ${SC_FROM} WHERE sc.id = ? AND sc.supplier_id = ?`, contactId, supplierId);
   if (!c) throw new HttpError(404, `Contact ${contactId} not found`, 'SUPPLIER_CONTACT_NOT_FOUND', { id: contactId });
   return c;
 }
@@ -1370,28 +1405,42 @@ export function addContact(supplierId: string, input: z.infer<typeof supplierCon
     throw new HttpError(409, `A supplier has at most ${SUPPLIER_LIMITS.contacts} contacts`, 'SUPPLIER_CONTACT_LIMIT', { max: SUPPLIER_LIMITS.contacts });
   const id = newId('spc_');
   db().tx(() => {
+    // the entry: role, note, scope; the person is the directory's (0.25.1, ADR 0038)
     db().run(
-      'INSERT INTO supplier_contacts (id, supplier_id, name, role, email, phone, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      "INSERT INTO supplier_contacts (id, supplier_id, name, role, email, phone, note, created_at) VALUES (?, ?, '', ?, '', '', ?, ?)",
       id,
       supplierId,
-      input.name,
       input.role,
-      input.email,
-      input.phone,
       input.note,
       nowIso(),
     );
+    const person = linkPerson(id, input);
     writeScope(id, scope);
     touch(supplierId, u);
     audit({
       action: 'supplier.contact_added',
       entityType: 'supplier',
       entityId: supplierId,
-      summary: `Contact "${input.name}" added to supplier "${s.name}"${scope.length ? ` (applies to ${scope.length} item(s))` : ''}`,
-      details: { contactId: id, ...contactAudit(input, scope), email: !!input.email, phone: !!input.phone },
+      summary: `Contact "${person.name}" added to supplier "${s.name}"${scope.length ? ` (applies to ${scope.length} item(s))` : ''}`,
+      details: { contactId: id, ...contactAudit({ name: person.name, role: input.role }, scope), email: !!person.email, phone: !!person.phone },
     });
   });
   return getSupplier(supplierId);
+}
+
+/**
+ * Links a contact entry to its person in the contacts directory: the contact picked (`contactId` – one the person may
+ * see, active) or the one named by name, e-mail and phone (writeLegacyLinks: the contact with that address the person
+ * may see, else a new one). Returns the person's name, e-mail and phone as the entry now shows them.
+ */
+function linkPerson(entryId: string, input: z.infer<typeof supplierContactInput>, cur?: ContactRow): { name: string; email: string; phone: string } {
+  if (input.contactId && input.contactId !== cur?.contact_id) {
+    snapshotsOf([{ contactId: input.contactId, role: input.role }]);
+    writeItemLinks('supplier', entryId, [{ role: input.role, contactId: input.contactId }]);
+  } else if (input.contactId) writeItemLinks('supplier', entryId, [{ role: input.role, contactId: input.contactId }]);
+  else writeLegacyLinks('supplier', entryId, [{ role: input.role, name: input.name, email: input.email, phone: input.phone }], ['phone']);
+  const r = contactRow(db().get<{ supplier_id: string }>('SELECT supplier_id FROM supplier_contacts WHERE id = ?', entryId)!.supplier_id, entryId);
+  return { name: r.name, email: r.email, phone: r.phone };
 }
 
 /** May change one item a contact is scoped to (a contract of the supplier, an application, a system). */
@@ -1437,7 +1486,14 @@ export function updateContact(supplierId: string, contactId: string, input: z.in
   const key = (x: ScopeItem) => `${x.kind}:${x.id}`;
   const added = scope.filter((x) => !before.some((b) => key(b) === key(x)));
   const removed = before.filter((b) => !scope.some((x) => key(x) === key(b)));
-  const fields = (['name', 'role', 'email', 'phone', 'note'] as const).filter((k) => input[k] !== cur[k]);
+  // a contact picked from the directory: its person's fields; otherwise name, e-mail and phone as entered
+  const relinked = !!input.contactId && input.contactId !== cur.contact_id;
+  const fields = [
+    ...(input.contactId
+      ? (['role', 'note'] as const).filter((k) => input[k] !== cur[k])
+      : (['name', 'role', 'email', 'phone', 'note'] as const).filter((k) => input[k] !== cur[k])),
+    ...(relinked ? (['contact'] as const) : []),
+  ];
   if (!view.canEdit) {
     // only taking off items the person may change
     if (fields.length || added.length || !removed.length || !removed.every((x) => editsItem(s, x, ctx)))
@@ -1448,29 +1504,25 @@ export function updateContact(supplierId: string, contactId: string, input: z.in
     throw new HttpError(409, `"${cur.name}" would apply to nothing – remove the contact instead`, 'SUPPLIER_CONTACT_LAST_ITEM', { name: cur.name });
   // the marks of items that are gone stay while the contact is scoped
   scope = [...scope, ...gone];
+  let person = { name: cur.name, email: cur.email, phone: cur.phone };
   db().tx(() => {
-    db().run(
-      'UPDATE supplier_contacts SET name = ?, role = ?, email = ?, phone = ?, note = ? WHERE id = ?',
-      view.canEdit ? input.name : cur.name,
-      view.canEdit ? input.role : cur.role,
-      view.canEdit ? input.email : cur.email,
-      view.canEdit ? input.phone : cur.phone,
-      view.canEdit ? input.note : cur.note,
-      contactId,
-    );
+    if (view.canEdit) {
+      db().run("UPDATE supplier_contacts SET name = '', email = '', phone = '', role = ?, note = ? WHERE id = ?", input.role, input.note, contactId);
+      if (fields.some((f) => f !== 'note')) person = linkPerson(contactId, input, cur);
+    }
     if (added.length || removed.length) writeScope(contactId, scope);
     touch(supplierId, u);
     audit({
       action: 'supplier.contact_changed',
       entityType: 'supplier',
       entityId: supplierId,
-      summary: `Contact "${input.name}" of supplier "${s.name}" changed (${[...fields, ...(added.length || removed.length ? ['scope'] : [])].join(', ')})`,
+      summary: `Contact "${person.name}" of supplier "${s.name}" changed (${[...fields, ...(added.length || removed.length ? ['scope'] : [])].join(', ')})`,
       // which fields changed, never the e-mail or phone values
       details: {
         contactId,
         changes: fields,
-        ...contactAudit(view.canEdit ? input : cur),
-        ...(fields.includes('name') ? { previousName: cur.name } : {}),
+        ...contactAudit(view.canEdit ? { name: person.name, role: input.role } : cur),
+        ...(person.name !== cur.name ? { previousName: cur.name } : {}),
         ...(added.length || removed.length
           ? { scope: { before: before.map((x) => ({ kind: x.kind, id: x.id })), after: scope.map((x) => ({ kind: x.kind, id: x.id })) } }
           : {}),
@@ -1491,7 +1543,7 @@ export function removeContact(supplierId: string, contactId: string): SupplierDe
   const scope = scopes.rows.get(contactId) ?? [];
   db().tx(() => {
     db().run('DELETE FROM supplier_contact_scopes WHERE contact_id = ?', contactId);
-    db().run('DELETE FROM supplier_contacts WHERE id = ?', contactId);
+    deleteSupplierContacts('id', contactId);
     touch(supplierId, u);
     audit({
       action: 'supplier.contact_removed',
@@ -1512,7 +1564,7 @@ export function scopedContacts(kind: 'application' | 'system', id: string): { su
   const u = me();
   const ctx = new ScopeCtx(u);
   const rows = db().all<ContactRow>(
-    `SELECT c.* FROM supplier_contacts c JOIN supplier_contact_scopes x ON x.contact_id = c.id WHERE x.kind = ? AND x.item_id = ? ORDER BY lower(c.name), c.id`,
+    `SELECT ${SC_COLUMNS} FROM ${SC_FROM} JOIN supplier_contact_scopes x ON x.contact_id = sc.id WHERE x.kind = ? AND x.item_id = ? ORDER BY ${SC_ORDER}`,
     kind,
     id,
   );
@@ -2519,7 +2571,7 @@ export function getContract(supplierId: string, contractId: string, now = Date.n
   });
   const owners = contract.owners;
   const scoped = db().all<ContactRow>(
-    `SELECT c.* FROM supplier_contacts c JOIN supplier_contact_scopes x ON x.contact_id = c.id WHERE x.kind = 'contract' AND x.item_id = ? ORDER BY lower(c.name), c.id`,
+    `SELECT ${SC_COLUMNS} FROM ${SC_FROM} JOIN supplier_contact_scopes x ON x.contact_id = sc.id WHERE x.kind = 'contract' AND x.item_id = ? ORDER BY ${SC_ORDER}`,
     c.id,
   );
   // the reviews and findings that name the contract (ADR 0031 part 7), as the reader may see them

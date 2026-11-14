@@ -89,7 +89,11 @@ export type ContactInput = z.input<typeof contactInput>;
 /** One contact named on an item with a role: an existing contact by id, or a new one created on the way. */
 export const contactLinkInput = z
   .object({
-    role: z.string().trim().min(1).max(CONTACT_LIMITS.role),
+    /**
+     * A role of the kind's list, or free text (plant sites: at most CONTACT_LIMITS.role characters for a new link; a
+     * role a site had before 0.25.1 – up to 200 characters, or none – stays as it is)
+     */
+    role: z.string().trim().max(200),
     contactId: z.string().trim().min(1).max(100).optional(),
     contact: contactInput.optional(),
   })

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Box, Button, Group, Modal, MultiSelect, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Group, Modal, MultiSelect, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
+import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SubjectsInput, useSubjectLabel } from '../components/SubjectsInput';
-import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, tagsMatch, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
+import { SERVICE_CRITICALITIES, tagsMatch, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
 import { EmptyState, QueryState, useCreateParam, useFieldErrors } from '../components/common';
@@ -17,6 +17,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { ServiceTabs } from '../components/page/LinkTabs';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
+import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../components/contacts';
 
 export const CRITICALITY_COLORS: Record<string, string> = { low: 'gray', medium: 'blue', high: 'orange', critical: 'red' };
 
@@ -279,12 +280,8 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
   const [name, setName] = useState(service?.name ?? '');
   const [description, setDescription] = useState(service?.description ?? '');
   const [criticality, setCriticality] = useState<string | null>(service?.criticality ?? null);
-  const [contacts, setContacts] = useState<ServiceContact[]>(
-    service?.contacts ?? [
-      { role: 'business', email: '' },
-      { role: 'it', email: '' },
-    ],
-  );
+  // the contacts directory (0.25.1, ADR 0038): pick or create contacts, each with its role
+  const [contacts, setContacts] = useState<ContactPickerValue[]>(() => fromLinks(service?.contactLinks ?? []));
   const [owners, setOwners] = useState<string[]>(service?.owners ?? []);
   const [cmdbSystem, setCmdbSystem] = useState(service?.cmdb?.system ?? '');
   const [cmdbId, setCmdbId] = useState(service?.cmdb?.id ?? '');
@@ -292,7 +289,6 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
   const [tags, setTags] = useState<string[]>(service?.tags ?? []);
   const known = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const [busy, setBusy] = useState(false);
-  const setContact = (i: number, patch: Partial<ServiceContact>) => setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const save = async () => {
     if (!v.validate()) return;
@@ -302,9 +298,8 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
         name: name.trim(),
         description,
         criticality,
-        contacts: contacts
-          .filter((c) => c.email.trim())
-          .map((c) => ({ role: c.role, email: c.email.trim(), ...(c.name?.trim() ? { name: c.name.trim() } : {}) })),
+        contacts: [],
+        contactLinks: toLinkInputs(contacts),
         owners: owners.map((o) => (/^(user|team):/i.test(o) ? o : `user:${o}`)),
         cmdb: cmdbSystem.trim() || cmdbId.trim() || cmdbUrl.trim() ? { system: cmdbSystem.trim(), id: cmdbId.trim(), url: cmdbUrl.trim() } : null,
         tags,
@@ -355,55 +350,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
             onChange={setCriticality}
             clearable
           />
-          <Text fw={600} size="sm">
-            {t('contacts')}
-          </Text>
-          {contacts.map((c, i) => (
-            <Group key={i} align="flex-end" gap="xs" wrap="wrap">
-              <Select
-                size="xs"
-                label={t('contactRole')}
-                data={SERVICE_CONTACT_ROLES.map((r) => ({ value: r, label: t(`contactRoles.${r}`) }))}
-                value={c.role}
-                onChange={(v) => v && setContact(i, { role: v as ServiceContact['role'] })}
-                allowDeselect={false}
-                style={{ flex: '1 1 140px' }}
-              />
-              <TextInput
-                size="xs"
-                type="email"
-                label={t('email')}
-                value={c.email}
-                onChange={(e) => setContact(i, { email: e.currentTarget.value })}
-                style={{ flex: '2 1 200px' }}
-              />
-              <TextInput
-                size="xs"
-                label={t('contactName')}
-                value={c.name ?? ''}
-                onChange={(e) => setContact(i, { name: e.currentTarget.value })}
-                style={{ flex: '1 1 140px' }}
-              />
-              <ActionIcon
-                variant="subtle"
-                color="red"
-                aria-label={t('removeContact', { n: i + 1 })}
-                onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))}
-                mb={2}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Group>
-          ))}
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setContacts((cs) => [...cs, { role: 'it', email: '' }])}
-            w="fit-content"
-          >
-            {t('addContact')}
-          </Button>
+          <ContactPicker kind="service" label={t('contacts')} value={contacts} onChange={setContacts} testId="service-contacts" />
           <SubjectsInput
             label={t('owners')}
             description={t('ownersHelp')}

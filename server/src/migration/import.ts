@@ -68,6 +68,7 @@ import { importedDefaults } from '../teams/settings.js';
 import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
+import { convertItemContacts } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 
 /**
@@ -1384,6 +1385,8 @@ function copyIntoTarget(
   migrateVendorTexts();
   // a package of a version before 0.23.0: its role "plant" becomes the plant registry's contributor grant (ADR 0034)
   convertDeprecatedRoles();
+  // a package of a version before 0.25.1: the contacts of services, suppliers and plant sites join the directory (ADR 0038)
+  convertItemContacts();
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },

@@ -445,7 +445,7 @@ Public read-only API (`/api/v1`, API token, see [API.md](API.md)): `GET /records
 _Services_ lists the services your team runs. A service has:
 
 - a name and a description (Markdown);
-- contacts: e-mail addresses of the **business owner** and **IT operations** (and more if needed);
+- contacts: the **business owner** and **IT operations** (and more if needed) – since 0.25.1 contacts of the [contacts directory](CONTACTS.md), picked or created in the form; the API and exports show them as before (role, e-mail address, name);
 - **responsible in Steward**: users and teams (`user:dana`, `team:service desk`) who may edit it in addition to designers and administrators;
 - an optional **criticality**: low, medium, high, critical;
 - the **CMDB entry**: system (e.g. _ServiceNow_), ID and a link that opens the entry;

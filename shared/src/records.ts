@@ -1,3 +1,4 @@
+import type { ContactLink } from './contacts.js';
 /**
  * Records (change requests, decision records) and the minimal service
  * catalogue. Shared by server and web: workflows, default record types,
@@ -866,6 +867,8 @@ export interface ServiceDetail extends ServiceSummary {
   /** The applications the service consists of, with their role, rating and integrations */
   applications: ServiceApplication[];
   canEdit: boolean;
+  /** The contacts as directory links (0.25.1, ADR 0038; the web app's picker): `contacts` is the same in the shape of before */
+  contactLinks: ContactLink[];
 }
 
 export interface LinkTarget {

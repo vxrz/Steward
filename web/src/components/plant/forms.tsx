@@ -1,7 +1,6 @@
 import { Suspense, useMemo, useState } from 'react';
-import { ActionIcon, Box, Button, Group, NumberInput, Select, SimpleGrid, Skeleton, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Box, Button, Group, NumberInput, Select, SimpleGrid, Skeleton, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ASSET_STATUSES,
@@ -35,6 +34,13 @@ import { hasWebGl2 } from './map/mapShared';
 import { cleanRefs, FieldInputs, RefsEditor, refsValid, slugId, TranslationsInput, useNameOf, usePlantConfig, usePlantLabel } from './common';
 import { draftSave } from './changes/common';
 import { FormModal, useFormModalCloseIfAny } from '../FormModal';
+import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../contacts';
+
+/** A picked contact as a site gave it before 0.25.1 (name, role, e-mail, phone, URL). */
+const siteContactOf = (v: ContactPickerValue): SiteContact => {
+  const c = v.display ?? v.contact;
+  return { name: (c?.name ?? '').trim(), role: v.role.trim(), email: (c?.email ?? '').trim(), phone: (c?.phone ?? '').trim(), url: (c?.url ?? '').trim() };
+};
 
 /** Every node of a site's tree, flat (pickers). */
 export function flatNodes(areas: PlantNode[]): PlantNode[] {
@@ -124,7 +130,8 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
   const [lat, setLat] = useState<number | ''>(site?.geo?.lat ?? '');
   const [lon, setLon] = useState<number | ''>(site?.geo?.lon ?? '');
   const [zoom, setZoom] = useState<number | ''>(site?.geo?.zoom ?? '');
-  const [contacts, setContacts] = useState<SiteContact[]>(site?.contacts ?? []);
+  // the contacts directory (0.25.1, ADR 0038): pick or create contacts with a free-text role
+  const [contacts, setContacts] = useState<ContactPickerValue[]>(() => fromLinks(site?.contactLinks ?? []));
   const [refs, setRefs] = useState<ExternalRef[]>(site?.refs ?? []);
   const [fields, setFields] = useState<FieldValues>(site?.fields ?? {});
   const [busy, setBusy] = useState(false);
@@ -136,7 +143,6 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
     id: !PLANT_ID_RE.test(id.id) && t('form.idInvalid'),
     geo: geoPartial && t('form.geoBoth'),
     refs: !refsValid(refs) && t('refs.invalid'),
-    contacts: contacts.some((c) => !c.name.trim() || (c.email.trim() && !/^[^\s@]+@[^\s@]+$/.test(c.email.trim()))) && t('contacts.invalid'),
   });
   const save = async () => {
     setShown(true);
@@ -148,7 +154,9 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
       names,
       description,
       geo: lat === '' || lon === '' ? null : { lat, lon, zoom: zoom === '' ? null : zoom },
-      contacts: contacts.map((c) => ({ name: c.name.trim(), role: c.role.trim(), email: c.email.trim(), phone: c.phone.trim(), url: c.url.trim() })),
+      // as before 0.25.1 (a proposal shows them so); who manages the site also sends the directory links
+      contacts: contacts.map(siteContactOf),
+      ...(!site || site.canManage ? { contactLinks: toLinkInputs(contacts) } : {}),
       refs: cleanRefs(refs),
       fields: cleanFieldValues(fields),
     };
@@ -166,7 +174,6 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
       setBusy(false);
     }
   };
-  const setContact = (i: number, patch: Partial<SiteContact>) => setContacts(contacts.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   return (
     <FormModal onClose={onClose} size="lg" title={site ? t('site.editTitle', { name: site.name }) : t('site.newTitle', { type: label('site', false, true) })}>
       <form
@@ -257,74 +264,9 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
               </Box>
             )}
           </div>
-          <Stack gap="xs" data-testid="contacts-editor">
-            <Text size="sm" fw={500}>
-              {t('contacts.title')}
-            </Text>
-            {contacts.map((c, i) => (
-              <Group key={i} gap="xs" align="flex-end" wrap="wrap">
-                <TextInput
-                  size="xs"
-                  label={t('contacts.name')}
-                  required
-                  value={c.name}
-                  onChange={(e) => setContact(i, { name: e.currentTarget.value })}
-                  style={{ flex: '2 1 140px' }}
-                  maxLength={200}
-                />
-                <TextInput
-                  size="xs"
-                  label={t('contacts.role')}
-                  value={c.role}
-                  onChange={(e) => setContact(i, { role: e.currentTarget.value })}
-                  style={{ flex: '2 1 120px' }}
-                  maxLength={200}
-                />
-                <TextInput
-                  size="xs"
-                  label={t('contacts.email')}
-                  type="email"
-                  value={c.email}
-                  onChange={(e) => setContact(i, { email: e.currentTarget.value })}
-                  style={{ flex: '2 1 160px' }}
-                  maxLength={320}
-                />
-                <TextInput
-                  size="xs"
-                  label={t('contacts.phone')}
-                  type="tel"
-                  value={c.phone}
-                  onChange={(e) => setContact(i, { phone: e.currentTarget.value })}
-                  style={{ flex: '1 1 110px' }}
-                  maxLength={60}
-                />
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  mb={2}
-                  aria-label={t('contacts.remove', { name: c.name || '–' })}
-                  onClick={() => setContacts(contacts.filter((_, j) => j !== i))}
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Group>
-            ))}
-            {v.error('contacts') && (
-              <Text size="xs" c="red">
-                {v.error('contacts')}
-              </Text>
-            )}
-            <Button
-              size="xs"
-              variant="default"
-              w="fit-content"
-              leftSection={<IconPlus size={14} />}
-              onClick={() => setContacts([...contacts, { name: '', role: '', email: '', phone: '', url: '' }])}
-              disabled={contacts.length >= PLANT_LIMITS.contacts}
-            >
-              {t('contacts.add')}
-            </Button>
-          </Stack>
+          <div data-testid="contacts-editor">
+            <ContactPicker kind="plant_site" label={t('contacts.title')} value={contacts} onChange={setContacts} testId="site-contacts" />
+          </div>
           <RefsEditor value={refs} onChange={setRefs} />
           {v.error('refs') && (
             <Text size="xs" c="red">
