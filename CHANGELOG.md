@@ -6,7 +6,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.25.0] - 2026-11-13
+## [0.25.0] - 2026-11-14
 
 Steward 0.25.0 brings **data products, phase 3** ([ADR 0037](docs/adr/0037-data-products-connectors-files-edge.md)): generic parts and bridges with one technology list, so technologies Steward does not know yet can be described now and converted later; lineage proposed from Debezium, Kafka Connect and Confluent connectors, and an OpenLineage export; file-based products on object storage (S3 listings, metadata only), with Snowflake stages and pipes as lineage; edge devices linked to their systems, with the applications that run on them, _Collects data from_, _Runs on_, MQTT and Industrial Edge Databus topics, and Industrial Edge suggestions a person confirms; semantic models (Apache Ossie) as versioned, signed-off records with lint and drift; previews from contract examples and the masked Kafka peek; and the records of processing with transfers to third countries and the technical and organisational measures. dbt files are parsed in a worker thread, large imports run in the background and can be taken back, and the product page and scorecard read fewer statements. The Access tab tells a team named as owner from an owning team. A release review of security, standards, performance, UI, UX and accessibility (WCAG 2.2) was fixed before the release. The upgrade fixture of 0.24.0 is added. Migrations are additive (`dataproducts-006a-generic-parts-technologies`, `plant-032-device-system`, `catalogue-015-edge-devices`, `dataproducts-006d-semantic-models-ropa`, `dataproducts-006c-import-jobs`, `dataproducts-006c-file-ports`).
 
