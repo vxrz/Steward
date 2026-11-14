@@ -81,7 +81,7 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     s = await seeded;
   });
 
-  test('a version from the bound contract, signed off by a second person, valid from today and compared', async ({ page, loginAs }) => {
+  test('a version from the bound contract, its approval documented, valid from today and compared', async ({ page, loginAs, apiAs }) => {
     test.setTimeout(180_000);
     await page.goto(`/data-products/${s.product}/semantic-model`);
     await expect(page.getByTestId('semantic-none')).toBeVisible();
@@ -104,34 +104,30 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await expect(page.getByTestId('semantic-lint-none')).toBeVisible();
     await expect(page.getByTestId('semantic-drift-none')).toBeVisible();
     await expect(page.getByTestId('semantic-document')).toContainText('customer_email');
-    // who saved it does not sign it off
-    await expect(page.getByTestId('semantic-version-1').getByRole('button', { name: 'Sign off version 1' })).toHaveCount(0);
-    // … and is told why
-    await expect(page.getByTestId('semantic-version-1').getByTestId('semantic-own-version')).toHaveText(
-      'You saved or proposed this version: a second person signs it off.',
-    );
     await settle(page);
     await expectAccessible(page, 'semantic model tab');
 
-    // an approver who sees the product signs it off
-    const adam = await loginAs('adam');
-    await adam.goto(`/data-products/${s.product}/semantic-model`);
-    await adam.getByTestId('semantic-version-1').getByRole('button', { name: 'Sign off version 1' }).click();
-    await expect(adam.getByTestId('semantic-document').last()).toContainText('customer_email');
-    await adam.getByTestId('semantic-signoff-note').fill('Matches the contract');
-    await adam.getByTestId('semantic-signoff-save').click();
-    await expect(adam.getByTestId('semantic-valid-today')).toContainText('Valid today: version 1, signed off by Adam Approver');
+    // the approval was given elsewhere: the IT maintainer records it for the version shown (0.25.1, ADR 0038)
+    await post(await apiAs('dana'), '/api/contacts', { name: `Invented model owner ${s.token}` });
+    await page.getByTestId('semantic-version-1').getByRole('button', { name: 'Record approval of version 1' }).click();
+    await expect(page.getByTestId('semantic-document').last()).toContainText('customer_email');
+    await page.getByTestId('semantic-signoff-decision-by-search').fill(`Invented model owner ${s.token}`);
+    await page.getByRole('option', { name: new RegExp(`Invented model owner ${s.token}`) }).click();
+    await expectAccessible(page, 'semantic approval form');
+    await page.getByTestId('semantic-signoff-save').click();
+    await expect(page.getByTestId('semantic-valid-today')).toContainText(`Valid today: version 1, approved by Invented model owner ${s.token}`);
+    await expect(page.getByTestId('semantic-version-1')).toContainText(`Approved by Invented model owner ${s.token}`);
     // which model was valid on a day
     const today = new Date().toISOString().slice(0, 10);
-    await adam.getByTestId('semantic-valid-date').fill(today);
-    await adam.getByTestId('semantic-valid-check').click();
-    await expect(adam.getByTestId('semantic-valid-answer')).toContainText('Version 1 – signed off by Adam Approver');
-    await adam.getByTestId('semantic-valid-date').fill('2020-01-01');
-    await adam.getByTestId('semantic-valid-check').click();
-    await expect(adam.getByTestId('semantic-valid-answer')).toContainText('No version was signed off and valid on');
-    await settle(adam);
-    await expectAccessible(adam, 'semantic model signed off');
-    await adam.close();
+    await page.getByTestId('semantic-valid-date').fill(today);
+    await page.getByTestId('semantic-valid-check').click();
+    await expect(page.getByTestId('semantic-valid-answer')).toContainText('Version 1');
+    await page.getByTestId('semantic-valid-date').fill('2020-01-01');
+    await page.getByTestId('semantic-valid-check').click();
+    await expect(page.getByTestId('semantic-valid-answer')).toContainText('No version was');
+    await settle(page);
+    await expectAccessible(page, 'semantic model approved');
+    void loginAs;
 
     // a second version with a field the contract does not have: drift, and the comparison
     await page.reload();

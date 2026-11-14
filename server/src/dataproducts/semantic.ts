@@ -20,13 +20,11 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { forbid, me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
-import { sameIdentity } from '../auth/aliases.js';
 import { contractAccess } from '../auth/policy.js';
-import { hasRole, isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
 import { isObj, str } from '../datacontracts/odcs.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { elementAccess, objectAccess } from './access.js';
-import { endorsersOf } from './endorsements.js';
 import { defaultEnvironment } from './health.js';
 import { personalFieldsOfDoc } from './personal-fields.js';
 import { rulesOf } from './promotion.js';
@@ -41,6 +39,7 @@ import {
   schemaObjectFor,
 } from './semantic-lint.js';
 import { editableProduct, visibleProduct } from './service.js';
+import { decisionView, documentDecision } from './decisions.js';
 import {
   bindingsOf,
   chunks,
@@ -61,9 +60,9 @@ import {
  * Semantic models as governed records (ADR 0037 part 4, docs/DATA-PRODUCTS.md#semantic-models). Steward is not the
  * master of metrics – dbt, Snowflake semantic views or BI tools define them – it keeps the **governed, auditable copy**:
  * one Apache Ossie document per product, **stored as written** (YAML or JSON, byte for byte), every save a **version**
- * (who, when, SHA-256), and an optional **sign-off** like a record's approval: a second person (who manages the product,
- * the owners of its domain, or an approver who sees it – never who wrote or proposed the version) signs off the version
- * they read (its SHA-256), and it is the valid one from that day – so "which model was valid on 1 March, and who
+ * (who, when, SHA-256), and an optional **documented approval** (0.25.1, ADR 0038 part 5): who approved the version
+ * elsewhere (contacts, frozen), when and the evidence, recorded by an IT maintainer for the version shown (its SHA-256
+ * must match) – it is the valid one from the day it was approved, so "which model was valid on 1 March, and who
  * approved it" has an answer (`semanticValidOn`).
  *
  * Linted against the vendored official schema on save (findings never block saving); drift is found on read
@@ -100,6 +99,8 @@ interface SignOffRow {
   note: string;
   signed_by: string;
   signed_at: string;
+  /** 0.25.1: the documented approval (JSON) */
+  decision: string | null;
 }
 
 const SUMMARY_COLUMNS = 'id, product_id, version, format, ossie_version, sha256, size, note, origin, lint_count, proposed_by, created_by, created_at';
@@ -127,7 +128,7 @@ function summaryOf(r: VersionRow, s: SignOffRow | undefined): DataSemanticVersio
     lintFindings: Number(r.lint_count),
     createdBy: r.created_by,
     createdAt: r.created_at,
-    signOff: s ? { by: s.signed_by, at: s.signed_at, validFrom: s.valid_from, note: s.note, sha256: s.sha256 } : null,
+    signOff: s ? { by: s.signed_by, at: s.signed_at, validFrom: s.valid_from, note: s.note, sha256: s.sha256, decision: decisionView(s.decision) } : null,
   };
 }
 
@@ -138,13 +139,11 @@ const validSignOff = (rows: readonly SignOffRow[], day: string): SignOffRow | un
     .sort((a, b) => (a.valid_from === b.valid_from ? (a.signed_at < b.signed_at ? 1 : -1) : a.valid_from < b.valid_from ? 1 : -1))[0];
 
 /**
- * Who may sign off a product's semantic model: who manages the product (its owners, a Manage share, the module's
- * managers, administrators), the owners of its domain, and approvers who see it – like a record's approval.
+ * Who records the approval of a product's semantic model (0.25.1, ADR 0038 part 5): its IT maintainers – who may change
+ * the product – and administrators. The approval itself was given elsewhere, by the contacts it names.
  */
-export function maySignOff(u: AuthUser, p: ProductRow, perms: readonly string[]): boolean {
-  if (perms.includes('manage') || isAdmin(u)) return true;
-  if (endorsersOf(p).some((s) => matches(u, s))) return true;
-  return hasRole(u, ['approver']) && perms.includes('view');
+export function maySignOff(u: AuthUser, _p: ProductRow, perms: readonly string[]): boolean {
+  return perms.includes('edit') || isAdmin(u);
 }
 
 /** GET /api/data-products/:id/semantic-model – the versions with their sign-offs, the current and the valid one. */
@@ -286,40 +285,51 @@ export function saveSemanticVersion(
 }
 
 /**
- * POST /api/data-products/:id/semantic-model/versions/:n/sign-off (session only): the version the person read (its
- * SHA-256) is signed off and is the valid one from today. Four eyes: never who saved or proposed it. Once per version.
+ * POST /api/data-products/:id/semantic-model/versions/:n/sign-off (session only): the documented approval of the version
+ * shown (its SHA-256 must match, so the approved text stays provable) – who approved it elsewhere, when, the evidence –
+ * recorded by an IT maintainer. Valid from the day it was approved (not before the version was saved) until a later
+ * approval supersedes it. Once per version; no revoke.
  */
 export function signOffSemanticVersion(productId: string, n: number, body: unknown): DataSemanticModelView {
   const u = me();
   const { row: p, perms } = visibleProduct(productId, u);
-  if (!maySignOff(u, p, perms)) forbid('sign off the semantic model of this data product', 'dataProducts');
+  if (!maySignOff(u, p, perms)) forbid('record the approval of the semantic model of this data product', 'dataProducts');
   const input = dataSemanticSignOffInput.parse(body);
   const r = versionRow(p.id, n);
   if (db().get('SELECT 1 FROM dp_semantic_signoffs WHERE version_id = ?', r.id)) throw signOffInvalid(`Version ${n} is signed off already`, 'alreadySignedOff');
   if (input.sha256 !== r.sha256) throw signOffInvalid('The version is not the one you read – read it again', 'changed');
-  if (sameIdentity(r.created_by, u) || sameIdentity(r.proposed_by, u))
-    throw signOffInvalid('Four-eyes principle: who saved or proposed a version does not sign it off', 'ownVersion');
+  const decision = documentDecision(input.decision, u);
   const at = nowIso();
-  const validFrom = at.slice(0, 10);
+  const validFrom = decision.decidedOn > r.created_at.slice(0, 10) ? decision.decidedOn : r.created_at.slice(0, 10);
   db().tx(() => {
     db().run(
-      'INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at, decision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       newId(),
       p.id,
       r.id,
       Number(r.version),
       r.sha256,
       validFrom,
-      input.note,
+      input.note || decision.note,
       u.username,
       at,
+      JSON.stringify(decision),
     );
     audit({
       action: 'dataproduct.semantic_model_signed_off',
       entityType: 'data_product',
       entityId: p.id,
-      summary: `Data product "${p.name}": semantic model version ${n} signed off – valid from ${validFrom}`,
-      details: { version: Number(r.version), sha256: r.sha256, validFrom, savedBy: r.created_by, note: input.note.slice(0, 500) },
+      summary: `Data product "${p.name}": approval of semantic model version ${n} recorded – approved by ${decision.decidedBy.map((d) => d.name).join(', ')} on ${decision.decidedOn}, valid from ${validFrom}`,
+      details: {
+        version: Number(r.version),
+        sha256: r.sha256,
+        validFrom,
+        savedBy: r.created_by,
+        decidedBy: decision.decidedBy,
+        decidedOn: decision.decidedOn,
+        evidence: decision.evidence,
+        note: (input.note || decision.note).slice(0, 500),
+      },
     });
   });
   return semanticModelView(p.id);

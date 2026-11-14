@@ -89,7 +89,6 @@ export type NavKey =
   | 'dataDomains'
   | 'dataMap'
   | 'dataDiscovery'
-  | 'dataAccessRequests'
   | 'dataRecordsOfProcessing'
   | 'records'
   | 'services'
@@ -226,7 +225,6 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/data-products/map', key: 'dataMap', icon: IconTopologyStar3 },
       // a lineage source's page (0.24.0) sits under Discovery, whose section lists the sources
       { to: '/data-products/discovery', key: 'dataDiscovery', icon: IconRadar, also: ['/data-products/lineage'] },
-      { to: '/data-products/access-requests', key: 'dataAccessRequests', icon: IconKey },
       { to: '/data-products/records-of-processing', key: 'dataRecordsOfProcessing', icon: IconListDetails },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: dataProducts },
     ],

@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Radio, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconClipboardCheck, IconSettings, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { DataPortReview, DataPortReviewFacts, DataPortReviewItem, DataProduct } from '@sm/shared';
+import type { DataGovernanceSettings, DataPortReview, DataPortReviewFacts, DataPortReviewItem, DataProduct } from '@sm/shared';
 import { get, getOptional, post, put } from '../../../api';
 import { QueryState, useFieldErrors } from '../../../components/common';
 import { FormModal } from '../../../components/FormModal';
@@ -13,28 +13,31 @@ import { useSubjectLabel } from '../../../components/SubjectsInput';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDate, fmtDay, fmtNumber } from '../../../format';
 import { CardTable, Section, useSortedEnvironments } from '../parts';
+import {
+  DecisionFields,
+  DecisionLine,
+  emptyDecision,
+  toDecisionInput,
+  useDecisionErrors,
+  type DecisionDraft,
+} from '../../../components/dataproducts/DecisionFields';
 import { ProductRequests } from './AccessRequests';
-import { useAccessSettings, useInvalidateGovernance, useProductReviews, useReview } from './api';
+import { govKeys, useAccessSettings, useGovernanceSettings, useInvalidateGovernance, useProductReviews, useReview } from './api';
 
 const enc = encodeURIComponent;
 
 /**
- * Access of a product (ADR 0036 part 12 phase 2) on its Access tab: the access requests of its output ports, the
- * periodic port access reviews with when they are due, and the settings – the process a grant starts, the ticket
- * source, the review interval.
+ * Access of a product (ADR 0036 part 12 phase 2; 0.25.1, ADR 0038) on its Access tab: the periodic port access reviews
+ * with when they are due, the settings – the process and the ticket source of a registration's fulfilment, the review
+ * interval – and the access requests of before 0.25.1 as read-only history.
  */
 export function GovernanceAccessSections({ p }: { p: DataProduct }) {
-  const { t } = useTranslation('dataProductGovernance');
   return (
     <>
-      <Section title={t('requests.title')} testId="product-access-requests">
-        <Text size="xs" c="dimmed" mb="xs">
-          {t('requests.productHelp')}
-        </Text>
-        <ProductRequests p={p} />
-      </Section>
       <PortReviews p={p} />
       <AccessSettingsSection p={p} />
+      {/* access requests of before 0.25.1: read-only history, shown while there are some */}
+      <ProductRequests p={p} />
     </>
   );
 }
@@ -63,6 +66,7 @@ function PortReviews({ p }: { p: DataProduct }) {
       <Text size="xs" c="dimmed" mb="xs">
         {t('reviews.help')}
       </Text>
+      <FourEyesSetting />
       <QueryState query={q} />
       {(q.data?.due ?? []).length > 0 && (
         <Stack gap={4} mb="xs">
@@ -145,6 +149,35 @@ function PortReviews({ p }: { p: DataProduct }) {
   );
 }
 
+/** Four eyes for port access reviews – a setting of the whole module (0.25.1): shown to all, switched by who may. */
+function FourEyesSetting() {
+  const { t } = useTranslation('dataProductGovernance');
+  const q = useGovernanceSettings();
+  const qc = useQueryClient();
+  const [busy, run] = useBusy();
+  if (!q.data) return null;
+  const toggle = (on: boolean) =>
+    run(async () => {
+      qc.setQueryData(govKeys.moduleSettings, await put<DataGovernanceSettings>('/data-products/governance-settings', { portReviewFourEyes: on }));
+    });
+  return q.data.mayChange ? (
+    <Switch
+      size="sm"
+      mb="xs"
+      label={t('reviews.fourEyesSwitch')}
+      description={t('reviews.fourEyesSwitchHelp')}
+      checked={q.data.portReviewFourEyes}
+      disabled={busy}
+      onChange={(e) => void toggle(e.currentTarget.checked)}
+      data-testid="review-four-eyes-switch"
+    />
+  ) : (
+    <Text size="xs" c="dimmed" mb="xs" data-testid="review-four-eyes-setting">
+      {q.data.portReviewFourEyes ? t('reviews.fourEyesOn') : t('reviews.fourEyesOff')}
+    </Text>
+  );
+}
+
 function StartReviewForm({ p, onClose, onStarted }: { p: DataProduct; onClose: () => void; onStarted: (id: string) => void }) {
   const { t } = useTranslation(['dataProductGovernance', 'common']);
   // production first (the review that matters most is the default), as the environment switches order them
@@ -163,14 +196,14 @@ function StartReviewForm({ p, onClose, onStarted }: { p: DataProduct; onClose: (
     .map(({ value, label }) => ({ value, label }));
   const [which, setWhich] = useState<string | null>(options[0]?.value ?? null);
   const [checkId, setCheckId] = useState<string | null>(null);
-  const [fourEyes, setFourEyes] = useState('yes');
+  const settings = useGovernanceSettings();
   const [busy, run] = useBusy();
   const checks = useQuery({ queryKey: ['accessChecks'], queryFn: () => getOptional<{ id: string; name: string }[]>('/compliance/access-checks', []) });
   const v = useFieldErrors({ which: !which && t('common:validation.required') });
   const save = () =>
     run(async () => {
       const [portId, environment] = which!.split('|') as [string, string];
-      const r = await post<DataPortReview>(`/data-products/${enc(p.id)}/ports/${enc(portId)}/reviews`, { environment, checkId, fourEyes: fourEyes === 'yes' });
+      const r = await post<DataPortReview>(`/data-products/${enc(p.id)}/ports/${enc(portId)}/reviews`, { environment, checkId });
       onStarted(r.id);
     });
   return (
@@ -202,12 +235,11 @@ function StartReviewForm({ p, onClose, onStarted }: { p: DataProduct; onClose: (
             clearable
             searchable
           />
-          <Radio.Group label={t('reviews.fourEyes')} value={fourEyes} onChange={setFourEyes}>
-            <Group mt={4}>
-              <Radio value="yes" label={t('reviews.fourEyesYes')} />
-              <Radio value="no" label={t('reviews.fourEyesNo')} />
-            </Group>
-          </Radio.Group>
+          {settings.data && (
+            <Text size="sm" c="dimmed" data-testid="review-start-four-eyes">
+              {settings.data.portReviewFourEyes ? t('reviews.fourEyesOn') : t('reviews.fourEyesOff')}
+            </Text>
+          )}
           <FormButtons busy={busy} submit={t('reviews.start')} testId="review-start-save" />
         </Stack>
       </form>
@@ -356,9 +388,12 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
               },
             ]}
           />
+          {/* 0.25.1 (ADR 0038 part 4): who decided the outcome elsewhere, when, the evidence – the seal covers it */}
+          {r.decision && <DecisionLine d={r.decision} testId="review-decision-line" />}
+          {r.mayDecide && r.needsDecision && <ReviewDecisionForm id={id} recorded={!!r.decision} />}
           {r.mayDecide && (
             <Group justify="flex-end">
-              <Button onClick={() => void step('submit')} loading={busy} data-testid="review-submit">
+              <Button onClick={() => void step('submit')} loading={busy} disabled={r.needsDecision && !r.decision} data-testid="review-submit">
                 {t('reviews.submit')}
               </Button>
             </Group>
@@ -397,6 +432,45 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
         </Stack>
       )}
     </Modal>
+  );
+}
+
+/** The review's documented decision: who decided the outcome elsewhere, on which date, the evidence. */
+function ReviewDecisionForm({ id, recorded }: { id: string; recorded: boolean }) {
+  const { t } = useTranslation('dataProductGovernance');
+  const invalidate = useInvalidateGovernance();
+  const [decision, setDecision] = useState<DecisionDraft>(emptyDecision());
+  const errors = useDecisionErrors(decision);
+  const [tried, setTried] = useState(false);
+  const [busy, run] = useBusy();
+  const save = () => {
+    setTried(true);
+    if (Object.values(errors).some(Boolean)) return;
+    void run(async () => {
+      await put(`/data-products/port-reviews/${enc(id)}/decision`, toDecisionInput(decision));
+      setDecision(emptyDecision());
+      setTried(false);
+      invalidate();
+    });
+  };
+  return (
+    <Stack gap="xs">
+      <DecisionFields
+        legend={recorded ? t('reviews.decisionAgain') : t('reviews.decisionLegend')}
+        help={t('reviews.decisionHelp')}
+        value={decision}
+        onChange={setDecision}
+        errors={tried ? errors : {}}
+        defaultRole="productOwner"
+        roles={['productOwner', 'dataOwner', 'businessContact']}
+        testId="review-decision-form"
+      />
+      <Group justify="flex-end">
+        <Button variant="default" onClick={save} loading={busy} data-testid="review-decision-save">
+          {t('reviews.decisionSave')}
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 

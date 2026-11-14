@@ -1,7 +1,6 @@
 import { z } from 'zod';
+import { documentedDecisionInput, type ContactLink, type DocumentedDecision } from './contacts.js';
 import {
-  DATA_AGREEMENT_KINDS,
-  DATA_CONSUMER_KINDS,
   DATA_PRODUCT_LIMITS as L,
   type DataAgreement,
   type DataClassification,
@@ -188,7 +187,11 @@ export function matchConsumers(
 
 // ---------- access requests ----------
 
-export const DATA_ACCESS_REQUEST_STATUSES = ['pending', 'approved', 'refused', 'withdrawn'] as const;
+/**
+ * converted (0.25.1): a request pending at the upgrade became a registration whose approval is not documented (ADR 0038
+ * part 3) – requests are read-only history since then
+ */
+export const DATA_ACCESS_REQUEST_STATUSES = ['pending', 'approved', 'refused', 'withdrawn', 'converted'] as const;
 export type DataAccessRequestStatus = (typeof DATA_ACCESS_REQUEST_STATUSES)[number];
 
 const isoDate = () =>
@@ -196,45 +199,10 @@ const isoDate = () =>
     .string()
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'a date like 2027-03-31');
-const identities = () =>
-  z
-    .array(z.string().trim().max(DATA_GOVERNANCE_LIMITS.identity).regex(DATA_IDENTITY_RE, 'user:<name>, role:<name> or group:<name>'))
-    .max(DATA_GOVERNANCE_LIMITS.identitiesPerConsumer);
 
-export const dataAccessRequestInput = z
+/** The optional fulfilment of a registration (0.25.1): the platform ticket as a ticket reference, a run of the platform team's process. */
+export const dataConsumerFulfilmentInput = z
   .object({
-    environment: z.string().trim().min(1).max(60),
-    consumer: z
-      .object({
-        kind: z.enum(DATA_CONSUMER_KINDS),
-        refId: z.string().trim().min(1).max(100).nullable().default(null),
-        subject: z
-          .string()
-          .trim()
-          .max(L.short)
-          .regex(/^(user|team):.+$/, 'user:<name> or team:<name>')
-          .nullable()
-          .default(null),
-        text: z.string().trim().max(L.short).default(''),
-      })
-      .strict(),
-    purpose: z.string().trim().min(1).max(L.text),
-    until: isoDate().nullable().default(null),
-    agreement: z
-      .object({ kind: z.enum(DATA_AGREEMENT_KINDS), ref: z.string().trim().min(1).max(L.url), label: z.string().trim().max(L.short).default('') })
-      .strict()
-      .nullable()
-      .default(null),
-    identities: identities().default([]),
-  })
-  .strict();
-export type DataAccessRequestInput = z.input<typeof dataAccessRequestInput>;
-
-export const dataAccessDecisionInput = z
-  .object({
-    decision: z.enum(['approve', 'refuse']),
-    comment: z.string().trim().max(DATA_GOVERNANCE_LIMITS.comment).default(''),
-    /** The ticket of the grant on the platform (a ticket reference is made where the product names a ticket source) */
     ticket: z
       .object({
         externalNumber: z.string().trim().min(1).max(100),
@@ -249,11 +217,20 @@ export const dataAccessDecisionInput = z
       .strict()
       .nullable()
       .default(null),
+    startProcess: z.boolean().default(false),
   })
   .strict();
-export type DataAccessDecisionInput = z.input<typeof dataAccessDecisionInput>;
+export type DataConsumerFulfilmentInput = z.input<typeof dataConsumerFulfilmentInput>;
 
-/** What happens after an approval, per product: a run of a process the platform team owns, a ticket reference, the review interval. */
+export interface DataConsumerFulfilment {
+  consumerId: string;
+  ticketId: string | null;
+  runId: string | null;
+  /** Steps that failed (they can be tried again) */
+  problems: string[];
+}
+
+/** The fulfilment of a registration, per product: a process the platform team owns, a ticket source; and the review interval. */
 export const dataAccessSettingsInput = z
   .object({
     processId: z.string().trim().min(1).max(100).nullable().default(null),
@@ -265,7 +242,7 @@ export type DataAccessSettingsInput = z.input<typeof dataAccessSettingsInput>;
 
 export interface DataAccessSettings {
   productId: string;
-  /** The process started (live, as the approver) after the last approval; null: none */
+  /** The process a registration's fulfilment starts (live, as who records it); null: none */
   process: { id: string; name: string | null } | null;
   ticketSource: string | null;
   /** Port access reviews are due this many months after the last approved one (null: no periodic review) */
@@ -331,9 +308,19 @@ export const dataPortReviewInput = z
     environment: z.string().trim().min(1).max(60),
     /** An access check (access reconciliation) whose grants are reviewed beside the consumers – read now as its owner */
     checkId: z.string().trim().min(1).max(100).nullable().default(null),
-    fourEyes: z.boolean().default(true),
+    /** Ignored since 0.25.1: four eyes is the module setting `portReviewFourEyes` (DataGovernanceSettings) */
+    fourEyes: z.boolean().optional(),
   })
   .strict();
+
+/** The module's governance settings (0.25.1, ADR 0038 part 4). */
+export const dataGovernanceSettingsInput = z.object({ portReviewFourEyes: z.boolean() }).strict();
+export interface DataGovernanceSettings {
+  /** A second IT person approves a port access review before it is sealed (off by default) */
+  portReviewFourEyes: boolean;
+  /** Administrators and granted managers of the module */
+  mayChange: boolean;
+}
 
 export const dataPortReviewDecisionsInput = z
   .object({
@@ -417,6 +404,10 @@ export interface DataPortReview extends DataPortReviewSummary {
   /** The access check read for grants, if any */
   check: { id: string; name: string; origin: 'live' | 'snapshot'; takenAt: string | null; error: string | null } | null;
   entries: DataPortReviewItem[];
+  /** 0.25.1: who decided the outcome elsewhere, when, the evidence (reviews of before 0.25.1: none) */
+  decision: DocumentedDecision | null;
+  /** Started since 0.25.1: it is submitted only with a documented decision */
+  needsDecision: boolean;
   mayDecide: boolean;
   mayApprove: boolean;
 }
@@ -547,6 +538,8 @@ export const dataEndorsementInput = z
     /** The review date (at most 12 months ahead; default 12 months) */
     reviewDate: isoDate().nullable().default(null),
     note: z.string().trim().max(DATA_GOVERNANCE_LIMITS.comment).default(''),
+    /** 0.25.1 (ADR 0038 part 5): who endorsed it elsewhere (the domain owners, typically), when, the evidence */
+    decision: documentedDecisionInput,
   })
   .strict();
 export type DataEndorsementInput = z.input<typeof dataEndorsementInput>;
@@ -557,8 +550,11 @@ export type DataEndorsementReviewReason = (typeof DATA_ENDORSEMENT_REVIEW_REASON
 
 export interface DataEndorsement {
   productId: string;
+  /** Who recorded it in Steward (before 0.25.1: who endorsed it in Steward) */
   endorsedBy: string;
   endorsedAt: string;
+  /** 0.25.1: the documented endorsement – endorsed by (contacts, frozen), on which date, the evidence */
+  decision: DocumentedDecision | null;
   reviewDate: string;
   note: string;
   /** Counts for maturity level 5: not expired and not flagged for review */
@@ -569,11 +565,11 @@ export interface DataEndorsement {
 /** GET /api/data-products/:id/endorsement */
 export interface DataEndorsementView {
   endorsement: DataEndorsement | null;
-  /** Who endorses: the owners of the product's domain (and of its parent domain); without any, the module's managers */
-  endorsers: string[];
+  /** The owners of the product's domain (and of its parent domain): who typically endorses – suggested in the form */
+  domainOwners: ContactLink[];
   mayEndorse: boolean;
-  /** Why the reader may not: they own the product, or are no endorser */
-  whyNot: 'ownProduct' | 'notEndorser' | null;
+  /** Why the reader may not record it: they may not change the product (0.25.1: the IT maintainers record it) */
+  whyNot: 'notMaintainer' | null;
 }
 
 /** An endorsement's state on `today` (pure): flagged reasons first, then the review date. */
@@ -633,6 +629,7 @@ export interface DataRopaEntry {
   retention: string;
   deletionRule: string;
   regulatoryFlags: string[];
+  /** The data owner and stewards by name (0.25.1: contacts – names and roles leave the app, e-mail addresses do not) */
   owner: string | null;
   stewards: string[];
   products: DataRopaProduct[];

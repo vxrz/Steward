@@ -679,9 +679,10 @@
       "sunset": "Abschaltdatum: {{date}}.",
       "noSunset": "Ein Abschaltdatum ist noch nicht gesetzt.",
       "successor": "Nachfolger: {{successor}}.",
-      "registered": "Sie sind als Nutzer registriert für: {{ports}}.",
+      "maintainer_one": "Sie betreuen es: {{count}} registrierter Konsument – informieren Sie ihn über seine Kontakte.",
+      "maintainer_other": "Sie betreuen es: {{count}} registrierte Konsumenten – informieren Sie sie über ihre Kontakte.",
       "consuming": "Ihre Datenprodukte, die es nutzen: {{products}}.",
-      "hint": "Sie erhalten diese Nachricht, weil Sie als Nutzer registriert sind oder ein Datenprodukt besitzen, das es nutzt."
+      "hint": "Sie erhalten diese Nachricht, weil Sie dieses Datenprodukt oder ein Datenprodukt, das es nutzt, ändern dürfen. Steward benachrichtigt die Kontakte der Konsumenten nicht selbst."
     },
     "missing": {
       "title_one": "Datenprodukt {{product}}: {{count}} Element fehlt",
@@ -706,35 +707,30 @@
       "environments": "Gebunden in: {{environments}}.",
       "more_one": "… und {{count}} weitere",
       "more_other": "… und {{count}} weitere",
-      "registered": "Sie sind als Nutzer von {{port}} registriert.",
+      "maintainer_one": "Sie betreuen es: {{count}} registrierter Konsument von {{port}} – informieren Sie ihn über seine Kontakte.",
+      "maintainer_other": "Sie betreuen es: {{count}} registrierte Konsumenten von {{port}} – informieren Sie sie über ihre Kontakte.",
       "consuming": "Ihre Datenprodukte, die ihn nutzen: {{products}}.",
-      "hint": "Sie erhalten dies einmal je Vertragsversion, weil Sie als Nutzer registriert sind oder ein Datenprodukt besitzen, das den Port nutzt. Prüfen Sie, was die Änderung für Sie bedeutet, und sprechen Sie mit den Besitzern des Produkts."
+      "hint": "Sie erhalten dies einmal je Vertragsversion, weil Sie dieses Datenprodukt oder ein Datenprodukt, das den Port nutzt, ändern dürfen. Prüfen Sie, was die Änderung bedeutet, und informieren Sie die Konsumenten."
+    },
+    "consumerContacts": {
+      "port": "Port",
+      "consumer": "Konsument",
+      "name": "Kontakt",
+      "role": "Rolle",
+      "email": "E-Mail-Adresse",
+      "roles": {
+        "consumerContact": "Kontakt des Konsumenten"
+      }
     }
   },
   "dataProductGovernance": {
-    "requested": {
-      "title": "Zugriff beantragt: {{port}} von {{product}}",
-      "body": "{{requester}} beantragt Zugriff auf den Port „{{port}}“ des Datenprodukts „{{product}}“ in {{environment}}.",
-      "purpose": "Zweck: {{purpose}}",
-      "until": "Bis: {{date}}",
-      "fourEyes": "Das Produkt ist hoch oder höher eingestuft: Zwei Personen genehmigen.",
-      "second": "{{first}} hat genehmigt: Jetzt entscheidet eine zweite Person.",
-      "hint": "Sie erhalten dies, weil Sie über Zugriffsanträge des Produkts entscheiden. Entscheiden Sie im Reiter Zugriff des Produkts."
-    },
-    "decided": {
-      "approvedTitle": "Zugriff genehmigt: {{product}}",
-      "refusedTitle": "Zugriff abgelehnt: {{product}}",
-      "approvedBody": "{{by}} hat Ihren Antrag für den Port „{{port}}“ von „{{product}}“ in {{environment}} genehmigt. Sie sind jetzt als Konsument registriert.",
-      "refusedBody": "{{by}} hat Ihren Antrag für den Port „{{port}}“ von „{{product}}“ in {{environment}} abgelehnt.",
-      "comment": "Kommentar: {{comment}}",
-      "hint": "Steward vergibt selbst keine Rechte auf der Plattform: Wo das Produkt einen Prozess oder ein Ticket nennt, vergibt das Plattform-Team den Zugriff."
-    },
+    "contactsAction": "Kontakte der Konsumenten",
     "reviewDue": {
       "title": "Zugriffsprüfung fällig: {{port}} von {{product}}",
       "body": "Die regelmäßige Zugriffsprüfung des Ports „{{port}}“ von „{{product}}“ in {{environment}} ist am {{date}} fällig.",
       "last": "Letzte freigegebene Prüfung: {{date}}.",
       "never": "Der Port wurde noch nicht geprüft.",
-      "hint": "Beginnen Sie die Prüfung im Reiter Zugriff des Produkts: Dort werden registrierte Konsumenten, tatsächliche Leser und Berechtigungen verglichen."
+      "hint": "Beginnen Sie die Prüfung im Reiter Zugriff des Produkts: Dort werden registrierte Konsumenten, tatsächliche Leser und Berechtigungen verglichen; erfassen Sie das mit der Fachseite entschiedene Ergebnis."
     },
     "endorsementReview": {
       "title": "Bestätigung prüfen: {{product}}",
@@ -742,8 +738,8 @@
       "expired": "Die Bestätigung von „{{product}}“ ist am {{date}} abgelaufen – sie zählt nicht mehr für Reifegrad 5.",
       "breakingChange": "Ein an „{{product}}“ gebundener Datenvertrag hatte eine inkompatible Änderung: Die Bestätigung muss geprüft werden.",
       "belowFloor": "Die Einstufung von „{{product}}“ liegt ohne Begründung unter der seiner Datenobjekte: Die Bestätigung muss geprüft werden.",
-      "by": "Bestätigt von {{by}} am {{date}}.",
-      "hint": "Bestätigen Sie es erneut (oder widerrufen Sie die Bestätigung) in der Übersicht des Produkts."
+      "by": "Bestätigung erfasst von {{by}} am {{date}}.",
+      "hint": "Lassen Sie sie mit den Bestätigenden erneut prüfen und erfassen Sie die neue Bestätigung (oder entfernen Sie sie) in der Übersicht des Produkts."
     },
     "ropa": {
       "title": "Verarbeitungstätigkeiten",

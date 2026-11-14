@@ -2,10 +2,11 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
- * Notifications of data products (ADR 0036 part 17, WP4): `dataproduct.deprecated` to registered consumers and the
- * owners of consuming products, with sunset date and successor, once per item and sunset date; `elements_missing` once
- * per product and discovery run; `discovery_failed` once per source until it succeeds – each only to who may see what
- * it names.
+ * Notifications of data products (ADR 0036 part 17, WP4; 0.25.1, ADR 0038 part 6): `dataproduct.deprecated` to the
+ * IT maintainers of the product (who may edit it) and of the products that use it – never to a consumer or a contact –
+ * with sunset date, successor and the link to the consumers' contacts, once per item and sunset date; `elements_missing`
+ * to the IT maintainers once per product and discovery run; `discovery_failed` once per source until it succeeds – each
+ * only to who may see what it names.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -72,27 +73,29 @@ beforeAll(async () => {
 }, 180_000);
 
 describe('dataproduct.deprecated', () => {
-  it('tells registered consumers and the owners of consuming products once, naming only what they may see', async () => {
+  it('tells the IT maintainers once, with the link to the consumers’ contacts – never a consumer or a contact', async () => {
+    // olivia maintains the consuming mart through a share (an owner field gives nothing)
+    await dana('PUT', `/access/data_product/${mart}/shares`, { shares: [{ subject: 'user:olivia', level: 'edit' }] });
     const successor = (await dana('POST', '/data-products', { key: 'notice-orders-2', name: 'Notice orders 2' })).id;
     await dana('POST', `/data-products/${orders}/lifecycle`, { lifecycle: 'deprecated', sunsetDate: '2027-06-30', successorId: successor });
-    // the team's member, the registered user, the contact – and olivia also owns the consuming mart
+    // dana may change the product (a designer, no owning teams): told with the consumers to inform
+    const d = await notes(dana, 'dataproduct.deprecated', orders);
+    expect(d).toHaveLength(1);
+    expect(d[0]!.title).toBe('Data product deprecated: Notice orders');
+    expect(d[0]!.body).toContain('2027-06-30');
+    expect(d[0]!.body).toContain('Successor: Notice orders 2');
+    expect(d[0]!.body).toContain('You maintain it: 2 registered consumers');
+    expect(d[0]!.body).toContain(`/data-products/${orders}/ports?contacts=all`);
+    expect(d[0]!.body).toContain('Your data products that use it: Notice mart');
+    // the hidden consuming product is named to nobody who may not see it (its team may not change it: nobody is told)
+    expect(d[0]!.body).not.toContain('Secret mart');
+    // the consuming product's maintainer: told as such, without the consumers
     const o = await notes(olivia, 'dataproduct.deprecated', orders);
     expect(o).toHaveLength(1);
-    expect(o[0]!.title).toBe('Data product deprecated: Notice orders');
-    expect(o[0]!.body).toContain('2027-06-30');
-    expect(o[0]!.body).toContain('Successor: Notice orders 2');
-    expect(o[0]!.body).toContain('registered as a consumer of: orders v1');
     expect(o[0]!.body).toContain('Your data products that use it: Notice mart');
-    // the hidden consuming product is named only to its owner
-    expect(o[0]!.body).not.toContain('Secret mart');
-    const a = await notes(adam, 'dataproduct.deprecated', orders);
-    expect(a).toHaveLength(1);
-    expect(a[0]!.body).toContain('Secret mart');
-    expect(a[0]!.body).not.toContain('Notice mart');
-    expect(await notes(audrey, 'dataproduct.deprecated', orders)).toHaveLength(1);
-    // who neither consumes nor owns a consuming product is not told
-    expect(await notes(vera, 'dataproduct.deprecated', orders)).toHaveLength(0);
-    expect(await notes(dana, 'dataproduct.deprecated', orders)).toHaveLength(0);
+    expect(o[0]!.body).not.toContain('You maintain it');
+    // registered consumers, their contacts and named owners are not told: the maintainers inform them
+    for (const who of [adam, audrey, vera]) expect(await notes(who, 'dataproduct.deprecated', orders)).toHaveLength(0);
     const { noticesOf } = await import('../src/dataproducts/notices.js');
     expect(noticesOf('product', [orders]).map((n) => n.notice_key)).toEqual(['deprecated:2027-06-30']);
   });
@@ -102,10 +105,10 @@ describe('dataproduct.deprecated', () => {
     // the same state again: nothing new
     await dana('POST', `/data-products/${orders}/lifecycle`, { lifecycle: 'deprecated', sunsetDate: '2027-06-30' });
     expect(onLifecycleChanged('product', orders, { from: 'active', to: 'deprecated', sunsetDate: '2027-06-30' })).toBe(0);
-    expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(1);
+    expect(await notes(dana, 'dataproduct.deprecated', orders)).toHaveLength(1);
     // a new sunset date
     await dana('POST', `/data-products/${orders}/lifecycle`, { lifecycle: 'deprecated', sunsetDate: '2027-09-30' });
-    const o = await notes(olivia, 'dataproduct.deprecated', orders);
+    const o = await notes(dana, 'dataproduct.deprecated', orders);
     expect(o).toHaveLength(2);
     expect(o.some((n) => n.body.includes('2027-09-30'))).toBe(true);
     // back to active forgets it; deprecating again tells again
@@ -115,7 +118,7 @@ describe('dataproduct.deprecated', () => {
     const { db } = await import('../src/db.js');
     db().run("DELETE FROM notifications WHERE event = 'dataproduct.deprecated'");
     await dana('POST', `/data-products/${orders}/lifecycle`, { lifecycle: 'deprecated', sunsetDate: '2027-09-30' });
-    expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(1);
+    expect(await notes(dana, 'dataproduct.deprecated', orders)).toHaveLength(1);
   });
 
   it('is held back while an import runs: dropped for its preview and a refused import, sent once it is committed', async () => {
@@ -134,14 +137,14 @@ describe('dataproduct.deprecated', () => {
       }),
     ).toThrow('refused');
     expect(noticesOf('product', [orders])).toEqual([]);
-    expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(0);
+    expect(await notes(dana, 'dataproduct.deprecated', orders)).toHaveLength(0);
     // committed: told once
     holdingNotices(true, () => onLifecycleChanged('product', orders, change));
     expect(noticesOf('product', [orders]).map((n) => n.notice_key)).toEqual(['deprecated:2027-12-31']);
-    expect(await notes(olivia, 'dataproduct.deprecated', orders)).toHaveLength(1);
+    expect(await notes(dana, 'dataproduct.deprecated', orders)).toHaveLength(1);
   });
 
-  it('tells nobody who may not see the deprecated product', async () => {
+  it('tells nobody who may not see the deprecated product – its owning team’s maintainers only', async () => {
     const team = (await s.api('POST', '/teams', { name: 'Invented owner team', members: ['dana'] })).id;
     const secret = (await dana('POST', '/data-products', { key: 'notice-team-owned', name: 'Team owned product', owners: ['user:dana'] })).id;
     const { db } = await import('../src/db.js');
@@ -154,11 +157,12 @@ describe('dataproduct.deprecated', () => {
     const p = (await dana('POST', `/data-products/${secret}/ports`, { direction: 'output', name: 'feed', type: 'topic' })).id;
     await dana('POST', `/data-products/${secret}/ports/${p}/consumers`, { kind: 'user', subject: 'user:vera' });
     await dana('POST', `/data-products/${secret}/lifecycle`, { lifecycle: 'deprecated', sunsetDate: '2027-01-31' });
+    expect(await notes(dana, 'dataproduct.deprecated', secret)).toHaveLength(1);
     expect(await notes(vera, 'dataproduct.deprecated', secret)).toHaveLength(0);
     expect(JSON.stringify(await vera('GET', '/notifications?limit=500'))).not.toContain('Team owned product');
   });
 
-  it('tells the consumers of a deprecated port, and forgets a removed port', async () => {
+  it('tells the maintainers of a deprecated port’s product, and forgets a removed port', async () => {
     const events = (await dana('POST', `/data-products/${mart}/ports`, { direction: 'output', name: 'events', type: 'topic', version: 'v3' })).id;
     await dana('POST', `/data-products/${mart}/ports/${events}/consumers`, { kind: 'user', subject: 'user:audrey' });
     await dana('PUT', `/data-products/${mart}/ports/${events}`, {
@@ -169,10 +173,13 @@ describe('dataproduct.deprecated', () => {
       lifecycle: 'deprecated',
       sunsetDate: '2027-02-28',
     });
-    const a = await notes(audrey, 'dataproduct.deprecated', mart);
+    expect(await notes(audrey, 'dataproduct.deprecated', mart)).toHaveLength(0);
+    const a = await notes(olivia, 'dataproduct.deprecated', mart);
     expect(a).toHaveLength(1);
     expect(a[0]!.title).toBe('Port events v3 of Notice mart deprecated');
     expect(a[0]!.body).toContain('2027-02-28');
+    expect(a[0]!.body).toContain('You maintain it: 1 registered consumer');
+    expect(a[0]!.body).toContain(`/data-products/${mart}/ports?contacts=${events}`);
     const { noticesOf } = await import('../src/dataproducts/notices.js');
     expect(noticesOf('port', [events])).toHaveLength(1);
     await dana('DELETE', `/data-products/${mart}/ports/${events}`);
@@ -182,7 +189,7 @@ describe('dataproduct.deprecated', () => {
 
 describe('discovery notices', () => {
   let source = '';
-  it('tells the owners of a product once per run that elements are missing', async () => {
+  it('tells the IT maintainers of a product once per run that elements are missing', async () => {
     const { db } = await import('../src/db.js');
     const now = new Date().toISOString();
     source = 'dpq_notice_1';
@@ -201,7 +208,7 @@ describe('discovery notices', () => {
     expect(d[0]!.title).toBe('Data product Notice orders: 1 element missing');
     expect(d[0]!.body).toContain('notice.orders.v1 (prod)');
     expect(d[0]!.body).toContain('Invented Kafka read');
-    // the owners only
+    // the maintainers only (olivia may not change it)
     expect(await notes(olivia, 'dataproduct.elements_missing', orders)).toHaveLength(0);
     // a later run tells again
     expect(noticeDiscoveryRun({ sourceId: source, runId: 'dpn_n2', status: 'truncated', missingElementIds: [topic] }).missing).toBe(1);

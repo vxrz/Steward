@@ -3,11 +3,12 @@ import { db } from '../db.js';
 import { logger } from '../log.js';
 import { nowIso, parseJson } from '../util.js';
 import type { AuthUser } from '../auth/context.js';
-import { matches } from '../auth/permissions.js';
-import { memberships, owningTeams, platformAccess } from '../auth/policy.js';
+import { isAdmin } from '../auth/permissions.js';
+import { platformAccess } from '../auth/policy.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { t } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
+import { absoluteLink } from '../notifications/settings.js';
 import { productAccess } from './access.js';
 import {
   chunks,
@@ -32,13 +33,13 @@ import {
  * Recipients only read what they may see: a product they may not see is never named – they are not told about it at
  * all – and of the consuming products, only those they may see are named.
  *
- *  - `dataproduct.deprecated` – a product or a port deprecated: to the registered consumers of its (output) ports – the
- *    teams and users registered, their contacts, the owners of a registered consuming product – and the owners of the
- *    products whose input ports consume them; with the sunset date and the successor. Once per item and sunset date;
- *    leaving _deprecated_ forgets it (a later deprecation tells again). Hooks: service.changeLifecycle,
- *    ports.updatePort, ports.deletePort.
- *  - `dataproduct.elements_missing` – once per product and discovery run, to the product's owners (else the members of
- *    its owning teams who may change it).
+ *  - `dataproduct.deprecated` – a product or a port deprecated: to the product's IT maintainers (who may edit it –
+ *    owning teams, roles, shares; administrators only when nobody else may) with the number of registered consumers and
+ *    a link to their contacts (0.25.1, ADR 0038 part 6: Steward never e-mails a contact – the maintainers inform them),
+ *    and to the IT maintainers of the products whose input ports consume it or that are registered as its consumers;
+ *    with the sunset date and the successor. Once per item and sunset date; leaving _deprecated_ forgets it (a later
+ *    deprecation tells again). Hooks: service.changeLifecycle, ports.updatePort, ports.deletePort.
+ *  - `dataproduct.elements_missing` – once per product and discovery run, to the product's IT maintainers.
  *  - `dataproduct.discovery_failed` – once per source until a run succeeds, to the source's owner (who it runs as) and
  *    the platform's managers who may see the platform (else the administrators).
  *
@@ -73,20 +74,26 @@ export function people(): Person[] {
     .map((info) => ({ info, auth: toAuthUser(info) }));
 }
 
-/** The people `subjects` (`user:`, `team:`) name. */
-export const named = (all: Person[], subjects: readonly string[]): Person[] =>
-  subjects.length ? all.filter((p) => subjects.some((s) => matches(p.auth, s))) : [];
-
 export const sees = (p: Person, product: ProductRow): boolean => productAccess(p.auth, product).permissions.length > 0;
 
-/** A product's owners; without any, the members of its owning teams who may change it. */
-export function ownersOf(all: Person[], product: ProductRow): Person[] {
-  const owners = named(all, parseJson<string[]>(product.owners, []));
-  if (owners.length) return owners;
-  const teams = owningTeams('data_product', product.id).map((x) => x.id);
-  if (!teams.length) return [];
-  return all.filter((p) => teams.some((id) => memberships(p.auth).has(id)) && productAccess(p.auth, product).permissions.includes('edit'));
+/**
+ * A product's IT maintainers (0.25.1, ADR 0038 part 6): who may edit it through owning teams, roles and shares – never
+ * an owner field or a contact. Administrators only when nobody else may and `adminFallback` (the product the notice is
+ * about; a consuming product without maintainers tells nobody).
+ */
+export function maintainersOf(all: Person[], product: ProductRow, adminFallback = true): Person[] {
+  const editors = all.filter((p) => !isAdmin(p.auth) && productAccess(p.auth, product).permissions.includes('edit'));
+  return editors.length || !adminFallback ? editors : all.filter((p) => isAdmin(p.auth));
 }
+
+/** The in-app page that lists the consumers' contacts of a product (or of one of its ports), with copy and CSV. */
+export const consumerContactsLink = (productId: string, portId?: string): string =>
+  `/data-products/${encodeURIComponent(productId)}/ports?contacts=${portId ? encodeURIComponent(portId) : 'all'}`;
+
+/** The button to the consumers' contacts (e-mail and Teams; a line in the app). */
+export const contactsAction = (l: Locale, productId: string, portId?: string) => ({
+  actions: [{ label: t(l, 'dataProductGovernance.contactsAction'), href: absoluteLink(consumerContactsLink(productId, portId)) }],
+});
 
 // ---------- deprecated ----------
 
@@ -146,9 +153,9 @@ export function onPortDeleted(portId: string): void {
 }
 
 interface Why {
-  /** Ports (names with versions) the person is registered on */
-  registered: Set<string>;
-  /** Consuming products the person owns (ids) */
+  /** The person maintains the deprecated product */
+  maintains: boolean;
+  /** Consuming products the person maintains (ids) */
   consuming: Set<string>;
 }
 
@@ -162,7 +169,7 @@ function sendDeprecated(kind: 'product' | 'port', id: string): number {
   const all = people();
   const why = new Map<string, Why & { person: Person }>();
   const add = (p: Person, f: (w: Why) => void) => {
-    const w = why.get(p.info.id) ?? { person: p, registered: new Set<string>(), consuming: new Set<string>() };
+    const w = why.get(p.info.id) ?? { person: p, maintains: false, consuming: new Set<string>() };
     f(w);
     why.set(p.info.id, w);
   };
@@ -172,17 +179,12 @@ function sendDeprecated(kind: 'product' | 'port', id: string): number {
     ...consumers.flatMap((c) => (c.consumer_kind === 'product' && c.ref_id ? [c.ref_id] : [])),
     ...consumingIn.map((c) => c.product_id),
   ]);
-  for (const c of consumers) {
-    const label = portLabel.get(c.port_id) ?? '';
-    for (const p of named(all, [...parseJson<string[]>(c.consumer_subjects, []), ...parseJson<string[]>(c.contacts, [])]))
-      add(p, (w) => w.registered.add(label));
-    const cp = c.consumer_kind === 'product' && c.ref_id ? consuming.get(c.ref_id) : undefined;
-    if (cp) for (const p of ownersOf(all, cp)) add(p, (w) => w.consuming.add(cp.id));
-  }
-  for (const c of consumingIn) {
-    const cp = consuming.get(c.product_id);
-    if (cp && cp.lifecycle !== 'retired') for (const p of ownersOf(all, cp)) add(p, (w) => w.consuming.add(cp.id));
-  }
+  for (const p of maintainersOf(all, product))
+    add(p, (w) => {
+      w.maintains = true;
+    });
+  for (const cp of consuming.values())
+    if (cp.id !== product.id && cp.lifecycle !== 'retired') for (const p of maintainersOf(all, cp, false)) add(p, (w) => w.consuming.add(cp.id));
   // only who may see the deprecated product is told; of the consuming products only those they may see are named
   const recipients = [...why.values()].filter((w) => sees(w.person, product));
   if (!recipients.length) return 0;
@@ -212,11 +214,12 @@ function sendDeprecated(kind: 'product' | 'port', id: string): number {
         : t(l, 'dataProducts.deprecated.productBody', { product: product.name }),
       sunset ? t(l, 'dataProducts.deprecated.sunset', { date: sunset }) : t(l, 'dataProducts.deprecated.noSunset'),
       ...(successor ? [t(l, 'dataProducts.deprecated.successor', { successor })] : []),
-      ...(w?.registered.size ? [t(l, 'dataProducts.deprecated.registered', { ports: [...w.registered].sort().join(', ') })] : []),
+      ...(w?.maintains ? [t(l, 'dataProducts.deprecated.maintainer', { count: consumers.length })] : []),
       ...(mine.length ? [t(l, 'dataProducts.deprecated.consuming', { products: mine.join(', ') })] : []),
       t(l, 'dataProducts.deprecated.hint'),
     ];
     return {
+      ...(w?.maintains ? { parts: contactsAction(l, product.id, port?.id) } : {}),
       title:
         kind === 'port'
           ? t(l, 'dataProducts.deprecated.portTitle', { port: titleName(portName, 60), product: titleName(product.name) })
@@ -367,7 +370,7 @@ function sendElementsMissing(sourceId: string, runId: string, elementIds: readon
   for (const [productId, ids] of byProduct) {
     const product = products.get(productId);
     if (!product || product.lifecycle === 'retired') continue;
-    const recipients = ownersOf(all, product).filter((p) => sees(p, product));
+    const recipients = maintainersOf(all, product).filter((p) => sees(p, product));
     if (!recipients.length) continue;
     if (!claim('product', product.id, `missing:${runId}`)) continue;
     // the elements of a product are part of what its readers see (decision 15)

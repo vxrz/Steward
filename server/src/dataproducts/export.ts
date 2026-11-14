@@ -1,6 +1,15 @@
 import YAML from 'yaml';
-import { CIA_DIMENSIONS, type AclEntry, type DataObjectives, type DataStep, type DataStepRunner, type PlatformPermission } from '@sm/shared';
+import {
+  CIA_DIMENSIONS,
+  type AclEntry,
+  type ContactLinkKind,
+  type DataObjectives,
+  type DataStep,
+  type DataStepRunner,
+  type PlatformPermission,
+} from '@sm/shared';
 import { db } from '../db.js';
+import { linksOf } from '../contacts/service.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
@@ -46,6 +55,7 @@ import {
   type ProductFile,
   type RunnerFile,
   type StepFile,
+  type ContactFile,
 } from './format.js';
 
 /**
@@ -75,6 +85,27 @@ export class Snapshot {
 
   constructor(u: AuthUser = me()) {
     this.u = u;
+  }
+
+  /** Contacts of entries (0.25.1), read in bulk per kind and cached: names, roles and e-mail addresses (the file format). */
+  private contactCache = new Map<string, ContactFile[]>();
+  preloadContacts(kind: ContactLinkKind, ids: Iterable<string>): void {
+    const missing = [...new Set(ids)].filter((id) => !this.contactCache.has(`${kind}:${id}`));
+    if (!missing.length) return;
+    for (const [id, links] of linksOf(kind, missing, { surface: 'file' }))
+      this.contactCache.set(
+        `${kind}:${id}`,
+        links.map((l) => ({
+          role: l.role,
+          name: l.contact.name,
+          ...(l.contact.kind === 'group' ? { kind: 'group' as const } : {}),
+          ...(l.contact.email ? { email: l.contact.email } : {}),
+        })),
+      );
+  }
+  contactsOf(kind: ContactLinkKind, id: string): ContactFile[] {
+    this.preloadContacts(kind, [id]);
+    return this.contactCache.get(`${kind}:${id}`) ?? [];
   }
 
   /** Platforms by id: the name where `u` may see it (null: hidden or gone). */
@@ -250,7 +281,7 @@ export function domainEntry(s: Snapshot, d: DomainRow): DomainFile {
     description: d.description,
     ...(parent !== undefined ? { parent } : {}),
     colour: (d.colour as DomainFile['colour']) ?? null,
-    owners: strings(d.owners),
+    contacts: s.contactsOf('data_domain', d.id),
   };
 }
 
@@ -292,8 +323,7 @@ export function objectEntry(
       description: a.description ?? '',
       personal: !!a.personal,
     })),
-    owner: o.owner,
-    stewards: strings(o.stewards),
+    contacts: s.contactsOf('data_object', o.id),
     custodians: strings(o.custodians),
     external_refs: parseJson(o.external_refs, []),
     rating: ratingFile(rating),
@@ -360,7 +390,7 @@ function consumerFile(s: Snapshot, c: ReturnType<typeof consumersOf>[number], id
     since: c.since,
     end_date: c.end_date,
     agreement: parseJson<ConsumerFile['agreement']>(c.agreement, null),
-    contacts: strings(c.contacts),
+    contacts: s.contactsOf('data_consumer', c.id),
     // the platform identities of the registration (0.24.0): only when it names some
     ...(identities.length ? { identities: [...identities] } : {}),
   };
@@ -474,6 +504,10 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
   const bindings = ports.flatMap((x) => facts.bindings.get(x.id) ?? []).filter((b) => environment === undefined || b.environment === environment);
   const declared = ports.flatMap((x) => facts.declared.get(x.id) ?? []);
   const consumers = ports.flatMap((x) => facts.consumers.get(x.id) ?? []);
+  s.preloadContacts(
+    'data_consumer',
+    consumers.map((c) => c.id),
+  );
   const identities = facts.identities;
   const steps = facts.steps.get(p.id) ?? [];
   const sourcePorts = facts.sourcePorts;
@@ -571,7 +605,7 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
     purpose: p.purpose,
     type: (p.type as ProductFile['type']) ?? null,
     ...(domain !== undefined ? { domain } : {}),
-    owners: strings(p.owners),
+    contacts: s.contactsOf('data_product', p.id),
     support: { channel: support.channel ?? '', url: support.url ?? '', hours: support.hours ?? '' },
     criticality: (p.criticality as ProductFile['criticality']) ?? null,
     tier: (p.tier === null ? null : Number(p.tier)) as ProductFile['tier'],
@@ -686,6 +720,15 @@ export function exportDocument(scope: ExportScope = {}): ExportResult {
   const productIds = products.map((p) => p.id);
   s.products(products.flatMap((p) => (p.successor_id ? [p.successor_id] : [])));
   const facts = productFacts(s, productIds);
+  // the contacts of the products and their registrations: two statements for the whole export
+  s.preloadContacts(
+    'data_product',
+    products.map((p) => p.id),
+  );
+  s.preloadContacts(
+    'data_consumer',
+    [...facts.consumers.values()].flat().map((c) => c.id),
+  );
   const entries = products.map((p) => productEntry(s, p, env, facts));
 
   // data objects: those of the scope, and those the products' ports name
@@ -706,6 +749,10 @@ export function exportDocument(scope: ExportScope = {}): ExportResult {
       )
     : [];
   s.elements(links.map((l) => l.element_id));
+  s.preloadContacts(
+    'data_object',
+    objectRows.map((o) => o.id),
+  );
   const objectEntries = objectRows.map((o) =>
     objectEntry(
       s,
@@ -760,6 +807,10 @@ export function exportDocument(scope: ExportScope = {}): ExportResult {
     const parent = d.parent_id ? s.allDomains().get(d.parent_id) : undefined;
     if (parent && s.seesDomain(parent) && !domainRows.includes(parent)) domainRows.push(parent);
   }
+  s.preloadContacts(
+    'data_domain',
+    domainRows.map((d) => d.id),
+  );
   const domainEntries = domainRows.sort((a, b) => Number(!!a.parent_id) - Number(!!b.parent_id) || a.key.localeCompare(b.key)).map((d) => domainEntry(s, d));
 
   const document: DataProductsFile = {

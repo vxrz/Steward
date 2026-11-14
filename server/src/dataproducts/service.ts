@@ -27,14 +27,13 @@ import {
   type DataMemberRole,
   type RatingFloor,
   type RatingFloorDimension,
-  type OwnedKind,
+  type ContactLink,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
+import { currentStore, type AuthUser } from '../auth/context.js';
 import { forbid, me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, type OwningTeam } from '../auth/policy.js';
-import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
+import { assignCreatorTeams, forgetOwningTeams, owningTeams } from '../auth/policy.js';
 import { forgetShares } from '../auth/shares.js';
 import { environmentList } from '../catalogue/environments.js';
 import { currentScale } from '../catalogue/cia.js';
@@ -62,12 +61,14 @@ import {
 } from './store.js';
 import { portViews } from './ports.js';
 import { onLifecycleChanged } from './notices.js';
+import { contactsOf, userSubjectsOf, writeContacts } from './contacts.js';
+import { removeItemLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 
 /**
  * Domains, data objects and data products (ADR 0036 parts 1–4, 12, 17): reading with team scope (a reader never sees,
  * counts or is told about what they may not see – a hidden domain or successor is a reference without a name), writing
- * with the rights of access.ts, named owners from outside the owning teams confirmed (access.grant), every change
+ * with the rights of access.ts (owner fields are documentation and give no right – ADR 0038 part 2), every change
  * audited. Members, ports and consumers are in members.ts and ports.ts, elements in elements.ts, steps in steps.ts.
  */
 
@@ -134,7 +135,12 @@ function domainCounts(u: AuthUser | null): Map<string, { products: number; objec
   return out;
 }
 
-function domainView(d: DomainRow, perms: DataProductPermission[], counts: { products: number; objects: number } | undefined): DataDomain {
+function domainView(
+  d: DomainRow,
+  perms: DataProductPermission[],
+  counts: { products: number; objects: number } | undefined,
+  contacts: ContactLink[] = [],
+): DataDomain {
   return {
     id: d.id,
     key: d.key,
@@ -142,7 +148,8 @@ function domainView(d: DomainRow, perms: DataProductPermission[], counts: { prod
     description: d.description,
     parentId: d.parent_id,
     colour: (d.colour as DataDomain['colour']) ?? null,
-    owners: parseJson<string[]>(d.owners, []),
+    owners: userSubjectsOf(contacts, 'domainOwner'),
+    contacts,
     owningTeams: owningTeams('data_domain', d.id),
     products: counts?.products ?? 0,
     objects: counts?.objects ?? 0,
@@ -158,10 +165,14 @@ function domainView(d: DomainRow, perms: DataProductPermission[], counts: { prod
 export function listDomains(): DataDomain[] {
   const u = me();
   const counts = domainCounts(u);
-  return allDomains()
+  const seen = allDomains()
     .map((d) => ({ d, perms: domainAccess(u, d).permissions }))
-    .filter((x) => x.perms.length)
-    .map((x) => domainView(x.d, x.perms, counts.get(x.d.id)));
+    .filter((x) => x.perms.length);
+  const links = contactsOf(
+    'data_domain',
+    seen.map((x) => x.d.id),
+  );
+  return seen.map((x) => domainView(x.d, x.perms, counts.get(x.d.id), links.get(x.d.id)));
 }
 
 function visibleDomain(id: string): { row: DomainRow; perms: DataProductPermission[] } {
@@ -174,7 +185,7 @@ function visibleDomain(id: string): { row: DomainRow; perms: DataProductPermissi
 
 export function getDomain(id: string): DataDomain {
   const { row, perms } = visibleDomain(id);
-  return domainView(row, perms, domainCounts(me()).get(row.id));
+  return domainView(row, perms, domainCounts(me()).get(row.id), contactsOf('data_domain', [row.id]).get(row.id));
 }
 
 /** The key of a domain, data object or product is unique; one the reader may not see is not named. */
@@ -194,34 +205,6 @@ function checkParent(id: string | null, parentId: string | null): void {
     throw new HttpError(400, 'This domain has sub-domains: it stays a top-level domain', 'DATA_DOMAIN_LEVELS', { parent: p.name });
 }
 
-const subjectsGrant = (
-  entityType: string,
-  id: string | null,
-  label: string,
-  teams: readonly OwningTeam[],
-  field: string,
-  before: string[],
-  after: string[],
-  rights: string[],
-): NamedGrant => ({ entityType, entityId: id, label, field, teams, before, after: [...new Set(after)], rights });
-
-const teamsOf = (kind: OwnedKind, id: string | null): OwningTeam[] => (id ? owningTeams(kind, id) : newResourceTeams(currentUser()).teams);
-
-/** Named domain owners from outside its owning teams (the route's step-up asks before the handler). */
-export function domainNamesOutsiders(id: string | null, body: unknown): string[] {
-  const input = dataDomainInput.parse(body);
-  const cur = id ? domainRow(id) : undefined;
-  if (id && (!cur || !domainAccess(me(), cur).permissions.includes('edit'))) return [];
-  if (!id && !canManageModule(me())) return [];
-  return outsidersOf(
-    subjectsGrant('data_domain', id, `domain "${input.name}"`, teamsOf('data_domain', id), 'owners', parseJson(cur?.owners, []), input.owners, [
-      'view',
-      'edit',
-      'manage',
-    ]),
-  );
-}
-
 export function createDomain(body: unknown): DataDomain {
   const u = me();
   if (!canManageModule(u)) forbid('create data domains', 'dataProducts');
@@ -229,12 +212,6 @@ export function createDomain(body: unknown): DataDomain {
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_domains')!.n) >= L.domains) throw limitReached('domains', L.domains);
   refuseTakenKey('dp_domains', input.key);
   checkParent(null, input.parentId);
-  const grant = subjectsGrant('data_domain', null, `domain "${input.name}"`, teamsOf('data_domain', null), 'owners', [], input.owners, [
-    'view',
-    'edit',
-    'manage',
-  ]);
-  const added = requireNamedGrant(grant);
   const id = newId(DATA_PRODUCT_ID_PREFIX.domain);
   const now = nowIso();
   db().tx(() => {
@@ -246,21 +223,22 @@ export function createDomain(body: unknown): DataDomain {
       input.description,
       input.parentId,
       input.colour,
-      json(input.owners),
+      '[]',
       now,
       u.username,
       now,
       u.username,
     );
     assignCreatorTeams('data_domain', id, u);
+    // its domain owners: contacts (0.25.1) – documentation, never a right
+    const changed = writeContacts('data_domain', id, { contacts: input.contacts, legacy: [{ role: 'domainOwner', subjects: input.owners }] });
     audit({
       action: 'datadomain.created',
       entityType: 'data_domain',
       entityId: id,
       summary: `Data domain "${input.name}" (${input.key}) created`,
-      details: { key: input.key, parentId: input.parentId },
+      details: { key: input.key, parentId: input.parentId, ...(changed ? { contacts: changed } : {}) },
     });
-    auditNamedGrant({ ...grant, entityId: id }, added);
   });
   return getDomain(id);
 }
@@ -271,26 +249,15 @@ export function updateDomain(id: string, body: unknown): DataDomain {
   const input = dataDomainInput.parse(body);
   refuseTakenKey('dp_domains', input.key, row.id);
   checkParent(row.id, input.parentId);
-  const grant = subjectsGrant(
-    'data_domain',
-    row.id,
-    `domain "${input.name}"`,
-    owningTeams('data_domain', row.id),
-    'owners',
-    parseJson(row.owners, []),
-    input.owners,
-    ['view', 'edit', 'manage'],
-  );
-  const added = requireNamedGrant(grant);
   db().tx(() => {
+    const changed = writeContacts('data_domain', row.id, { contacts: input.contacts, legacy: [{ role: 'domainOwner', subjects: input.owners }] });
     db().run(
-      `UPDATE dp_domains SET key = ?, name = ?, description = ?, parent_id = ?, colour = ?, owners = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+      `UPDATE dp_domains SET key = ?, name = ?, description = ?, parent_id = ?, colour = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
       input.key,
       input.name,
       input.description,
       input.parentId,
       input.colour,
-      json(input.owners),
       nowIso(),
       actorName(),
       row.id,
@@ -300,9 +267,12 @@ export function updateDomain(id: string, body: unknown): DataDomain {
       entityType: 'data_domain',
       entityId: row.id,
       summary: `Data domain "${input.name}" changed`,
-      details: { before: { key: row.key, name: row.name, parentId: row.parent_id }, after: { key: input.key, name: input.name, parentId: input.parentId } },
+      details: {
+        before: { key: row.key, name: row.name, parentId: row.parent_id },
+        after: { key: input.key, name: input.name, parentId: input.parentId },
+        ...(changed ? { contacts: changed } : {}),
+      },
     });
-    auditNamedGrant({ ...grant, entityId: row.id }, added);
   });
   return getDomain(row.id);
 }
@@ -320,6 +290,8 @@ export function deleteDomain(id: string): void {
   db().tx(() => {
     db().run('DELETE FROM dp_domains WHERE id = ?', row.id);
     forgetOwningTeams('data_domain', row.id);
+    forgetShares('data_domain', row.id);
+    removeItemLinks('data_domain', row.id);
     audit({ action: 'datadomain.deleted', entityType: 'data_domain', entityId: row.id, summary: `Data domain "${row.name}" (${row.key}) deleted` });
   });
 }
@@ -333,7 +305,13 @@ function usableDomain(id: string | null): void {
 
 // ---------- data objects ----------
 
-function objectSummary(o: ObjectRow, perms: DataProductPermission[], domains: Map<string, DataRef>, rating: DataObjectSummary['rating']): DataObjectSummary {
+function objectSummary(
+  o: ObjectRow,
+  perms: DataProductPermission[],
+  domains: Map<string, DataRef>,
+  rating: DataObjectSummary['rating'],
+  contacts: ContactLink[] = [],
+): DataObjectSummary {
   return {
     id: o.id,
     key: o.key,
@@ -343,7 +321,8 @@ function objectSummary(o: ObjectRow, perms: DataProductPermission[], domains: Ma
     classification: (o.classification as DataClassification | null) ?? null,
     personalData: o.personal_data as DataObjectSummary['personalData'],
     rating,
-    owner: o.owner,
+    owner: userSubjectsOf(contacts, 'dataOwner')[0]?.slice(5) ?? null,
+    contacts,
     permissions: perms,
     updatedAt: o.updated_at,
   };
@@ -376,8 +355,9 @@ export function listObjects(q: DataObjectListQuery): DataPage<DataObjectSummary>
   const full = objectsByIds(page.items.map((x) => x.o.id));
   const ratings = ratingsByItem('object', [...full.keys()]);
   const domains = domainRefs(u);
+  const links = contactsOf('data_object', [...full.keys()]);
   return {
-    items: page.items.map((x) => objectSummary(full.get(x.o.id)!, x.perms, domains, ratings.get(x.o.id)!)),
+    items: page.items.map((x) => objectSummary(full.get(x.o.id)!, x.perms, domains, ratings.get(x.o.id)!, links.get(x.o.id))),
     total: rows.length,
     next: page.next,
   };
@@ -417,8 +397,9 @@ export function getObject(id: string): DataObject {
       ...scope.params,
     )!.n,
   );
+  const contacts = contactsOf('data_object', [o.id]).get(o.id) ?? [];
   return {
-    ...objectSummary(o, perms, domainRefs(u), rating),
+    ...objectSummary(o, perms, domainRefs(u), rating, contacts),
     definition: o.definition,
     synonyms: parseJson(o.synonyms, []),
     categories: parseJson(o.categories, []),
@@ -431,7 +412,7 @@ export function getObject(id: string): DataObject {
     deletionRule: o.deletion_rule,
     regulatoryFlags: parseJson(o.regulatory_flags, []),
     attributes: parseJson(o.attributes, []),
-    stewards: parseJson(o.stewards, []),
+    stewards: userSubjectsOf(contacts, 'dataSteward'),
     custodians: parseJson(o.custodians, []),
     externalRefs: refs(o.external_refs),
     owningTeams: owningTeams('data_object', o.id),
@@ -442,29 +423,6 @@ export function getObject(id: string): DataObject {
     createdBy: o.created_by,
     updatedBy: o.updated_by,
   };
-}
-
-const objectSubjects = (o: { owner: string | null; stewards: string[] }) => [...(o.owner ? [`user:${o.owner.toLowerCase()}`] : []), ...o.stewards];
-
-export function objectNamesOutsiders(id: string | null, body: unknown): string[] {
-  const input = dataObjectInput.parse(body);
-  const cur = id ? objectRow(id) : undefined;
-  if (id && (!cur || !objectAccess(me(), cur).permissions.includes('edit'))) return [];
-  if (!id && !canCreate(me())) return [];
-  return outsidersOf(objectGrant(cur, input.name, objectSubjects(input)));
-}
-
-function objectGrant(cur: ObjectRow | undefined, name: string, after: string[]): NamedGrant {
-  return subjectsGrant(
-    'data_object',
-    cur?.id ?? null,
-    `data object "${name}"`,
-    teamsOf('data_object', cur?.id ?? null),
-    'owner and stewards',
-    cur ? objectSubjects({ owner: cur.owner, stewards: parseJson(cur.stewards, []) }) : [],
-    after,
-    ['view'],
-  );
 }
 
 function objectValues(input: ReturnType<typeof dataObjectInput.parse>): unknown[] {
@@ -488,12 +446,22 @@ function objectValues(input: ReturnType<typeof dataObjectInput.parse>): unknown[
     input.deletionRule,
     json(input.regulatoryFlags),
     json(input.attributes),
-    input.owner ? input.owner.toLowerCase() : null,
-    json(input.stewards),
+    // the data owner and stewards are contacts since 0.25.1 (writeContacts): the old columns stay empty
+    null,
+    '[]',
     json(input.custodians),
     json(input.externalRefs),
   ];
 }
+/** A data object's contacts from its input: the contacts given, else the old fields (the owner's user name, stewards). */
+const objectContactsInput = (input: ReturnType<typeof dataObjectInput.parse>) => ({
+  contacts: input.contacts,
+  legacy: [
+    { role: 'dataOwner', subjects: input.owner === undefined ? undefined : input.owner ? [`user:${input.owner}`] : [] },
+    { role: 'dataSteward', subjects: input.stewards },
+  ],
+});
+
 const OBJECT_COLUMNS =
   'key, name, name_norm, definition, synonyms, domain_id, lifecycle, classification, personal_data, categories, special_categories, subjects, legal_basis, legal_note, purposes, retention, deletion_rule, regulatory_flags, attributes, owner, stewards, custodians, external_refs';
 
@@ -504,8 +472,6 @@ export function createObject(body: unknown): DataObject {
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_objects')!.n) >= L.objects) throw limitReached('objects', L.objects);
   refuseTakenKey('dp_objects', input.key);
   usableDomain(input.domainId);
-  const grant = objectGrant(undefined, input.name, objectSubjects(input));
-  const added = requireNamedGrant(grant);
   const id = newId(DATA_PRODUCT_ID_PREFIX.object);
   const now = nowIso();
   db().tx(() => {
@@ -520,14 +486,14 @@ export function createObject(body: unknown): DataObject {
       u.username,
     );
     assignCreatorTeams('data_object', id, u);
+    const changed = writeContacts('data_object', id, objectContactsInput(input));
     audit({
       action: 'dataobject.created',
       entityType: 'data_object',
       entityId: id,
       summary: `Data object "${input.name}" (${input.key}) created`,
-      details: { key: input.key },
+      details: { key: input.key, ...(changed ? { contacts: changed } : {}) },
     });
-    auditNamedGrant({ ...grant, entityId: id }, added);
   });
   return getObject(id);
 }
@@ -538,8 +504,6 @@ export function updateObject(id: string, body: unknown): DataObject {
   const input = dataObjectInput.parse(body);
   refuseTakenKey('dp_objects', input.key, row.id);
   if (input.domainId !== row.domain_id) usableDomain(input.domainId);
-  const grant = objectGrant(row, input.name, objectSubjects(input));
-  const added = requireNamedGrant(grant);
   const dates = parseJson<Record<string, string>>(row.lifecycle_dates, {});
   if (input.lifecycle !== row.lifecycle) dates[input.lifecycle] = nowIso().slice(0, 10);
   db().tx(() => {
@@ -553,14 +517,20 @@ export function updateObject(id: string, body: unknown): DataObject {
       actorName(),
       row.id,
     );
+    const changed = writeContacts('data_object', row.id, objectContactsInput(input));
     audit({
       action: 'dataobject.updated',
       entityType: 'data_object',
       entityId: row.id,
       summary: `Data object "${input.name}" changed${input.lifecycle !== row.lifecycle ? ` (${row.lifecycle} → ${input.lifecycle})` : ''}`,
-      details: { key: input.key, classification: input.classification, personalData: input.personalData, lifecycle: input.lifecycle },
+      details: {
+        key: input.key,
+        classification: input.classification,
+        personalData: input.personalData,
+        lifecycle: input.lifecycle,
+        ...(changed ? { contacts: changed } : {}),
+      },
     });
-    auditNamedGrant({ ...grant, entityId: row.id }, added);
   });
   return getObject(row.id);
 }
@@ -574,6 +544,8 @@ export function deleteObject(id: string): void {
     deleteRatings('object', row.id);
     db().run('DELETE FROM dp_objects WHERE id = ?', row.id);
     forgetOwningTeams('data_object', row.id);
+    forgetShares('data_object', row.id);
+    removeItemLinks('data_object', row.id);
     audit({ action: 'dataobject.deleted', entityType: 'data_object', entityId: row.id, summary: `Data object "${row.name}" (${row.key}) deleted` });
   });
 }
@@ -625,6 +597,7 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     read,
   );
   const domains = domainRefs(u);
+  const links = contactsOf('data_product', ids);
   const envRows = environmentsOf(ids);
   const envs = new Map<string, string[]>();
   for (const e of envRows) envs.set(e.product_id, [...(envs.get(e.product_id) ?? []), e.environment]);
@@ -643,7 +616,8 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     ratingBelowObjects: !!floors.get(p.id)?.warning,
     valueTier: (p.value_tier as DataProductSummary['valueTier']) ?? null,
     environments: sortEnvironments(envs.get(p.id) ?? [], list),
-    owners: parseJson<string[]>(p.owners, []),
+    owners: userSubjectsOf(links.get(p.id), 'productOwner'),
+    contacts: links.get(p.id) ?? [],
     owningTeams: owningTeams('data_product', p.id),
     tags: parseJson<string[]>(p.tags, []),
     version: p.version,
@@ -805,28 +779,6 @@ export function getProduct(id: string): DataProduct {
   };
 }
 
-function productGrant(cur: ProductRow | undefined, name: string, owners: string[]): NamedGrant {
-  return subjectsGrant(
-    'data_product',
-    cur?.id ?? null,
-    `data product "${name}"`,
-    teamsOf('data_product', cur?.id ?? null),
-    'owners',
-    parseJson(cur?.owners, []),
-    owners,
-    ['view', 'edit', 'manage'],
-  );
-}
-
-/** Named product owners from outside the owning teams (the route's step-up asks before the handler). */
-export function productNamesOutsiders(id: string | null, body: unknown): string[] {
-  const input = dataProductInput.parse(body);
-  const cur = id ? productRow(id) : undefined;
-  if (id && (!cur || !productAccess(me(), cur).permissions.includes('edit'))) return [];
-  if (!id && !canCreate(me())) return [];
-  return outsidersOf(productGrant(cur, input.name, input.owners));
-}
-
 /** A successor: another product the caller may see. */
 function usableSuccessor(id: string | null, self: string | null): void {
   if (!id) return;
@@ -844,7 +796,8 @@ function productValues(input: ReturnType<typeof dataProductInput.parse>): unknow
     input.purpose,
     input.type,
     input.domainId,
-    json(input.owners),
+    // the product owners are contacts since 0.25.1 (writeContacts): the old column stays empty
+    '[]',
     json(input.support),
     input.criticality,
     input.tier,
@@ -869,8 +822,6 @@ export function createProduct(body: unknown): DataProduct {
   refuseTakenKey('dp_products', input.key);
   usableDomain(input.domainId);
   usableSuccessor(input.successorId, null);
-  const grant = productGrant(undefined, input.name, input.owners);
-  const added = requireNamedGrant(grant);
   const id = newId(DATA_PRODUCT_ID_PREFIX.product);
   const now = nowIso();
   db().tx(() => {
@@ -885,14 +836,14 @@ export function createProduct(body: unknown): DataProduct {
       u.username,
     );
     assignCreatorTeams('data_product', id, u);
+    const changed = writeContacts('data_product', id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
     audit({
       action: 'dataproduct.created',
       entityType: 'data_product',
       entityId: id,
       summary: `Data product "${input.name}" (${input.key}) created`,
-      details: { key: input.key, type: input.type, domainId: input.domainId },
+      details: { key: input.key, type: input.type, domainId: input.domainId, ...(changed ? { contacts: changed } : {}) },
     });
-    auditNamedGrant({ ...grant, entityId: id }, added);
   });
   return getProduct(id);
 }
@@ -903,8 +854,6 @@ export function updateProduct(id: string, body: unknown): DataProduct {
   refuseTakenKey('dp_products', input.key, row.id);
   if (input.domainId !== row.domain_id) usableDomain(input.domainId);
   if (input.successorId !== row.successor_id) usableSuccessor(input.successorId, row.id);
-  const grant = productGrant(row, input.name, input.owners);
-  const added = requireNamedGrant(grant);
   db().tx(() => {
     db().run(
       `UPDATE dp_products SET ${PRODUCT_COLUMNS.split(', ')
@@ -915,6 +864,7 @@ export function updateProduct(id: string, body: unknown): DataProduct {
       actorName(),
       row.id,
     );
+    const changed = writeContacts('data_product', row.id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
     audit({
       action: 'dataproduct.updated',
       entityType: 'data_product',
@@ -923,9 +873,9 @@ export function updateProduct(id: string, body: unknown): DataProduct {
       details: {
         before: { key: row.key, name: row.name, domainId: row.domain_id, type: row.type },
         after: { key: input.key, name: input.name, domainId: input.domainId, type: input.type },
+        ...(changed ? { contacts: changed } : {}),
       },
     });
-    auditNamedGrant({ ...grant, entityId: row.id }, added);
   });
   return getProduct(row.id);
 }
@@ -1052,7 +1002,8 @@ export function changeLifecycle(id: string, body: unknown): DataProduct {
   const outputPorts = portsOf([row.id]).filter((p) => p.direction === 'output').length;
   const consumers = input.lifecycle === 'retired' ? consumersOfProduct(row.id) : 0;
   const problems = lifecycleProblems(input.lifecycle, {
-    owners: parseJson(row.owners, []),
+    // 0.25.1: a product owner is a contact with that role (documentation, never a right)
+    owners: (contactsOf('data_product', [row.id]).get(row.id) ?? []).filter((l) => l.role === 'productOwner').map((l) => l.contact.id),
     outputPorts,
     sunsetDate: sunset,
     consumers,

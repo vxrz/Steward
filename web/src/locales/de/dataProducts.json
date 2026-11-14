@@ -87,8 +87,8 @@
     "markdown": "Markdown",
     "purpose": "Zweck",
     "purposeHint": "Wofür das Produkt da ist und wem es dient.",
-    "owners": "Produktverantwortliche",
-    "ownersHint": "Benutzer oder Teams, die für das Produkt einstehen. Außerhalb seiner zuständigen Teams benannt, sehen und ändern sie es.",
+    "owners": "Kontakte",
+    "ownersHint": "Produktverantwortliche und fachliche Ansprechpersonen – Dokumentation, nie ein Recht in Steward.",
     "support": "Unterstützung",
     "supportChannel": "Kanal",
     "supportUrl": "Webadresse",
@@ -375,6 +375,7 @@
     "purpose": "Zweck",
     "since": "Seit",
     "endDate": "Bis",
+    "approval": "Genehmigung",
     "agreement": "Vereinbarung",
     "agreementKind": "Art",
     "agreementKinds": {
@@ -389,7 +390,11 @@
     "agreementInvalid": "Geben Sie den Bezug der Vereinbarung an (eine Webadresse beginnt mit http:// oder https://)",
     "noAgreement": "Keine",
     "contacts": "Ansprechpersonen",
-    "contactsHint": "Werden benachrichtigt, wenn der Port abgekündigt wird."
+    "contactsHint": "Wen die IT-Betreuer informieren, wenn der Port abgekündigt wird oder sein Vertrag bricht – Steward schreibt ihnen nie.",
+    "documented": "Der Zugriff wurde entschieden und ist dokumentiert",
+    "documentedHint": "Steward dokumentiert Zugriffe, die anderswo entschieden wurden. Ohne dies zeigt die Registrierung „Genehmigung nicht dokumentiert“.",
+    "decision": "Wer den Zugriff entschieden hat",
+    "decisionHelp": "Der Zugriff wurde außerhalb von Steward entschieden – von der Produktverantwortung, in einer Besprechung, in einem Ticket. Erfassen Sie, wer ihn wann entschieden hat, und den Nachweis."
   },
   "steps": {
     "title": "Schritte",
@@ -808,7 +813,7 @@
   },
   "access": {
     "owners": "Produktverantwortliche",
-    "ownersHint": "Verantwortung, kein eigenes Recht: Außerhalb der zuständigen Teams benannt, sehen, ändern und verwalten sie das Produkt – eine solche Benennung bestätigen Sie mit Ihrer Anmeldung.",
+    "ownersHint": "Dokumentation, kein Recht: Produktverantwortliche werden für die Fachseite benannt und brauchen kein Steward-Konto. Wer das Produkt sehen oder ändern darf, ergibt sich aus den zuständigen Teams, Rollen und Freigaben oben.",
     "rules": "Wer was darf",
     "who": "Wer",
     "what": "Rechte",
@@ -822,8 +827,8 @@
         "what": "Produkte anlegen und ändern; löschen, zuständige Teams und außer Betrieb nehmen"
       },
       "owners": {
-        "who": "Produktverantwortliche",
-        "what": "Ihr Produkt sehen, ändern und verwalten"
+        "who": "Produkt-, Domänen- und Datenverantwortliche, Stewards",
+        "what": "Kein eigenes Recht – Dokumentation (geben Sie eine Freigabe, wenn nötig)"
       },
       "teams": {
         "who": "Mit zuständigen Teams",
@@ -831,7 +836,7 @@
       },
       "shares": {
         "who": "Freigaben",
-        "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Verantwortliche, Prüfer und Administratoren"
+        "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Prüfer und Administratoren"
       }
     },
     "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Datenherkunft und Produktkarte zeigen es ohne Namen."
@@ -1086,10 +1091,9 @@
     "flags": "Regulatorische Kennzeichen",
     "flagsHint": "Tags mit Bedeutung – nichts wird erzwungen.",
     "roles": "Rollen",
-    "rolesHint": "Verantwortung, keine Rechte: Der Datenverantwortliche entscheidet über Klassifizierung und Zugriff, Data Stewards pflegen Definitionen und Qualität, technische Betreuer betreiben den Speicherort. Bearbeiten richtet sich nach den zuständigen Teams.",
+    "rolesHint": "Dokumentation, keine Rechte: Dateneigentümer und Stewards sind Kontakte – sie brauchen kein Steward-Konto. Technische Verwalter (IT) betreiben den Speicherort. Ändern richtet sich nach zuständigen Teams und Freigaben.",
     "owner": "Datenverantwortlicher",
-    "ownerHint": "Ein Benutzer.",
-    "ownerUser": "Der Datenverantwortliche ist ein Benutzer",
+    "ownerHint": "Personen oder Gruppen aus den Kontakten, jede mit ihrer Rolle.",
     "ownerLine": "Datenverantwortlicher: {{owner}}",
     "stewards": "Data Stewards",
     "custodians": "Technische Betreuer",
@@ -1110,7 +1114,8 @@
       "label": "Teile des Datenobjekts",
       "overview": "Übersicht",
       "links": "Verknüpfungen"
-    }
+    },
+    "contacts": "Dateneigentümer und Stewards"
   },
   "domains": {
     "title": "Domänen",
@@ -1120,6 +1125,9 @@
     "editTitle": "{{name}} ändern",
     "editNamed": "{{name}} ändern",
     "deleteNamed": "{{name}} löschen",
+    "access": "Zugriff",
+    "accessNamed": "Zugriff auf {{name}}",
+    "accessTitle": "Zugriff auf {{name}}",
     "deleteConfirm": "Die Domäne „{{name}}“ löschen? Nur eine Domäne ohne Unterdomänen, Produkte und Datenobjekte lässt sich löschen",
     "emptyTitle": "Noch keine Domänen",
     "emptyText": "Domänen gruppieren Produkte und Datenobjekte: Vertrieb, Kunde, Fertigung – mit Unterdomänen wie Vertrieb → Bestellungen.",
@@ -1129,8 +1137,8 @@
     "parentLocked": "Sie hat Unterdomänen und bleibt daher auf der obersten Ebene.",
     "topLevel": "Oberste Ebene",
     "colour": "Farbe",
-    "owners": "Verantwortliche",
-    "ownersHint": "Benutzer oder Teams, die für die Domäne einstehen.",
+    "owners": "Domänenverantwortliche",
+    "ownersHint": "Wer auf der Fachseite für die Domäne einsteht – Kontakte; Dokumentation, kein Recht in Steward.",
     "ownersLine": "Verantwortliche: {{owners}}",
     "teamsLine": "Teams: {{teams}}",
     "products_one": "{{count}} Produkt",

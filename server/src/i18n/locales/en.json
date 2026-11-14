@@ -679,9 +679,10 @@
       "sunset": "Sunset date: {{date}}.",
       "noSunset": "No sunset date is set yet.",
       "successor": "Successor: {{successor}}.",
-      "registered": "You are registered as a consumer of: {{ports}}.",
+      "maintainer_one": "You maintain it: {{count}} registered consumer – inform them using their contacts.",
+      "maintainer_other": "You maintain it: {{count}} registered consumers – inform them using their contacts.",
       "consuming": "Your data products that use it: {{products}}.",
-      "hint": "You get this because you are a registered consumer or you own a data product that uses it."
+      "hint": "You get this because you may change this data product, or a data product that uses it. Steward does not tell the consumers’ contacts itself."
     },
     "missing": {
       "title_one": "Data product {{product}}: {{count}} element missing",
@@ -706,35 +707,30 @@
       "environments": "Bound in: {{environments}}.",
       "more_one": "… and {{count}} more",
       "more_other": "… and {{count}} more",
-      "registered": "You are registered as a consumer of {{port}}.",
+      "maintainer_one": "You maintain it: {{count}} registered consumer of {{port}} – inform them using their contacts.",
+      "maintainer_other": "You maintain it: {{count}} registered consumers of {{port}} – inform them using their contacts.",
       "consuming": "Your data products that use it: {{products}}.",
-      "hint": "You get this once per contract version because you are a registered consumer or you own a data product that uses the port. Check what the change means for you, and talk to the product's owners."
+      "hint": "You get this once per contract version because you may change this data product, or a data product that uses the port. Check what the change means, and inform the consumers."
+    },
+    "consumerContacts": {
+      "port": "Port",
+      "consumer": "Consumer",
+      "name": "Contact",
+      "role": "Role",
+      "email": "E-mail address",
+      "roles": {
+        "consumerContact": "Consumer contact"
+      }
     }
   },
   "dataProductGovernance": {
-    "requested": {
-      "title": "Access requested: {{port}} of {{product}}",
-      "body": "{{requester}} asks for access to the port “{{port}}” of the data product “{{product}}” in {{environment}}.",
-      "purpose": "Purpose: {{purpose}}",
-      "until": "Until: {{date}}",
-      "fourEyes": "The product is rated high or above: two people approve.",
-      "second": "{{first}} approved it: a second person decides now.",
-      "hint": "You get this because you decide access requests of the product. Decide on the product’s Access tab."
-    },
-    "decided": {
-      "approvedTitle": "Access approved: {{product}}",
-      "refusedTitle": "Access refused: {{product}}",
-      "approvedBody": "{{by}} approved your request for the port “{{port}}” of “{{product}}” in {{environment}}. You are a registered consumer now.",
-      "refusedBody": "{{by}} refused your request for the port “{{port}}” of “{{product}}” in {{environment}}.",
-      "comment": "Comment: {{comment}}",
-      "hint": "Steward does not grant on the platform itself: where the product names a process or a ticket, the platform team grants the access."
-    },
+    "contactsAction": "Consumers’ contacts",
     "reviewDue": {
       "title": "Access review due: {{port}} of {{product}}",
       "body": "The periodic access review of the port “{{port}}” of “{{product}}” in {{environment}} is due on {{date}}.",
       "last": "Last approved review: {{date}}.",
       "never": "The port has not been reviewed yet.",
-      "hint": "Start the review on the product’s Access tab: registered consumers, who really reads and the grants are compared there."
+      "hint": "Start the review on the product’s Access tab: registered consumers, who really reads and the grants are compared there; record the outcome decided with the business side."
     },
     "endorsementReview": {
       "title": "Endorsement to review: {{product}}",
@@ -742,8 +738,8 @@
       "expired": "The endorsement of “{{product}}” expired on {{date}} – it no longer counts for maturity level 5.",
       "breakingChange": "A data contract bound to “{{product}}” had a breaking change: its endorsement needs a review.",
       "belowFloor": "The rating of “{{product}}” is below its data objects without a reason: its endorsement needs a review.",
-      "by": "Endorsed by {{by}} on {{date}}.",
-      "hint": "Endorse it again (or revoke it) on the product’s overview."
+      "by": "Endorsement recorded by {{by}} on {{date}}.",
+      "hint": "Have it looked at again with the endorsers and record the new endorsement (or remove it) on the product’s overview."
     },
     "ropa": {
       "title": "Records of processing",

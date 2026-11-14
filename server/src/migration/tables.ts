@@ -227,6 +227,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'dp_consumers', column: 'contacts', kind: 'subjects' },
   // 0.24.0: the consumer an access request asks for (a team or user), mapped like a registration's
   { table: 'dp_access_requests', column: 'consumer_subjects', kind: 'subjects' },
+  // 0.25.1 (ADR 0038 part 2): the shares the upgrade made for owner fields, mapped like the shares themselves (a package
+  // of 0.25.0 is converted in its staging database; its entries are audited on the target)
+  { table: 'dp_owner_share_conversions', column: 'subject', kind: 'subject', keepDeletedTeams: true, key: ['kind', 'resource_id'] },
 ];
 
 /**
@@ -581,6 +584,8 @@ export const SETTINGS_MOVED = [
   'catalogue.environments',
   'plant.settings',
   'compliance.corrective',
+  // 0.25.1 (ADR 0038 part 4): four eyes for port access reviews
+  'modules.dataProducts.governance',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

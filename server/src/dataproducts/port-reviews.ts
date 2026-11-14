@@ -19,27 +19,35 @@ import { forbid, me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { samePerson } from '../auth/assurance.js';
 import { isAdmin } from '../auth/permissions.js';
+import { productAccess } from './access.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { logger } from '../log.js';
 import { HttpError, canonicalJson, newId, nowIso, parseJson, sha256 } from '../util.js';
-import { decidesFor, reviewMonthsOf } from './access-requests.js';
+import { reviewMonthsOf } from './access-requests.js';
+import { governanceSettings } from './governance-settings.js';
+import { decisionView, documentDecision, sealedDecision } from './decisions.js';
 import { portNotFound } from './common.js';
 import { actualView } from './consumers-actual.js';
-import { claimNotice, decidersOf, people, productLink, send, t, titleName } from './governance-notices.js';
+import { claimNotice, consumerContactsLink, maintainersOf, people, productLink, send, t, titleName } from './governance-notices.js';
 import { visibleProduct } from './service.js';
 import { bindingsOf, elementsByIds, portRow, portsOf, productRow, type PortRow, type ProductRow } from './store.js';
 
 /**
- * Port access reviews (ADR 0036 part 12 phase 2): the periodic review of who consumes an output port, built on the
- * person access reviews' way of working (compliance/person-reviews.ts): what is found is **frozen** into the review –
- * the registered consumers with what the platforms say of them (_seen_, _registered but silent_), who reads without a
- * registration (_not registered_) and, from an access check of the access reconciliation, the **grants** on the port's
- * objects (read live as the check is read for person reviews, else its latest snapshot) – and a reviewer decides
- * each: keep or remove (a removal with a reason). Submitted, a second person approves (four eyes, on by default; never
- * the submitter); approved, the review is **sealed** (SHA-256 over the review and its decisions, in the audit log) and
- * registrations decided _remove_ end today. Grants and readers to remove are the platform team's work: the review is
- * the evidence. Who reviews: who decides access requests of the product; approvers and administrators approve too.
- * The product's access settings give the interval; `dataproduct.access_review_due` reminds once per due date.
+ * Port access reviews (ADR 0036 part 12 phase 2; 0.25.1, ADR 0038 part 4: the outcome is decided elsewhere and recorded
+ * here), built on the person access reviews' way of working (compliance/person-reviews.ts): what is found is
+ * **frozen** into the review – the registered consumers with what the platforms say of them (_seen_, _registered but
+ * silent_), who reads without a registration (_not registered_) and, from an access check of the access
+ * reconciliation, the **grants** on the port's objects (read live as the check is read for person reviews, else its
+ * latest snapshot). That evidence is IT's contribution. The **outcome** – keep or remove per entry (a removal with a
+ * reason) and a **documented decision** for the review (who decided, on which date, the evidence) – is entered by the
+ * product's IT maintainers (who may edit it). Submitted, the review is **sealed** (SHA-256 over the review, its
+ * entries, their decisions and the documented decision, in the audit log) and registrations decided _remove_ end
+ * today. **Four eyes** is a module setting (`portReviewFourEyes`, off by default): a second IT person who may edit the
+ * product checks the transcription and approves – never who submitted or entered a decision. A review keeps the four
+ * eyes it was started with; reviews started before 0.25.1 need no documented decision, and their seals (which do not
+ * cover one) still verify. Grants and readers to remove are the platform team's work: the review is the evidence. The
+ * product's access settings give the interval; `dataproduct.access_review_due` reminds the IT maintainers once per due
+ * date.
  */
 
 interface ReviewRow {
@@ -58,6 +66,9 @@ interface ReviewRow {
   approved_at: string | null;
   approval_comment: string;
   seal_hash: string | null;
+  /** 0.25.1: the documented decision (JSON), and whether the review needs one (started since 0.25.1) */
+  decision: string | null;
+  documented: number;
 }
 
 interface ItemRow {
@@ -81,11 +92,13 @@ export const reviewNotFound = (id: string) => new HttpError(404, `Port access re
 const reviewState = (message: string, context: string, extra: Record<string, string | number> = {}) =>
   new HttpError(409, message, 'DATA_PORT_REVIEW_STATE', { context, ...extra });
 
-const mayDecide = (u: AuthUser, r: ReviewRow, p: ProductRow) => r.status === 'open' && decidesFor(u, p);
+/** The product's IT maintainers: who may edit it (owning teams, roles, shares – never an owner field). */
+const maintains = (u: AuthUser, p: ProductRow) => productAccess(u, p).permissions.includes('edit');
+const mayDecide = (u: AuthUser, r: ReviewRow, p: ProductRow) => r.status === 'open' && maintains(u, p);
 /** Whether `u` decided an entry of the review (four eyes: who decided or submitted never approves). */
 const decidedAny = (u: AuthUser, items: readonly Pick<ItemRow, 'decided_by'>[]) => items.some((i) => !!i.decided_by && samePerson(i.decided_by, u));
 const mayApprove = (u: AuthUser, r: ReviewRow, p: ProductRow, items: readonly Pick<ItemRow, 'decided_by'>[]) =>
-  r.status === 'submitted' && (decidesFor(u, p) || isAdmin(u) || u.roles.includes('approver')) && !samePerson(r.submitted_by, u) && !decidedAny(u, items);
+  r.status === 'submitted' && (maintains(u, p) || isAdmin(u)) && !samePerson(r.submitted_by, u) && !decidedAny(u, items);
 
 function summary(r: ReviewRow, port: PortRow | undefined, counts: { items: number; removals: number }): DataPortReviewSummary {
   return {
@@ -204,6 +217,8 @@ export function getReview(id: string): DataPortReview {
     sealHash: r.seal_hash,
     check: parseJson<DataPortReview['check']>(r.check_info, null),
     entries: items.map(itemView),
+    decision: decisionView(r.decision, u),
+    needsDecision: !!Number(r.documented),
     mayDecide: mayDecide(u, r, p),
     mayApprove: mayApprove(u, r, p, items),
   };
@@ -242,11 +257,11 @@ async function grantsOf(checkId: string, objects: string[]): Promise<{ items: Fr
   return { items, check: { id: check.id, name: check.name, origin: read.origin, takenAt: read.takenAt, error: read.error } };
 }
 
-/** POST /api/data-products/:id/ports/:portId/reviews (session only) – who decides access requests of the product. */
+/** POST /api/data-products/:id/ports/:portId/reviews (session only) – the product's IT maintainers (who may edit it). */
 export async function startReview(productId: string, portId: string, body: unknown): Promise<DataPortReview> {
   const u = me();
   const { row: p } = visibleProduct(productId, u);
-  if (!decidesFor(u, p)) forbid('review the consumers of this data product', 'dataProducts');
+  if (!maintains(u, p)) forbid('review the consumers of this data product', 'dataProducts');
   const port = portRow(portId);
   if (!port || port.product_id !== p.id) throw portNotFound(portId);
   if (port.direction !== 'output') throw reviewState('Consumers are reviewed on output ports', 'inputPort');
@@ -288,14 +303,16 @@ export async function startReview(productId: string, portId: string, body: unkno
   if (frozen.length > G.reviewItems) throw reviewState(`At most ${G.reviewItems} entries per review`, 'tooLarge', { max: G.reviewItems });
   const id = newId(DATA_GOVERNANCE_ID_PREFIX.review);
   const now = nowIso();
+  // four eyes as the module is set when the review starts (0.25.1: a module setting, off by default)
+  const fourEyes = governanceSettings().portReviewFourEyes;
   db().tx(() => {
     db().run(
-      `INSERT INTO dp_port_reviews (id, product_id, port_id, environment, status, four_eyes, check_info, created_by, created_at) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
+      `INSERT INTO dp_port_reviews (id, product_id, port_id, environment, status, four_eyes, check_info, created_by, created_at, documented) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, 1)`,
       id,
       p.id,
       port.id,
       input.environment,
-      input.fourEyes ? 1 : 0,
+      fourEyes ? 1 : 0,
       check ? JSON.stringify(check) : null,
       u.username,
       now,
@@ -318,7 +335,7 @@ export async function startReview(productId: string, portId: string, body: unkno
       entityType: 'data_product',
       entityId: p.id,
       summary: `Data product "${p.name}": access review of port "${port.name}" (${input.environment}) started with ${frozen.length} entries`,
-      details: { reviewId: id, portId: port.id, environment: input.environment, entries: frozen.length, checkId: input.checkId, fourEyes: input.fourEyes },
+      details: { reviewId: id, portId: port.id, environment: input.environment, entries: frozen.length, checkId: input.checkId, fourEyes },
     });
   });
   return getReview(id);
@@ -359,9 +376,36 @@ export function decideItems(id: string, body: unknown): DataPortReview {
 }
 
 /**
+ * PUT /api/data-products/port-reviews/:reviewId/decision (session only, the IT maintainers, while the review is open):
+ * the review's documented decision – who decided the outcome elsewhere (contacts), on which date, the evidence. The
+ * seal covers it.
+ */
+export function documentReview(id: string, body: unknown): DataPortReview {
+  const u = me();
+  const { r, p } = visibleReview(id, u);
+  if (!mayDecide(u, r, p)) {
+    if (r.status !== 'open') throw reviewState('The review is not open', 'notOpen');
+    forbid('review the consumers of this data product', 'dataProducts');
+  }
+  const decision = documentDecision(body, u);
+  db().tx(() => {
+    db().run('UPDATE dp_port_reviews SET decision = ? WHERE id = ?', JSON.stringify(decision), r.id);
+    audit({
+      action: 'dataproduct.access_review_documented',
+      entityType: 'data_product',
+      entityId: p.id,
+      summary: `Data product "${p.name}": the outcome of an access review (${r.environment}) decided by ${decision.decidedBy.map((x) => x.name).join(', ')} on ${decision.decidedOn} recorded`,
+      details: { reviewId: r.id, portId: r.port_id, decidedBy: decision.decidedBy, decidedOn: decision.decidedOn, evidence: decision.evidence },
+    });
+  });
+  return getReview(id);
+}
+
+/**
  * The seal: SHA-256 over the canonical review and its decisions – everything the evidence says: four eyes or not, the
- * approver's comment, and per entry what was frozen (its detail too: purposes, identities, who was seen) and who
- * decided it when.
+ * approver's comment, per entry what was frozen (its detail too: purposes, identities, who was seen) and who entered
+ * its decision when, and (0.25.1) the review's documented decision. A review sealed before 0.25.1 has none, so its
+ * canonical form – and its seal – is what it was.
  */
 function sealOf(r: ReviewRow, items: ItemRow[]): string {
   return sha256(
@@ -379,6 +423,8 @@ function sealOf(r: ReviewRow, items: ItemRow[]): string {
       approvedAt: r.approved_at,
       approvalComment: r.approval_comment,
       check: parseJson(r.check_info, null),
+      // the documented decision without the contacts' ids: erasing a contact (GDPR Art. 17) keeps the seal
+      ...(r.decision === null || r.decision === undefined ? {} : { decision: sealedDecision(r.decision) }),
       items: items.map((i) => ({
         seq: Number(i.seq),
         kind: i.kind,
@@ -438,6 +484,8 @@ export function submitReview(id: string): DataPortReview {
   }
   const open = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_port_review_items WHERE review_id = ? AND decision IS NULL', r.id)!.n);
   if (open) throw reviewState(`${open} entries are not decided yet`, 'undecided', { count: open });
+  // reviews started since 0.25.1 record who decided the outcome elsewhere, on which date, with which evidence
+  if (Number(r.documented) && !r.decision) throw reviewState('Record who decided the outcome, when and the evidence first', 'decisionMissing');
   const now = nowIso();
   db().tx(() => {
     db().run("UPDATE dp_port_reviews SET status = 'submitted', submitted_by = ?, submitted_at = ? WHERE id = ?", u.username, now, r.id);
@@ -491,7 +539,10 @@ export function verifyReview(id: string): { sealed: boolean; ok: boolean; stored
 
 // ---------- reminders ----------
 
-/** `dataproduct.access_review_due`: ports whose review is due (today or overdue), to who decides – once per port, environment and due date. */
+/**
+ * `dataproduct.access_review_due`: ports whose review is due (today or overdue), to the product's IT maintainers (who
+ * may edit it, never a contact) with the link to the consumers' contacts – once per port, environment and due date.
+ */
 export function noticeReviewsDue(today = nowIso().slice(0, 10)): number {
   let sent = 0;
   try {
@@ -505,7 +556,7 @@ export function noticeReviewsDue(today = nowIso().slice(0, 10)): number {
         if (d.dueDate > today || !claimNotice('review', `${d.portId}|${d.environment}`, d.dueDate)) continue;
         sent += send({
           event: 'dataproduct.access_review_due',
-          recipients: decidersOf(all, p),
+          recipients: maintainersOf(all, p),
           link: productLink(p.id, 'access'),
           key: `review:${d.portId}:${d.environment}:${d.dueDate}`,
           title: (l) => t(l, 'dataProductGovernance.reviewDue.title', { product: titleName(p.name), port: titleName(d.portName, 60) }),
@@ -516,6 +567,7 @@ export function noticeReviewsDue(today = nowIso().slice(0, 10)): number {
               : t(l, 'dataProductGovernance.reviewDue.never'),
             t(l, 'dataProductGovernance.reviewDue.hint'),
           ],
+          contacts: consumerContactsLink(p.id, d.portId),
           data: { productId: p.id, portId: d.portId, environment: d.environment, dueDate: d.dueDate },
         });
       }

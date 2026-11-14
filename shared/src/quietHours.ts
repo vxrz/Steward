@@ -92,8 +92,6 @@ export const EVENT_DIGEST_GROUP: Record<NotificationEvent, DigestGroup | null> =
   'dataproduct.discovery_failed': 'dataProducts',
   'dataproduct.contract_breaking': 'dataProducts',
   'cost.estimate_changed': 'costs',
-  'dataproduct.access_requested': 'dataProducts',
-  'dataproduct.access_decided': 'dataProducts',
   'dataproduct.endorsement_review': 'dataProducts',
   'dataproduct.access_review_due': 'dataProducts',
   'summary.daily': null,

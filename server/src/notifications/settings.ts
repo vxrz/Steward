@@ -75,8 +75,6 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'dataproduct.contract_breaking',
     // estimates recalculated with new prices (ADR 0035 part 6): in the app and by e-mail
     'cost.estimate_changed',
-    'dataproduct.access_requested',
-    'dataproduct.access_decided',
     'dataproduct.endorsement_review',
     'dataproduct.access_review_due',
   ];

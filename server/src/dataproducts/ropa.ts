@@ -16,6 +16,7 @@ import {
 } from '@sm/shared';
 import { z } from 'zod';
 import { db } from '../db.js';
+import { linksOf } from '../contacts/service.js';
 import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
@@ -86,10 +87,7 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
   // 0.25.0: the limit counts only what the reader may see – the narrow rows first (the 0.24.0 view cut the list before the
   // team filter, so a reader of few objects could get an empty or short list), then the full rows of those shown
   const candidates = db()
-    .all<Pick<ObjectRow, 'id' | 'owner' | 'stewards'>>(
-      `SELECT id, owner, stewards FROM dp_objects WHERE ${where.join(' AND ')} ORDER BY name_norm, id`,
-      ...params,
-    )
+    .all<Pick<ObjectRow, 'id'>>(`SELECT id FROM dp_objects WHERE ${where.join(' AND ')} ORDER BY name_norm, id`, ...params)
     .filter((o) => objectAccess(u, o).permissions.length > 0);
   const truncated = candidates.length > G.ropaObjects;
   const shownIds = candidates.slice(0, G.ropaObjects).map((o) => o.id);
@@ -168,6 +166,9 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
       .map((d) => [d.id, d]),
   );
 
+  // the data owner and stewards: contacts by name (0.25.1, ADR 0038 – names and roles in reports)
+  const people = linksOf('data_object', objectIds, { surface: 'export' });
+  const named = (id: string, role: string) => (people.get(id) ?? []).filter((l) => l.role === role).map((l) => l.contact.name);
   const items: DataRopaEntry[] = objects.map((o) => {
     const implementedBy = new Set(links.filter((l) => l.object_id === o.id).map((l) => l.element_id));
     const how = new Map<string, Set<'implements' | 'exposes'>>();
@@ -252,8 +253,8 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
       retention: o.retention,
       deletionRule: o.deletion_rule,
       regulatoryFlags: parseJson<string[]>(o.regulatory_flags, []),
-      owner: o.owner,
-      stewards: parseJson<string[]>(o.stewards, []),
+      owner: named(o.id, 'dataOwner').join(', ') || null,
+      stewards: named(o.id, 'dataSteward'),
       products: shown
         .map((id) => {
           const p = products.get(id)!;

@@ -44,6 +44,7 @@ import {
 import { post, put } from '../../api';
 import { FormModal } from '../FormModal';
 import { SubjectsInput } from '../SubjectsInput';
+import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../contacts';
 import { useFieldErrors } from '../common';
 import { domainOptions } from './ProductForm';
 import { ExternalRefsInput, FormButtons, isHttpUrl, keyFromName, refsToSend, useBusy, validKey } from './form';
@@ -121,15 +122,14 @@ export function ObjectForm({
   const [deletionRule, setDeletionRule] = useState(o?.deletionRule ?? '');
   const [flags, setFlags] = useState<string[]>(o?.regulatoryFlags ?? []);
   const [attributes, setAttributes] = useState<DataObjectAttribute[]>(o?.attributes ?? []);
-  const [owner, setOwner] = useState<string[]>(o?.owner ? [`user:${o.owner}`] : []);
-  const [stewards, setStewards] = useState<string[]>(o?.stewards ?? []);
+  // 0.25.1 (ADR 0038): the data owner and stewards are contacts – documentation, never a right
+  const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(o?.contacts ?? []));
   const [custodians, setCustodians] = useState<string[]>(o?.custodians ?? []);
   const [refs, setRefs] = useState<DataExternalRef[]>(o?.externalRefs ?? []);
   const [busy, run] = useBusy();
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     key: !validKey(key) && t('form.keyInvalid'),
-    owner: owner.some((x) => !x.startsWith('user:')) && t('objects.ownerUser'),
     refs: refsToSend(refs).some((r) => !isHttpUrl(r.url)) && t('form.refUrlInvalid'),
   });
   const save = () =>
@@ -153,8 +153,7 @@ export function ObjectForm({
         deletionRule,
         regulatoryFlags: flags,
         attributes: attributes.filter((a) => a.name.trim()).map((a) => ({ ...a, name: a.name.trim() })),
-        owner: owner[0]?.replace(/^user:/, '') ?? null,
-        stewards,
+        contacts: toLinkInputs(contacts),
         custodians,
         externalRefs: refsToSend(refs),
       };
@@ -321,23 +320,13 @@ export function ObjectForm({
               {t('objects.rolesHint')}
             </Text>
             <Stack gap="xs">
-              <SubjectsInput
-                label={t('objects.owner')}
+              <ContactPicker
+                kind="data_object"
+                label={t('objects.contacts')}
                 description={t('objects.ownerHint')}
-                value={owner}
-                onChange={(x) => setOwner(x.slice(-1))}
-                max={1}
-                error={v.error('owner')}
-                scope={{ kind: 'data_object', id: o?.id }}
-                saved={o?.owner ? [`user:${o.owner}`] : []}
-              />
-              <SubjectsInput
-                label={t('objects.stewards')}
-                value={stewards}
-                onChange={setStewards}
-                max={L.subjects}
-                scope={{ kind: 'data_object', id: o?.id }}
-                saved={o?.stewards}
+                value={contacts}
+                onChange={setContacts}
+                testId="object-contacts"
               />
               <SubjectsInput
                 label={t('objects.custodians')}
@@ -426,13 +415,13 @@ export function DomainForm({ domain, domains, onClose, onSaved }: { domain?: Dat
   const [description, setDescription] = useState(d?.description ?? '');
   const [parentId, setParentId] = useState<string | null>(d?.parentId ?? null);
   const [colour, setColour] = useState<CiaColor | null>(d?.colour ?? null);
-  const [owners, setOwners] = useState<string[]>(d?.owners ?? []);
+  const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(d?.contacts ?? []));
   const [busy, run] = useBusy();
   const hasChildren = !!d && domains.some((x) => x.parentId === d.id);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), key: !validKey(key) && t('form.keyInvalid') });
   const save = () =>
     run(async () => {
-      const body = { key: key.trim(), name: name.trim(), description, parentId, colour, owners };
+      const body = { key: key.trim(), name: name.trim(), description, parentId, colour, contacts: toLinkInputs(contacts) };
       if (d) await put(`/data-domains/${encodeURIComponent(d.id)}`, body);
       else await post('/data-domains', body);
       onSaved();
@@ -507,14 +496,13 @@ export function DomainForm({ domain, domains, onClose, onSaved }: { domain?: Dat
               </Group>
             )}
           />
-          <SubjectsInput
+          <ContactPicker
+            kind="data_domain"
             label={t('domains.owners')}
             description={t('domains.ownersHint')}
-            value={owners}
-            onChange={setOwners}
-            max={L.subjects}
-            scope={{ kind: 'data_domain', id: d?.id }}
-            saved={d?.owners}
+            value={contacts}
+            onChange={setContacts}
+            testId="domain-contacts"
           />
           <FormButtons busy={busy} testId="domain-save" />
         </Stack>

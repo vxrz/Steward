@@ -5,8 +5,9 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
 /**
  * Consumers and access of data products (0.24.0, ADR 0036 phase 2): declared against actual consumers (Snowflake
  * ACCESS_HISTORY – metadata only, one read-only statement, "not available" for an edition without it – and Kafka
- * consumer groups), access requests with four eyes for a product rated high, the step-up and the access change of an
- * approval, the registered consumer it makes, the notifications once, team scope; endorsement and maturity 5.
+ * consumer groups); documented access (0.25.1): access requests are read-only history (410 to asking and deciding),
+ * pending ones become registrations at the upgrade, the fulfilment of a registration; team scope; endorsement and
+ * maturity 5.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -44,6 +45,15 @@ const fail = async (p: Promise<unknown>) => {
   }
   throw new Error('expected the call to fail');
 };
+
+/** A contact of the directory (0.25.1) and a documented decision naming it. */
+const contact = async (who: Client, name: string): Promise<string> => (await who('POST', '/contacts', { name })).id;
+const yesterday = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const decision = (contactId: string, role = 'productOwner', more: Record<string, unknown> = {}) => ({
+  decidedBy: [{ contactId, role }],
+  decidedOn: yesterday(),
+  ...more,
+});
 
 beforeAll(async () => {
   s = await startTestServer({
@@ -238,188 +248,234 @@ describe('declared against actual consumers', () => {
   });
 });
 
-describe('access requests', () => {
-  let request = '';
-  it('anyone who sees the product asks; the owner decides and the approval registers the consumer (step-up, access change)', async () => {
-    const r = await olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'user', subject: 'user:olivia' },
-      purpose: 'Monthly close',
-      until: '2027-12-31',
-      identities: ['user:OLIVIA', 'role:FINANCE'],
-    });
-    request = r.id;
-    expect(r).toMatchObject({ status: 'pending', fourEyes: false, mayWithdraw: true, mayDecide: false });
-    // asking twice for the same is refused; a port not bound in an environment too
-    expect(
-      await fail(
-        olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-          environment: 'prod',
-          consumer: { kind: 'user', subject: 'user:olivia' },
-          purpose: 'Again',
-        }),
-      ),
-    ).toMatchObject({ code: 'DATA_ACCESS_REQUEST_STATE', params: { context: 'exists' } });
-    expect(
-      await fail(
-        olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, { environment: 'dev', consumer: { kind: 'text', text: 'x' }, purpose: 'x' }),
-      ),
-    ).toMatchObject({ code: 'DATA_ACCESS_REQUEST_STATE', params: { context: 'notBound' } });
-    // the owner is told once; the requester is not
-    expect(await notes(dana, 'dataproduct.access_requested')).toHaveLength(1);
-    expect(await notes(olivia, 'dataproduct.access_requested')).toHaveLength(0);
-    // the owner's list of decisions; nobody else decides
-    expect((await dana('GET', '/data-products/access-requests?scope=decide')).items.map((x: { id: string }) => x.id)).toContain(request);
-    expect(await fail(vera('POST', `/data-products/access-requests/${request}/decision`, { decision: 'approve' }))).toMatchObject({ status: 403 });
-    // the approval asks for the step-up: without it, refused
-    const noStepUp = await s.as('dana', PW, { autoStepUp: false });
-    await noStepUp('DELETE', '/auth/step-up');
-    expect(await fail(noStepUp('POST', `/data-products/access-requests/${request}/decision`, { decision: 'approve' }))).toMatchObject({
-      code: 'STEP_UP_REQUIRED',
-    });
-    const done = await dana('POST', `/data-products/access-requests/${request}/decision`, { decision: 'approve', comment: 'Fine' });
-    expect(done).toMatchObject({ status: 'approved', decidedBy: 'dana' });
-    const consumers = await dana('GET', `/data-products/${product}/ports/${port}/consumers`);
-    const c = consumers.find((x: { id: string }) => x.id === done.consumerId);
-    expect(c).toMatchObject({ kind: 'user', subject: 'user:olivia', purpose: 'Monthly close', endDate: '2027-12-31' });
-    const actual = await dana('GET', `/data-products/${product}/ports/${port}/actual?environment=prod`);
-    expect(actual.declared.find((d: { consumerId: string }) => d.consumerId === done.consumerId).identities).toEqual(['role:FINANCE', 'user:OLIVIA']);
-    // audited as a decision and as an access change
-    const audit = (await s.api('GET', `/audit?entityType=data_product&entityId=${product}&limit=100`)) as { action: string }[];
-    expect(audit.map((a) => a.action)).toEqual(
-      expect.arrayContaining(['dataproduct.access_requested', 'dataproduct.access_approved', 'access.data_port_consumer_granted']),
+describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals', () => {
+  const legacyRequest = async (status: string, consumer = 'Invented legacy report') => {
+    const { db } = await import('../src/db.js');
+    const id = `dpx_legacy_${status}_${Math.random().toString(36).slice(2, 8)}`;
+    db().run(
+      `INSERT INTO dp_access_requests (id, product_id, port_id, environment, requester, consumer_kind, consumer_text, purpose, until_date, identities, status, created_at, updated_at)
+       VALUES (?, ?, ?, 'prod', 'olivia', 'text', ?, 'Monthly close', '2027-12-31', '["user:OLIVIA","role:FINANCE"]', ?, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`,
+      id,
+      product,
+      port,
+      consumer,
+      status,
     );
-    // the requester is told once
-    expect(await notes(olivia, 'dataproduct.access_decided')).toHaveLength(1);
-    expect(await fail(dana('POST', `/data-products/access-requests/${request}/decision`, { decision: 'refuse', comment: 'x' }))).toMatchObject({
-      params: { context: 'notPending' },
-    });
+    return id;
+  };
+
+  it('answers 410 DATA_ACCESS_DOCUMENTED_ONLY to asking, deciding and withdrawing; requests stay readable', async () => {
+    const old = await legacyRequest('refused');
+    for (const [url, body] of [
+      [`/data-products/${product}/ports/${port}/access-requests`, { environment: 'prod', consumer: { kind: 'text', text: 'x' }, purpose: 'x' }],
+      [`/data-products/access-requests/${old}/decision`, { decision: 'approve' }],
+      [`/data-products/access-requests/${old}/withdraw`, {}],
+    ] as const)
+      expect(await fail(olivia('POST', url, body)), url).toMatchObject({ status: 410, code: 'DATA_ACCESS_DOCUMENTED_ONLY' });
+    const r = await olivia('GET', `/data-products/access-requests/${old}`);
+    expect(r).toMatchObject({ status: 'refused', mayDecide: false, mayWithdraw: false });
+    expect((await dana('GET', `/data-products/${product}/access-requests`)).items.map((x: { id: string }) => x.id)).toContain(old);
+    // nothing waits for a decision any more
+    expect(await dana('GET', '/data-products/access-requests?scope=decide')).toEqual({ items: [], total: 0 });
+    // the notices of requests are retired
+    const { NOTIFICATION_EVENTS } = await import('@sm/shared');
+    expect(NOTIFICATION_EVENTS).not.toContain('dataproduct.access_requested');
+    expect(NOTIFICATION_EVENTS).not.toContain('dataproduct.access_decided');
   });
 
-  it('needs two people for a product rated high, never the requester, and refusals give a reason', async () => {
-    // asked while the product was not rated high: four eyes all the same when it is rated high at the decision
-    const before = await vera('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Invented early report' },
-      purpose: 'Report',
+  it('turns pending requests into registrations whose approval is not documented at the upgrade, once and audited', async () => {
+    const pending = await legacyRequest('pending', 'Invented pending report');
+    const { convertOwnerFields, convertPendingRequests } = await import('../src/dataproducts/governance-upgrade.js');
+    expect(convertPendingRequests()).toBe(1);
+    expect(convertPendingRequests()).toBe(0);
+    // the requester, its contact of before, becomes a contact linked to the account (step 3 of the upgrade)
+    expect(convertOwnerFields()).toBeGreaterThan(0);
+    const r = await dana('GET', `/data-products/access-requests/${pending}`);
+    expect(r.status).toBe('converted');
+    const consumers = (await dana('GET', `/data-products/${product}/ports/${port}/consumers`)) as Record<string, unknown>[];
+    const c = consumers.find((x) => x.id === r.consumerId)!;
+    expect(c).toMatchObject({
+      kind: 'text',
+      text: 'Invented pending report',
+      purpose: 'Monthly close',
+      endDate: '2027-12-31',
+      approval: 'notDocumented',
+      decision: null,
+      requestId: pending,
     });
-    expect(before.fourEyes).toBe(false);
-    await dana('PUT', `/data-products/${product}/rating`, { confidentiality: { level: 'high', justification: 'Customer orders' } });
-    expect(await dana('POST', `/data-products/access-requests/${before.id}/decision`, { decision: 'approve' })).toMatchObject({
-      status: 'pending',
-      fourEyes: true,
-      approvals: [expect.objectContaining({ by: 'dana' })],
-    });
-    expect((await s.api('POST', `/data-products/access-requests/${before.id}/decision`, { decision: 'approve' })).status).toBe('approved');
-    const r = await vera('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Invented dashboard' },
-      purpose: 'Dashboard',
-    });
-    expect(r.fourEyes).toBe(true);
-    // a second decider: an administrator
-    const first = await dana('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' });
-    expect(first).toMatchObject({ status: 'pending', approvals: [expect.objectContaining({ by: 'dana' })] });
-    expect(await fail(dana('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }))).toMatchObject({
-      params: { context: 'secondPerson' },
-    });
-    expect(await fail(s.api('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'refuse' }))).toMatchObject({
-      params: { context: 'comment' },
-    });
-    const second = await s.api('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' });
-    expect(second.status).toBe('approved');
-    // nobody decides their own request
-    const own = await dana('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Own use' },
-      purpose: 'Own',
-    });
-    expect(await fail(dana('POST', `/data-products/access-requests/${own.id}/decision`, { decision: 'approve' }))).toMatchObject({
-      params: { context: 'ownRequest' },
-    });
-    expect((await dana('POST', `/data-products/access-requests/${own.id}/withdraw`)).status).toBe('withdrawn');
-    await dana('PUT', `/data-products/${product}/rating`, { confidentiality: null });
+    expect(c.contacts).toEqual([expect.objectContaining({ role: 'consumerContact', contact: expect.objectContaining({ user: 'olivia' }) })]);
+    const actual = await dana('GET', `/data-products/${product}/ports/${port}/actual?environment=prod`);
+    expect(actual.declared.find((d: { consumerId: string }) => d.consumerId === r.consumerId).identities).toEqual(['role:FINANCE', 'user:OLIVIA']);
+    const audit = (await s.api('GET', `/audit?action=dataproduct.access_request_converted&limit=10`)) as { entityId: string; actor: string }[];
+    expect(audit).toEqual([expect.objectContaining({ entityId: product, actor: 'system' })]);
   });
 
-  it('is session-only for decisions and settings, and team-scoped in lists', async () => {
-    const r = await olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Token test' },
-      purpose: 'x',
+  it('documents access on a registration: who decided, when, the evidence – recorded by an IT maintainer, audited', async () => {
+    const owner = await contact(dana, 'Invented product owner');
+    const url = `/data-products/${product}/ports/${port}/consumers`;
+    // a viewer documents nothing
+    expect((await fail(olivia('POST', url, { kind: 'text', text: 'x', decision: decision(owner) }))).status).toBe(403);
+    // a decision in the future, or naming a contact the recorder may not see, is refused
+    expect(await fail(dana('POST', url, { kind: 'text', text: 'Invented BI', decision: { ...decision(owner), decidedOn: '2999-01-01' } }))).toMatchObject({
+      code: 'DATA_DECISION_INVALID',
+      params: { context: 'decidedOn' },
     });
-    const token = (await dana('POST', '/me/tokens', { name: 'dana full', scope: 'full' })).token as string;
-    for (const [method, url, body] of [
-      ['POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'refuse', comment: 'x' }],
-      ['PUT', `/data-products/${product}/access-settings`, { reviewMonths: 6 }],
-    ] as const) {
-      const res = await fetch(`${s.base}/api${url}`, {
-        method,
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      expect(res.status, url).toBe(403);
-      expect((await res.json()).code).toBe('SESSION_REQUIRED');
-    }
-    // a request of a product olivia may not see is neither listed nor counted
-    await adam('POST', `/data-products/${hidden}/ports`, { direction: 'output', name: 'secret', type: 'table' });
-    const all = await olivia('GET', '/data-products/access-requests?scope=all');
-    expect(all.items.every((x: { product: { id: string } }) => x.product.id !== hidden)).toBe(true);
+    expect(await fail(dana('POST', url, { kind: 'text', text: 'Invented BI', decision: decision('ct_nobody') }))).toMatchObject({
+      status: 404,
+      code: 'CONTACT_NOT_FOUND',
+    });
+    const c = await dana('POST', url, {
+      kind: 'text',
+      text: 'Invented BI',
+      purpose: 'Dashboards',
+      contacts: [{ role: 'consumerContact', contact: { name: 'Invented BI lead', email: 'bi.lead@invented.example' } }],
+      decision: decision(owner, 'productOwner', { evidence: [{ kind: 'url', value: 'https://tickets.invented.example/ACC-12' }], note: 'Steering board' }),
+    });
+    expect(c).toMatchObject({
+      approval: 'documented',
+      decision: {
+        decidedBy: [{ contactId: owner, name: 'Invented product owner', role: 'productOwner' }],
+        decidedOn: yesterday(),
+        evidence: [{ kind: 'url', value: 'https://tickets.invented.example/ACC-12' }],
+        recordedBy: 'dana',
+      },
+    });
+    expect(c.contacts).toEqual([expect.objectContaining({ role: 'consumerContact', contact: expect.objectContaining({ name: 'Invented BI lead' }) })]);
+    // the names are frozen: renaming the contact keeps the decision's name
+    await dana('PUT', `/contacts/${owner}`, { name: 'Invented renamed owner' });
+    const again = ((await dana('GET', url)) as { id: string; decision: { decidedBy: { name: string }[] } }[]).find((x) => x.id === c.id)!;
+    expect(again.decision.decidedBy[0]!.name).toBe('Invented product owner');
+    // clearing it: not documented
+    const cleared = await dana('PUT', `${url}/${c.id}`, { kind: 'text', text: 'Invented BI', decision: null });
+    expect(cleared).toMatchObject({ approval: 'notDocumented', decision: null });
+    // the contact's page counts the decisions that name it
+    expect((await dana('GET', `/contacts/${owner}`)).decisions).toBe(0);
+    await dana('PUT', `${url}/${c.id}`, { kind: 'text', text: 'Invented BI', decision: decision(owner) });
+    expect((await dana('GET', `/contacts/${owner}`)).decisions).toBe(1);
+    const audit = (await s.api('GET', `/audit?action=dataproduct.access_documented&entityId=${product}&limit=10`)) as unknown[];
+    expect(audit.length).toBeGreaterThanOrEqual(2);
+    // the consumers' contacts: names and roles for readers, e-mail addresses (and the CSV) for the maintainers
+    const forReader = await olivia('GET', `/data-products/${product}/consumer-contacts`);
+    const entry = forReader.entries.find((e: { consumerId: string }) => e.consumerId === c.id);
+    expect(forReader.withEmail).toBe(false);
+    expect(entry.contacts).toEqual([{ name: 'Invented BI lead', role: 'consumerContact', status: 'active' }]);
+    const forMaintainer = await dana('GET', `/data-products/${product}/consumer-contacts?port=${port}`);
+    expect(forMaintainer.entries.find((e: { consumerId: string }) => e.consumerId === c.id).contacts[0].email).toBe('bi.lead@invented.example');
+    expect((await fail(olivia('GET', `/data-products/${product}/consumer-contacts.csv`))).status).toBe(403);
+    const csv = (await dana('GET', `/data-products/${product}/consumer-contacts.csv?lang=en`)) as string;
+    expect(csv).toContain('bi.lead@invented.example');
+    expect(csv).toContain('Consumer contact');
+    expect(await s.api('GET', `/audit?action=dataproduct.consumer_contacts_exported&entityId=${product}&limit=5`)).toHaveLength(1);
   });
 
-  it('starts the platform team’s process as the approver, and two approvals at once register one consumer', async () => {
+  it('fulfils a registration as the IT maintainer: the platform team’s process, with their run right (session only)', async () => {
     const processId = ((await s.api('GET', '/processes')) as { id: string }[])[0]!.id;
     await s.api('PUT', `/data-products/${product}/access-settings`, { processId });
     try {
-      const r = await olivia('POST', `/data-products/${product}/ports/${port}/access-requests`, {
-        environment: 'prod',
-        consumer: { kind: 'text', text: 'Invented twice approved' },
-        purpose: 'Race',
+      const c = await dana('POST', `/data-products/${product}/ports/${port}/consumers`, { kind: 'text', text: 'Invented fulfilled', purpose: 'Close' });
+      expect(c).toMatchObject({ approval: 'notDocumented', ticketId: null, runId: null });
+      const url = `/data-products/${product}/ports/${port}/consumers/${c.id}/fulfilment`;
+      // who may not change the product does not fulfil
+      expect((await fail(olivia('POST', url, { startProcess: true }))).status).toBe(403);
+      // no ticket source: a ticket is refused
+      expect(await fail(dana('POST', url, { ticket: { externalNumber: 'INC-1' } }))).toMatchObject({
+        code: 'DATA_CONSUMER_INVALID',
+        params: { context: 'ticketSource' },
       });
-      const out = await Promise.allSettled([
-        dana('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }),
-        s.api('POST', `/data-products/access-requests/${r.id}/decision`, { decision: 'approve' }),
-      ]);
-      expect(out.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
-      const consumers = (await dana('GET', `/data-products/${product}/ports/${port}/consumers`)) as { text: string }[];
-      expect(consumers.filter((c) => c.text === 'Invented twice approved')).toHaveLength(1);
-      const done = await dana('GET', `/data-products/access-requests/${r.id}`);
-      expect(done.status).toBe('approved');
-      expect(done.runId ?? done.decisionComment).toBeTruthy();
+      const done = await dana('POST', url, { startProcess: true });
+      expect(done.runId ?? done.problems[0]).toBeTruthy();
+      const token = (await dana('POST', '/me/tokens', { name: 'dana full', scope: 'full' })).token as string;
+      for (const [method, path, body] of [
+        ['POST', url, { startProcess: true }],
+        ['PUT', `/data-products/${product}/access-settings`, { reviewMonths: 6 }],
+      ] as const) {
+        const res = await fetch(`${s.base}/api${path}`, {
+          method,
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        expect(res.status, path).toBe(403);
+        expect((await res.json()).code).toBe('SESSION_REQUIRED');
+      }
     } finally {
       await s.api('PUT', `/data-products/${product}/access-settings`, { processId: null });
     }
   });
+
+  it('is team-scoped: a request of a product the reader may not see is neither listed nor counted', async () => {
+    await s.api('POST', `/data-products/${hidden}/ports`, { direction: 'output', name: 'secret', type: 'table' });
+    const { db } = await import('../src/db.js');
+    const secretPort = db().get<{ id: string }>("SELECT id FROM dp_ports WHERE product_id = ? AND name = 'secret'", hidden)!.id;
+    db().run(
+      `INSERT INTO dp_access_requests (id, product_id, port_id, environment, requester, consumer_kind, consumer_text, purpose, status, created_at, updated_at)
+       VALUES ('dpx_hidden', ?, ?, 'prod', 'adam', 'text', 'Secret use', 'x', 'refused', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`,
+      hidden,
+      secretPort,
+    );
+    // a contact named only on a product the reader may not see is neither found nor named; its consumers' contacts 404
+    const secretProduct = await s.api('GET', `/data-products/${hidden}`);
+    const named = await s.api('PUT', `/data-products/${hidden}`, {
+      key: secretProduct.key,
+      name: secretProduct.name,
+      contacts: [{ role: 'productOwner', contact: { name: 'Invented secret owner', email: 'secret.owner@invented.example' } }],
+    });
+    const secretContact = named.contacts[0].contact.id as string;
+    expect((await olivia('GET', '/contacts?q=Invented%20secret')).items).toEqual([]);
+    expect(await fail(olivia('GET', `/contacts/${secretContact}`))).toMatchObject({ status: 404 });
+    expect(await fail(olivia('GET', `/data-products/${hidden}/consumer-contacts`))).toMatchObject({ status: 404 });
+    // the member of the owning team sees it and its link; the contact gives nobody a right
+    expect((await adam('GET', `/contacts/${secretContact}`)).links.map((l: { itemId: string }) => l.itemId)).toEqual([hidden]);
+    const all = await olivia('GET', '/data-products/access-requests?scope=all');
+    expect(all.items.every((x: { product: { id: string } }) => x.product.id !== hidden)).toBe(true);
+    expect(all.total).toBe(all.items.length);
+    expect(await fail(olivia('GET', '/data-products/access-requests/dpx_hidden'))).toMatchObject({ status: 404 });
+  });
 });
 
 describe('endorsement', () => {
-  it('is given by the owners of the domain, never by the product owner, and flagged for review', async () => {
+  it('is recorded by the IT maintainers (never because someone is named an owner) and flagged for review', async () => {
     const domain = (await s.api('POST', '/data-domains', { key: 'gov-sales', name: 'Governed sales', owners: ['user:adam'] })).id;
     const p = (await dana('POST', '/data-products', { key: 'gov-endorsed', name: 'Endorsed orders', owners: ['user:dana'], domainId: domain })).id;
     const view = await dana('GET', `/data-products/${p}/endorsement`);
-    expect(view).toMatchObject({ endorsement: null, endorsers: ['user:adam'], mayEndorse: false, whyNot: 'ownProduct' });
-    expect(await fail(dana('PUT', `/data-products/${p}/endorsement`, {}))).toMatchObject({ status: 403 });
-    expect(await fail(olivia('PUT', `/data-products/${p}/endorsement`, {}))).toMatchObject({ status: 403 });
-    expect(await fail(adam('PUT', `/data-products/${p}/endorsement`, { reviewDate: '2099-01-01' }))).toMatchObject({
+    expect(view).toMatchObject({ endorsement: null, mayEndorse: true, whyNot: null });
+    // the domain owner without a right on the product records nothing, nor does a reader
+    expect((await adam('GET', `/data-products/${p}/endorsement`)).whyNot).toBe('notMaintainer');
+    const owner = await contact(dana, 'Invented domain owner');
+    expect(await fail(adam('PUT', `/data-products/${p}/endorsement`, { decision: decision(owner, 'domainOwner') }))).toMatchObject({ status: 403 });
+    expect(await fail(olivia('PUT', `/data-products/${p}/endorsement`, { decision: decision(owner, 'domainOwner') }))).toMatchObject({ status: 403 });
+    expect(await fail(dana('PUT', `/data-products/${p}/endorsement`, { reviewDate: '2099-01-01', decision: decision(owner, 'domainOwner') }))).toMatchObject({
       code: 'DATA_ENDORSEMENT_INVALID',
       params: { context: 'reviewDate' },
     });
-    const e = await adam('PUT', `/data-products/${p}/endorsement`, { note: 'Good contract and owners' });
-    expect(e.endorsement).toMatchObject({ endorsedBy: 'adam', valid: true, review: null });
+    // a contact who has left endorses nothing new
+    const gone = await contact(dana, 'Invented former owner');
+    await dana('PUT', `/contacts/${gone}`, { name: 'Invented former owner', status: 'left' });
+    expect(await fail(dana('PUT', `/data-products/${p}/endorsement`, { decision: decision(gone, 'domainOwner') }))).toMatchObject({
+      status: 409,
+      code: 'CONTACT_LEFT',
+    });
+    const e = await dana('PUT', `/data-products/${p}/endorsement`, { note: 'Good contract and owners', decision: decision(owner, 'domainOwner') });
+    expect(e.endorsement).toMatchObject({
+      endorsedBy: 'dana',
+      valid: true,
+      review: null,
+      decision: { decidedBy: [{ name: 'Invented domain owner', role: 'domainOwner' }] },
+    });
     // a breaking change of a bound contract flags it (the data contracts' hook), it then no longer counts
     const { flagEndorsementReview } = await import('../src/dataproducts/endorsements.js');
     expect(flagEndorsementReview([p], 'breakingChange')).toEqual([p]);
     expect((await dana('GET', `/data-products/${p}/endorsement`)).endorsement).toMatchObject({ valid: false, review: 'breakingChange' });
-    // the owner and the endorser are told once
+    // the IT maintainers are told once – never someone only named (the domain owner)
     expect(await notes(dana, 'dataproduct.endorsement_review')).toHaveLength(1);
-    expect(await notes(adam, 'dataproduct.endorsement_review')).toHaveLength(1);
+    expect(await notes(adam, 'dataproduct.endorsement_review')).toHaveLength(0);
     expect(flagEndorsementReview([p], 'breakingChange')).toEqual([]);
     expect(await notes(dana, 'dataproduct.endorsement_review')).toHaveLength(1);
     // endorsed again: valid; the maturity counts it only on top of level 4
-    expect((await adam('PUT', `/data-products/${p}/endorsement`, {})).endorsement.valid).toBe(true);
+    expect((await dana('PUT', `/data-products/${p}/endorsement`, { decision: decision(owner, 'domainOwner') })).endorsement.valid).toBe(true);
     const card = await dana('GET', `/data-products/${p}/scorecard`);
     expect(card.maturity).toBeLessThan(4);
     const audit = (await s.api('GET', `/audit?entityType=data_product&entityId=${p}&limit=100`)) as { action: string }[];
     expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(['dataproduct.endorsed', 'dataproduct.endorsement_flagged']));
-    expect((await adam('DELETE', `/data-products/${p}/endorsement?reason=Owner%20left`)).endorsement).toBeNull();
+    expect((await dana('DELETE', `/data-products/${p}/endorsement?reason=Owner%20left`)).endorsement).toBeNull();
   });
 });

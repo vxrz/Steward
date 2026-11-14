@@ -320,7 +320,6 @@ const WARN_EVENTS = new Set([
   'dataproduct.elements_missing',
   'dataproduct.contract_breaking',
   'cost.estimate_changed',
-  'dataproduct.access_requested',
   'dataproduct.endorsement_review',
   'dataproduct.access_review_due',
 ]);

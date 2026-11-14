@@ -2,13 +2,12 @@ import type { DataContractChange, Locale, UserInfo } from '@sm/shared';
 import { qualityDimensionOf } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
-import { parseJson } from '../util.js';
 import { contractAccess } from '../auth/policy.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { t } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
 import { flagEndorsementReview } from './endorsements.js';
-import { claim, named, ownersOf, people, sees, type Person } from './notices.js';
+import { claim, contactsAction, maintainersOf, people, sees, type Person } from './notices.js';
 import { recordQualityResults } from './quality.js';
 import { chunks, consumersOf, consumingPorts, elementsByIds, marks, productsByIds, type PortRow, type ProductRow } from './store.js';
 
@@ -19,11 +18,12 @@ import { chunks, consumersOf, consumingPorts, elementsByIds, marks, productsById
  *
  *  - **onContractVersionSaved** – a new version that the existing comparison (datacontracts/diff.ts) calls breaking,
  *    of a contract bound to an output port that follows the contract's current version (a binding held to a fixed
- *    version is not moved by a new one): `dataproduct.contract_breaking` to the port's registered consumers – the teams
- *    and users registered, their contacts, the owners of a registered consuming product – and the owners of the
- *    products whose input ports consume it. Once per port and contract version (dp_notices). Only who may see the
- *    product is told; the contract is named, and its breaking changes listed, only to who may see the contract; of the
- *    consuming products only those the recipient may see are named.
+ *    version is not moved by a new one): `dataproduct.contract_breaking` to the product's IT maintainers (who may edit
+ *    it – 0.25.1, ADR 0038 part 6: never a contact; they inform the consumers with the link to their contacts) and to
+ *    the IT maintainers of the products registered as its consumers or whose input ports consume it. Once per port
+ *    and contract version (dp_notices). Only who may see the product is told; the contract is named, and its breaking
+ *    changes listed, only to who may see the contract; of the consuming products only those the recipient may see are
+ *    named.
  *  - **onContractTested** – a real test of the contract (not a dry run) through the datacontract CLI: its checks that
  *    map to an ISO/IEC 25012 dimension become quality results (source `contract`) of the elements of the output
  *    bindings held to the tested version (quality.ts).
@@ -113,23 +113,23 @@ function sendBreaking(
   all: Person[],
   x: { consumers: ReturnType<typeof consumersOf>; consumingIn: PortRow[]; consuming: Map<string, ProductRow> },
 ): number {
-  const why = new Map<string, { person: Person; registered: boolean; consuming: Set<string> }>();
-  const add = (p: Person, f: (w: { registered: boolean; consuming: Set<string> }) => void) => {
-    const w = why.get(p.info.id) ?? { person: p, registered: false, consuming: new Set<string>() };
+  const why = new Map<string, { person: Person; maintains: boolean; consuming: Set<string> }>();
+  const add = (p: Person, f: (w: { maintains: boolean; consuming: Set<string> }) => void) => {
+    const w = why.get(p.info.id) ?? { person: p, maintains: false, consuming: new Set<string>() };
     f(w);
     why.set(p.info.id, w);
   };
-  for (const c of x.consumers) {
-    for (const p of named(all, [...parseJson<string[]>(c.consumer_subjects, []), ...parseJson<string[]>(c.contacts, [])]))
-      add(p, (w) => {
-        w.registered = true;
-      });
-    const cp = c.consumer_kind === 'product' && c.ref_id ? x.consuming.get(c.ref_id) : undefined;
-    if (cp && cp.lifecycle !== 'retired') for (const p of ownersOf(all, cp)) add(p, (w) => w.consuming.add(cp.id));
-  }
-  for (const c of x.consumingIn) {
-    const cp = x.consuming.get(c.product_id);
-    if (cp && cp.lifecycle !== 'retired') for (const p of ownersOf(all, cp)) add(p, (w) => w.consuming.add(cp.id));
+  for (const p of maintainersOf(all, product))
+    add(p, (w) => {
+      w.maintains = true;
+    });
+  const consumingIds = new Set([
+    ...x.consumers.flatMap((c) => (c.consumer_kind === 'product' && c.ref_id ? [c.ref_id] : [])),
+    ...x.consumingIn.map((c) => c.product_id),
+  ]);
+  for (const id of consumingIds) {
+    const cp = x.consuming.get(id);
+    if (cp && cp.id !== product.id && cp.lifecycle !== 'retired') for (const p of maintainersOf(all, cp, false)) add(p, (w) => w.consuming.add(cp.id));
   }
   // only who may see the product is told (team scope of names: they are not told about it at all otherwise)
   const recipients = [...why.values()].filter((w) => sees(w.person, product));
@@ -163,11 +163,15 @@ function sendBreaking(
       ...(envs ? [t(l, 'dataProducts.breaking.environments', { environments: envs })] : []),
       ...(seesContract ? breaking.slice(0, MAX_CHANGES).map((c) => `- ${changeText(c)}`) : []),
       ...(seesContract && e.breaking > MAX_CHANGES ? [t(l, 'dataProducts.breaking.more', { count: e.breaking - Math.min(MAX_CHANGES, breaking.length) })] : []),
-      ...(w?.registered ? [t(l, 'dataProducts.breaking.registered', { port: label })] : []),
+      ...(w?.maintains ? [t(l, 'dataProducts.breaking.maintainer', { port: label, count: x.consumers.length })] : []),
       ...(mine.length ? [t(l, 'dataProducts.breaking.consuming', { products: mine.join(', ') })] : []),
       t(l, 'dataProducts.breaking.hint'),
     ];
-    return { title: t(l, 'dataProducts.breaking.title', { port: titleName(label, 60), product: titleName(product.name) }), body: lines.join('\n') };
+    return {
+      title: t(l, 'dataProducts.breaking.title', { port: titleName(label, 60), product: titleName(product.name) }),
+      body: lines.join('\n'),
+      ...(w?.maintains ? { parts: contactsAction(l, product.id, port.id) } : {}),
+    };
   };
   notify({
     event: 'dataproduct.contract_breaking',

@@ -556,18 +556,25 @@ const EXPECT: Record<string, Access> = {
   'POST /api/data-products/import': DESIGN,
   // 0.25.0: a background import's progress – the person who started it (others: 404)
   'GET /api/data-products/import/jobs/:id': ALL,
-  // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
-  // decides requests (the owners, else who manages the product) decides; reading the platforms, reviews, promotion and
-  // endorsement (the domain's owners, else the module's managers) change – the Art. 30 view lists what the reader sees
+  // consumers, access and governance (0.24.0, ADR 0036 phase 2; 0.25.1, ADR 0038): access requests are read-only
+  // history – asking, deciding and withdrawing answer 410 to everyone; the IT maintainers (who may change the product)
+  // fulfil registrations, read the platforms, review, promote and record endorsements – the Art. 30 view lists what the
+  // reader sees; the module's governance settings are read by everyone, changed by administrators
   'GET /api/data-products/records-of-processing': ALL,
   'GET /api/data-products/records-of-processing.csv': ALL,
   'GET /api/data-products/records-of-processing.pdf': ALL,
   'GET /api/data-products/access-requests': ALL,
   'GET /api/data-products/access-requests/:requestId': ALL,
-  'POST /api/data-products/access-requests/:requestId/decision': DESIGN,
-  'POST /api/data-products/access-requests/:requestId/withdraw': ADMIN,
+  'POST /api/data-products/access-requests/:requestId/decision': ALL,
+  'POST /api/data-products/access-requests/:requestId/withdraw': ALL,
   'GET /api/data-products/:id/access-requests': ALL,
   'POST /api/data-products/:id/ports/:portId/access-requests': ALL,
+  'POST /api/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment': DESIGN,
+  // the consumers' contacts: names and roles for readers; the CSV with e-mail addresses for who may change the product
+  'GET /api/data-products/:id/consumer-contacts': ALL,
+  'GET /api/data-products/:id/consumer-contacts.csv': DESIGN,
+  'GET /api/data-products/governance-settings': ALL,
+  'PUT /api/data-products/governance-settings': ADMIN,
   'GET /api/data-products/:id/access-settings': ALL,
   'PUT /api/data-products/:id/access-settings': DESIGN,
   'GET /api/data-products/:id/ports/:portId/actual': ALL,
@@ -578,8 +585,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/port-reviews/:reviewId': ALL,
   'GET /api/data-products/port-reviews/:reviewId/verify': ALL,
   'PUT /api/data-products/port-reviews/:reviewId/decisions': DESIGN,
+  'PUT /api/data-products/port-reviews/:reviewId/decision': DESIGN,
   'POST /api/data-products/port-reviews/:reviewId/submit': DESIGN,
-  'POST /api/data-products/port-reviews/:reviewId/approval': ['admin', 'designer', 'approver'],
+  'POST /api/data-products/port-reviews/:reviewId/approval': DESIGN,
   'GET /api/data-products/:id/promotion': ALL,
   'POST /api/data-products/:id/promotion': DESIGN,
   'GET /api/data-products/:id/promotions': ALL,
@@ -1718,10 +1726,13 @@ const SESSION_ONLY = [
   'GET /api/data-products/import/jobs/:id',
   // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
   'POST /api/data-products/access-requests/:requestId/decision',
+  'POST /api/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment',
+  'PUT /api/data-products/governance-settings',
   'PUT /api/data-products/:id/access-settings',
   'POST /api/data-products/:id/ports/:portId/actual/read',
   'POST /api/data-products/:id/ports/:portId/reviews',
   'PUT /api/data-products/port-reviews/:reviewId/decisions',
+  'PUT /api/data-products/port-reviews/:reviewId/decision',
   'POST /api/data-products/port-reviews/:reviewId/submit',
   'POST /api/data-products/port-reviews/:reviewId/approval',
   'POST /api/data-products/:id/promotion',
@@ -3272,14 +3283,14 @@ beforeAll(async () => {
   await a('PUT', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/bindings/prod`, { elementIds: [curated] });
   fx.dataConsumer = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/consumers`, { kind: 'text', text: 'Matrix consumer' })).id;
   fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
-  // an open access request (asked by the administrator) and an open port access review of the port (0.24.0)
-  fx.dataRequest = (
-    await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Matrix consumer' },
-      purpose: 'Matrix',
-    })
-  ).id;
+  // an access request of before 0.25.1 (read-only history: asking answers 410) and an open port access review (0.24.0)
+  fx.dataRequest = 'dpx_matrix';
+  (await import('../src/db.js')).db().run(
+    `INSERT INTO dp_access_requests (id, product_id, port_id, environment, requester, consumer_kind, consumer_text, purpose, status, created_at, updated_at)
+       VALUES ('dpx_matrix', ?, ?, 'prod', 'admin', 'text', 'Matrix consumer', 'Matrix', 'pending', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`,
+    fx.dataProduct,
+    fx.dataPort,
+  );
   fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
   // 0.25.0: a connector of the demo's Kafka Connect for Create step from connector; a technology of the administrators
   const connect = (await a('GET', '/platforms')).find((p: { name: string }) => p.name === 'Kafka Connect (demo)')?.id;

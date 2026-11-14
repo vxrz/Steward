@@ -5,6 +5,8 @@ import {
   dataPortInput,
   roleOfPort,
   type DataConsumer,
+  type ContactLink,
+  type ContactLinkInput,
   type DataObjectives,
   type DataPort,
   type DataPortBinding,
@@ -24,6 +26,9 @@ import { factsOf, parseContract } from '../datacontracts/odcs.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { onLifecycleChanged, onPortDeleted } from './notices.js';
+import { CONSUMER_CONTACT_ROLE, contactsOf, linksOfSubjects } from './contacts.js';
+import { decisionView, documentDecision } from './decisions.js';
+import { setLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 import type { ProductReads } from './ratings.js';
 import { HIDDEN, L, actorName, elementNotFound, json, limitReached, objectNotFound, portNotFound, productNotFound, refOf } from './common.js';
@@ -113,13 +118,15 @@ export function portViews(u: AuthUser | null, productId: string, known?: Readonl
   for (const c of consumingPorts(ids)) if (c.source_port_id) derived.set(c.source_port_id, (derived.get(c.source_port_id) ?? 0) + 1);
   // where input ports' data comes from: the other products' output ports, named only where the reader sees the product
   const sourceIds = ports.map((p) => p.source_port_id).filter((x): x is string => !!x);
-  const sources = new Map(
-    (sourceIds.length ? db().all<PortRow>(`SELECT * FROM dp_ports WHERE id IN (${marks(new Set(sourceIds).size)})`, ...new Set(sourceIds)) : []).map((r) => [
-      r.id,
-      r,
-    ]),
-  );
-  const sourceProducts = productsByIds([...sources.values()].map((s) => s.product_id));
+  // the source ports with their products' key and name in one statement (0.25.1: the product page stays at 20)
+  const sourceRows = sourceIds.length
+    ? db().all<PortRow & { sp_key: string; sp_name: string }>(
+        `SELECT s.*, pr.key AS sp_key, pr.name AS sp_name FROM dp_ports s JOIN dp_products pr ON pr.id = s.product_id WHERE s.id IN (${marks(new Set(sourceIds).size)})`,
+        ...new Set(sourceIds),
+      )
+    : [];
+  const sources = new Map(sourceRows.map((r) => [r.id, r]));
+  const sourceProducts = new Map(sourceRows.map((r) => [r.product_id, { id: r.product_id, key: r.sp_key, name: r.sp_name }]));
   const elementOf = new Map<string, string[]>();
   for (const b of bindings) for (const e of b.elementIds) elementOf.set(b.port_id, [...(elementOf.get(b.port_id) ?? []), e]);
   return ports.map((p): DataPort => {
@@ -580,7 +587,7 @@ function consumerNames(u: AuthUser | null, rows: Pick<ConsumerRow, 'consumer_kin
   return out;
 }
 
-function consumerView(u: AuthUser | null, c: ConsumerRow, names: Map<string, string | null>): DataConsumer {
+function consumerView(u: AuthUser | null, c: ConsumerRow, names: Map<string, string | null>, contacts: ContactLink[] = []): DataConsumer {
   const label = consumerLabel(u, c, names);
   const hiddenRef = (c.consumer_kind === 'application' || c.consumer_kind === 'service' || c.consumer_kind === 'product') && label === null;
   return {
@@ -596,7 +603,12 @@ function consumerView(u: AuthUser | null, c: ConsumerRow, names: Map<string, str
     since: c.since,
     endDate: c.end_date,
     agreement: parseJson(c.agreement, null),
-    contacts: parseJson(c.contacts, []),
+    contacts,
+    approval: c.approval === 'documented' ? 'documented' : 'notDocumented',
+    decision: decisionView(c.decision, u),
+    ticketId: c.ticket_id ?? null,
+    runId: c.run_id ?? null,
+    requestId: c.request_id ?? null,
     createdAt: c.created_at,
     createdBy: c.created_by,
     updatedAt: c.updated_at,
@@ -609,7 +621,11 @@ export function listConsumers(productId: string, portId: string): DataConsumer[]
   const u = me();
   const rows = consumersOf([port.id]);
   const names = consumerNames(u, rows);
-  return rows.map((c) => consumerView(u, c, names));
+  const links = contactsOf(
+    'data_consumer',
+    rows.map((c) => c.id),
+  );
+  return rows.map((c) => consumerView(u, c, names, links.get(c.id)));
 }
 
 /** What a registration names must fit its kind, and an application, service or product must be one the editor may see. */
@@ -638,8 +654,37 @@ const consumerValues = (input: ConsumerInput): unknown[] => [
   input.since,
   input.endDate,
   input.agreement ? json(input.agreement) : null,
-  json(input.contacts.map((c) => c.toLowerCase())),
 ];
+
+/** The consumer's contacts from its input: contacts as given, subjects of before 0.25.1 as contacts; omitted: kept. */
+function consumerContactsInput(input: ConsumerInput): ContactLinkInput[] | undefined {
+  if (!input.contacts) return undefined;
+  return input.contacts.flatMap((c) =>
+    typeof c === 'string' ? linksOfSubjects([c], CONSUMER_CONTACT_ROLE) : [{ ...c, role: c.role || CONSUMER_CONTACT_ROLE }],
+  );
+}
+
+/**
+ * The documented decision of a registration (0.25.1, ADR 0038 part 3): recorded – who decided elsewhere, when, the
+ * evidence – it makes the approval _documented_; null clears it (_approval not documented_); omitted keeps it.
+ * Recording is documentation (the product's edit right), never a grant; audited as `dataproduct.access_documented`.
+ */
+function writeDecision(productId: string, productName: string, portName: string, consumerId: string, decision: ConsumerInput['decision']): void {
+  if (decision === undefined) return;
+  if (decision === null) {
+    db().run("UPDATE dp_consumers SET decision = NULL, approval = 'notDocumented' WHERE id = ?", consumerId);
+    return;
+  }
+  const d = documentDecision(decision);
+  db().run("UPDATE dp_consumers SET decision = ?, approval = 'documented' WHERE id = ?", JSON.stringify(d), consumerId);
+  audit({
+    action: 'dataproduct.access_documented',
+    entityType: 'data_product',
+    entityId: productId,
+    summary: `Data product "${productName}": access of a consumer of port "${portName}" documented – decided by ${d.decidedBy.map((x) => x.name).join(', ')} on ${d.decidedOn}`,
+    details: { consumerId, decidedBy: d.decidedBy, decidedOn: d.decidedOn, evidence: d.evidence, note: d.note.slice(0, 500) },
+  });
+}
 
 export function addConsumer(productId: string, productName: string, portId: string, body: unknown): DataConsumer {
   const port = portOf(productId, portId);
@@ -653,7 +698,7 @@ export function addConsumer(productId: string, productName: string, portId: stri
   db().tx(() => {
     db().run(
       `INSERT INTO dp_consumers (id, port_id, consumer_kind, ref_id, consumer_subjects, consumer_text, purpose, since, end_date, agreement, contacts, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)`,
       id,
       port.id,
       ...consumerValues(input),
@@ -662,6 +707,9 @@ export function addConsumer(productId: string, productName: string, portId: stri
       now,
       actorName(),
     );
+    const contacts = consumerContactsInput(input);
+    if (contacts) setLinks('data_consumer', id, contacts);
+    writeDecision(productId, productName, port.name, id, input.decision);
     audit({
       action: 'dataproduct.consumer_added',
       entityType: 'data_product',
@@ -688,13 +736,16 @@ export function updateConsumer(productId: string, productName: string, portId: s
   if (!keepsRef) checkConsumer(input);
   db().tx(() => {
     db().run(
-      `UPDATE dp_consumers SET consumer_kind = ?, ref_id = ?, consumer_subjects = ?, consumer_text = ?, purpose = ?, since = ?, end_date = ?, agreement = ?, contacts = ?,
+      `UPDATE dp_consumers SET consumer_kind = ?, ref_id = ?, consumer_subjects = ?, consumer_text = ?, purpose = ?, since = ?, end_date = ?, agreement = ?,
          updated_at = ?, updated_by = ? WHERE id = ?`,
       ...consumerValues(input),
       nowIso(),
       actorName(),
       cur.id,
     );
+    const contacts = consumerContactsInput(input);
+    if (contacts) setLinks('data_consumer', cur.id, contacts);
+    writeDecision(productId, productName, port.name, cur.id, input.decision);
     audit({
       action: 'dataproduct.consumer_changed',
       entityType: 'data_product',

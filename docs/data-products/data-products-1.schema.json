@@ -107,6 +107,7 @@
           ]
         },
         "owners": {
+          "description": "Deprecated (0.25.1): domain owners as user:/team: – read as contacts",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -115,10 +116,55 @@
             "pattern": "^(user|team):.+$",
             "description": "A person or a team: user:<name> or team:<name>"
           }
+        },
+        "contacts": {
+          "description": "Contacts with their role: domainOwner (0.25.1)",
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Contact"
+          }
         }
       },
       "required": [
         "key",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Contact": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "description": "person (default) or group – a shared mailbox, a board, an office",
+          "type": "string",
+          "enum": [
+            "person",
+            "group"
+          ]
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "user": {
+          "description": "The Steward user this contact is, if any – documentation, never a right",
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "role",
         "name"
       ],
       "additionalProperties": false
@@ -302,7 +348,7 @@
           }
         },
         "owner": {
-          "description": "The data owner: a user name",
+          "description": "Deprecated (0.25.1): the data owner as a user name – read as a contact",
           "anyOf": [
             {
               "type": "string",
@@ -314,6 +360,7 @@
           ]
         },
         "stewards": {
+          "description": "Deprecated (0.25.1): stewards as user:/team: – read as contacts",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -324,6 +371,7 @@
           }
         },
         "custodians": {
+          "description": "Technical custodians (IT): teams and users",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -331,6 +379,14 @@
             "maxLength": 200,
             "pattern": "^(user|team):.+$",
             "description": "A person or a team: user:<name> or team:<name>"
+          }
+        },
+        "contacts": {
+          "description": "Contacts with their role: dataOwner, dataSteward (0.25.1)",
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Contact"
           }
         },
         "external_refs": {
@@ -754,7 +810,7 @@
           ]
         },
         "owners": {
-          "description": "The product owners",
+          "description": "Deprecated (0.25.1): product owners as user:/team: – read as contacts",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -762,6 +818,14 @@
             "maxLength": 200,
             "pattern": "^(user|team):.+$",
             "description": "A person or a team: user:<name> or team:<name>"
+          }
+        },
+        "contacts": {
+          "description": "Contacts with their role: productOwner, businessContact (0.25.1)",
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Contact"
           }
         },
         "support": {
@@ -1528,13 +1592,21 @@
           ]
         },
         "contacts": {
+          "description": "Its contacts (role consumerContact); user:/team: subjects of before 0.25.1 are read as contacts",
           "maxItems": 50,
           "type": "array",
           "items": {
-            "type": "string",
-            "maxLength": 200,
-            "pattern": "^(user|team):.+$",
-            "description": "A person or a team: user:<name> or team:<name>"
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^(user|team):.+$",
+                "description": "A person or a team: user:<name> or team:<name>"
+              },
+              {
+                "$ref": "#/$defs/Contact"
+              }
+            ]
           }
         },
         "identities": {

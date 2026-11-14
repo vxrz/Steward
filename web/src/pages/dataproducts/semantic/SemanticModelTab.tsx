@@ -1,3 +1,4 @@
+import { DecisionFields, emptyDecision, toDecisionInput, useDecisionErrors, type DecisionDraft } from '../../../components/dataproducts/DecisionFields';
 import { useState } from 'react';
 import { ActionIcon, Alert, Badge, Box, Button, Group, Paper, Select, Stack, Text, TextInput, Textarea, Tooltip } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,7 +14,6 @@ import {
   type OssieRevision,
 } from '@sm/shared';
 import { apiUrl, get, notifyOk, post } from '../../../api';
-import { useMe } from '../../../auth';
 import { QueryState } from '../../../components/common';
 import { confirmDialog } from '../../../components/confirm';
 import { FormModal } from '../../../components/FormModal';
@@ -43,8 +43,10 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
   const { t } = useTranslation(['dataProductSemantic', 'dataProducts', 'common']);
   const q = useSemanticModel(p.id);
   const qc = useQueryClient();
-  const { username } = useMe();
   const person = usePerson();
+  // who approved it (0.25.1: the documented approval's contacts), else who signed it off in Steward before
+  const approvedBy = (x: { by: string; decision: { decidedBy: { name: string }[] } | null }) =>
+    x.decision?.decidedBy.length ? x.decision.decidedBy.map((d) => d.name).join(', ') : person(x.by);
   const [shown, setShown] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [signing, setSigning] = useState<DataSemanticVersionSummary | null>(null);
@@ -52,7 +54,6 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
   if (!v) return <QueryState query={q} />;
   const selected = shown ?? v.current?.version ?? null;
   const refresh = () => void qc.invalidateQueries({ queryKey: dpKeys.all });
-  const own = (x: DataSemanticVersionSummary) => x.createdBy.toLowerCase() === username.toLowerCase();
   return (
     <Stack gap="md" data-testid="semantic-model">
       <Section
@@ -74,7 +75,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
             <>
               <Text size="sm" data-testid="semantic-valid-today">
                 {v.validToday?.signOff
-                  ? t('validToday', { version: v.validToday.version, by: person(v.validToday.signOff.by), date: fmtDay(v.validToday.signOff.at) })
+                  ? t('validToday', { version: v.validToday.version, by: approvedBy(v.validToday.signOff), date: fmtDay(v.validToday.signOff.validFrom) })
                   : t('noValid')}
               </Text>
               <Text size="sm" c="dimmed" data-testid="semantic-current">
@@ -113,19 +114,18 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
                           {t('validBadge')}
                         </Badge>
                       )}
-                      <Text size="sm">{t('signedOff', { by: person(x.signOff.by), date: fmtDay(x.signOff.validFrom) })}</Text>
+                      <Text size="sm">
+                        {t('signedOff', {
+                          by: approvedBy(x.signOff),
+                          date: fmtDay(x.signOff.validFrom),
+                        })}
+                      </Text>
                     </Group>
                   ) : (
                     <Stack gap={0}>
                       <Text size="sm" c="dimmed">
                         {t('notSignedOff')}
                       </Text>
-                      {/* who may sign off but saved this version learns why the button is missing (four eyes) */}
-                      {v.maySignOff && own(x) && (
-                        <Text size="xs" c="dimmed" data-testid="semantic-own-version">
-                          {t('ownVersion')}
-                        </Text>
-                      )}
                     </Stack>
                   ),
               },
@@ -151,7 +151,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
                         <IconDownload size={16} />
                       </ActionIcon>
                     </Tooltip>
-                    {v.maySignOff && !x.signOff && !own(x) && (
+                    {v.maySignOff && !x.signOff && (
                       <Button size="compact-xs" variant="default" onClick={() => setSigning(x)} aria-label={t('signOffNamed', { n: x.version })}>
                         {t('signOffAction')}
                       </Button>
@@ -200,6 +200,9 @@ function ValidOn({ productId }: { productId: string }) {
   const [asked, setAsked] = useState('');
   const q = useSemanticValid(productId, asked);
   const person = usePerson();
+  // who approved it (0.25.1: the documented approval's contacts), else who signed it off in Steward before
+  const approvedBy = (x: { by: string; decision: { decidedBy: { name: string }[] } | null }) =>
+    x.decision?.decidedBy.length ? x.decision.decidedBy.map((d) => d.name).join(', ') : person(x.by);
   const a = q.data;
   return (
     <Paper withBorder p="md" data-testid="semantic-valid-on">
@@ -220,7 +223,7 @@ function ValidOn({ productId }: { productId: string }) {
         <Stack gap={2} mt="sm" data-testid="semantic-valid-answer">
           <Text size="sm">
             {a.valid?.signOff
-              ? t('validOn.valid', { version: a.valid.version, by: person(a.valid.signOff.by), from: fmtDay(a.valid.signOff.validFrom) })
+              ? t('validOn.valid', { version: a.valid.version, by: approvedBy(a.valid.signOff), from: fmtDay(a.valid.signOff.validFrom) })
               : t('validOn.none', { date: fmtDay(a.date) })}
           </Text>
           {a.latest && (
@@ -514,21 +517,28 @@ function SignOffForm({
 }) {
   const { t } = useTranslation(['dataProductSemantic', 'common']);
   const q = useSemanticVersion(productId, version.version);
-  const [note, setNote] = useState('');
+  // 0.25.1 (ADR 0038 part 5): the approval given elsewhere, documented for the version shown (its SHA-256 goes along)
+  const [decision, setDecision] = useState<DecisionDraft>(emptyDecision());
+  const decisionErrors = useDecisionErrors(decision);
+  const [tried, setTried] = useState(false);
   const [busy, run] = useBusy();
   const v = q.data;
   const save = () =>
     run(async () => {
-      await post(`/data-products/${enc(productId)}/semantic-model/versions/${version.version}/sign-off`, { sha256: v!.sha256, note: note.trim() });
+      await post(`/data-products/${enc(productId)}/semantic-model/versions/${version.version}/sign-off`, {
+        sha256: v!.sha256,
+        decision: toDecisionInput(decision),
+      });
       onSaved();
     });
   return (
-    <FormModal onClose={onClose} title={t('signOffTitle', { n: version.version })} size="xl" dirty={!!note}>
+    <FormModal onClose={onClose} title={t('signOffTitle', { n: version.version })} size="xl" dirty={decision.decidedBy.length > 0}>
       <form
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          if (v) void save();
+          setTried(true);
+          if (v && !Object.values(decisionErrors).some(Boolean)) void save();
         }}
       >
         <Stack gap="sm">
@@ -547,13 +557,14 @@ function SignOffForm({
               <DocumentText text={v.document} />
             </>
           )}
-          <Textarea
-            label={t('signOffNote')}
-            value={note}
-            onChange={(e) => setNote(e.currentTarget.value)}
-            autosize
-            minRows={2}
-            data-testid="semantic-signoff-note"
+          <DecisionFields
+            legend={t('signOffDecision')}
+            value={decision}
+            onChange={setDecision}
+            errors={tried ? decisionErrors : {}}
+            defaultRole="dataOwner"
+            roles={['dataOwner', 'productOwner', 'domainOwner']}
+            testId="semantic-signoff-decision"
           />
           <FormButtons busy={busy} submit={t('signOffAction')} testId="semantic-signoff-save" />
         </Stack>

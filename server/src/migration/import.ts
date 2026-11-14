@@ -70,6 +70,7 @@ import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { convertItemContacts } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
+import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -1387,6 +1388,8 @@ function copyIntoTarget(
   convertDeprecatedRoles();
   // a package of a version before 0.25.1: the contacts of services, suppliers and plant sites join the directory (ADR 0038)
   convertItemContacts();
+  // a package of a version before 0.25.1: owner shares audited, owner fields and decisions as contacts (ADR 0038 parts 2–5)
+  convertDataProductGovernance();
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },

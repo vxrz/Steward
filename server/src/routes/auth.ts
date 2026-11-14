@@ -50,6 +50,7 @@ import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { convertItemContacts } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
+import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
 import { ACCESS, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleRole, moduleSettingsOf, moduleUseStates } from '../modules/access.js';
@@ -83,6 +84,8 @@ async function onUnlocked(): Promise<void> {
   convertDeprecatedRoles();
   // the contacts directory (0.25.1, ADR 0038): the contacts of services, suppliers and plant sites, once
   convertItemContacts();
+  // documented governance (0.25.1, ADR 0038): owner shares audited, owner fields and decisions as contacts, once
+  convertDataProductGovernance();
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();
