@@ -236,7 +236,7 @@ function StartReviewForm({ p, onClose, onStarted }: { p: DataProduct; onClose: (
             searchable
           />
           {settings.data && (
-            <Text size="sm" c="dimmed" data-testid="review-four-eyes-setting">
+            <Text size="sm" c="dimmed" data-testid="review-start-four-eyes">
               {settings.data.portReviewFourEyes ? t('reviews.fourEyesOn') : t('reviews.fourEyesOff')}
             </Text>
           )}

@@ -44,6 +44,9 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
   const q = useSemanticModel(p.id);
   const qc = useQueryClient();
   const person = usePerson();
+  // who approved it (0.25.1: the documented approval's contacts), else who signed it off in Steward before
+  const approvedBy = (x: { by: string; decision: { decidedBy: { name: string }[] } | null }) =>
+    x.decision?.decidedBy.length ? x.decision.decidedBy.map((d) => d.name).join(', ') : person(x.by);
   const [shown, setShown] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [signing, setSigning] = useState<DataSemanticVersionSummary | null>(null);
@@ -72,7 +75,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
             <>
               <Text size="sm" data-testid="semantic-valid-today">
                 {v.validToday?.signOff
-                  ? t('validToday', { version: v.validToday.version, by: person(v.validToday.signOff.by), date: fmtDay(v.validToday.signOff.at) })
+                  ? t('validToday', { version: v.validToday.version, by: approvedBy(v.validToday.signOff), date: fmtDay(v.validToday.signOff.validFrom) })
                   : t('noValid')}
               </Text>
               <Text size="sm" c="dimmed" data-testid="semantic-current">
@@ -113,7 +116,7 @@ export function SemanticModelTab({ p }: { p: DataProduct }) {
                       )}
                       <Text size="sm">
                         {t('signedOff', {
-                          by: x.signOff.decision ? x.signOff.decision.decidedBy.map((d) => d.name).join(', ') : person(x.signOff.by),
+                          by: approvedBy(x.signOff),
                           date: fmtDay(x.signOff.validFrom),
                         })}
                       </Text>
@@ -197,6 +200,9 @@ function ValidOn({ productId }: { productId: string }) {
   const [asked, setAsked] = useState('');
   const q = useSemanticValid(productId, asked);
   const person = usePerson();
+  // who approved it (0.25.1: the documented approval's contacts), else who signed it off in Steward before
+  const approvedBy = (x: { by: string; decision: { decidedBy: { name: string }[] } | null }) =>
+    x.decision?.decidedBy.length ? x.decision.decidedBy.map((d) => d.name).join(', ') : person(x.by);
   const a = q.data;
   return (
     <Paper withBorder p="md" data-testid="semantic-valid-on">
@@ -217,7 +223,7 @@ function ValidOn({ productId }: { productId: string }) {
         <Stack gap={2} mt="sm" data-testid="semantic-valid-answer">
           <Text size="sm">
             {a.valid?.signOff
-              ? t('validOn.valid', { version: a.valid.version, by: person(a.valid.signOff.by), from: fmtDay(a.valid.signOff.validFrom) })
+              ? t('validOn.valid', { version: a.valid.version, by: approvedBy(a.valid.signOff), from: fmtDay(a.valid.signOff.validFrom) })
               : t('validOn.none', { date: fmtDay(a.date) })}
           </Text>
           {a.latest && (
