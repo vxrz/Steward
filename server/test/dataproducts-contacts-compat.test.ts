@@ -149,8 +149,15 @@ describe('personal data of accounts and the API token', () => {
     const viaToken = await get(`/data-products/${product}`);
     expect(viaToken.status).toBe(200);
     expect(viaToken.body.contacts).toEqual([
-      { role: 'productOwner', contact: { id: expect.any(String), kind: 'person', name: 'Invented token owner', status: 'active' } },
+      { role: 'productOwner', contact: { id: expect.any(String), kind: 'person', name: 'Invented token owner', status: 'active', user: null } },
     ]);
+    // the deprecated owners of /api/v1 still name the linked Steward users
+    await dana('PUT', `/data-products/${product}`, { key: 'compat-orders', name: 'Compat orders', owners: ['user:dana'] });
+    expect((await get(`/v1/data-products/${product}`)).body).toMatchObject({
+      owners: ['user:dana'],
+      contacts: expect.arrayContaining([{ role: 'productOwner', name: 'Invented dana' }]),
+    });
+    expect((await get(`/data-products/${product}`)).body.owners).toEqual(['user:dana']);
     // in the app: everything
     expect((await dana('GET', `/data-products/${product}`)).contacts[0].contact).toMatchObject({ email: 'token.owner@invented.example', phone: '+49 30 556' });
     const consumers = await get(`/data-products/${product}/ports/${port}/consumers`);

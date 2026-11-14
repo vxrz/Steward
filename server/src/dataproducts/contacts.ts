@@ -237,10 +237,17 @@ export function writeContacts(
 
 /**
  * Contacts of items for a surface (bulk). The app's internal API called with an API token is an API like /api/v1
- * (CONTACT_EXPOSURE `names`): names and roles, no e-mail address, phone or address – the full contact is the web app's.
+ * (CONTACT_EXPOSURE `names`): names, roles and the linked Steward user (the deprecated `owners`, `owner`, `stewards`
+ * read it) – no e-mail address, phone or address; the full contact is the web app's.
  */
-export const contactsOf = (kind: ContactLinkKind, ids: readonly string[], surface: ContactSurface = 'app'): Map<string, ContactLink[]> =>
-  ids.length ? linksOf(kind, ids, { surface: surface === 'app' && viaApiToken() ? 'api' : surface }) : new Map();
+export function contactsOf(kind: ContactLinkKind, ids: readonly string[], surface: ContactSurface = 'app'): Map<string, ContactLink[]> {
+  if (!ids.length) return new Map();
+  const links = linksOf(kind, ids, { surface });
+  if (surface !== 'app' || !viaApiToken()) return links;
+  for (const list of links.values())
+    for (const l of list) l.contact = { id: l.contact.id, kind: l.contact.kind, name: l.contact.name, status: l.contact.status, user: l.contact.user ?? null };
+  return links;
+}
 
 // ---------- the consumers' contacts (ADR 0038 part 6) ----------
 
