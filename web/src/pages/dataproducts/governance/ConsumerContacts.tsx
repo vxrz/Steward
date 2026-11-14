@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Badge, Button, CopyButton, Group, Stack, Text } from '@mantine/core';
+import { useEffect, useRef, useState } from 'react';
+import { Badge, Button, CopyButton, Group, Stack, Text, VisuallyHidden } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconAddressBook, IconCheck, IconCopy, IconDownload, IconX } from '@tabler/icons-react';
@@ -26,15 +26,27 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
   const which = params.get('contacts');
   const portId = which && which !== 'all' ? which : null;
   const ref = useRef<HTMLDivElement>(null);
+  const openButton = useRef<HTMLButtonElement>(null);
+  // where the focus goes when the list opens or closes from its buttons (not when opened from a link)
+  const moveFocus = useRef<'list' | 'button' | null>(null);
+  // what copy and CSV did, for screen readers
+  const [said, setSaid] = useState('');
   const q = useQuery({
     queryKey: [...govKeys.all, 'consumerContacts', p.id, portId ?? ''],
     queryFn: () => get<DataConsumerContacts>(`/data-products/${enc(p.id)}/consumer-contacts${portId ? `?port=${enc(portId)}` : ''}`),
     enabled: !!which,
   });
   useEffect(() => {
-    if (which && q.isSuccess) ref.current?.scrollIntoView({ block: 'start' });
+    if (which && q.isSuccess) {
+      ref.current?.scrollIntoView({ block: 'start' });
+      if (moveFocus.current === 'list') ref.current?.focus({ preventScroll: true });
+    }
+    if (!which && moveFocus.current === 'button') openButton.current?.focus();
+    if ((which && q.isSuccess) || !which) moveFocus.current = null;
   }, [which, q.isSuccess]);
-  const close = () =>
+  const close = () => {
+    moveFocus.current = 'button';
+    setSaid('');
     setParams(
       (x) => {
         x.delete('contacts');
@@ -42,7 +54,9 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
       },
       { replace: true },
     );
-  const open = () =>
+  };
+  const open = () => {
+    moveFocus.current = 'list';
     setParams(
       (x) => {
         x.set('contacts', 'all');
@@ -50,10 +64,11 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
       },
       { replace: true },
     );
+  };
   if (!which)
     return p.ports.some((x) => x.direction === 'output' && x.consumers.registered > 0) ? (
       <Group>
-        <Button size="xs" variant="default" leftSection={<IconAddressBook size={14} />} onClick={open} data-testid="consumer-contacts-open">
+        <Button ref={openButton} size="xs" variant="default" leftSection={<IconAddressBook size={14} />} onClick={open} data-testid="consumer-contacts-open">
           {t('contactsList.open')}
         </Button>
       </Group>
@@ -67,10 +82,12 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
   const emails = [...new Set(rows.flatMap((r) => (r.c?.email && r.c.status === 'active' ? [r.c.email] : [])))];
   const port = portId ? p.ports.find((x) => x.id === portId) : null;
   return (
-    <div ref={ref}>
+    // focusable as a whole: opened from its button, the focus goes here (its title is the accessible name)
+    <div ref={ref} tabIndex={-1} role="region" aria-labelledby="consumer-contacts-title" style={{ outline: 'none' }}>
       <Section
         title={port ? t('contactsList.titlePort', { port: `${port.name}${port.version ? ` ${port.version}` : ''}` }) : t('contactsList.title')}
         testId="consumer-contacts"
+        titleId="consumer-contacts-title"
         actions={
           <Group gap="xs">
             {v?.withEmail && emails.length > 0 && (
@@ -80,7 +97,10 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
                     size="xs"
                     variant="default"
                     leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                    onClick={copy}
+                    onClick={() => {
+                      copy();
+                      setSaid(t('contactsList.copiedStatus', { count: emails.length }));
+                    }}
                     data-testid="consumer-contacts-copy"
                   >
                     {copied ? t('contactsList.copied') : t('contactsList.copy', { count: emails.length })}
@@ -95,6 +115,7 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
                 component="a"
                 href={apiUrl(`/data-products/${enc(p.id)}/consumer-contacts.csv${portId ? `?port=${enc(portId)}` : ''}`)}
                 leftSection={<IconDownload size={14} />}
+                onClick={() => setSaid(t('contactsList.csvStarted'))}
                 data-testid="consumer-contacts-csv"
               >
                 {t('contactsList.csv')}
@@ -107,6 +128,9 @@ export function ConsumerContactsPanel({ p }: { p: DataProduct }) {
         }
       >
         <Stack gap="xs">
+          <VisuallyHidden role="status" aria-live="polite" data-testid="consumer-contacts-status">
+            {said}
+          </VisuallyHidden>
           <Text size="xs" c="dimmed">
             {v?.withEmail ? t('contactsList.helpMaintainer') : t('contactsList.helpReader')}
           </Text>

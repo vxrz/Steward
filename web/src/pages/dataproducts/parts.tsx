@@ -131,11 +131,24 @@ export function Fact({ label, children, testId }: { label: string; children: Rea
 }
 
 /** A card of a page with a heading (h2) and optional actions on the right. */
-export function Section({ title, actions, children, testId }: { title: ReactNode; actions?: ReactNode; children: ReactNode; testId?: string }) {
+export function Section({
+  title,
+  actions,
+  children,
+  testId,
+  titleId,
+}: {
+  title: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  testId?: string;
+  /** The title's id, for a region it names */
+  titleId?: string;
+}) {
   return (
     <Paper withBorder p="md" data-testid={testId}>
       <Group justify="space-between" mb="sm" gap="xs" wrap="wrap">
-        <Title order={2} size="h5">
+        <Title order={2} size="h5" id={titleId}>
           {title}
         </Title>
         {actions && (

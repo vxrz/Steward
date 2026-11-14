@@ -131,11 +131,17 @@ test.describe('governance of data products', () => {
     const contacts = page.getByTestId('consumer-contacts');
     await expect(contacts.getByTestId('consumer-contact-row')).toContainText(`Invented BI lead ${s.token}`);
     await expect(contacts).toContainText(`bi.lead.${s.token.toLowerCase()}@invented.example`);
-    await expect(contacts.getByTestId('consumer-contacts-copy')).toBeVisible();
+    // opened from its button, the list has the focus (the button is gone); copy is announced
+    await expect(page.getByRole('region', { name: 'Consumers’ contacts' })).toBeFocused();
+    await contacts.getByTestId('consumer-contacts-copy').click();
+    await expect(contacts.getByTestId('consumer-contacts-status')).toHaveText('1 e-mail address copied');
     const csv = await page.request.get((await contacts.getByTestId('consumer-contacts-csv').getAttribute('href'))!);
     expect(csv.status()).toBe(200);
     expect(await csv.text()).toContain(`bi.lead.${s.token.toLowerCase()}@invented.example`);
     await expectAccessible(page, 'consumers contacts');
+    // closed, the focus is back on the button that opened it
+    await contacts.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByTestId('consumer-contacts-open')).toBeFocused();
     // a reader sees names and roles, no addresses
     const olivia = await loginAs('olivia');
     await olivia.goto(`/data-products/${s.product}/ports?contacts=all`);
@@ -164,7 +170,10 @@ test.describe('governance of data products', () => {
     await review.getByTestId('review-decision-save').click();
     await expect(review.getByTestId('review-decision-line')).toContainText(`Invented product owner ${s.token}`);
     await review.getByTestId('review-submit').click();
-    await expect(review).toContainText('Approved');
+    // four eyes off: nobody approved in Steward – the outcome decided elsewhere was recorded and sealed
+    await expect(review.getByTestId('review-status')).toHaveText('Sealed');
+    await expect(review.getByTestId('review-sealed')).toContainText('Recorded and sealed by dana');
+    await expect(review).not.toContainText('Approved');
     // the frozen facts in the reader's language: the registration's end date
     await expect(review.getByTestId('review-entry').first()).toContainText('until 31 Dec 2027');
     await expectAccessible(page, 'port access review');
@@ -209,6 +218,58 @@ test.describe('governance of data products', () => {
     await expect(page.getByTestId('product-endorsement').getByTestId('product-endorsed-badge')).toContainText('Endorsed');
     await expect(page.getByTestId('endorsement-decision')).toContainText('Decided by Adam Approver');
     await expectAccessible(page, 'endorsed product');
+  });
+
+  test('a documented decision is checked before saving, the server’s answer is shown at its field, evidence is searched', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const dana = await apiAs('dana');
+    // a product of its own (the first test records the endorsement of the seeded one)
+    const product = (await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-decide`, name: `Decided ${s.token}`, owners: ['user:dana'] })).id;
+    const leaving = await post<{ id: string; name: string }>(dana, '/api/contacts', { name: `Invented leaving owner ${s.token}` });
+    const staying = await post<{ id: string; name: string }>(dana, '/api/contacts', { name: `Invented staying owner ${s.token}` });
+    await post(admin, '/api/records', { type: 'DOC', title: `Invented minutes ${s.token}` });
+
+    await page.goto(`/data-products/${product}`);
+    await page.getByTestId('endorse').click();
+    const form = page.getByRole('dialog', { name: `Record the endorsement of Decided ${s.token}` });
+    // checked before saving: who decided, and a date not in the future (the first wrong field has the focus)
+    await form.getByTestId('endorse-decision-on').fill('2099-01-01');
+    await form.getByTestId('endorse-save').click();
+    await expect(form.getByTestId('endorse-decision-by')).toContainText('Name who decided it');
+    await expect(form).toContainText('The date cannot be in the future');
+    await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
+    await form.getByTestId('endorse-decision-on').fill('2026-03-02');
+    await form.getByTestId('endorse-decision-by-search').fill(leaving.name);
+    await page.getByRole('option', { name: new RegExp(leaving.name) }).click();
+    await expect(form.getByTestId('endorse-decision-by-status')).toHaveText(`${leaving.name} added`);
+
+    // the evidence: a document found by its title, not typed as an id
+    await form.getByTestId('endorse-decision-evidence-add').click();
+    await form.getByTestId('endorse-decision-evidence-kind').click();
+    await page.getByRole('option', { name: 'Document', exact: true }).click();
+    await form.getByTestId('endorse-decision-evidence-ref').fill(`Invented minutes ${s.token}`);
+    await page.getByRole('option', { name: new RegExp(`Invented minutes ${s.token}`) }).click();
+    await expect(form.getByTestId('endorse-decision-evidence-ref')).toHaveValue(new RegExp(`Invented minutes ${s.token}`));
+
+    // the decider leaves meanwhile: the server's answer is shown at who decided, not as a notice
+    expect((await admin.put(`/api/contacts/${leaving.id}`, { data: { kind: 'person', name: leaving.name, status: 'left' } })).ok()).toBe(true);
+    await form.getByTestId('endorse-save').click();
+    await expect(form.getByTestId('endorse-decision-by').getByRole('alert')).toHaveText(`${leaving.name} has left. Choose another contact.`);
+    await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
+    await expectAccessible(page, 'documented decision with an error');
+    // removed by keyboard, another decider, saved and announced
+    await form.getByRole('button', { name: `Remove ${leaving.name}` }).focus();
+    await page.keyboard.press('Enter');
+    await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
+    await form.getByTestId('endorse-decision-by-search').fill(staying.name);
+    await page.getByRole('option', { name: new RegExp(staying.name) }).click();
+    await form.getByTestId('endorse-save').click();
+    await expect(form).toBeHidden();
+    await expect(page.getByRole('alert').filter({ hasText: 'Endorsement recorded' })).toBeVisible();
+    const line = page.getByTestId('endorsement-decision');
+    await expect(line).toContainText(`Decided by ${staying.name} (Domain owner) on 2 Mar 2026`);
+    await expect(line.getByRole('link', { name: new RegExp(`Invented minutes ${s.token}`) })).toBeVisible();
+    await expect(line).toContainText('Recorded by dana');
   });
 
   test('asking for access answers 410: Steward documents access, the inbox is gone', async ({ apiAs, page }) => {
@@ -287,6 +348,11 @@ test.describe('governance of data products', () => {
     await expect(review.getByTestId('review-entry').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'port access review on a phone');
+    // the documented decision on a phone: who decided, the date, a row of evidence – nothing wider than the screen
+    await review.getByTestId('review-decision-form-evidence-add').click();
+    await expect(review.getByTestId('review-decision-form-evidence-kind')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'documented decision on a phone');
     await page.keyboard.press('Escape');
 
     // the promotion's preview: cards
