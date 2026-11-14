@@ -450,6 +450,8 @@ export const MODULES: readonly ModuleDef[] = [
         // 0.24.0 (phase 2): the format and the proposals of assistants (applied by a person)
         'get_data_products_format',
         'propose_data_product_changes',
+        // 0.25.0 (phase 3): the semantic model of a product (ADR 0037 part 4)
+        'get_product_semantic_model',
       ],
       // owning-team kinds and link kinds: a link from a core item to one is counted, not named, for who does not use it
       itemKinds: ['data_product', 'data_object', 'data_element', 'data_domain', 'data-product', 'data-object'],
