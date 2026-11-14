@@ -400,6 +400,10 @@ describe('the registry of reference columns', () => {
     dp_access_requests: 'a team, user, application, service, product or text',
     dp_port_review_items: 'a review entry: a registration, an actual consumer or a grant',
     dp_import_origins: 'a data products entry kind (domain, data object, element, product)',
+    // 0.25.1 (ADR 0038): a contact is a person or a group; the owner shares the upgrade made are of data products,
+    // domains and data objects (contact_links names plant sites as plant_site: in REFERENCES)
+    contacts: 'person or group',
+    dp_owner_share_conversions: 'a data product, domain or data object',
   };
 
   it('classifies every column of the plant tables and every polymorphic reference elsewhere', async () => {
@@ -442,9 +446,19 @@ describe('renaming one entry', () => {
     expect(preview.aliases).toEqual(['riverside']);
     // the preview changes nothing
     expect((await s.api('GET', '/plant/sites/riverside')).id).toBe('riverside');
-    // its shares and scope (0.23.0) follow it
+    // its shares and scope (0.23.0) follow it, and its contacts (0.25.1, the contacts directory)
     await storeAcl('site', 'riverside', [{ subject: 'user:vera', permissions: ['view'] }]);
+    const contacts = await import('../src/contacts/service.js');
+    contacts.writeItemLinks('plant_site', 'riverside', [
+      { role: 'Shift lead', contactId: (await s.api('POST', '/contacts', { name: 'Invented shift lead' })).id },
+    ]);
     const r = await rename(s.api, 'site', 'riverside', 'rvs');
+    expect(contacts.linksOf('plant_site', ['riverside', 'rvs'])).toEqual(
+      new Map([
+        ['riverside', []],
+        ['rvs', [expect.objectContaining({ role: 'Shift lead', contact: expect.objectContaining({ name: 'Invented shift lead' }) })]],
+      ]),
+    );
     const shares = (await s.api('GET', '/access/site/rvs/shares')) as { restricted: boolean; shares: { subject: string }[] };
     expect(shares).toMatchObject({ restricted: true, shares: [expect.objectContaining({ subject: 'user:vera' })] });
     await storeAcl('site', 'rvs', []);

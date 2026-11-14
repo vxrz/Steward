@@ -13457,6 +13457,8 @@ export interface Resources {
     'what.alias_other': string;
     'what.external_ref_one': string;
     'what.external_ref_other': string;
+    'what.contact_one': string;
+    'what.contact_other': string;
     'what.image_one': string;
     'what.image_other': string;
     'what.copy_one': string;
