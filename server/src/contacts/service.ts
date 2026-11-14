@@ -607,7 +607,11 @@ export function writeLegacyLinks(kind: ContactLinkKind, itemId: string, entries:
       let r = mine.find((x) => pick(x) && !used.has(x.id)) ?? mine.find(pick);
       if (!r && email) {
         const cands = db().all<ContactRow>(`SELECT ${CONTACT_COLUMNS} FROM ${FROM_CONTACTS} WHERE c.email_norm = ?`, email);
-        r = firstVisible(cands.filter((x) => x.name_norm === contactNameKey(e.name)), currentUser()) ?? firstVisible(cands, currentUser());
+        r =
+          firstVisible(
+            cands.filter((x) => x.name_norm === contactNameKey(e.name)),
+            currentUser(),
+          ) ?? firstVisible(cands, currentUser());
       }
       if (r) {
         if (legacyDiffers(r, e, fields)) updateLegacy(r, e, fields);

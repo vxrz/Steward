@@ -94,7 +94,10 @@ export function convertServiceContacts(): number {
   for (const r of rows)
     db().tx(() => {
       const entries = (Array.isArray(r.list) ? r.list : []).filter((c) => c && typeof c.email === 'string' && c.email.trim());
-      const had = db().all<{ role: string; contact_id: string }>("SELECT role, contact_id FROM contact_links WHERE kind = 'service' AND item_id = ? ORDER BY position", r.id);
+      const had = db().all<{ role: string; contact_id: string }>(
+        "SELECT role, contact_id FROM contact_links WHERE kind = 'service' AND item_id = ? ORDER BY position",
+        r.id,
+      );
       const made = entries.map((c) => ({
         role: c.role,
         contactId: m.contactOf({ role: c.role, email: c.email.trim(), name: c.name?.trim() || c.email.trim() }, r.id),
