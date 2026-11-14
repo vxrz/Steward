@@ -410,8 +410,8 @@ export function openLineageDataset(kind: DataElementKind, platformAddress: strin
 
 /**
  * 0.25.0 (ADR 0037 part 3): the broker of an `mqtt.topic` element as OpenLineage names it – `host:port` from an MQTT
- * URL (`mqtt://`, `mqtts://`, `ws://`, `wss://`, a path left out) or from `host[:port]`, the port 1883 when none is
- * given (8883 for mqtts, 443 for wss, 80 for ws). Null: not a broker address. The Industrial Edge Databus is `ie-databus:1883` on its device.
+ * URL (the schemes mqtt and mqtts, and WebSocket brokers with or without TLS; a path left out) or from `host[:port]`,
+ * the port 1883 when none is given (8883 for mqtts, 443 for WebSocket with TLS, 80 without). Null: not a broker address. The Industrial Edge Databus is `ie-databus:1883` on its device.
  */
 export function mqttBroker(v: string | null | undefined): string | null {
   const t = (v ?? '').trim();
