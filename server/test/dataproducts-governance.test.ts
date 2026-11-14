@@ -412,6 +412,19 @@ describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals
       hidden,
       secretPort,
     );
+    // a contact named only on a product the reader may not see is neither found nor named; its consumers' contacts 404
+    const secretProduct = await s.api('GET', `/data-products/${hidden}`);
+    const named = await s.api('PUT', `/data-products/${hidden}`, {
+      key: secretProduct.key,
+      name: secretProduct.name,
+      contacts: [{ role: 'productOwner', contact: { name: 'Invented secret owner', email: 'secret.owner@invented.example' } }],
+    });
+    const secretContact = named.contacts[0].contact.id as string;
+    expect((await olivia('GET', '/contacts?q=Invented%20secret')).items).toEqual([]);
+    expect(await fail(olivia('GET', `/contacts/${secretContact}`))).toMatchObject({ status: 404 });
+    expect(await fail(olivia('GET', `/data-products/${hidden}/consumer-contacts`))).toMatchObject({ status: 404 });
+    // the member of the owning team sees it and its link; the contact gives nobody a right
+    expect((await adam('GET', `/contacts/${secretContact}`)).links.map((l: { itemId: string }) => l.itemId)).toEqual([hidden]);
     const all = await olivia('GET', '/data-products/access-requests?scope=all');
     expect(all.items.every((x: { product: { id: string } }) => x.product.id !== hidden)).toBe(true);
     expect(all.total).toBe(all.items.length);
