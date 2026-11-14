@@ -22,7 +22,7 @@ async function connectorsTab(page: Page, api: APIRequestContext, mobile: boolean
   const tab = page.getByTestId('connect-tab');
   await expect(page.getByRole('tab', { name: 'Connectors' })).toHaveAttribute('aria-selected', 'true');
   await expect(tab.getByTestId('connect-kafka')).toContainText('Kafka (demo)');
-  await expect(tab.getByTestId('connect-summary')).toContainText('2 connectors, 2 running');
+  await expect(tab.getByTestId('connect-summary')).toContainText('3 connectors, 3 running');
   await expect(tab.getByTestId('connect-summary')).toContainText('1 task failed');
   const cdc = tab.locator('[data-testid="connect-connector"][data-name="shop-cdc"]');
   await expect(cdc).toContainText('io.debezium.connector.postgresql.PostgresConnector 2.7.3.Final');
@@ -57,7 +57,7 @@ async function connectorsTab(page: Page, api: APIRequestContext, mobile: boolean
   await dialog.getByRole('button', { name: 'Close' }).last().click();
   // read now
   await tab.getByTestId('connect-read').click();
-  await expect(tab.getByTestId('connect-summary')).toContainText('2 connectors');
+  await expect(tab.getByTestId('connect-summary')).toContainText('3 connectors');
   for (const s of SECRETS) await expect(page.locator('body')).not.toContainText(s);
 }
 

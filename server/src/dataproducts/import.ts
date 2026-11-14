@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  DATA_PRODUCT_LIMITS,
   CIA_DIMENSIONS,
   DATA_PRODUCT_IMPORT_MODES,
   DATA_PRODUCT_IMPORT_ORIGINS_LISTED,
@@ -26,7 +27,7 @@ import { holdingNotices } from './notices.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
 import { canViewCatalogue } from '../records/access.js';
-import { parseYaml } from '../yaml-safe.js';
+import { checkYamlLimits, parseYaml } from '../yaml-safe.js';
 import { isSecretKey, redactUserinfo } from '../plant/collections-redact.js';
 import { HttpError, nowIso, parseJson, sha256 } from '../util.js';
 import { isOdpsDocument, odpsToFile } from './odps-import.js';
@@ -158,6 +159,71 @@ interface Parsed {
   file: DataProductsFile | null;
 }
 
+/**
+ * A JSON file read with JSON.parse (0.25.0): the YAML parser took about 2 s for a file of 20,000 elements, JSON.parse
+ * a hundredth of that. The same limits as YAML's (bytes, keys); a duplicate key or a syntax error leaves it to the YAML
+ * reader, which names the place – so a JSON file is read exactly as before.
+ */
+function parseJsonFile(text: string): unknown {
+  const t = text.trimStart();
+  if (!t.startsWith('{') && !t.startsWith('[')) return undefined;
+  checkYamlLimits(text, { maxBytes: IL.bytes, maxKeys: IL.keys });
+  if (!jsonKeysUnique(text)) return undefined;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    // the YAML reader reads it again and names the place of the error
+    return undefined;
+  }
+}
+
+/** Whether every object of a JSON text has unique keys (a linear scan; an unreadable text passes – JSON.parse refuses it). */
+export function jsonKeysUnique(t: string): boolean {
+  const stack: (Set<string> | null)[] = [];
+  let expectKey = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if (c === 34) {
+      let j = i + 1;
+      let escaped = false;
+      for (; j < t.length; j++) {
+        const d = t.charCodeAt(j);
+        if (d === 92) {
+          j++;
+          escaped = true;
+        } else if (d === 34) break;
+      }
+      if (expectKey) {
+        let key = t.slice(i + 1, j);
+        if (escaped)
+          try {
+            key = JSON.parse(t.slice(i, j + 1)) as string;
+          } catch {
+            // not a JSON string: JSON.parse refuses the text and the YAML reader names the place
+            return true;
+          }
+        const keys = stack[stack.length - 1];
+        if (keys) {
+          if (keys.has(key)) return false;
+          keys.add(key);
+        }
+        expectKey = false;
+      }
+      i = j;
+    } else if (c === 123) {
+      stack.push(new Set());
+      expectKey = true;
+    } else if (c === 91) {
+      stack.push(null);
+      expectKey = false;
+    } else if (c === 125 || c === 93) {
+      stack.pop();
+      expectKey = false;
+    } else if (c === 44) expectKey = stack[stack.length - 1] instanceof Set;
+  }
+  return true;
+}
+
 function readFiles(files: ImportInput['files'], problems: DataProductImportProblem[], warnings: string[] = [], odps = { n: 0 }): Parsed[] {
   const total = files.reduce((n, f) => n + Buffer.byteLength(f.content), 0);
   if (total > IL.bytes)
@@ -174,7 +240,7 @@ function readFiles(files: ImportInput['files'], problems: DataProductImportProbl
     names.add(f.name);
     let raw: unknown;
     try {
-      raw = parseYaml(f.content, { maxBytes: IL.bytes, maxKeys: IL.keys, maxAliasCount: IL.aliases });
+      raw = parseJsonFile(f.content) ?? parseYaml(f.content, { maxBytes: IL.bytes, maxKeys: IL.keys, maxAliasCount: IL.aliases });
     } catch (e) {
       if (e instanceof HttpError) throw e;
       const err = e as Error & { linePos?: { line: number; col: number }[] };
@@ -337,6 +403,17 @@ interface Plan {
   odps: number;
 }
 
+const storedKey = (platformId: string, kind: string, environment: string, norm: string) => `${platformId}\u0000${kind}\u0000${environment}\u0000${norm}`;
+
+/** The element references a product's file names: members, port bindings, steps' ends. */
+function productElementRefs(p: ProductFile): ElementRefFile[] {
+  const out: ElementRefFile[] = [];
+  for (const m of p.members ?? []) if (m?.element) out.push(m.element);
+  for (const port of p.ports ?? []) for (const b of port?.bindings ?? []) for (const e of b?.elements ?? []) if (e) out.push(e);
+  for (const st of p.steps ?? []) for (const e of [...(st?.inputs ?? []), ...(st?.outputs ?? [])]) if (e) out.push(e);
+  return out;
+}
+
 interface PlatformRef {
   id: string;
   name: string;
@@ -376,16 +453,53 @@ class Resolver {
 
   /** A stored element by its reference, where the person may see it (or `allow` holds it: a product's own member). */
   stored(ref: ElementRefFile, platformId: string, allow?: ReadonlySet<string>): ElementRow | undefined {
-    const row = db().get<ElementRow>(
-      'SELECT * FROM dp_elements WHERE platform_id = ? AND kind = ? AND environment = ? AND name_norm = ?',
-      platformId,
-      ref.kind,
-      ref.environment ?? '',
-      elementNameNorm(ref.qualified_name),
-    );
+    const k = storedKey(platformId, ref.kind, ref.environment ?? '', elementNameNorm(ref.qualified_name));
+    let row: ElementRow | null | undefined = this.prefetched.get(k);
+    if (row === undefined)
+      row =
+        db().get<ElementRow>(
+          'SELECT * FROM dp_elements WHERE platform_id = ? AND kind = ? AND environment = ? AND name_norm = ?',
+          platformId,
+          ref.kind,
+          ref.environment ?? '',
+          elementNameNorm(ref.qualified_name),
+        ) ?? null;
     if (!row) return undefined;
     if (allow?.has(row.id)) return row;
-    return elementAccess(this.s.u, elementTeamIds([row.id]).get(row.id) ?? []).permissions.length ? row : undefined;
+    const visible = this.visible.get(row.id) ?? elementAccess(this.s.u, elementTeamIds([row.id]).get(row.id) ?? []).permissions.length > 0;
+    return visible ? row : undefined;
+  }
+
+  /** Stored elements read in bulk (0.25.0): an import of 20,000 elements read them one statement each */
+  private prefetched = new Map<string, ElementRow | null>();
+  private visible = new Map<string, boolean>();
+
+  /**
+   * Reads the stored elements these references name in bulk – one statement per platform and 500 names, their owning
+   * teams per 500 ids – so that stored() needs no statement of its own for them (a missing one is remembered too).
+   */
+  prefetch(refs: readonly ElementRefFile[]): void {
+    const wanted = new Map<string, Set<string>>();
+    for (const ref of refs) {
+      const p = this.platform(ref);
+      if (typeof p === 'string' || typeof ref.qualified_name !== 'string' || typeof ref.kind !== 'string') continue;
+      const pid = p?.id ?? '';
+      const norm = elementNameNorm(ref.qualified_name);
+      this.prefetched.set(storedKey(pid, ref.kind, ref.environment ?? '', norm), null);
+      const set = wanted.get(pid) ?? new Set<string>();
+      set.add(norm);
+      wanted.set(pid, set);
+    }
+    const rows: ElementRow[] = [];
+    for (const [pid, names] of wanted)
+      for (const part of chunks([...names]))
+        rows.push(...db().all<ElementRow>(`SELECT * FROM dp_elements WHERE platform_id = ? AND name_norm IN (${marks(part.length)})`, pid, ...part));
+    const teams = elementTeamIds(rows.map((r) => r.id));
+    for (const row of rows) {
+      const k = storedKey(row.platform_id, row.kind, row.environment, row.name_norm);
+      if (this.prefetched.has(k)) this.prefetched.set(k, row);
+      this.visible.set(row.id, elementAccess(this.s.u, teams.get(row.id) ?? []).permissions.length > 0);
+    }
   }
 
   /**
@@ -466,7 +580,7 @@ class Resolver {
   }
 
   /** An application, service or process by name, among those the person may see. */
-  named(kind: 'application' | 'service' | 'process' | 'platform', name: string): string {
+  named(kind: 'application' | 'service' | 'process' | 'platform' | 'system', name: string): string {
     const n = name.trim().toLowerCase();
     const ids =
       kind === 'platform'
@@ -477,7 +591,9 @@ class Resolver {
               .filter((r) => r.name.trim().toLowerCase() === n && permissionsFor(r.id).includes('view'))
               .map((r) => r.id)
           : db()
-              .all<{ id: string; name: string; owners: string }>(`SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : 'services'}`)
+              .all<{ id: string; name: string; owners: string }>(
+                `SELECT id, name, owners FROM ${kind === 'application' ? 'applications' : kind === 'system' ? 'systems' : 'services'}`,
+              )
               .filter((r) => r.name.trim().toLowerCase() === n && canViewCatalogue(this.s.u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }))
               .map((r) => r.id);
     if (ids.length > 1) throw new HttpError(409, `${ids.length} ${kind}s are named "${name}"`, 'DATA_PRODUCT_IMPORT_INVALID', { context: 'ambiguous', name });
@@ -530,7 +646,13 @@ function normaliseProduct(p: ProductFile): void {
   for (const st of p.steps ?? []) {
     refs(st.inputs);
     refs(st.outputs);
-    if (st.runner?.kind === 'tool') st.runner = { kind: 'tool', tool: st.runner.tool ?? '', text: st.runner.text ?? '' };
+    if (st.runner?.kind === 'tool')
+      st.runner = {
+        kind: 'tool',
+        tool: st.runner.tool ?? '',
+        text: st.runner.text ?? '',
+        ...(st.runner.technology ? { technology: st.runner.technology } : {}),
+      };
     for (const n of st.notes ?? []) n.text ??= '';
   }
   for (const x of p.ports ?? []) for (const c of x.consumers ?? []) if (c.agreement) c.agreement.label ??= '';
@@ -634,6 +756,11 @@ function buildPlan(input: ImportInput, o: ImportOptions = {}): Plan {
     });
     return plan;
   }
+  // the stored elements the files name, read in bulk (0.25.0)
+  r.prefetch([
+    ...fileElements.map((x) => x.entry),
+    ...files.flatMap((f) => entriesOf(f.file.data_products, f.file.data_product).flatMap((p) => productElementRefs(p))),
+  ]);
   for (const { file, entry, index } of fileElements) {
     const p = r.platform(entry);
     if (typeof p === 'string') {
@@ -1047,7 +1174,21 @@ function writeObjectElements(run: Run): void {
   }
 }
 
+/**
+ * What a background import (import-jobs.ts) keeps of the elements it writes, in the transaction that writes them: an
+ * element it added, and the fields an element it changed had before – to take them back if the import fails later.
+ */
+export interface ElementJournal {
+  added(id: string): void;
+  changed(row: ElementRow): void;
+}
+
 function writeElements(run: Run): void {
+  for (const _ of elementWrites(run));
+}
+
+/** The element writes one by one (a generator: a background import commits them in batches between its turns). */
+function* elementWrites(run: Run, journal?: ElementJournal): Generator<void> {
   const { r } = run;
   // parents first: an element names its parent by its qualified name (same platform and environment)
   const pending = [...run.plan.elements];
@@ -1086,6 +1227,7 @@ function writeElements(run: Run): void {
       const entry = label('elements', e.key);
       if (e.row) {
         step(run, e.file, entry, '', () => {
+          journal?.changed(e.row!);
           const api = parseJson<Record<string, unknown> | null>(e.row!.api_ref, null);
           el.updateElement(e.row!.id, {
             displayName: m.display_name ?? e.row!.display_name,
@@ -1093,8 +1235,13 @@ function writeElements(run: Run): void {
             description: m.description ?? e.row!.description,
             typeLabel: m.type_label ?? e.row!.type_label,
             ...(m.api_ref !== undefined ? { apiRef: m.api_ref ? { ...(api ?? {}), ...m.api_ref } : null } : {}),
+            // 0.25.0: a generic part's technology, namespace and properties (left out: kept)
+            ...(m.technology !== undefined ? { technology: m.technology } : {}),
+            ...(m.namespace !== undefined ? { namespace: m.namespace } : {}),
+            ...(m.properties !== undefined ? { properties: m.properties } : {}),
           });
         });
+        yield;
         continue;
       }
       const parentId = parentOf(e);
@@ -1119,13 +1266,18 @@ function writeElements(run: Run): void {
             typeLabel: m.type_label ?? '',
             apiRef: m.api_ref ?? null,
             flags: Object.entries(m.flags ?? {}).map(([name, value]) => ({ name, value })),
+            technology: m.technology ?? null,
+            namespace: m.namespace ?? null,
+            properties: m.properties ?? [],
           },
           'imported',
           batch,
         );
         r.elementIds.set(elementKey(m), id);
+        journal?.added(id);
       });
       adding.set(named(e), (adding.get(named(e)) ?? 1) - 1);
+      yield;
     }
     todo = later;
   }
@@ -1228,19 +1380,25 @@ function portBody(r: Resolver, x: PortFile, row: PortRow | undefined, productPor
         : sourceInput(r, x.source),
     objectIds: (x.data_objects ?? []).map((k) => r.objectId(k)),
     ...(row ? { position: Number(row.position) } : {}),
+    // 0.25.0: left out, a file port keeps its format and partition keys
+    ...(x.file_format !== undefined ? { fileFormat: x.file_format } : {}),
+    ...(x.partitioning !== undefined ? { partitioning: x.partitioning } : {}),
   };
 }
 
 function runnerInput(r: Resolver, x: RunnerFile | null | undefined, rowRunner: string | null): unknown {
   if (x === undefined) return parseJson(rowRunner, null);
   if (!x) return null;
-  if (x.kind === 'tool') return { kind: 'tool', tool: x.tool ?? '', text: x.text ?? '' };
-  if (x.kind === 'connector') return { kind: 'connector', platformId: r.named('platform', x.platform ?? ''), name: x.name ?? '' };
+  const tech = x.technology ? { technology: x.technology } : {};
+  if (x.kind === 'tool') return { kind: 'tool', tool: x.tool ?? '', text: x.text ?? '', ...tech };
+  // 0.25.0: the system it runs on, by name
+  const runsOn = x.runs_on ? { runsOn: { systemId: r.named('system', x.runs_on.system), environment: x.runs_on.environment ?? '' } } : {};
+  if (x.kind === 'connector') return { kind: 'connector', platformId: r.named('platform', x.platform ?? ''), name: x.name ?? '', ...runsOn, ...tech };
   if (x.kind === 'element') {
     if (!x.element) throw new HttpError(400, 'The runner names no element', 'DATA_STEP_INVALID', { context: 'runner' });
-    return { kind: 'element', id: r.elementId(x.element) };
+    return { kind: 'element', id: r.elementId(x.element), ...tech };
   }
-  return { kind: x.kind, id: r.named(x.kind, x.name ?? '') };
+  return { kind: x.kind, id: r.named(x.kind, x.name ?? ''), ...(x.kind === 'application' ? runsOn : {}), ...tech };
 }
 
 function consumerBody(r: Resolver, c: ConsumerFile) {
@@ -1286,9 +1444,25 @@ function writeProducts(run: Run): void {
           () => void svc.setEnvironment(productOf(e), x.environment, x.state ?? envs.get(x.environment) ?? 'planned'),
         );
     const members = new Map((e.current?.members ?? []).map((x) => [elementKey(x.element), x]));
+    // the import itself (0.25.0) adds members up to 500 at a time with the same role, scope and note – one write and
+    // audit entry per group instead of per member; the preview (dry) keeps one per member, so a refusal names its member
+    const groups = new Map<string, { ids: string[]; names: string[]; body: { role: string; includeDescendants: boolean; note: string } }>();
     for (const x of e.merged.members ?? []) {
       const old = members.get(elementKey(x.element));
       if (old && same(old, x)) continue;
+      const body = {
+        role: x.role ?? old?.role ?? 'internal',
+        includeDescendants: x.include_descendants ?? old?.include_descendants ?? false,
+        note: x.note ?? old?.note ?? '',
+      };
+      if (!run.dry && r.elementIds.has(elementKey(x.element))) {
+        const k = JSON.stringify(body);
+        const g = groups.get(k) ?? { ids: [], names: [], body };
+        g.ids.push(r.elementId(x.element));
+        g.names.push(x.element.qualified_name);
+        groups.set(k, g);
+        continue;
+      }
       step(
         run,
         e.file,
@@ -1303,6 +1477,15 @@ function writeProducts(run: Run): void {
           }),
       );
     }
+    for (const g of groups.values())
+      for (let i = 0; i < g.ids.length; i += DATA_PRODUCT_LIMITS.membersPerRequest)
+        step(
+          run,
+          e.file,
+          entry,
+          `members ${g.names.slice(i, i + 3).join(', ')}${g.ids.length - i > 3 ? ' …' : ''}`,
+          () => void el.addMembers(productOf(e), nameOf(e), { ...g.body, elementIds: g.ids.slice(i, i + DATA_PRODUCT_LIMITS.membersPerRequest) }),
+        );
   }
 
   // 2. ports: output ports of every product first (input ports name them), then the successors (once all exist)
@@ -1471,11 +1654,17 @@ function execute(plan: Plan, dry: boolean): void {
   writeDomains(run);
   writeObjects(run);
   writeElements(run);
+  writeRest(run);
+}
+
+/** Everything after the elements: the data objects' elements, the products, the removals of a replace, the origins. */
+function writeRest(run: Run): void {
+  const { plan } = run;
   writeObjectElements(run);
   writeProducts(run);
   if (plan.replaceLists) removeListItems(run);
   if (plan.mode === 'replace') writeRemovals(run);
-  if (plan.origin && !dry) recordOrigins(run, plan.origin);
+  if (plan.origin && !run.dry) recordOrigins(run, plan.origin);
 }
 
 /** Replace: the members, ports, steps and consumers of the files' products that the files leave out. */
@@ -1606,8 +1795,8 @@ export function previewImport(body: unknown, o: ImportOptions = {}): DataProduct
   };
 }
 
-/** Imports the files in one transaction (400 DATA_PRODUCT_IMPORT_INVALID with the first problems, nothing written). */
-export function applyImport(body: unknown, o: ImportOptions = {}): DataProductImportResult {
+/** The plan of an import, checked: problems and a preview that changed since refuse it (nothing is written). */
+function checkedPlan(body: unknown, o: ImportOptions): Plan {
   const input = importInput.parse(body);
   const plan = buildPlan(input, o);
   if (plan.problems.length) {
@@ -1643,37 +1832,132 @@ export function applyImport(body: unknown, o: ImportOptions = {}): DataProductIm
   }
   if (input.fingerprint && input.fingerprint !== fingerprintOf(plan))
     throw new HttpError(409, 'The data products changed since the preview – check the preview again', 'DATA_PRODUCT_IMPORT_CHANGED');
+  return plan;
+}
+
+/** Imports the files in one transaction (400 DATA_PRODUCT_IMPORT_INVALID with the first problems, nothing written). */
+export function applyImport(body: unknown, o: ImportOptions = {}): DataProductImportResult {
+  // a background import's journal could not take back what this one changed: it waits (Git sync, proposals)
+  const job = db().get<{ created_by: string }>("SELECT created_by FROM dp_import_jobs WHERE state = 'running' LIMIT 1");
+  if (job)
+    throw new HttpError(409, `An import of ${job.created_by} is running – try again when it has ended`, 'DATA_PRODUCT_IMPORT_RUNNING', {
+      by: job.created_by,
+    });
+  return commitPlanned({ plan: checkedPlan(body, o) });
+}
+
+/** The audit entry of an import, in its transaction. */
+function auditImport(plan: Plan, job?: string): void {
+  const c = plan.counts;
+  const mode = plan.mode === 'add' ? 'add only' : plan.mode === 'replace' ? `replace ${plan.origin}` : 'add and update';
+  audit({
+    action: 'dataproduct.imported',
+    entityType: 'data_product',
+    summary: `Data products imported (${mode}): ${c.add} added, ${c.change} changed, ${c.unchanged} unchanged, ${c.skip} skipped${
+      c.remove !== undefined ? `, ${c.remove} removed, ${c.removedItems ?? 0} list item(s) removed, ${c.keptHidden ?? 0} kept (not visible)` : ''
+    } – ${plan.files.length} file(s)${plan.odps ? ` (${plan.odps} ODPS)` : ''}`,
+    details: {
+      mode: plan.mode,
+      counts: c,
+      files: plan.files,
+      ...(plan.origin ? { origin: plan.origin } : {}),
+      ...(plan.odps ? { odps: plan.odps } : {}),
+      ...(job ? { job } : {}),
+      ...(plan.mode === 'replace'
+        ? {
+            removed: plan.changes
+              .filter((x) => x.action === 'remove')
+              .map((x) => ({ kind: x.kind, key: x.key }))
+              .slice(0, 500),
+          }
+        : {}),
+    },
+  });
+}
+
+const resultOf = (plan: Plan): DataProductImportResult => ({ mode: plan.mode, counts: plan.counts, warnings: [...new Set(plan.warnings)].slice(0, 100) });
+
+/** A checked import plan, for import-jobs.ts (opaque but for its size). */
+export interface PlannedImport {
+  plan: Plan;
+}
+
+/**
+ * The checked plan of an import and how many elements it writes (0.25.0): the route runs an import with more than
+ * DATA_PRODUCT_IMPORT_JOB_ELEMENTS of them in the background (import-jobs.ts), smaller ones at once.
+ */
+export function planImport(
+  body: unknown,
+  o: ImportOptions = {},
+): { planned: PlannedImport; elementWrites: number; mode: DataProductImportMode; origin: string | null } {
+  const plan = checkedPlan(body, o);
+  return { planned: { plan }, elementWrites: plan.elements.length, mode: plan.mode, origin: plan.origin };
+}
+
+/** Writes a checked plan in one transaction. */
+export function commitPlanned({ plan }: PlannedImport): DataProductImportResult {
   // deprecations it makes tell their consumers once it is committed (a refused import tells nobody)
   holdingNotices(true, () =>
     db().tx(() => {
       execute(plan, false);
-      const c = plan.counts;
-      const mode = plan.mode === 'add' ? 'add only' : plan.mode === 'replace' ? `replace ${plan.origin}` : 'add and update';
-      audit({
-        action: 'dataproduct.imported',
-        entityType: 'data_product',
-        summary: `Data products imported (${mode}): ${c.add} added, ${c.change} changed, ${c.unchanged} unchanged, ${c.skip} skipped${
-          c.remove !== undefined ? `, ${c.remove} removed, ${c.removedItems ?? 0} list item(s) removed, ${c.keptHidden ?? 0} kept (not visible)` : ''
-        } – ${plan.files.length} file(s)${plan.odps ? ` (${plan.odps} ODPS)` : ''}`,
-        details: {
-          mode: plan.mode,
-          counts: c,
-          files: plan.files,
-          ...(plan.origin ? { origin: plan.origin } : {}),
-          ...(plan.odps ? { odps: plan.odps } : {}),
-          ...(plan.mode === 'replace'
-            ? {
-                removed: plan.changes
-                  .filter((x) => x.action === 'remove')
-                  .map((x) => ({ kind: x.kind, key: x.key }))
-                  .slice(0, 500),
-              }
-            : {}),
-        },
-      });
+      auditImport(plan);
     }),
   );
-  return { mode: plan.mode, counts: plan.counts, warnings: [...new Set(plan.warnings)].slice(0, 100) };
+  return resultOf(plan);
+}
+
+/**
+ * Writes a checked plan in steps (0.25.0, the background import): the elements first, in transactions of at most
+ * `batchMs` each with a turn of the event loop between (each writes what it did to `journal` and calls `batch` with the
+ * elements written so far, in its transaction), then everything else – domains, data objects, products, removals,
+ * origins and the audit entry – in one transaction. A failure throws: the caller takes back what the journal holds.
+ */
+export async function commitPlannedStepwise(
+  { plan }: PlannedImport,
+  journal: ElementJournal,
+  o: {
+    batchMs: number;
+    batch: (done: number, total: number, ms: number) => void;
+    beforeRest?: () => void;
+    rest?: (ms: number) => void;
+    job?: string;
+    /** In the transaction of the entries, last: the job's own success (its end and its journal go with the entries) */
+    committing?: (result: DataProductImportResult) => void;
+  },
+): Promise<DataProductImportResult> {
+  if (!plan.r) return resultOf(plan);
+  const run: Run = { dry: false, r: plan.r, plan, failed: new Set() };
+  const total = plan.elements.length;
+  const writes = elementWrites(run, journal);
+  let done = 0;
+  let end = false;
+  while (!end) {
+    const t0 = performance.now();
+    db().tx(() => {
+      while (performance.now() - t0 < o.batchMs) {
+        if (writes.next().done) {
+          end = true;
+          break;
+        }
+        done++;
+      }
+      o.batch(done, total, performance.now() - t0);
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  o.beforeRest?.();
+  const t1 = performance.now();
+  holdingNotices(true, () =>
+    db().tx(() => {
+      writeDomains(run);
+      writeObjects(run);
+      writeRest(run);
+      auditImport(plan, o.job);
+      o.committing?.(resultOf(plan));
+    }),
+  );
+  o.rest?.(performance.now() - t1);
+  return resultOf(plan);
 }
 
 /**

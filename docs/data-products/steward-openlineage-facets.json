@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vxrz/Steward/blob/main/docs/data-products/steward-openlineage-facets.json",
+  "description": "Custom OpenLineage facets of Steward's static export of data products (docs/DATA-PRODUCTS.md#openlineage-export).",
+  "$defs": {
+    "HiddenEndsJobFacet": {
+      "description": "Inputs and outputs of a step that the reader of the export may not see: counted, never named (team scope).",
+      "allOf": [
+        { "$ref": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/JobFacet" },
+        {
+          "type": "object",
+          "properties": {
+            "inputs": { "description": "Inputs left out of the job's inputs", "type": "integer", "minimum": 0 },
+            "outputs": { "description": "Outputs left out of the job's outputs", "type": "integer", "minimum": 0 }
+          },
+          "required": ["inputs", "outputs"]
+        }
+      ],
+      "type": "object"
+    }
+  },
+  "type": "object",
+  "properties": {
+    "steward_hiddenEnds": { "$ref": "#/$defs/HiddenEndsJobFacet" }
+  }
+}

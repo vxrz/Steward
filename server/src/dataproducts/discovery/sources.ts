@@ -4,8 +4,10 @@ import {
   DATA_PRODUCT_LIMITS,
   KAFKA_TOPIC_RE,
   SNOWFLAKE_DISCOVERY_SCOPE_RE,
+  S3_DISCOVERY_SCOPE_RE,
   SNOWFLAKE_KIND,
   KAFKA_KIND,
+  AWS_KIND,
   type DataDiscoveryMode,
   type DataDiscoveryRun,
   type DataDiscoverySource,
@@ -159,7 +161,7 @@ function checkPlatform(u: AuthUser, platformId: string, identityId: string | nul
   if (!p || (!isAdmin(u) && !p.permissions.length))
     throw new HttpError(400, `Platform "${platformId}" not found`, 'PLATFORM_NOT_FOUND', { id: platformId.slice(0, 100) });
   if (!DISCOVERABLE_KINDS.includes(p.kind))
-    throw new HttpError(400, `Discovery reads Snowflake, Kafka and database platforms – not "${p.name}" (${p.kind})`, 'DATA_DISCOVERY_PLATFORM', {
+    throw new HttpError(400, `Discovery reads Snowflake, Kafka, database and AWS account platforms – not "${p.name}" (${p.kind})`, 'DATA_DISCOVERY_PLATFORM', {
       context: 'kind',
       name: p.name,
       kind: p.kind,
@@ -193,6 +195,10 @@ function checkScope(p: Platform, input: SourceInput): void {
     if (!input.scope.length) throw bad('snowflakeEmpty');
     const wrong = input.scope.find((s) => !SNOWFLAKE_DISCOVERY_SCOPE_RE.test(s));
     if (wrong !== undefined) throw bad('snowflake', wrong);
+  } else if (p.kind === AWS_KIND) {
+    // 0.25.0: S3 prefixes (none: only the files.path elements of products on the platform)
+    const wrong = input.scope.find((s) => !S3_DISCOVERY_SCOPE_RE.test(s));
+    if (wrong !== undefined) throw bad('s3', wrong);
   } else if (p.kind === KAFKA_KIND) {
     const wrong = input.scope.find((s) => !KAFKA_TOPIC_RE.test(s));
     if (wrong !== undefined) throw bad('kafka', wrong);

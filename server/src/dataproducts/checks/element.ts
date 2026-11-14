@@ -72,6 +72,11 @@ export async function dataElementCheck(c: Check, ctx: { owner: string; now: () =
   const { platform, secrets } = platformFor(ctx.owner, el.platform_id);
   const now = ctx.now();
   try {
+    // 0.25.0: a files.path element on S3 – its prefix's listing (files.ts)
+    if (el.kind === 'files.path' && (c.mode === 'freshness' || c.mode === 'volume')) {
+      const { filesFreshness, filesVolume } = await import('./files.js');
+      return await (c.mode === 'freshness' ? filesFreshness : filesVolume)(c, el, platform, secrets, now);
+    }
     if (c.mode === 'freshness') {
       if (el.kind.startsWith('snowflake.')) {
         if (platform.kind !== 'snowflake') return { status: 'unknown', message: `"${platform.name}" is not a Snowflake platform` };

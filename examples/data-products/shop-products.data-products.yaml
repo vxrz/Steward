@@ -1,6 +1,7 @@
 # The data products of the invented shop (docs/DATA-PRODUCTS.md, ADR 0036): Orders (source-aligned: the topic
 # orders.v1 → RAW → STAGED → CURATED in dev and prod), Customer 360 (aggregate, rated below its data object with a
-# reason) and Sales mart (consumer-aligned: input ports on both, an output table and an API) – plus a draft product.
+# reason) and Sales mart (consumer-aligned: input ports on both, an output table and an API), Sales files (0.25.0: a
+# file-based product – daily CSV files on S3, partitioned by day) – plus a draft product.
 # The elements come from the discovery sources of the demo (shop-catalogue.data-products.yaml says which).
 version: 1
 
@@ -40,6 +41,10 @@ data_products:
       - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.RAW.ORDERS_RAW, environment: dev }, role: internal }
       - { element: { platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP_DEV.STAGED.ORDERS, environment: dev }, role: internal }
       - { element: { platform: Snowflake (demo), kind: snowflake.dynamicTable, qualified_name: SHOP_DEV.CURATED.ORDERS, environment: dev }, role: output }
+      # 0.25.0 (ADR 0037): the shop database captured by Debezium, its change topic, and the returns desk's webhook (a generic part)
+      - { element: { platform: Shop database (demo), kind: sql.table, qualified_name: public.orders, environment: prod }, role: input }
+      - { element: { platform: Kafka (demo), kind: kafka.topic, qualified_name: shop.public.orders, environment: prod }, role: internal }
+      - { element: { kind: generic.endpoint, qualified_name: returns-desk/returns, environment: prod }, role: input }
     ports:
       - direction: output
         name: orders
@@ -81,6 +86,28 @@ data_products:
         schedule: continuous
         description: The Snowflake sink connector writes every event of orders.v1 into the raw table.
         inputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: orders.v1, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
+      # 0.25.0 (ADR 0037): bridges – change data capture into Kafka, the Snowflake sink, and a Node-RED flow
+      - name: Capture shop orders
+        kind: bridge
+        runner: { kind: connector, platform: Kafka Connect (demo), name: shop-cdc, technology: debezium }
+        schedule: continuous
+        description: Debezium writes every change of the shop database's orders to a topic.
+        inputs: [{ platform: Shop database (demo), kind: sql.table, qualified_name: public.orders, environment: prod }]
+        outputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: shop.public.orders, environment: prod }]
+      - name: Load captured orders
+        kind: bridge
+        runner: { kind: connector, platform: Kafka Connect (demo), name: orders-snowflake-sink, technology: kafka-connect }
+        schedule: continuous
+        description: The Snowflake sink connector writes the change events into the raw table, beside the order events.
+        inputs: [{ platform: Kafka (demo), kind: kafka.topic, qualified_name: shop.public.orders, environment: prod }]
+        outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
+      - name: Forward returns
+        kind: bridge
+        runner: { kind: tool, tool: Node-RED, text: flow returns-forwarder (invented), technology: node-red }
+        schedule: on every webhook call
+        description: A Node-RED flow takes the returns desk's webhook calls and writes them as cancelled orders to the raw table.
+        inputs: [{ kind: generic.endpoint, qualified_name: returns-desk/returns, environment: prod }]
         outputs: [{ platform: Snowflake (demo), kind: snowflake.table, qualified_name: SHOP.RAW.ORDERS_RAW, environment: prod }]
       - name: Stage orders
         kind: stage
@@ -234,6 +261,43 @@ data_products:
         outputs:
           - { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }
           - { kind: api.openapi, qualified_name: sales-api/v1, environment: prod }
+
+  - key: sales-files
+    name: Sales files
+    type: consumerAligned
+    domain: sales
+    description: The daily sales as CSV files on object storage, one folder per day – for the invented finance tools that read files.
+    purpose: Hand the daily sales to tools that read files, without access to the warehouse.
+    owners: [user:dana]
+    members:
+      - { element: { platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }, role: input }
+      - {
+          element: { platform: AWS (demo), kind: files.path, qualified_name: "s3://invented-shop-lake.example/exports/daily-sales/", environment: prod },
+          role: output,
+        }
+    ports:
+      - direction: input
+        name: daily sales
+        source: { product: sales-mart, port: daily sales, version: v1 }
+      - direction: output
+        name: daily sales files
+        version: v1
+        type: file
+        description: One CSV file per day under dt=YYYY-MM-DD/.
+        data_objects: [order]
+        file_format: csv
+        partitioning: [dt]
+        objectives: { freshness_minutes: 1440, update_schedule: daily at 05:30 }
+        bindings:
+          - environment: prod
+            elements: [{ platform: AWS (demo), kind: files.path, qualified_name: "s3://invented-shop-lake.example/exports/daily-sales/", environment: prod }]
+    steps:
+      - name: Export daily sales
+        kind: publish
+        runner: { kind: tool, tool: Snowflake task, text: COPY INTO the export stage }
+        schedule: daily at 05:30
+        inputs: [{ platform: Snowflake (demo), kind: snowflake.view, qualified_name: SHOP.MART.DAILY_SALES, environment: prod }]
+        outputs: [{ platform: AWS (demo), kind: files.path, qualified_name: "s3://invented-shop-lake.example/exports/daily-sales/", environment: prod }]
 
   - key: machine-measurements
     name: Machine measurements

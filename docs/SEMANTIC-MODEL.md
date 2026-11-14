@@ -38,7 +38,7 @@ The model describes the **schema, not the data**. It is the same for every token
 - **0.1.1** is the released specification (December 2025). It is the default. Its documents have a `semantic_model` array, metrics at model level (fields referenced as `dataset."field"`) and no data types.
 - **0.2.0.dev0** is the revision in development on the `main` branch of apache/ossie (pinned in Steward's tests to commit `fae8f41`, 21 October 2026). One model per document, `datatype` on fields and metrics, and dataset-scoped metrics. The specification itself says not to depend on it in production yet – it may still change.
 
-The tests validate both renderings against the official JSON schemas (`server/test/fixtures/ossie/`).
+The tests validate both renderings against the official JSON schemas (`server/assets/ossie/`, vendored with their Apache 2.0 licence; the lint of data products' [semantic models](DATA-PRODUCTS.md#semantic-models) uses them too).
 
 ## What the model contains
 

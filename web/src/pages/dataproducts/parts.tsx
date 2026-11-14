@@ -357,7 +357,8 @@ export function CardTable<T>({
       rowProps={rowTestId ? (r) => ({ 'data-testid': rowTestId(r) }) : undefined}
       card={(r) => (
         <Paper withBorder p="sm" data-testid={rowTestId?.(r)}>
-          <Stack gap={4}>
+          {/* rows 8 px apart: links in two rows one below the other (a step's input and output) keep 24 px targets (WCAG 2.5.8) */}
+          <Stack gap={8}>
             {first && (
               <Text size="sm" fw={500} component="div" style={{ minWidth: 0, overflowWrap: 'break-word' }}>
                 {first.cell(r)}

@@ -46,6 +46,7 @@ import * as cat from './catalogue.js';
 import { assignmentInput, deleteAssignment, getAssignment, putAssignment } from './assignments.js';
 import * as net from './network.js';
 import * as coll from './collections.js';
+import { assetEdge, systemEdge } from './edge.js';
 import { applyCollectionImport, collectionImportInput, previewCollectionImport } from './collections-import.js';
 import * as ih from './ih.js';
 import { checkIhMapping } from './ih-check.js';
@@ -718,6 +719,9 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
     );
   });
   app.get('/plant/assets/:assetId/network', async (req) => net.assetNetwork(p(req).assetId!));
+  // 0.25.0 (ADR 0037 part 3): edge devices – Apps on this device, Collects data from (derived, team-scoped)
+  app.get('/plant/assets/:assetId/edge', async (req) => assetEdge(p(req).assetId!));
+  app.get('/plant/systems/:systemId/edge', async (req) => systemEdge(p(req).systemId!));
   app.put('/plant/assets/:assetId/checks', async (req, reply) =>
     write(
       req,

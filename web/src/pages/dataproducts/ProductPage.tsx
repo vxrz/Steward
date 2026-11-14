@@ -14,6 +14,7 @@ import {
   IconPencil,
   IconPlugConnected,
   IconRoute,
+  IconSchema,
   IconShieldHalf,
   IconStairsUp,
   IconTable,
@@ -44,8 +45,10 @@ import { ProductAccessTab, ProductHistoryTab, LinksTab } from './ProductMisc';
 import { PersonalFieldsPanel, ScorecardTrend } from './ProductQuality';
 import { EndorsementBadge, EndorsementSection } from './governance/Endorsement';
 import { PromotionForm } from './governance/Promotion';
+import { SemanticModelTab } from './semantic/SemanticModelTab';
+import { RopaDetailsSection } from './semantic/RopaDetails';
 
-const TABS = ['', 'ports', 'pipeline', 'elements', 'health', 'costs', 'access', 'links', 'history'] as const;
+const TABS = ['', 'ports', 'pipeline', 'elements', 'health', 'costs', 'semantic-model', 'access', 'links', 'history'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_ICONS = {
   '': IconInfoCircle,
@@ -54,6 +57,7 @@ const TAB_ICONS = {
   elements: IconTable,
   health: IconHeartbeat,
   costs: IconCoins,
+  'semantic-model': IconSchema,
   access: IconLock,
   links: IconLink,
   history: IconHistory,
@@ -61,11 +65,13 @@ const TAB_ICONS = {
 
 /**
  * A data product (ADR 0036 part 13): the header – name, domain, type, lifecycle, health per environment, owners – and
- * the tabs Overview, Ports, Pipeline, Elements, Health, Costs, Access, Links and History, each an address of its own.
+ * the tabs Overview, Ports, Pipeline, Elements, Health, Costs, Semantic model (0.25.0), Access, Links and History, each an
+ * address of its own.
  */
 export function DataProductPage() {
   const { t } = useTranslation(['dataProducts', 'common']);
   const { t: tg } = useTranslation('dataProductGovernance');
+  const { t: ts } = useTranslation('dataProductSemantic');
   const { id = '', tab: tabParam = '' } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -102,7 +108,8 @@ export function DataProductPage() {
   };
   const tabs = TABS.map((x: Tab) => ({
     to: x ? `${base}/${x}` : base,
-    label: t(`product.tabs.${x || 'overview'}`),
+    // 0.25.0 (ADR 0037 part 4): the semantic model, read only when its tab is open
+    label: x === 'semantic-model' ? ts('tab') : t(`product.tabs.${x || 'overview'}`),
     icon: TAB_ICONS[x],
     count: x === 'ports' ? p.ports.length : x === 'elements' ? p.memberCounts.input + p.memberCounts.internal + p.memberCounts.output : undefined,
     testId: `product-tab-${x || 'overview'}`,
@@ -182,6 +189,8 @@ export function DataProductPage() {
           <Overview p={p} onRate={canEdit ? () => setEditing('rating') : undefined} />
           {/* 0.24.0: the endorsement by the domain's owners (maturity 5) */}
           <EndorsementSection p={p} />
+          {/* 0.25.0: transfers to third countries and the measures (GDPR Art. 30(1)(e) and (g)) */}
+          <RopaDetailsSection kind="data-products" id={p.id} name={p.name} />
         </Stack>
       )}
       {tab === 'ports' && <ProductPortsTab p={p} />}
@@ -189,6 +198,7 @@ export function DataProductPage() {
       {tab === 'elements' && <ProductElementsTab p={p} />}
       {tab === 'health' && <ProductHealthTab p={p} />}
       {tab === 'costs' && <ProductCostsTab p={p} />}
+      {tab === 'semantic-model' && <SemanticModelTab p={p} />}
       {tab === 'access' && <ProductAccessTab p={p} />}
       {tab === 'links' && <LinksTab kind="data-product" id={p.id} />}
       {tab === 'history' && <ProductHistoryTab p={p} />}

@@ -14,6 +14,7 @@ import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from
 import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam, useRetentionText } from './parts';
 import { ActualConsumers } from './governance/ActualConsumers';
 import { RequestAccessButton } from './governance/AccessRequests';
+import { PeekButton, PortPreviewButton } from './semantic/Previews';
 
 const enc = encodeURIComponent;
 
@@ -64,6 +65,9 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
       ),
     [members.data],
   );
+  // 0.25.0 (ADR 0037 part 6): the bound Kafka topics offer the peek – to who may peek (the platform allows it, the
+  // reader manages it)
+  const topics = useMemo(() => new Set(pagesOf(members.data).flatMap((m) => (m.element.mayPeek && m.element.visible ? [m.elementId] : []))), [members.data]);
   const done = () => {
     invalidate();
     setEditing(null);
@@ -116,6 +120,7 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
                 environment={environment}
                 names={names}
                 canEdit={canEdit}
+                topics={topics}
                 onEdit={() => setEditing({ kind: 'port', direction, port: x })}
                 onDelete={() => void remove(x)}
                 onBind={() => setEditing({ kind: 'binding', port: x })}
@@ -160,6 +165,7 @@ function PortCard({
   port,
   environment,
   names,
+  topics,
   canEdit,
   onEdit,
   onDelete,
@@ -171,6 +177,7 @@ function PortCard({
   port: DataPort;
   environment: string;
   names: Map<string, PickedElement>;
+  topics: ReadonlySet<string>;
   canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -229,6 +236,17 @@ function PortCard({
         {port.description && (
           <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
             {port.description}
+          </Text>
+        )}
+        {port.type === 'file' && (port.fileFormat || port.partitioning.length > 0) && (
+          <Text size="sm" data-testid="port-files">
+            {t('ports.files')}:{' '}
+            {[
+              port.fileFormat ? t('ports.filesFormat', { format: t(`fileFormats.${port.fileFormat}`) }) : '',
+              port.partitioning.length ? t('ports.partitionedBy', { keys: port.partitioning.join(', ') }) : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
         )}
         {port.lifecycle === 'deprecated' && port.sunsetDate && (
@@ -330,9 +348,12 @@ function PortCard({
                         <span key={id}>
                           {i > 0 && ', '}
                           {n?.visible !== false && n ? (
-                            <Anchor component={Link} to={`/data-elements/${enc(id)}`} size="sm" className="mono">
-                              {n.label}
-                            </Anchor>
+                            <>
+                              <Anchor component={Link} to={`/data-elements/${enc(id)}`} size="sm" className="mono">
+                                {n.label}
+                              </Anchor>
+                              {topics.has(id) && <PeekButton elementId={id} name={n.label} />}
+                            </>
                           ) : (
                             <Text span size="sm" className="mono">
                               {n?.label ?? t('ports.anElement')}
@@ -343,6 +364,18 @@ function PortCard({
                     })
                   : '–'}
               </Text>
+              {/* 0.25.0: the S3 locations of a file port's bound elements – the ODCS server of type s3 */}
+              {binding.elementIds.some((id) => names.get(id)?.label.startsWith('s3://')) && (
+                <Text size="sm" style={{ overflowWrap: 'anywhere' }} data-testid="binding-object-storage">
+                  {t('bindings.objectStorage')}:{' '}
+                  <span className="mono">
+                    {binding.elementIds
+                      .map((id) => names.get(id)?.label ?? '')
+                      .filter((l) => l.startsWith('s3://'))
+                      .join(', ')}
+                  </span>
+                </Text>
+              )}
               {port.direction === 'output' && (
                 <Text size="sm" data-testid="binding-contract-line">
                   {t('bindings.contract')}:{' '}
@@ -385,6 +418,8 @@ function PortCard({
             {/* 0.24.0 (ADR 0036 phase 2): who really reads, and asking for access */}
             {binding && <ActualConsumers p={p} port={port} environment={environment} />}
             <RequestAccessButton p={p} port={port} />
+            {/* 0.25.0 (ADR 0037 part 6): contract examples and recorded responses, no platform read */}
+            <PortPreviewButton productId={p.id} port={port} environment={environment} />
           </div>
         )}
       </Stack>

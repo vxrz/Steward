@@ -34,6 +34,7 @@ import { RatingBadges, RatingPanelReadOnly } from './rating';
 import { MissingBadge } from './ElementsPage';
 import { useCanCreate } from './rights';
 import { PersonalFieldsPanel } from './ProductQuality';
+import { RopaDetailsSection } from './semantic/RopaDetails';
 
 const enc = encodeURIComponent;
 const to = (o: { id: string }) => `/data-objects/${enc(o.id)}`;
@@ -401,6 +402,8 @@ export function DataObjectPage() {
                 </Section>
               )}
               <PersonalFieldsPanel kind="object" id={o.id} />
+              {/* 0.25.0: transfers to third countries and the measures (GDPR Art. 30(1)(e) and (g)) */}
+              {o.personalData !== 'none' && <RopaDetailsSection kind="data-objects" id={o.id} name={o.name} />}
               <ObjectElements o={o} />
             </Stack>
           </Grid.Col>

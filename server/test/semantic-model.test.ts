@@ -7,12 +7,12 @@ import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
  * GET /api/v1/semantic-model: Steward's data model as an Apache Ossie semantic model, validated against
- * the official Ossie JSON schemas (vendored in test/fixtures/ossie, see the $comment in each file).
+ * the official Ossie JSON schemas (vendored in server/assets/ossie, see the $comment in each file; the lint of data products' semantic models uses them too).
  */
 let s: TestServer;
 let token: string;
 
-const schema = (v: string) => JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'fixtures', 'ossie', `ossie-${v}.schema.json`), 'utf8'));
+const schema = (v: string) => JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '..', 'assets', 'ossie', `ossie-${v}.schema.json`), 'utf8'));
 
 async function get(url: string, headers: Record<string, string> = {}) {
   const res = await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}`, ...headers } });

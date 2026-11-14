@@ -3,6 +3,7 @@ import {
   CONFLUENT_READ_LIMITS,
   KAFKA_CONNECT_LIMITS,
   SCRUBBED,
+  allowedConnectorConfig,
   trimTrace,
   type ConfluentApiKey,
   type ConfluentCluster,
@@ -265,6 +266,8 @@ export function toConfluentConnector(
     trace: (state === 'FAILED' || state === 'DEGRADED') && trace ? trimTrace(trace, secrets) : null,
     tasks,
     topics: topicList(config.topics, config['kafka.topic']).slice(0, KAFKA_CONNECT_LIMITS.topics),
+    // 0.25.0 (ADR 0037 part 1): the allow-listed keys only, secret-looking values left out (the same rule as Kafka Connect)
+    config: allowedConnectorConfig(config),
   };
 }
 

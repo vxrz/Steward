@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { DataRopaEntry } from '@sm/shared';
 import { apiUrl } from '../../../api';
 import { QueryState } from '../../../components/common';
+import { fmtNumber } from '../../../format';
 import { DataTable } from '../../../components/DataTable';
 import { ListPage } from '../../../components/page/ListPage';
 import { useSubjectLabel } from '../../../components/SubjectsInput';
@@ -23,6 +24,7 @@ const enc = encodeURIComponent;
  */
 export function RecordsOfProcessingPage() {
   const { t } = useTranslation(['dataProductGovernance', 'dataProducts']);
+  const { t: ts } = useTranslation('dataProductSemantic');
   const [params, setParams] = useSearchParams();
   const domain = params.get('domain') ?? '';
   const personalData = params.get('personalData') ?? '';
@@ -51,6 +53,13 @@ export function RecordsOfProcessingPage() {
       <HiddenCount count={hidden} />
     </Stack>
   );
+  // 0.25.0: Art. 30(1)(e) and (g) – transfers with their safeguards, the measures' references (of the object or a product)
+  const via = (x: { via: string | null }) => (x.via ? ` (${ts('ropa.via', { product: x.via })})` : '');
+  const transfers = (e: DataRopaEntry) =>
+    e.transfers.map(
+      (x) => `${x.country}${x.recipient ? `, ${x.recipient}` : ''}: ${ts(`ropa.safeguards.${x.safeguard}`)}${x.note ? ` – ${x.note}` : ''}${via(x)}`,
+    );
+  const toms = (e: DataRopaEntry) => e.toms.map((x) => `${x.label}${via(x)}`);
   const recipients = (e: DataRopaEntry) => e.recipients.map((r) => `${r.kind === 'team' || r.kind === 'user' ? subject(r.label) : r.label} (${r.via})`);
   const basis = (e: DataRopaEntry) => (e.legalBasis ? t(`dataProducts:objects.legalBases.${e.legalBasis}`) : '–');
   const processors = (e: DataRopaEntry) =>
@@ -131,6 +140,11 @@ export function RecordsOfProcessingPage() {
         {t('ropa.disclaimer')}
       </Alert>
       <QueryState query={q} />
+      {q.data?.truncated && (
+        <Alert variant="light" color="orange" p="xs" mb="sm" data-testid="ropa-truncated">
+          {ts('ropa.truncated', { limit: fmtNumber(q.data.limit) })}
+        </Alert>
+      )}
       {q.isSuccess && !rows.length && (
         <Text size="sm" c="dimmed" data-testid="ropa-empty">
           {t('ropa.empty')}
@@ -216,6 +230,34 @@ export function RecordsOfProcessingPage() {
               cell: (e) => list(recipients(e), e.hiddenRecipients),
             },
             { key: 'processors', header: t('ropa.processors'), cell: (e) => list(processors(e), e.hiddenProcessors) },
+            { key: 'transfers', header: ts('ropa.transfers'), cell: (e) => list(transfers(e)) },
+            {
+              key: 'toms',
+              header: ts('ropa.toms'),
+              cell: (e) => (
+                <Stack gap={2}>
+                  {e.toms.map((x, i) =>
+                    x.url ? (
+                      <Anchor key={i} href={x.url} target="_blank" rel="noopener noreferrer" size="sm" style={{ overflowWrap: 'anywhere' }}>
+                        {x.label}
+                        {via(x)}
+                      </Anchor>
+                    ) : (
+                      <Text key={i} size="sm" style={{ overflowWrap: 'anywhere' }}>
+                        {x.label}
+                        {via(x)}
+                      </Text>
+                    ),
+                  )}
+                  {!e.toms.length && !e.hiddenToms && <Text size="sm">–</Text>}
+                  {e.hiddenToms > 0 && (
+                    <Text size="xs" c="dimmed" fs="italic">
+                      {ts('ropa.hiddenToms', { count: e.hiddenToms })}
+                    </Text>
+                  )}
+                </Stack>
+              ),
+            },
             {
               key: 'retention',
               header: t('ropa.retention'),
@@ -266,6 +308,13 @@ export function RecordsOfProcessingPage() {
                   {t('ropa.processors')}: {processors(e).join('; ') || '–'}
                 </Text>
                 <HiddenCount count={e.hiddenProcessors} />
+                <Text size="xs">
+                  {ts('ropa.transfers')}: {transfers(e).join('; ') || '–'}
+                </Text>
+                <Text size="xs">
+                  {ts('ropa.toms')}: {toms(e).join('; ') || '–'}
+                  {e.hiddenToms > 0 && ` · ${ts('ropa.hiddenToms', { count: e.hiddenToms })}`}
+                </Text>
                 <Text size="xs">
                   {t('ropa.retention')}: {retention(e.retention) || '–'}
                   {e.deletionRule && ` – ${e.deletionRule}`}

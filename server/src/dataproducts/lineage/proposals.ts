@@ -1,19 +1,24 @@
 import {
+  BUILT_IN_DATA_TECHNOLOGIES,
   DATA_LINEAGE_LIMITS as LL,
   DATA_LINEAGE_ORIGINS,
   DATA_LINEAGE_PROPOSAL_STATUSES,
   DATA_PRODUCT_ID_PREFIX,
   dataLineageAcceptInput,
   type DataLineageEnd,
+  type DataLineageOrigin,
   type DataLineageProposal,
   type DataLineageProposalPage,
   type DataLineageProposalStatus,
+  type PlatformPermission,
+  type AclEntry,
 } from '@sm/shared';
 import { z } from 'zod';
 import { db } from '../../db.js';
 import { audit } from '../../audit.js';
 import { forbid, me } from '../../auth/access.js';
 import type { AuthUser } from '../../auth/context.js';
+import { platformAccess } from '../../auth/policy.js';
 import { HttpError, newId, nowIso, parseJson } from '../../util.js';
 import { elementAccess, productAccess } from '../access.js';
 import { L, decodeCursor, encodeCursor, json, limitReached } from '../common.js';
@@ -51,17 +56,66 @@ import { proposalEnds, proposalNotFound, proposalRow, type LineageSourceRow, typ
  * the outputs – each one statement per chunk).
  */
 
-/** The ids of the sources the reader sees (lineage sources and Snowflake discovery sources), with their names. */
-function visibleSources(u: AuthUser): Map<string, { name: string; manage: boolean }> {
-  const out = new Map<string, { name: string; manage: boolean }>();
+/**
+ * Where a proposal of each origin comes from – and so who sees it: who sees that source. Every origin has its rule (the
+ * `satisfies` keeps a new origin from going without one): OpenLineage and dbt from a lineage source (its owning teams),
+ * Snowflake object dependencies, stages and pipes from a discovery source (its platform and element teams), connectors
+ * from their Kafka Connect or Confluent platform (who sees the platform).
+ */
+const SOURCE_OF_ORIGIN = {
+  openlineage: 'lineageSource',
+  dbt: 'lineageSource',
+  snowflake: 'discoverySource',
+  connector: 'platform',
+} as const satisfies Record<DataLineageOrigin, 'lineageSource' | 'discoverySource' | 'platform'>;
+
+interface SourceView {
+  name: string;
+  manage: boolean;
+  /** the origins of the proposals this source may have: a source of one kind never shows another kind's proposals */
+  origins: readonly DataLineageOrigin[];
+}
+type Sources = Map<string, SourceView>;
+
+const originsOf = (kind: (typeof SOURCE_OF_ORIGIN)[DataLineageOrigin]) => DATA_LINEAGE_ORIGINS.filter((o) => SOURCE_OF_ORIGIN[o] === kind);
+
+/** Whether the reader sees a proposal: they see its source, and the source is of the kind its origin names. */
+const seesProposal = (sources: Sources, r: Pick<ProposalRow, 'source_id' | 'origin'>) =>
+  !!sources.get(r.source_id)?.origins.includes(r.origin as DataLineageOrigin);
+
+/** The sources the reader sees – lineage sources, discovery sources, connector platforms – with their names. */
+function visibleSources(u: AuthUser): Sources {
+  const out: Sources = new Map();
+  const lineage = originsOf('lineageSource');
   for (const r of db().all<LineageSourceRow>('SELECT id, name, team_ids FROM dp_lineage_sources')) {
     const p = sourcePermissions(u, r);
-    if (p.length) out.set(r.id, { name: r.name, manage: p.includes('manage') });
+    if (p.length) out.set(r.id, { name: r.name, manage: p.includes('manage'), origins: lineage });
   }
   // discovery sources have their own rights (the platform's, their element teams); at most 50 exist
-  const hasSnowflake = db().get('SELECT 1 FROM dp_lineage_proposals WHERE origin = ? LIMIT 1', 'snowflake');
-  if (hasSnowflake) for (const s of listDiscoverySources()) out.set(s.id, { name: s.name, manage: !!s.permissions?.includes('manage') });
+  const discovery = originsOf('discoverySource');
+  const hasDiscovered = db().get(`SELECT 1 FROM dp_lineage_proposals WHERE origin IN (${marks(discovery.length)}) LIMIT 1`, ...discovery);
+  if (hasDiscovered) for (const s of listDiscoverySources()) out.set(s.id, { name: s.name, manage: !!s.permissions?.includes('manage'), origins: discovery });
+  // 0.25.0: connector proposals – their source is a Kafka Connect or Confluent platform; who sees the platform sees them
+  const platform = originsOf('platform');
+  for (const p of db().all<{ id: string; name: string; acl: string }>(
+    `SELECT id, name, acl FROM platforms WHERE id IN (SELECT DISTINCT source_id FROM dp_lineage_proposals WHERE origin IN (${marks(platform.length)}))`,
+    ...platform,
+  )) {
+    const perms = platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions;
+    if (perms.length) out.set(p.id, { name: p.name, manage: perms.includes('manage'), origins: platform });
+  }
   return out;
+}
+
+const ORIGIN_TEXT = { openlineage: 'OpenLineage', dbt: 'dbt', snowflake: 'Snowflake object dependencies', connector: 'connector' } as const;
+
+/** The runner of a step accepted from a proposal: the tool and the job – or, from a connector, the connector itself. */
+function acceptedRunner(row: ProposalRow): Record<string, string> {
+  if (row.origin === 'connector') {
+    const tech = BUILT_IN_DATA_TECHNOLOGIES.find((t) => t.name.toLowerCase() === row.tool.toLowerCase());
+    return { kind: 'connector', platformId: row.source_id, name: row.name.slice(0, L.short), ...(tech ? { technology: tech.key } : {}) };
+  }
+  return { kind: 'tool', tool: row.tool.slice(0, L.short), text: row.job_key.slice(0, L.text) };
 }
 
 const listQuery = z
@@ -164,7 +218,7 @@ function toProposal(
 }
 
 /** The proposals with their ends, as `u` sees them (bulk). */
-function viewProposals(u: AuthUser, rows: ProposalRow[], sources: Map<string, { name: string; manage: boolean }>): DataLineageProposal[] {
+function viewProposals(u: AuthUser, rows: ProposalRow[], sources: Sources): DataLineageProposal[] {
   const ends = proposalEnds(rows.map((r) => r.id));
   const by = new Map<string, { in: string[]; out: string[] }>();
   for (const e of ends) {
@@ -188,8 +242,17 @@ export function listProposals(query: unknown): DataLineageProposalPage {
   const ids = q.sourceId ? (sources.has(q.sourceId) ? [q.sourceId] : []) : [...sources.keys()];
   if (!ids.length) return { items: [], next: null };
   const after = decodeCursor(q.cursor);
-  const where = [`source_id IN (${marks(ids.length)})`, 'status = ?'];
-  const args: unknown[] = [...ids, q.status];
+  // each source with the origins of its kind only (seesProposal), one condition per kind
+  const groups = new Map<string, { origins: readonly DataLineageOrigin[]; ids: string[] }>();
+  for (const id of ids) {
+    const o = sources.get(id)!.origins;
+    const g = groups.get(o.join()) ?? { origins: o, ids: [] };
+    g.ids.push(id);
+    groups.set(o.join(), g);
+  }
+  const visible = [...groups.values()].map((g) => `(origin IN (${marks(g.origins.length)}) AND source_id IN (${marks(g.ids.length)}))`);
+  const where = [`(${visible.join(' OR ')})`, 'status = ?'];
+  const args: unknown[] = [...[...groups.values()].flatMap((g) => [...g.origins, ...g.ids]), q.status];
   if (q.origin) {
     where.push('origin = ?');
     args.push(q.origin);
@@ -218,7 +281,7 @@ function visibleProposal(id: string): { row: ProposalRow; u: AuthUser; source: {
   if (!row) throw proposalNotFound(id);
   const sources = visibleSources(u);
   const source = sources.get(row.source_id);
-  if (!source) throw proposalNotFound(id);
+  if (!source || !seesProposal(sources, row)) throw proposalNotFound(id);
   return { row, u, source, view: viewProposals(u, [row], sources)[0]! };
 }
 
@@ -303,11 +366,8 @@ export function acceptProposal(id: string, body: unknown): DataLineageProposal {
         stepId,
         name.slice(0, L.name),
         kind,
-        json({ kind: 'tool', tool: row.tool.slice(0, L.short), text: row.job_key.slice(0, L.text) }),
-        `Proposed by ${sourceName} (${row.origin === 'openlineage' ? 'OpenLineage' : row.origin === 'dbt' ? 'dbt' : 'Snowflake object dependencies'}).`.slice(
-          0,
-          L.description,
-        ),
+        json(acceptedRunner(row)),
+        `Proposed by ${sourceName} (${ORIGIN_TEXT[row.origin]}).`.slice(0, L.description),
         row.last_run_state && row.last_run_at
           ? json({ state: row.last_run_state, at: row.last_run_at, completeAt: row.last_complete_at, origin: row.origin, sourceId: row.source_id })
           : null,
@@ -389,7 +449,7 @@ export function openProposalsAround(elementIds: readonly string[]): { id: string
   const rows = chunks([...proposalIds]).flatMap((part) =>
     db().all<ProposalRow>(`SELECT * FROM dp_lineage_proposals WHERE id IN (${marks(part.length)}) ORDER BY id`, ...part),
   );
-  const visible = rows.filter((r) => sources.has(r.source_id)).slice(0, 200);
+  const visible = rows.filter((r) => seesProposal(sources, r)).slice(0, 200);
   const ends = proposalEnds(visible.map((r) => r.id));
   return visible.map((r) => ({
     id: r.id,

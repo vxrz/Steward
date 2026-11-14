@@ -43,7 +43,7 @@ beforeAll(async () => {
   sh = await import('../src/auth/shares.js');
   policy = await import('../src/auth/policy.js');
   const users = await import('../src/auth/users.js');
-  const OWNERS: Record<string, string[]> = { c1: ['user:otto'], c2: [] };
+  const OWNERS: Record<string, string[]> = { c1: ['user:otto'], c2: [], c3: ['team:payments'] };
   sh.registerShareKind({
     kind: 'contract',
     model: MODEL,
@@ -220,8 +220,24 @@ describe('changing the shares', () => {
     // (the test kind has no rows of its own: the owning teams are set directly)
     policy.setOwningTeams('contract', 'c1', [team.id]);
     const v = await s.api('GET', '/access/contract/c1/shares');
-    expect(v).toMatchObject({ scope: 'teams', owningTeams: [{ name: 'Data' }], implied: [{ subject: 'user:otto', outside: true }] });
+    expect(v).toMatchObject({ scope: 'teams', owningTeams: [{ name: 'Data' }], implied: [{ subject: 'user:otto', outside: true, owningTeam: false }] });
     policy.setOwningTeams('contract', 'c1', []);
+  });
+
+  it('says whether a team named as owner is an owning team: the owner field gives a share, it never scopes the item', async () => {
+    // Payments is the owner of c3, no owning team: the item stays the whole instance's
+    const before = await s.api('GET', '/access/contract/c3/shares');
+    expect(before).toMatchObject({ scope: 'instance', owningTeams: [], implied: [{ subject: 'team:payments', as: 'owner', owningTeam: false }] });
+    const payments = ((await s.api('GET', '/teams')) as { id: string; name: string }[]).find((t) => t.name === 'Payments')!;
+    policy.setOwningTeams('contract', 'c3', [payments.id]);
+    try {
+      expect(await s.api('GET', '/access/contract/c3/shares')).toMatchObject({
+        scope: 'teams',
+        implied: [{ subject: 'team:payments', owningTeam: true, outside: false }],
+      });
+    } finally {
+      policy.setOwningTeams('contract', 'c3', []);
+    }
   });
 });
 

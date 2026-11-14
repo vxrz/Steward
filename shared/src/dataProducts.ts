@@ -32,6 +32,8 @@ export const DATA_PRODUCT_ID_PREFIX = {
   run: 'dpn_',
   costMatch: 'dpm_',
   allocation: 'dpa_',
+  /** 0.25.0: a background import */
+  importJob: 'dpj_',
 } as const;
 
 /** The owned kinds of the module (resource_teams.kind, OWNED_KINDS): owning teams decide who sees and changes them. */
@@ -199,7 +201,18 @@ export const DATA_ELEMENT_SOURCES = ['entered', 'discovered', 'imported'] as con
 export type DataElementSource = (typeof DATA_ELEMENT_SOURCES)[number];
 
 /** Kinds of steps (part 9). */
-export const DATA_STEP_KINDS = ['ingest', 'stage', 'transform', 'curate', 'publish', 'replicate', 'other'] as const;
+export const DATA_STEP_KINDS = [
+  'ingest',
+  'stage',
+  'transform',
+  'curate',
+  'publish',
+  'replicate',
+  'other',
+  // 0.25.0 (ADR 0037 part 0): moves or replicates data between technologies without changing its meaning – change data
+  // capture, sink connectors, flows, routes, edge-to-cloud connectors
+  'bridge',
+] as const;
 export type DataStepKind = (typeof DATA_STEP_KINDS)[number];
 
 /** What runs a step: a Steward application, platform, process or element, a connector, or a tool named in text. */
@@ -278,6 +291,14 @@ export const DATA_ELEMENT_KINDS = [
   'files.path',
   'insightsHub.aspect',
   'other',
+  // 0.25.0 (ADR 0037 part 0): generic parts by role – technology, qualified name, namespace and properties entered by
+  // people, never discovered (shared/src/dataTechnologies.ts)
+  'generic.dataset',
+  'generic.stream',
+  'generic.files',
+  'generic.endpoint',
+  // 0.25.0 (ADR 0037 part 3): a topic of an MQTT broker or the Industrial Edge Databus
+  'mqtt.topic',
 ] as const;
 export type DataElementKind = (typeof DATA_ELEMENT_KINDS)[number];
 export const isDataElementKind = (x: unknown): x is DataElementKind => typeof x === 'string' && (DATA_ELEMENT_KINDS as readonly string[]).includes(x);
@@ -334,9 +355,16 @@ export const DATA_ELEMENT_KIND_DEFS: Readonly<Record<DataElementKind, DataElemen
   'api.asyncapi': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
   'api.graphql': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
   'api.endpoint': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
-  'files.path': { platformKinds: ['aws'], platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'file' },
+  // 0.25.0: discovered on S3 through an AWS account platform (ADR 0037 part 2)
+  'files.path': { platformKinds: ['aws'], platformRequired: false, container: false, parentKinds: [], discovered: true, portType: 'file' },
   'insightsHub.aspect': { platformKinds: ['insights-hub'], platformRequired: true, container: false, parentKinds: [], discovered: false, portType: 'other' },
   other: { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'other' },
+  'generic.dataset': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'table' },
+  'generic.stream': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'topic' },
+  'generic.files': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'file' },
+  'generic.endpoint': { platformKinds: 'any', platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'api' },
+  // 0.25.0: on an MQTT broker platform, or without one (the Databus of an edge device: its broker named on the element)
+  'mqtt.topic': { platformKinds: ['mqtt'], platformRequired: false, container: false, parentKinds: [], discovered: false, portType: 'topic' },
 };
 
 /** Whether an element of `kind` may live on a platform of `platformKind` (null: no platform). */
@@ -366,13 +394,37 @@ export const elementShortName = (qualifiedName: string): string => {
  * `platformAddress` is what the platform's settings give (account, bootstrap server, host and port); null when unknown.
  */
 export function openLineageDataset(kind: DataElementKind, platformAddress: string | null, qualifiedName: string): { namespace: string; name: string } | null {
+  // 0.25.0: an S3 prefix is its own address – `s3://<bucket>` with the key prefix (no slash at the end), as OpenLineage names it
+  if (kind === 'files.path') {
+    const u = parseObjectStorageUrl(qualifiedName);
+    return u ? { namespace: `${u.scheme}://${u.bucket}`, name: u.prefix.replace(/\/+$/, '') || '/' } : null;
+  }
   if (!platformAddress) return null;
   // the names as Snowflake reports them: unquoted identifiers are upper case already, quoted ones keep their case
   if (kind.startsWith('snowflake.')) return { namespace: `snowflake://${platformAddress.toLowerCase()}`, name: qualifiedName };
   if (kind === 'kafka.topic') return { namespace: `kafka://${platformAddress}`, name: qualifiedName };
+  if (kind === 'mqtt.topic') return { namespace: `mqtt://${platformAddress}`, name: qualifiedName };
   if (kind.startsWith('sql.')) return { namespace: platformAddress, name: qualifiedName };
   return null;
 }
+
+/**
+ * 0.25.0 (ADR 0037 part 3): the broker of an `mqtt.topic` element as OpenLineage names it – `host:port` from an MQTT
+ * URL (the schemes mqtt and mqtts, and WebSocket brokers with or without TLS; a path left out) or from `host[:port]`,
+ * the port 1883 when none is given (8883 for mqtts, 443 for WebSocket with TLS, 80 without). Null: not a broker address. The Industrial Edge Databus is `ie-databus:1883` on its device.
+ */
+export function mqttBroker(v: string | null | undefined): string | null {
+  const t = (v ?? '').trim();
+  if (!t) return null;
+  // a path after the address (a WebSocket broker's /mqtt) is not part of the namespace
+  const m = /^(?:(mqtts?|wss?):\/\/)?(\[[0-9a-f:]+\]|[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?)(?::(\d{1,5}))?(?:\/[^\s]*)?$/i.exec(t);
+  if (!m) return null;
+  const port = m[4] ? Number(m[4]) : m[1] === 'mqtts' ? 8883 : m[1] === 'wss' ? 443 : m[1] === 'ws' ? 80 : 1883;
+  return port >= 1 && port <= 65535 ? `${m[2]!.toLowerCase()}:${port}` : null;
+}
+
+/** The Industrial Edge Databus: the MQTT broker every edge device runs for its applications. */
+export const IE_DATABUS_BROKER = 'ie-databus:1883';
 
 // ---------- shared shapes ----------
 
@@ -646,6 +698,8 @@ export interface DataElementOnProduct {
   missingSince: string | null;
   /** The reader may open the element's own page */
   visible: boolean;
+  /** 0.25.0: a Kafka topic the reader may peek at – its platform allows it and the reader manages the platform */
+  mayPeek: boolean;
 }
 
 export interface DataProductMember {
@@ -728,6 +782,9 @@ export interface DataPort {
   consumers: { registered: number; derived: number };
   /** The port consumes a deprecated or retired port */
   consumesDeprecated: boolean;
+  /** 0.25.0: a file port's format and partition keys (in their order: `dt`, `region`) */
+  fileFormat: DataFileFormat | null;
+  partitioning: string[];
   position: number;
   revision: number;
 }
@@ -777,6 +834,8 @@ export interface DataElementSummary {
   source: DataElementSource;
   parentId: string | null;
   missingSince: string | null;
+  /** 0.25.0: generic kinds – the technology (a key of the technology list or a free value); null: none */
+  technology: string | null;
   /** Products it is a member of (visible to the reader / hidden: counted, never named) */
   products: { visible: number; hidden: number };
   updatedAt: string;
@@ -794,6 +853,10 @@ export interface DataElement extends DataElementSummary {
   plantSink: { assetId: string; collectionId: string; sinkId: string } | null;
   apiRef: { specId?: string; operations?: string[]; url?: string } | null;
   flags: Record<string, string | number | boolean>;
+  /** 0.25.0: generic kinds – key: value properties entered by people (a flow id, a route id, a retention) */
+  properties: { key: string; value: string }[];
+  /** 0.25.0: a Kafka topic the reader may peek at – its platform allows it and the reader manages the platform */
+  mayPeek: boolean;
   owningTeams: OwningTeamRef[];
   permissions: DataProductPermission[];
   /** Products it is part of, with its role there */
@@ -947,7 +1010,45 @@ export const DATA_DISCOVERY_LIMITS = {
   registrySubjects: 2_000,
   /** Topics described per Kafka request */
   topicsPerRequest: 200,
+  /**
+   * 0.25.0, S3 (object storage): prefixes listed per run (each ListObjectsV2 call with a delimiter lists one) and object
+   * keys read per run – metadata only; a run cut by either says so and marks nothing missing
+   */
+  s3Prefixes: 2_000,
+  s3Keys: 200_000,
+  /** Keys one `data-element` check of a `files.path` element reads (freshness, volume): beyond, it says it counted a part */
+  s3CheckKeys: 20_000,
 } as const;
+
+/**
+ * Object storage (0.25.0, ADR 0037 part 2): a `files.path` element is named by its URL, `s3://<bucket>/<prefix>/` – the
+ * bucket as S3 names it (3–63 lower-case letters, digits, `.` and `-`), the prefix a key prefix ending in `/` (empty: the
+ * bucket's root, read only when a scope names it so). A discovery source of an AWS account names such prefixes.
+ */
+export const S3_DISCOVERY_SCOPE_RE = /^s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\/([^\s\\{}^%`[\]"<>#|~]{0,900}\/)?$/;
+
+/** The parts of an object storage URL (`s3://bucket/prefix/`; a prefix as written – a folder ends in `/`), or null. */
+export function parseObjectStorageUrl(url: string): { scheme: 's3'; bucket: string; prefix: string } | null {
+  const m = /^s3:\/\/([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])(?:\/(.*))?$/.exec(url.trim());
+  return m ? { scheme: 's3', bucket: m[1]!, prefix: m[2] ?? '' } : null;
+}
+
+/** File formats of a `files.path` element and a file port (0.25.0): by the objects' suffixes, Iceberg by its metadata. */
+export const DATA_FILE_FORMATS = ['parquet', 'csv', 'json', 'avro', 'orc', 'iceberg', 'delta', 'mixed', 'other'] as const;
+export type DataFileFormat = (typeof DATA_FILE_FORMATS)[number];
+/** Partition keys of a file port at most */
+export const DATA_PORT_PARTITION_KEYS = 10;
+
+/** The format of an object key by its suffix (compression suffixes ignored); null: none Steward knows. */
+export function fileFormatOf(key: string): DataFileFormat | null {
+  const k = key.toLowerCase().replace(/\.(gz|gzip|snappy|zst|zstd|bz2|lz4|deflate)$/, '');
+  if (k.endsWith('.parquet') || k.endsWith('.parq')) return 'parquet';
+  if (k.endsWith('.csv') || k.endsWith('.tsv')) return 'csv';
+  if (k.endsWith('.json') || k.endsWith('.jsonl') || k.endsWith('.ndjson')) return 'json';
+  if (k.endsWith('.avro')) return 'avro';
+  if (k.endsWith('.orc')) return 'orc';
+  return null;
+}
 
 /** The scope entry that is a whole Snowflake database or a schema (`DB`, `DB.SCHEMA`; unquoted identifiers). */
 export const SNOWFLAKE_DISCOVERY_SCOPE_RE = /^[A-Za-z_][A-Za-z0-9_$]{0,254}(\.[A-Za-z_][A-Za-z0-9_$]{0,254})?$/;
@@ -984,10 +1085,23 @@ export function discoveryKeeps(qualifiedName: string, include: readonly string[]
 
 // ---------- steps and lineage (part 9) ----------
 
-export type DataStepRunner =
-  | { kind: 'application' | 'platform' | 'process' | 'element'; id: string }
-  | { kind: 'connector'; platformId: string; name: string }
-  | { kind: 'tool'; tool: string; text: string };
+/**
+/**
+ * 0.25.0 (ADR 0037 part 0): a runner may name its **technology** (a key of the technology list or a free value) – what a
+ * bridge step's runner is: Debezium, Node-RED, Apache Camel …
+ * 0.25.0 (ADR 0037 part 3): the Steward system – and environment – an application or connector runner runs on, so a
+ * step reads "Modbus import client @ ied-line-01.example" (an edge device, a server); only for those two kinds.
+ */
+export interface DataRunsOn {
+  systemId: string;
+  environment: string;
+}
+
+export type DataStepRunner = (
+  | { kind: 'application' | 'platform' | 'process' | 'element'; id: string; runsOn?: DataRunsOn | null }
+  | { kind: 'connector'; platformId: string; name: string; runsOn?: DataRunsOn | null }
+  | { kind: 'tool'; tool: string; text: string }
+) & { technology?: string };
 
 export interface DataTransformNote {
   kind: DataTransformKind;
@@ -1001,6 +1115,9 @@ export interface DataStep {
   runner: DataStepRunner | null;
   /** The runner is an application, platform, process or element the reader may not see (runner is null then) */
   runnerHidden: boolean;
+  /** 0.25.0: the system the runner runs on, named (null: none, or one the reader may not see – then runsOnHidden) */
+  runsOn?: { id: string; name: string; environment: string } | null;
+  runsOnHidden?: boolean;
   /** Text or a cron expression */
   schedule: string;
   description: string;
@@ -1017,6 +1134,11 @@ export interface DataStep {
    * accepted from: the state, when, and the last complete run (freshness evidence of its outputs); null: none reported
    */
   lastRun?: { state: string; at: string; completeAt: string | null; origin: string; sourceId: string } | null;
+  /**
+   * 0.25.0 (ADR 0037 part 1): a connector runner's state as the Kafka Connect checks of monitors see it (checks naming
+   * its platform and connector, or the whole cluster) – the worst status, with the checks counted; null: no such check
+   */
+  health?: { status: DataHealthStatus; checks: { visible: number; hidden: number } } | null;
   revision: number;
   createdAt: string;
   createdBy: string;

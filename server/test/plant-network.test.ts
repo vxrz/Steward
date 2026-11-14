@@ -290,7 +290,7 @@ describe('devices and data paths of an asset', () => {
   });
 });
 
-const VIEW_KEYS = ['assetId', 'assetName', 'live', 'hints', 'importId', 'notInSource', 'id'];
+const VIEW_KEYS = ['assetId', 'assetName', 'live', 'hints', 'importId', 'notInSource', 'id', 'systemRef', 'systemHidden'];
 const stripView = () => Object.fromEntries(VIEW_KEYS.map((k) => [k, undefined]));
 const pickDevice = (d: Record<string, unknown>) => Object.fromEntries(Object.entries(d).filter(([k]) => !VIEW_KEYS.includes(k)));
 

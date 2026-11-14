@@ -107,10 +107,12 @@ export function NetworkDiagramView({ siteId }: { siteId: string }) {
         segment: t('network.segment'),
         restricted: t('network.restricted'),
         level: t('network.level'),
+        apps: t('plantNetwork:edge.apps'),
       },
       yes: t('plant:yes'),
       hidden: t('node.hidden'),
       noVlan: t('network.noVlan'),
+      hiddenApps: (count: number) => t('plantNetwork:edge.appsHidden', { count }),
     }),
     [t],
   );

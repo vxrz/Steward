@@ -39,7 +39,7 @@ const invalid = (message: string, context: string, extra: Record<string, string 
   new HttpError(409, message, 'DATA_PROMOTION_INVALID', { context, ...extra });
 
 /** The environment rules of the discovery sources of these platforms (the order of the sources, then of their rules). */
-function rulesOf(platformIds: readonly string[]): DataEnvironmentRule[] {
+export function rulesOf(platformIds: readonly string[]): DataEnvironmentRule[] {
   const out: DataEnvironmentRule[] = [];
   for (const part of chunks([...new Set(platformIds.filter(Boolean))]))
     for (const r of db().all<{ environment_rules: string }>(

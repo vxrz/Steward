@@ -21,6 +21,8 @@ export interface RopaPdfModel {
   filter: string;
   head: string[];
   rows: string[][];
+  /** 0.25.0: the list was cut at the limit – said under the disclaimer ('' : complete) */
+  notice?: string;
 }
 
 export async function drawRopaPdf(m: RopaPdfModel, brand: BrandingInput, o: { compress?: boolean } = {}): Promise<Buffer> {
@@ -48,6 +50,7 @@ export async function drawRopaPdf(m: RopaPdfModel, brand: BrandingInput, o: { co
   );
   w.cover({ title: m.title, subtitle: m.subtitle, meta: [tr.dateTime(m.generatedAt), m.generatedBy, ...(m.filter ? [m.filter] : [])] });
   w.paragraph(m.disclaimer, { tone: 'muted', size: 8 });
+  if (m.notice) w.paragraph(m.notice, { size: 9 });
   m.rows.forEach((row, i) => {
     w.section(`${i + 1}. ${row[0] ?? ''}`);
     w.keyValues(

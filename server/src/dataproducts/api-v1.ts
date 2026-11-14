@@ -13,7 +13,18 @@ import { lineageView, pipelineView } from './views.js';
 import { odpsDocument } from './odps.js';
 import { membersOf } from './store.js';
 import { scorecardsOf } from './scorecard.js';
-import { DataElementV1ListQuery, DataObjectV1ListQuery, DataProductLineageQuery, DataProductOdpsQuery, DataProductV1ListQuery } from './api-schemas.js';
+import {
+  DataElementV1ListQuery,
+  DataObjectV1ListQuery,
+  DataProductLineageQuery,
+  DataProductOdpsQuery,
+  DataProductOpenLineageQuery,
+  DataProductV1ListQuery,
+  DataSemanticModelV1Query,
+  DataSemanticVersionsV1Query,
+} from './api-schemas.js';
+import { openLineageExport } from './openlineage-export.js';
+import { semanticExport, semanticModelView, validAnswer } from './semantic.js';
 import YAML from 'yaml';
 import { SemanticModelQuery, ossieDocumentSchema } from '../api/v1/schemas.js';
 import type { OssieVersion } from '../semantic/ossie.js';
@@ -114,6 +125,8 @@ const portOf = (x: DataPort) => ({
   })),
   consumers: x.consumers,
   consumesDeprecated: x.consumesDeprecated,
+  fileFormat: x.fileFormat,
+  partitioning: x.partitioning,
 });
 
 /** The scorecard of a product in an environment, summed up: maturity and the state of each part (WP4: scorecard.ts). */
@@ -188,6 +201,7 @@ function graphOut(g: DataGraph, head: Record<string, unknown>) {
       ...(n.missing ? { missing: true } : {}),
       ...(n.distance !== undefined ? { distance: n.distance } : {}),
       ...(n.count !== undefined ? { count: n.count } : {}),
+      ...(n.technology ? { technology: n.technology } : {}),
     })),
     // 0.24.0: ways a lineage source proposes are marked, never passed off as documented
     edges: g.edges.map((e) => ({
@@ -228,6 +242,8 @@ export function elementDetail(id: string) {
     createdAt: _ca,
     createdBy: _cb,
     updatedBy: _ub,
+    // the Kafka peek is offered only in the app (session only), never here or over MCP
+    mayPeek: _mp,
     ...rest
   } = e;
   return {
@@ -292,6 +308,35 @@ export function dataProductApiRoutes(get: Get): void {
       const id = (req.params as { productId: string }).productId;
       const q = req.query as z.infer<typeof DataProductOdpsQuery>;
       return found(() => odpsDocument(id, q.environment), `Data product ${id}`);
+    },
+  );
+  get(
+    '/data-products/:productId/openlineage',
+    {
+      operationId: 'getDataProductOpenLineage',
+      tag: TAG,
+      summary: 'Export a data product as OpenLineage events',
+      description: `The product's static lineage as OpenLineage 2-0-x events in JSON Lines (0.25.0): a DatasetEvent per element (with a schema facet from the bound data contract) and a JobEvent per step with the jobType facet – no run, Steward documents the pipeline. With ?step= one step only, with ?environment= the steps and members of one environment. Inputs and outputs the token owner may not see are counted in the facet steward_hiddenEnds, never named. A ?step= that is no step of the product answers 404 "Step … not found". ${MODULE}`,
+      params: { productId: 'Data product id' },
+      query: DataProductOpenLineageQuery,
+      response: {
+        // JSON Lines: one OpenLineage event (a JSON object) per line – no schema of its own (each line is an OpenLineage event)
+        content: { 'application/x-ndjson': { schema: { description: 'One OpenLineage event (JSON) per line; empty when the product has no element' } } },
+      },
+    },
+    async (req, reply) => {
+      const id = (req.params as { productId: string }).productId;
+      const q = req.query as z.infer<typeof DataProductOpenLineageQuery>;
+      const f = found(() => {
+        try {
+          return openLineageExport(id, { environment: q.environment, stepId: q.step });
+        } catch (e) {
+          // the product was found: an unknown ?step= (or one of another product) is the step's 404, not the product's
+          if (e instanceof HttpError && e.code === 'DATA_STEP_NOT_FOUND') throw notFound(`Step ${q.step}`);
+          throw e;
+        }
+      }, `Data product ${id}`);
+      return reply.type('application/x-ndjson; charset=utf-8').send(f.body);
     },
   );
   get(
@@ -409,4 +454,60 @@ export function dataProductApiRoutes(get: Get): void {
       return { ...o, domain: ref(o.domain), products: { items: o.products.items.map(ref), hidden: o.products.hidden } };
     },
   );
+  // 0.25.0 (ADR 0037 part 4): the product's semantic model – the governed copy, as stored, with its versions and sign-offs
+  get(
+    '/data-products/:productId/semantic-model',
+    {
+      operationId: 'getDataProductSemanticModel',
+      tag: TAG,
+      summary: 'Get the semantic model of a data product',
+      description: `The product's Apache Ossie semantic model as it was stored (YAML or JSON, as written): the newest version, a given one (?version=) or the one signed off and valid on a day (?date=); with ?environment= the datasets' sources are rewritten to the product's elements of that environment. The headers x-steward-semantic-version and x-steward-sha256 name the version (the SHA-256 of the stored text). 404 when the product has none. See docs/DATA-PRODUCTS.md#semantic-models. ${MODULE}`,
+      params: { productId: 'Data product id' },
+      query: DataSemanticModelV1Query,
+      response: {
+        content: {
+          'application/yaml': { schema: { type: 'string', description: 'The document as stored (YAML)' } },
+          'application/json': { schema: { type: 'object', additionalProperties: true, description: 'The document as stored (JSON)' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const id = (req.params as { productId: string }).productId;
+      const q = req.query as z.infer<typeof DataSemanticModelV1Query>;
+      const x = semanticFound(() => semanticExport(id, q), id);
+      reply.header('x-steward-semantic-version', String(x.version.version));
+      reply.header('x-steward-sha256', x.version.sha256);
+      if (x.notRewritten) reply.header('x-steward-sources-not-rewritten', String(x.notRewritten));
+      return reply.type(x.contentType).send(x.body);
+    },
+  );
+  get(
+    '/data-products/:productId/semantic-model/versions',
+    {
+      operationId: 'listDataProductSemanticModelVersions',
+      tag: TAG,
+      summary: 'List the versions of a data product’s semantic model',
+      description: `Every saved version of the product's semantic model (who, when, SHA-256) with its sign-off; the version valid today; with ?date= which version was signed off and valid on that day, and who approved it. ${MODULE}`,
+      params: { productId: 'Data product id' },
+      query: DataSemanticVersionsV1Query,
+      response: { $ref: 'DataSemanticVersions#' },
+    },
+    async (req) => {
+      const id = (req.params as { productId: string }).productId;
+      const q = req.query as z.infer<typeof DataSemanticVersionsV1Query>;
+      const v = found(() => semanticModelView(id), `Data product ${id}`);
+      return { productId: v.productId, versions: v.versions, validToday: v.validToday, validOn: q.date ? validAnswer(v.productId, q.date) : null };
+    },
+  );
+}
+
+/** A semantic model the product does not have answers 404 as the API's problem too. */
+function semanticFound<T>(f: () => T, id: string): T {
+  try {
+    return f();
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode === 404)
+      throw notFound(e.code === 'DATA_SEMANTIC_MODEL_NOT_FOUND' ? `The semantic model of data product ${id}` : `Data product ${id}`);
+    throw e;
+  }
 }

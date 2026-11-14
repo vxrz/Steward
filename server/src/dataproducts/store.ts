@@ -83,6 +83,9 @@ export interface ObjectRow {
   stewards: string;
   custodians: string;
   external_refs: string;
+  /** 0.25.0 (GDPR Art. 30(1)(e) and (g)): transfers to third countries (JSON) and the measures' reference (JSON) */
+  transfers?: string;
+  toms?: string | null;
   revision: number;
   created_at: string;
   created_by: string;
@@ -116,6 +119,9 @@ export interface ProductRow {
   rating_reason: string;
   tags: string;
   external_refs: string;
+  /** 0.25.0 (GDPR Art. 30(1)(e) and (g)): transfers to third countries (JSON) and the measures' reference (JSON) */
+  transfers?: string;
+  toms?: string | null;
   revision: number;
   created_at: string;
   created_by: string;
@@ -169,6 +175,9 @@ export interface ElementRow {
   flags: string;
   tech_hash: string | null;
   missing_since: string | null;
+  /** 0.25.0 (ADR 0037): generic kinds – the technology (a key of the list or a free value) and the properties (JSON array) */
+  technology: string | null;
+  properties: string;
   revision: number;
   created_at: string;
   created_by: string;
@@ -204,6 +213,9 @@ export interface PortRow {
   source_element_id: string | null;
   source_text: string;
   position: number;
+  /** 0.25.0: a file port's format and partition keys */
+  file_format: string | null;
+  partitioning: string;
   revision: number;
   created_at: string;
   created_by: string;
@@ -458,12 +470,14 @@ export function stepsAround(
   elementIds: readonly string[],
   depth: number = DATA_PRODUCT_LIMITS.lineageDepth,
   maxNodes: number = DATA_PRODUCT_LIMITS.lineageNodes,
+  /** The directions walked (the scorecard's traceability needs only upstream: half the statements) */
+  directions: readonly ('up' | 'down')[] = ['up', 'down'],
 ): DataStepsAround {
   const d = Math.max(0, Math.min(depth, DATA_PRODUCT_LIMITS.lineageDepth));
   const distance = new Map<string, number>(elementIds.map((id) => [id, 0]));
   const stepIds = new Set<string>();
   const truncated = { upstream: 0, downstream: 0 };
-  for (const dir of ['up', 'down'] as const) {
+  for (const dir of directions) {
     let frontier = [...elementIds];
     for (let level = 1; level <= d && frontier.length; level++) {
       // up: steps that write the frontier (it is their output); their inputs are one level further up

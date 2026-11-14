@@ -140,6 +140,10 @@ export const plantKeys = {
   /** #230: the VLANs the hosts of a site's data paths are in (the diagram) */
   placement: (siteId: string | null | undefined) => ['plant', 'network', siteId, 'placement'] as const,
   assetNetwork: (assetId: string | null | undefined) => ['plant', 'assetNetwork', assetId] as const,
+  /** 0.25.0 (ADR 0037): an asset's devices that are systems (Apps on this device, Collects data from) */
+  assetEdge: (assetId: string | null | undefined) => ['plant', 'assetEdge', assetId] as const,
+  /** 0.25.0: the plant devices that are a system, and what collects data on it (the system's page) */
+  systemEdge: (systemId: string | null | undefined) => ['plant', 'systemEdge', systemId] as const,
   // visualizations (#230)
   overview: ['plant', 'views', 'overview'] as const,
   // the map of sites (#234)

@@ -160,7 +160,7 @@ describe('owners are an implied Edit share', () => {
     expect(await code(danaSession('PUT', `/services/${svc}`, { name: 'Invented order intake', owners: ['user:otto'] }))).toBe('STEP_UP_REQUIRED:password');
     await dana('PUT', `/services/${svc}`, { name: 'Invented order intake', owners: ['user:otto'] });
     const v = await s.api('GET', `/access/service/${svc}/shares`);
-    expect(v.implied).toEqual([{ subject: 'user:otto', level: 'edit', as: 'owner', outside: true }]);
+    expect(v.implied).toEqual([{ subject: 'user:otto', level: 'edit', as: 'owner', outside: true, owningTeam: false }]);
     // not stored as a share
     expect(v.shares.map((x: { subject: string }) => x.subject)).toEqual(['user:vic']);
     const why = await otto('GET', `/access/explain?kind=service&id=${svc}`);

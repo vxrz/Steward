@@ -150,6 +150,76 @@ test('an owner shows as an implied Edit share on the Access tab and in Why do I 
   }
 });
 
+test('a team named as owner gives an implied share, not a scope: the Access tab says so and leads to the owning teams', async ({
+  browser,
+  page,
+  apiAs,
+  loginAs,
+}) => {
+  const admin = await apiAs('admin');
+  const team = await json<{ id: string; name: string }>(
+    await admin.post('/api/teams', { data: { name: uniq('Owner team').replace(/[^\w .@-]/g, ''), members: [] } }),
+  );
+  const sys = await json<{ id: string }>(
+    await admin.post('/api/systems', { data: { name: uniq('Invented line server'), kind: 'server', owners: [`team:${team.name.toLowerCase()}`] } }),
+  );
+  expect((await admin.put(`/api/owning-teams/system/${sys.id}`, { data: { teamIds: [] } })).ok()).toBe(true);
+  try {
+    await page.goto(`/systems/${sys.id}`);
+    const panel = page.getByTestId('shares-panel');
+    // the scope line says there are no owning teams, the implied share says it does not scope the item
+    await expect(panel.getByTestId('shares-scope')).toHaveText(
+      "Scope: the whole instance – no owning teams, so everybody's roles apply, and the shares below add to them.",
+    );
+    await expect(panel.getByTestId('shares-implied')).toContainText('Owner – Edit (implied)');
+    await expect(panel.getByTestId('shares-implied-hint')).toHaveText('The owner field gives these shares, and they go when the owner is removed.');
+    const teamHint = panel.getByTestId('shares-team-owner-hint');
+    await expect(teamHint).toContainText('is named as owner, not as an owning team');
+    await expect(teamHint).toContainText('does not limit who sees the item – the scope stays the whole instance.');
+    // an administrator gets the way to the owning teams: the button puts the focus into their field
+    await expect(panel.getByTestId('shares-scope-teams')).toContainText('To keep this item to some teams, set its owning teams.');
+    await expectAccessible(page, 'access of a system with a team as owner');
+    await panel.getByRole('button', { name: 'Set owning teams' }).click();
+    await expect(page.getByRole('combobox', { name: 'Teams' })).toBeFocused();
+
+    // German
+    const ctx = await browser.newContext({ baseURL: baseURL(), serviceWorkers: 'block', storageState: authFile('admin'), locale: 'de-DE' });
+    try {
+      const de = await ctx.newPage();
+      await de.addInitScript(() => localStorage.setItem('steward.language', 'de'));
+      await de.goto(`/systems/${sys.id}`);
+      const dePanel = de.getByTestId('shares-panel');
+      await expect(dePanel.getByTestId('shares-scope')).toContainText('keine zuständigen Teams');
+      await expect(dePanel.getByTestId('shares-team-owner-hint')).toContainText(
+        'ist als Eigentümer eingetragen, nicht als zuständiges Team: Das Feld Eigentümer gibt diesen geteilten Zugriff und begrenzt nicht, wer den Eintrag sieht – der Bereich bleibt die ganze Instanz.',
+      );
+      await dePanel.getByRole('button', { name: 'Zuständige Teams festlegen' }).click();
+      await expect(de.getByRole('combobox', { name: 'Teams' })).toBeFocused();
+    } finally {
+      await ctx.close();
+    }
+
+    // who is no administrator learns who sets owning teams, without the button
+    const dana = await loginAs('dana');
+    await dana.goto(`/systems/${sys.id}`);
+    const danaPanel = dana.getByTestId('shares-panel');
+    await expect(danaPanel.getByTestId('shares-scope-teams')).toHaveText('Administrators keep an item to some teams with its owning teams.');
+    await expect(danaPanel.getByRole('button', { name: 'Set owning teams' })).toHaveCount(0);
+    await expect(danaPanel.getByTestId('shares-team-owner-hint')).toBeVisible();
+    await dana.close();
+
+    // with the team as owning team as well, the scope names it, the hint and the way there are gone
+    expect((await admin.put(`/api/owning-teams/system/${sys.id}`, { data: { teamIds: [team.id] } })).ok()).toBe(true);
+    await page.reload();
+    await expect(panel.getByTestId('shares-scope')).toContainText(`Scope: the owning teams (${team.name})`);
+    await expect(panel.getByTestId('shares-scope-teams')).toHaveCount(0);
+    await expect(panel.getByTestId('shares-team-owner-hint')).toHaveCount(0);
+  } finally {
+    await admin.delete(`/api/systems/${sys.id}`);
+    await admin.delete(`/api/teams/${team.id}`);
+  }
+});
+
 test('a supplier has the Access tab; the merge preview names a share that opens a source', async ({ page, apiAs }) => {
   const admin = await apiAs('admin');
   const reader = await ownUser('e2e-reader-', ['viewer'], 'Rita Reader (own)');

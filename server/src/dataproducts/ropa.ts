@@ -28,7 +28,20 @@ import { parseJson } from '../util.js';
 import { domainAccess, objectAccess, productAccess } from './access.js';
 import { HIDDEN, refOf } from './common.js';
 import { t } from './governance-notices.js';
-import { bindingsOf, chunks, consumersOf, consumingPorts, marks, portsOf, productsByIds, type ObjectRow, type PortRow, type ProductRow } from './store.js';
+import {
+  bindingsOf,
+  chunks,
+  consumersOf,
+  consumingPorts,
+  marks,
+  objectsByIds,
+  portsOf,
+  productsByIds,
+  type ObjectRow,
+  type PortRow,
+  type ProductRow,
+} from './store.js';
+import { recordsForToms, tomsOf, tomsView, transfersOf } from './ropa-details.js';
 
 /**
  * The GDPR Art. 30 view (ADR 0036 part 17, decision 29): _Data → Records of processing_ – a working view for the data
@@ -70,9 +83,18 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
     const like = `%${likeEscape(q.q.toLowerCase())}%`;
     params.push(like, like);
   }
-  const objects = db()
-    .all<ObjectRow>(`SELECT * FROM dp_objects WHERE ${where.join(' AND ')} ORDER BY name_norm, id LIMIT ?`, ...params, G.ropaObjects)
+  // 0.25.0: the limit counts only what the reader may see – the narrow rows first (the 0.24.0 view cut the list before the
+  // team filter, so a reader of few objects could get an empty or short list), then the full rows of those shown
+  const candidates = db()
+    .all<Pick<ObjectRow, 'id' | 'owner' | 'stewards'>>(
+      `SELECT id, owner, stewards FROM dp_objects WHERE ${where.join(' AND ')} ORDER BY name_norm, id`,
+      ...params,
+    )
     .filter((o) => objectAccess(u, o).permissions.length > 0);
+  const truncated = candidates.length > G.ropaObjects;
+  const shownIds = candidates.slice(0, G.ropaObjects).map((o) => o.id);
+  const fullRows = objectsByIds(shownIds);
+  const objects = shownIds.map((id) => fullRows.get(id)).filter((o): o is ObjectRow => !!o);
   const objectIds = objects.map((o) => o.id);
   // elements that implement the objects, their memberships and platforms
   const links: ObjectLink[] = [];
@@ -138,6 +160,8 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
     u,
   );
   const answers = contractAnswers([...contracts.keys()]);
+  // Art. 30(1)(e) and (g) (0.25.0): the objects' and the visible processing products' transfers and measures
+  const tomsRecords = recordsForToms(u, [...objects.map((o) => tomsOf(o.toms)), ...[...products.values()].map((p) => tomsOf(p.toms))]);
   const domains = new Map(
     db()
       .all<{ id: string; key: string; name: string; owners: string }>('SELECT id, key, name, owners FROM dp_domains')
@@ -201,6 +225,19 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
       }
     }
     const domain = o.domain_id ? domains.get(o.domain_id) : undefined;
+    const transfers = [
+      ...transfersOf(o.transfers).map((x) => ({ ...x, via: null })),
+      ...shown.flatMap((id) => transfersOf(products.get(id)!.transfers).map((x) => ({ ...x, via: products.get(id)!.name }))),
+    ];
+    const toms: DataRopaEntry['toms'] = [];
+    let hiddenToms = 0;
+    for (const [ref, via] of [[tomsOf(o.toms), null] as const, ...shown.map((id) => [tomsOf(products.get(id)!.toms), products.get(id)!.name] as const)]) {
+      const v = tomsView(ref, tomsRecords);
+      if (!v) continue;
+      if (v.kind === 'url') toms.push({ label: v.label || v.url, url: v.url, via });
+      else if ('hidden' in v) hiddenToms++;
+      else toms.push({ label: `${v.number} ${v.title}`, url: null, via });
+    }
     return {
       object: { id: o.id, key: o.key, name: o.name },
       domain: domain ? (domainAccess(u, domain).permissions.length ? refOf(domain) : HIDDEN) : null,
@@ -233,9 +270,12 @@ export function recordsOfProcessing(raw: unknown, u: AuthUser = me()): DataRopa 
       hiddenRecipients,
       processors: dedupe(processors),
       hiddenProcessors,
+      transfers: dedupe(transfers),
+      toms: dedupe(toms),
+      hiddenToms,
     };
   });
-  return { items, generatedAt: new Date().toISOString(), suppliers: true };
+  return { items, generatedAt: new Date().toISOString(), suppliers: true, truncated, limit: G.ropaObjects };
 }
 
 const dedupe = <T>(xs: T[]): T[] => [...new Map(xs.map((x) => [JSON.stringify(x), x])).values()];
@@ -329,7 +369,11 @@ export function ropaWords(l: Locale) {
       deletion: k('head.deletion'),
       owner: k('head.owner'),
       flags: k('head.flags'),
+      transfers: k('head.transfers'),
+      toms: k('head.toms'),
     },
+    safeguard: (v: string) => k(`safeguard.${v}`),
+    truncated: (limit: number) => k('truncated', { limit }),
     personal: (v: string) => k(`personal.${v}`),
     basis: (v: string | null) => (v ? k(`basis.${v}`) : '–'),
     hidden: (n: number) => (n ? k('hidden', { count: n }) : ''),
@@ -360,6 +404,8 @@ export function ropaRows(r: DataRopa, l: Locale): { head: string[]; rows: string
     w.head.deletion,
     w.head.owner,
     w.head.flags,
+    w.head.transfers,
+    w.head.toms,
   ];
   const rows = r.items.map((e) => [
     e.object.name,
@@ -387,13 +433,24 @@ export function ropaRows(r: DataRopa, l: Locale): { head: string[]; rows: string
     e.deletionRule,
     e.owner ?? '',
     e.regulatoryFlags.join('; '),
+    e.transfers
+      .map((x) =>
+        [`${x.country}${x.recipient ? ` (${x.recipient})` : ''}: ${w.safeguard(x.safeguard)}`, x.note, x.via ? `– ${x.via}` : ''].filter(Boolean).join(' '),
+      )
+      .join('; '),
+    join(
+      e.toms.map((x) => [x.label, x.url && x.url !== x.label ? x.url : '', x.via ? `– ${x.via}` : ''].filter(Boolean).join(' ')),
+      e.hiddenToms,
+    ),
   ]);
   return { head, rows };
 }
 
 export function ropaCsv(r: DataRopa, l: Locale): string {
   const { head, rows } = ropaRows(r, l);
-  return csvTable(head, rows, { bom: true });
+  // a list cut at the limit says so in a last row (0.25.0)
+  const note = r.truncated ? [[ropaWords(l).truncated(r.limit), ...head.slice(1).map(() => '')]] : [];
+  return csvTable(head, [...rows, ...note], { bom: true });
 }
 
 /** Exports are audited (personal-data processing records leave Steward). */

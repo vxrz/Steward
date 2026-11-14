@@ -9,6 +9,8 @@ import { canViewCatalogue } from '../records/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, productAccess } from './access.js';
 import { L, actorName, elementNotFound, json, limitReached, stepNotFound } from './common.js';
+import { connectorStepHealth } from './connector-health.js';
+import { storedTechnology } from './elements.js';
 import {
   elementTeamIds,
   elementsByIds,
@@ -68,18 +70,56 @@ function runnerSeen(u: AuthUser | null, r: Exclude<DataStepRunner, { kind: 'tool
   return seen;
 }
 
-/** The runner as `u` may see it (an item they may not see: hidden, its id not handed out – process ids carry names). */
+/** 0.25.0: a system a runner runs on, as `u` may see it (null: gone or hidden – the two read the same); memoised. */
+function runsOnSystem(u: AuthUser | null, id: string, names?: Map<string, string | null>): string | null {
+  if (names?.has(id)) return names.get(id)!;
+  const sys = db().get<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM systems WHERE id = ?', id);
+  const name = sys && canViewCatalogue(u, { kind: 'system', id: sys.id, owners: parseJson<string[]>(sys.owners, []) }) ? sys.name : null;
+  names?.set(id, name);
+  return name;
+}
+
+interface RunnerView {
+  runner: DataStepRunner | null;
+  hidden: boolean;
+  runsOn: DataStep['runsOn'];
+  runsOnHidden: boolean;
+}
+
+/**
+ * The runner as `u` may see it (an item they may not see: hidden, its id not handed out – process ids carry names);
+ * 0.25.0: with the system it runs on, named – one they may not see is left out of the runner and flagged.
+ */
 function runnerOf(
   u: AuthUser | null,
   raw: string | null,
   visibleElements: Map<string, boolean>,
   seenCache?: Map<string, boolean>,
-): { runner: DataStepRunner | null; hidden: boolean } {
+  systemNames?: Map<string, string | null>,
+): RunnerView {
   const r = parseJson<DataStepRunner | null>(raw, null);
-  if (!r) return { runner: null, hidden: false };
-  if (r.kind === 'tool') return { runner: r, hidden: false };
+  const none = { runsOn: null, runsOnHidden: false };
+  if (!r) return { runner: null, hidden: false, ...none };
+  if (r.kind === 'tool') return { runner: r, hidden: false, ...none };
   const seen = (r.kind === 'element' && !!visibleElements.get(r.id)) || runnerSeen(u, r, seenCache);
-  return seen ? { runner: r, hidden: false } : { runner: null, hidden: true };
+  if (!seen) return { runner: null, hidden: true, ...none };
+  if (!r.runsOn) return { runner: r, hidden: false, ...none };
+  const name = runsOnSystem(u, r.runsOn.systemId, systemNames);
+  if (name === null) return { runner: { ...r, runsOn: null }, hidden: false, runsOn: null, runsOnHidden: true };
+  return { runner: r, hidden: false, runsOn: { id: r.runsOn.systemId, name, environment: r.runsOn.environment }, runsOnHidden: false };
+}
+
+/**
+ * 0.25.0: the system a runner runs on – only an application or a connector runs on one; a new one must be a system the
+ * caller may see (a kept one may stay although they cannot see it).
+ */
+function checkRunsOn(runner: DataStepRunner | null, before: DataStepRunner | null): void {
+  if (!runner || runner.kind === 'tool' || !runner.runsOn) return;
+  if (runner.kind !== 'application' && runner.kind !== 'connector')
+    throw new HttpError(400, 'Only an application or a connector runs on a system', 'DATA_STEP_INVALID', { context: 'runsOn' });
+  const had = before && before.kind !== 'tool' ? before.runsOn?.systemId : undefined;
+  if (had !== runner.runsOn.systemId && runsOnSystem(me(), runner.runsOn.systemId) === null)
+    throw new HttpError(400, 'The system the runner runs on is not known', 'DATA_STEP_INVALID', { context: 'runsOn' });
 }
 
 /** What the views of many steps share: the elements' owning teams, the products of the outputs, the runners seen. */
@@ -88,6 +128,8 @@ interface StepContext {
   productsOf: Map<string, string[]>;
   editable: Set<string>;
   runners: Map<string, boolean>;
+  /** 0.25.0: the systems runners run on, by id (null: hidden) */
+  systems: Map<string, string | null>;
 }
 
 function stepContext(u: AuthUser | null, ends: StepElementRow[]): StepContext {
@@ -99,7 +141,7 @@ function stepContext(u: AuthUser | null, ends: StepElementRow[]): StepContext {
   const editable = new Set([...prods.values()].filter((p) => productAccess(u, p).permissions.includes('edit')).map((p) => p.id));
   const productsOf = new Map<string, string[]>();
   for (const m of ms) productsOf.set(m.element_id, [...(productsOf.get(m.element_id) ?? []), m.product_id]);
-  return { teams, productsOf, editable, runners: new Map() };
+  return { teams, productsOf, editable, runners: new Map(), systems: new Map() };
 }
 
 /**
@@ -112,7 +154,13 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
   const visible = new Map(ids.map((id) => [id, members.has(id) || elementAccess(u, teams.get(id) ?? []).permissions.length > 0]));
   const by = new Map<string, StepElementRow[]>();
   for (const e of ends) by.set(e.step_id, [...(by.get(e.step_id) ?? []), e]);
-  return steps.map((s) => {
+  const runners = steps.map((s) => ({ id: s.id, ...runnerOf(u, s.runner, visible, ctx.runners, ctx.systems) }));
+  // 0.25.0: a connector's state as the step's health (the Kafka Connect and Confluent checks; none without a connector)
+  const health = connectorStepHealth(
+    u,
+    runners.filter((r) => !r.hidden).map((r) => ({ id: r.id, runner: r.runner })),
+  );
+  return steps.map((s, i) => {
     const mine = by.get(s.id) ?? [];
     const ins = mine.filter((e) => e.direction === 'in').map((e) => e.element_id);
     const outs = mine.filter((e) => e.direction === 'out').map((e) => e.element_id);
@@ -120,13 +168,15 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
     const canEdit = inProducts.length
       ? inProducts.some((p) => editable.has(p))
       : outs.length > 0 && outs.every((o) => elementAccess(u, teams.get(o) ?? []).permissions.includes('edit'));
-    const { runner, hidden } = runnerOf(u, s.runner, visible, ctx.runners);
+    const { runner, hidden, runsOn, runsOnHidden } = runners[i]!;
     return {
       id: s.id,
       name: s.name,
       kind: s.step_kind,
       runner,
       runnerHidden: hidden,
+      runsOn,
+      runsOnHidden,
       schedule: s.schedule,
       description: s.description,
       notes: parseJson(s.notes, []),
@@ -137,6 +187,7 @@ function stepViews(u: AuthUser | null, steps: StepRow[], ends: StepElementRow[],
       canEdit,
       // 0.24.0: the last run a lineage source reported (OpenLineage, dbt run results)
       lastRun: parseJson<DataStep['lastRun']>(s.last_run, null),
+      health: health.get(s.id) ?? null,
       revision: s.revision,
       createdAt: s.created_at,
       createdBy: s.created_by,
@@ -219,9 +270,18 @@ export function writeEnds(stepId: string, inputs: string[], outputs: string[]): 
   for (const e of new Set(outputs)) db().run("INSERT INTO dp_step_elements (step_id, element_id, direction) VALUES (?, ?, 'out')", stepId, e);
 }
 
+/** A runner as stored: its technology as the key of the list entry it names (else as typed; none left out). */
+function storedRunner(r: StepInput['runner']): string | null {
+  if (!r) return null;
+  const { technology, ...rest } = r;
+  const t = storedTechnology(technology);
+  return json(t ? { ...rest, technology: t } : rest);
+}
+
 export function createStep(productId: string, productName: string, body: unknown): DataStep {
   const input = dataStepInput.parse(body);
   checkEnds(productId, input, new Set());
+  checkRunsOn(input.runner, null);
   const members = membersOf([productId]).map((m) => m.element_id);
   if (stepsOfElements(members).steps.length >= L.stepsPerPipeline) throw limitReached('stepsPerPipeline', L.stepsPerPipeline);
   const id = newId(DATA_PRODUCT_ID_PREFIX.step);
@@ -232,7 +292,7 @@ export function createStep(productId: string, productName: string, body: unknown
       id,
       input.name,
       input.kind,
-      input.runner ? json(input.runner) : null,
+      storedRunner(input.runner),
       input.schedule,
       input.description,
       json(input.notes),
@@ -288,8 +348,20 @@ export function updateStep(productId: string, productName: string, stepId: strin
   if (inputs.length > L.stepEnds || outputs.length > L.stepEnds) throw limitReached('stepEnds', L.stepEnds);
   checkEnds(productId, { ...input, inputs, outputs }, new Set(hidden.map((e) => e.element_id)));
   // a runner the editor may not see is not in their form: without a runner of their own it stays as it was
-  const keepRunner = !input.runner && row.runner !== null && runnerOf(me(), row.runner, new Map()).hidden;
-  const runner = input.runner ? json(input.runner) : keepRunner ? row.runner : null;
+  const seenNow = row.runner !== null ? runnerOf(me(), row.runner, new Map()) : null;
+  const keepRunner = !input.runner && !!seenNow?.hidden;
+  // 0.25.0: the same runner without the system it runs on, which the editor may not see: that system stays
+  const stored = parseJson<DataStepRunner | null>(row.runner, null);
+  const sameRunner = (a: DataStepRunner, b: DataStepRunner | null) =>
+    !!b &&
+    a.kind === b.kind &&
+    (a.kind === 'connector' ? b.kind === 'connector' && a.platformId === b.platformId && a.name === b.name : 'id' in a && 'id' in b && a.id === b.id);
+  const next =
+    input.runner && input.runner.kind !== 'tool' && !input.runner.runsOn && seenNow?.runsOnHidden && sameRunner(input.runner, stored) && stored?.kind !== 'tool'
+      ? { ...input.runner, runsOn: stored!.runsOn }
+      : input.runner;
+  checkRunsOn(next, stored);
+  const runner = next ? storedRunner(next) : keepRunner ? row.runner : null;
   db().tx(() => {
     db().run(
       `UPDATE dp_steps SET name = ?, step_kind = ?, runner = ?, schedule = ?, description = ?, notes = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,

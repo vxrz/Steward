@@ -829,7 +829,7 @@ export function DeviceModal({
   onSaved,
 }: {
   network: PlantAssetNetwork;
-  device?: PlantDeviceValues & { revision?: number };
+  device?: PlantDeviceValues & { revision?: number; systemRef?: PlantItemRef | null; systemHidden?: boolean };
   onClose: () => void;
   onSaved: (n: PlantAssetNetwork) => void;
 }) {
@@ -839,6 +839,7 @@ export function DeviceModal({
       id: '',
       hostname: '',
       domain: '',
+      system: null,
       purpose: '',
       mac: '',
       serial: '',
@@ -869,7 +870,7 @@ export function DeviceModal({
   });
   const submit = () => {
     if (!v.validate()) return;
-    const { id: _id, ...rest } = d;
+    const { id: _id, systemRef: _ref, systemHidden: _hidden, ...rest } = d as PlantDeviceValues & { systemRef?: unknown; systemHidden?: unknown };
     const body = {
       ...rest,
       hostname: text(d.hostname),
@@ -922,6 +923,16 @@ export function DeviceModal({
         {input('domain', t('device.domain'), { mono: true, max: 253, placeholder: 'ot.example.com' })}
       </SimpleGrid>
       <IdInput value={id.id} onChange={id.set} disabled={!!device} error={v.error('id')} />
+      {/* 0.25.0 (ADR 0037): the Steward system this device is – the host name stays here, the system shows it */}
+      <ItemSelect
+        kind="system"
+        label={t('device.system')}
+        description={device?.systemHidden && !d.system ? t('device.systemHidden') : t('device.systemHelp')}
+        value={d.system}
+        keep={device?.systemRef ? { id: device.systemRef.id, label: device.systemRef.label } : null}
+        onChange={(x) => set({ system: x })}
+        testId="device-system"
+      />
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         {input('purpose', t('device.purpose'))}
         {input('serial', t('device.serial'), { mono: true })}

@@ -197,6 +197,8 @@ export async function refreshConfluent(platformId: string, actor: string, now = 
         details: { changes: connectors.slice(0, 50) },
       });
   }
+  // 0.25.0 (ADR 0037 part 1): the managed connectors' lineage as proposals of the data products module (while it is on)
+  if (!readout.error) await (await import('../kafkaconnect/service.js')).proposeConnectorLineage(platformId);
   return readout;
 }
 

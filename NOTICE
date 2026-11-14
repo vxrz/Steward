@@ -17,6 +17,13 @@ Copyright Postman, Inc. (https://github.com/postmanlabs/schemas), licensed
 under the Apache License, Version 2.0; bundled into one file with the
 comments removed (the file's "$comment" says what changed).
 
+The tests check the OpenLineage export of data products against the OpenLineage
+2-0-2 spec and the facet schemas JobTypeJobFacet 2-0-4 and SchemaDatasetFacet
+1-2-0 (server/test/fixtures/openlineage/), Copyright contributors to the
+OpenLineage project (https://github.com/OpenLineage/OpenLineage, spec/ at commit
+c41626e99af0a02ad95a2805979167ad948ecb7b), licensed under the Apache License,
+Version 2.0 (licence text next to the files); unchanged.
+
 Data contracts are checked against the JSON Schema of the Open Data Contract
 Standard (ODCS) v3.0.2 (server/assets/odcs/odcs-json-schema-v3.0.2.json),
 Copyright The Bitol Contributors (https://github.com/bitol-io/open-data-contract-standard,

@@ -80,7 +80,8 @@
     "deprecated": "Nutzt einen abgekündigten oder außer Betrieb genommenen Port",
     "neighbour": "Außerhalb der Filter, mit einem Treffer verbunden",
     "plant": "Eine Datenerfassung der Anlagendokumentation, die in ein Element schreibt",
-    "proposed": "Von einem Werkzeug vorgeschlagen, noch nicht dokumentiert (gepunktet) – Daten → Erkennung entscheidet"
+    "proposed": "Von einem Werkzeug vorgeschlagen, noch nicht dokumentiert (gepunktet) – Daten → Erkennung entscheidet",
+    "bridge": "Eine Brücke: bewegt Daten zwischen Technologien (lange Striche) – Change Data Capture, ein Senken-Connector, ein Ablauf"
   },
   "table": {
     "filter": "Tabelle filtern",
@@ -172,7 +173,8 @@
     "count_other": "{{count}} Schritte",
     "deprecated": "Abgekündigt",
     "deprecatedPort": "{{name}} (abgekündigt)",
-    "proposed": "Vorgeschlagen"
+    "proposed": "Vorgeschlagen",
+    "bridge": "Brücke"
   },
   "health": {
     "up": "OK",
@@ -208,7 +210,8 @@
     "curate": "Aufbereiten",
     "publish": "Veröffentlichen",
     "replicate": "Replizieren",
-    "other": "Sonstiges"
+    "other": "Sonstiges",
+    "bridge": "Brücke"
   },
   "elementKinds": {
     "snowflake.database": "Snowflake-Datenbank",
@@ -231,6 +234,14 @@
     "api.endpoint": "API-Endpunkt",
     "files.path": "Dateipfad",
     "insightsHub.aspect": "Insights-Hub-Aspekt",
-    "other": "Sonstiges"
+    "other": "Sonstiges",
+    "generic.dataset": "Datenbestand (generisch)",
+    "generic.stream": "Datenstrom (generisch)",
+    "generic.files": "Dateien (generisch)",
+    "generic.endpoint": "Schnittstelle (generisch)",
+    "mqtt.topic": "MQTT-Topic"
+  },
+  "technology": {
+    "notListed": "{{name}} (nicht in der Technologieliste)"
   }
 }

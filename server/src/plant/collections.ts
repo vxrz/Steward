@@ -388,7 +388,8 @@ function goesTo(v: PlantCollectionValues, pointId: string, assetId: string): Pla
 
 // ---------- across assets: a collector's collections, a data point's readers ----------
 
-const brief = (r: CollectionRow, asset: { id: string; name: string; site_id: string }): PlantCollectionBrief => {
+/** A collection as the pages of its collector and of a data point list it (0.25.0: also Collects data from). */
+export const brief = (r: CollectionRow, asset: { id: string; name: string; site_id: string }): PlantCollectionBrief => {
   const v = collectionValuesOf(r);
   return {
     assetId: asset.id,

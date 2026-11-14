@@ -486,6 +486,17 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/data-products/lineage-sources/:id/tokens/:tokenId': DESIGN,
   'POST /api/data-products/lineage-sources/:id/dbt/manifest': DESIGN,
   'POST /api/data-products/lineage-sources/:id/dbt/run-results': DESIGN,
+  // 0.25.0 (ADR 0037): the technology list (administrators change it), Convert to …, steps from connectors, the
+  // OpenLineage export (also on /api/v1)
+  'GET /api/data-products/technologies': ALL,
+  'PUT /api/data-products/technologies/:key': ADMIN,
+  'DELETE /api/data-products/technologies/:key': ADMIN,
+  'POST /api/data-elements/:id/convert': DESIGN,
+  'GET /api/data-products/connectors': ALL,
+  'GET /api/data-products/:id/steps/from-connector': DESIGN,
+  'POST /api/data-products/:id/steps/from-connector': DESIGN,
+  'GET /api/data-products/:id/openlineage': ALL,
+  'GET /api/data-products/:id/steps/:stepId/openlineage': ALL,
   'GET /api/data-products/lineage-proposals': ALL,
   'GET /api/data-products/lineage-proposals/:id': ALL,
   'POST /api/data-products/lineage-proposals/:id/accept': DESIGN,
@@ -543,6 +554,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/import-origins': ALL,
   'POST /api/data-products/import/preview': ALL,
   'POST /api/data-products/import': DESIGN,
+  // 0.25.0: a background import's progress – the person who started it (others: 404)
+  'GET /api/data-products/import/jobs/:id': ALL,
   // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
   // decides requests (the owners, else who manages the product) decides; reading the platforms, reviews, promotion and
   // endorsement (the domain's owners, else the module's managers) change – the Art. 30 view lists what the reader sees
@@ -573,6 +586,24 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/:id/endorsement': ALL,
   'PUT /api/data-products/:id/endorsement': DESIGN,
   'DELETE /api/data-products/:id/endorsement': DESIGN,
+  // phase 3, package D (0.25.0, ADR 0037 parts 4 and 6): semantic models read like the product, saved by who changes it,
+  // signed off by who manages it (designers), the domain's owners and approvers who see it; previews read like the
+  // product, recordings linked by who changes it; the peek of a topic element for the platform's managers; Art. 30 details
+  'GET /api/data-products/:id/semantic-model': ALL,
+  'GET /api/data-products/:id/semantic-model/valid': ALL,
+  'GET /api/data-products/:id/semantic-model/draft': ALL,
+  'GET /api/data-products/:id/semantic-model/export': ALL,
+  'GET /api/data-products/:id/semantic-model/versions/:n': ALL,
+  'POST /api/data-products/:id/semantic-model/versions': DESIGN,
+  'POST /api/data-products/:id/semantic-model/versions/:n/sign-off': ['admin', 'designer', 'approver'],
+  'GET /api/data-products/:id/ports/:portId/preview': ALL,
+  'POST /api/data-products/:id/ports/:portId/recordings': DESIGN,
+  'DELETE /api/data-products/:id/ports/:portId/recordings/:recordingId': DESIGN,
+  'POST /api/data-elements/:id/peek': ADMIN,
+  'GET /api/data-objects/:id/ropa-details': ALL,
+  'PUT /api/data-objects/:id/ropa-details': DESIGN,
+  'GET /api/data-products/:id/ropa-details': ALL,
+  'PUT /api/data-products/:id/ropa-details': DESIGN,
   'GET /api/ai/budgets': ADMIN_AUDITOR,
   'PUT /api/ai/budgets': ADMIN,
   'GET /api/ai/usage': ADMIN_AUDITOR,
@@ -1017,6 +1048,12 @@ const EXPECT: Record<string, Access> = {
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,
+  // 0.25.0 (ADR 0037 part 3): Industrial Edge – a system's device status, the installations readout's suggestions
+  'GET /api/systems/:id/iem': ALL,
+  'GET /api/systems/edge-suggestions': ALL,
+  'POST /api/systems/edge-suggestions/confirm': DESIGN,
+  'POST /api/systems/edge-suggestions/dismiss': DESIGN,
+  'POST /api/systems/edge-suggestions/restore': DESIGN,
   'PUT /api/systems/:id': DESIGN,
   'DELETE /api/systems/:id': DESIGN,
   'POST /api/systems/:id/sbom/preview': DESIGN,
@@ -1184,6 +1221,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/data-products/:productId': ALL,
   'GET /api/v1/data-products/:productId/odps': ALL,
   'GET /api/v1/data-products/:productId/lineage': ALL,
+  'GET /api/v1/data-products/:productId/openlineage': ALL,
+  // 0.25.0 (ADR 0037 part 4): the product's semantic model as stored, its versions and sign-offs
+  'GET /api/v1/data-products/:productId/semantic-model': ALL,
+  'GET /api/v1/data-products/:productId/semantic-model/versions': ALL,
   'GET /api/v1/data-elements': ALL,
   'GET /api/v1/data-elements/:elementId': ALL,
   'GET /api/v1/data-objects': ALL,
@@ -1554,6 +1595,9 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/plant/sites/:siteId/conduits/:conduitId': DESIGN,
   'DELETE /api/plant/sites/:siteId/conduits/:conduitId': DESIGN,
   'GET /api/plant/assets/:assetId/network': PLANT,
+  // 0.25.0 (ADR 0037 part 3): edge devices – Apps on this device, Collects data from
+  'GET /api/plant/assets/:assetId/edge': PLANT,
+  'GET /api/plant/systems/:systemId/edge': PLANT,
   'PUT /api/plant/assets/:assetId/checks': DESIGN,
   'POST /api/plant/assets/:assetId/devices': DESIGN,
   'PUT /api/plant/assets/:assetId/devices/:deviceId': DESIGN,
@@ -1612,6 +1656,10 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // 0.25.0 (ADR 0037 part 3): a person confirms or dismisses each Industrial Edge suggestion in the app
+  'POST /api/systems/edge-suggestions/confirm',
+  'POST /api/systems/edge-suggestions/dismiss',
+  'POST /api/systems/edge-suggestions/restore',
   // shares (ADR 0033 part 7): share lists name people and are read and changed in the app
   'GET /api/access/:kind/:id/shares',
   'PUT /api/access/:kind/:id/shares',
@@ -1650,6 +1698,7 @@ const SESSION_ONLY = [
   'GET /api/data-products/import-origins',
   'POST /api/data-products/import/preview',
   'POST /api/data-products/import',
+  'GET /api/data-products/import/jobs/:id',
   // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
   'POST /api/data-products/access-requests/:requestId/decision',
   'PUT /api/data-products/:id/access-settings',
@@ -1661,6 +1710,10 @@ const SESSION_ONLY = [
   'POST /api/data-products/:id/promotion',
   'PUT /api/data-products/:id/endorsement',
   'DELETE /api/data-products/:id/endorsement',
+  // 0.25.0 (ADR 0037): signing off a semantic model is a person's approval; the peek reads messages (KAFKA.md)
+  'POST /api/data-products/:id/semantic-model/versions/:n/sign-off',
+  'POST /api/data-elements/:id/peek',
+  'POST /api/platforms/:id/kafka/peek',
   // suppliers (ADR 0029 decision 9): every change is a decision of a person in the app
   'POST /api/suppliers',
   'PUT /api/suppliers/:id',
@@ -2289,6 +2342,8 @@ const STEP_UP_BY_POLICY = [
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // 0.25.0: a background import's progress – only its starter's (and the fixtures start none: 404)
+  'GET /api/data-products/import/jobs/:id',
   // the Teams app package needs the bot's app id (none in the fixtures: 409)
   'GET /api/settings/teams-bot/package',
   // OAuth sign-in for MCP clients is off in the fixtures (#12)
@@ -2386,6 +2441,7 @@ function fill(url: string): string {
       .replace(/:portId/g, fx.dataPort!)
       .replace(/:consumerId/g, fx.dataConsumer!)
       .replace(/:requestId/g, fx.dataRequest!)
+      .replace(/:recordingId/g, 'rec_none')
       .replace(/^\/api\/data-products\/port-reviews\/:reviewId/, `/api/data-products/port-reviews/${fx.dataReview}`)
       .replace(/:matchId/g, 'dpm_none')
       .replace(/:elementId/g, fx.dataElement!)
@@ -2539,6 +2595,7 @@ function fill(url: string): string {
 const QUERY: Record<string, string> = {
   'GET /api/data-products/:id/ports/:portId/actual': '?environment=prod',
   'GET /api/data-products/:id/promotion': '?from=prod&to=dev',
+  'GET /api/data-products/:id/semantic-model/valid': '?date=2026-01-01',
   'GET /api/plant/collections': '?collectorKind=job&collectorRef=matrix-job',
   'GET /api/plant/assets/:assetId/collection-sources/diff': '?from=pcs_matrix&to=pcs_matrix',
   'GET /api/plant/documents': '?kind=device-profile&id=matrix-profile',
@@ -3198,6 +3255,14 @@ beforeAll(async () => {
     })
   ).id;
   fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
+  // 0.25.0: a connector of the demo's Kafka Connect for Create step from connector; a technology of the administrators
+  const connect = (await a('GET', '/platforms')).find((p: { name: string }) => p.name === 'Kafka Connect (demo)')?.id;
+  QUERY['GET /api/data-products/:id/steps/from-connector'] = `?platformId=${connect}&connector=shop-cdc`;
+  await a('PUT', '/data-products/technologies/matrix-tech', { name: 'Matrix technology', role: 'part' });
+  // 0.25.0: version 1 of the product's semantic model (ADR 0037 part 4)
+  await a('POST', `/data-products/${fx.dataProduct}/semantic-model/versions`, {
+    document: 'version: 0.1.1\nsemantic_model:\n  - name: matrix\n    datasets:\n      - { name: orders, source: MATRIX.CURATED.ORDERS }\n',
+  });
   // phase 2: an import of two products under an origin – replacing it with an empty file removes both (step-up)
   await a('POST', '/data-products/import', {
     files: [

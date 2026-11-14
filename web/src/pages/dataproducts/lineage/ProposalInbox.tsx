@@ -63,7 +63,8 @@ function Ends({ ends, hidden, unmatched, unmatchedCount }: { ends: DataLineageEn
       </Text>
     );
   return (
-    <Stack gap={2}>
+    // links one below the other keep 24 px apart (WCAG 2.2 target size): a connector proposes several tables at once
+    <Stack gap={8}>
       {ends.map((e) => (
         <Anchor key={e.id} component={Link} to={`/data-elements/${enc(e.id)}`} size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
           {e.qualifiedName}

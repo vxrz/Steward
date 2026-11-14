@@ -147,7 +147,7 @@
     "loading": "Geteilte Zugriffe werden geladen …",
     "loadFailed": "Die geteilten Zugriffe konnten nicht geladen werden.",
     "scope": {
-      "instance": "Bereich: die ganze Instanz – die Rollen aller gelten, die Einträge unten kommen hinzu.",
+      "instance": "Bereich: die ganze Instanz – keine zuständigen Teams, daher gelten die Rollen aller, die Einträge unten kommen hinzu.",
       "teams": "Bereich: die zuständigen Teams ({{teams}}) – ihre Mitglieder haben ihre Rollen, die Einträge unten fügen Ausnahmen hinzu.",
       "restricted": "Bereich: Eingeschränkt – nur die Einträge unten, Eigentümer, Administratoren und Prüfer erreichen diesen Eintrag.",
       "identity": "Standardmäßig geschlossen: Nur Administratoren, Mitglieder seiner zuständigen Teams, die gestalten oder bedienen, und die Einträge unten nutzen diese Identität – und nur, wer auch die Plattform nutzen darf."
@@ -161,7 +161,18 @@
     },
     "outside": "außerhalb der zuständigen Teams",
     "outsideRestricted": "gibt Zugriff auf einen eingeschränkten Eintrag",
-    "impliedHint": "Eigentümer und Verantwortliche haben abgeleitet die angezeigte Stufe: Sie ergibt sich aus dem Feld Eigentümer und entfällt, wenn der Eigentümer entfernt wird.",
+    "impliedHint": "Das Feld Eigentümer gibt diese geteilten Zugriffe; sie entfallen, wenn der Eigentümer entfernt wird.",
+    "impliedHintResponsible": "Das Feld Verantwortlicher gibt diese geteilten Zugriffe; sie entfallen, wenn der Verantwortliche entfernt wird.",
+    "scopeToTeams": "Um diesen Eintrag auf einige Teams zu beschränken, legen Sie seine zuständigen Teams fest.",
+    "scopeToTeamsAdmin": "Administratoren beschränken einen Eintrag mit seinen zuständigen Teams auf einige Teams.",
+    "teamOwnerHint_one": "{{names}} ist als Eigentümer eingetragen, nicht als zuständiges Team: Das Feld Eigentümer gibt diesen geteilten Zugriff und begrenzt nicht, wer den Eintrag sieht – der Bereich bleibt {{scope}}.",
+    "teamOwnerHint_other": "{{names}} sind als Eigentümer eingetragen, nicht als zuständige Teams: Das Feld Eigentümer gibt diese geteilten Zugriffe und begrenzt nicht, wer den Eintrag sieht – der Bereich bleibt {{scope}}.",
+    "scopeShort": {
+      "instance": "die ganze Instanz",
+      "teams": "seine zuständigen Teams ({{teams}})",
+      "restricted": "Eingeschränkt"
+    },
+    "setOwningTeams": "Zuständige Teams festlegen",
     "notYours": "Mit wem dieser Eintrag geteilt ist, sehen nur, wer ihn verwaltet, Administratoren und Prüfer. „Warum habe ich Zugriff?“ zeigt Ihre eigenen Gründe.",
     "empty": "Mit niemandem geteilt.",
     "unknown": "Existiert nicht mehr – dieser Eintrag trifft auf niemanden zu",

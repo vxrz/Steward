@@ -83,6 +83,10 @@
   border-radius: 4px;
   border: 1px solid var(--mantine-color-default-border);
 }
+/* 0.25.0 (ADR 0037): a bridge – a step that moves data between technologies – long dashes, named in words */
+.pv-edge-base[data-bridge='true'] {
+  stroke-dasharray: 10 3;
+}
 /* 0.24.0: a way a lineage source proposes (an open proposal), not documented yet – dotted, never moving, named in words */
 .pv-edge-base[data-proposed='true'] {
   stroke-dasharray: 2 5;

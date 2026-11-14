@@ -18,12 +18,15 @@ import {
   type DataTransformKind,
   type DataTransformNote,
   type Platform,
+  type SystemSummary,
 } from '@sm/shared';
 import { get, post, put } from '../../api';
 import { FormModal } from '../FormModal';
 import { useFieldErrors } from '../common';
 import { ElementPicker, type PickedElement } from './ElementPicker';
 import { FormButtons, useBusy } from './form';
+import { TechnologyInput } from './GenericParts';
+import { useEnvironmentList } from '../catalogue/environments';
 
 const enc = encodeURIComponent;
 
@@ -58,6 +61,18 @@ export function StepForm({
   const [connectorName, setConnectorName] = useState(r?.kind === 'connector' ? r.name : '');
   const [tool, setTool] = useState(r?.kind === 'tool' ? r.tool : '');
   const [toolText, setToolText] = useState(r?.kind === 'tool' ? r.text : '');
+  // 0.25.0 (ADR 0037): the runner's technology – what a bridge is (Debezium, Node-RED, Apache Camel …)
+  const [technology, setTechnology] = useState(r?.technology ?? '');
+  // 0.25.0 (ADR 0037): the system (and environment) an application or connector runs on – "… @ ied-line-01.example"
+  const [runsOn, setRunsOn] = useState<string | null>(s?.runsOn?.id ?? null);
+  const [runsOnEnv, setRunsOnEnv] = useState(s?.runsOn?.environment ?? '');
+  const runsOnShown = runnerKind === 'application' || runnerKind === 'connector';
+  const envList = useEnvironmentList();
+  const systems = useQuery({
+    queryKey: ['dataProducts', 'systems'],
+    queryFn: () => get<SystemSummary[]>('/systems'),
+    enabled: runsOnShown,
+  });
   const [schedule, setSchedule] = useState(s?.schedule ?? '');
   const [description, setDescription] = useState(s?.description ?? '');
   const [notes, setNotes] = useState<DataTransformNote[]>(s?.notes ?? []);
@@ -90,18 +105,21 @@ export function StepForm({
         ? t('steps.runnerRequired')
         : false,
   });
+  const on = runsOn ? { runsOn: { systemId: runsOn, environment: runsOnEnv.trim() } } : {};
   const runner = (): DataStepInput['runner'] => {
+    const tech = technology.trim() ? { technology: technology.trim() } : {};
     switch (runnerKind) {
       case 'application':
+        return { kind: runnerKind, id: runnerId!, ...on, ...tech };
       case 'platform':
       case 'process':
-        return { kind: runnerKind, id: runnerId! };
+        return { kind: runnerKind, id: runnerId!, ...tech };
       case 'element':
-        return { kind: 'element', id: runnerElement[0]!.id };
+        return { kind: 'element', id: runnerElement[0]!.id, ...tech };
       case 'connector':
-        return { kind: 'connector', platformId: connectorPlatform!, name: connectorName.trim() };
+        return { kind: 'connector', platformId: connectorPlatform!, name: connectorName.trim(), ...on, ...tech };
       case 'tool':
-        return { kind: 'tool', tool: tool.trim(), text: toolText.trim() };
+        return { kind: 'tool', tool: tool.trim(), text: toolText.trim(), ...tech };
       default:
         return null;
     }
@@ -254,6 +272,38 @@ export function StepForm({
               )}
               {runnerKind === 'tool' && (
                 <TextInput label={t('steps.toolText')} maxLength={L.text} value={toolText} onChange={(e) => setToolText(e.currentTarget.value)} />
+              )}
+              {runsOnShown && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  <Select
+                    label={t('steps.runsOn')}
+                    description={s?.runsOnHidden && !runsOn ? t('steps.runsOnHidden') : t('steps.runsOnHint')}
+                    data={(systems.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+                    value={runsOn}
+                    onChange={setRunsOn}
+                    searchable
+                    clearable
+                    data-testid="step-runs-on"
+                  />
+                  <Autocomplete
+                    label={t('steps.runsOnEnvironment')}
+                    data={envList.map((x) => x.name)}
+                    value={runsOnEnv}
+                    onChange={setRunsOnEnv}
+                    maxLength={L.short}
+                    disabled={!runsOn}
+                  />
+                </SimpleGrid>
+              )}
+              {runnerKind && (
+                <TechnologyInput
+                  label={t('generic.runnerTechnology')}
+                  description={kind === 'bridge' ? t('generic.runnerTechnologyBridgeHint') : t('generic.runnerTechnologyHint')}
+                  value={technology}
+                  onChange={setTechnology}
+                  role="bridge"
+                  testId="step-technology"
+                />
               )}
             </Stack>
           </Paper>

@@ -97,6 +97,8 @@ export const NOT_MOVED: Record<string, string> = {
   dp_element_readouts: 'what discovery read last (row counts, sizes, last change): read again on the target',
   dp_notices: 'send bookkeeping of the source (a deprecation or missing-element notice may be sent again on the target)',
   dp_volume_readings: 'the readings before of the data-element volume checks (0.24.0): read again on the target',
+  dp_import_jobs: 'the background imports of the source (0.25.0): bookkeeping of finished or interrupted jobs',
+  dp_import_job_elements: 'the journal of the background imports of the source (0.25.0), only needed while a job runs',
   cost_estimate_notices: 'send bookkeeping of the source (an estimate changed by new prices may be notified again on the target)',
   // lineage from tools (0.24.0, ADR 0036 phase 2): the push addresses and tokens are this instance's
   dp_lineage_sources: 'lineage sources (OpenLineage, dbt) are push addresses of this instance: set them up again on the target and point the tools there',
@@ -223,6 +225,8 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // 0.25.0 (ADR 0037 part 3): who dismissed a suggestion of the Industrial Edge installations readout
+  'edge_suggestion_dismissals.dismissed_by',
   // who shared a resource and who made it Restricted (0.21.0, ADR 0033)
   'resource_shares.created_by',
   'resource_restrictions.created_by',
@@ -462,6 +466,8 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_product_environments.updated_by',
   'dp_elements.created_by',
   'dp_elements.updated_by',
+  'dp_technologies.created_by',
+  'dp_technologies.updated_by',
   'dp_members.added_by',
   'dp_ports.created_by',
   'dp_ports.updated_by',
@@ -484,6 +490,11 @@ export const HISTORY_COLUMNS: string[] = [
   'dp_port_review_items.decided_by',
   'dp_promotions.created_by',
   'dp_endorsements.endorsed_by',
+  // 0.25.0 (ADR 0037 parts 4 and 6): who saved and signed off semantic models, who linked a recorded response
+  'dp_semantic_versions.created_by',
+  'dp_semantic_versions.proposed_by',
+  'dp_semantic_signoffs.signed_by',
+  'dp_port_recordings.added_by',
 ];
 
 /** Columns whose names look like people but are not (classification test). */

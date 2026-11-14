@@ -232,7 +232,11 @@
       "manifest.json",
       "run_results.json",
       "Apache Camel",
-      "Node-RED"
+      "Node-RED",
+      "Parquet",
+      "Avro",
+      "Iceberg",
+      "Delta Lake"
     ]
   }
 }

@@ -113,4 +113,15 @@ export type PlantDuplicateDeviceInput = z.infer<typeof plantDuplicateDeviceInput
  * host name, address, MAC address, serial number, switch port, wall outlet, CMDB port) and what watches it (its checks
  * and monitoring). Its VLAN stays on the same site and is left empty on another.
  */
-export const DEVICE_DUPLICATE_CLEARED = ['hostname', 'address', 'mac', 'serial', 'switchPort', 'wallOutlet', 'cmdbPort', 'monitoring', 'checks'] as const;
+export const DEVICE_DUPLICATE_CLEARED = [
+  'hostname',
+  'system',
+  'address',
+  'mac',
+  'serial',
+  'switchPort',
+  'wallOutlet',
+  'cmdbPort',
+  'monitoring',
+  'checks',
+] as const;

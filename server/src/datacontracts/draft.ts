@@ -398,6 +398,7 @@ async function fromElement(input: { elementId: string }): Promise<DataContractDr
   if (!p?.permissions.includes('use'))
     throw new HttpError(400, `Data element ${input.elementId} not found`, 'DATA_CONTRACT_DRAFT_SOURCE', { id: input.elementId });
   if (el.kind === 'sql.table' || el.kind === 'sql.view') return fromTables({ subjectKind: 'platform', subjectId: el.platform_id, tables: [el.qualified_name] });
+  if (el.kind === 'files.path') return fromFiles(el);
   const { readActualSchema } = await import('../dataproducts/checks/schema.js');
   const { getConnection } = await import('../platforms/service.js');
   const actual = await readActualSchema(el, p, getConnection(p.id).secrets);
@@ -411,6 +412,36 @@ async function fromElement(input: { elementId: string }): Promise<DataContractDr
     warnings.push('Steward does not test Snowflake and Kafka servers yet – the server is documentation until then');
   }
   warnings.push('Types come from the platform’s metadata – review them, and add descriptions and quality rules');
+  return finish(doc, [], warnings);
+}
+
+/**
+ * A file location on object storage (0.25.0, ADR 0037 part 2): a contract with an ODCS server of type `s3` – its location
+ * and, from the last discovery, the format of its files and their partition keys. Steward reads no file, so the schema
+ * is left to the person drafting.
+ */
+async function fromFiles(el: { qualified_name: string; display_name: string; environment: string; id: string }): Promise<DataContractDraft> {
+  const { parseObjectStorageUrl } = await import('@sm/shared');
+  const { readoutsOf } = await import('../dataproducts/store.js');
+  const u = parseObjectStorageUrl(el.qualified_name);
+  if (!u) throw new HttpError(400, `${el.qualified_name} is not an S3 location (s3://bucket/prefix/)`, 'DATA_CONTRACT_DRAFT_EMPTY');
+  const readout = JSON.parse(readoutsOf([el.id]).get(el.id)?.data ?? '{}') as Record<string, unknown>;
+  const format = typeof readout.format === 'string' && ['parquet', 'delta', 'json', 'csv'].includes(readout.format) ? readout.format : null;
+  const keys = typeof readout.partitionKeys === 'string' && readout.partitionKeys ? readout.partitionKeys : null;
+  const glob = format ? `*.${format === 'delta' ? 'parquet' : format}` : '*';
+  const doc = skeleton(`${el.display_name || el.qualified_name}`.trim(), `The files under ${el.qualified_name}`);
+  doc.servers = [
+    {
+      server: slugify(el.environment || 'production') || 'production',
+      type: 's3',
+      location: `s3://${u.bucket}/${u.prefix}${keys ? '**/' : ''}${glob}`,
+      // ODCS 3's delimiter is JSON's only (new_line or array) – a CSV file's separator has no place in the s3 server
+      ...(format ? { format } : {}),
+      ...(keys ? { customProperties: [{ property: 'partitionKeys', value: keys }] } : {}),
+    },
+  ];
+  const warnings = ['Steward reads no file contents – add the schema of the files (their columns) yourself'];
+  if (!format) warnings.push('The format of the files is not known yet (a discovery reads it) – add it to the server');
   return finish(doc, [], warnings);
 }
 

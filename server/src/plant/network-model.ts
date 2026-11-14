@@ -108,6 +108,8 @@ export interface DeviceRow extends Source {
   id: string;
   hostname: string;
   domain: string;
+  /** 0.25.0: the Steward system the device is (plant-032) */
+  system_id?: string | null;
   purpose: string;
   mac: string;
   serial: string;
@@ -192,6 +194,7 @@ export const deviceValuesOf = (r: DeviceRow): PlantDeviceValues => ({
   id: r.id,
   hostname: r.hostname,
   domain: r.domain,
+  system: r.system_id ?? null,
   purpose: r.purpose,
   mac: r.mac,
   serial: r.serial,
@@ -362,6 +365,8 @@ export const deviceInput = z
     id: plantId,
     hostname: text(L.host),
     domain: text(L.host),
+    /** 0.25.0: the Steward system the device is (the caller must see it when it is new) */
+    system: z.string().trim().min(1).max(100).nullable().default(null),
     purpose: text(),
     mac: z
       .string()
@@ -558,6 +563,8 @@ export function namedRefs(
 ): NamedRef[] {
   const out: NamedRef[] = [];
   if (v.segmentId) out.push({ kind: 'system', id: v.segmentId, path: 'segment' });
+  // 0.25.0: the system a device is
+  if (v.system) out.push({ kind: 'system', id: v.system, path: 'system' });
   // the systems and platforms a zone lists (0.20)
   v.systems?.forEach((id, i) => out.push({ kind: 'system', id, path: `systems[${i}]` }));
   v.platforms?.forEach((id, i) => out.push({ kind: 'platform', id, path: `platforms[${i}]` }));
@@ -692,10 +699,12 @@ export function upsertConduit(siteId: string, v: PlantConduitValues, position: n
 
 export function upsertDevice(assetId: string, v: PlantDeviceValues, position: number, m: Meta, opts: { keepSource?: boolean } = {}): void {
   db().run(
-    `INSERT INTO plant_devices (asset_id, id, hostname, domain, purpose, mac, serial, vlan_id, address_type, address, switch_name, switch_port, wall_outlet,
-       cmdb_port, state, flags, confidence, owner, monitoring, checks, notes, position, import_id, not_in_source, created_at, created_by, updated_at, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (asset_id, id) DO UPDATE SET hostname = excluded.hostname, domain = excluded.domain, purpose = excluded.purpose, mac = excluded.mac,
+    `INSERT INTO plant_devices (asset_id, id, hostname, domain, system_id, purpose, mac, serial, vlan_id, address_type, address, switch_name, switch_port,
+       wall_outlet, cmdb_port, state, flags, confidence, owner, monitoring, checks, notes, position, import_id, not_in_source, created_at, created_by,
+       updated_at, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (asset_id, id) DO UPDATE SET hostname = excluded.hostname, domain = excluded.domain, system_id = excluded.system_id,
+       purpose = excluded.purpose, mac = excluded.mac,
        serial = excluded.serial, vlan_id = excluded.vlan_id, address_type = excluded.address_type, address = excluded.address,
        switch_name = excluded.switch_name, switch_port = excluded.switch_port, wall_outlet = excluded.wall_outlet, cmdb_port = excluded.cmdb_port,
        state = excluded.state, flags = excluded.flags, confidence = excluded.confidence, owner = excluded.owner, monitoring = excluded.monitoring,
@@ -705,6 +714,7 @@ export function upsertDevice(assetId: string, v: PlantDeviceValues, position: nu
     v.id,
     v.hostname,
     v.domain,
+    v.system ?? null,
     v.purpose,
     v.mac,
     v.serial,

@@ -40,6 +40,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0034](0034-module-access.md)                          | Who may use a module: module access and roles                             | Accepted, built in 0.21.0 and 0.23.0 (phases 1 and 2)                  |
 | [0035](0035-price-books-and-calculators.md)            | Price books, cost drivers and calculators                                 | Accepted, built in 0.21.0 and 0.23.0 (phases 1 and 2)                  |
 | [0036](0036-data-products-module.md)                   | Data products: data objects, elements, ports, pipelines                   | Accepted, built in 0.22.0 and 0.24.0 (phases 1 and 2)                  |
-| [0037](0037-data-products-connectors-files-edge.md)    | Data products phase 3: generic parts and bridges, connectors, files, edge | Accepted, planned for 0.25.0                                           |
+| [0037](0037-data-products-connectors-files-edge.md)    | Data products phase 3: generic parts and bridges, connectors, files, edge | Accepted, built in 0.25.0                                              |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

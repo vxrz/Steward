@@ -396,4 +396,21 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE maintenance_windows ADD COLUMN kind TEXT NOT NULL DEFAULT 'maintenance';
     `,
   },
+  {
+    // 0.25.0 (ADR 0037 part 3): the Industrial Edge Management device id of a system (an external reference: its status
+    // is read from the Industrial Edge examples' dataset), and the suggestions of the installations readout that a
+    // person dismissed (a suggestion is never applied on its own; dismissed ones stay away until the readout changes)
+    name: 'catalogue-015-edge-devices',
+    sql: `
+      ALTER TABLE systems ADD COLUMN iem_device_id TEXT;
+      CREATE INDEX systems_iem_device ON systems(iem_device_id);
+      CREATE TABLE edge_suggestion_dismissals (
+        suggestion_key TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        dismissed_at TEXT NOT NULL,
+        dismissed_by TEXT NOT NULL
+      );
+    `,
+  },
 ];

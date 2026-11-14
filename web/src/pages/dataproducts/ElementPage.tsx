@@ -2,15 +2,27 @@ import { useState } from 'react';
 import { ActionIcon, Alert, Anchor, Badge, Button, Grid, Group, List, Modal, Select, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { IconBinaryTree, IconContract, IconHeartbeat, IconInfoCircle, IconLink, IconLinkOff, IconPencil, IconTrash } from '@tabler/icons-react';
+import {
+  IconArrowsExchange,
+  IconBinaryTree,
+  IconContract,
+  IconHeartbeat,
+  IconInfoCircle,
+  IconLink,
+  IconLinkOff,
+  IconPencil,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   DATA_CHECK_PURPOSES,
+  isGenericElementKind,
   type DataCheckPurpose,
   type DataContractDetail,
   type DataContractDraft,
   type DataCostMatch,
   type DataElement,
+  type DataFileFormat,
   type DataElementCheck,
   type DataObjectSummary,
   type DataPage,
@@ -25,6 +37,7 @@ import { confirmDanger } from '../../components/confirm';
 import { OwningTeams } from '../../components/OwningTeams';
 import { ContractYamlEditor } from '../../components/contracts/parts';
 import { ElementForm } from '../../components/dataproducts/CatalogueForms';
+import { ConvertElementModal, GenericPartFacts, TechnologyBadge } from '../../components/dataproducts/GenericParts';
 import { FormModal } from '../../components/FormModal';
 import { FormButtons, useBusy } from '../../components/dataproducts/form';
 import { useModuleOn } from '../../modules';
@@ -33,9 +46,10 @@ import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { ElementLineageView, HealthBadge } from './views';
 import { dpKeys, useElement, useElementChecks, useElementCostMatches, useInvalidateDataProducts } from './api';
 import { CostMatchForm, MatchTable, useMatchText } from './ProductCosts';
-import { CardTable, Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
+import { Breakable, CardTable, Fact, HiddenCount, PlatformName, RefLink, RoleBadge, Section, useKindLabel } from './parts';
 import { MissingBadge } from './ElementsPage';
 import { ElementQualityPanel, PersonalFieldsPanel } from './ProductQuality';
+import { PeekButton } from './semantic/Previews';
 
 const enc = encodeURIComponent;
 const TABS = ['', 'lineage', 'checks'] as const;
@@ -59,6 +73,7 @@ export function DataElementPage() {
   const q = useElement(id);
   const [editing, setEditing] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [converting, setConverting] = useState(false);
   const tab = TABS.find((x) => x === tabParam);
   if (tab === undefined) return <Navigate to={`/data-elements/${enc(id)}`} replace />;
   const e = q.data;
@@ -89,6 +104,7 @@ export function DataElementPage() {
           <Badge variant="light" color="gray" tt="none">
             {e.kind === 'other' && e.typeLabel ? e.typeLabel : kindLabel(e.kind)}
           </Badge>
+          {e.technology && <TechnologyBadge value={e.technology} />}
           <MissingBadge since={e.missingSince} />
         </>
       }
@@ -102,6 +118,9 @@ export function DataElementPage() {
         .join(' · ')}
       actions={
         <>
+          {/* 0.25.0 (ADR 0037 part 6): the Kafka peek of a topic element, masked by its bound contracts – only for who may
+              peek (the platform allows it, the reader manages it) */}
+          {e.mayPeek && <PeekButton elementId={e.id} name={e.qualifiedName} />}
           {contractsOn && DRAFTABLE.has(e.kind) && (
             <Button size="xs" variant="default" leftSection={<IconContract size={14} />} onClick={() => setDrafting(true)} data-testid="element-draft-contract">
               {t('elements.draftContract')}
@@ -117,6 +136,10 @@ export function DataElementPage() {
       menu={{
         items: [
           { label: t('elements.lineagePage'), icon: IconBinaryTree, to: `${base}/views/lineage` },
+          // 0.25.0: a generic part becomes a specific kind of its role (ADR 0037)
+          ...(canEdit && isGenericElementKind(e.kind)
+            ? [{ label: t('generic.convert'), icon: IconArrowsExchange, onClick: () => setConverting(true), testId: 'element-convert' }]
+            : []),
           ...(canManage ? [{ label: t('common:delete'), icon: IconTrash, color: 'red', onClick: () => void remove(), testId: 'element-delete' }] : []),
         ],
       }}
@@ -148,6 +171,18 @@ export function DataElementPage() {
         />
       )}
       {drafting && <DraftContract e={e} onClose={() => setDrafting(false)} />}
+      {converting && (
+        <ConvertElementModal
+          e={e}
+          onClose={() => setConverting(false)}
+          onConverted={(x) => {
+            qc.setQueryData(dpKeys.element(e.id), x);
+            invalidate();
+            setConverting(false);
+            notifyOk(t('generic.converted', { kind: kindLabel(x.kind) }));
+          }}
+        />
+      )}
     </DetailPage>
   );
 }
@@ -185,7 +220,17 @@ function ElementOverview({ e }: { e: DataElement }) {
             )}
           </Section>
           <ObjectsOfElement e={e} />
+          {isGenericElementKind(e.kind) && (
+            <Section title={t('generic.section')} testId="element-generic-section">
+              <GenericPartFacts e={e} />
+            </Section>
+          )}
           <Section title={t('elements.readout')} testId="element-readout">
+            {r?.truncated === true && (
+              <Alert color="yellow" variant="light" mb="xs" data-testid="element-readout-truncated">
+                {t('elements.readoutTruncated')}
+              </Alert>
+            )}
             {r ? (
               <SimpleGrid cols={{ base: 1, xs: 2, sm: 3 }} spacing="sm">
                 <Fact label={t('elements.readAt')}>{fmtDate(r.readAt)}</Fact>
@@ -197,6 +242,32 @@ function ElementOverview({ e }: { e: DataElement }) {
                   <Fact label={t('elements.retention')}>{t('elements.retentionDays', { count: Math.round(r.retentionMs / 86_400_000) })}</Fact>
                 )}
                 {r.schemaVersion !== undefined && r.schemaVersion !== null && <Fact label={t('elements.schemaVersion')}>{fmtNumber(r.schemaVersion)}</Fact>}
+                {/* 0.25.0: files on object storage, a stage's location, a pipe's ends */}
+                {typeof r.objects === 'number' && <Fact label={t('elements.objects')}>{fmtNumber(r.objects)}</Fact>}
+                {typeof r.format === 'string' && <Fact label={t('elements.fileFormat')}>{t(`fileFormats.${r.format as DataFileFormat}`)}</Fact>}
+                {typeof r.partitionKeys === 'string' && r.partitionKeys && (
+                  <Fact label={t('elements.partitionKeys')}>
+                    <span className="mono">{r.partitionKeys.split(',').join(', ')}</span>
+                  </Fact>
+                )}
+                {typeof r.prefixes === 'number' && <Fact label={t('elements.prefixes')}>{fmtNumber(r.prefixes)}</Fact>}
+                {typeof r.url === 'string' && (
+                  <Fact label={t('elements.stageUrl')}>
+                    <span className="mono">
+                      <Breakable text={r.url} />
+                    </span>
+                  </Fact>
+                )}
+                {typeof r.stage === 'string' && (
+                  <Fact label={t('elements.pipeStage')}>
+                    <span className="mono">{r.stage}</span>
+                  </Fact>
+                )}
+                {typeof r.target === 'string' && (
+                  <Fact label={t('elements.pipeTarget')}>
+                    <span className="mono">{r.target}</span>
+                  </Fact>
+                )}
               </SimpleGrid>
             ) : (
               <Text size="sm" c="dimmed">

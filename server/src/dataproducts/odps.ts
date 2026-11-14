@@ -58,6 +58,8 @@ export function odpsDocument(productId: string, environment?: string): Obj {
       .filter((k): k is string => !!k)
       .sort();
 
+  // 0.25.0 (ADR 0037 part 4): the output ports link the product's semantic model – the version valid today, else the newest
+  const semantic = semanticLink(p.id, p.key, env);
   const outputPorts = ports
     .filter((x) => x.direction === 'output')
     .map((x) => {
@@ -72,6 +74,7 @@ export function odpsDocument(productId: string, environment?: string): Obj {
         ...(x.sunset_date ? [prop('sunsetDate', x.sunset_date)] : []),
         ...(objectKeys(x.id).length ? [prop('dataObjects', objectKeys(x.id))] : []),
         ...(Object.keys(objectives).length ? [prop('objectives', objectives, 'Freshness in minutes, availability in percent over 30 days')] : []),
+        ...(semantic ? [prop('semanticModel', semantic.property, 'The Apache Ossie semantic model of the product (Steward’s governed copy)')] : []),
       ];
       return {
         name: x.name,
@@ -79,6 +82,7 @@ export function odpsDocument(productId: string, environment?: string): Obj {
         type: x.port_type,
         version: x.version,
         ...(contractId ? { contractId } : {}),
+        ...(semantic?.url ? { authoritativeDefinitions: [{ type: 'semanticModel', url: semantic.url, description: 'Apache Ossie semantic model' }] } : {}),
         customProperties: custom,
       };
     });
@@ -220,4 +224,36 @@ export function odpsProblems(doc: unknown): string[] {
   const v = odpsValidator();
   if (v(doc)) return [];
   return (v.errors ?? []).slice(0, 50).map((e: ErrorObject) => `${e.instancePath || '/'} ${e.message ?? ''}`.trim());
+}
+
+/**
+ * The link of the output ports to the product's semantic model (0.25.0, ADR 0037 part 4): the version valid today (signed
+ * off), else the newest – its number, SHA-256 and sign-off, and its /api/v1 address where SM_PUBLIC_URL is set.
+ */
+function semanticLink(productId: string, key: string, environment: string): { property: Obj; url: string | null } | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const signed = db().get<{ version: number; sha256: string; signed_by: string; valid_from: string }>(
+    'SELECT version, sha256, signed_by, valid_from FROM dp_semantic_signoffs WHERE product_id = ? AND valid_from <= ? ORDER BY valid_from DESC, signed_at DESC LIMIT 1',
+    productId,
+    today,
+  );
+  const latest = signed
+    ? null
+    : db().get<{ version: number; sha256: string }>(
+        'SELECT version, sha256 FROM dp_semantic_versions WHERE product_id = ? ORDER BY version DESC LIMIT 1',
+        productId,
+      );
+  const v = signed ?? latest;
+  if (!v) return null;
+  const base = config.publicUrl ? config.publicUrl.replace(/\/$/, '') : null;
+  const query = new URLSearchParams({ version: String(v.version), ...(environment ? { environment } : {}) }).toString();
+  return {
+    property: {
+      product: key,
+      version: Number(v.version),
+      sha256: v.sha256,
+      ...(signed ? { signedOffBy: signed.signed_by, validFrom: signed.valid_from } : { signedOff: false }),
+    },
+    url: base ? `${base}/api/v1/data-products/${encodeURIComponent(productId)}/semantic-model?${query}` : null,
+  };
 }

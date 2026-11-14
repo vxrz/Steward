@@ -15,6 +15,8 @@ import {
   DATA_PORT_DIRECTIONS,
   DATA_PORT_LIFECYCLES,
   DATA_PORT_TYPES,
+  DATA_FILE_FORMATS,
+  DATA_PORT_PARTITION_KEYS,
   DATA_PRODUCT_CRITICALITIES,
   DATA_PRODUCT_KEY_RE,
   DATA_PRODUCT_LIFECYCLES,
@@ -27,6 +29,9 @@ import {
   PERSONAL_DATA_LEVELS,
   SPECIAL_DATA_CATEGORIES,
   boundedRecord,
+  dataElementPropertiesInput,
+  dataNamespaceValue,
+  dataTechnologyValue,
 } from '@sm/shared';
 
 /**
@@ -219,6 +224,18 @@ export const elementFileSchema = elementRefSchema
     flags: boundedRecord(z.union([z.string().max(L.short), z.number(), z.boolean()]), L.flags)
       .optional()
       .describe('Flags of a new element (secure, materialized …); an import does not change those of an existing one'),
+    // 0.25.0 (ADR 0037 part 0): generic parts
+    technology: dataTechnologyValue()
+      .optional()
+      .describe('Generic parts: the technology – a key or name of the technology list (node-red, Apache Camel) or a value of your own'),
+    namespace: dataNamespaceValue()
+      .optional()
+      .describe(
+        'Generic parts: the OpenLineage namespace (mqtt://broker.example:1883); with the qualified name its dataset. An mqtt.topic without a broker platform: its broker (mqtt://ie-databus:1883)',
+      ),
+    properties: dataElementPropertiesInput()
+      .optional()
+      .describe('Generic parts: key: value properties (a flow id, a route id, a retention) as a list of { key, value }'),
   })
   .strict()
   .meta({ id: 'DataElement' });
@@ -293,6 +310,11 @@ const portSchema = z
       .optional()
       .describe('The port of this product that follows a deprecated one'),
     objectives: objectives().optional(),
+    // 0.25.0: a file port's format and partition keys (ADR 0037 part 2)
+    file_format: z.enum(DATA_FILE_FORMATS).nullable().optional().describe('A file port: the format of its files'),
+    partitioning: list(DATA_PORT_PARTITION_KEYS, z.string().trim().min(1).max(100))
+      .optional()
+      .describe('A file port: its partition keys in their order (Hive style key=value folders)'),
     source: sourceSchema.nullable().optional(),
     data_objects: list(L.objectsPerPort, key('A data object')).optional(),
     bindings: z.array(bindingSchema).max(50).optional(),
@@ -310,6 +332,13 @@ const runnerSchema = z
     element: elementRefSchema.optional().describe('element: a Snowflake task, pipe or dynamic table'),
     tool: text(L.short).optional().describe('tool: Airflow, dbt, Fivetran, Kafka Connect …'),
     text: text().optional(),
+    technology: dataTechnologyValue().optional().describe('The technology of the runner – a bridge’s Debezium, Node-RED, Apache Camel (0.25.0)'),
+    runs_on: z
+      .object({ system: z.string().min(1).max(L.name).describe('The system’s name'), environment: text(L.short).optional() })
+      .strict()
+      .nullable()
+      .optional()
+      .describe('0.25.0, application and connector: the Steward system (and environment) it runs on'),
   })
   .strict()
   .meta({ id: 'StepRunner' });

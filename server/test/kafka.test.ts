@@ -163,6 +163,17 @@ describe('peek', () => {
     );
     await expect(s.api('POST', `/platforms/${kafkaId}/kafka/peek`, { topic: 'orders', count: 50 })).rejects.toThrow();
     await expect(olivia('POST', `/platforms/${kafkaId}/kafka/peek`, { topic: 'orders' })).rejects.toThrow(/manage|not found|permission|allowed/i);
+    // 0.25.0: a signed-in person's action only – an API token of the platform's manager is refused, nothing is read
+    const before = (await s.api('GET', `/audit?action=kafka.messages_read&limit=100`)).length;
+    const token = (await s.api('POST', '/me/tokens', { name: 'peek-token', scope: 'full' })).token as string;
+    const viaToken = await fetch(`${s.base}/api/platforms/${kafkaId}/kafka/peek`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ topic: 'orders', count: 1 }),
+    });
+    expect(viaToken.status).toBe(403);
+    expect((await viaToken.json()).code).toBe('SESSION_REQUIRED');
+    expect((await s.api('GET', `/audit?action=kafka.messages_read&limit=100`)).length).toBe(before);
     const audit = await s.api('GET', `/audit?entityType=platform&entityId=${kafkaId}&limit=20`);
     expect(audit.filter((e: any) => e.action === 'kafka.messages_read').length).toBeGreaterThanOrEqual(3);
     const p = await s.api('GET', `/platforms/${kafkaId}`);

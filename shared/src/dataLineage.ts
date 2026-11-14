@@ -28,8 +28,11 @@ export const DATA_LINEAGE_TOKEN_PREFIX = 'sdl_';
 export const DATA_LINEAGE_SOURCE_KINDS = ['openlineage', 'dbt'] as const;
 export type DataLineageSourceKind = (typeof DATA_LINEAGE_SOURCE_KINDS)[number];
 
-/** Where a proposal comes from: an OpenLineage source, a dbt source, or a Snowflake discovery source. */
-export const DATA_LINEAGE_ORIGINS = ['openlineage', 'dbt', 'snowflake'] as const;
+/**
+ * Where a proposal comes from: an OpenLineage source, a dbt source, a Snowflake discovery source, or (0.25.0, ADR 0037
+ * part 1) a connector of a Kafka Connect or Confluent platform – the platform is its source, the connector its job.
+ */
+export const DATA_LINEAGE_ORIGINS = ['openlineage', 'dbt', 'snowflake', 'connector'] as const;
 export type DataLineageOrigin = (typeof DATA_LINEAGE_ORIGINS)[number];
 
 /**

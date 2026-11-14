@@ -342,5 +342,20 @@
     "gapsOf": "Gaps of {{name}}",
     "openCollection": "Open the collection",
     "itemNo": "item {{n}}"
+  },
+  "sinkElement": {
+    "button": "Create element from this sink",
+    "title": "Element from the sink {{name}}",
+    "help": "The topic this collection writes becomes an MQTT topic element of the data products catalogue, linked to this sink – a pipeline step can then read it. Nothing on the broker is read or changed.",
+    "topic": "Topic",
+    "topicRequired": "Name the topic",
+    "platform": "MQTT broker platform",
+    "platformHint": "Leave empty for a broker that is no platform of Steward, such as the Databus of an edge device.",
+    "broker": "Broker (host:port)",
+    "brokerHint": "The Industrial Edge Databus is ie-databus:1883 on its device. It gives the OpenLineage namespace mqtt://host:port.",
+    "environment": "Environment",
+    "create": "Create element",
+    "made": "The element {{name}} is in the catalogue",
+    "open": "Open the element"
   }
 }

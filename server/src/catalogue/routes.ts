@@ -10,6 +10,7 @@ import * as cia from './cia.js';
 import * as comps from './components.js';
 import * as lifecycle from './lifecycle.js';
 import * as systems from './systems.js';
+import * as edge from './edge.js';
 import * as net from './network.js';
 import * as envs from './environments.js';
 import * as maint from './maintenance.js';
@@ -170,6 +171,18 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.post('/systems', { config: { stepUp: namedGrantRule((req) => systems.systemNamesOutsiders(null, req.body)) } }, async (req) =>
     systems.createSystem(systems.systemInput.parse(req.body)),
   );
+  // 0.25.0 (ADR 0037 part 3): Industrial Edge – the suggestions of the installations readout (confirmed and dismissed by
+  // a person in a signed-in session, never applied on their own) and the device status of a system
+  app.get('/systems/edge-suggestions', async () => edge.edgeSuggestions());
+  app.post('/systems/edge-suggestions/confirm', { config: { access: ACCESS.session } }, async (req) =>
+    edge.confirmEdgeSuggestion(edge.edgeSuggestionInput.parse(req.body).key),
+  );
+  app.post('/systems/edge-suggestions/dismiss', { config: { access: ACCESS.session } }, async (req, reply) => {
+    edge.dismissEdgeSuggestion(edge.edgeSuggestionInput.parse(req.body).key);
+    return reply.code(204).send();
+  });
+  app.post('/systems/edge-suggestions/restore', { config: { access: ACCESS.session } }, async () => edge.restoreEdgeSuggestions());
+  app.get('/systems/:id/iem', async (req) => edge.systemIemStatus(params(req).id!));
   app.get('/systems/:id', async (req) => systems.getSystem(params(req).id!));
   app.put('/systems/:id', { config: { stepUp: namedGrantRule((req) => systems.systemNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
     systems.updateSystem(params(req).id!, systems.systemInput.parse(req.body)),

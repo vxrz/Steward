@@ -233,8 +233,20 @@ test.describe('the pictures of data products', () => {
     await expect(page).toHaveURL(/type=consumerAligned/);
     await expect(graph.getByTestId(`graph-node-${s.orders}`)).toHaveAttribute('data-outside', 'true');
     await expect(graph.getByTestId(`graph-node-${s.mart}`)).not.toHaveAttribute('data-outside', 'true');
-    // select a product: what depends on it, and only that
-    await graph.locator(`.react-flow__node[data-id="${s.mart}"]`).click();
+    // select a product: what depends on it, and only that. The map is the whole instance's – every spec running beside
+    // this one adds products, so ours can lie beyond the frame or under another part, and a click at its place hit
+    // something else. Found and selected the way a person does in a crowded picture: the search, which also brings
+    // it into view; Space on the part (no pointer position) clears and selects it again.
+    await page.getByTestId('graph-search').click();
+    await page.keyboard.type(`Sales mart ${s.token}`);
+    await page.getByRole('option', { name: `Sales mart ${s.token}` }).click();
+    await expect(page.getByTestId('graph-selection')).toContainText('Connected to');
+    const mart = graph.locator(`.react-flow__node[data-id="${s.mart}"]`);
+    await expect(mart).toBeInViewport();
+    await mart.focus();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('graph-selection')).not.toContainText('Connected to');
+    await page.keyboard.press('Space');
     await expect(page.getByTestId('graph-selection')).toContainText('Connected to');
     await page.getByTestId('graph-only-connected').click();
     await expect(graph.getByTestId(`graph-node-${s.orders}`)).toBeVisible();

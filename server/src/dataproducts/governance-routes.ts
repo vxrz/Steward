@@ -81,6 +81,7 @@ export async function dataProductGovernanceRoutes(app: FastifyInstance): Promise
         filter: [filter.domain ? `domain ${filter.domain}` : '', filter.personalData ?? '', filter.q ? `“${filter.q}”` : ''].filter(Boolean).join(' · '),
         head,
         rows,
+        notice: r.truncated ? words.truncated(r.limit) : '',
       },
       { branding: getBranding(), logo: logo().data },
     );

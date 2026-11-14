@@ -9,6 +9,7 @@ import {
   DATA_PORT_DIRECTIONS,
   DATA_PORT_LIFECYCLES,
   DATA_PORT_TYPES,
+  DATA_FILE_FORMATS,
   DATA_PRODUCT_CRITICALITIES,
   DATA_PRODUCT_LIFECYCLES,
   DATA_PRODUCT_TYPES,
@@ -123,6 +124,8 @@ const Port = z.object({
   bindings: z.array(Binding),
   consumers: z.object({ registered: z.number().int(), derived: z.number().int() }),
   consumesDeprecated: z.boolean(),
+  fileFormat: z.enum(DATA_FILE_FORMATS).nullable().describe('0.25.0: a file port’s format (Parquet, CSV, JSON, Avro, ORC, Iceberg …)'),
+  partitioning: z.array(z.string()).describe('0.25.0: a file port’s partition keys, in their order'),
 });
 
 export const DataProductDetail = DataProductEntry.extend({
@@ -162,6 +165,7 @@ export const DataElementEntry = z.object({
   source: z.enum(DATA_ELEMENT_SOURCES),
   parentId: z.string().nullable(),
   missingSince: z.string().nullable(),
+  technology: z.string().nullable().describe('Generic parts (0.25.0): the technology – a key of the technology list, or a value not in the list'),
   products: z.object({ visible: z.number().int(), hidden: z.number().int() }).describe('Products it is part of (those the token owner may not see counted)'),
   updatedAt: ts(),
 });
@@ -174,6 +178,7 @@ export const DataElementDetail = DataElementEntry.extend({
   olName: z.string().nullable(),
   apiRef: z.object({ url: z.string().optional(), operations: z.array(z.string()).optional() }).nullable(),
   flags: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  properties: z.array(z.object({ key: z.string(), value: z.string() })).describe('Generic parts (0.25.0): key: value properties entered by people'),
   owningTeams: z.array(z.object({ id: z.string(), name: z.string() })),
   productRefs: z.array(z.object({ product: Ref, role: z.enum(DATA_MEMBER_ROLES) })),
   objects: z.array(Ref),
@@ -237,6 +242,10 @@ const GraphNode = z.object({
   missing: z.boolean().optional(),
   distance: z.number().int().optional().describe('Lineage: steps from the element (negative: upstream)'),
   count: z.number().int().optional(),
+  technology: z
+    .object({ name: z.string(), icon: z.string(), listed: z.boolean().describe('false: a value not in the technology list') })
+    .optional()
+    .describe('Generic parts (0.25.0): the technology'),
 });
 
 export const DataLineage = z.object({
@@ -275,7 +284,36 @@ export const DataLineage = z.object({
   hidden: z.object({ elements: z.number().int(), products: z.number().int() }).describe('Counted, never named'),
 });
 
+const SemanticVersion = z.object({
+  version: z.number().int(),
+  sha256: z.string().describe('SHA-256 of the document as stored'),
+  size: z.number().int().describe('Bytes'),
+  format: z.enum(['yaml', 'json']),
+  ossieVersion: z.string().nullable().describe('The Ossie revision the document names, when Steward knows it'),
+  note: z.string(),
+  origin: z.enum(['page', 'draft', 'proposal', 'api']),
+  lintFindings: z.number().int().describe('Findings of the lint against the official schema when it was saved (they never block saving)'),
+  createdBy: z.string(),
+  createdAt: ts(),
+  signOff: z
+    .object({ by: z.string(), at: ts(), validFrom: z.string().describe('The day from which it is the valid version'), note: z.string(), sha256: z.string() })
+    .nullable()
+    .describe('Who signed the version off and from when it is valid; null: not signed off'),
+});
+
+/** 0.25.0 (ADR 0037 part 4): the versions of a product's semantic model with their sign-offs. */
+export const DataSemanticVersions = z.object({
+  productId: z.string(),
+  versions: z.array(SemanticVersion).describe('Newest first'),
+  validToday: SemanticVersion.nullable().describe('The signed-off version valid today'),
+  validOn: z
+    .object({ date: z.string(), valid: SemanticVersion.nullable(), latest: SemanticVersion.nullable() })
+    .nullable()
+    .describe('With ?date=: the version signed off and valid that day (who approved it), and the newest saved by then'),
+});
+
 export const DATA_PRODUCT_COMPONENTS: Record<string, ZodTypeAny> = {
+  DataSemanticVersions,
   DataProductEntry,
   DataProductDetail,
   DataElementEntry,
@@ -317,8 +355,32 @@ export const DataProductOdpsQuery = z.object({
   environment: z.string().max(60).optional().describe('Whose bindings give the ports’ contracts (default: production)'),
 });
 
+export const DataProductOpenLineageQuery = z.object({
+  environment: z.string().max(60).optional().describe('Only the steps with an end and the members in this environment (default: every environment)'),
+  step: id.optional().describe('One step of the product: its job and datasets only'),
+});
+
 export const DataProductLineageQuery = z.object({
   environment: z.string().max(60).optional().describe('The pipeline’s environment (default: production)'),
   element: id.optional().describe('An element of the product: its lineage instead of the product’s pipeline'),
   depth: z.number().int().min(1).max(4).default(2).describe('Steps up and down around the element (1–4)'),
+});
+
+/** 0.25.0 (ADR 0037 part 4): which version of a product's semantic model, and the environment to rewrite its sources to. */
+export const DataSemanticModelV1Query = z.object({
+  version: z.number().int().min(1).max(100_000).optional().describe('A version (default: the newest)'),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('The version signed off and valid on that day (YYYY-MM-DD) instead'),
+  environment: z.string().max(60).optional().describe('Rewrite the datasets’ sources to the product’s elements of this environment'),
+});
+
+export const DataSemanticVersionsV1Query = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe('Also answer which version was valid on that day (YYYY-MM-DD) and who signed it off'),
 });

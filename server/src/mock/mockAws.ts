@@ -6,7 +6,7 @@ import { escapeXml } from '../platforms/xml.js';
  * A demo AWS account (#116) under /mock/aws-api – one endpoint for every service, like LocalStack: STS
  * GetCallerIdentity, the Resource Groups Tagging API, Cost Explorer, the IAM calls Steward reads, and for the
  * DynamoDB check (#233) Query, DescribeTable, DescribeContinuousBackups, DescribeTimeToLive and CloudWatch
- * GetMetricData of the example table crm-contacts. Every request
+ * GetMetricData of the example table crm-contacts, and (0.25.0) S3 ListObjectsV2 of two invented buckets. Every request
  * must be signed with SigV4 for the demo key AKIADEMOEXAMPLE / demoSecretKey; the mock recomputes the signature
  * (service and region from the credential scope) from the request as it arrived.
  */
@@ -331,6 +331,101 @@ export function setIamGroups(user: string, groups: string[]): void {
   if (u) u.groups = groups;
 }
 
+// ---------- S3 listings (0.25.0, data products on object storage) ----------
+
+/**
+ * Invented buckets of the demo account with object metadata only (the listing never returns content): a landing area
+ * of Parquet files partitioned by day, which Snowflake (demo)'s external stage SHOP.RAW.LANDING reads, and a lake with
+ * CSV exports, JSON files and an Iceberg table. The newest objects are minutes old, so freshness checks are green.
+ */
+interface MockObject {
+  key: string;
+  size: number;
+  lastModified: string;
+}
+const minutesAgo = (m: number) => new Date(Math.floor((Date.now() - m * 60_000) / 1000) * 1000).toISOString();
+const dayOf = (daysBack: number) => new Date(Date.now() - daysBack * day).toISOString().slice(0, 10);
+
+function demoBuckets(): Map<string, MockObject[]> {
+  const landing: MockObject[] = [];
+  for (let d = 0; d < 5; d++)
+    for (let n = 0; n < 2; n++)
+      landing.push({ key: `orders/dt=${dayOf(d)}/part-0000${n}.snappy.parquet`, size: 2_400_000 + d * 1_000 + n, lastModified: minutesAgo(20 + d * 1440 + n) });
+  landing.push({ key: 'orders/_SUCCESS', size: 0, lastModified: minutesAgo(19) });
+  const lake: MockObject[] = [];
+  for (let d = 0; d < 7; d++)
+    lake.push({ key: `exports/daily-sales/dt=${dayOf(d)}/daily-sales.csv`, size: 48_000 + d, lastModified: minutesAgo(45 + d * 1440) });
+  lake.push({ key: 'exports/customers/customers-0001.json', size: 820_000, lastModified: minutesAgo(130) });
+  lake.push({ key: 'exports/customers/customers-0002.json', size: 815_000, lastModified: minutesAgo(125) });
+  lake.push({ key: 'iceberg/order_items/metadata/00003-invented.metadata.json', size: 4_096, lastModified: minutesAgo(60) });
+  for (let d = 0; d < 3; d++)
+    lake.push({ key: `iceberg/order_items/data/dt=${dayOf(d)}/00000-${d}-invented.parquet`, size: 1_200_000, lastModified: minutesAgo(60 + d * 1440) });
+  lake.push({ key: 'raw/not-in-any-scope.csv', size: 10, lastModified: minutesAgo(5) });
+  return new Map([
+    ['invented-landing.example', landing],
+    ['invented-shop-lake.example', lake],
+  ]);
+}
+let s3Buckets: Map<string, MockObject[]> | null = null;
+const buckets = () => (s3Buckets ??= demoBuckets());
+
+/** For tests: the objects of a demo bucket (replaced; null: the demo's again). */
+export function setMockS3Bucket(bucket: string, objects: MockObject[] | null): void {
+  if (objects === null) {
+    const fresh = demoBuckets().get(bucket);
+    if (fresh) buckets().set(bucket, fresh);
+    else buckets().delete(bucket);
+  } else
+    buckets().set(
+      bucket,
+      [...objects].sort((a, b) => (a.key < b.key ? -1 : 1)),
+    );
+}
+/** For tests: every S3 request the mock answered (method, path and query as sent, the region it was signed for). */
+export const s3Requests: { method: string; url: string; region: string }[] = [];
+/** For tests: the region a bucket lives in (others are answered with a redirect naming it). */
+const bucketRegions = new Map<string, string>();
+export function setMockS3BucketRegion(bucket: string, region: string | null): void {
+  if (region) bucketRegions.set(bucket, region);
+  else bucketRegions.delete(bucket);
+}
+
+function listObjects(bucket: string, q: Record<string, string>): string {
+  const all = buckets().get(bucket) ?? [];
+  const prefix = q.prefix ?? '';
+  const delimiter = q.delimiter ?? '';
+  const max = Math.min(1000, Math.max(1, Number(q['max-keys'] ?? 1000) || 1000));
+  const from = Number(q['continuation-token'] ?? 0) || 0;
+  // the entries in key order: keys, and with a delimiter the common prefixes in place of what is below them
+  const entries: ({ key: MockObject } | { prefix: string })[] = [];
+  const seen = new Set<string>();
+  for (const o of all.filter((x) => x.key.startsWith(prefix)).sort((a, b) => (a.key < b.key ? -1 : 1))) {
+    const rest = o.key.slice(prefix.length);
+    const cut = delimiter ? rest.indexOf(delimiter) : -1;
+    if (cut >= 0) {
+      const p = prefix + rest.slice(0, cut + delimiter.length);
+      if (!seen.has(p)) {
+        seen.add(p);
+        entries.push({ prefix: p });
+      }
+    } else entries.push({ key: o });
+  }
+  const page = entries.slice(from, from + max);
+  const more = from + max < entries.length;
+  const keys = page.flatMap((e) => ('key' in e ? [e.key] : []));
+  const prefixes = page.flatMap((e) => ('prefix' in e ? [e.prefix] : []));
+  return `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>${escapeXml(bucket)}</Name><Prefix>${escapeXml(prefix)}</Prefix><KeyCount>${page.length}</KeyCount><MaxKeys>${max}</MaxKeys>${
+    delimiter ? `<Delimiter>${escapeXml(delimiter)}</Delimiter>` : ''
+  }<IsTruncated>${more}</IsTruncated>${keys
+    .map(
+      (k) =>
+        `<Contents><Key>${escapeXml(k.key)}</Key><LastModified>${k.lastModified}</LastModified><ETag>&quot;invented&quot;</ETag><Size>${k.size}</Size><StorageClass>STANDARD</StorageClass></Contents>`,
+    )
+    .join('')}${prefixes.map((p) => `<CommonPrefixes><Prefix>${escapeXml(p)}</Prefix></CommonPrefixes>`).join('')}${
+    more ? `<NextContinuationToken>${from + max}</NextContinuationToken>` : ''
+  }</ListBucketResult>`;
+}
+
 const xml = (reply: FastifyReply, action: string, result: string) =>
   reply
     .type('text/xml')
@@ -343,6 +438,37 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
     async (aws) => {
       aws.removeAllContentTypeParsers();
       aws.addContentTypeParser('*', { parseAs: 'string' }, (_req, body, done) => done(null, body));
+      // S3 ListObjectsV2, path style (0.25.0): metadata of the demo buckets only – GetObject is not served
+      aws.get('/:bucket', async (req, reply) => {
+        const sc = scope(req);
+        const bucket = (req.params as { bucket: string }).bucket;
+        const q = req.query as Record<string, string>;
+        s3Requests.push({
+          method: req.method,
+          url: req.url.slice(req.url.indexOf('/aws-api') + '/aws-api'.length),
+          region: typeof sc === 'string' ? '' : sc.region,
+        });
+        if (s3Requests.length > 500) s3Requests.shift();
+        const fail = (status: number, code: string, message: string, headers: Record<string, string> = {}) =>
+          reply
+            .code(status)
+            .headers(headers)
+            .type('application/xml')
+            // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, the values are XML-escaped; not HTML
+            .send(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>${code}</Code><Message>${escapeXml(message)}</Message></Error>`);
+        if (typeof sc === 'string') return fail(403, 'SignatureDoesNotMatch', sc);
+        if (sc.service !== 's3') return fail(400, 'InvalidRequest', `signed for ${sc.service}, not s3`);
+        if (denied.has('s3:ListBucket')) return fail(403, 'AccessDenied', 'Access Denied');
+        if (!buckets().has(bucket)) return fail(404, 'NoSuchBucket', 'The specified bucket does not exist');
+        const region = bucketRegions.get(bucket);
+        if (region && region !== sc.region)
+          return fail(301, 'PermanentRedirect', 'The bucket you are attempting to access must be addressed using the specified endpoint.', {
+            'x-amz-bucket-region': region,
+          });
+        if (q['list-type'] !== '2') return fail(400, 'InvalidRequest', 'only ListObjectsV2 (list-type=2) is served');
+        // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every value XML-escaped; not HTML
+        return reply.type('application/xml').send(listObjects(bucket, q));
+      });
       aws.post('/', async (req, reply) => {
         const sc = scope(req);
         if (typeof sc === 'string') return reply.code(403).type('application/json').send({ __type: 'UnrecognizedClientException', message: sc });

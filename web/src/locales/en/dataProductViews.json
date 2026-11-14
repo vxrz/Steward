@@ -80,7 +80,8 @@
     "deprecated": "Consumes a deprecated or retired port",
     "neighbour": "Outside the filters, connected to a match",
     "plant": "A plant registry data collection that writes to an element",
-    "proposed": "Proposed by a tool, not documented yet (dotted) – Data → Discovery decides"
+    "proposed": "Proposed by a tool, not documented yet (dotted) – Data → Discovery decides",
+    "bridge": "A bridge: moves data between technologies (long dashes) – change data capture, a sink connector, a flow"
   },
   "table": {
     "filter": "Filter the table",
@@ -172,7 +173,8 @@
     "count_other": "{{count}} steps",
     "deprecated": "Deprecated",
     "deprecatedPort": "{{name}} (deprecated)",
-    "proposed": "Proposed"
+    "proposed": "Proposed",
+    "bridge": "Bridge"
   },
   "health": {
     "up": "Up",
@@ -208,7 +210,8 @@
     "curate": "Curate",
     "publish": "Publish",
     "replicate": "Replicate",
-    "other": "Other"
+    "other": "Other",
+    "bridge": "Bridge"
   },
   "elementKinds": {
     "snowflake.database": "Snowflake database",
@@ -231,6 +234,14 @@
     "api.endpoint": "API endpoint",
     "files.path": "File path",
     "insightsHub.aspect": "Insights Hub aspect",
-    "other": "Other"
+    "other": "Other",
+    "generic.dataset": "Dataset (generic)",
+    "generic.stream": "Stream (generic)",
+    "generic.files": "Files (generic)",
+    "generic.endpoint": "Endpoint (generic)",
+    "mqtt.topic": "MQTT topic"
+  },
+  "technology": {
+    "notListed": "{{name}} (not in the technology list)"
   }
 }

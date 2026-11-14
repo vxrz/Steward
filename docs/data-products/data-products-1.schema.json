@@ -492,7 +492,12 @@
             "api.endpoint",
             "files.path",
             "insightsHub.aspect",
-            "other"
+            "other",
+            "generic.dataset",
+            "generic.stream",
+            "generic.files",
+            "generic.endpoint",
+            "mqtt.topic"
           ]
         },
         "qualified_name": {
@@ -559,7 +564,12 @@
             "api.endpoint",
             "files.path",
             "insightsHub.aspect",
-            "other"
+            "other",
+            "generic.dataset",
+            "generic.stream",
+            "generic.files",
+            "generic.endpoint",
+            "mqtt.topic"
           ]
         },
         "qualified_name": {
@@ -650,6 +660,42 @@
                 "type": "boolean"
               }
             ]
+          }
+        },
+        "technology": {
+          "description": "Generic parts: the technology – a key or name of the technology list (node-red, Apache Camel) or a value of your own",
+          "type": "string",
+          "maxLength": 100
+        },
+        "namespace": {
+          "description": "Generic parts: the OpenLineage namespace (mqtt://broker.example:1883); with the qualified name its dataset. An mqtt.topic without a broker platform: its broker (mqtt://ie-databus:1883)",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^\\S+$"
+        },
+        "properties": {
+          "description": "Generic parts: key: value properties (a flow id, a route id, a retention) as a list of { key, value }",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ],
+            "additionalProperties": false
           }
         }
       },
@@ -1149,6 +1195,38 @@
         "objectives": {
           "$ref": "#/$defs/Objectives"
         },
+        "file_format": {
+          "description": "A file port: the format of its files",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "parquet",
+                "csv",
+                "json",
+                "avro",
+                "orc",
+                "iceberg",
+                "delta",
+                "mixed",
+                "other"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partitioning": {
+          "description": "A file port: its partition keys in their order (Hive style key=value folders)",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
         "source": {
           "anyOf": [
             {
@@ -1492,7 +1570,8 @@
             "curate",
             "publish",
             "replicate",
-            "other"
+            "other",
+            "bridge"
           ]
         },
         "runner": {
@@ -1602,6 +1681,38 @@
         "text": {
           "type": "string",
           "maxLength": 2000
+        },
+        "technology": {
+          "description": "The technology of the runner – a bridge’s Debezium, Node-RED, Apache Camel (0.25.0)",
+          "type": "string",
+          "maxLength": 100
+        },
+        "runs_on": {
+          "description": "0.25.0, application and connector: the Steward system (and environment) it runs on",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "system": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "The system’s name"
+                },
+                "environment": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "system"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

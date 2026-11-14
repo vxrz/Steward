@@ -37,11 +37,12 @@ import {
   type Icon,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
-import type { DataGraphEdge, DataGraphNode } from '@sm/shared';
+import type { DataGraphEdge, DataGraphNode, DataTechnologyIcon } from '@sm/shared';
 import { useMotion } from '../../plant/views/prefs';
 import { HEALTH_ICON, HealthBadge, healthVar } from './health';
 import { STEP_H, STEP_W, nodeSize, type GraphLayout } from './graphLayout';
 import { useGraphText, type GraphText } from './text';
+import { TECHNOLOGY_ICON } from '../../../components/dataproducts/technologyIcons';
 import './dataProductViews.css';
 
 /**
@@ -87,7 +88,8 @@ type HeaderNode = Node<{ label: string; width: number }, 'header'>;
 const Part = memo(function Part({ data }: NodeProps<PartNode>) {
   const { node: n, dim, hl, selected, match, text } = data;
   const compact = useStore((s) => s.transform[2] < 0.55);
-  const I = KIND_ICON[iconKey(n)];
+  // 0.25.0: a generic part is drawn with its technology's icon
+  const I = n.technology && !n.hidden ? (TECHNOLOGY_ICON[n.technology.icon as DataTechnologyIcon] ?? KIND_ICON[iconKey(n)]) : KIND_ICON[iconKey(n)];
   const H = n.health ? HEALTH_ICON[n.health] : null;
   const badges = !compact && (n.role || n.ports?.length || n.missing || n.lifecycle || (n.products?.length && n.outside) || n.hiddenProducts);
   return (
@@ -238,6 +240,7 @@ function Way({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPos
           data-problem={e.deprecated || undefined}
           data-inactive={e.hidden || undefined}
           data-proposed={e.proposed || undefined}
+          data-bridge={e.stepKind === 'bridge' || undefined}
           data-hl={hl || undefined}
           strokeWidth={w}
           markerEnd={markerEnd}

@@ -26,8 +26,11 @@ import {
   DATA_ELEMENT_KINDS,
   DATA_ELEMENT_KIND_DEFS,
   DATA_PRODUCT_LIMITS as L,
+  DATA_TECHNOLOGY_LIMITS as TL,
   DEFAULT_DATA_LAYERS,
   elementKindFits,
+  isGenericElementKind,
+  S3_DISCOVERY_SCOPE_RE,
   type DataDiscoveryMode,
   type DataDiscoverySource,
   type DataDiscoverySourceInput,
@@ -44,11 +47,13 @@ import { useFieldErrors } from '../common';
 import { ApplicationSelect } from '../catalogue/ApplicationSelect';
 import { EnvironmentInput, useEnvironmentList } from '../catalogue/environments';
 import { FormButtons, isHttpUrl, useBusy } from './form';
+import { GenericPartFields, cleanProperties } from './GenericParts';
 
 const enc = encodeURIComponent;
 
 /** The platforms discovery reads (Confluent Cloud clusters are read as Kafka platforms). */
-export const DISCOVERABLE_PLATFORM_KINDS = ['snowflake', 'kafka', 'database'] as const;
+// 0.25.0: an AWS account platform reads S3 prefixes (files.path elements)
+export const DISCOVERABLE_PLATFORM_KINDS = ['snowflake', 'kafka', 'database', 'aws'] as const;
 
 /**
  * An element of the catalogue entered by hand (ADR 0036 part 5) – for what discovery does not read (APIs, file paths,
@@ -71,15 +76,31 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   const [applicationId, setApplicationId] = useState<string | null>(e?.applicationId ?? null);
   const [apiUrl, setApiUrl] = useState(e?.apiRef?.url ?? '');
   const [operations, setOperations] = useState<string[]>(e?.apiRef?.operations ?? []);
+  // 0.25.0 (ADR 0037): a generic part's technology, namespace and properties
+  const [technology, setTechnology] = useState(e?.technology ?? '');
+  const [namespace, setNamespace] = useState(e?.olNamespace ?? '');
+  const [properties, setProperties] = useState(e?.properties ?? []);
   const [busy, run] = useBusy();
   const def = DATA_ELEMENT_KIND_DEFS[kind];
   const fitting = (platforms.data ?? []).filter((p) => elementKindFits(kind, p.kind));
   const isApi = kind.startsWith('api.');
+  const generic = isGenericElementKind(kind);
+  // 0.25.0: an MQTT topic without a broker platform names its broker in the namespace field (the Databus: mqtt://ie-databus:1883)
+  const brokerField = kind === 'mqtt.topic' && !platformId;
   const v = useFieldErrors({
     name: !qualifiedName.trim() && t('common:validation.required'),
     platform: def.platformRequired && !platformId && t('elements.platformRequired'),
     apiUrl: !!apiUrl.trim() && !isHttpUrl(apiUrl) && t('common:validation.url'),
+    technology: generic && !technology.trim() && t('generic.technologyRequired'),
+    namespace:
+      (generic && (!namespace.trim() ? t('generic.namespaceRequired') : /\s/.test(namespace.trim()) && t('generic.namespaceNoSpaces'))) ||
+      (brokerField && /\s/.test(namespace.trim()) && t('generic.namespaceNoSpaces')),
   });
+  const genericBody = generic
+    ? { technology: technology.trim(), namespace: namespace.trim(), properties: cleanProperties(properties) }
+    : brokerField && namespace.trim()
+      ? { namespace: namespace.trim() }
+      : {};
   const save = () =>
     run(async () => {
       const apiRef =
@@ -94,6 +115,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           typeLabel,
           applicationId,
           apiRef,
+          ...genericBody,
           ...(discovered ? {} : { qualifiedName: qualifiedName.trim(), environment: environment.trim() }),
         };
         onSaved(await put<DataElement>(`/data-elements/${enc(e.id)}`, body));
@@ -109,6 +131,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           typeLabel,
           applicationId,
           apiRef,
+          ...genericBody,
         };
         onSaved(await post<DataElement>('/data-elements', body));
       }
@@ -171,7 +194,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
             onChange={(x) => setQualifiedName(x.currentTarget.value)}
             error={v.error('name')}
             disabled={discovered}
-            className="mono"
+            classNames={{ input: 'mono' }}
             data-autofocus
             data-testid="element-name"
           />
@@ -191,6 +214,30 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
               data-testid="element-layer"
             />
           </SimpleGrid>
+          {generic && (
+            <GenericPartFields
+              technology={technology}
+              onTechnology={setTechnology}
+              namespace={namespace}
+              onNamespace={setNamespace}
+              properties={properties}
+              onProperties={setProperties}
+              errors={{ technology: v.error('technology'), namespace: v.error('namespace') }}
+            />
+          )}
+          {brokerField && (
+            <TextInput
+              label={t('generic.namespace')}
+              description={t('elements.mqttNamespaceHint')}
+              maxLength={TL.namespace}
+              value={namespace}
+              onChange={(x) => setNamespace(x.currentTarget.value)}
+              error={v.error('namespace') || undefined}
+              classNames={{ input: 'mono' }}
+              placeholder="mqtt://ie-databus:1883"
+              data-testid="element-namespace"
+            />
+          )}
           {kind === 'other' && (
             <TextInput
               label={t('elements.typeLabel')}
@@ -280,7 +327,9 @@ export function SourceForm({ source, onClose, onSaved }: { source?: DataDiscover
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     platform: !platformId && t('common:validation.required'),
-    scope: kind === 'snowflake' && !scope.length && t('discovery.scopeSnowflakeRequired'),
+    scope:
+      (kind === 'snowflake' && !scope.length && t('discovery.scopeSnowflakeRequired')) ||
+      (kind === 'aws' && scope.some((x) => !S3_DISCOVERY_SCOPE_RE.test(x.trim())) && t('discovery.scopeS3Invalid')),
     rules: rules.some((r) => !r.value.trim() || !r.environment.trim()) && t('discovery.rulesIncomplete'),
   });
   const save = () =>

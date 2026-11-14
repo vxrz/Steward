@@ -7,7 +7,6 @@ import {
   Code,
   Group,
   List,
-  Modal,
   Paper,
   Select,
   SimpleGrid,
@@ -37,12 +36,15 @@ import { apiUrl, get } from '../../api';
 import { QueryState, useFieldErrors } from '../common';
 import { fmtDate } from '../../format';
 import { InsightsHubPanel } from './InsightsHubMapping';
+import { FormModal, FormModalCancel } from '../FormModal';
 
 /**
  * A data collection's sinks and where its data goes (0.12, docs/PLANT.md "Sinks and transformations"): the flow
  * items → transformation steps → sinks → downstream, the editor of a sink, and the kept files of its imports with their
  * versions, download and comparison. Everything is documentation: Steward runs no step and no code.
  */
+
+import { SinkElementButton } from './SinkElement';
 
 const base = (assetId: string) => `/plant/assets/${encodeURIComponent(assetId)}`;
 const ITEM_KINDS = new Set(['system', 'platform', 'application']);
@@ -221,6 +223,8 @@ export function CollectionFlowView({
               </Table>
             </div>
             <Downstream sink={s} />
+            {/* 0.25.0 (ADR 0037): an MQTT or Databus topic becomes an element of the data products catalogue */}
+            <SinkElementButton assetId={assetId} collectionId={collection.id} sink={collection.sinks.find((x) => x.id === s.id) ?? s} />
             {/* 0.14: a sink whose target is an Insights Hub platform maps each item to an asset, aspect and variable */}
             {s.kind === 'platform' && s.ref && <InsightsHubPanel assetId={assetId} collectionId={collection.id} sinkId={s.id} stamp={collection.updatedAt} />}
           </Stack>
@@ -363,7 +367,8 @@ function SinkModal({
     }
   };
   return (
-    <Modal opened onClose={onClose} title={sink ? t('flow.editTitle', { name: sink.name }) : t('flow.addTitle')} size="lg">
+    // a form dialog inside the collection's dialog: Esc closes only this one, and asks first when something was entered
+    <FormModal onClose={onClose} title={sink ? t('flow.editTitle', { name: sink.name }) : t('flow.addTitle')} size="lg">
       <form
         noValidate
         onSubmit={(e) => {
@@ -557,16 +562,14 @@ function SinkModal({
             </Stack>
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={onClose}>
-              {t('common:cancel')}
-            </Button>
+            <FormModalCancel />
             <Button type="submit" loading={busy} data-testid="sink-save">
               {t('common:save')}
             </Button>
           </Group>
         </Stack>
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 

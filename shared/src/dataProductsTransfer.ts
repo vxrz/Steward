@@ -102,3 +102,40 @@ export interface DataProductImportResult {
   counts: DataProductImportCounts;
   warnings: string[];
 }
+
+// ---------- background imports (0.25.0) ----------
+
+/**
+ * An import that writes more elements than this runs as a background job (`POST /api/data-products/import` answers 202
+ * with the job): its elements in short transactions with a turn of the event loop between, then everything else in one
+ * transaction; a failure takes back what it wrote, so the import counts whole or not at all.
+ */
+export const DATA_PRODUCT_IMPORT_JOB_ELEMENTS = 1_000;
+/** Background imports kept per instance (the newest; running ones always) */
+export const DATA_PRODUCT_IMPORT_JOBS_KEPT = 50;
+
+export const DATA_PRODUCT_IMPORT_JOB_STATES = ['running', 'succeeded', 'failed'] as const;
+export type DataProductImportJobState = (typeof DATA_PRODUCT_IMPORT_JOB_STATES)[number];
+/** elements: writing the elements; entries: everything else (one transaction); undo: taking back after a failure */
+export const DATA_PRODUCT_IMPORT_JOB_PHASES = ['elements', 'entries', 'undo', 'done'] as const;
+export type DataProductImportJobPhase = (typeof DATA_PRODUCT_IMPORT_JOB_PHASES)[number];
+
+export interface DataProductImportJob {
+  id: string;
+  state: DataProductImportJobState;
+  phase: DataProductImportJobPhase;
+  /** Elements written so far, of `total` */
+  done: number;
+  total: number;
+  mode: DataProductImportMode;
+  origin: string | null;
+  createdBy: string;
+  createdAt: string;
+  finishedAt: string | null;
+  /** The import's result once it succeeded */
+  result: DataProductImportResult | null;
+  /** Why it failed (in English; the web app shows errors:codes.<code> with params) */
+  error: { message: string; code: string | null; params: Record<string, string | number | boolean | null> | null } | null;
+  /** What a failed import took back: elements removed and restored, and those kept because they were used or changed since */
+  undone: { removed: number; restored: number; kept: number } | null;
+}

@@ -152,6 +152,15 @@ function PipelineGraph({ view, onEnvironment }: { view: DataPipelineView; onEnvi
             {t('legend.outside')}
           </LegendItem>
           <LegendItem mark={<IconArrowsSplit size={14} />}>{t('legend.step')}</LegendItem>
+          <LegendItem
+            mark={
+              <svg width="22" height="8" aria-hidden>
+                <line x1="0" y1="4" x2="22" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="10 3" />
+              </svg>
+            }
+          >
+            {t('legend.bridge')}
+          </LegendItem>
         </>
       }
     />

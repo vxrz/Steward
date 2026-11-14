@@ -3,9 +3,9 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { logger } from '../log.js';
-import { addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
+import { addKafkaMessages, addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
 import { dropSnowflakeObject } from '../mock/mockSnowflake.js';
-import { nowIso } from '../util.js';
+import { newId, nowIso } from '../util.js';
 import { requestAccess } from './access-requests.js';
 import { readNow, writeIdentities } from './consumers-actual.js';
 import { addProductMatch, setAllocation } from './costs.js';
@@ -14,17 +14,21 @@ import { createSource } from './discovery/sources.js';
 import { applyImport } from './import.js';
 import { applyOlEvents, parseOlEvent } from './lineage/openlineage.js';
 import { createLineageSource } from './lineage/sources.js';
+import { proposeFromConnectors } from './connector-lineage.js';
 import { readMeasuredUse } from './measured.js';
 import { applyMonitor } from './monitor-draft.js';
 import { addConsumer } from './ports.js';
 import { recordQualityResults } from './quality.js';
+import { setObjectRopaDetails } from './ropa-details.js';
+import { saveSemanticVersion } from './semantic.js';
 import { takeScorecardSnapshots } from './scorecard-history.js';
 
 /**
  * The data products of the demo (0.22.0, ADR 0036 "Demo", docs/DATA-PRODUCTS.md): invented, on the simulated platforms.
  *
  *   1. Topics on "Kafka (demo)" – orders.v1 and the bundle's shop-events.web and shop-events.app – with messages.
- *   2. Two discovery sources, read once: "Snowflake (demo)" over the databases SHOP and SHOP_DEV (the name rule
+ *   2. Discovery sources, read once – 0.25.0: first "Shop files (demo)" on "AWS (demo)" over three invented S3 prefixes
+ *      (a landing area of Parquet files by day, CSV and JSON exports, an Iceberg table), then "Snowflake (demo)" over the databases SHOP and SHOP_DEV (the name rule
  *      `_DEV` → dev, the rest prod) and "Kafka (demo)" over the prefixes orders. and shop-events. (prod).
  *   3. The example files examples/data-products/*.yaml imported (add only): the domains Sales (with Orders), Customer
  *      and Manufacturing, the data objects Customer, Order and Machine measurement with their ratings, a topic bundle
@@ -45,6 +49,10 @@ import { takeScorecardSnapshots } from './scorecard-history.js';
  *      (role REPORTING) and one that stays silent, read once from ACCESS_HISTORY; an open access request for
  *      Customer 360's port; 30 days of scorecard history behind today's snapshot (a maturity that rose twice), so
  *      the trend has something to draw.
+ *   8. Phase 3 (0.25.0, ADR 0037): the Orders pipeline names the bridges Debezium → Kafka → Snowflake sink (shop-cdc and
+ *      orders-snowflake-sink of Kafka Connect (demo)) and a Node-RED flow that forwards a generic part (the returns
+ *      desk's webhook); the connectors' lineage is proposed from the readouts of Kafka Connect (demo) and Confluent Cloud
+ *      (demo) – what the steps document already is _documented_, the S3 sink's prefix waits as an open proposal.
  *
  * Loaded with the service half of the demo (Home → Load demo, the UI tests), whether the module is on or off: switched
  * on, it is there. Once – a domain "sales" means it was loaded.
@@ -87,7 +95,19 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
     ],
     intervalMinutes: 1440,
   });
-  for (const s of [sf, kf]) {
+  // 0.25.0 (ADR 0037 part 2): S3 prefixes of the demo AWS account – read first, so the Snowflake run links its external
+  // stage to the landing prefix it reads
+  const aws = platformId('AWS (demo)');
+  const s3 = aws
+    ? createSource({
+        name: 'Shop files (demo)',
+        platformId: aws,
+        scope: ['s3://invented-landing.example/orders/', 's3://invented-shop-lake.example/exports/', 's3://invented-shop-lake.example/iceberg/'],
+        environmentRules: [{ match: 'prefix', value: 'invented-', environment: 'prod' }],
+        intervalMinutes: 1440,
+      })
+    : null;
+  for (const s of [...(s3 ? [s3] : []), sf, kf]) {
     const run = await runSource(s.id, { trigger: 'manual', actor });
     if (run.status !== 'succeeded') logger.warn({ source: s.name, status: run.status, error: run.error }, 'demo discovery run did not succeed');
   }
@@ -134,6 +154,13 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
     }
   }
 
+  // 0.25.0 (ADR 0037): the edge – a Databus topic → the bridge application on the edge device → a Confluent topic
+  try {
+    (await import('./demo-edge.js')).seedEdgeDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo edge device not loaded');
+  }
+
   // 6. a stage dropped in dev: the second run marks it missing
   dropSnowflakeObject('SHOP_DEV.RAW.LANDING');
   await runSource(sf.id, { trigger: 'manual', actor });
@@ -165,7 +192,58 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo consumers and access request not set up');
   }
+  // 8. phase 3 (0.25.0): the connectors' lineage as proposals (whether the module is on yet or not)
+  for (const name of ['Kafka Connect (demo)', 'Confluent Cloud (demo)']) {
+    const id = platformId(name);
+    if (!id) continue;
+    try {
+      proposeFromConnectors(id, { force: true });
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, platform: name }, 'demo connector lineage not proposed');
+    }
+  }
+  // 9. phase 3, package D (0.25.0): Orders' semantic model, messages to peek at, the Art. 30 details of Customer
+  try {
+    semanticDemo(orders);
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo semantic model not saved');
+  }
   return imported.counts.add;
+}
+
+/**
+ * Version 1 of Orders' semantic model (examples/data-products/orders.semantic-model.yaml), signed off by the demo's
+ * approver; a few invented events on orders.v1 for the peek; the data object Customer's transfer to a third country
+ * and the reference to the technical and organisational measures (Art. 30(1)(e) and (g)).
+ */
+function semanticDemo(orders: string): void {
+  const text = fs.readFileSync(path.join(config.examplesDir, 'data-products', 'orders.semantic-model.yaml'), 'utf8');
+  const saved = saveSemanticVersion(orders, { document: text, note: 'The governed copy of the shop’s semantic layer (invented)' });
+  const approver = db().get<{ username: string }>("SELECT username FROM users WHERE username = 'adam'");
+  if (saved.created && approver)
+    db().run(
+      'INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at) SELECT ?, product_id, id, version, sha256, ?, ?, ?, ? FROM dp_semantic_versions WHERE product_id = ? AND version = ?',
+      newId(),
+      nowIso().slice(0, 10),
+      'Checked against the contract Shop orders',
+      approver.username,
+      nowIso(),
+      orders,
+      saved.version.version,
+    );
+  addKafkaMessages(
+    'orders.v1',
+    [1, 2, 3].map((i) => ({
+      key: `o-${2000 + i}`,
+      value: JSON.stringify({ orderId: `o-${2000 + i}`, customerId: `c-${300 + i}`, email: `buyer${i}@example.com`, total: 19.9 * i, status: 'confirmed' }),
+    })),
+  );
+  const customer = db().get<{ id: string }>("SELECT id FROM dp_objects WHERE key = 'customer'");
+  if (customer)
+    setObjectRopaDetails(customer.id, {
+      transfers: [{ country: 'United States', recipient: 'Invented Cloud Inc.', safeguard: 'scc', note: 'Support tickets with customer names (invented)' }],
+      toms: { kind: 'url', url: 'https://wiki.example/security/toms', label: 'Technical and organisational measures (invented)' },
+    });
 }
 
 type ElementOf = (qualifiedName: string) => { id: string; ol_namespace: string | null; ol_name: string | null } | undefined;

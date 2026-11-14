@@ -1,6 +1,9 @@
 import {
+  KAFKA_KIND,
   DATA_ELEMENT_KIND_DEFS,
   DATA_PRODUCT_ID_PREFIX,
+  convertTargets,
+  dataElementConvertInput,
   dataElementInput,
   dataElementUpdate,
   dataMemberListQuery,
@@ -10,11 +13,16 @@ import {
   elementKindFits,
   elementNameNorm,
   elementShortName,
+  isGenericElementKind,
+  mqttBroker,
+  mqttUrl,
+  openLineageDataset,
   type AclEntry,
   type DataElement,
   type DataElementListQuery,
   type DataElementOnProduct,
   type DataElementReadout,
+  type DataElementProperty,
   type DataElementSummary,
   type DataMemberRole,
   type DataPage,
@@ -48,6 +56,8 @@ import {
   readoutsOf,
   type ElementRow,
 } from './store.js';
+import { technologyList } from './technologies.js';
+import { platformDataset } from './ol-addresses.js';
 
 /**
  * The element catalogue (ADR 0036 part 5) and membership (part 6): elements are concrete things on a platform – a
@@ -61,20 +71,27 @@ const MAX_CHAR = String.fromCodePoint(0x10ffff);
 // ---------- platforms as a reader sees them ----------
 
 /** Names of these platforms where `u` may see them (bulk: one statement). */
-export function platformNames(u: AuthUser | null, ids: readonly string[]): Map<string, { name: string | null; kind: string }> {
+export function platformNames(u: AuthUser | null, ids: readonly string[]): Map<string, { name: string | null; kind: string; peek: boolean }> {
   const uniq = [...new Set(ids.filter(Boolean))];
-  const out = new Map<string, { name: string | null; kind: string }>();
+  const out = new Map<string, { name: string | null; kind: string; peek: boolean }>();
   for (const part of chunks(uniq))
-    for (const p of db().all<{ id: string; name: string; kind: string; acl: string }>(
-      `SELECT id, name, kind, acl FROM platforms WHERE id IN (${marks(part.length)})`,
+    for (const p of db().all<{ id: string; name: string; kind: string; acl: string; config: string }>(
+      `SELECT id, name, kind, acl, config FROM platforms WHERE id IN (${marks(part.length)})`,
       ...part,
-    ))
+    )) {
+      const perms = platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions;
       out.set(p.id, {
-        name: platformAccess(u, { id: p.id, acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).permissions.length ? p.name : null,
+        name: perms.length ? p.name : null,
         kind: p.kind,
+        // 0.25.0: the peek's rules (kafka/service peekTopic) – a Kafka platform that allows it, for who manages it
+        peek: p.kind === KAFKA_KIND && perms.includes('manage') && peekOn(p.config),
       });
+    }
   return out;
 }
+
+/** Whether a Kafka platform's configuration allows the peek (its variable `peek = on`). */
+const peekOn = (config: string): boolean => String(parseJson<{ variables?: Record<string, unknown> }>(config, {}).variables?.peek ?? 'off') === 'on';
 
 /** The elements of these rows as a product shows them (decision 15: also those the reader may not see otherwise). */
 export function elementsOnProduct(u: AuthUser | null, rows: ElementRow[]): Map<string, DataElementOnProduct> {
@@ -100,6 +117,7 @@ export function elementsOnProduct(u: AuthUser | null, rows: ElementRow[]): Map<s
           platformHidden: !!r.platform_id && !p?.name,
           missingSince: r.missing_since,
           visible: elementAccess(u, teams.get(r.id) ?? []).permissions.length > 0,
+          mayPeek: r.kind === 'kafka.topic' && !!p?.peek,
         },
       ];
     }),
@@ -135,9 +153,61 @@ function summaryOf(r: ElementRow, platforms: Map<string, { name: string | null }
     source: r.source,
     parentId: r.parent_id,
     missingSince: r.missing_since,
+    technology: r.technology ?? null,
     products,
     updatedAt: r.updated_at,
   };
+}
+
+// ---------- generic parts (0.25.0, ADR 0037 part 0) ----------
+
+/**
+ * A technology as stored: the key of the list entry it names (by key or name, without case), else the free value as
+ * typed (shown as _not in the list_); null for none.
+ */
+export function storedTechnology(value: string | null | undefined): string | null {
+  const v = value?.trim();
+  if (!v) return null;
+  const lower = v.toLowerCase();
+  const hit = technologyList().find((t) => t.key === lower) ?? technologyList().find((t) => t.name.trim().toLowerCase() === lower);
+  return hit ? hit.key : v;
+}
+
+/** The properties of a generic element as stored: keys unique (the last value wins), in the order given. */
+const storedProperties = (xs: readonly DataElementProperty[]): string => {
+  const byKey = new Map<string, string>();
+  for (const p of xs) byKey.set(p.key, p.value);
+  return json([...byKey].map(([key, value]) => ({ key, value })));
+};
+
+const genericProblem = (context: string, kind: string) =>
+  new HttpError(
+    400,
+    `A ${kind} element ${context === 'namespace' ? 'needs its OpenLineage namespace' : context === 'technology' ? 'needs its technology' : 'has no technology, namespace or properties – only generic parts do'}`,
+    'DATA_ELEMENT_GENERIC',
+    {
+      context,
+      kind,
+    },
+  );
+
+/**
+ * A generic part's identity – its namespace and qualified name, its OpenLineage dataset – is one element per kind and
+ * environment (the catalogue's key – platform, kind, environment, name – is checked as for every element). An existing
+ * one the caller may not see is not named.
+ */
+function refuseGenericIdentity(kind: string, environment: string, namespace: string, norm: string, except = ''): void {
+  if (
+    db().get(
+      'SELECT 1 FROM dp_elements WHERE kind = ? AND environment = ? AND lower(ol_namespace) = ? AND name_norm = ? AND id <> ?',
+      kind,
+      environment,
+      namespace.trim().toLowerCase(),
+      norm,
+      except,
+    )
+  )
+    throw new HttpError(409, 'An element with this kind, environment, namespace and name exists already', 'DATA_ELEMENT_EXISTS', { kind, environment });
 }
 
 // ---------- the catalogue ----------
@@ -167,6 +237,13 @@ export function listElements(q: DataElementListQuery): DataPage<DataElementSumma
   if (q.layer) {
     where.push('e.layer = ?');
     params.push(q.layer);
+  }
+  if (q.technology) {
+    // a list entry by its key or name; a free value as typed (compared without case)
+    const v = q.technology.trim().toLowerCase();
+    const hit = technologyList().find((t) => t.key === v || t.name.trim().toLowerCase() === v);
+    where.push('lower(e.technology) IN (?, ?)');
+    params.push(hit?.key ?? v, v);
   }
   if (q.prefix) {
     const p = elementNameNorm(q.prefix);
@@ -248,6 +325,8 @@ export function getElement(id: string): DataElement {
     plantSink: parseJson(r.plant_sink, null),
     apiRef: parseJson(r.api_ref, null),
     flags: parseJson(r.flags, {}),
+    properties: parseJson<DataElementProperty[]>(r.properties, []),
+    mayPeek: r.kind === 'kafka.topic' && !!(r.platform_id && platforms.get(r.platform_id)?.peek),
     owningTeams: teamNames,
     permissions: perms,
     productRefs: productRefs.sort((a, b) => (a.product.name ?? '').localeCompare(b.product.name ?? '')),
@@ -272,6 +351,39 @@ function checkPlatform(kind: ElementRow['kind'], platformId: string | null, know
   if (!p?.name) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
   if (!elementKindFits(kind, p.kind))
     throw new HttpError(400, `A ${kind} element cannot live on a ${p.kind} platform`, 'DATA_ELEMENT_PLATFORM', { kind, platformKind: p.kind });
+}
+
+/**
+ * 0.25.0 (ADR 0037 part 3): the OpenLineage dataset of an `mqtt.topic` element – `mqtt://host:port` of its MQTT broker
+ * platform (the variable url), else of the broker its namespace names (the generic parts' namespace field, people's
+ * to change: `mqtt://host:port` or `host[:port]`, the Databus is `mqtt://ie-databus:1883`); null without a broker.
+ * Other kinds: entered elements have none (discovery gives it).
+ */
+function enteredDataset(kind: string, platformId: string, namespace: string | null, qualifiedName: string): { namespace: string; name: string } | null {
+  if (kind !== 'mqtt.topic') return null;
+  const platformUrl = () =>
+    parseJson<{ variables?: Record<string, unknown> }>(db().get<{ config: string }>('SELECT config FROM platforms WHERE id = ?', platformId)?.config, {})
+      .variables?.url;
+  const broker = platformId ? mqttBroker(mqttUrl(platformUrl())?.href ?? null) : mqttBroker(namespace);
+  return broker ? openLineageDataset('mqtt.topic', broker, qualifiedName.trim()) : null;
+}
+
+/**
+ * 0.25.0: the namespace of an `mqtt.topic` names its broker – only without a broker platform (whose url gives it), and
+ * only a broker address.
+ */
+function checkMqttNamespace(platformId: string, namespace: string | null | undefined): void {
+  if (!namespace) return;
+  if (platformId)
+    throw new HttpError(400, 'An MQTT topic on a broker platform takes its namespace from the platform', 'DATA_ELEMENT_GENERIC', {
+      context: 'brokerPlatform',
+      kind: 'mqtt.topic',
+    });
+  if (!mqttBroker(namespace))
+    throw new HttpError(400, 'The namespace of an MQTT topic names its broker – mqtt://host:port', 'DATA_ELEMENT_GENERIC', {
+      context: 'broker',
+      kind: 'mqtt.topic',
+    });
 }
 
 /** A parent: an element the caller may see, on the same platform and in the same environment, of a kind that may contain it. */
@@ -327,17 +439,31 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
   const platformId = input.platformId ?? '';
   checkPlatform(input.kind, input.platformId, batch?.platforms);
   const norm = elementNameNorm(input.qualifiedName);
+  // 0.25.0: a generic part has a technology and a namespace (its OpenLineage dataset is the namespace and the name);
+  // the other kinds have neither (their dataset comes from discovery)
+  const generic = isGenericElementKind(input.kind);
+  if (generic) {
+    if (!input.technology) throw genericProblem('technology', input.kind);
+    if (!input.namespace) throw genericProblem('namespace', input.kind);
+    refuseGenericIdentity(input.kind, input.environment, input.namespace, norm);
+  } else if (input.kind === 'mqtt.topic') {
+    // 0.25.0: an MQTT topic without a broker platform names its broker in the namespace field
+    if (input.technology || input.properties.length) throw genericProblem('notGeneric', input.kind);
+    checkMqttNamespace(platformId, input.namespace);
+  } else if (input.technology || input.namespace || input.properties.length) throw genericProblem('notGeneric', input.kind);
   refuseExisting(platformId, input.kind, input.environment, norm);
   checkParent(input.kind, platformId, input.environment, input.parentId, null);
   const room = batch ? batch.room : L.elements - Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements')!.n);
   if (room <= 0) throw limitReached('elements', L.elements);
   const id = newId(DATA_PRODUCT_ID_PREFIX.element);
   const now = nowIso();
+  const flags = Object.fromEntries(input.flags.map((f) => [f.name, f.value]));
+  const ol = enteredDataset(input.kind, platformId, input.namespace, input.qualifiedName);
   db().tx(() => {
     db().run(
       `INSERT INTO dp_elements (id, platform_id, kind, qualified_name, name_norm, display_name, environment, parent_id, layer, description, type_label, source,
-         application_id, component_id, plant_sink, api_ref, flags, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         application_id, component_id, plant_sink, api_ref, flags, technology, properties, ol_namespace, ol_name, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       platformId,
       input.kind,
@@ -354,7 +480,11 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
       input.componentId,
       input.plantSink ? json(input.plantSink) : null,
       input.apiRef ? json(input.apiRef) : null,
-      json(Object.fromEntries(input.flags.map((f) => [f.name, f.value]))),
+      json(flags),
+      generic ? storedTechnology(input.technology) : null,
+      storedProperties(generic ? input.properties : []),
+      generic ? input.namespace : (ol?.namespace ?? null),
+      generic ? input.qualifiedName : (ol?.name ?? null),
       now,
       u.username,
       now,
@@ -370,7 +500,12 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
       entityType: 'data_element',
       entityId: id,
       summary: `Data element ${input.qualifiedName} (${input.kind}${input.environment ? `, ${input.environment}` : ''}) added to the catalogue`,
-      details: { kind: input.kind, platformId: input.platformId, environment: input.environment },
+      details: {
+        kind: input.kind,
+        platformId: input.platformId,
+        environment: input.environment,
+        ...(generic ? { technology: storedTechnology(input.technology), namespace: input.namespace } : {}),
+      },
     });
   });
   if (batch) batch.room--;
@@ -395,6 +530,16 @@ export function updateElement(id: string, body: unknown): DataElement {
   const qualifiedName = input.qualifiedName ?? r.qualified_name;
   const environment = input.environment ?? r.environment;
   const norm = elementNameNorm(qualifiedName);
+  // 0.25.0: a generic part's technology, namespace and properties are people's fields; other kinds have none
+  const generic = isGenericElementKind(r.kind);
+  const mqtt = r.kind === 'mqtt.topic';
+  if (!generic && (input.technology || (input.namespace && !mqtt) || input.properties?.length)) throw genericProblem('notGeneric', r.kind);
+  if (mqtt) checkMqttNamespace(r.platform_id, input.namespace);
+  if (generic && input.technology !== undefined && !input.technology) throw genericProblem('technology', r.kind);
+  if (generic && input.namespace !== undefined && !input.namespace) throw genericProblem('namespace', r.kind);
+  const namespace = generic ? (input.namespace ?? r.ol_namespace ?? '') : null;
+  if (generic && (renames || (namespace ?? '').toLowerCase() !== (r.ol_namespace ?? '').toLowerCase()))
+    refuseGenericIdentity(r.kind, environment, namespace ?? '', norm, r.id);
   if (renames) {
     refuseExisting(r.platform_id, r.kind, environment, norm, r.id);
     if (environment !== r.environment && db().get('SELECT 1 FROM dp_port_elements WHERE element_id = ?', r.id))
@@ -406,10 +551,13 @@ export function updateElement(id: string, body: unknown): DataElement {
       });
   }
   const pick = <K extends keyof typeof input>(k: K, cur: unknown) => (input[k] === undefined ? cur : input[k]);
+  // 0.25.0: an entered mqtt.topic follows its broker and name in OpenLineage
+  const ol = r.source !== 'discovered' ? enteredDataset(r.kind, r.platform_id, input.namespace ?? r.ol_namespace, qualifiedName) : null;
   db().tx(() => {
     db().run(
       `UPDATE dp_elements SET qualified_name = ?, name_norm = ?, environment = ?, display_name = ?, layer = ?, description = ?, type_label = ?, application_id = ?,
-         component_id = ?, plant_sink = ?, api_ref = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+         component_id = ?, plant_sink = ?, api_ref = ?, technology = ?, properties = ?, ol_namespace = ?, ol_name = ?, revision = revision + 1, updated_at = ?, updated_by = ?
+       WHERE id = ?`,
       qualifiedName,
       norm,
       environment,
@@ -421,6 +569,11 @@ export function updateElement(id: string, body: unknown): DataElement {
       pick('componentId', r.component_id),
       input.plantSink === undefined ? r.plant_sink : input.plantSink ? json(input.plantSink) : null,
       input.apiRef === undefined ? r.api_ref : input.apiRef ? json(input.apiRef) : null,
+      generic && input.technology !== undefined ? storedTechnology(input.technology) : r.technology,
+      generic && input.properties !== undefined ? storedProperties(input.properties) : r.properties,
+      // a generic part's OpenLineage name is its qualified name; an entered mqtt.topic follows its broker and name
+      generic ? namespace : ol ? ol.namespace : r.ol_namespace,
+      generic ? qualifiedName : ol ? ol.name : r.ol_name,
       nowIso(),
       actorName(),
       r.id,
@@ -454,6 +607,81 @@ export function deleteElement(id: string): void {
       summary: `Data element ${r.qualified_name} (${r.kind}) deleted from the catalogue`,
     });
   });
+}
+
+/**
+ * _Convert to …_ (0.25.0, ADR 0037 part 0): a generic part becomes the specific kind of its role – the same element, so
+ * its id, memberships, ports and bindings, steps and lineage, checks, cost matches, links and history stay; discovery
+ * takes over from then on (an entered element a discovery source finds is looked after by it). The target's identity –
+ * platform, kind, environment and qualified name – must be free: another element there (one the caller may not see too,
+ * never named) refuses the conversion. Who may change the element converts it; audited (`dataelement.converted`).
+ */
+export function convertElement(id: string, body: unknown): DataElement {
+  const { row: r, perms } = visibleElement(id);
+  if (!perms.includes('edit')) forbid('change this element', 'dataProducts');
+  if (!isGenericElementKind(r.kind))
+    throw new HttpError(400, `${r.qualified_name} is no generic part – only generic parts are converted`, 'DATA_ELEMENT_CONVERT', {
+      context: 'notGeneric',
+      kind: r.kind,
+    });
+  const input = dataElementConvertInput.parse(body);
+  if (!convertTargets(r.kind).includes(input.kind))
+    throw new HttpError(400, `A ${r.kind} element cannot become a ${input.kind} element`, 'DATA_ELEMENT_CONVERT', {
+      context: 'kind',
+      from: r.kind,
+      to: input.kind,
+    });
+  checkPlatform(input.kind, input.platformId);
+  const platformId = input.platformId ?? '';
+  const qualifiedName = input.qualifiedName ?? r.qualified_name;
+  const norm = elementNameNorm(qualifiedName);
+  if (
+    db().get(
+      'SELECT 1 FROM dp_elements WHERE platform_id = ? AND kind = ? AND environment = ? AND name_norm = ? AND id <> ?',
+      platformId,
+      input.kind,
+      r.environment,
+      norm,
+      r.id,
+    )
+  )
+    throw new HttpError(409, `Another element is this ${input.kind} already – the conversion would make two of one`, 'DATA_ELEMENT_CONVERT_TAKEN', {
+      kind: input.kind,
+      environment: r.environment,
+    });
+  // the OpenLineage dataset: kept (lineage keeps matching it) – unless the name changes, then the one the platform's
+  // address gives, as discovery would (none: left empty – the old name would name another dataset)
+  const renamed = qualifiedName !== r.qualified_name;
+  const ol = renamed
+    ? (platformDataset(input.kind, platformId, qualifiedName) ?? enteredDataset(input.kind, platformId, r.ol_namespace, qualifiedName))
+    : { namespace: r.ol_namespace, name: r.ol_name };
+  db().tx(() => {
+    db().run(
+      `UPDATE dp_elements SET kind = ?, platform_id = ?, qualified_name = ?, name_norm = ?, display_name = ?, parent_id = NULL, technology = NULL,
+         ol_namespace = ?, ol_name = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
+      input.kind,
+      platformId,
+      qualifiedName,
+      norm,
+      qualifiedName === r.qualified_name ? r.display_name : elementShortName(qualifiedName),
+      ol?.namespace ?? null,
+      ol?.name ?? null,
+      nowIso(),
+      actorName(),
+      r.id,
+    );
+    audit({
+      action: 'dataelement.converted',
+      entityType: 'data_element',
+      entityId: r.id,
+      summary: `Data element ${r.qualified_name} converted from ${r.kind}${r.technology ? ` (${r.technology})` : ''} to ${input.kind}${qualifiedName !== r.qualified_name ? ` as ${qualifiedName}` : ''}`,
+      details: {
+        from: { kind: r.kind, technology: r.technology, namespace: r.ol_namespace, qualifiedName: r.qualified_name, platformId: r.platform_id || null },
+        to: { kind: input.kind, platformId: input.platformId, qualifiedName, namespace: ol?.namespace ?? null },
+      },
+    });
+  });
+  return getElement(r.id);
 }
 
 // ---------- membership ----------
@@ -522,7 +750,7 @@ export function addMembers(productId: string, productName: string, body: unknown
   if (count + adding.length > L.membersPerProduct) throw limitReached('membersPerProduct', L.membersPerProduct);
   const now = nowIso();
   db().tx(() => {
-    for (const id of ids) {
+    for (const id of ids)
       if (existing.has(id))
         db().run(
           'UPDATE dp_members SET role = ?, include_descendants = ?, note = ? WHERE product_id = ? AND element_id = ?',
@@ -532,27 +760,20 @@ export function addMembers(productId: string, productName: string, body: unknown
           productId,
           id,
         );
-      else
-        db().run(
-          'INSERT INTO dp_members (product_id, element_id, role, include_descendants, note, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          productId,
-          id,
-          input.role,
-          input.includeDescendants ? 1 : 0,
-          input.note,
-          actorName(),
-          now,
-        );
-      const env = rows.get(id)!.environment;
-      if (env)
-        db().run(
-          `INSERT INTO dp_product_environments (product_id, environment, state, updated_at, updated_by) VALUES (?, ?, 'planned', ?, ?) ON CONFLICT DO NOTHING`,
-          productId,
-          env,
-          now,
-          actorName(),
-        );
-    }
+    // 0.25.0: new members in multi-row statements, each environment once (an import adds thousands)
+    for (const part of chunks(adding, 100))
+      db().run(
+        `INSERT INTO dp_members (product_id, element_id, role, include_descendants, note, added_by, added_at) VALUES ${part.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+        ...part.flatMap((id) => [productId, id, input.role, input.includeDescendants ? 1 : 0, input.note, actorName(), now]),
+      );
+    for (const env of new Set(ids.map((id) => rows.get(id)!.environment).filter(Boolean)))
+      db().run(
+        `INSERT INTO dp_product_environments (product_id, environment, state, updated_at, updated_by) VALUES (?, ?, 'planned', ?, ?) ON CONFLICT DO NOTHING`,
+        productId,
+        env,
+        now,
+        actorName(),
+      );
     const names = ids.map((id) => rows.get(id)!.qualified_name);
     audit({
       action: adding.length ? 'dataproduct.member_added' : 'dataproduct.member_changed',

@@ -184,8 +184,9 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
     return runConnectionTest(c.platform, c.secrets);
   });
 
-  // Kafka (#112): the newest messages of a topic, for troubleshooting – off unless the platform allows it, platform managers only, audited
-  app.post('/platforms/:id/kafka/peek', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+  // Kafka (#112): the newest messages of a topic, for troubleshooting – off unless the platform allows it, platform managers only, audited;
+  // since 0.25.0 a signed-in person's action only (ADR 0037 security notes): message content is never read with an API token
+  app.post('/platforms/:id/kafka/peek', { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
     const p = platforms.getPlatform(id);
     const body = z

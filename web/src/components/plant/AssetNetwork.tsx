@@ -201,6 +201,7 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
   const done = (x: PlantAssetNetwork) => {
     qc.setQueryData(plantKeys.assetNetwork(assetId), x);
     void qc.invalidateQueries({ queryKey: plantKeys.network(x.asset.siteId) });
+    void qc.invalidateQueries({ queryKey: plantKeys.assetEdge(assetId) });
   };
   const remove = async (what: 'devices' | 'paths', id: string, name: string) => {
     if (!(await confirmDanger({ action: 'remove', message: t(what === 'devices' ? 'device.removeConfirm' : 'path.removeConfirm', { name }) }))) return;
@@ -348,6 +349,19 @@ export function AssetNetworkSection({ assetId }: { assetId: string }) {
                             {d.notInSource && <NotInSourceBadge size="xs" />}
                           </Group>
                           {d.purpose && <Text size="xs">{d.purpose}</Text>}
+                          {/* 0.25.0: the Steward system this device is */}
+                          {(d.systemRef || d.systemHidden) && (
+                            <Text size="xs" data-testid={`device-system-${d.id}`}>
+                              {t('device.system')}:{' '}
+                              {d.systemRef ? (
+                                <ItemRefView item={d.systemRef} />
+                              ) : (
+                                <Text span size="xs" c="dimmed">
+                                  {t('notVisible')}
+                                </Text>
+                              )}
+                            </Text>
+                          )}
                           <Group gap="lg" wrap="wrap" style={{ rowGap: 6 }}>
                             <NetField label={t('device.address')}>
                               {/* no address but a type: the type alone ("Dynamic (DHCP)"), not "– · Dynamic" */}

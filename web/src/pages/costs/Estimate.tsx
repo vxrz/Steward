@@ -1359,6 +1359,7 @@ function ForDataProduct({ e, value, onChange }: { e: CostEstimate; value: string
   const { t } = useTranslation('costs');
   const on = useModuleOn('dataProducts');
   const [search, setSearch] = useState('');
+  const [picked, setPicked] = useState<{ value: string; label: string } | null>(null);
   // asked once typing pauses, not for every key; what was found stays while the next answer comes
   const [term] = useDebouncedValue(search, 250);
   const q = useQuery({
@@ -1382,9 +1383,13 @@ function ForDataProduct({ e, value, onChange }: { e: CostEstimate; value: string
         )}
       </Text>
     ) : null;
+  // The chosen product keeps one label whatever the search finds: Select puts the search text back to the chosen
+  // option's label whenever that label changes – it changed from "Name" to "Name (key)" as an answer came in with or
+  // without the chosen product, and overwrote what the person was typing.
+  const selected = value === null ? null : picked?.value === value ? picked : current?.visible && current.id === value ? { value, label: current.name } : null;
   const options = [
-    ...(current && current.visible && !(q.data?.items ?? []).some((x) => x.id === current.id) ? [{ value: current.id, label: current.name }] : []),
-    ...(q.data?.items ?? []).map((x) => ({ value: x.id, label: `${x.name} (${x.key})` })),
+    ...(selected ? [selected] : []),
+    ...(q.data?.items ?? []).filter((x) => x.id !== selected?.value).map((x) => ({ value: x.id, label: `${x.name} (${x.key})` })),
   ];
   return (
     <Select
@@ -1393,7 +1398,10 @@ function ForDataProduct({ e, value, onChange }: { e: CostEstimate; value: string
       placeholder={current && !current.visible ? t('estimates.forProduct.hidden') : undefined}
       data={options}
       value={value}
-      onChange={onChange}
+      onChange={(id, option) => {
+        setPicked(id && option ? { value: id, label: option.label } : null);
+        onChange(id);
+      }}
       searchable
       clearable
       searchValue={search}

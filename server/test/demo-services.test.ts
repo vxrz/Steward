@@ -168,7 +168,7 @@ describe('demo services', () => {
     await s.api('PUT', '/settings/modules/dataProducts', { enabled: true });
     try {
       const list = (await s.api('GET', '/data-products')) as { items: { id: string; key: string; lifecycle: string }[]; total: number };
-      expect(list.items.map((p) => p.key).sort()).toEqual(['customer-360', 'machine-measurements', 'orders', 'sales-mart']);
+      expect(list.items.map((p) => p.key).sort()).toEqual(['customer-360', 'machine-measurements', 'orders', 'sales-files', 'sales-mart']);
       const orders = list.items.find((p) => p.key === 'orders')!;
       const p = await s.api('GET', `/data-products/${orders.id}`);
       expect(p).toMatchObject({ lifecycle: 'active', type: 'sourceAligned' });
@@ -217,6 +217,31 @@ describe('demo services', () => {
         measured: { readAt: string | null } | null;
       }[];
       expect(allocations.find((a) => a.value === 'lkc-demo1')).toMatchObject({ rule: 'measured', measured: { readAt: expect.any(String) } });
+      // 0.25.0 (ADR 0037): the edge – a Databus topic → the bridge application on the edge device → a Confluent topic
+      const machines = list.items.find((x) => x.key === 'machine-measurements')!;
+      const bridge = (
+        (await s.api('GET', `/data-products/${machines.id}/steps`)) as {
+          name: string;
+          kind: string;
+          runner: { technology?: string };
+          runsOn: { name: string } | null;
+        }[]
+      ).find((x) => x.name === 'Databus to Confluent');
+      expect(bridge?.runsOn).toMatchObject({ name: 'ied-line-01.example', environment: 'prod' });
+      // a bridge of the technology Industrial Edge (ADR 0037 parts 0 and 3)
+      expect(bridge).toMatchObject({ kind: 'bridge', runner: { technology: 'industrial-edge' } });
+      const databus = (await s.api('GET', '/data-elements?kind=mqtt.topic')).items[0];
+      expect(databus).toMatchObject({ qualifiedName: 'ie/d/line-1/opcua/state' });
+      const edge = ((await s.api('GET', '/systems')) as { id: string; name: string; iemDeviceId: string | null }[]).find(
+        (x) => x.name === 'ied-line-01.example',
+      );
+      expect(edge?.iemDeviceId).toBe('dev-001');
+      // the plant half once the registry is on: the edge device is an asset whose device is the system
+      await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} });
+      const e = await s.api('GET', '/plant/assets/rvs-edge-01/edge');
+      expect(e.devices[0]).toMatchObject({ system: { id: edge!.id }, apps: [{ name: 'Edge Stream Bridge' }, { name: 'OPC UA Connector' }] });
+      expect(e.collects.groups[0]).toMatchObject({ asset: { id: 'rvs-mill-01' }, collections: [{ id: 'edge-state', via: 'application' }] });
+      expect((await s.api('GET', `/data-elements/${databus.id}`)).plantSink).toMatchObject({ assetId: 'rvs-mill-01', collectionId: 'edge-state' });
     } finally {
       await s.api('PUT', '/settings/modules/dataProducts', { enabled: false });
     }

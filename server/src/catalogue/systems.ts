@@ -70,6 +70,8 @@ interface SystemRow {
   platform_id: string | null;
   /** JSON: the attributes of its kind (#208) */
   attributes: string;
+  /** 0.25.0: its device id in Industrial Edge Management (catalogue-015) */
+  iem_device_id: string | null;
   sbom_format: string | null;
   sbom_name: string | null;
   sbom_imported_at: string | null;
@@ -119,6 +121,8 @@ export const systemInput = z
     stack: z.array(stackEntryInput).max(COMPONENT_LIMITS.stackPerComponent).optional(),
     /** Attributes of the kind (#208: a network segment's); missing: unchanged; other kinds have none */
     attributes: attributesInput.optional(),
+    /** 0.25.0: its device id in Industrial Edge Management (an external reference); missing: unchanged, null clears it */
+    iemDeviceId: z.string().trim().max(SYSTEM_LIMITS.iemDeviceId).nullable().optional(),
   })
   .strict();
 export type SystemInput = z.infer<typeof systemInput>;
@@ -194,6 +198,7 @@ function toSummary(
     attributes: attributesOf(r.kind, r.attributes),
     platform: p && visible ? { id: p.id, name: p.name, environment: p.environment } : null,
     platformHidden: !!p && !visible,
+    iemDeviceId: r.iem_device_id ?? null,
     applicationCount: new Set(x.links.map((l) => l.application_id)).size,
     environments: byEnvironment([...new Set(x.links.map((l) => l.environment))], (e) => e),
     eol: x.stack.filter((s) => s.lifecycle?.state === 'eol').length,
@@ -429,8 +434,9 @@ export function createSystem(input: SystemInput): SystemDetail {
   const owners = [...new Set(input.owners)];
   db().tx(() => {
     db().run(
-      `INSERT INTO systems (id, name, kind, vendor, supplier_id, cmdb_url, owners, note, platform_id, attributes, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO systems (id, name, kind, vendor, supplier_id, cmdb_url, owners, note, platform_id, attributes, iem_device_id, created_at, created_by,
+         updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.name,
       input.kind,
@@ -441,6 +447,7 @@ export function createSystem(input: SystemInput): SystemDetail {
       input.note,
       platformId,
       JSON.stringify(attributes),
+      input.iemDeviceId || null,
       now,
       u.username,
       now,
@@ -460,6 +467,7 @@ export function createSystem(input: SystemInput): SystemDetail {
         supplierId,
         owners,
         platformId,
+        ...(input.iemDeviceId ? { iemDeviceId: input.iemDeviceId } : {}),
         stack: diff?.added ?? [],
         ...(input.kind === 'network' ? { attributes } : {}),
       },
@@ -496,6 +504,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
     note: input.note,
     platform_id: platformId,
     attributes: JSON.stringify(attributes),
+    iem_device_id: input.iemDeviceId === undefined ? (cur.iem_device_id ?? null) : input.iemDeviceId || null,
   };
   const attributeChanges = changedAttributes(beforeAttributes, attributes);
   const fields = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (k === 'attributes' ? attributeChanges.length > 0 : next[k] !== cur[k]));
@@ -507,7 +516,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
     if (!fields.length && !stackChanged) return;
     db().run(
-      'UPDATE systems SET name = ?, kind = ?, vendor = ?, supplier_id = ?, cmdb_url = ?, owners = ?, note = ?, platform_id = ?, attributes = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE systems SET name = ?, kind = ?, vendor = ?, supplier_id = ?, cmdb_url = ?, owners = ?, note = ?, platform_id = ?, attributes = ?, iem_device_id = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       next.name,
       next.kind,
       next.vendor,
@@ -517,6 +526,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
       next.note,
       next.platform_id,
       next.attributes,
+      next.iem_device_id,
       nowIso(),
       u.username,
       id,
@@ -533,9 +543,11 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
               ? 'platform'
               : f === 'supplier_id'
                 ? 'supplier'
-                : f === 'attributes'
-                  ? `attributes: ${attributeChanges.join(', ')}`
-                  : f,
+                : f === 'iem_device_id'
+                  ? 'iemDeviceId'
+                  : f === 'attributes'
+                    ? `attributes: ${attributeChanges.join(', ')}`
+                    : f,
         ),
         ...(stackChanged ? [`stack: ${stackSummary(diff)}`] : []),
       ].join(', ')})`,
@@ -546,6 +558,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
         ...(fields.includes('platform_id') ? { platformId: { old: cur.platform_id, new: platformId } } : {}),
         ...(fields.includes('supplier_id') ? { supplierId: { old: cur.supplier_id, new: next.supplier_id } } : {}),
         ...(fields.includes('kind') ? { kind: { old: cur.kind, new: input.kind } } : {}),
+        ...(fields.includes('iem_device_id') ? { iemDeviceId: { old: cur.iem_device_id ?? null, new: next.iem_device_id } } : {}),
         ...(attributeChanges.length
           ? {
               attributes: {
@@ -577,8 +590,11 @@ export function deleteSystem(id: string): void {
   const members = memberCount(id);
   if (members) throw new HttpError(409, `Systems are in the segment "${cur.name}" (${members})`, 'SEGMENT_IN_USE', { name: cur.name, count: members });
   const stack = db().all<StackRow>('SELECT * FROM system_stack WHERE system_id = ?', id);
+  // 0.25.0 (ADR 0037 part 3): plant devices that were this system are no longer linked (named in the audit entry)
+  const devices = db().all<{ asset_id: string; id: string }>('SELECT asset_id, id FROM plant_devices WHERE system_id = ? ORDER BY asset_id, id', id);
   db().tx(() => {
     db().run('DELETE FROM system_stack WHERE system_id = ?', id);
+    if (devices.length) db().run('UPDATE plant_devices SET system_id = NULL WHERE system_id = ?', id);
     const segments = forgetSegments(id);
     db().run('DELETE FROM systems WHERE id = ?', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
@@ -595,6 +611,9 @@ export function deleteSystem(id: string): void {
         kind: cur.kind,
         stack: stack.map((s) => ({ product: s.product, version: s.version, source: s.source })),
         ...(segments.length ? { segments: segments.map((s) => ({ segmentId: s.segment_id, address: s.address })) } : {}),
+        ...(devices.length
+          ? { plantDevices: devices.slice(0, 50).map((d) => ({ assetId: d.asset_id, deviceId: d.id })), plantDevicesCleared: devices.length }
+          : {}),
       },
     });
   });

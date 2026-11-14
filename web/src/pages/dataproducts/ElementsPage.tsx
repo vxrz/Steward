@@ -10,6 +10,8 @@ import { DataTable, ListFooter } from '../../components/DataTable';
 import { ListPage } from '../../components/page/ListPage';
 import { useEnvironmentList } from '../../components/catalogue/environments';
 import { ElementForm } from '../../components/dataproducts/CatalogueForms';
+import { TechnologyBadge, technologyOptions } from '../../components/dataproducts/GenericParts';
+import { useTechnologies } from './generic';
 import { fmtDay, fmtNumber } from '../../format';
 import { pagesOf, qs, useElementList, useInvalidateDataProducts, usePlatforms } from './api';
 import { PlatformName, useKindLabel } from './parts';
@@ -72,9 +74,11 @@ export function DataElementsPage() {
   useCreateParam(canCreate, () => setCreating(true));
   const platforms = usePlatforms();
   const envs = useEnvironmentList();
+  const technologies = useTechnologies();
   const f = {
     platformId: params.get('platform') ?? '',
     kind: params.get('kind') ?? '',
+    technology: params.get('technology') ?? '',
     environment: params.get('environment') ?? '',
     layer: params.get('layer') ?? '',
     inNoProduct: params.get('inNoProduct') === '1',
@@ -99,6 +103,7 @@ export function DataElementsPage() {
     [mode === 'prefix' ? 'prefix' : 'q']: term,
     platformId: f.platformId,
     kind: f.kind,
+    technology: f.technology,
     environment: f.environment,
     layer: f.layer,
     inNoProduct: f.inNoProduct,
@@ -107,9 +112,12 @@ export function DataElementsPage() {
   const list = useElementList(query);
   const rows = pagesOf(list.data);
   const first = list.data?.pages[0];
-  const anyFilter = !!(term || f.platformId || f.kind || f.environment || f.layer || f.inNoProduct || f.missing);
+  const anyFilter = !!(term || f.platformId || f.kind || f.technology || f.environment || f.layer || f.inNoProduct || f.missing);
   const none = list.isSuccess && !anyFilter && (first?.total ?? 0) === 0;
-  const active = [f.platformId, f.kind, f.environment, f.layer, f.inNoProduct, f.missing, term].filter(Boolean).length;
+  const active = [f.platformId, f.kind, f.technology, f.environment, f.layer, f.inNoProduct, f.missing, term].filter(Boolean).length;
+  // the list's technologies of parts, and a value not in the list the address names
+  const techOptions = technologyOptions(technologies.data, 'part');
+  if (f.technology && !techOptions.some((o) => o.value === f.technology)) techOptions.push({ value: f.technology, label: f.technology });
   const usedPlatforms = (platforms.data ?? []).filter(
     (p) => ['snowflake', 'kafka', 'confluent-cloud', 'database', 'aws', 'insights-hub'].includes(p.kind) || p.id === f.platformId,
   );
@@ -176,6 +184,17 @@ export function DataElementsPage() {
             clearable
             searchable
             w={{ base: '100%', xs: 180 }}
+          />
+          <Select
+            size="xs"
+            label={t('generic.technology')}
+            data={techOptions}
+            value={f.technology || null}
+            onChange={(v) => set('technology', v)}
+            clearable
+            searchable
+            w={{ base: '100%', xs: 160 }}
+            data-testid="filter-technology"
           />
           <Select
             size="xs"
@@ -255,6 +274,7 @@ export function DataElementsPage() {
                   {[kindLabel(e.kind), e.platformHidden ? t('hidden.platform') : e.platformName, e.environment, e.layer].filter(Boolean).join(' · ')}
                 </Text>
                 <Group gap={6}>
+                  {e.technology && <TechnologyBadge value={e.technology} size="xs" />}
                   <ProductCount products={e.products} />
                   <MissingBadge since={e.missingSince} />
                 </Group>
@@ -286,7 +306,19 @@ export function DataElementsPage() {
                 </Stack>
               ),
             },
-            { key: 'kind', header: t('elements.kind'), nowrap: true, cell: (e) => kindLabel(e.kind) },
+            {
+              key: 'kind',
+              header: t('elements.kind'),
+              cell: (e) =>
+                e.technology ? (
+                  <Stack gap={2}>
+                    <Text size="sm">{kindLabel(e.kind)}</Text>
+                    <TechnologyBadge value={e.technology} size="xs" />
+                  </Stack>
+                ) : (
+                  kindLabel(e.kind)
+                ),
+            },
             { key: 'platform', header: t('elements.platform'), cell: (e) => <PlatformName name={e.platformName} hidden={e.platformHidden} /> },
             { key: 'environment', header: t('elements.environment'), nowrap: true, cell: (e) => e.environment || '–' },
             { key: 'layer', header: t('elements.layer'), nowrap: true, cell: (e) => e.layer || '–' },
