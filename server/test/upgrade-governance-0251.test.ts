@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startedUrl } from './helpers.js';
 import { Db, type DatabaseTarget } from '../src/db.js';
+import { PG_TEST_URL } from './pg-env.js';
 import { spawnTestServer } from './server-process.js';
 
 /**
@@ -14,8 +15,9 @@ import { spawnTestServer } from './server-process.js';
  * a data object with a data owner and a steward, a registration made by hand, one made by an approved access request,
  * a pending request, an endorsement and a semantic model sign-off. The server upgrades it as a real installation does –
  * migrations at start, then the conversions when an administrator unlocks the vault – and again after a restart
- * (nothing is done twice). SQLite (the fixture's database); the conversions' SQL on PostgreSQL is proven by
- * dataproducts-owner-shares.test.ts and contacts-upgrade.test.ts.
+ * (nothing is done twice). On SQLite (the fixture's database) and – with SM_TEST_DATABASE_URL – on PostgreSQL: a schema
+ * brought to the fixture's version gets its rows as they are (as upgrade.test.ts does), and the server migrates and
+ * converts them there.
  */
 const SERVER = path.resolve(__dirname, '..');
 const FIXTURE = path.join(__dirname, 'fixtures', 'upgrade', 'v0.25.0');
@@ -29,6 +31,8 @@ const AT = '2026-11-01T08:00:00.000Z';
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-upg-0251-'));
 const sqlite: DatabaseTarget = { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') };
+const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_gov_0251_${process.pid}`;
+const pg: DatabaseTarget | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
 let proc: ChildProcess | undefined;
 let base = '';
 
@@ -59,6 +63,7 @@ function client() {
 async function start(): Promise<void> {
   const env: Record<string, string | undefined> = { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: '0' };
   for (const k of ['SM_DATABASE_URL', 'SM_DATABASE_SCHEMA', 'SM_MASTER_PASSPHRASE', 'SM_MASTER_PASSPHRASE_FILE', 'SM_DEMO']) delete env[k];
+  if (pg) Object.assign(env, { SM_DATABASE_URL: PG_TEST_URL, SM_DATABASE_SCHEMA: schema });
   Object.assign(env, { SM_GATUS_AUTOSTART: '0', SM_MONITOR_AUTOSTART: '0', SM_MONITOR_DEMO_SIMULATOR: '0', SM_UPGRADE_BACKUPS: '0' });
   let out = '';
   base = '';
@@ -100,7 +105,7 @@ async function unlock() {
 
 /** A read-only look at the database while the server runs. */
 function look<T>(fn: (d: Db) => T): T {
-  const d = new Db(sqlite, { migrate: false });
+  const d = new Db(pg ? { ...pg, lock: false } : sqlite, { migrate: false });
   try {
     return fn(d);
   } finally {
@@ -208,8 +213,23 @@ beforeAll(async () => {
   } finally {
     old.close();
   }
+  if (pg) {
+    // PostgreSQL at the fixture's version, with its rows: the server migrates and converts them on PostgreSQL
+    const d = new Db(sqlite, { migrate: false });
+    const state = {
+      core: Number(d.get<{ version: number }>('SELECT version FROM schema_version')!.version),
+      named: d
+        .all<{ name: string }>('SELECT name FROM schema_migrations')
+        .map((r) => r.name)
+        .sort(),
+    };
+    d.close();
+    new Db(pg, { upTo: state, quiet: true, appVersion: '0.25.0' }).close();
+    const { copyDatabase } = await import('../src/cli/db-copy.js');
+    copyDatabase({ from: sqlite, to: pg, asIs: true, force: true });
+  }
   await start();
-}, 120_000);
+}, 180_000);
 
 afterAll(async () => {
   await stop();

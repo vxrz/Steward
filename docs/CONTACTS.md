@@ -47,6 +47,8 @@ Personal data leaves the app **per link kind, never per contact**:
 | Plant sites                                                  | name, role, e-mail, phone, URL  | as before 0.25.1: name, role, e-mail, phone, URL    | the same (YAML import and export)  |
 | Data products, domains, data objects, consumer registrations | name, role, e-mail, phone       | names and roles                                     | names, roles and e-mail addresses  |
 
+The app's internal API called with an API token counts as an API: a data product's, domain's, data object's and registration's contacts come by name and role, as on `/api/v1`; the consumers' contacts CSV needs a signed-in session. Where an old subject field (`owners: [user:…]`) or a file's `user` names a Steward account, a new contact gets the account's e-mail address only when an administrator (or the account itself) names it – only administrators see accounts' addresses.
+
 Contacts are in backups (the database) and in migration packages; a contact's Steward account is mapped to the target's account on import. The where-used page of a contact is the overview of that person's data for a subject access request.
 
 ## For developers
