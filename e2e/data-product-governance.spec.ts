@@ -117,7 +117,10 @@ test.describe('governance of data products', () => {
     await page.getByTestId('port-orders').getByTestId('port-consumers-toggle').click();
     await expect(page.getByTestId('consumer-approval-notDocumented')).toBeVisible();
     await page.getByRole('button', { name: `Change the consumer Invented BI ${s.token}` }).click();
+    // marked as pending: the form says so while no decision is documented
+    await expect(page.getByTestId('consumer-pending')).toBeChecked();
     await page.getByTestId('consumer-documented').check();
+    await expect(page.getByTestId('consumer-pending')).toHaveCount(0);
     await page.getByTestId('consumer-decision-by-search').fill(`Invented product owner ${s.token}`);
     await page.getByRole('option', { name: new RegExp(`Invented product owner ${s.token}`) }).click();
     await expectAccessible(page, 'documented access form');
