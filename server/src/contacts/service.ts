@@ -727,9 +727,10 @@ export function listContacts(query: z.input<typeof contactListQuery>): ContactLi
   const u = me();
   const q = contactListQuery.parse(query);
   const pattern = `%${likeEscape(contactNameKey(q.q))}%`;
-  const where = [q.q ? `(c.name_norm LIKE ? ESCAPE '\\' OR c.email_norm LIKE ? ESCAPE '\\')` : '1 = 1', q.status === 'all' ? '1 = 1' : 'c.status = ?'].join(
-    ' AND ',
-  );
+  const where = [
+    q.q ? `(lower(c.name_norm) LIKE lower(?) ESCAPE '\\' OR lower(c.email_norm) LIKE lower(?) ESCAPE '\\')` : '1 = 1',
+    q.status === 'all' ? '1 = 1' : 'c.status = ?',
+  ].join(' AND ');
   const args = [...(q.q ? [pattern, pattern] : []), ...(q.status === 'all' ? [] : [q.status])];
   const page = (limit: number, offset: number) =>
     db().all<ContactRow>(`SELECT ${CONTACT_COLUMNS} FROM ${FROM_CONTACTS} WHERE ${where} ORDER BY c.name_norm, c.id LIMIT ? OFFSET ?`, ...args, limit, offset);

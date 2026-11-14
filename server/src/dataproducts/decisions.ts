@@ -131,7 +131,11 @@ export function countDecisions(contactIds: readonly string[]): Map<string, numbe
   if (!contactIds.length) return out;
   const wanted = new Set(contactIds);
   for (const c of DECISION_COLUMNS)
-    for (const r of db().all<{ decision: string }>(`SELECT decision FROM ${c.table} WHERE decision IS NOT NULL AND decision LIKE '%"contactId":"ct_%'`))
+    // a pre-filter (lower case on both databases); the JSON decides
+    for (const r of db().all<{ decision: string }>(
+      `SELECT decision FROM ${c.table} WHERE decision IS NOT NULL AND lower(decision) LIKE lower(?)`,
+      '%"contactid":"ct_%',
+    ))
       for (const id of new Set(parseJson<DocumentedDecision | null>(r.decision, null)?.decidedBy.map((x) => x.contactId) ?? []))
         if (id && wanted.has(id)) out.set(id, (out.get(id) ?? 0) + 1);
   return out;
@@ -141,9 +145,13 @@ export function countDecisions(contactIds: readonly string[]): Map<string, numbe
 export function forgetErasedContact(contactId: string): void {
   const needle = `%"contactId":"${contactId.replace(/[%_\\]/g, (m) => `\\${m}`)}"%`;
   for (const c of DECISION_COLUMNS)
-    for (const r of db().all<{ k: string; decision: string }>(`SELECT ${c.key} AS k, decision FROM ${c.table} WHERE decision LIKE ? ESCAPE '\\'`, needle)) {
+    // a pre-filter that ignores case on both databases (ids differ in case); only the exact id is nulled below
+    for (const r of db().all<{ k: string; decision: string }>(
+      `SELECT ${c.key} AS k, decision FROM ${c.table} WHERE lower(decision) LIKE lower(?) ESCAPE '\\'`,
+      needle,
+    )) {
       const d = parseJson<DocumentedDecision | null>(r.decision, null);
-      if (!d) continue;
+      if (!d || !d.decidedBy.some((x) => x.contactId === contactId)) continue;
       d.decidedBy = d.decidedBy.map((x) => (x.contactId === contactId ? { ...x, contactId: null } : x));
       db().run(`UPDATE ${c.table} SET decision = ? WHERE ${c.key} = ?`, JSON.stringify(d), r.k);
     }
