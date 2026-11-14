@@ -58,7 +58,7 @@ describe('validate CLI', () => {
   it('checks data products files against their format (0.22.0): the examples pass, an unknown key fails', () => {
     const ok = validate('--json', path.join(ROOT, 'examples', 'data-products'));
     expect(ok.code).toBe(0);
-    expect(JSON.parse(ok.stdout).files.map((f: { kind: string }) => f.kind)).toEqual(['data products', 'data products']);
+    expect(JSON.parse(ok.stdout).files.map((f: { kind: string }) => f.kind)).toEqual(['semantic model', 'data products', 'data products']);
     // an ODCS contract has a version and a domain too – it stays a data contract
     const contracts = validate('--json', path.join(ROOT, 'examples', 'data-contracts'));
     expect(contracts.code).toBe(0);

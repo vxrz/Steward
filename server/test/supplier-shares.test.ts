@@ -116,7 +116,9 @@ describe('a share of a supplier', () => {
       'STEP_UP_REQUIRED:password',
     );
     await dana('PUT', `/suppliers/${sup}`, { name: 'Invented Hosting AG', type: 'saas', owners: ['user:pat'] });
-    expect((await s.api('GET', `/access/supplier/${sup}/shares`)).implied).toEqual([{ subject: 'user:pat', level: 'edit', as: 'owner', outside: true }]);
+    expect((await s.api('GET', `/access/supplier/${sup}/shares`)).implied).toEqual([
+      { subject: 'user:pat', level: 'edit', as: 'owner', outside: true, owningTeam: false },
+    ]);
     expect(((await pat('GET', `/suppliers/${sup}`)) as Detail).canEdit).toBe(true);
     await dana('PUT', `/suppliers/${sup}`, { name: 'Invented Hosting AG', type: 'saas', owners: [] });
     expect(await status(pat('GET', `/suppliers/${sup}`))).toBe(404);
