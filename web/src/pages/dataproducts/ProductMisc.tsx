@@ -9,7 +9,7 @@ import { useMe } from '../../auth';
 import { ErrorState, QueryState } from '../../components/common';
 import { AccessTab } from '../../components/access/AccessTab';
 import { TableScroll } from '../../components/TableScroll';
-import { useSubjectLabel } from '../../components/SubjectsInput';
+import { ContactLinksView } from '../../components/contacts';
 import { fmtDate, fmtDay } from '../../format';
 import { dpKeys, qs } from './api';
 import { Section } from './parts';
@@ -22,7 +22,6 @@ import { GovernanceAccessSections } from './governance/AccessPanel';
  */
 export function ProductAccessTab({ p }: { p: DataProduct }) {
   const { t } = useTranslation('dataProducts');
-  const subject = useSubjectLabel();
   return (
     <Stack gap="md" maw={880}>
       {/* ADR 0033: owning teams with Why do I have access?, Restricted and the shares (View, Edit, Manage) */}
@@ -30,7 +29,7 @@ export function ProductAccessTab({ p }: { p: DataProduct }) {
       {/* 0.24.0 (ADR 0036 phase 2): access requests, port access reviews and their settings */}
       <GovernanceAccessSections p={p} />
       <Section title={t('access.owners')}>
-        <Text size="sm">{p.owners.length ? p.owners.map(subject).join(', ') : t('product.noOwner')}</Text>
+        <ContactLinksView links={p.contacts} kind="data_product" />
         <Text size="xs" c="dimmed" mt="xs">
           {t('access.ownersHint')}
         </Text>

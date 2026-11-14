@@ -5,16 +5,19 @@ import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll, json } from './support/helpers';
 
 /**
- * Consumers, access and governance of data products (0.24.0, ADR 0036 phase 2): who really reads a port (read now),
- * a request for access by an operator decided by the product owner, a port access review, promotion from dev to prod
- * with its preview and evidence, the endorsement by the domain's owner, the access requests page and the GDPR Art. 30
- * view with its exports – axe on each, cards and no sideways scroll on phones. Seeded through the API.
+ * Consumers, access and governance of data products (0.24.0, ADR 0036 phase 2; 0.25.1, ADR 0038 – Steward documents
+ * governance, it doesn't run it): who really reads a port (read now), access documented on a registration (who decided
+ * it, from the contacts), the consumers' contacts with copy and CSV, a port access review with its documented decision,
+ * promotion from dev to prod with its preview and evidence, the endorsement recorded by the IT maintainer for the
+ * domain's owner, asking for access answering 410, and the GDPR Art. 30 view with its exports – axe on each, cards and
+ * no sideways scroll on phones. Seeded through the API.
  */
 
 interface Seed {
   token: string;
   product: string;
   object: string;
+  port: string;
 }
 
 let seeded: Promise<Seed> | null = null;
@@ -65,7 +68,16 @@ async function seed(admin: APIRequestContext): Promise<Seed> {
     })
   ).id;
   expect((await admin.post(`/api/data-objects/${object}/elements`, { data: { elementId: prod } })).ok()).toBe(true);
-  return { token, product, object };
+  // a registration marked as pending – its approval is not documented yet –, with its contact (0.25.1)
+  await post(admin, `/api/data-products/${product}/ports/${port}/consumers`, {
+    kind: 'text',
+    text: `Invented BI ${token}`,
+    purpose: 'Monthly close',
+    endDate: '2027-12-31',
+    approval: 'notDocumented',
+    contacts: [{ role: 'consumerContact', contact: { name: `Invented BI lead ${token}`, email: `bi.lead.${key}@invented.example` } }],
+  });
+  return { token, product, object, port };
 }
 
 test.describe('governance of data products', () => {
@@ -76,7 +88,7 @@ test.describe('governance of data products', () => {
     s = await seeded;
   });
 
-  test('who reads, a request for access, a port review, promotion and endorsement', async ({ page, loginAs }) => {
+  test('who reads, documented access, the consumers’ contacts, a port review, promotion and endorsement', async ({ page, loginAs, apiAs }) => {
     test.setTimeout(240_000);
     // who really reads: read now (the demo account's ACCESS_HISTORY)
     // the read's answer is shown at once, not after the page's queries are read again: under load that re-read (seven
@@ -99,59 +111,73 @@ test.describe('governance of data products', () => {
     // with WCAG 2.2: the toggle of a port's readers is a target of at least 24 px
     await expectAccessible(page, 'actual consumers');
 
-    // an operator asks for access
-    const olivia = await loginAs('olivia');
-    await olivia.goto(`/data-products/${s.product}/ports`);
-    await olivia.getByTestId('port-orders').getByTestId('port-request-access').click();
-    await olivia.getByTestId('request-purpose').fill('Monthly close');
-    await olivia.getByTestId('request-until').fill('2027-12-31');
-    await expectAccessible(olivia, 'request access form');
-    await olivia.getByTestId('request-save').click();
-    // the dialog closes with a word on where to follow the request
-    await expect(olivia.getByText('Request sent – you can follow it under Data → Access requests')).toBeVisible();
-    await olivia.goto('/data-products/access-requests');
-    await olivia.getByTestId('requests-scope').getByText('Mine').click();
-    await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
-    // the row of this request: other tests of the file request access as Olivia too
-    const requestRow = olivia
-      .getByTestId('requests-table')
-      .getByRole('row')
-      .filter({ hasText: `Governed orders ${s.token}` });
-    await expect(requestRow.getByTestId('request-status-pending')).toBeVisible();
-    // the status filter: none refused
-    await olivia.getByTestId('requests-status').click();
-    await olivia.getByRole('option', { name: 'Refused' }).click();
-    await expect(olivia.getByTestId('requests-empty')).toHaveText('No request of this status – clear the status to see all.');
-    await olivia.getByTestId('requests-status').click();
-    await olivia.getByRole('option', { name: 'Waiting' }).click();
-    await expect(olivia.getByTestId('requests-table')).toContainText(`Governed orders ${s.token}`);
-    await expectAccessible(olivia, 'access requests page');
+    // the access was decided elsewhere: the IT maintainer documents it – who decided, from the contacts
+    await post(await apiAs('dana'), '/api/contacts', { name: `Invented product owner ${s.token}` });
+    await page.reload();
+    await page.getByTestId('port-orders').getByTestId('port-consumers-toggle').click();
+    await expect(page.getByTestId('consumer-approval-notDocumented')).toBeVisible();
+    await page.getByRole('button', { name: `Change the consumer Invented BI ${s.token}` }).click();
+    // marked as pending: the form says so while no decision is documented
+    await expect(page.getByTestId('consumer-pending')).toBeChecked();
+    await page.getByTestId('consumer-documented').check();
+    await expect(page.getByTestId('consumer-pending')).toHaveCount(0);
+    await page.getByTestId('consumer-decision-by-search').fill(`Invented product owner ${s.token}`);
+    await page.getByRole('option', { name: `Invented product owner ${s.token}` }).click();
+    await expectAccessible(page, 'documented access form');
+    await page.getByTestId('consumer-save').click();
+    await expect(page.getByTestId('consumer-approval-documented')).toBeVisible();
+    await expect(page.getByTestId('port-orders')).toContainText(`Decided by Invented product owner ${s.token}`);
+    await settle(page);
+    await expectAccessible(page, 'documented registration');
 
-    // the owner decides on the Access tab
+    // the consumers' contacts for the maintainers: names, roles, e-mail addresses, copy and CSV
+    await page.getByTestId('consumer-contacts-open').click();
+    const contacts = page.getByTestId('consumer-contacts');
+    await expect(contacts.getByTestId('consumer-contact-row')).toContainText(`Invented BI lead ${s.token}`);
+    await expect(contacts).toContainText(`bi.lead.${s.token.toLowerCase()}@invented.example`);
+    // opened from its button, the list has the focus (the button is gone); copy is announced
+    await expect(page.getByRole('region', { name: 'Consumers’ contacts' })).toBeFocused();
+    await contacts.getByTestId('consumer-contacts-copy').click();
+    await expect(contacts.getByTestId('consumer-contacts-status')).toHaveText('1 e-mail address copied');
+    const csv = await page.request.get((await contacts.getByTestId('consumer-contacts-csv').getAttribute('href'))!);
+    expect(csv.status()).toBe(200);
+    expect(await csv.text()).toContain(`bi.lead.${s.token.toLowerCase()}@invented.example`);
+    await expectAccessible(page, 'consumers contacts');
+    // closed, the focus is back on the button that opened it
+    await contacts.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByTestId('consumer-contacts-open')).toBeFocused();
+    // a reader sees names and roles, no addresses
+    const olivia = await loginAs('olivia');
+    await olivia.goto(`/data-products/${s.product}/ports?contacts=all`);
+    await expect(olivia.getByTestId('consumer-contacts')).toContainText(`Invented BI lead ${s.token}`);
+    await expect(olivia.getByTestId('consumer-contacts')).not.toContainText('@invented.example');
+    await expect(olivia.getByTestId('consumer-contacts-csv')).toHaveCount(0);
+    await olivia.close();
+
     await page.goto(`/data-products/${s.product}/access`);
-    const requests = page.getByTestId('product-access-requests');
-    // the decision buttons name whose request they decide
-    await expect(requests.getByTestId('request-approve')).toHaveAccessibleName(/^Approve the request of /);
-    await requests.getByTestId('request-approve').click();
-    await page.getByTestId('decide-comment').fill('For the close');
-    await page.getByTestId('decide-save').click();
-    await expect(requests.getByTestId('request-status-approved')).toBeVisible();
-    await expect(page.getByText('Request approved')).toBeVisible();
     await settle(page);
     await expectAccessible(page, 'access tab');
 
-    // a port access review of prod: the new registration, kept; submitted for a second person
+    // a port access review of prod: the registration, kept; the outcome decided elsewhere, recorded; four eyes off
     await page.getByTestId('review-start').click();
+    await expect(page.getByTestId('review-start-four-eyes')).toContainText('Four eyes is off');
     await page.getByTestId('review-start-save').click();
     const review = page.getByTestId('review-modal');
     await expect(review.getByTestId('review-entry')).toHaveCount(1);
-    // the registration of a person is named as everywhere else, not by its subject key
     await expect(review.getByTestId('review-entry')).not.toContainText('user:');
     await review.getByTestId('review-decision').click();
     await page.getByRole('option', { name: 'Keep' }).click();
     await expect(review.getByTestId('review-decision')).toHaveValue('Keep');
+    await expect(review.getByTestId('review-submit')).toBeDisabled();
+    await review.getByTestId('review-decision-form-by-search').fill(`Invented product owner ${s.token}`);
+    await page.getByRole('option', { name: `Invented product owner ${s.token}` }).click();
+    await review.getByTestId('review-decision-save').click();
+    await expect(review.getByTestId('review-decision-line')).toContainText(`Invented product owner ${s.token}`);
     await review.getByTestId('review-submit').click();
-    await expect(review).toContainText('Submitted');
+    // four eyes off: nobody approved in Steward – the outcome decided elsewhere was recorded and sealed
+    await expect(review.getByTestId('review-status')).toHaveText('Sealed');
+    await expect(review.getByTestId('review-sealed')).toContainText('Recorded and sealed by dana');
+    await expect(review).not.toContainText('Approved');
     // the frozen facts in the reader's language: the registration's end date
     await expect(review.getByTestId('review-entry').first()).toContainText('until 31 Dec 2027');
     await expectAccessible(page, 'port access review');
@@ -186,56 +212,80 @@ test.describe('governance of data products', () => {
     // opened from the menu: the focus is back on the menu's button
     await expect(page.getByTestId('detail-actions')).toBeFocused();
 
-    // the product owner does not endorse; the domain's owner does
+    // the IT maintainer records the endorsement the domain's owner gave (offered first: the domain's owners)
     await page.goto(`/data-products/${s.product}`);
-    await expect(page.getByTestId('product-endorsement')).toContainText('Nobody endorses a product they own');
-    await expect(page.getByTestId('endorse')).toHaveCount(0);
-    const adam = await loginAs('adam');
-    await adam.goto(`/data-products/${s.product}`);
-    await adam.getByTestId('endorse').click();
-    await adam.getByTestId('endorse-note').fill('Reliable');
-    await adam.getByTestId('endorse-save').click();
-    await expect(adam.getByTestId('product-endorsement').getByTestId('product-endorsed-badge')).toContainText('Endorsed');
-    await expect(adam.getByTestId('endorsement-line')).toContainText('Endorsed by adam');
-    await expectAccessible(adam, 'endorsed product');
+    await expect(page.getByTestId('product-endorsement')).toContainText('Its domain owners: Adam Approver');
+    await page.getByTestId('endorse').click();
+    await expect(page.getByTestId('endorse-decision')).toContainText('Adam Approver');
+    await expectAccessible(page, 'endorsement form');
+    await page.getByTestId('endorse-save').click();
+    await expect(page.getByTestId('product-endorsement').getByTestId('product-endorsed-badge')).toContainText('Endorsed');
+    await expect(page.getByTestId('endorsement-decision')).toContainText('Decided by Adam Approver');
+    await expectAccessible(page, 'endorsed product');
   });
 
-  test('withdrawing a request asks first; the card on a phone says what the table says', async ({ apiAs, loginAs }) => {
+  test('a documented decision is checked before saving, the server’s answer is shown at its field, evidence is searched', async ({ page, apiAs }) => {
     const admin = await apiAs('admin');
+    const dana = await apiAs('dana');
+    // a product of its own (the first test records the endorsement of the seeded one)
+    const product = (await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-decide`, name: `Decided ${s.token}`, owners: ['user:dana'] })).id;
+    const leaving = await post<{ id: string; name: string }>(dana, '/api/contacts', { name: `Invented leaving owner ${s.token}` });
+    const staying = await post<{ id: string; name: string }>(dana, '/api/contacts', { name: `Invented staying owner ${s.token}` });
+    await post(admin, '/api/records', { type: 'DOC', title: `Invented minutes ${s.token}` });
+
+    await page.goto(`/data-products/${product}`);
+    await page.getByTestId('endorse').click();
+    const form = page.getByRole('dialog', { name: `Record the endorsement of Decided ${s.token}` });
+    // checked before saving: who decided, and a date not in the future (the first wrong field has the focus)
+    await form.getByTestId('endorse-decision-on').fill('2099-01-01');
+    await form.getByTestId('endorse-save').click();
+    await expect(form.getByTestId('endorse-decision-by')).toContainText('Name who decided it');
+    await expect(form).toContainText('The date cannot be in the future');
+    await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
+    await form.getByTestId('endorse-decision-on').fill('2026-03-02');
+    await form.getByTestId('endorse-decision-by-search').fill(leaving.name);
+    await page.getByRole('option', { name: leaving.name }).click();
+    await expect(form.getByTestId('endorse-decision-by-status')).toHaveText(`${leaving.name} added`);
+
+    // the evidence: a document found by its title, not typed as an id
+    await form.getByTestId('endorse-decision-evidence-add').click();
+    await form.getByTestId('endorse-decision-evidence-kind').click();
+    await page.getByRole('option', { name: 'Document', exact: true }).click();
+    await form.getByTestId('endorse-decision-evidence-ref').fill(`Invented minutes ${s.token}`);
+    await page.getByRole('option', { name: `Invented minutes ${s.token}` }).click();
+    await expect.poll(() => form.getByTestId('endorse-decision-evidence-ref').inputValue()).toContain(`Invented minutes ${s.token}`);
+
+    // the decider leaves meanwhile: the server's answer is shown at who decided, not as a notice
+    expect((await admin.put(`/api/contacts/${leaving.id}`, { data: { kind: 'person', name: leaving.name, status: 'left' } })).ok()).toBe(true);
+    await form.getByTestId('endorse-save').click();
+    await expect(form.getByTestId('endorse-decision-by').getByRole('alert')).toHaveText(`${leaving.name} has left. Choose another contact.`);
+    await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
+    await expectAccessible(page, 'documented decision with an error');
+    // removed by keyboard, another decider, saved and announced
+    await form.getByRole('button', { name: `Remove ${leaving.name}` }).focus();
+    await page.keyboard.press('Enter');
+    await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
+    await form.getByTestId('endorse-decision-by-search').fill(staying.name);
+    await page.getByRole('option', { name: staying.name }).click();
+    await form.getByTestId('endorse-save').click();
+    await expect(form).toBeHidden();
+    await expect(page.getByRole('alert').filter({ hasText: 'Endorsement recorded' })).toBeVisible();
+    const line = page.getByTestId('endorsement-decision');
+    await expect(line).toContainText(`Decided by ${staying.name} (Domain owner) on 2 Mar 2026`);
+    await expect(line.getByRole('link', { name: `Invented minutes ${s.token}` })).toBeVisible();
+    await expect(line).toContainText('Recorded by dana');
+  });
+
+  test('asking for access answers 410: Steward documents access, the inbox is gone', async ({ apiAs, page }) => {
     const olivia = await apiAs('olivia');
-    const own = (
-      await post(admin, '/api/data-products', { key: `${s.token.toLowerCase()}-withdraw`, name: `Withdrawn access ${s.token}`, owners: ['user:dana'] })
-    ).id;
-    const port = (await post(admin, `/api/data-products/${own}/ports`, { direction: 'output', name: 'orders', type: 'table' })).id;
-    const el = await json<{ items: { id: string }[] }>(await admin.get(`/api/data-elements?prefix=${s.token}.SALES.ORDERS&environment=prod`));
-    expect((await admin.put(`/api/data-products/${own}/ports/${port}/bindings/prod`, { data: { elementIds: [el.items[0]!.id] } })).ok()).toBe(true);
-    await post(olivia, `/api/data-products/${own}/ports/${port}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'user', subject: 'user:olivia', text: '', refId: null },
-      purpose: 'Quarterly figures',
-      until: '2027-06-30',
-      agreement: null,
-      identities: [],
+    const res = await olivia.post(`/api/data-products/${s.product}/ports/${s.port}/access-requests`, {
+      data: { environment: 'prod', consumer: { kind: 'text', text: 'x' }, purpose: 'x' },
     });
-    const page = await loginAs('olivia');
-    await page.goto(`/data-products/${own}/access`);
-    const requests = page.getByTestId('product-access-requests');
-    await requests.getByTestId('request-withdraw').click();
-    await expect(page.getByTestId('confirm-dialog-message')).toContainText('Withdraw your request for orders · prod?');
-    await page
-      .getByRole('dialog')
-      .filter({ has: page.getByTestId('confirm-dialog-message') })
-      .getByRole('button', { name: 'Cancel' })
-      .click();
-    await expect(requests.getByTestId('request-status-pending')).toBeVisible();
-    await requests.getByTestId('request-withdraw').click();
-    await page.getByTestId('confirm-dialog-confirm').click();
-    await expect(page.getByText('Request withdrawn')).toBeVisible();
-    await expect(requests.getByTestId('request-status-withdrawn')).toBeVisible();
-    // on a phone the card keeps the purpose and the date
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect(requests.getByTestId('request-card')).toContainText(/Until \d/);
-    await expect(requests.getByTestId('request-card')).toContainText('Quarterly figures');
+    expect(res.status()).toBe(410);
+    expect((await res.json()).code).toBe('DATA_ACCESS_DOCUMENTED_ONLY');
+    // the old address of the inbox leads to the products
+    await page.goto('/data-products/access-requests');
+    await expect(page).toHaveURL(/\/data-products$/);
   });
 
   test('the records of processing with their exports', async ({ page }) => {
@@ -259,7 +309,7 @@ test.describe('governance of data products', () => {
     // in the sidebar's Data group
     const data = page.locator('[data-group="data"]');
     await expect(data.getByRole('link', { name: 'Records of processing' })).toBeVisible();
-    await expect(data.getByRole('link', { name: 'Access requests' })).toBeVisible();
+    await expect(data.getByRole('link', { name: 'Access requests' })).toHaveCount(0);
   });
 
   test('governance on a phone @mobile', async ({ page, apiAs }) => {
@@ -269,9 +319,11 @@ test.describe('governance of data products', () => {
     await expect(page.getByTestId('ropa-card').first()).toContainText('Data subjects: customers');
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'records of processing on a phone');
-    await page.goto('/data-products/access-requests');
-    await expect(page.getByRole('heading', { level: 1, name: 'Access requests' })).toBeVisible();
+    await page.goto(`/data-products/${s.product}/ports?contacts=all`);
+    await expect(page.getByTestId('consumer-contact-row').first()).toBeVisible();
+    await expect(page.getByTestId('consumer-contacts').locator('table')).toHaveCount(0);
     await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'consumers contacts on a phone');
     await page.goto(`/data-products/${s.product}/access`);
     await expect(page.getByTestId('product-port-reviews')).toBeVisible();
     await expectNoHorizontalScroll(page);
@@ -291,7 +343,7 @@ test.describe('governance of data products', () => {
     const el = await json<{ items: { id: string }[] }>(await admin.get(`/api/data-elements?prefix=${s.token}.SALES.ORDERS&environment=prod`));
     expect((await admin.put(`/api/data-products/${own}/ports/${ownPort}/bindings/prod`, { data: { elementIds: [el.items[0]!.id] } })).ok()).toBe(true);
     await post(admin, `/api/data-products/${own}/ports/${ownPort}/consumers`, { kind: 'text', text: 'Invented phone reader' });
-    await post(admin, `/api/data-products/${own}/ports/${ownPort}/reviews`, { environment: 'prod', fourEyes: false });
+    await post(admin, `/api/data-products/${own}/ports/${ownPort}/reviews`, { environment: 'prod' });
     await page.goto(`/data-products/${own}/access`);
     await page.getByTestId('review-row').first().getByTestId('review-open').click();
     const review = page.getByTestId('review-modal');
@@ -300,6 +352,11 @@ test.describe('governance of data products', () => {
     await expect(review.getByTestId('review-entry').first()).toBeVisible();
     await expectNoHorizontalScroll(page);
     await expectAccessible(page, 'port access review on a phone');
+    // the documented decision on a phone: who decided, the date, a row of evidence – nothing wider than the screen
+    await review.getByTestId('review-decision-form-evidence-add').click();
+    await expect(review.getByTestId('review-decision-form-evidence-kind')).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await expectAccessible(page, 'documented decision on a phone');
     await page.keyboard.press('Escape');
 
     // the promotion's preview: cards

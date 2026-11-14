@@ -13,7 +13,8 @@ import { capFirst, fmtDay } from '../../format';
 import { pagesOf, qs, useConsumers, useInvalidateDataProducts, useMembers } from './api';
 import { CardTable, EnvironmentSwitch, HiddenCount, LifecycleBadge, RefLink, Section, useEnvironmentParam, useRetentionText } from './parts';
 import { ActualConsumers } from './governance/ActualConsumers';
-import { RequestAccessButton } from './governance/AccessRequests';
+import { ConsumerApproval, FulfilButton } from './governance/ConsumerApproval';
+import { ConsumerContactsPanel } from './governance/ConsumerContacts';
 import { PeekButton, PortPreviewButton } from './semantic/Previews';
 
 const enc = encodeURIComponent;
@@ -145,6 +146,8 @@ export function ProductPortsTab({ p }: { p: DataProduct }) {
         </Text>
         <EnvironmentSwitch names={envNames} value={environment} onChange={setEnvironment} testId="ports-environment" />
       </Group>
+      {/* 0.25.1 (ADR 0038 part 6): the consumers' contacts, for the maintainers to inform them */}
+      <ConsumerContactsPanel p={p} />
       {group('output')}
       {group('input')}
       {editing?.kind === 'port' && (
@@ -415,9 +418,8 @@ function PortCard({
               {t('consumers.summary', { registered: port.consumers.registered, count: port.consumers.derived })}
             </Button>
             <Collapse expanded={open}>{open && <Consumers p={p} port={port} canEdit={canEdit} onEdit={onConsumer} />}</Collapse>
-            {/* 0.24.0 (ADR 0036 phase 2): who really reads, and asking for access */}
+            {/* 0.24.0 (ADR 0036 phase 2): who really reads (access is documented on the registrations since 0.25.1) */}
             {binding && <ActualConsumers p={p} port={port} environment={environment} />}
-            <RequestAccessButton p={p} port={port} />
             {/* 0.25.0 (ADR 0037 part 6): contract examples and recorded responses, no platform read */}
             <PortPreviewButton productId={p.id} port={port} environment={environment} />
           </div>
@@ -476,6 +478,8 @@ function Consumers({ p, port, canEdit, onEdit }: { p: DataProduct; port: DataPor
                 </>
               ),
             },
+            // 0.25.1 (ADR 0038 part 3): the access decided elsewhere, documented here, and its fulfilment
+            { key: 'approval', header: t('consumers.approval'), cell: (c) => <ConsumerApproval c={c} /> },
             {
               key: 'agreement',
               header: t('consumers.agreement'),
@@ -503,6 +507,7 @@ function Consumers({ p, port, canEdit, onEdit }: { p: DataProduct; port: DataPor
                         <ActionIcon variant="subtle" color="gray" aria-label={t('consumers.editNamed', { name: who(c) })} onClick={() => onEdit(c)}>
                           <IconPencil size={14} />
                         </ActionIcon>
+                        <FulfilButton p={p} port={port} c={c} name={who(c)} />
                         <ActionIcon variant="subtle" color="red" aria-label={t('consumers.removeNamed', { name: who(c) })} onClick={() => void remove(c)}>
                           <IconTrash size={14} />
                         </ActionIcon>

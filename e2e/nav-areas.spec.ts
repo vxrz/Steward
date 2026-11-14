@@ -34,9 +34,9 @@ async function areas(page: Page): Promise<Record<string, string[]>> {
 
 // AI requests show while the MCP server is on or with requests to read: other specs switch it on, so it is left out here
 const OPERATE = ['Runs', 'Monitors', 'Dashboards', 'Status pages', 'Reports', 'My tasks', 'Maintenance'];
-const CATALOGUE = ['Services', 'Applications', 'Systems', 'Suppliers', 'Platforms', 'Data contracts'];
+const CATALOGUE = ['Services', 'Applications', 'Systems', 'Suppliers', 'Contacts', 'Platforms', 'Data contracts'];
 // the data products module (ADR 0036, off by default; specs switch it on): Data, with the data contracts beside it
-const DATA = ['Data products', 'Elements', 'Data objects', 'Domains', 'Product map', 'Discovery', 'Access requests', 'Records of processing', 'Data contracts'];
+const DATA = ['Data products', 'Elements', 'Data objects', 'Domains', 'Product map', 'Discovery', 'Records of processing', 'Data contracts'];
 const REGISTERS = ['Documents', 'Credentials', 'Ticket references', 'Duties'];
 // corrective actions (ADR 0029): the roles of the register, and Olivia through the demo actions of her team; the
 // statement of applicability: everyone who can sign in

@@ -16,7 +16,7 @@ describe('migration package classification', () => {
     try {
       const { Db } = await import('../src/db.js');
       const { tables, columns } = await import('../src/cli/db-copy.js');
-      const { NOT_MOVED, USER_REFS, HISTORY_COLUMNS, NOT_PEOPLE_COLUMNS, USER_ID_TABLES } = await import('../src/migration/tables.js');
+      const { NOT_MOVED, USER_REFS, HISTORY_COLUMNS, NOT_PEOPLE_COLUMNS, USER_ID_TABLES, USER_ID_COLUMNS } = await import('../src/migration/tables.js');
       const d = new Db({ kind: 'sqlite', file: path.join(dir, 'x.db') });
       try {
         const known = new Set([
@@ -24,6 +24,7 @@ describe('migration package classification', () => {
           ...HISTORY_COLUMNS,
           ...NOT_PEOPLE_COLUMNS,
           ...Object.entries(USER_ID_TABLES).map(([t, c]) => `${t}.${c}`),
+          ...USER_ID_COLUMNS.map((c) => `${c.table}.${c.column}`),
         ]);
         const unclassified: string[] = [];
         for (const t of tables(d)) {

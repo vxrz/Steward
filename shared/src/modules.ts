@@ -410,6 +410,8 @@ export const MODULES: readonly ModuleDef[] = [
     // module role of their own follow in phase 2 (the report section came in 0.24.0); the instance export has no part of it yet.
     access: {
       restrictable: true,
+      // 0.25.1 (ADR 0038 part 4): four eyes for port access reviews, a setting of the module's content
+      managerSettings: ['governance'],
       // ADR 0036 part 12 with ADR 0034 phase 2 (0.23.0): the core roles give what 0.22.0 gave (designer → manager, other
       // working roles → viewer – team roles included, server/src/dataproducts/access.ts); granted roles add, the
       // contributor among them (creates entries)
@@ -430,8 +432,6 @@ export const MODULES: readonly ModuleDef[] = [
         'dataproduct.elements_missing',
         'dataproduct.discovery_failed',
         'dataproduct.contract_breaking',
-        'dataproduct.access_requested',
-        'dataproduct.access_decided',
         'dataproduct.endorsement_review',
         'dataproduct.access_review_due',
       ],

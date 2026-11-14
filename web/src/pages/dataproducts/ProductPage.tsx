@@ -29,7 +29,7 @@ import { LinkTabs } from '../../components/page/LinkTabs';
 import { confirmDanger } from '../../components/confirm';
 import { RatingBadges } from '../../components/catalogue/cia';
 import { EnvironmentBadge, useEnvironmentList } from '../../components/catalogue/environments';
-import { useSubjectLabel } from '../../components/SubjectsInput';
+import { ContactLinksView } from '../../components/contacts';
 import { LifecycleForm, ProductForm, RatingForm } from '../../components/dataproducts/ProductForm';
 import { ProductTransferItems } from '../../components/dataproducts/Transfer';
 import { fmtDay, fmtNumber } from '../../format';
@@ -81,13 +81,13 @@ export function DataProductPage() {
   const scorecard = useScorecard(id, '');
   const domains = useDomains();
   const [editing, setEditing] = useState<'product' | 'lifecycle' | 'rating' | 'promote' | null>(null);
-  const subject = useSubjectLabel();
   // the successor of a deprecated product: the other products the reader may see (first page)
   const others = useProductList('limit=100', editing === 'lifecycle');
   const tab = TABS.find((x) => x === tabParam);
   if (tab === undefined) return <Navigate to={`/data-products/${encodeURIComponent(id)}`} replace />;
   const p = q.data;
   if (!p) return <DetailState query={q} back={{ to: '/data-products', label: t('products.title') }} />;
+  const owners = p.contacts.filter((c) => c.role === 'productOwner');
   const base = `/data-products/${encodeURIComponent(p.id)}`;
   const canEdit = p.permissions.includes('edit');
   const canManage = p.permissions.includes('manage');
@@ -144,7 +144,7 @@ export function DataProductPage() {
       description={
         <>
           {[domainLabel, p.key, p.version && t('product.versionLabel', { version: p.version })].filter(Boolean).join(' · ')}
-          {p.owners.length > 0 && ` · ${t('product.ownersLine', { owners: p.owners.map(subject).join(', ') })}`}
+          {owners.length > 0 && ` · ${t('product.ownersLine', { owners: owners.map((c) => c.contact.name).join(', ') })}`}
           {p.lifecycle === 'deprecated' && p.sunsetDate && ` · ${t('product.sunsetLine', { date: fmtDay(p.sunsetDate) })}`}
         </>
       }
@@ -225,7 +225,6 @@ export function DataProductPage() {
 
 function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
   const { t } = useTranslation(['dataProducts', 'common']);
-  const subject = useSubjectLabel();
   const scorecard = useScorecard(p.id, '');
   const consumers = p.ports
     .filter((x) => x.direction === 'output')
@@ -316,11 +315,11 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
           >
             <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
               <Fact label={t('form.domain')}>{p.domain ? <RefLink r={p.domain} base="/data-domains" /> : '–'}</Fact>
-              <Fact label={t('form.owners')}>
-                {p.owners.length ? (
-                  p.owners.map(subject).join(', ')
-                ) : (
-                  <Text span c="orange" size="sm">
+              <Fact label={t('form.owners')} testId="product-contacts">
+                {/* the business contacts too; a missing product owner is said (it is needed for Active) */}
+                {p.contacts.length > 0 && <ContactLinksView links={p.contacts} kind="data_product" />}
+                {!p.contacts.some((c) => c.role === 'productOwner') && (
+                  <Text c="orange" size="sm">
                     {t('product.noOwner')}
                   </Text>
                 )}

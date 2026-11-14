@@ -5,9 +5,9 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
 
 /**
  * Data products and data contracts (0.24.0, ADR 0036 phase 2, package B): `dataproduct.contract_breaking` – a new
- * contract version the comparison calls breaking tells the registered consumers and the owners of consuming products of
- * the output ports that follow the contract, once per version, only who may see the product, the contract named only to
- * who may see it; contract tests through the datacontract CLI for Snowflake and Kafka servers (the platform's identity
+ * contract version the comparison calls breaking tells the IT maintainers (0.25.1: who may edit, never a consumer or a
+ * contact) of the products whose output ports follow the contract and of the products that use them, once per version,
+ * only who may see the product, the contract named only to who may see it; contract tests through the datacontract CLI for Snowflake and Kafka servers (the platform's identity
  * in the CLI's headers – an allow-list of header names, no secret in the stored run), their checks as quality results of
  * the bound elements; personal fields of bound contracts on products, elements and data objects.
  */
@@ -261,34 +261,34 @@ describe('personal fields from contracts', () => {
 });
 
 describe('dataproduct.contract_breaking', () => {
-  it('tells the consumers of the ports that follow the contract once per version, the contract named only to who may see it', async () => {
+  it('tells the IT maintainers of the ports that follow the contract once per version, the contract named only to who may see it', async () => {
+    // olivia maintains the consuming mart through a share
+    await dana('PUT', `/access/data_product/${mart}/shares`, { shares: [{ subject: 'user:olivia', level: 'edit' }] });
     const v2 = ordersYaml((d) => {
       d.version = '2.0.0';
       d.schema[0].properties = d.schema[0].properties.filter((x: { name: string }) => x.name !== 'TOTAL');
     });
     const saved = await dana('POST', `/data-contracts/${contract}/versions`, { yaml: v2 });
     expect(saved.diff.breaking).toBeGreaterThan(0);
-    // the registered consumer (adam), his contact (audrey) and the owner of the consuming product (olivia)
-    const [a] = await settle(adam, 1);
-    const [au] = await settle(audrey, 1);
+    // the product's maintainer (dana) with the consumers to inform, the consuming product's maintainer (olivia)
+    const [d] = await settle(dana, 1);
     const [o] = await settle(olivia, 1);
-    expect(a!.title).toContain('orders v1');
-    expect(a!.body).toContain('registered as a consumer');
-    // adam and olivia may not see the contract: neither its name nor its changes
-    expect(a!.body).not.toContain('Invented orders (Snowflake)');
-    expect(a!.body).not.toContain('TOTAL');
+    expect(d!.title).toContain('orders v1');
+    expect(d!.body).toContain('You maintain it: 1 registered consumer of orders v1');
+    expect(d!.body).toContain(`/data-products/${product}/ports?contacts=${port}`);
+    // dana may see the contract: its name and the change
+    expect(d!.body).toContain('Invented orders (Snowflake)');
+    expect(d!.body).toContain('TOTAL');
+    // olivia may not: neither its name nor its changes
     expect(o!.body).toContain('Invented mart');
     expect(o!.body).not.toContain('Invented orders (Snowflake)');
-    // audrey may: the contract and the change
-    expect(au!.body).toContain('Invented orders (Snowflake)');
-    expect(au!.body).toContain('TOTAL');
-    // the pinned port's consumer is not told; the product's owner neither (not a consumer)
-    expect(await notes(vera)).toHaveLength(0);
-    expect(await notes(dana)).toHaveLength(0);
+    expect(o!.body).not.toContain('TOTAL');
+    // the registered consumer, its contact and the pinned port's consumer are not told
+    for (const who of [adam, audrey, vera]) expect(await notes(who)).toHaveLength(0);
   });
 
   it('is sent once per version: a change that breaks nothing tells nobody, the next breaking version tells again', async () => {
-    const before = (await notes(adam)).length;
+    const before = (await notes(dana)).length;
     const v3 = ordersYaml((d) => {
       d.version = '2.1.0';
       d.schema[0].properties = d.schema[0].properties.filter((x: { name: string }) => x.name !== 'TOTAL');
@@ -296,7 +296,7 @@ describe('dataproduct.contract_breaking', () => {
     });
     expect((await dana('POST', `/data-contracts/${contract}/versions`, { yaml: v3 })).diff.breaking).toBe(0);
     await new Promise((r) => setTimeout(r, 300));
-    expect(await notes(adam)).toHaveLength(before);
+    expect(await notes(dana)).toHaveLength(before);
     const { onContractVersionSaved } = await import('../src/dataproducts/contract-hooks.js');
     // the hook again for version 2 (a repeated call): nothing more
     expect(onContractVersionSaved({ contractId: contract, contractName: 'x', contractKey: 'x', version: 2, breaking: 1, changes: [] })).toBe(0);
@@ -306,16 +306,18 @@ describe('dataproduct.contract_breaking', () => {
       d.schema[0].properties.push({ name: 'NOTE', logicalType: 'string' });
     });
     await dana('POST', `/data-contracts/${contract}/versions`, { yaml: v4 });
-    expect(await settle(adam, before + 1)).toHaveLength(before + 1);
+    expect(await settle(dana, before + 1)).toHaveLength(before + 1);
   });
 
   it('flags the endorsement of a product whose port follows the contract for a review (once per version)', async () => {
-    // audrey shares dana's teams: she sees the product and, as the domain's owner, endorses it
+    // the product's IT maintainer records the endorsement (the domain's owner is a contact, 0.25.1)
     const domain = (await s.api('POST', '/data-domains', { key: 'dp-b-endorsed', name: 'Invented endorsed', owners: ['user:audrey'] })).id;
     const p = (await dana('POST', '/data-products', { key: 'dp-b-endorsed', name: 'Invented endorsed orders', owners: ['user:dana'], domainId: domain })).id;
     const pp = (await dana('POST', `/data-products/${p}/ports`, { direction: 'output', name: 'orders', type: 'table' })).id;
     await dana('PUT', `/data-products/${p}/ports/${pp}/bindings/prod`, { elementIds: [element], contractId: contract });
-    expect((await audrey('PUT', `/data-products/${p}/endorsement`, {})).endorsement).toMatchObject({ valid: true, review: null });
+    const owner = (await dana('POST', '/contacts', { name: 'Invented endorsing owner' })).id;
+    const decision = { decidedBy: [{ contactId: owner, role: 'domainOwner' }], decidedOn: new Date().toISOString().slice(0, 10) };
+    expect((await dana('PUT', `/data-products/${p}/endorsement`, { decision })).endorsement).toMatchObject({ valid: true, review: null });
     const v5 = ordersYaml((d) => {
       d.version = '4.0.0';
       d.schema[0].properties = d.schema[0].properties.filter((x: { name: string }) => !['TOTAL', 'REGION'].includes(x.name));
@@ -328,7 +330,7 @@ describe('dataproduct.contract_breaking', () => {
     }
     expect(e).toMatchObject({ valid: false, review: 'breakingChange' });
     // endorsed again: the same version does not flag it again
-    expect((await audrey('PUT', `/data-products/${p}/endorsement`, {})).endorsement.valid).toBe(true);
+    expect((await dana('PUT', `/data-products/${p}/endorsement`, { decision })).endorsement.valid).toBe(true);
     const { onContractVersionSaved } = await import('../src/dataproducts/contract-hooks.js');
     const version = Number((await dana('GET', `/data-contracts/${contract}`)).currentVersion);
     onContractVersionSaved({ contractId: contract, contractName: 'x', contractKey: 'x', version, breaking: 1, changes: [] });

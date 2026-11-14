@@ -42508,7 +42508,8 @@
                       "type": "object",
                       "properties": {
                         "by": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "Who recorded it in Steward"
                         },
                         "at": {
                           "type": "string",
@@ -42523,6 +42524,33 @@
                         },
                         "sha256": {
                           "type": "string"
+                        },
+                        "approvedBy": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "role": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "description": "0.25.1: who approved it (the documented approval: names and roles)"
+                        },
+                        "approvedOn": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "0.25.1: the day it was approved"
                         }
                       },
                       "required": [
@@ -42530,7 +42558,9 @@
                         "at",
                         "validFrom",
                         "note",
-                        "sha256"
+                        "sha256",
+                        "approvedBy",
+                        "approvedOn"
                       ],
                       "additionalProperties": false
                     },
@@ -42538,7 +42568,7 @@
                       "type": "null"
                     }
                   ],
-                  "description": "Who signed the version off and from when it is valid; null: not signed off"
+                  "description": "The documented approval of the version and from when it is valid; null: not approved"
                 }
               },
               "required": [
@@ -42617,7 +42647,8 @@
                         "type": "object",
                         "properties": {
                           "by": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "Who recorded it in Steward"
                           },
                           "at": {
                             "type": "string",
@@ -42632,6 +42663,33 @@
                           },
                           "sha256": {
                             "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "role": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "role",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "0.25.1: who approved it (the documented approval: names and roles)"
+                          },
+                          "approvedOn": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "0.25.1: the day it was approved"
                           }
                         },
                         "required": [
@@ -42639,7 +42697,9 @@
                           "at",
                           "validFrom",
                           "note",
-                          "sha256"
+                          "sha256",
+                          "approvedBy",
+                          "approvedOn"
                         ],
                         "additionalProperties": false
                       },
@@ -42647,7 +42707,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Who signed the version off and from when it is valid; null: not signed off"
+                    "description": "The documented approval of the version and from when it is valid; null: not approved"
                   }
                 },
                 "required": [
@@ -42738,7 +42798,8 @@
                                 "type": "object",
                                 "properties": {
                                   "by": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "description": "Who recorded it in Steward"
                                   },
                                   "at": {
                                     "type": "string",
@@ -42753,6 +42814,33 @@
                                   },
                                   "sha256": {
                                     "type": "string"
+                                  },
+                                  "approvedBy": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "role": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "role",
+                                        "name"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    "description": "0.25.1: who approved it (the documented approval: names and roles)"
+                                  },
+                                  "approvedOn": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "0.25.1: the day it was approved"
                                   }
                                 },
                                 "required": [
@@ -42760,7 +42848,9 @@
                                   "at",
                                   "validFrom",
                                   "note",
-                                  "sha256"
+                                  "sha256",
+                                  "approvedBy",
+                                  "approvedOn"
                                 ],
                                 "additionalProperties": false
                               },
@@ -42768,7 +42858,7 @@
                                 "type": "null"
                               }
                             ],
-                            "description": "Who signed the version off and from when it is valid; null: not signed off"
+                            "description": "The documented approval of the version and from when it is valid; null: not approved"
                           }
                         },
                         "required": [
@@ -42850,7 +42940,8 @@
                                 "type": "object",
                                 "properties": {
                                   "by": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "description": "Who recorded it in Steward"
                                   },
                                   "at": {
                                     "type": "string",
@@ -42865,6 +42956,33 @@
                                   },
                                   "sha256": {
                                     "type": "string"
+                                  },
+                                  "approvedBy": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "role": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "role",
+                                        "name"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    "description": "0.25.1: who approved it (the documented approval: names and roles)"
+                                  },
+                                  "approvedOn": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "0.25.1: the day it was approved"
                                   }
                                 },
                                 "required": [
@@ -42872,7 +42990,9 @@
                                   "at",
                                   "validFrom",
                                   "note",
-                                  "sha256"
+                                  "sha256",
+                                  "approvedBy",
+                                  "approvedOn"
                                 ],
                                 "additionalProperties": false
                               },
@@ -42880,7 +43000,7 @@
                                 "type": "null"
                               }
                             ],
-                            "description": "Who signed the version off and from when it is valid; null: not signed off"
+                            "description": "The documented approval of the version and from when it is valid; null: not approved"
                           }
                         },
                         "required": [
@@ -43210,7 +43330,27 @@
             "items": {
               "type": "string"
             },
-            "description": "Product owners: user:<name> or team:<name>"
+            "description": "Deprecated (0.25.1, removed in a later release): the Steward users linked to its product owner contacts, as user:<name> – see contacts"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Product owners and business contacts (0.25.1): documentation, never a right in Steward"
           },
           "owningTeams": {
             "type": "array",
@@ -43305,6 +43445,7 @@
           "valueTier",
           "environments",
           "owners",
+          "contacts",
           "owningTeams",
           "tags",
           "version",
@@ -43597,7 +43738,27 @@
             "items": {
               "type": "string"
             },
-            "description": "Product owners: user:<name> or team:<name>"
+            "description": "Deprecated (0.25.1, removed in a later release): the Steward users linked to its product owner contacts, as user:<name> – see contacts"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Product owners and business contacts (0.25.1): documentation, never a right in Steward"
           },
           "owningTeams": {
             "type": "array",
@@ -44473,6 +44634,7 @@
           "valueTier",
           "environments",
           "owners",
+          "contacts",
           "owningTeams",
           "tags",
           "version",
@@ -45239,7 +45401,28 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Deprecated (0.25.1): the Steward user linked to its data owner contact – see contacts"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Data owner and data stewards (0.25.1): documentation, never a right in Steward"
           },
           "updatedAt": {
             "type": "string",
@@ -45256,6 +45439,7 @@
           "personalData",
           "rating",
           "owner",
+          "contacts",
           "updatedAt"
         ],
         "additionalProperties": false
@@ -45475,7 +45659,28 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Deprecated (0.25.1): the Steward user linked to its data owner contact – see contacts"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Data owner and data stewards (0.25.1): documentation, never a right in Steward"
           },
           "updatedAt": {
             "type": "string",
@@ -45574,13 +45779,15 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Deprecated (0.25.1): the Steward users linked to its data steward contacts, as user:<name> – see contacts"
           },
           "custodians": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Technical custodians (IT): teams and users"
           },
           "externalRefs": {
             "type": "array",
@@ -45700,6 +45907,7 @@
           "personalData",
           "rating",
           "owner",
+          "contacts",
           "updatedAt",
           "definition",
           "synonyms",

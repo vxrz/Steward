@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Badge, Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { IconRosetteDiscountCheck, IconRosette } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { DataProduct } from '@sm/shared';
-import { del, put } from '../../../api';
+import type { ContactLink, DataProduct } from '@sm/shared';
+import { del, notifyOk, put } from '../../../api';
 import { confirmDanger } from '../../../components/confirm';
 import { useFieldErrors } from '../../../components/common';
 import { FormModal } from '../../../components/FormModal';
-import { useSubjectLabel } from '../../../components/SubjectsInput';
+import {
+  DecisionFields,
+  DecisionLine,
+  emptyDecision,
+  toDecisionInput,
+  useDecisionErrors,
+  useDecisionServerErrors,
+  type DecisionDraft,
+} from '../../../components/dataproducts/DecisionFields';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
 import { fmtDay } from '../../../format';
 import { Section } from '../parts';
@@ -35,14 +43,14 @@ export function EndorsementBadge({ productId }: { productId: string }) {
 }
 
 /**
- * The endorsement of a product (ADR 0036 part 17): who endorsed it and until when, whether it needs a review, and –
- * for the owners of its domain – _Endorse_, _Endorse again_ and _Revoke_. Maturity 5 counts a valid one on top of 4.
+ * The endorsement of a product (ADR 0036 part 17; 0.25.1, ADR 0038 part 5): who endorsed it elsewhere – contacts,
+ * typically the owners of its domain – when and until when, the evidence, whether it needs a review; its IT
+ * maintainers record it (_Record endorsement_, _Record again_, _Remove_). Maturity 5 counts a valid one on top of 4.
  */
 export function EndorsementSection({ p }: { p: DataProduct }) {
   const { t } = useTranslation(['dataProductGovernance', 'common']);
   const q = useEndorsement(p.id);
   const invalidate = useInvalidateGovernance();
-  const subject = useSubjectLabel();
   const [editing, setEditing] = useState(false);
   const [busy, run] = useBusy();
   const v = q.data;
@@ -80,15 +88,16 @@ export function EndorsementSection({ p }: { p: DataProduct }) {
             <Group gap="xs">
               <EndorsementBadge productId={p.id} />
               <Text size="sm" data-testid="endorsement-line">
-                {t('endorsement.line', { user: e.endorsedBy, date: fmtDay(e.endorsedAt), review: fmtDay(e.reviewDate) })}
+                {t('endorsement.line', { review: fmtDay(e.reviewDate) })}
               </Text>
             </Group>
+            {e.decision && <DecisionLine d={e.decision} testId="endorsement-decision" />}
             {e.review && (
               <Text size="sm" c={e.valid ? 'orange' : 'red'} data-testid="endorsement-review">
                 {t(`endorsement.reviews.${e.review}`, { date: fmtDay(e.reviewDate) })}
               </Text>
             )}
-            {e.note && (
+            {e.note && !e.decision?.note && (
               <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
                 {e.note}
               </Text>
@@ -100,13 +109,13 @@ export function EndorsementSection({ p }: { p: DataProduct }) {
           </Text>
         )}
         <Text size="xs" c="dimmed">
-          {v.endorsers.length ? t('endorsement.endorsers', { list: v.endorsers.map(subject).join(', ') }) : t('endorsement.managers')}
-          {v.whyNot === 'ownProduct' && ` ${t('endorsement.ownProduct')}`}
+          {v.domainOwners.length ? t('endorsement.endorsers', { list: v.domainOwners.map((l) => l.contact.name).join(', ') }) : t('endorsement.managers')}
         </Text>
       </Stack>
       {editing && (
         <EndorseForm
           p={p}
+          suggested={v.domainOwners}
           onClose={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);
@@ -118,19 +127,33 @@ export function EndorsementSection({ p }: { p: DataProduct }) {
   );
 }
 
-function EndorseForm({ p, onClose, onSaved }: { p: DataProduct; onClose: () => void; onSaved: () => void }) {
+function EndorseForm({ p, suggested, onClose, onSaved }: { p: DataProduct; suggested: ContactLink[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation(['dataProductGovernance', 'common']);
   const [reviewDate, setReviewDate] = useState('');
-  const [note, setNote] = useState('');
+  // the domain's owners are offered first: who typically endorses
+  const [decision, setDecision] = useState<DecisionDraft>(
+    emptyDecision(suggested.filter((l) => l.contact.status === 'active').map((l) => ({ contactId: l.contact.id, name: l.contact.name, role: 'domainOwner' }))),
+  );
+  const decisionErrors = useDecisionErrors(decision);
+  const server = useDecisionServerErrors(decision);
   const [busy, run] = useBusy();
-  const v = useFieldErrors({ reviewDate: !!reviewDate && !/^\d{4}-\d{2}-\d{2}$/.test(reviewDate) && t('common:validation.invalid') });
+  const v = useFieldErrors({
+    reviewDate: !!reviewDate && !/^\d{4}-\d{2}-\d{2}$/.test(reviewDate) && t('common:validation.invalid'),
+    decision: Object.values(decisionErrors).find(Boolean),
+  });
   const save = () =>
     run(async () => {
-      await put(`/data-products/${enc(p.id)}/endorsement`, { reviewDate: reviewDate || null, note: note.trim() });
+      try {
+        await put(`/data-products/${enc(p.id)}/endorsement`, { reviewDate: reviewDate || null, decision: toDecisionInput(decision) });
+      } catch (e) {
+        if (server.capture(e)) return;
+        throw e;
+      }
+      notifyOk(t('endorsement.saved'));
       onSaved();
     });
   return (
-    <FormModal onClose={onClose} title={t('endorsement.formTitle', { name: p.name })}>
+    <FormModal onClose={onClose} size="lg" title={t('endorsement.formTitle', { name: p.name })}>
       <form
         noValidate
         onSubmit={(e) => {
@@ -142,6 +165,15 @@ function EndorseForm({ p, onClose, onSaved }: { p: DataProduct; onClose: () => v
           <Text size="sm" c="dimmed">
             {t('endorsement.formHelp')}
           </Text>
+          <DecisionFields
+            legend={t('endorsement.decision')}
+            value={decision}
+            onChange={setDecision}
+            errors={{ ...(v.error('decision') ? decisionErrors : {}), ...server.errors }}
+            defaultRole="domainOwner"
+            roles={['domainOwner', 'dataOwner', 'productOwner']}
+            testId="endorse-decision"
+          />
           <TextInput
             type="date"
             label={t('endorsement.reviewDate')}
@@ -151,15 +183,7 @@ function EndorseForm({ p, onClose, onSaved }: { p: DataProduct; onClose: () => v
             error={v.error('reviewDate')}
             data-testid="endorse-review-date"
           />
-          <Textarea
-            label={t('endorsement.note')}
-            value={note}
-            onChange={(e) => setNote(e.currentTarget.value)}
-            autosize
-            minRows={2}
-            data-testid="endorse-note"
-          />
-          <FormButtons busy={busy} submit={t('endorsement.endorse')} testId="endorse-save" />
+          <FormButtons busy={busy} submit={t('endorsement.record')} testId="endorse-save" />
         </Stack>
       </form>
     </FormModal>

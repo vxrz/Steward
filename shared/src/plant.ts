@@ -1,3 +1,4 @@
+import type { ContactLink } from './contacts.js';
 import type { PlantMapClient } from './plantMap.js';
 import type { AclEntry, AccessReason } from './api.js';
 import type { Backlink, ItemLink } from './records.js';
@@ -189,6 +190,8 @@ export interface PlantSiteSummary extends PlantSource {
 
 export interface PlantSiteDetail extends PlantSiteSummary, PlantStamp {
   contacts: SiteContact[];
+  /** The contacts as directory links (0.25.1, ADR 0038; the web app's picker): `contacts` is the same in the shape of before */
+  contactLinks: ContactLink[];
   refs: ExternalRef[];
   fields: FieldValues;
   /** The areas with their work centers and work units */

@@ -556,18 +556,25 @@ const EXPECT: Record<string, Access> = {
   'POST /api/data-products/import': DESIGN,
   // 0.25.0: a background import's progress – the person who started it (others: 404)
   'GET /api/data-products/import/jobs/:id': ALL,
-  // consumers, access and governance (0.24.0, ADR 0036 phase 2): who sees the product reads and asks for access; who
-  // decides requests (the owners, else who manages the product) decides; reading the platforms, reviews, promotion and
-  // endorsement (the domain's owners, else the module's managers) change – the Art. 30 view lists what the reader sees
+  // consumers, access and governance (0.24.0, ADR 0036 phase 2; 0.25.1, ADR 0038): access requests are read-only
+  // history – asking, deciding and withdrawing answer 410 to everyone; the IT maintainers (who may change the product)
+  // fulfil registrations, read the platforms, review, promote and record endorsements – the Art. 30 view lists what the
+  // reader sees; the module's governance settings are read by everyone, changed by administrators
   'GET /api/data-products/records-of-processing': ALL,
   'GET /api/data-products/records-of-processing.csv': ALL,
   'GET /api/data-products/records-of-processing.pdf': ALL,
   'GET /api/data-products/access-requests': ALL,
   'GET /api/data-products/access-requests/:requestId': ALL,
-  'POST /api/data-products/access-requests/:requestId/decision': DESIGN,
-  'POST /api/data-products/access-requests/:requestId/withdraw': ADMIN,
+  'POST /api/data-products/access-requests/:requestId/decision': ALL,
+  'POST /api/data-products/access-requests/:requestId/withdraw': ALL,
   'GET /api/data-products/:id/access-requests': ALL,
   'POST /api/data-products/:id/ports/:portId/access-requests': ALL,
+  'POST /api/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment': DESIGN,
+  // the consumers' contacts: names and roles for readers; the CSV with e-mail addresses for who may change the product
+  'GET /api/data-products/:id/consumer-contacts': ALL,
+  'GET /api/data-products/:id/consumer-contacts.csv': DESIGN,
+  'GET /api/data-products/governance-settings': ALL,
+  'PUT /api/data-products/governance-settings': ADMIN,
   'GET /api/data-products/:id/access-settings': ALL,
   'PUT /api/data-products/:id/access-settings': DESIGN,
   'GET /api/data-products/:id/ports/:portId/actual': ALL,
@@ -578,8 +585,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/data-products/port-reviews/:reviewId': ALL,
   'GET /api/data-products/port-reviews/:reviewId/verify': ALL,
   'PUT /api/data-products/port-reviews/:reviewId/decisions': DESIGN,
+  'PUT /api/data-products/port-reviews/:reviewId/decision': DESIGN,
   'POST /api/data-products/port-reviews/:reviewId/submit': DESIGN,
-  'POST /api/data-products/port-reviews/:reviewId/approval': ['admin', 'designer', 'approver'],
+  'POST /api/data-products/port-reviews/:reviewId/approval': DESIGN,
   'GET /api/data-products/:id/promotion': ALL,
   'POST /api/data-products/:id/promotion': DESIGN,
   'GET /api/data-products/:id/promotions': ALL,
@@ -1005,6 +1013,15 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
+  // the contacts directory (0.25.1, ADR 0038): personal data, in a session only; the fixture contact is linked to the
+  // matrix service, so who sees the service sees it and who may change the service changes it
+  'GET /api/contacts': PLANT,
+  'GET /api/contacts/duplicates': ADMIN,
+  'GET /api/contacts/:id': ALL,
+  'POST /api/contacts': ACTIVE,
+  'PUT /api/contacts/:id': DESIGN,
+  'POST /api/contacts/:id/replace': DESIGN,
+  'DELETE /api/contacts/:id': ADMIN,
   // suppliers (0.17.0, ADR 0029): like systems; the "To confirm" decisions need a session
   'GET /api/suppliers': ALL,
   'POST /api/suppliers': DESIGN,
@@ -1656,6 +1673,14 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // the contacts directory (0.25.1, ADR 0038): personal data of people outside Steward, read and changed in the app
+  'GET /api/contacts',
+  'GET /api/contacts/duplicates',
+  'GET /api/contacts/:id',
+  'POST /api/contacts',
+  'PUT /api/contacts/:id',
+  'POST /api/contacts/:id/replace',
+  'DELETE /api/contacts/:id',
   // 0.25.0 (ADR 0037 part 3): a person confirms or dismisses each Industrial Edge suggestion in the app
   'POST /api/systems/edge-suggestions/confirm',
   'POST /api/systems/edge-suggestions/dismiss',
@@ -1701,10 +1726,15 @@ const SESSION_ONLY = [
   'GET /api/data-products/import/jobs/:id',
   // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
   'POST /api/data-products/access-requests/:requestId/decision',
+  'POST /api/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment',
+  // the consumers' contacts with their e-mail addresses as CSV: an export from the app by an IT maintainer (0.25.1)
+  'GET /api/data-products/:id/consumer-contacts.csv',
+  'PUT /api/data-products/governance-settings',
   'PUT /api/data-products/:id/access-settings',
   'POST /api/data-products/:id/ports/:portId/actual/read',
   'POST /api/data-products/:id/ports/:portId/reviews',
   'PUT /api/data-products/port-reviews/:reviewId/decisions',
+  'PUT /api/data-products/port-reviews/:reviewId/decision',
   'POST /api/data-products/port-reviews/:reviewId/submit',
   'POST /api/data-products/port-reviews/:reviewId/approval',
   'POST /api/data-products/:id/promotion',
@@ -1977,6 +2007,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/users/:id/reset-password': 'always',
   'GET /api/users/:id/data-export': 'always',
   'POST /api/users/:id/pseudonymise': 'always',
+  'DELETE /api/contacts/:id': 'always',
   'POST /api/sso/providers': 'always',
   'PUT /api/sso/providers/:id': 'always',
   'DELETE /api/sso/providers/:id': 'always',
@@ -2562,6 +2593,7 @@ function fill(url: string): string {
           applications: 'application',
           systems: 'system',
           suppliers: 'supplier',
+          contacts: 'contact',
           'maintenance-windows': 'catalogueMaintenance',
           duties: 'duty',
           objectives: 'objective',
@@ -2685,6 +2717,9 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'POST /api/contacts': { name: 'Matrix contact x' },
+  'PUT /api/contacts/:id': { name: 'Matrix contact', email: 'matrix.contact@example.com' },
+  'POST /api/contacts/:id/replace': { targetId: 'ct_none' },
   'POST /api/suppliers': { name: 'Matrix supplier x', type: 'saas' },
   'PUT /api/suppliers/:id': { name: 'Matrix supplier', type: 'saas' },
   'POST /api/suppliers/:id/archive': { archived: true },
@@ -3041,6 +3076,9 @@ beforeAll(async () => {
   QUERY['GET /api/suppliers/scoped-contacts'] = `?kind=application&id=${application.id}`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
+  // a contact of the directory (ADR 0038) on the matrix service
+  const contact = (await a('POST', '/contacts', { name: 'Matrix contact', email: 'matrix.contact@example.com' })).id as string;
+  (await import('../src/contacts/service.js')).setLinks('service', svc.id, [{ role: 'business', contactId: contact }]);
   // a supplier with a contact, a contract and a certificate, and one waiting for confirmation (0.17.0)
   const supplier = await a('POST', '/suppliers', { name: 'Matrix supplier', type: 'saas' });
   const supplierContact = (await a('POST', `/suppliers/${supplier.id}/contacts`, { name: 'Matrix contact' })).contacts[0].id;
@@ -3124,6 +3162,7 @@ beforeAll(async () => {
   await a('POST', `/library-releases/${lib1.id}/install`, {});
   const libraryRelease = (await a('POST', '/library-releases/upload', await uploadBody(await signedRelease(MATRIX_KEY, { ...libSpec, release: '1.1.0' })))).id;
   fx = {
+    contact,
     process: proc.id,
     run: run.id,
     step: String(run.steps[0].id),
@@ -3246,14 +3285,14 @@ beforeAll(async () => {
   await a('PUT', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/bindings/prod`, { elementIds: [curated] });
   fx.dataConsumer = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/consumers`, { kind: 'text', text: 'Matrix consumer' })).id;
   fx.dataStep = (await a('POST', `/data-products/${fx.dataProduct}/steps`, { name: 'curate', inputs: [fx.dataElement], outputs: [curated] })).id;
-  // an open access request (asked by the administrator) and an open port access review of the port (0.24.0)
-  fx.dataRequest = (
-    await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/access-requests`, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Matrix consumer' },
-      purpose: 'Matrix',
-    })
-  ).id;
+  // an access request of before 0.25.1 (read-only history: asking answers 410) and an open port access review (0.24.0)
+  fx.dataRequest = 'dpx_matrix';
+  (await import('../src/db.js')).db().run(
+    `INSERT INTO dp_access_requests (id, product_id, port_id, environment, requester, consumer_kind, consumer_text, purpose, status, created_at, updated_at)
+       VALUES ('dpx_matrix', ?, ?, 'prod', 'admin', 'text', 'Matrix consumer', 'Matrix', 'pending', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`,
+    fx.dataProduct,
+    fx.dataPort,
+  );
   fx.dataReview = (await a('POST', `/data-products/${fx.dataProduct}/ports/${fx.dataPort}/reviews`, { environment: 'prod' })).id;
   // 0.25.0: a connector of the demo's Kafka Connect for Create step from connector; a technology of the administrators
   const connect = (await a('GET', '/platforms')).find((p: { name: string }) => p.name === 'Kafka Connect (demo)')?.id;

@@ -2,6 +2,7 @@ import { catalogueRoutes } from '../catalogue/routes.js';
 import { serviceApiRoutes } from '../catalogue/api-v1.js';
 import { CATALOGUE_MIGRATIONS } from '../migrations/catalogue.js';
 import { catalogueShareKind } from '../catalogue/shares.js';
+import { serviceContactKind } from '../catalogue/contacts.js';
 import { defineFeature, every5Minutes, MINUTE } from './define.js';
 
 /** The service catalogue: services, applications, systems, maintenance windows, Kubernetes and repositories. */
@@ -19,4 +20,6 @@ export default defineFeature({
   migrations: [CATALOGUE_MIGRATIONS],
   // shares (ADR 0033, #291): services, applications and systems – the Access tab, end dates and their reminders
   shareKinds: [catalogueShareKind('service'), catalogueShareKind('application'), catalogueShareKind('system')],
+  // the contacts directory (ADR 0038): a service's business and IT contacts
+  contactKinds: [{ kind: 'service', def: serviceContactKind }],
 });

@@ -644,6 +644,8 @@ export const STEP_UP_ACTIONS = [
   'changePlatformDestination',
   // 0.19.0 (security review L1): a Git sync source – a new one, another repository or API URL, signing loosened, auto-accept on
   'changeSyncSources',
+  // 0.25.1 (ADR 0038): erasing a contact of the contacts directory (GDPR Art. 17, for good)
+  'eraseContact',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

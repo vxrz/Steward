@@ -126,7 +126,9 @@
       "security": "Sicherheitskontakt",
       "dataProtection": "Datenschutzbeauftragte(r)",
       "other": "Sonstige"
-    }
+    },
+    "fromDirectory": "Aus dem Kontaktverzeichnis wählen",
+    "otherPerson": "Andere Person"
   },
   "contracts": {
     "title": "Verträge",

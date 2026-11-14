@@ -68,6 +68,8 @@ export const CONTROL_POINTS: readonly ControlPoint[] = [
   sp('user.change', 'identity', ['changeAccount'], true),
   sp('user.resetPassword', 'identity', ['resetPassword'], true),
   sp('user.pseudonymise', 'identity', ['pseudonymiseUser'], true),
+  // 0.25.1 (ADR 0038): erasing a contact of the contacts directory
+  sp('contact.erase', 'identity', ['eraseContact'], true),
   sp('team.members', 'identity', ['changeTeamMembers'], true),
   sp('access.grant', 'identity', ['grantAccess', 'grantNamedAccess'], true),
   sp('sso.providers', 'identity', ['addSsoProvider', 'changeSsoProvider', 'deleteSsoProvider'], true),

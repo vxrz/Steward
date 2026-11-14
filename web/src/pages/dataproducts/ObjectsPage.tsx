@@ -21,8 +21,9 @@ import { ListPage } from '../../components/page/ListPage';
 import { DetailPage } from '../../components/page/DetailPage';
 import { LinkTabs } from '../../components/page/LinkTabs';
 import { confirmDanger } from '../../components/confirm';
-import { OwningTeams } from '../../components/OwningTeams';
+import { AccessTab } from '../../components/access/AccessTab';
 import { useSubjectLabel } from '../../components/SubjectsInput';
+import { ContactLinksView } from '../../components/contacts';
 import { ObjectForm } from '../../components/dataproducts/ObjectForm';
 import { OssieMenu } from '../../components/dataproducts/Transfer';
 import { RatingForm, domainOptions } from '../../components/dataproducts/ProductForm';
@@ -223,7 +224,15 @@ export function DataObjectsPage() {
               cell: (o) => (o.personalData === 'none' ? t('personalData.none') : <PersonalDataBadge value={o.personalData} size="xs" />),
             },
             { key: 'rating', header: t('products.rating'), cell: (o) => <RatingBadges rating={o.rating} /> },
-            { key: 'owner', header: t('objects.owner'), cell: (o) => o.owner ?? '–' },
+            {
+              key: 'owner',
+              header: t('objects.owner'),
+              cell: (o) =>
+                o.contacts
+                  .filter((c) => c.role === 'dataOwner')
+                  .map((c) => c.contact.name)
+                  .join(', ') || '–',
+            },
             { key: 'updated', header: t('products.updated'), sortValue: (o) => o.updatedAt, nowrap: true, cell: (o) => fmtRelative(o.updatedAt) },
           ]}
           footer={
@@ -306,7 +315,13 @@ export function DataObjectPage() {
       description={[
         o.domain ? (o.domain.hidden ? t('hidden.domain') : o.domain.name) : null,
         o.key,
-        o.owner && t('objects.ownerLine', { owner: subject(`user:${o.owner}`) }),
+        o.contacts.some((c) => c.role === 'dataOwner') &&
+          t('objects.ownerLine', {
+            owner: o.contacts
+              .filter((c) => c.role === 'dataOwner')
+              .map((c) => c.contact.name)
+              .join(', '),
+          }),
       ]
         .filter(Boolean)
         .join(' · ')}
@@ -412,8 +427,9 @@ export function DataObjectPage() {
               <RatingPanelReadOnly rating={o.rating} onRate={canEdit ? () => setEditing('rating') : undefined} />
               <Section title={t('objects.roles')} testId="object-roles">
                 <SimpleGrid cols={1} spacing="xs">
-                  <Fact label={t('objects.owner')}>{o.owner ? subject(`user:${o.owner}`) : '–'}</Fact>
-                  <Fact label={t('objects.stewards')}>{o.stewards.map(subject).join(', ') || '–'}</Fact>
+                  <Fact label={t('objects.contacts')} testId="object-contacts">
+                    <ContactLinksView links={o.contacts} kind="data_object" />
+                  </Fact>
                   <Fact label={t('objects.custodians')}>{o.custodians.map(subject).join(', ') || '–'}</Fact>
                 </SimpleGrid>
                 <Text size="xs" c="dimmed" mt="xs">
@@ -447,7 +463,8 @@ export function DataObjectPage() {
                   </List>
                 </Section>
               )}
-              <OwningTeams kind="data_object" id={o.id} />
+              {/* owning teams and shares (0.25.1: the data owner and stewards are documentation, ADR 0038) */}
+              <AccessTab kind="data_object" id={o.id} />
               <Text size="xs" c="dimmed">
                 {t('history.updated', { user: o.updatedBy, date: fmtDate(o.updatedAt), revision: o.revision })}
               </Text>

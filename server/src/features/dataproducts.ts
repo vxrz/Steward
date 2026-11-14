@@ -1,4 +1,5 @@
 import { DATA_PRODUCT_MIGRATIONS } from '../migrations/dataproducts.js';
+import { DATA_GOVERNANCE_MIGRATIONS } from '../migrations/dataproducts-governance.js';
 import { dataProductRoutes } from '../dataproducts/routes.js';
 import { dataProductHealthRoutes } from '../dataproducts/health-routes.js';
 import { dataProductViewRoutes } from '../dataproducts/views-routes.js';
@@ -10,7 +11,8 @@ import { dataProductTransferRoutes } from '../dataproducts/transfer-routes.js';
 import { dataProductApiRoutes } from '../dataproducts/api-v1.js';
 import { dataProductTools } from '../dataproducts/mcp.js';
 import { dataProductProposalTools } from '../dataproducts/proposals.js';
-import { DATA_PRODUCT_SHARE_KIND } from '../dataproducts/shares.js';
+import { DATA_PRODUCT_MODULE_SHARE_KINDS } from '../dataproducts/shares.js';
+import { DATA_PRODUCT_CONTACT_HOOKS, DATA_PRODUCT_CONTACT_KINDS } from '../dataproducts/contacts.js';
 import { dataProductQualityRoutes } from '../dataproducts/quality-routes.js';
 import { dataProductsSection } from '../dataproducts/report-section.js';
 import { dataProductGovernanceRoutes } from '../dataproducts/governance-routes.js';
@@ -55,10 +57,15 @@ export default defineFeature({
   mcpTools: [...dataProductTools, ...dataProductProposalTools],
   // ADR 0036 part 17: documents, records and ticket references link products and data objects
   linkKinds: [...DATA_PRODUCT_LINK_KIND_RESOLVERS],
-  // ADR 0033: products are shared with people and teams on their Access tab (data objects, elements and domains keep
-  // their owning teams; shares of those follow in phase 2)
-  shareKinds: [DATA_PRODUCT_SHARE_KIND],
-  migrations: [DATA_PRODUCT_MIGRATIONS],
+  // ADR 0033: products, domains (0.25.1) and data objects (0.25.1) are shared with people and teams on their Access
+  // tabs; elements keep their owning teams
+  shareKinds: [...DATA_PRODUCT_MODULE_SHARE_KINDS],
+  // 0.25.1 (ADR 0038): product owners, domain owners, data owners and stewards, consumers' contacts are contacts of the
+  // directory – seen and changed with the item; documented decisions name contacts (counted, erased ids nulled)
+  contactKinds: DATA_PRODUCT_CONTACT_KINDS,
+  contactHooks: DATA_PRODUCT_CONTACT_HOOKS,
+  // 0.25.1 (ADR 0038): documented governance, after the access lists' conversion (shares with their rights column)
+  migrations: [DATA_PRODUCT_MIGRATIONS, DATA_GOVERNANCE_MIGRATIONS],
   jobs: [
     // ADR 0036 part 5: the discovery sources that are due, one at a time (a run stops after 10 minutes)
     every5Minutes('data-products', 30 * MINUTE, () => import('../dataproducts/discovery/job.js').then((m) => m.runDataProductsJob())),

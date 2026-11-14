@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
   DATA_PRODUCT_LIMITS,
+  type ContactLinkInput,
+  type ContactLinkKind,
   CIA_DIMENSIONS,
   DATA_PRODUCT_IMPORT_MODES,
   DATA_PRODUCT_IMPORT_ORIGINS_LISTED,
@@ -24,6 +26,8 @@ import { db } from '../db.js';
 import { me } from '../auth/access.js';
 import { audit, withoutAudit } from '../audit.js';
 import { holdingNotices } from './notices.js';
+import { linksOfSubjects } from './contacts.js';
+import { contactForUser, importContact, linksOf } from '../contacts/service.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
 import { canViewCatalogue } from '../records/access.js';
@@ -60,6 +64,7 @@ import {
   portIdentity,
   type BindingFile,
   type ConsumerFile,
+  type ContactFile,
   type DataProductsFile,
   type DomainFile,
   type ElementFile,
@@ -80,7 +85,7 @@ import { Snapshot, consumerIdentity, domainEntry, elementEntry, elementKey, elem
  * what the files say; a key a file leaves out keeps Steward's value; nothing is removed).
  *
  * Every write goes through the module's services, as the person importing: their rights, the limits, the rules of
- * lifecycles, bindings and steps, the access.grant step-up for owners named from outside the owning teams and the
+ * lifecycles, bindings and steps and the
  * audit trail are those of the pages. What the person may not see does not exist for an import – a key, element,
  * platform, contract or application they may not see is refused like an unknown one, never named. The preview runs the
  * same writes in a transaction that is rolled back (not audited), so it finds what the services would refuse. The
@@ -420,6 +425,33 @@ interface PlatformRef {
 }
 
 /** Looks up what files name, as the importing person may see it. */
+/**
+ * The contacts a file names on an entry (0.25.1) as links: the account's person contact for `user`, the entry's own
+ * contact of that name and role (or e-mail address), else the contact the importer may see with that e-mail address,
+ * else a new one (contacts/service.ts importContact – a hidden contact is never matched).
+ */
+function contactLinksOf(kind: ContactLinkKind, itemId: string | null, files: readonly (ContactFile | string)[], defaultRole: string): ContactLinkInput[] {
+  const own = itemId ? (linksOf(kind, [itemId]).get(itemId) ?? []) : [];
+  const out: ContactLinkInput[] = [];
+  for (const f of files) {
+    if (typeof f === 'string') {
+      out.push(...linksOfSubjects([f], defaultRole));
+      continue;
+    }
+    const email = (f.email ?? '').trim().toLowerCase();
+    const mine = own.find(
+      (l) =>
+        l.role === f.role && (email ? (l.contact.email ?? '').toLowerCase() === email : l.contact.name.trim().toLowerCase() === f.name.trim().toLowerCase()),
+    );
+    const id =
+      mine?.contact.id ??
+      (f.user ? contactForUser(f.user, { email: f.email ?? '' })?.id : undefined) ??
+      importContact({ kind: f.kind ?? 'person', name: f.name, email: f.email ?? '' }).id;
+    if (!out.some((x) => x.role === f.role && x.contactId === id)) out.push({ role: f.role, contactId: id });
+  }
+  return out;
+}
+
 class Resolver {
   readonly s: Snapshot;
   private platformsByName = new Map<string, PlatformRef[]>();
@@ -1061,7 +1093,7 @@ function step(run: Run, file: string, entry: string, what: string, fn: () => voi
       throw e;
     }
     run.failed.add(entry);
-    if (STEP_UP.has(e.code ?? '')) run.plan.warnings.push(`${entry}: names someone outside the owning teams – importing asks you to confirm it is you`);
+    if (STEP_UP.has(e.code ?? '')) run.plan.warnings.push(`${entry}: needs a confirmation – importing asks you to confirm it is you`);
     else if (run.plan.problems.length < IL.problems)
       run.plan.problems.push({ file, path: `${entry}${what ? ` (${what})` : ''}`, message: e.message, ...(e.code ? { code: e.code } : {}) });
     return false;
@@ -1106,7 +1138,12 @@ function writeDomains(run: Run): void {
         description: m.description ?? '',
         parentId: m.parent === undefined ? (e.row?.parent_id ?? null) : m.parent ? r.domainId(m.parent) : null,
         colour: m.colour ?? null,
-        owners: m.owners ?? [],
+        // 0.25.1: contacts; the old owners (user:/team:) when the file still names them
+        ...(e.incoming.owners !== undefined && e.incoming.contacts === undefined
+          ? { owners: m.owners ?? [] }
+          : m.contacts !== undefined
+            ? { contacts: contactLinksOf('data_domain', e.row?.id ?? null, m.contacts, 'domainOwner') }
+            : {}),
       };
       const d = e.row ? svc.updateDomain(e.row.id, body) : svc.createDomain(body);
       r.domainIds.set(m.key, d.id);
@@ -1145,8 +1182,12 @@ function writeObjects(run: Run): void {
           deletionRule: m.deletion_rule ?? '',
           regulatoryFlags: m.regulatory_flags ?? [],
           attributes: (m.attributes ?? []).map((a) => ({ name: a.name, description: a.description ?? '', personal: !!a.personal })),
-          owner: m.owner ?? null,
-          stewards: m.stewards ?? [],
+          // 0.25.1: contacts; the old owner and stewards when the file still names them
+          ...((e.incoming.owner !== undefined || e.incoming.stewards !== undefined) && e.incoming.contacts === undefined
+            ? { owner: m.owner ?? null, stewards: m.stewards ?? [] }
+            : m.contacts !== undefined
+              ? { contacts: contactLinksOf('data_object', e.row?.id ?? null, m.contacts, 'dataOwner') }
+              : {}),
           custodians: m.custodians ?? [],
           externalRefs: (m.external_refs ?? []).map((x) => ({ label: x.label ?? '', url: x.url })),
         };
@@ -1297,7 +1338,12 @@ function productBody(r: Resolver, e: Entry<ProductFile, ProductRow>, withSuccess
     purpose: m.purpose ?? '',
     type: m.type ?? null,
     domainId: m.domain === undefined ? (row?.domain_id ?? null) : m.domain ? r.domainId(m.domain) : null,
-    owners: m.owners ?? [],
+    // 0.25.1: contacts; the old owners (user:/team:) when the file still names them
+    ...(e.incoming.owners !== undefined && e.incoming.contacts === undefined
+      ? { owners: m.owners ?? [] }
+      : m.contacts !== undefined
+        ? { contacts: contactLinksOf('data_product', row?.id ?? null, m.contacts, 'productOwner') }
+        : {}),
     support: { channel: support.channel ?? '', url: support.url ?? '', hours: support.hours ?? '' },
     criticality: m.criticality ?? null,
     tier: m.tier ?? null,
@@ -1320,6 +1366,7 @@ const BASICS: (keyof ProductFile)[] = [
   'type',
   'domain',
   'owners',
+  'contacts',
   'support',
   'criticality',
   'tier',
@@ -1401,7 +1448,7 @@ function runnerInput(r: Resolver, x: RunnerFile | null | undefined, rowRunner: s
   return { kind: x.kind, id: r.named(x.kind, x.name ?? ''), ...(x.kind === 'application' ? runsOn : {}), ...tech };
 }
 
-function consumerBody(r: Resolver, c: ConsumerFile) {
+function consumerBody(r: Resolver, c: ConsumerFile, consumerId: string | null = null) {
   return {
     kind: c.kind,
     refId: c.kind === 'product' ? r.productId(c.ref ?? '') : c.kind === 'application' || c.kind === 'service' ? r.named(c.kind, c.ref ?? '') : null,
@@ -1411,7 +1458,8 @@ function consumerBody(r: Resolver, c: ConsumerFile) {
     since: c.since ?? null,
     endDate: c.end_date ?? null,
     agreement: c.agreement ? { kind: c.agreement.kind, ref: c.agreement.ref, label: c.agreement.label ?? '' } : null,
-    contacts: c.contacts ?? [],
+    // 0.25.1: contacts (user:/team: of before read as contacts); a file that leaves them out keeps them
+    ...(c.contacts ? { contacts: contactLinksOf('data_consumer', consumerId, c.contacts, 'consumerContact') } : {}),
   };
 }
 
@@ -1573,8 +1621,8 @@ function writeProducts(run: Run): void {
         step(run, e.file, entry, `consumer ${consumerIdentity(c)} of port ${portIdentity(x)}`, () => {
           const pr = portRow();
           if (!pr) throw new HttpError(404, `Port ${portIdentity(x)} not found`, 'DATA_PORT_NOT_FOUND', { id: portIdentity(x) });
-          const body = consumerBody(r, c);
           const existing = oc ? consumersOf([pr.id]).find((row) => consumerIdentityOfRow(run.r, row) === consumerIdentity(c)) : undefined;
+          const body = consumerBody(r, c, existing?.id ?? null);
           const id = existing
             ? (ports.updateConsumer(productOf(e), nameOf(e), pr.id, existing.id, body), existing.id)
             : ports.addConsumer(productOf(e), nameOf(e), pr.id, body).id;

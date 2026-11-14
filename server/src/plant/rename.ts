@@ -243,6 +243,8 @@ const REFERENCES_ALL: RefSpec[] = [
   col('plant_advisory_sites', 'site_id', 'site', 'advisory_site'),
   json<string[]>('plant_vlans', 'sites', '[]', 'site', 'vlan', ['site_id', 'id'], inList),
   pair('plant_refs', 'kind', 'site', 'item_id', 'site', 'external_ref'),
+  // 0.25.1 (ADR 0038): its contacts in the contacts directory (the people stay, the links follow the site)
+  pair('contact_links', 'kind', 'plant_site', 'item_id', 'site', 'contact'),
   pair('item_links', 'from_kind', 'site', 'from_id', 'site', 'link'),
   pair('item_links', 'to_kind', 'site', 'to_id', 'site', 'link'),
   {

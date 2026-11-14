@@ -78,6 +78,7 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 | [CREDENTIALS.md](CREDENTIALS.md)                                                               | The credentials register: where credentials are kept, owners, expiry and rotation                         |
 | [DUTIES.md](DUTIES.md)                                                                         | Recurring tasks a service must have done, judged by the real runs                                         |
 | [SCORECARD.md](SCORECARD.md)                                                                   | Availability objectives and the service scorecard                                                         |
+| [CONTACTS.md](CONTACTS.md)                                                                     | The contacts directory: who sees and changes a contact, Replace with…, Erase, what leaves the app         |
 | [COSTS.md](COSTS.md)                                                                           | Platform costs per service, application and team (showback, FinOps FOCUS)                                 |
 | [PRICE-BOOKS.md](PRICE-BOOKS.md)                                                               | Price books, cost drivers, calculators and estimates – with ranges, variants and the MCP dry run (0.21.0) |
 | [TICKETS.md](TICKETS.md)                                                                       | Ticket references to incidents and vendor cases that live in other systems                                |

@@ -89,6 +89,8 @@ const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDe
 const ApplicationsPage = page(() => import('./pages/Applications'), 'ApplicationsPage');
 const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
 const SuppliersPage = page(() => import('./pages/Suppliers'), 'SuppliersPage');
+const ContactsPage = page(() => import('./pages/Contacts'), 'ContactsPage');
+const ContactDetailPage = page(() => import('./pages/ContactDetail'), 'ContactDetailPage');
 const SupplierDetailPage = page(() => import('./pages/SupplierDetail'), 'SupplierDetailPage');
 const SupplierContractPage = page(() => import('./pages/SupplierContract'), 'SupplierContractPage');
 const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
@@ -108,7 +110,6 @@ const DataContractDetailPage = page(() => import('./pages/DataContractDetail'), 
 // the data products module (ADR 0036): its pages (WP5) and pictures (WP6)
 const DataProductsPage = page(() => import('./pages/dataproducts'), 'DataProductsPage');
 const DataProductPage = page(() => import('./pages/dataproducts'), 'DataProductPage');
-const DataAccessRequestsPage = page(() => import('./pages/dataproducts'), 'DataAccessRequestsPage');
 const DataRecordsOfProcessingPage = page(() => import('./pages/dataproducts'), 'DataRecordsOfProcessingPage');
 const DataElementsPage = page(() => import('./pages/dataproducts'), 'DataElementsPage');
 const DataElementPage = page(() => import('./pages/dataproducts'), 'DataElementPage');
@@ -490,6 +491,8 @@ function Shell({ status }: { status: AuthStatus }) {
                     <Route path="/systems/:id" element={<SystemDetailPage />} />
                     <Route path="/systems/:id/schema" element={<SystemSchemaPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
+                    <Route path="/contacts" element={<ContactsPage />} />
+                    <Route path="/contacts/:id" element={<ContactDetailPage />} />
                     <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
                     <Route path="/suppliers/:id/contracts/:contractId" element={<SupplierContractPage />} />
                     <Route
@@ -532,14 +535,8 @@ function Shell({ status }: { status: AuthStatus }) {
                         </ModuleGate>
                       }
                     />
-                    <Route
-                      path="/data-products/access-requests"
-                      element={
-                        <ModuleGate module="dataProducts">
-                          <DataAccessRequestsPage />
-                        </ModuleGate>
-                      }
-                    />
+                    {/* the access request inbox went in 0.25.1 (ADR 0038): access is documented on the ports */}
+                    <Route path="/data-products/access-requests" element={<Navigate to="/data-products" replace />} />
                     <Route
                       path="/data-products/records-of-processing"
                       element={

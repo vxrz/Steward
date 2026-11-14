@@ -33,6 +33,7 @@ import {
   SPECIAL_DATA_CATEGORIES,
 } from './dataProducts.js';
 import { dataElementPropertiesInput, dataNamespaceValue, dataTechnologyValue } from './dataTechnologies.js';
+import { contactLinkInput, documentedDecisionInput } from './contacts.js';
 
 /**
  * Input schemas of the data products module's internal API (ADR 0036 part 19): every array has its `.max()`, every
@@ -49,6 +50,18 @@ const subject = () =>
     .trim()
     .max(L.short)
     .regex(/^(user|team):.+$/, 'user:<name> or team:<name>');
+/**
+ * The contacts of an item (0.25.1, ADR 0038): links with a role – an existing contact by id or a new one. Omitted: the
+ * item keeps its contacts (unless the old fields – owners, owner, stewards – are given: they become contacts).
+ */
+const contacts = () =>
+  z
+    .array(contactLinkInput)
+    .max(L.subjects * 2)
+    .optional();
+/** The old subject fields (user:, team:) – deprecated since 0.25.1: they become contacts; omitted: kept. */
+const legacySubjects = () => z.array(subject()).max(L.subjects).optional();
+
 const isoDate = () =>
   z
     .string()
@@ -75,7 +88,9 @@ export const dataDomainInput = z
     description: text(L.description).default(''),
     parentId: id().nullable().default(null),
     colour: z.enum(CIA_COLORS).nullable().default(null),
-    owners: z.array(subject()).max(L.subjects).default([]),
+    /** Deprecated (0.25.1): the domain owners as subjects – use contacts (role domainOwner) */
+    owners: legacySubjects(),
+    contacts: contacts(),
   })
   .strict();
 export type DataDomainInput = z.input<typeof dataDomainInput>;
@@ -104,10 +119,13 @@ export const dataObjectInput = z
     deletionRule: text().default(''),
     regulatoryFlags: list(L.listValues).default([]),
     attributes: z.array(dataObjectAttributeInput).max(L.attributes).default([]),
-    /** The data owner: a user name */
-    owner: z.string().trim().max(L.short).nullable().default(null),
-    stewards: z.array(subject()).max(L.subjects).default([]),
+    /** Deprecated (0.25.1): the data owner as a user name – use contacts (role dataOwner) */
+    owner: z.string().trim().max(L.short).nullable().optional(),
+    /** Deprecated (0.25.1): the stewards as subjects – use contacts (role dataSteward) */
+    stewards: legacySubjects(),
+    /** Technical custodians: teams and users (IT, not contacts) */
     custodians: z.array(subject()).max(L.subjects).default([]),
+    contacts: contacts(),
     externalRefs: externalRefs().default([]),
   })
   .strict();
@@ -148,7 +166,9 @@ export const dataProductInput = z
     purpose: text(L.description).default(''),
     type: z.enum(DATA_PRODUCT_TYPES).nullable().default(null),
     domainId: id().nullable().default(null),
-    owners: z.array(subject()).max(L.subjects).default([]),
+    /** Deprecated (0.25.1): the product owners as subjects – use contacts (role productOwner) */
+    owners: legacySubjects(),
+    contacts: contacts(),
     support: z
       .object({ channel: text(L.short).default(''), url: z.union([httpUrl(), z.literal('')]).default(''), hours: text(L.short).default('') })
       .strict()
@@ -268,9 +288,25 @@ export const dataConsumerInput = z
       .strict()
       .nullable()
       .default(null),
-    contacts: z.array(subject()).max(L.subjects).default([]),
+    /** The consumer's contacts (role consumerContact): contacts, or – deprecated – subjects (user:, team:); omitted: kept */
+    contacts: z
+      .array(z.union([subject(), contactLinkInput]))
+      .max(L.subjects)
+      .optional(),
+    /**
+     * 0.25.1 (ADR 0038 part 3): the access decided elsewhere – who decided, when, the evidence. Omitted: kept; null: no
+     * decision (the approval as `approval` says, by default _not documented_)
+     */
+    decision: documentedDecisionInput.nullable().optional(),
+    /**
+     * Without a decision: `notDocumented` marks the registration as pending – _approval not documented_, for the IT
+     * maintainers to complete; `none` shows no approval state. Omitted: a new registration without a decision has none,
+     * a cleared decision (`decision: null`) leaves it not documented, otherwise it is kept. Not with a decision.
+     */
+    approval: z.enum(['notDocumented', 'none']).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => !(v.decision && v.approval), { message: 'approval is given without a decision only', path: ['approval'] });
 export type DataConsumerInput = z.input<typeof dataConsumerInput>;
 
 // ---------- elements ----------

@@ -185,23 +185,44 @@ describe('semantic models', () => {
     db().run("DELETE FROM resource_teams WHERE kind = 'contract' AND resource_id = ?", contract);
   });
 
-  it('signs off with four eyes the version read; which model was valid on a date, and who approved it', async () => {
+  it('records the approval given elsewhere of the version shown (its SHA-256); which model was valid on a date, and who approved it', async () => {
     const v5 = (await dana('GET', `/data-products/${product}/semantic-model`)).current;
-    // who wrote it does not sign it off; nor does a viewer
-    expect(await fail(dana('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256 }))).toMatchObject({
-      status: 409,
-      code: 'DATA_SEMANTIC_SIGNOFF_INVALID',
-      params: { context: 'ownVersion' },
+    const owner = (await dana('POST', '/contacts', { name: 'Invented model owner' })).id;
+    const decision = {
+      decidedBy: [{ contactId: owner, role: 'dataOwner' }],
+      decidedOn: '2026-01-05',
+      evidence: [{ kind: 'text', value: 'Model review, January' }],
+    };
+    // a viewer and an approver who may not change the product record nothing (0.25.1: the IT maintainers record it)
+    expect(await fail(vera('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256, decision }))).toMatchObject({
+      status: 403,
     });
-    expect(await fail(vera('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256 }))).toMatchObject({ status: 403 });
-    // an approver who sees it signs off – only the text they read
-    expect(await fail(adam('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: '0'.repeat(64) }))).toMatchObject({
+    expect(await fail(adam('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256, decision }))).toMatchObject({
+      status: 403,
+    });
+    // only the text shown: another SHA-256 is refused; a decision is needed
+    expect(await fail(dana('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: '0'.repeat(64), decision }))).toMatchObject({
       params: { context: 'changed' },
     });
-    const view = await adam('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256, note: 'Matches the contract' });
+    expect((await fail(dana('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256 }))).status).toBe(400);
+    // who saved the version records it (no four eyes any more: the approval is the contacts')
+    const view = await dana('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, {
+      sha256: v5.sha256,
+      note: 'Matches the contract',
+      decision,
+    });
     const today = new Date().toISOString().slice(0, 10);
-    expect(view.validToday).toMatchObject({ version: 5, signOff: { by: 'adam', validFrom: today, note: 'Matches the contract' } });
-    expect(await fail(adam('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256 }))).toMatchObject({
+    // approved before the version was saved in Steward: valid from the day it was saved
+    expect(view.validToday).toMatchObject({
+      version: 5,
+      signOff: {
+        by: 'dana',
+        validFrom: today,
+        note: 'Matches the contract',
+        decision: { decidedBy: [{ name: 'Invented model owner', role: 'dataOwner' }], decidedOn: '2026-01-05' },
+      },
+    });
+    expect(await fail(dana('POST', `/data-products/${product}/semantic-model/versions/5/sign-off`, { sha256: v5.sha256, decision }))).toMatchObject({
       params: { context: 'alreadySignedOff' },
     });
     // the history: version 1 signed off on 1 March, version 5 from today
@@ -266,14 +287,17 @@ describe('semantic models', () => {
     expect(await v1.text()).toBe(MODEL);
     const versions = await (await get(`/api/v1/data-products/${product}/semantic-model/versions?date=2026-03-02`)).json();
     expect(versions.versions).toHaveLength(5);
-    expect(versions.validOn).toMatchObject({ date: '2026-03-02', valid: { version: 1, signOff: { by: 'adam' } } });
+    expect(versions.validOn).toMatchObject({ date: '2026-03-02', valid: { version: 1, signOff: { by: 'adam', approvedBy: [] } } });
+    // names and roles only: no contact ids or e-mail addresses on /api/v1
+    expect(versions.validToday.signOff).toMatchObject({ approvedBy: [{ name: 'Invented model owner', role: 'dataOwner' }], approvedOn: '2026-01-05' });
+    expect(JSON.stringify(versions)).not.toContain('ct_');
     // a product the token owner may not see answers 404
     expect((await get(`/api/v1/data-products/${hidden}/semantic-model`)).status).toBe(404);
     expect(await fail(dana('GET', `/data-products/${hidden}/semantic-model`))).toMatchObject({ status: 404 });
     // the ODPS output port links the model (the version valid today)
     const odps = YAML.parse((await dana('GET', `/data-products/${product}/odps`)) as string);
     const custom = odps.outputPorts[0].customProperties.find((c: { property: string }) => c.property === 'semanticModel');
-    expect(custom.value).toMatchObject({ version: 5, signedOffBy: 'adam' });
+    expect(custom.value).toMatchObject({ version: 5, signedOffBy: 'dana', approvedBy: [{ name: 'Invented model owner', role: 'dataOwner' }] });
   });
 
   it('drafts from the bound contracts and data objects – with notes on personal fields, never with metrics', async () => {
@@ -351,7 +375,7 @@ describe('semantic models over MCP', () => {
     token = (await dana('POST', '/me/tokens', { name: 'mcp-sem', scope: 'mcp' })).token as string;
     const r = await call('get_product_semantic_model', { productId: 'sem-orders', version: 5 });
     expect(r.isError).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ version: { version: 5, signOff: { by: 'adam' } }, document: MODEL });
+    expect(r.structuredContent).toMatchObject({ version: { version: 5, signOff: { by: 'dana' } }, document: MODEL });
     expect(r.structuredContent.drift.findings).toBeGreaterThan(0);
     const hiddenRead = await call('get_product_semantic_model', { productId: 'sem-secret' });
     expect(hiddenRead.isError).toBe(true);
@@ -421,10 +445,13 @@ describe('semantic models over MCP', () => {
     expect(done).toMatchObject({ status: 'done', resultBody: { semanticVersions: 1 } });
     const v7 = await dana('GET', `/data-products/${product}/semantic-model/versions/7`);
     expect(v7).toMatchObject({ origin: 'proposal', createdBy: 'admin', document: next });
-    // whose assistant proposed it does not sign it off
-    expect(await fail(dana('POST', `/data-products/${product}/semantic-model/versions/7/sign-off`, { sha256: v7.sha256 }))).toMatchObject({
-      params: { context: 'ownVersion' },
+    // the approval of a proposed version is recorded like any other (0.25.1: no four eyes – the contacts approved it)
+    const approver = (await dana('POST', '/contacts', { name: 'Invented approver' })).id;
+    const signed = await dana('POST', `/data-products/${product}/semantic-model/versions/7/sign-off`, {
+      sha256: v7.sha256,
+      decision: { decidedBy: [{ contactId: approver, role: 'dataOwner' }], decidedOn: new Date().toISOString().slice(0, 10) },
     });
+    expect(signed.validToday.version).toBe(7);
   });
 });
 

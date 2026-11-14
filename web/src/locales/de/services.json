@@ -20,15 +20,10 @@
     "critical": "Kritisch"
   },
   "contacts": "Kontakte",
-  "contactRole": "Rolle",
   "contactRoles": {
     "business": "Fachlich verantwortlich",
     "it": "IT-Betrieb"
   },
-  "email": "E-Mail",
-  "contactName": "Name (optional)",
-  "addContact": "Kontakt hinzufügen",
-  "removeContact": "Kontakt {{n}} entfernen",
   "noContacts": "Keine Kontakte",
   "owners": "Verantwortlich in Steward",
   "ownersHelp": "Benutzer und Teams, die diesen Service bearbeiten dürfen: user:<name> oder team:<name>",

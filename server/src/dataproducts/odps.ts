@@ -3,6 +3,8 @@ import { Ajv2019, type ErrorObject, type ValidateFunction } from 'ajv/dist/2019.
 import { CIA_DIMENSIONS, type DataObjectives } from '@sm/shared';
 import { db } from '../db.js';
 import { config } from '../config.js';
+import { linksOf } from '../contacts/service.js';
+import { decisionNames } from './decisions.js';
 import { owningTeams } from '../auth/policy.js';
 import { readAsset } from '../reports/pdf/assets.js';
 import { parseJson } from '../util.js';
@@ -111,10 +113,15 @@ export function odpsDocument(productId: string, environment?: string): Obj {
     else withoutContract.push({ name: x.name, version: x.version, ...(source ? { source } : {}) });
   }
 
-  const owners = parseJson<string[]>(p.owners, []);
+  // 0.25.1 (ADR 0038): the product owners and business contacts as team members – name, role and as username (ODPS may
+  // carry the address, as the file format) the e-mail address, else the linked Steward user's name, else the name
   const teams = owningTeams('data_product', p.id).map((t) => t.name);
-  const members = owners.filter((o) => o.startsWith('user:')).map((o) => ({ username: o.slice(5), role: 'productOwner' }));
-  const ownerTeams = owners.filter((o) => o.startsWith('team:')).map((o) => o.slice(5));
+  const members = (linksOf('data_product', [p.id]).get(p.id) ?? []).map((l) => ({
+    username: l.contact.email || l.contact.user || l.contact.name,
+    name: l.contact.name,
+    role: l.role,
+  }));
+  const ownerTeams: string[] = [];
   const support = { channel: '', url: '', hours: '', ...parseJson<Record<string, string>>(p.support, {}) };
   const rating = ratingsByItem('product', [p.id]).get(p.id)!;
   const ratingValue = Object.fromEntries([
@@ -232,8 +239,8 @@ export function odpsProblems(doc: unknown): string[] {
  */
 function semanticLink(productId: string, key: string, environment: string): { property: Obj; url: string | null } | null {
   const today = new Date().toISOString().slice(0, 10);
-  const signed = db().get<{ version: number; sha256: string; signed_by: string; valid_from: string }>(
-    'SELECT version, sha256, signed_by, valid_from FROM dp_semantic_signoffs WHERE product_id = ? AND valid_from <= ? ORDER BY valid_from DESC, signed_at DESC LIMIT 1',
+  const signed = db().get<{ version: number; sha256: string; signed_by: string; valid_from: string; decision: string | null }>(
+    'SELECT version, sha256, signed_by, valid_from, decision FROM dp_semantic_signoffs WHERE product_id = ? AND valid_from <= ? ORDER BY valid_from DESC, signed_at DESC LIMIT 1',
     productId,
     today,
   );
@@ -252,7 +259,14 @@ function semanticLink(productId: string, key: string, environment: string): { pr
       product: key,
       version: Number(v.version),
       sha256: v.sha256,
-      ...(signed ? { signedOffBy: signed.signed_by, validFrom: signed.valid_from } : { signedOff: false }),
+      // who approved it (0.25.1: the documented approval's contacts by name and role) and who recorded it
+      ...(signed
+        ? {
+            signedOffBy: signed.signed_by,
+            validFrom: signed.valid_from,
+            ...(signed.decision ? { approvedBy: decisionNames(parseJson(signed.decision, null))?.decidedBy ?? [] } : {}),
+          }
+        : { signedOff: false }),
     },
     url: base ? `${base}/api/v1/data-products/${encodeURIComponent(productId)}/semantic-model?${query}` : null,
   };

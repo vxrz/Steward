@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  type ContactListItem,
   SUPPLIER_CONTACT_ROLES,
   SUPPLIER_LIMITS,
   type ApplicationSummary,
@@ -20,6 +21,7 @@ import { del, get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { FormModal, FormModalCancel } from '../FormModal';
+import { ContactLine, ContactSearchSelect } from '../contacts';
 
 const pathOf = (supplierId: string, x: { kind: SupplierContactScopeKind; id: string }) =>
   x.kind === 'contract' ? `/suppliers/${supplierId}/contracts/${x.id}` : x.kind === 'application' ? `/applications/${x.id}` : `/systems/${x.id}`;
@@ -220,6 +222,8 @@ function ContactModal({
   const [email, setEmail] = useState(contact?.email ?? '');
   const [phone, setPhone] = useState(contact?.phone ?? '');
   const [note, setNote] = useState(contact?.note ?? '');
+  // the person from the contacts directory (0.25.1, ADR 0038): picked, or named by the fields below
+  const [picked, setPicked] = useState<ContactListItem | null>(null);
   const initial = contact ? contact.scope.map((x) => `${x.kind}:${x.id}`) : contractId ? [`contract:${contractId}`] : [];
   const [scope, setScope] = useState<string[]>(initial);
   const apps = useQuery({ queryKey: ['applications'], queryFn: () => get<ApplicationSummary[]>('/applications') });
@@ -234,18 +238,16 @@ function ContactModal({
     { group: t('scopedContacts.kinds.system'), items: (systems.data ?? []).map((x) => ({ value: `system:${x.id}`, label: x.name })) },
   ];
   const v = useFieldErrors({
-    name: !name.trim() && t('common:validation.required'),
-    email: !!email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && t('common:validation.invalid'),
+    name: !picked && !name.trim() && t('common:validation.required'),
+    email: !picked && !!email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && t('common:validation.invalid'),
     scope: !!contact && !contact.companyWide && scope.length === 0 && contact.hiddenScope === 0 && t('scopedContacts.lastItem'),
   });
   const save = async () => {
     if (!v.validate()) return;
     setBusy(true);
     const body = {
-      name: name.trim(),
+      ...(picked ? { contactId: picked.id } : { name: name.trim(), email: email.trim(), phone: phone.trim() }),
       role,
-      email: email.trim(),
-      phone: phone.trim(),
       note,
       scope: scope.map((x) => {
         const [kind, ...id] = x.split(':');
@@ -271,15 +273,34 @@ function ContactModal({
         }}
       >
         <Stack gap="sm">
-          <TextInput
-            label={t('contacts.name')}
-            required
-            maxLength={SUPPLIER_LIMITS.text}
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            error={v.error('name')}
-            data-autofocus
-          />
+          {picked ? (
+            <Paper withBorder p="xs">
+              <Group justify="space-between" wrap="nowrap">
+                <ContactLine contact={picked} />
+                <Button size="xs" variant="subtle" onClick={() => setPicked(null)}>
+                  {t('contacts.otherPerson')}
+                </Button>
+              </Group>
+            </Paper>
+          ) : (
+            <ContactSearchSelect
+              label={t('contacts.fromDirectory')}
+              exclude={contact?.contactId ? [contact.contactId] : []}
+              onPick={setPicked}
+              testId="supplier-contact-directory"
+            />
+          )}
+          {!picked && (
+            <TextInput
+              label={t('contacts.name')}
+              required
+              maxLength={SUPPLIER_LIMITS.text}
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              error={v.error('name')}
+              data-autofocus
+            />
+          )}
           <Select
             label={t('contacts.role')}
             data={SUPPLIER_CONTACT_ROLES.map((r) => ({ value: r, label: t(`contacts.roles.${r}`) }))}
@@ -287,7 +308,7 @@ function ContactModal({
             allowDeselect={false}
             onChange={(r) => r && setRole(r as SupplierContactRole)}
           />
-          <Group grow align="flex-start">
+          <Group grow align="flex-start" display={picked ? 'none' : undefined}>
             <TextInput
               label={t('contacts.email')}
               type="email"

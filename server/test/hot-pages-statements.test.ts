@@ -54,7 +54,22 @@ beforeAll(async () => {
   dana = await s.as('dana', PW);
   tokens.admin = (await s.api('POST', '/me/tokens', { name: 'Invented admin token', scope: 'read' })).token;
   tokens.dana = (await dana('POST', '/me/tokens', { name: 'Invented dana token', scope: 'read' })).token;
+  // the demo's schedules (some every 15 minutes) would start runs while the pages are counted: the public API's run
+  // and dataset lists read per process and per dataset, so a run that starts between two counts changes them
+  (await import('../src/scheduler.js')).stopScheduler();
 }, 180_000);
+
+/** Waits until no run changes any more (none started or finishing), so two counts see the same runs and datasets. */
+async function settled(): Promise<void> {
+  const snapshot = async () => JSON.stringify(((await s.api('GET', '/runs')) as { id: string; status: string }[]).map((r) => [r.id, r.status]));
+  let last = await snapshot();
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const now = await snapshot();
+    if (now === last) return;
+    last = now;
+  }
+}
 
 /** Statements of one GET as the signed-in user of `c` (the second call: caches of the first are warm). */
 async function statements(c: Client, url: string): Promise<number> {
@@ -78,6 +93,7 @@ async function v1Statements(token: string, url: string): Promise<number> {
 }
 
 async function countAll(): Promise<Record<string, number>> {
+  await settled();
   const out: Record<string, number> = {};
   for (const [who, c] of [
     ['admin', s.api],

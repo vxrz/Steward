@@ -269,11 +269,11 @@
     "dataproduct": {
       "deprecated": {
         "label": "Data product deprecated",
-        "info": "A data product or port you consume was deprecated (registered consumers and the owners of products that use it), with its sunset date and successor"
+        "info": "A data product or port you maintain (or one your data product uses) was deprecated, with its sunset date, its successor and the link to the consumers’ contacts"
       },
       "elements_missing": {
         "label": "Data product elements missing",
-        "info": "A discovery run no longer found elements of a data product you own (once per product and run)"
+        "info": "A discovery run no longer found elements of a data product you maintain (once per product and run)"
       },
       "discovery_failed": {
         "label": "Data product discovery failing",
@@ -281,23 +281,23 @@
       },
       "access_requested": {
         "label": "Data product access requested",
-        "info": "Someone asks for access to an output port of a data product you own (or manage), and you decide"
+        "info": "Retired in 0.25.1: someone asked for access to an output port of a data product (access is documented now, not requested)"
       },
       "access_decided": {
         "label": "Data product access decided",
-        "info": "Your request for access to a data product’s port was approved or refused"
+        "info": "Retired in 0.25.1: a request for access to a data product’s port was approved or refused (access is documented now, not requested)"
       },
       "endorsement_review": {
         "label": "Data product endorsement review",
-        "info": "An endorsement of a data product you own or endorsed is due for its review (or a breaking change or a rating below the floor needs one)"
+        "info": "An endorsement of a data product you maintain is due for its review (or a breaking change or a rating below the floor needs one)"
       },
       "access_review_due": {
         "label": "Data product access review due",
-        "info": "The periodic access review of a port of a data product you own is due"
+        "info": "The periodic access review of a port of a data product you maintain is due"
       },
       "contract_breaking": {
         "label": "Breaking contract change",
-        "info": "A new version of the data contract of an output port you consume has breaking changes (registered consumers and the owners of products that use it; once per version)"
+        "info": "A new version of the data contract of an output port you maintain (or one your data product uses) has breaking changes, with the link to the consumers’ contacts (once per version)"
       }
     }
   },

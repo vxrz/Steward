@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { documentedDecisionInput, type DocumentedDecision } from './contacts.js';
 
 /**
  * Data products, phase 3 package D (0.25.0, ADR 0037 parts 4 and 6, and the GDPR Art. 30 carry-over of 0.24.0):
@@ -40,13 +41,16 @@ export const DATA_SEMANTIC_ORIGINS = ['page', 'draft', 'proposal', 'api'] as con
 export type DataSemanticOrigin = (typeof DATA_SEMANTIC_ORIGINS)[number];
 
 export interface DataSemanticSignOff {
+  /** Who recorded it in Steward (before 0.25.1: who signed it off in Steward) */
   by: string;
   at: string;
-  /** The day from which the version is the valid one (the day of the sign-off) */
+  /** The day from which the version is the valid one (the day it was approved, not before it was saved) */
   validFrom: string;
   note: string;
-  /** The SHA-256 of the document the person signed off */
+  /** The SHA-256 of the document that was approved – the version shown when it was recorded */
   sha256: string;
+  /** 0.25.1 (ADR 0038 part 5): the documented approval – who approved it elsewhere, when, the evidence */
+  decision: DocumentedDecision | null;
 }
 
 export interface DataSemanticVersionSummary {
@@ -167,6 +171,8 @@ export const dataSemanticSignOffInput = z
       .trim()
       .regex(/^[0-9a-f]{64}$/),
     note: z.string().trim().max(DATA_SEMANTIC_LIMITS.note).default(''),
+    /** 0.25.1 (ADR 0038 part 5): who approved the version elsewhere, when, with which evidence */
+    decision: documentedDecisionInput,
   })
   .strict();
 

@@ -203,13 +203,12 @@ describe('demo services', () => {
       const actual = await s.api('GET', `/data-products/${orders.id}/ports/${v2.id}/actual?environment=prod`);
       expect(actual.counts).toMatchObject({ seen: 1, silent: 1 });
       expect(actual.counts.notRegistered).toBeGreaterThan(0);
-      // an open access request for Customer 360's port
-      const requests = await s.api('GET', '/data-products/access-requests?scope=all');
-      expect(
-        requests.items.some(
-          (r: { status: string; consumer: { text: string } }) => r.status === 'pending' && r.consumer.text === 'Invented marketing analytics',
-        ),
-      ).toBe(true);
+      // Customer 360's port: a registration whose approval is not documented yet (0.25.1: no access requests)
+      const c360Port = c360.ports.find((x: { direction: string; name: string }) => x.direction === 'output' && x.name === 'customer');
+      const registered = await s.api('GET', `/data-products/${c360.id}/ports/${c360Port.id}/consumers`);
+      expect(registered.some((c: { approval: string; text: string }) => c.approval === 'notDocumented' && c.text === 'Invented marketing analytics')).toBe(
+        true,
+      );
       // the Confluent cluster split by measured use, read from the Metrics API
       const allocations = (await s.api('GET', '/data-products/cost-allocations')) as {
         value: string;

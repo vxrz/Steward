@@ -4,6 +4,7 @@ import type {
   DataAccessSettings,
   DataActualView,
   DataEndorsementView,
+  DataGovernanceSettings,
   DataPortReview,
   DataPortReviewDue,
   DataPortReviewSummary,
@@ -24,9 +25,8 @@ const enc = encodeURIComponent;
 export const govKeys = {
   all: [...dpKeys.all, 'governance'] as const,
   actual: (id: string, portId: string, environment: string) => [...dpKeys.all, 'governance', 'actual', id, portId, environment] as const,
-  requests: (q: string) => [...dpKeys.all, 'governance', 'requests', q] as const,
   productRequests: (id: string) => [...dpKeys.all, 'governance', 'productRequests', id] as const,
-  request: (id: string) => [...dpKeys.all, 'governance', 'request', id] as const,
+  moduleSettings: [...dpKeys.all, 'governance', 'moduleSettings'] as const,
   settings: (id: string) => [...dpKeys.all, 'governance', 'settings', id] as const,
   reviews: (id: string) => [...dpKeys.all, 'governance', 'reviews', id] as const,
   review: (id: string) => [...dpKeys.all, 'governance', 'review', id] as const,
@@ -48,29 +48,18 @@ export const useActual = (id: string, portId: string, environment: string, enabl
     enabled: enabled && !!environment,
   });
 
-export type RequestScope = 'decide' | 'mine' | 'all';
-export const useAccessRequests = (scope: RequestScope, status: string) =>
-  useQuery({
-    queryKey: govKeys.requests(`${scope}|${status}`),
-    queryFn: () => get<{ items: DataAccessRequest[]; total: number }>(`/data-products/access-requests?${qs({ scope, status })}`),
-    placeholderData: keepPreviousData,
-  });
-
 export const useProductRequests = (id: string) =>
   useQuery({
     queryKey: govKeys.productRequests(id),
     queryFn: () => get<{ items: DataAccessRequest[]; total: number }>(`/data-products/${enc(id)}/access-requests`),
   });
 
-export const useAccessRequest = (id: string | null) =>
-  useQuery({
-    queryKey: govKeys.request(id ?? ''),
-    queryFn: () => get<DataAccessRequest>(`/data-products/access-requests/${enc(id!)}`),
-    enabled: !!id,
-  });
-
 export const useAccessSettings = (id: string) =>
   useQuery({ queryKey: govKeys.settings(id), queryFn: () => get<DataAccessSettings>(`/data-products/${enc(id)}/access-settings`) });
+
+/** The module's governance settings (0.25.1): four eyes for port access reviews. */
+export const useGovernanceSettings = () =>
+  useQuery({ queryKey: govKeys.moduleSettings, queryFn: () => get<DataGovernanceSettings>('/data-products/governance-settings') });
 
 export const useProductReviews = (id: string) =>
   useQuery({

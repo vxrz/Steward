@@ -21,6 +21,7 @@
     "applications": "Anwendungen",
     "systems": "Systeme",
     "suppliers": "Lieferanten",
+    "contacts": "Kontakte",
     "maintenance": "Wartung",
     "statusPages": "Statusseiten",
     "gitUpdates": "Git-Synchronisierung",
@@ -54,7 +55,6 @@
     "dataDomains": "Domänen",
     "dataMap": "Produktkarte",
     "dataDiscovery": "Erkennung",
-    "dataAccessRequests": "Zugriffsanträge",
     "dataRecordsOfProcessing": "Verarbeitungs\u00adtätigkeiten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",

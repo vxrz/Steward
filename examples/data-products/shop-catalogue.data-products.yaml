@@ -10,17 +10,17 @@ domains:
     name: Sales
     description: Orders, prices and the sales figures of the invented web shop.
     colour: blue
-    owners: [user:dana]
+    contacts: [{ role: domainOwner, name: Sales data office (invented), kind: group, email: sales-data@shop.example }]
   - key: orders
     name: Orders
     parent: sales
     description: Order intake, from the shop's events to curated orders.
-    owners: [user:dana]
+    contacts: [{ role: domainOwner, name: Erika Example, email: erika.example@shop.example }]
   - key: customer
     name: Customer
     description: Who buys – customer master data and what is derived from it.
     colour: violet
-    owners: [user:dana]
+    contacts: [{ role: domainOwner, name: Customer data office (invented), kind: group, email: customer-data@shop.example }]
   - key: manufacturing
     name: Manufacturing
     description: Measurements of the machines of the invented plant.
@@ -49,8 +49,9 @@ data_objects:
       - { name: name, personal: true }
       - { name: email, personal: true }
       - { name: country }
-    owner: dana
-    stewards: [team:service desk]
+    contacts:
+      - { role: dataOwner, name: Erika Example, email: erika.example@shop.example }
+      - { role: dataSteward, name: Service desk (invented), kind: group, email: service-desk@shop.example }
     external_refs:
       - { label: Glossary entry (invented), url: "https://wiki.example/glossary/customer" }
     rating:
@@ -69,7 +70,8 @@ data_objects:
     classification: internal
     personal_data: none
     retention: P10Y
-    owner: dana
+    contacts:
+      - { role: dataOwner, name: Erika Example, email: erika.example@shop.example }
     rating:
       confidentiality: { level: normal, justification: Order figures without customer data }
       integrity: { level: high, justification: Revenue and invoices are computed from it }

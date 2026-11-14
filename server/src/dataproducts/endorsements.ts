@@ -6,30 +6,33 @@ import {
   type DataEndorsement,
   type DataEndorsementReviewReason,
   type DataEndorsementView,
+  type ContactLink,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { forbid, me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { canManageModule } from './access.js';
-import { isProductOwner } from './access-requests.js';
-import { claimNotice, namedPeople, people, productLink, send, seesProduct, t, titleName, type Person } from './governance-notices.js';
+import { canManageModule, domainAccess, productAccess } from './access.js';
+import { decisionView, documentDecision } from './decisions.js';
+import { contactsOf } from './contacts.js';
+import { claimNotice, consumerContactsLink, maintainersOf, people, productLink, send, seesProduct, t, titleName, type Person } from './governance-notices.js';
 import { floorsOf, ratingsByItem } from './ratings.js';
 import { visibleProduct } from './service.js';
 import { chunks, domainRow, marks, productRow, productsByIds, type ProductRow } from './store.js';
 
 /**
- * Endorsement (ADR 0036 part 17, decision 27): the owners of the product's domain (or of its parent domain; without
- * any, the module's managers) endorse a product – a badge with who and when, valid until a review date (12 months by
- * default, never later). Nobody endorses a product they own. An endorsement needs a **review** when its date is near
- * (30 days) or passed, when a bound contract had a breaking change (flagEndorsementReview, the contract hook), or while
- * the product's rating is below the floor of its data objects without a reason; then it no longer counts. Maturity 5
- * (_endorsed_) is a valid endorsement on top of level 4 (scorecard.ts). Session-only, audited
- * (`dataproduct.endorsed`, `dataproduct.endorsement_revoked`, `dataproduct.endorsement_flagged`);
- * `dataproduct.endorsement_review` reminds the endorsers and the product owners once per review date and reason.
+ * Endorsement (ADR 0036 part 17, decision 27; 0.25.1, ADR 0038 part 5: a documented approval): who endorsed the product
+ * elsewhere – contacts, typically the owners of its domain – on which date, with the evidence, recorded by the
+ * product's IT maintainers (who may edit it): a badge valid until a review date (12 months by default, never later).
+ * An endorsement needs a **review** when its date is near (30 days) or passed, when a bound contract had a breaking
+ * change (flagEndorsementReview, the contract hook), or while the product's rating is below the floor of its data
+ * objects without a reason; then it no longer counts. Maturity 5 (_endorsed_) reads the documented endorsement on top
+ * of level 4 (scorecard.ts). Session-only, audited (`dataproduct.endorsed`, `dataproduct.endorsement_revoked`,
+ * `dataproduct.endorsement_flagged`); `dataproduct.endorsement_review` asks the IT maintainers once per review date and
+ * reason to have it looked at again.
  */
 
 interface EndorsementRow {
@@ -40,26 +43,31 @@ interface EndorsementRow {
   note: string;
   review_reason: DataEndorsementReviewReason | null;
   review_flagged_at: string | null;
+  /** 0.25.1: the documented endorsement (JSON) */
+  decision: string | null;
 }
 
 const today = () => nowIso().slice(0, 10);
 const invalid = (message: string, context: string) => new HttpError(400, message, 'DATA_ENDORSEMENT_INVALID', { context });
 
-/** The subjects who endorse a product: the owners of its domain and of the domain above it. */
-export function endorsersOf(p: Pick<ProductRow, 'domain_id'>): string[] {
+/**
+ * The owners of a product's domain and of the domain above it (contacts): who typically endorses it – of the domains
+ * `u` may see only (a domain's contacts are seen with the domain, never through a product of it).
+ */
+export function domainOwnersOf(p: Pick<ProductRow, 'domain_id'>, u: AuthUser): ContactLink[] {
   if (!p.domain_id) return [];
   const d = domainRow(p.domain_id);
   if (!d) return [];
-  const parent = d.parent_id ? domainRow(d.parent_id) : undefined;
-  return [...new Set([...parseJson<string[]>(d.owners, []), ...parseJson<string[]>(parent?.owners, [])])];
+  const ids = [d.id, ...(d.parent_id ? [d.parent_id] : [])].filter((id) => domainAccess(u, { id }).permissions.length > 0);
+  const links = contactsOf('data_domain', ids);
+  const out: ContactLink[] = [];
+  for (const id of ids) for (const l of links.get(id) ?? []) if (!out.some((o) => o.contact.id === l.contact.id)) out.push(l);
+  return out;
 }
 
 /** Whether `u` may endorse (and revoke) a product's endorsement, and why not. */
 function endorseRight(u: AuthUser, p: ProductRow): { may: boolean; whyNot: DataEndorsementView['whyNot'] } {
-  if (isProductOwner(u, p)) return { may: false, whyNot: 'ownProduct' };
-  const endorsers = endorsersOf(p);
-  const may = endorsers.length ? endorsers.some((s) => matches(u, s)) : canManageModule(u);
-  return may ? { may: true, whyNot: null } : { may: false, whyNot: 'notEndorser' };
+  return productAccess(u, p).permissions.includes('edit') ? { may: true, whyNot: null } : { may: false, whyNot: 'notMaintainer' };
 }
 
 /** The endorsements of these products (bulk). */
@@ -77,6 +85,7 @@ export function endorsementOf(r: EndorsementRow, belowFloor: boolean, on = today
     productId: r.product_id,
     endorsedBy: r.endorsed_by,
     endorsedAt: r.endorsed_at,
+    decision: decisionView(r.decision),
     reviewDate: r.review_date,
     note: r.note,
     valid: s.valid,
@@ -103,45 +112,51 @@ export function getEndorsement(productId: string): DataEndorsementView {
   const right = endorseRight(u, p);
   return {
     endorsement: r ? endorsementOf(r, !!belowFloor([p]).get(p.id)) : null,
-    endorsers: endorsersOf(p),
+    domainOwners: domainOwnersOf(p, u),
     mayEndorse: right.may,
     whyNot: right.whyNot,
   };
 }
 
-/** PUT /api/data-products/:id/endorsement (session only) – endorse, or renew with a new review date. */
+/** PUT /api/data-products/:id/endorsement (session only) – record the endorsement given elsewhere, or a renewed one. */
 export function endorse(productId: string, body: unknown): DataEndorsementView {
   const u = me();
   const { row: p } = visibleProduct(productId, u);
   const right = endorseRight(u, p);
-  if (!right.may) forbid(right.whyNot === 'ownProduct' ? 'endorse a data product you own' : 'endorse this data product', 'dataProducts');
+  if (!right.may) forbid('record the endorsement of this data product', 'dataProducts');
   if (p.lifecycle === 'retired' || p.lifecycle === 'deprecated') throw invalid('Only products in use are endorsed', 'lifecycle');
   const input = dataEndorsementInput.parse(body);
   const on = today();
   const latest = addMonths(on, G.endorsementMonths);
   const reviewDate = input.reviewDate ?? latest;
   if (reviewDate <= on || reviewDate > latest) throw invalid(`The review date is after today and at most ${G.endorsementMonths} months ahead`, 'reviewDate');
+  const decision = documentDecision(input.decision, u);
   const before = endorsementRows([p.id]).get(p.id);
   const now = nowIso();
+  const note = input.note || decision.note;
   db().tx(() => {
     db().run(
-      `INSERT INTO dp_endorsements (product_id, endorsed_by, endorsed_at, review_date, note, review_reason, review_flagged_at) VALUES (?, ?, ?, ?, ?, NULL, NULL)
+      `INSERT INTO dp_endorsements (product_id, endorsed_by, endorsed_at, review_date, note, review_reason, review_flagged_at, decision) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
        ON CONFLICT (product_id) DO UPDATE SET endorsed_by = excluded.endorsed_by, endorsed_at = excluded.endorsed_at, review_date = excluded.review_date,
-         note = excluded.note, review_reason = NULL, review_flagged_at = NULL`,
+         note = excluded.note, review_reason = NULL, review_flagged_at = NULL, decision = excluded.decision`,
       p.id,
       u.username,
       now,
       reviewDate,
-      input.note,
+      note,
+      JSON.stringify(decision),
     );
     audit({
       action: 'dataproduct.endorsed',
       entityType: 'data_product',
       entityId: p.id,
-      summary: `Data product "${p.name}" ${before ? 'endorsed again' : 'endorsed'} until ${reviewDate}`,
+      summary: `Data product "${p.name}" ${before ? 'endorsed again' : 'endorsed'} until ${reviewDate} – endorsed by ${decision.decidedBy.map((x) => x.name).join(', ')} on ${decision.decidedOn} (recorded)`,
       details: {
         reviewDate,
-        note: input.note.slice(0, 500),
+        note: note.slice(0, 500),
+        decidedBy: decision.decidedBy,
+        decidedOn: decision.decidedOn,
+        evidence: decision.evidence,
         before: before ? { by: before.endorsed_by, reviewDate: before.review_date, reason: before.review_reason } : null,
       },
     });
@@ -149,7 +164,7 @@ export function endorse(productId: string, body: unknown): DataEndorsementView {
   return getEndorsement(p.id);
 }
 
-/** DELETE /api/data-products/:id/endorsement (session only) – the endorsers, and who manages the module. */
+/** DELETE /api/data-products/:id/endorsement (session only) – the IT maintainers, and who manages the module. */
 export function revokeEndorsement(productId: string, reason: string): DataEndorsementView {
   const u = me();
   const { row: p } = visibleProduct(productId, u);
@@ -209,7 +224,8 @@ export function validEndorsements(productIds: readonly string[], floorWarning: (
 
 /**
  * `dataproduct.endorsement_review`: endorsements due for a review (30 days ahead, passed, flagged, below the floor), to
- * the endorsers and the product owners who may see the product – once per product, review date and reason.
+ * the product's IT maintainers (who may edit it – never a contact), with the link to the consumers' contacts – once per
+ * product, review date and reason.
  */
 export function noticeEndorsementReviews(onlyIds?: readonly string[], on = today()): number {
   let sent = 0;
@@ -225,9 +241,7 @@ export function noticeEndorsementReviews(onlyIds?: readonly string[], on = today
       const e = endorsementOf(r, !!floors.get(p.id), on);
       if (!e.review || !claimNotice('endorsement', p.id, `${e.reviewDate}:${e.review}`)) continue;
       all ??= people();
-      const to = namedPeople(all, [...endorsersOf(p), ...parseJson<string[]>(p.owners, []), `user:${r.endorsed_by.toLowerCase()}`]).filter((x) =>
-        seesProduct(x, p),
-      );
+      const to = maintainersOf(all, p).filter((x) => seesProduct(x, p));
       sent += send({
         event: 'dataproduct.endorsement_review',
         recipients: to,
@@ -236,9 +250,16 @@ export function noticeEndorsementReviews(onlyIds?: readonly string[], on = today
         title: (l) => t(l, 'dataProductGovernance.endorsementReview.title', { product: titleName(p.name) }),
         lines: (l) => [
           t(l, `dataProductGovernance.endorsementReview.${e.review!}`, { product: p.name, date: e.reviewDate }),
-          t(l, 'dataProductGovernance.endorsementReview.by', { by: r.endorsed_by, date: r.endorsed_at.slice(0, 10) }),
+          t(l, 'dataProductGovernance.endorsementReview.by', {
+            by:
+              parseJson<{ decidedBy?: { name: string }[] } | null>(r.decision, null)
+                ?.decidedBy?.map((x) => x.name)
+                .join(', ') || r.endorsed_by,
+            date: r.endorsed_at.slice(0, 10),
+          }),
           t(l, 'dataProductGovernance.endorsementReview.hint'),
         ],
+        contacts: consumerContactsLink(p.id),
         data: { productId: p.id, reviewDate: e.reviewDate, reason: e.review },
       });
     }

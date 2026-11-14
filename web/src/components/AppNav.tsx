@@ -54,6 +54,7 @@ import {
   IconWebhook,
   type Icon,
   IconGitPullRequest,
+  IconAddressBook,
   IconTruckDelivery,
   IconPackages,
   IconTable,
@@ -88,13 +89,13 @@ export type NavKey =
   | 'dataDomains'
   | 'dataMap'
   | 'dataDiscovery'
-  | 'dataAccessRequests'
   | 'dataRecordsOfProcessing'
   | 'records'
   | 'services'
   | 'applications'
   | 'systems'
   | 'suppliers'
+  | 'contacts'
   | 'maintenance'
   | 'statusPages'
   | 'duties'
@@ -206,6 +207,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/systems', key: 'systems', icon: IconServer2 },
       // suppliers (0.17.0, ADR 0029): who runs, backs up and recovers what the services use
       { to: '/suppliers', key: 'suppliers', icon: IconTruckDelivery },
+      // the contacts directory (0.25.1, ADR 0038): the people and groups items name for their business side
+      { to: '/contacts', key: 'contacts', icon: IconAddressBook },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: (c) => !dataProducts(c) },
     ],
@@ -222,7 +225,6 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/data-products/map', key: 'dataMap', icon: IconTopologyStar3 },
       // a lineage source's page (0.24.0) sits under Discovery, whose section lists the sources
       { to: '/data-products/discovery', key: 'dataDiscovery', icon: IconRadar, also: ['/data-products/lineage'] },
-      { to: '/data-products/access-requests', key: 'dataAccessRequests', icon: IconKey },
       { to: '/data-products/records-of-processing', key: 'dataRecordsOfProcessing', icon: IconListDetails },
       { to: '/data-contracts', key: 'dataContracts', icon: IconContract, when: dataProducts },
     ],

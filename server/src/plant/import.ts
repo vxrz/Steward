@@ -76,6 +76,7 @@ import {
   type SiteRow,
   type SiteValues,
 } from './model.js';
+import { siteContactsOf } from './contacts.js';
 
 /**
  * YAML import of the plant registry (#218): parse and check the files (size, keys, depth, the schema, the model rules),
@@ -591,7 +592,8 @@ function compute(input: ImportInput, importId: string): Computed {
 
   // ---- sites
   const postSites = new Map<string, SiteValues>();
-  for (const [id, r] of s.sites) postSites.set(id, siteValuesOf(r, []));
+  const siteContacts = siteContactsOf([...s.sites.values()]);
+  for (const [id, r] of s.sites) postSites.set(id, siteValuesOf(r, [], siteContacts.get(id) ?? []));
   const siteRefs = refsOf(
     'site',
     [...p.sites.keys()].filter((id) => s.sites.has(id)),
@@ -599,7 +601,7 @@ function compute(input: ImportInput, importId: string): Computed {
   for (const ps of p.sites.values()) {
     needManage(ps.values.id, ps);
     const cur = s.sites.get(ps.values.id);
-    const before = cur ? siteValuesOf(cur, siteRefs.get(cur.id) ?? []) : null;
+    const before = cur ? siteValuesOf(cur, siteRefs.get(cur.id) ?? [], siteContacts.get(cur.id) ?? []) : null;
     const after: SiteValues = { ...(before && !full ? before : SITE_DEFAULTS(ps.values.id)), ...ps.values };
     after.fields = storedFields('site', after.fields);
     for (const fp of fieldProblems('site', after.fields, settings)) problems.push({ ...ps, path: `${ps.path}.fields.${fp.field}`, message: fp.message });
@@ -1489,9 +1491,10 @@ export function exportYaml(
     'asset',
     assets.map((a) => a.id),
   );
+  const siteContacts = siteContactsOf(chosen);
   let assetCount = 0;
   const out = chosen.map((s) => {
-    const v = siteValuesOf(s, siteRefs.get(s.id) ?? []);
+    const v = siteValuesOf(s, siteRefs.get(s.id) ?? [], siteContacts.get(s.id) ?? []);
     const idx = indexes.get(s.id) ?? { siteId: s.id, nodes: new Map(), buildings: new Map() };
     const nodes = [...idx.nodes.values()];
     const nodeOut = (n: NodeRow) => {

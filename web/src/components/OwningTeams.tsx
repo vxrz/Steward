@@ -79,7 +79,12 @@ export function OwningTeams({
           </Button>
         </Group>
         <Text size="sm" c="dimmed">
-          {current.length ? t(`owning.hintOwned.${kind}`) : restricted ? t('owning.hintRestricted') : t(`owning.hintNone.${kind}`)}
+          {current.length
+            ? t(`owning.hintOwned.${kind}`)
+            : restricted
+              ? // the data products module's owners are contacts – documentation, no right (ADR 0038)
+                t(kind.startsWith('data_') ? 'owning.hintRestrictedData' : 'owning.hintRestricted')
+              : t(`owning.hintNone.${kind}`)}
         </Text>
         {canChange && kind === 'service' && <ServiceBulkTeams serviceId={id} onDone={() => qc.invalidateQueries({ queryKey: key })} />}
         {canChange ? (

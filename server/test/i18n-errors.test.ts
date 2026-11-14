@@ -31,6 +31,7 @@ const CODED_AREAS = [
   'datacontracts/',
   'dataproducts/',
   'suppliers/',
+  'contacts/',
   'routes/reports.ts',
   'routes/report-schedules.ts',
 ];

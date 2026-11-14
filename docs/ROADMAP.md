@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.25.0 (November 2026)._
+_Last reviewed for 0.25.1 (November 2026)._
 
 ## What Steward is for
 
@@ -44,6 +44,7 @@ Steward stays a tool for procedures and their evidence. These are **out of scope
 - **No secret storage or rotation for others.** The vault protects the credentials Steward itself needs ([ADR 0004](adr/0004-vault-with-master-passphrase.md)); it is not a secret manager for other applications and does not rotate platform credentials on its own. The credentials register documents where secrets live and when they expire.
 - **No full GRC suite.** Control catalogues, mappings, coverage and evidence packs support audits of what Steward runs; risk registers, policy management, vendor questionnaires and audit planning stay in a GRC tool.
 - **No AI changes without human approval.** AI assistants may read, propose and prepare (MCP); every write they request is confirmed by a person, and proposals (such as a control catalogue) are reviewed before anything applies. There is no autonomous agent mode.
+- **No data governance workflow.** Steward documents data governance decisions; it does not run access requests or approvals. Who decided access, an access review's outcome, an endorsement or the approval of a semantic model is recorded with its evidence ([ADR 0038](adr/0038-documented-governance-contacts.md)); the decision is made in a meeting, a GRC tool or a ticket – or in a Steward process with its approval steps.
 - **No incident management or ticketing.** Incident reviews document what happened to a service; tickets stay in ServiceNow or the vendor's tool and are referenced, not managed.
 - **No horizontal scaling of one installation.** One active process per database ([ADR 0002](adr/0002-single-active-instance-with-lease-lock.md)); several teams share an installation through owning teams.
 - **No configuration drift detection against baselines.** Change records document requested changes; they do not describe the allowed state of a platform.
@@ -84,10 +85,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.23.0:** one access model, phase 2 – access lists of processes, platforms, identities, monitors and plant sites became shares, shares on records, credentials, ticket references, dashboards and data contracts – and module roles (#297); price books phase 2: contract conditions, derived books, rate sheets read from Snowflake and Confluent, estimates recalculated on new prices; the fixes of a release review.
 - **0.24.0:** data products, phase 2 – lineage proposed from OpenLineage, dbt and Snowflake's access history; quality results with the ISO/IEC 25012 dimensions; the scorecard over time; who really reads a product; access requests and sealed port access reviews; promotion between environments and endorsement; personal data in fields and the records of processing (GDPR Art. 30); costs by measured use and estimates; ODPS import, replace imports, Git sync and the Ossie export; the fixes of a release review.
 - **0.25.0:** data products, phase 3 – generic parts and bridges with one technology list; lineage from Debezium, Kafka Connect and Confluent connectors and an OpenLineage export; file-based products on S3 with Snowflake stages and pipes; edge devices linked to their systems with Runs on, Collects data from and Industrial Edge suggestions; semantic models (Apache Ossie) as governed records; previews; Art. 30 transfers and measures; dbt parsing in a worker, large imports in the background, fewer statements; the fixes of a release review.
+- **0.25.1:** Steward documents data governance, it doesn't run it ([ADR 0038](adr/0038-documented-governance-contacts.md)) – one contacts directory for services, suppliers, plant sites and data products; owner fields give no rights (explicit shares at the upgrade); documented access instead of access requests; port access reviews, endorsements and semantic model approvals record decisions made elsewhere; notices to the IT maintainers; the fixes of a release review.
 
 ## Next
 
-- **After 0.25.0:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
+- **After 0.25.1:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
 
 ## Later
 

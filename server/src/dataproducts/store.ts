@@ -252,6 +252,15 @@ export interface ConsumerRow {
   end_date: string | null;
   agreement: string | null;
   contacts: string;
+  /**
+   * 0.25.1 (ADR 0038 part 3): documented | notDocumented (pending: converted from a request, or marked so) | none (made
+   * by hand, no approval state); the documented decision (JSON), the fulfilment, the request it came from
+   */
+  approval: 'documented' | 'notDocumented' | 'none';
+  decision: string | null;
+  ticket_id: string | null;
+  run_id: string | null;
+  request_id: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;

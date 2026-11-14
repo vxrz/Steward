@@ -121,6 +121,15 @@ export const USER_ID_TABLES: Record<string, string> = {
   notification_opt_ins: 'user_id',
 };
 
+/**
+ * Columns of moved rows that hold a users.id as documentation (the row moves whatever the user's mapping): the target
+ * user's id on import (an archived account too: it is still that person), null for a user who is not moved.
+ */
+export const USER_ID_COLUMNS: { table: string; column: string }[] = [
+  // the Steward user a contact is (0.25.1, ADR 0038): documentation only, never a right
+  { table: 'contacts', column: 'user_id' },
+];
+
 export type RefKind =
   /** a plain user name */
   | 'username'
@@ -218,6 +227,9 @@ export const USER_REFS: UserRef[] = [
   { table: 'dp_consumers', column: 'contacts', kind: 'subjects' },
   // 0.24.0: the consumer an access request asks for (a team or user), mapped like a registration's
   { table: 'dp_access_requests', column: 'consumer_subjects', kind: 'subjects' },
+  // 0.25.1 (ADR 0038 part 2): the shares the upgrade made for owner fields, mapped like the shares themselves (a package
+  // of 0.25.0 is converted in its staging database; its entries are audited on the target)
+  { table: 'dp_owner_share_conversions', column: 'subject', kind: 'subject', keepDeletedTeams: true, key: ['kind', 'resource_id'] },
 ];
 
 /**
@@ -225,6 +237,10 @@ export const USER_REFS: UserRef[] = [
  * Listed so that the classification test notices new person columns.
  */
 export const HISTORY_COLUMNS: string[] = [
+  // the contacts directory (0.25.1, ADR 0038): who made and changed a contact, who linked it to an item
+  'contacts.created_by',
+  'contacts.updated_by',
+  'contact_links.created_by',
   // 0.25.0 (ADR 0037 part 3): who dismissed a suggestion of the Industrial Edge installations readout
   'edge_suggestion_dismissals.dismissed_by',
   // who shared a resource and who made it Restricted (0.21.0, ADR 0033)
@@ -568,6 +584,8 @@ export const SETTINGS_MOVED = [
   'catalogue.environments',
   'plant.settings',
   'compliance.corrective',
+  // 0.25.1 (ADR 0038 part 4): four eyes for port access reviews
+  'modules.dataProducts.governance',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

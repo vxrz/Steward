@@ -227,12 +227,14 @@ test.describe('the data products pages', () => {
     await page.getByTestId('product-export-yaml').click();
     const file = await download;
     expect(file.suggestedFilename()).toMatch(/\.yaml$/);
-    // the Access tab: dana owns the demo product – owning teams, Restricted and the shares, her own implied
+    // the Access tab: owning teams, Restricted and the shares – the product owner is a contact, no implied share
+    // (0.25.1, ADR 0038), shown below as documentation
     const id = page.url().split('/data-products/')[1]!.split(/[/?]/)[0]!;
     await page.goto(`/data-products/${id}/access`);
     await expect(page.getByTestId('access-tab')).toBeVisible();
     await expect(page.getByTestId('shares-panel')).toBeVisible();
-    await expect(page.getByTestId('shares-implied')).toContainText('Dana Designer');
+    await expect(page.getByTestId('shares-implied')).toHaveCount(0);
+    await expect(page.getByText('Max Example').first()).toBeVisible();
     await settle(page);
     await expectAccessible(page, 'data product access');
     // the scorecard folds what has no evidence yet, counted, and opens it on request

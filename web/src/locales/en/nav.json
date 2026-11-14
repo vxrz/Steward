@@ -21,6 +21,7 @@
     "applications": "Applications",
     "systems": "Systems",
     "suppliers": "Suppliers",
+    "contacts": "Contacts",
     "maintenance": "Maintenance",
     "statusPages": "Status pages",
     "gitUpdates": "Git sync",
@@ -54,7 +55,6 @@
     "dataDomains": "Domains",
     "dataMap": "Product map",
     "dataDiscovery": "Discovery",
-    "dataAccessRequests": "Access requests",
     "dataRecordsOfProcessing": "Records of processing"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",

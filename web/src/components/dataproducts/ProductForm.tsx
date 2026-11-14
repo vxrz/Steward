@@ -26,7 +26,7 @@ import {
 } from '@sm/shared';
 import { post, put } from '../../api';
 import { FormModal } from '../FormModal';
-import { SubjectsInput } from '../SubjectsInput';
+import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../contacts';
 import { useFieldErrors } from '../common';
 import { levelText, useCiaScale } from '../catalogue/cia';
 import { ExternalRefsInput, FormButtons, isHttpUrl, keyFromName, refsToSend, useBusy, validKey } from './form';
@@ -65,7 +65,8 @@ export function ProductForm({
   const [purpose, setPurpose] = useState(p?.purpose ?? '');
   const [type, setType] = useState<DataProductType | null>(p?.type ?? null);
   const [domainId, setDomainId] = useState<string | null>(p?.domain && !p.domain.hidden ? p.domain.id : null);
-  const [owners, setOwners] = useState<string[]>(p?.owners ?? []);
+  // 0.25.1 (ADR 0038): product owners and business contacts are contacts – documentation, never a right
+  const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(p?.contacts ?? []));
   const [channel, setChannel] = useState(p?.support.channel ?? '');
   const [supportUrl, setSupportUrl] = useState(p?.support.url ?? '');
   const [hours, setHours] = useState(p?.support.hours ?? '');
@@ -96,7 +97,7 @@ export function ProductForm({
         purpose,
         type,
         domainId,
-        owners,
+        contacts: toLinkInputs(contacts),
         support: { channel: channel.trim(), url: supportUrl.trim(), hours: hours.trim() },
         criticality,
         tier: tier ? (Number(tier) as 1 | 2 | 3) : null,
@@ -195,14 +196,13 @@ export function ProductForm({
             value={purpose}
             onChange={(e) => setPurpose(e.currentTarget.value)}
           />
-          <SubjectsInput
+          <ContactPicker
+            kind="data_product"
             label={t('form.owners')}
             description={t('form.ownersHint')}
-            value={owners}
-            onChange={setOwners}
-            max={L.subjects}
-            scope={{ kind: 'data_product', id: p?.id }}
-            saved={p?.owners}
+            value={contacts}
+            onChange={setContacts}
+            testId="product-contacts"
           />
           <Paper withBorder p="sm">
             <Text size="sm" fw={600} mb="xs">
@@ -333,7 +333,7 @@ export function LifecycleForm({
       onSaved(saved);
     }, t('lifecycleForm.notChanged'));
   const problems = [
-    to === 'active' && !product.owners.length && t('lifecycleForm.needsOwner'),
+    to === 'active' && !product.contacts.some((c) => c.role === 'productOwner') && t('lifecycleForm.needsOwner'),
     to === 'active' && !outputs && t('lifecycleForm.needsOutputPort'),
   ].filter((x): x is string => !!x);
   return (

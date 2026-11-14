@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { removeItemLinks } from '../contacts/service.js';
 import { chunks, marks } from './store.js';
 
 /**
@@ -8,6 +9,22 @@ import { chunks, marks } from './store.js';
  * the product.
  */
 export function forgetGovernance(o: { productId?: string; portIds?: readonly string[]; consumerIds?: readonly string[] }): void {
+  // 0.25.1: the registrations' contact links go with them (the contacts stay in the directory)
+  const consumerIds = [...(o.consumerIds ?? [])];
+  for (const part of chunks([...(o.portIds ?? [])]))
+    consumerIds.push(
+      ...db()
+        .all<{ id: string }>(`SELECT id FROM dp_consumers WHERE port_id IN (${marks(part.length)})`, ...part)
+        .map((r) => r.id),
+    );
+  if (o.productId)
+    consumerIds.push(
+      ...db()
+        .all<{ id: string }>("SELECT id FROM dp_consumers WHERE consumer_kind = 'product' AND ref_id = ?", o.productId)
+        .map((r) => r.id),
+    );
+  for (const id of new Set(consumerIds)) removeItemLinks('data_consumer', id);
+  if (o.productId) removeItemLinks('data_product', o.productId);
   for (const part of chunks([...(o.consumerIds ?? [])])) db().run(`DELETE FROM dp_consumer_identities WHERE consumer_id IN (${marks(part.length)})`, ...part);
   for (const part of chunks([...(o.portIds ?? [])])) {
     const m = marks(part.length);

@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
-import type { DataGraph, DataPort, DataProduct, DataProductSummary, DataRef, ProductHealth } from '@sm/shared';
+import type { DataGraph, DataPort, DataProduct, DataProductSummary, DataRef, DataSemanticSignOff, ProductHealth } from '@sm/shared';
 import { me } from '../auth/access.js';
 import { HttpError } from '../util.js';
 import { notFound } from '../api/v1/helpers.js';
@@ -29,6 +29,8 @@ import YAML from 'yaml';
 import { SemanticModelQuery, ossieDocumentSchema } from '../api/v1/schemas.js';
 import type { OssieVersion } from '../semantic/ossie.js';
 import { dataObjectsSemanticModel } from './ossie.js';
+import { namesOf } from './contacts.js';
+import { decisionNames } from './decisions.js';
 
 /**
  * The data products module in the public, read-only API (ADR 0036 part 19): products (paged; domain, lifecycle, type,
@@ -79,7 +81,9 @@ function entryOf(p: DataProductSummary, h: ProductHealth | undefined) {
     ratingBelowObjects: p.ratingBelowObjects,
     valueTier: p.valueTier,
     environments: p.environments,
+    // deprecated (0.25.1): the linked users of the product owners, beside the contacts by name and role
     owners: p.owners,
+    contacts: namesOf(p.contacts),
     owningTeams: p.owningTeams,
     tags: p.tags,
     version: p.version,
@@ -411,7 +415,7 @@ export function dataProductApiRoutes(get: Get): void {
       const q = req.query as z.infer<typeof DataObjectV1ListQuery>;
       const p = svc.listObjects({ ...q, limit: q.limit ?? 50 });
       linkNext(req, reply, p.next);
-      return { items: p.items.map((o) => ({ ...o, domain: ref(o.domain) })), nextCursor: p.next };
+      return { items: p.items.map((o) => ({ ...o, domain: ref(o.domain), contacts: namesOf(o.contacts) })), nextCursor: p.next };
     },
   );
   get(
@@ -451,7 +455,7 @@ export function dataProductApiRoutes(get: Get): void {
     async (req) => {
       const id = (req.params as { objectId: string }).objectId;
       const o = found(() => svc.getObject(id), `Data object ${id}`);
-      return { ...o, domain: ref(o.domain), products: { items: o.products.items.map(ref), hidden: o.products.hidden } };
+      return { ...o, domain: ref(o.domain), contacts: namesOf(o.contacts), products: { items: o.products.items.map(ref), hidden: o.products.hidden } };
     },
   );
   // 0.25.0 (ADR 0037 part 4): the product's semantic model – the governed copy, as stored, with its versions and sign-offs
@@ -496,9 +500,23 @@ export function dataProductApiRoutes(get: Get): void {
       const id = (req.params as { productId: string }).productId;
       const q = req.query as z.infer<typeof DataSemanticVersionsV1Query>;
       const v = found(() => semanticModelView(id), `Data product ${id}`);
-      return { productId: v.productId, versions: v.versions, validToday: v.validToday, validOn: q.date ? validAnswer(v.productId, q.date) : null };
+      const answer = q.date ? validAnswer(v.productId, q.date) : null;
+      return {
+        productId: v.productId,
+        versions: v.versions.map(approvalNames),
+        validToday: v.validToday && approvalNames(v.validToday),
+        validOn: answer && { ...answer, valid: answer.valid && approvalNames(answer.valid), latest: answer.latest && approvalNames(answer.latest) },
+      };
     },
   );
+}
+
+/** A version's documented approval by names and roles (0.25.1: no contact ids, no e-mail addresses on this API). */
+function approvalNames<T extends { signOff: DataSemanticSignOff | null }>(v: T) {
+  if (!v.signOff) return v;
+  const { decision, ...signOff } = v.signOff;
+  const d = decisionNames(decision);
+  return { ...v, signOff: { ...signOff, approvedBy: d?.decidedBy ?? [], approvedOn: d?.decidedOn ?? null } };
 }
 
 /** A semantic model the product does not have answers 404 as the API's problem too. */

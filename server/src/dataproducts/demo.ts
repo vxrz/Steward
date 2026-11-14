@@ -6,7 +6,6 @@ import { logger } from '../log.js';
 import { addKafkaMessages, addKafkaTopic, produceKafka } from '../mock/mockKafka.js';
 import { dropSnowflakeObject } from '../mock/mockSnowflake.js';
 import { newId, nowIso } from '../util.js';
-import { requestAccess } from './access-requests.js';
 import { readNow, writeIdentities } from './consumers-actual.js';
 import { addProductMatch, setAllocation } from './costs.js';
 import { runSource } from './discovery/job.js';
@@ -18,6 +17,7 @@ import { proposeFromConnectors } from './connector-lineage.js';
 import { readMeasuredUse } from './measured.js';
 import { applyMonitor } from './monitor-draft.js';
 import { addConsumer } from './ports.js';
+import { importContact } from '../contacts/service.js';
 import { recordQualityResults } from './quality.js';
 import { setObjectRopaDetails } from './ropa-details.js';
 import { saveSemanticVersion } from './semantic.js';
@@ -211,23 +211,38 @@ export async function seedDataProductsDemo(actor: string): Promise<number> {
   return imported.counts.add;
 }
 
+/** A documented decision of the demo (0.25.1): decided by an invented contact of the examples, recorded by `by`. */
+function demoDecision(by: string, role: string, evidence: string): string {
+  const c = importContact({ kind: 'person', name: 'Erika Example', email: 'erika.example@shop.example' }, { audit: false });
+  const at = nowIso();
+  return JSON.stringify({
+    decidedBy: [{ contactId: c.id, name: c.name, role }],
+    decidedOn: at.slice(0, 10),
+    evidence: [{ kind: 'text', value: evidence }],
+    note: '',
+    recordedBy: by,
+    recordedAt: at,
+  });
+}
+
 /**
- * Version 1 of Orders' semantic model (examples/data-products/orders.semantic-model.yaml), signed off by the demo's
- * approver; a few invented events on orders.v1 for the peek; the data object Customer's transfer to a third country
+ * Version 1 of Orders' semantic model (examples/data-products/orders.semantic-model.yaml), its approval by the data
+ * owner (an invented contact) documented by the demo's designer; a few invented events on orders.v1 for the peek; the data object Customer's transfer to a third country
  * and the reference to the technical and organisational measures (Art. 30(1)(e) and (g)).
  */
 function semanticDemo(orders: string): void {
   const text = fs.readFileSync(path.join(config.examplesDir, 'data-products', 'orders.semantic-model.yaml'), 'utf8');
   const saved = saveSemanticVersion(orders, { document: text, note: 'The governed copy of the shop’s semantic layer (invented)' });
-  const approver = db().get<{ username: string }>("SELECT username FROM users WHERE username = 'adam'");
-  if (saved.created && approver)
+  const recorder = db().get<{ username: string }>("SELECT username FROM users WHERE username = 'dana'");
+  if (saved.created && recorder)
     db().run(
-      'INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at) SELECT ?, product_id, id, version, sha256, ?, ?, ?, ? FROM dp_semantic_versions WHERE product_id = ? AND version = ?',
+      'INSERT INTO dp_semantic_signoffs (id, product_id, version_id, version, sha256, valid_from, note, signed_by, signed_at, decision) SELECT ?, product_id, id, version, sha256, ?, ?, ?, ?, ? FROM dp_semantic_versions WHERE product_id = ? AND version = ?',
       newId(),
       nowIso().slice(0, 10),
       'Checked against the contract Shop orders',
-      approver.username,
+      recorder.username,
       nowIso(),
+      demoDecision(recorder.username, 'dataOwner', 'Model review of the shop’s data office (invented)'),
       orders,
       saved.version.version,
     );
@@ -373,7 +388,7 @@ function qualityDemo(el: ElementOf): void {
   ]);
 }
 
-/** Orders' output port: a registration the platform sees and one that stays silent, read once; an access request. */
+/** Orders' output port: a registration the platform sees and one that stays silent, read once; a registration whose approval is not documented yet. */
 async function consumersDemo(orders: string, customer360: string): Promise<void> {
   const port = (productId: string, name: string) =>
     db().get<{ id: string }>(
@@ -385,18 +400,31 @@ async function consumersDemo(orders: string, customer360: string): Promise<void>
   if (ordersPort) {
     // the service desk's registration names the role it reads with: ACCESS_HISTORY sees it (seen)
     const desk = db().get<{ id: string }>('SELECT id FROM dp_consumers WHERE port_id = ? ORDER BY created_at LIMIT 1', ordersPort);
-    if (desk) db().tx(() => writeIdentities(desk.id, ['role:REPORTING']));
+    if (desk)
+      db().tx(() => {
+        writeIdentities(desk.id, ['role:REPORTING']);
+        // its access was decided by the data owner (an invented contact) and is documented (0.25.1, ADR 0038)
+        db().run(
+          "UPDATE dp_consumers SET decision = ?, approval = 'documented' WHERE id = ?",
+          demoDecision('dana', 'dataOwner', 'E-mail of the data owner, 15 January (invented)'),
+          desk.id,
+        );
+      });
     // a registration whose user reads nothing (registered but silent)
     const silent = addConsumer(orders, 'Orders', ordersPort, { kind: 'text', text: 'Invented payroll export', purpose: 'Monthly bonus figures' });
     db().tx(() => writeIdentities(silent.id, ['user:SVC_PAYROLL']));
     await readNow(orders, ordersPort, 'prod');
   }
   const customerPort = port(customer360, 'customer');
-  if (customerPort)
-    requestAccess(customer360, customerPort, {
-      environment: 'prod',
-      consumer: { kind: 'text', text: 'Invented marketing analytics' },
+  if (customerPort) {
+    // access agreed elsewhere and not documented yet (0.25.1, ADR 0038): the IT maintainers complete it
+    const marketing = addConsumer(customer360, 'Customer 360', customerPort, {
+      kind: 'text',
+      text: 'Invented marketing analytics',
       purpose: 'Segments for the spring campaign',
-      identities: ['role:MARKETING'],
+      // marked as pending: the approval is still to be documented
+      approval: 'notDocumented',
     });
+    db().tx(() => writeIdentities(marketing.id, ['role:MARKETING']));
+  }
 }

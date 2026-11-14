@@ -85,7 +85,7 @@ export function SupplierContractPage() {
         }
         description={
           <>
-            <Anchor component={Link} to={`/suppliers/${d.supplier.id}`} size="sm">
+            <Anchor component={Link} to={`/suppliers/${d.supplier.id}`} size="sm" className="tag-target">
               {d.supplier.name}
             </Anchor>
             <CopyId id={c.id} />

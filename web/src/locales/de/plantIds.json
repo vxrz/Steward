@@ -57,6 +57,8 @@
     "alias_other": "{{count}} alte Kennungen",
     "external_ref_one": "{{count}} externe Referenz",
     "external_ref_other": "{{count}} externe Referenzen",
+    "contact_one": "{{count}} Kontaktverknüpfung",
+    "contact_other": "{{count}} Kontaktverknüpfungen",
     "image_one": "{{count}} Bild",
     "image_other": "{{count}} Bilder",
     "copy_one": "{{count}} Kopiervermerk",
