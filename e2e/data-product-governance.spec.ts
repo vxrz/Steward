@@ -122,7 +122,7 @@ test.describe('governance of data products', () => {
     await page.getByTestId('consumer-documented').check();
     await expect(page.getByTestId('consumer-pending')).toHaveCount(0);
     await page.getByTestId('consumer-decision-by-search').fill(`Invented product owner ${s.token}`);
-    await page.getByRole('option', { name: new RegExp(`Invented product owner ${s.token}`) }).click();
+    await page.getByRole('option', { name: `Invented product owner ${s.token}` }).click();
     await expectAccessible(page, 'documented access form');
     await page.getByTestId('consumer-save').click();
     await expect(page.getByTestId('consumer-approval-documented')).toBeVisible();
@@ -170,7 +170,7 @@ test.describe('governance of data products', () => {
     await expect(review.getByTestId('review-decision')).toHaveValue('Keep');
     await expect(review.getByTestId('review-submit')).toBeDisabled();
     await review.getByTestId('review-decision-form-by-search').fill(`Invented product owner ${s.token}`);
-    await page.getByRole('option', { name: new RegExp(`Invented product owner ${s.token}`) }).click();
+    await page.getByRole('option', { name: `Invented product owner ${s.token}` }).click();
     await review.getByTestId('review-decision-save').click();
     await expect(review.getByTestId('review-decision-line')).toContainText(`Invented product owner ${s.token}`);
     await review.getByTestId('review-submit').click();
@@ -244,7 +244,7 @@ test.describe('governance of data products', () => {
     await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
     await form.getByTestId('endorse-decision-on').fill('2026-03-02');
     await form.getByTestId('endorse-decision-by-search').fill(leaving.name);
-    await page.getByRole('option', { name: new RegExp(leaving.name) }).click();
+    await page.getByRole('option', { name: leaving.name }).click();
     await expect(form.getByTestId('endorse-decision-by-status')).toHaveText(`${leaving.name} added`);
 
     // the evidence: a document found by its title, not typed as an id
@@ -252,8 +252,8 @@ test.describe('governance of data products', () => {
     await form.getByTestId('endorse-decision-evidence-kind').click();
     await page.getByRole('option', { name: 'Document', exact: true }).click();
     await form.getByTestId('endorse-decision-evidence-ref').fill(`Invented minutes ${s.token}`);
-    await page.getByRole('option', { name: new RegExp(`Invented minutes ${s.token}`) }).click();
-    await expect(form.getByTestId('endorse-decision-evidence-ref')).toHaveValue(new RegExp(`Invented minutes ${s.token}`));
+    await page.getByRole('option', { name: `Invented minutes ${s.token}` }).click();
+    await expect.poll(() => form.getByTestId('endorse-decision-evidence-ref').inputValue()).toContain(`Invented minutes ${s.token}`);
 
     // the decider leaves meanwhile: the server's answer is shown at who decided, not as a notice
     expect((await admin.put(`/api/contacts/${leaving.id}`, { data: { kind: 'person', name: leaving.name, status: 'left' } })).ok()).toBe(true);
@@ -266,13 +266,13 @@ test.describe('governance of data products', () => {
     await page.keyboard.press('Enter');
     await expect(form.getByTestId('endorse-decision-by-search')).toBeFocused();
     await form.getByTestId('endorse-decision-by-search').fill(staying.name);
-    await page.getByRole('option', { name: new RegExp(staying.name) }).click();
+    await page.getByRole('option', { name: staying.name }).click();
     await form.getByTestId('endorse-save').click();
     await expect(form).toBeHidden();
     await expect(page.getByRole('alert').filter({ hasText: 'Endorsement recorded' })).toBeVisible();
     const line = page.getByTestId('endorsement-decision');
     await expect(line).toContainText(`Decided by ${staying.name} (Domain owner) on 2 Mar 2026`);
-    await expect(line.getByRole('link', { name: new RegExp(`Invented minutes ${s.token}`) })).toBeVisible();
+    await expect(line.getByRole('link', { name: `Invented minutes ${s.token}` })).toBeVisible();
     await expect(line).toContainText('Recorded by dana');
   });
 

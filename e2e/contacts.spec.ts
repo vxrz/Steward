@@ -37,7 +37,7 @@ test('a designer names contacts on services with the picker and replaces one wit
   await form2.getByTestId('service-contacts-role').click();
   await page.getByRole('option', { name: 'IT operations' }).click();
   await form2.getByTestId('service-contacts-search').fill('rita@invented');
-  await page.getByRole('option', { name: new RegExp(person) }).click();
+  await page.getByRole('option', { name: person }).click();
   await expect(form2.getByTestId('service-contacts')).toContainText(person);
   await expectAccessible(page, 'contacts: picker with a contact');
   await form2.getByRole('button', { name: 'Save' }).click();
@@ -60,7 +60,7 @@ test('a designer names contacts on services with the picker and replaces one wit
   await page.getByTestId('contact-replace').click();
   const replace = page.getByRole('dialog', { name: 'Replace with another contact' });
   await replace.getByTestId('contact-replace-target').fill('sven@invented');
-  await page.getByRole('option', { name: new RegExp(successor) }).click();
+  await page.getByRole('option', { name: successor }).click();
   await replace.getByRole('checkbox', { name: 'Mark this contact as left' }).check();
   await replace.getByTestId('contact-replace-submit').click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText(successor);
@@ -92,7 +92,7 @@ test('the picker by keyboard, with announcements; a contact who has left is offe
   await page.keyboard.type(kim);
   // the server's answer to what was typed (not the list shown before it)
   await expect(page.getByRole('option')).toHaveCount(1);
-  await expect(page.getByRole('option', { name: new RegExp(kim) })).toBeVisible();
+  await expect(page.getByRole('option', { name: kim })).toBeVisible();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(picker.getByRole('listitem')).toContainText(kim);
@@ -101,7 +101,7 @@ test('the picker by keyboard, with announcements; a contact who has left is offe
   // left: not found
   await search.fill(lea);
   await expect(page.getByText('No contact found.')).toBeVisible();
-  await expect(page.getByRole('option', { name: new RegExp(lea) })).toHaveCount(0);
+  await expect(page.getByRole('option', { name: lea })).toHaveCount(0);
   await search.fill('');
 
   // remove by keyboard: the focus goes to the search, the removal is announced

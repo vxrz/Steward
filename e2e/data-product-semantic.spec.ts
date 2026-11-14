@@ -112,7 +112,7 @@ test.describe('semantic models, previews and the Art. 30 details', () => {
     await page.getByTestId('semantic-version-1').getByRole('button', { name: 'Record approval of version 1' }).click();
     await expect(page.getByTestId('semantic-document').last()).toContainText('customer_email');
     await page.getByTestId('semantic-signoff-decision-by-search').fill(`Invented model owner ${s.token}`);
-    await page.getByRole('option', { name: new RegExp(`Invented model owner ${s.token}`) }).click();
+    await page.getByRole('option', { name: `Invented model owner ${s.token}` }).click();
     await expectAccessible(page, 'semantic approval form');
     await page.getByTestId('semantic-signoff-save').click();
     await expect(page.getByTestId('semantic-valid-today')).toContainText(`Valid today: version 1, approved by Invented model owner ${s.token}`);
