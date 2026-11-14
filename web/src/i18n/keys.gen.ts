@@ -11692,6 +11692,10 @@ export interface Resources {
     'events.dataproduct.discovery_failed.info': string;
     'events.dataproduct.endorsement_review.label': string;
     'events.dataproduct.endorsement_review.info': string;
+    'events.dataproduct.access_requested.label': string;
+    'events.dataproduct.access_requested.info': string;
+    'events.dataproduct.access_decided.label': string;
+    'events.dataproduct.access_decided.info': string;
     'events.dataproduct.access_review_due.label': string;
     'events.dataproduct.access_review_due.info': string;
     'events.dataproduct.contract_breaking.label': string;

@@ -1,6 +1,7 @@
 import {
   type AiBudgetUse,
   pauseActive,
+  isRetiredNotificationEvent,
   type AclEntry,
   type Locale,
   type NotificationEvent,
@@ -223,6 +224,8 @@ function moduleAudience(n: Notice): { notice: Notice; module?: ModuleId } {
 
 /** Stores in-app notifications and sends the external messages (in the background; failures are only logged). */
 export function notify(input: Notice): void {
+  // a retired event (0.25.1: the access requests' notices) is never sent, whatever asks for it
+  if (isRetiredNotificationEvent(input.event)) return;
   const { notice: n, module: restrictedModule } = moduleAudience(input);
   if (!n.recipients.length && !n.emails?.length) return;
   const settings = getNotificationSettings();

@@ -6,6 +6,7 @@ import {
   NOTIFICATION_CORNERS,
   NOTIFICATION_DRY_RUN_DELIVERY,
   NOTIFICATION_EVENTS,
+  RETIRED_NOTIFICATION_EVENTS,
   quietHoursSchema,
   NOTIFICATION_FONTS,
   NOTIFICATION_HEADER_STYLES,
@@ -103,7 +104,13 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   app.post('/notifications/read-all', { config: { access: ACCESS.plantViewer } }, async (req) => {
     // { events: [...] }: only the notifications of these events (one group of the bell, U9)
     const b = z
-      .object({ events: z.array(z.enum(NOTIFICATION_EVENTS)).max(NOTIFICATION_EVENTS.length).optional() })
+      // retired events too: their notifications of before are marked read as a group like any other
+      .object({
+        events: z
+          .array(z.enum([...NOTIFICATION_EVENTS, ...RETIRED_NOTIFICATION_EVENTS]))
+          .max(NOTIFICATION_EVENTS.length + RETIRED_NOTIFICATION_EVENTS.length)
+          .optional(),
+      })
       .strict()
       .parse(req.body ?? {});
     markAllRead(me().id, b.events);
