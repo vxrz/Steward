@@ -445,7 +445,7 @@ function contactLinksOf(kind: ContactLinkKind, itemId: string | null, files: rea
     );
     const id =
       mine?.contact.id ??
-      (f.user ? contactForUser(f.user)?.id : undefined) ??
+      (f.user ? contactForUser(f.user, { email: f.email ?? '' })?.id : undefined) ??
       importContact({ kind: f.kind ?? 'person', name: f.name, email: f.email ?? '' }).id;
     if (!out.some((x) => x.role === f.role && x.contactId === id)) out.push({ role: f.role, contactId: id });
   }

@@ -26,8 +26,8 @@ import { factsOf, parseContract } from '../datacontracts/odcs.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { onLifecycleChanged, onPortDeleted } from './notices.js';
-import { CONSUMER_CONTACT_ROLE, contactsOf, linksOfSubjects } from './contacts.js';
-import { decisionView, documentDecision } from './decisions.js';
+import { CONSUMER_CONTACT_ROLE, contactsOf, legacyRoleLinks, linksOfSubjects } from './contacts.js';
+import { decisionNames, decisionView, documentDecision } from './decisions.js';
 import { setLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 import type { ProductReads } from './ratings.js';
@@ -604,7 +604,7 @@ function consumerView(u: AuthUser | null, c: ConsumerRow, names: Map<string, str
     endDate: c.end_date,
     agreement: parseJson(c.agreement, null),
     contacts,
-    approval: c.approval === 'documented' ? 'documented' : 'notDocumented',
+    approval: c.approval === 'documented' || c.approval === 'notDocumented' ? c.approval : 'none',
     decision: decisionView(c.decision, u),
     ticketId: c.ticket_id ?? null,
     runId: c.run_id ?? null,
@@ -656,9 +656,15 @@ const consumerValues = (input: ConsumerInput): unknown[] => [
   input.agreement ? json(input.agreement) : null,
 ];
 
-/** The consumer's contacts from its input: contacts as given, subjects of before 0.25.1 as contacts; omitted: kept. */
-function consumerContactsInput(input: ConsumerInput): ContactLinkInput[] | undefined {
+/**
+ * The consumer's contacts from its input: contacts as given, subjects of before 0.25.1 as contacts; omitted: kept. Only
+ * subjects (the old shape): they change the contacts linked to Steward users and keep the others (legacyRoleLinks).
+ */
+function consumerContactsInput(input: ConsumerInput, consumerId?: string): ContactLinkInput[] | undefined {
   if (!input.contacts) return undefined;
+  const subjects = input.contacts.filter((c): c is string => typeof c === 'string');
+  if (consumerId && subjects.length === input.contacts.length)
+    return legacyRoleLinks(contactsOf('data_consumer', [consumerId]).get(consumerId) ?? [], CONSUMER_CONTACT_ROLE, subjects);
   return input.contacts.flatMap((c) =>
     typeof c === 'string' ? linksOfSubjects([c], CONSUMER_CONTACT_ROLE) : [{ ...c, role: c.role || CONSUMER_CONTACT_ROLE }],
   );
@@ -666,13 +672,23 @@ function consumerContactsInput(input: ConsumerInput): ContactLinkInput[] | undef
 
 /**
  * The documented decision of a registration (0.25.1, ADR 0038 part 3): recorded – who decided elsewhere, when, the
- * evidence – it makes the approval _documented_; null clears it (_approval not documented_); omitted keeps it.
- * Recording is documentation (the product's edit right), never a grant; audited as `dataproduct.access_documented`.
+ * evidence – it makes the approval _documented_. Without one the registration is marked _approval not documented_
+ * (`approval: notDocumented`, the default when a decision is cleared) – pending, for the IT maintainers to complete –
+ * or has no approval state (`none`: a registration made by hand, never flagged). Omitted: kept. Recording is
+ * documentation (the product's edit right), never a grant; audited as `dataproduct.access_documented`, a change of the
+ * state without a decision as `dataproduct.consumer_changed` (the caller's entry, with the approval).
  */
-function writeDecision(productId: string, productName: string, portName: string, consumerId: string, decision: ConsumerInput['decision']): void {
-  if (decision === undefined) return;
-  if (decision === null) {
-    db().run("UPDATE dp_consumers SET decision = NULL, approval = 'notDocumented' WHERE id = ?", consumerId);
+function writeDecision(
+  productId: string,
+  productName: string,
+  portName: string,
+  consumerId: string,
+  input: Pick<ConsumerInput, 'decision' | 'approval'>,
+): void {
+  const { decision } = input;
+  if (decision === undefined && input.approval === undefined) return;
+  if (!decision) {
+    db().run('UPDATE dp_consumers SET decision = NULL, approval = ? WHERE id = ?', input.approval ?? 'notDocumented', consumerId);
     return;
   }
   const d = documentDecision(decision);
@@ -697,11 +713,13 @@ export function addConsumer(productId: string, productName: string, portId: stri
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO dp_consumers (id, port_id, consumer_kind, ref_id, consumer_subjects, consumer_text, purpose, since, end_date, agreement, contacts, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)`,
+      `INSERT INTO dp_consumers (id, port_id, consumer_kind, ref_id, consumer_subjects, consumer_text, purpose, since, end_date, agreement, contacts, approval, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
       id,
       port.id,
       ...consumerValues(input),
+      // a registration made by hand has no approval state unless it is marked pending or documented (ADR 0038 part 3)
+      input.approval ?? 'none',
       now,
       actorName(),
       now,
@@ -709,13 +727,19 @@ export function addConsumer(productId: string, productName: string, portId: stri
     );
     const contacts = consumerContactsInput(input);
     if (contacts) setLinks('data_consumer', id, contacts);
-    writeDecision(productId, productName, port.name, id, input.decision);
+    writeDecision(productId, productName, port.name, id, input);
     audit({
       action: 'dataproduct.consumer_added',
       entityType: 'data_product',
       entityId: productId,
       summary: `Data product "${productName}": consumer (${input.kind}) registered on port "${port.name}"`,
-      details: { portId: port.id, consumerId: id, kind: input.kind, purpose: input.purpose.slice(0, 200) },
+      details: {
+        portId: port.id,
+        consumerId: id,
+        kind: input.kind,
+        purpose: input.purpose.slice(0, 200),
+        approval: input.decision ? 'documented' : (input.approval ?? (input.decision === null ? 'notDocumented' : 'none')),
+      },
     });
   });
   return listConsumers(productId, port.id).find((c) => c.id === id)!;
@@ -743,15 +767,24 @@ export function updateConsumer(productId: string, productName: string, portId: s
       actorName(),
       cur.id,
     );
-    const contacts = consumerContactsInput(input);
+    const contacts = consumerContactsInput(input, cur.id);
     if (contacts) setLinks('data_consumer', cur.id, contacts);
-    writeDecision(productId, productName, port.name, cur.id, input.decision);
+    writeDecision(productId, productName, port.name, cur.id, input);
     audit({
       action: 'dataproduct.consumer_changed',
       entityType: 'data_product',
       entityId: productId,
       summary: `Data product "${productName}": consumer of port "${port.name}" changed`,
-      details: { portId: port.id, consumerId: cur.id, kind: input.kind },
+      details: {
+        portId: port.id,
+        consumerId: cur.id,
+        kind: input.kind,
+        ...(input.approval ? { approval: input.approval } : {}),
+        // a documented decision taken away is evidence that goes: the entry names whom it named and when
+        ...(cur.decision && !input.decision && (input.decision === null || input.approval)
+          ? { decisionCleared: decisionNames(parseJson(cur.decision, null)) }
+          : {}),
+      },
     });
   });
   return listConsumers(productId, port.id).find((c) => c.id === cur.id)!;

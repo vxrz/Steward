@@ -422,6 +422,8 @@ async function consumersDemo(orders: string, customer360: string): Promise<void>
       kind: 'text',
       text: 'Invented marketing analytics',
       purpose: 'Segments for the spring campaign',
+      // marked as pending: the approval is still to be documented
+      approval: 'notDocumented',
     });
     db().tx(() => writeIdentities(marketing.id, ['role:MARKETING']));
   }

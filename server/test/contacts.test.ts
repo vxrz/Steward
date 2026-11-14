@@ -238,8 +238,11 @@ describe('documented decisions', () => {
 
 describe('making contacts for other modules', () => {
   it('a Steward user, a group, an import matched by e-mail among visible contacts only', () => {
+    // tara names dave's account: only administrators (and dave) see its e-mail address, so the contact gets none
     const u1 = as('tara', () => svc.contactForUser('dave'))!;
-    expect(u1).toMatchObject({ name: 'dave', email: 'dave@example.com', user: 'dave', kind: 'person' });
+    expect(u1).toMatchObject({ name: 'dave', email: '', user: 'dave', kind: 'person' });
+    expect(as('vic', () => svc.contactForUser('aud', { email: 'given@invented.example' }))).toMatchObject({ user: 'aud', email: 'given@invented.example' });
+    expect(as('dave', () => svc.contactForUser('dave'))).toMatchObject({ user: 'dave', email: 'dave@example.com' });
     // tara sees it (she made it, unlinked); a second call finds it
     expect(as('tara', () => svc.contactForUser('user:DAVE'))!.id).toBe(u1.id);
     expect(svc.contactForUser('nobody')).toBeNull();

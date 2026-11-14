@@ -221,6 +221,19 @@ describe('port access reviews', () => {
       detail: 'Close · role:REPORTING · seen as role:REPORTING',
     });
     expect(await dana('GET', `/data-products/port-reviews/${next.id}/verify`)).toMatchObject({ sealed: true, ok: true });
+    // four eyes: who recorded the review's documented decision entered a decision too – they never approve
+    const third = await dana('POST', `/data-products/${product}/ports/${port}/reviews`, { environment: 'prod' });
+    const owner = (await olivia('POST', '/contacts', { name: 'Invented review owner' })).id;
+    await olivia('PUT', `/data-products/port-reviews/${third.id}/decision`, { decidedBy: [{ contactId: owner, role: 'dataOwner' }], decidedOn: '2026-01-01' });
+    await dana('PUT', `/data-products/port-reviews/${third.id}/decisions`, {
+      decisions: third.entries.map((e: { id: string }) => ({ itemId: e.id, decision: 'keep' })),
+    });
+    await dana('POST', `/data-products/port-reviews/${third.id}/submit`);
+    expect(await olivia('GET', `/data-products/port-reviews/${third.id}`)).toMatchObject({ mayApprove: false });
+    expect(await fail(olivia('POST', `/data-products/port-reviews/${third.id}/approval`, { approve: true }))).toMatchObject({
+      params: { context: 'secondPerson' },
+    });
+    expect(await s.api('POST', `/data-products/port-reviews/${third.id}/approval`, { approve: true })).toMatchObject({ status: 'approved' });
   });
 
   it('seals at once when four eyes is off; a review of 0.25.0 (no documented decision) is submitted and verified as it was', async () => {

@@ -69,6 +69,7 @@ import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { convertItemContacts } from '../contacts/upgrade.js';
+import { runAs } from '../auth/context.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
 
@@ -1386,10 +1387,12 @@ function copyIntoTarget(
   migrateVendorTexts();
   // a package of a version before 0.23.0: its role "plant" becomes the plant registry's contributor grant (ADR 0034)
   convertDeprecatedRoles();
-  // a package of a version before 0.25.1: the contacts of services, suppliers and plant sites join the directory (ADR 0038)
-  convertItemContacts();
-  // a package of a version before 0.25.1: owner shares audited, owner fields and decisions as contacts (ADR 0038 parts 2–5)
-  convertDataProductGovernance();
+  // a package of a version before 0.25.1: the contacts of services, suppliers and plant sites join the directory, then
+  // owner shares audited, owner fields and decisions as contacts (ADR 0038) – as the system, not as the importing person
+  runAs(null, () => {
+    convertItemContacts();
+    convertDataProductGovernance();
+  });
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },

@@ -15,23 +15,18 @@ const enc = encodeURIComponent;
 
 /**
  * The documented access of a registration (0.25.1, ADR 0038 part 3): _documented_ with who decided it elsewhere and
- * when, or _approval not documented_ for the IT maintainers to complete; and the fulfilment – the ticket reference
- * and the process run – as links.
+ * when, or _approval not documented_ (pending) for the IT maintainers to complete – a registration made by hand without
+ * either shows no approval state; and the fulfilment – the ticket reference and the process run – as links.
  */
 export function ConsumerApproval({ c }: { c: DataConsumer }) {
   const { t } = useTranslation('dataProductGovernance');
   return (
-    <Stack gap={2}>
-      <Badge
-        size="sm"
-        variant="light"
-        tt="none"
-        color={c.approval === 'documented' ? 'green' : 'orange'}
-        data-testid={`consumer-approval-${c.approval}`}
-        style={{ alignSelf: 'flex-start' }}
-      >
-        {t(`documented.approval.${c.approval}`)}
-      </Badge>
+    <Stack gap={2} data-testid={`consumer-approval-${c.approval}`}>
+      {c.approval !== 'none' && (
+        <Badge size="sm" variant="light" tt="none" color={c.approval === 'documented' ? 'green' : 'orange'} style={{ alignSelf: 'flex-start' }}>
+          {t(`documented.approval.${c.approval}`)}
+        </Badge>
+      )}
       {c.decision && (
         <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
           {t('documented.decidedLine', { names: c.decision.decidedBy.map((d) => d.name).join(', '), date: fmtDay(c.decision.decidedOn) })}

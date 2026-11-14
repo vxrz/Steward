@@ -55,6 +55,16 @@ export const NOTIFICATION_EVENTS = [
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 /**
+ * Events a release retired (0.25.1, ADR 0038 part 6: access requests are gone). They are not NOTIFICATION_EVENTS, so
+ * they are never sent and never offered to subscribe to; in-app notifications of before keep their labels (en, de)
+ * and can still be marked read.
+ */
+export const RETIRED_NOTIFICATION_EVENTS = ['dataproduct.access_requested', 'dataproduct.access_decided'] as const;
+export type RetiredNotificationEvent = (typeof RETIRED_NOTIFICATION_EVENTS)[number];
+export const isRetiredNotificationEvent = (event: string): event is RetiredNotificationEvent =>
+  (RETIRED_NOTIFICATION_EVENTS as readonly string[]).includes(event);
+
+/**
  * How the notification centre groups events (U9 of the 0.10 review): decisions someone waits for come first and are
  * never pushed out of the list by alerts; alerts tell that something broke; updates are reminders and news.
  */
@@ -144,6 +154,13 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'dataproduct.endorsement_review':
     'An endorsement of a data product you maintain is due for its review (or a breaking change or a rating below the floor needs one)',
   'dataproduct.access_review_due': 'The periodic access review of a port of a data product you maintain is due',
+};
+
+/** What the retired events were (the notification centre still shows their notifications of before). */
+export const RETIRED_NOTIFICATION_EVENT_INFO: Record<RetiredNotificationEvent, string> = {
+  'dataproduct.access_requested': 'Retired in 0.25.1: someone asked for access to an output port of a data product (access is documented now, not requested)',
+  'dataproduct.access_decided':
+    'Retired in 0.25.1: a request for access to a data product’s port was approved or refused (access is documented now, not requested)',
 };
 
 /**

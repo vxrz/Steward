@@ -1727,6 +1727,8 @@ const SESSION_ONLY = [
   // decisions on access, reviews, promotions and endorsements are a person's, in the app (0.24.0, ADR 0036 phase 2)
   'POST /api/data-products/access-requests/:requestId/decision',
   'POST /api/data-products/:id/ports/:portId/consumers/:consumerId/fulfilment',
+  // the consumers' contacts with their e-mail addresses as CSV: an export from the app by an IT maintainer (0.25.1)
+  'GET /api/data-products/:id/consumer-contacts.csv',
   'PUT /api/data-products/governance-settings',
   'PUT /api/data-products/:id/access-settings',
   'POST /api/data-products/:id/ports/:portId/actual/read',

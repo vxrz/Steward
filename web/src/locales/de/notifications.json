@@ -279,6 +279,14 @@
         "label": "Erkennung für Datenprodukte schlägt fehl",
         "info": "Eine Erkennungsquelle für Datenprodukte, die Sie eingerichtet haben oder auf einer Plattform liegt, die Sie verwalten, ist fehlgeschlagen (einmal, bis sie wieder gelingt)"
       },
+      "access_requested": {
+        "label": "Zugriff auf Datenprodukt beantragt",
+        "info": "Seit 0.25.1 eingestellt: Jemand hat Zugriff auf einen Ausgangsport eines Datenprodukts beantragt (Zugriffe werden jetzt dokumentiert, nicht beantragt)"
+      },
+      "access_decided": {
+        "label": "Zugriff auf Datenprodukt entschieden",
+        "info": "Seit 0.25.1 eingestellt: Ein Antrag auf Zugriff auf einen Port eines Datenprodukts wurde genehmigt oder abgelehnt (Zugriffe werden jetzt dokumentiert, nicht beantragt)"
+      },
       "endorsement_review": {
         "label": "Bestätigung eines Datenprodukts prüfen",
         "info": "Die Bestätigung eines Datenprodukts, das Sie betreuen, ist zur Prüfung fällig (oder eine inkompatible Änderung oder eine Einstufung unter der Untergrenze erfordert eine)"

@@ -5718,6 +5718,8 @@ export interface Resources {
     'consumers.contactsHint': string;
     'consumers.documented': string;
     'consumers.documentedHint': string;
+    'consumers.pending': string;
+    'consumers.pendingHint': string;
     'consumers.decision': string;
     'consumers.decisionHelp': string;
     'consumers.saved': string;
@@ -11706,6 +11708,10 @@ export interface Resources {
     'events.dataproduct.elements_missing.info': string;
     'events.dataproduct.discovery_failed.label': string;
     'events.dataproduct.discovery_failed.info': string;
+    'events.dataproduct.access_requested.label': string;
+    'events.dataproduct.access_requested.info': string;
+    'events.dataproduct.access_decided.label': string;
+    'events.dataproduct.access_decided.info': string;
     'events.dataproduct.endorsement_review.label': string;
     'events.dataproduct.endorsement_review.info': string;
     'events.dataproduct.access_review_due.label': string;
@@ -13460,6 +13466,8 @@ export interface Resources {
     'what.alias_other': string;
     'what.external_ref_one': string;
     'what.external_ref_other': string;
+    'what.contact_one': string;
+    'what.contact_other': string;
     'what.image_one': string;
     'what.image_other': string;
     'what.copy_one': string;

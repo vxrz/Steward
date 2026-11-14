@@ -57,6 +57,8 @@
     "alias_other": "{{count}} old ids",
     "external_ref_one": "{{count}} external reference",
     "external_ref_other": "{{count}} external references",
+    "contact_one": "{{count}} contact link",
+    "contact_other": "{{count}} contact links",
     "image_one": "{{count}} image",
     "image_other": "{{count}} images",
     "copy_one": "{{count}} copy note",

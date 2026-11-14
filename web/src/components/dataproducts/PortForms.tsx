@@ -565,6 +565,8 @@ export function ConsumerForm({
   const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(c?.contacts ?? []));
   // 0.25.1 (ADR 0038 part 3): the access decided elsewhere, documented here – or not yet
   const [documented, setDocumented] = useState(c ? c.approval === 'documented' : true);
+  // without a decision: marked as pending (approval not documented) or no approval state (a registration made by hand)
+  const [pending, setPending] = useState(c?.approval === 'notDocumented');
   const [decision, setDecision] = useState<DecisionDraft>(draftOf(c?.decision));
   const decisionErrors = useDecisionErrors(decision);
   const server = useDecisionServerErrors(decision);
@@ -620,7 +622,7 @@ export function ConsumerForm({
           ? c?.decision && JSON.stringify(toDecisionInput(draftOf(c.decision))) === JSON.stringify(toDecisionInput(decision))
             ? {}
             : { decision: toDecisionInput(decision) }
-          : { decision: null }),
+          : { decision: null, approval: pending ? 'notDocumented' : 'none' }),
       };
       const base = `/data-products/${enc(productId)}/ports/${enc(portId)}/consumers`;
       try {
@@ -750,6 +752,15 @@ export function ConsumerForm({
             onChange={(e) => setDocumented(e.currentTarget.checked)}
             data-testid="consumer-documented"
           />
+          {!documented && (
+            <Checkbox
+              label={t('consumers.pending')}
+              description={t('consumers.pendingHint')}
+              checked={pending}
+              onChange={(e) => setPending(e.currentTarget.checked)}
+              data-testid="consumer-pending"
+            />
+          )}
           {documented && (
             <DecisionFields
               legend={t('consumers.decision')}

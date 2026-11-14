@@ -76,6 +76,8 @@ The bell in the header lists the newest 50 notifications, grouped by event. Grou
 
 Since 0.14 also **`plant.advisory_matched`** (_Security advisory affects a site_): the managers of a plant site (and its owning teams' channels), once per match, when a security advisory rated high or critical newly matches one of its assets exactly ([ADVISORIES.md](ADVISORIES.md#notifications)).
 
+**Retired events** (0.25.1, [ADR 0038](adr/0038-documented-governance-contacts.md) part 6): `dataproduct.access_requested` and `dataproduct.access_decided` went with the access requests. Nothing sends them and they cannot be chosen in the routes, Teams (personal) or the profile; notifications of before stay in the bell with their names and can be marked read.
+
 **Optional notifications** (0.18.0): some events are off by default and reach only who turns them on for themselves under _Profile → Notifications → Optional notifications_ (`GET|PUT /api/me/notification-opt-ins`, audited as `notification.opt_ins_changed`) – today the reminder _Contract payments not booked_ (`cost.booking_due`, Costs module). The channels still follow _Settings → Notifications_; it can be chosen for [Teams (personal)](#teams-personal) and is digested in the group _Budgets and costs_. The personal data export lists a person's choices; pseudonymising a person removes them.
 
 ## Notification policy of automated runs

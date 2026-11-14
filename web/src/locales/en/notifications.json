@@ -279,6 +279,14 @@
         "label": "Data product discovery failing",
         "info": "A discovery source of data products that you set up, or on a platform you manage, failed (once until it succeeds again)"
       },
+      "access_requested": {
+        "label": "Data product access requested",
+        "info": "Retired in 0.25.1: someone asked for access to an output port of a data product (access is documented now, not requested)"
+      },
+      "access_decided": {
+        "label": "Data product access decided",
+        "info": "Retired in 0.25.1: a request for access to a data product’s port was approved or refused (access is documented now, not requested)"
+      },
       "endorsement_review": {
         "label": "Data product endorsement review",
         "info": "An endorsement of a data product you maintain is due for its review (or a breaking change or a rating below the floor needs one)"
