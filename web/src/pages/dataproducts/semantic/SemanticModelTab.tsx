@@ -1,4 +1,3 @@
-import { DecisionFields, emptyDecision, toDecisionInput, useDecisionErrors, type DecisionDraft } from '../../../components/dataproducts/DecisionFields';
 import { useState } from 'react';
 import { ActionIcon, Alert, Badge, Box, Button, Group, Paper, Select, Stack, Text, TextInput, Textarea, Tooltip } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,6 +14,14 @@ import {
 } from '@sm/shared';
 import { apiUrl, get, notifyOk, post } from '../../../api';
 import { QueryState } from '../../../components/common';
+import {
+  DecisionFields,
+  emptyDecision,
+  toDecisionInput,
+  useDecisionErrors,
+  useDecisionServerErrors,
+  type DecisionDraft,
+} from '../../../components/dataproducts/DecisionFields';
 import { confirmDialog } from '../../../components/confirm';
 import { FormModal } from '../../../components/FormModal';
 import { useSubjectLabel } from '../../../components/SubjectsInput';
@@ -520,15 +527,21 @@ function SignOffForm({
   // 0.25.1 (ADR 0038 part 5): the approval given elsewhere, documented for the version shown (its SHA-256 goes along)
   const [decision, setDecision] = useState<DecisionDraft>(emptyDecision());
   const decisionErrors = useDecisionErrors(decision);
+  const server = useDecisionServerErrors(decision);
   const [tried, setTried] = useState(false);
   const [busy, run] = useBusy();
   const v = q.data;
   const save = () =>
     run(async () => {
-      await post(`/data-products/${enc(productId)}/semantic-model/versions/${version.version}/sign-off`, {
-        sha256: v!.sha256,
-        decision: toDecisionInput(decision),
-      });
+      try {
+        await post(`/data-products/${enc(productId)}/semantic-model/versions/${version.version}/sign-off`, {
+          sha256: v!.sha256,
+          decision: toDecisionInput(decision),
+        });
+      } catch (e) {
+        if (server.capture(e)) return;
+        throw e;
+      }
       onSaved();
     });
   return (
@@ -538,7 +551,9 @@ function SignOffForm({
         onSubmit={(e) => {
           e.preventDefault();
           setTried(true);
-          if (v && !Object.values(decisionErrors).some(Boolean)) void save();
+          if (!Object.values(decisionErrors).some(Boolean)) {
+            if (v) void save();
+          } else requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="semantic-signoff-decision"] [aria-invalid="true"]')?.focus());
         }}
       >
         <Stack gap="sm">
@@ -561,7 +576,7 @@ function SignOffForm({
             legend={t('signOffDecision')}
             value={decision}
             onChange={setDecision}
-            errors={tried ? decisionErrors : {}}
+            errors={{ ...(tried ? decisionErrors : {}), ...server.errors }}
             defaultRole="dataOwner"
             roles={['dataOwner', 'productOwner', 'domainOwner']}
             testId="semantic-signoff-decision"

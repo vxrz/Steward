@@ -3,7 +3,7 @@ import { Badge, Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { IconRosetteDiscountCheck, IconRosette } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ContactLink, DataProduct } from '@sm/shared';
-import { del, put } from '../../../api';
+import { del, notifyOk, put } from '../../../api';
 import { confirmDanger } from '../../../components/confirm';
 import { useFieldErrors } from '../../../components/common';
 import { FormModal } from '../../../components/FormModal';
@@ -13,6 +13,7 @@ import {
   emptyDecision,
   toDecisionInput,
   useDecisionErrors,
+  useDecisionServerErrors,
   type DecisionDraft,
 } from '../../../components/dataproducts/DecisionFields';
 import { FormButtons, useBusy } from '../../../components/dataproducts/form';
@@ -134,6 +135,7 @@ function EndorseForm({ p, suggested, onClose, onSaved }: { p: DataProduct; sugge
     emptyDecision(suggested.filter((l) => l.contact.status === 'active').map((l) => ({ contactId: l.contact.id, name: l.contact.name, role: 'domainOwner' }))),
   );
   const decisionErrors = useDecisionErrors(decision);
+  const server = useDecisionServerErrors(decision);
   const [busy, run] = useBusy();
   const v = useFieldErrors({
     reviewDate: !!reviewDate && !/^\d{4}-\d{2}-\d{2}$/.test(reviewDate) && t('common:validation.invalid'),
@@ -141,7 +143,13 @@ function EndorseForm({ p, suggested, onClose, onSaved }: { p: DataProduct; sugge
   });
   const save = () =>
     run(async () => {
-      await put(`/data-products/${enc(p.id)}/endorsement`, { reviewDate: reviewDate || null, decision: toDecisionInput(decision) });
+      try {
+        await put(`/data-products/${enc(p.id)}/endorsement`, { reviewDate: reviewDate || null, decision: toDecisionInput(decision) });
+      } catch (e) {
+        if (server.capture(e)) return;
+        throw e;
+      }
+      notifyOk(t('endorsement.saved'));
       onSaved();
     });
   return (
@@ -161,7 +169,7 @@ function EndorseForm({ p, suggested, onClose, onSaved }: { p: DataProduct; sugge
             legend={t('endorsement.decision')}
             value={decision}
             onChange={setDecision}
-            errors={v.error('decision') ? decisionErrors : {}}
+            errors={{ ...(v.error('decision') ? decisionErrors : {}), ...server.errors }}
             defaultRole="domainOwner"
             roles={['domainOwner', 'dataOwner', 'productOwner']}
             testId="endorse-decision"

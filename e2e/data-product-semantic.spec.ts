@@ -6,7 +6,7 @@ import { expectNoHorizontalScroll, json } from './support/helpers';
 
 /**
  * Data products phase 3, package D (0.25.0, ADR 0037 parts 4 and 6): the Semantic model tab – a version started from
- * the bound contract, saved, signed off by a second person, "which model was valid on a day", a second version
+ * the bound contract, saved, its approval given elsewhere documented, "which model was valid on a day", a second version
  * compared with the first; the port's preview with the contract's examples; the Kafka peek of a topic element
  * (the platform's manager); the GDPR Art. 30 details of a product in the records of processing – axe on each, cards
  * and no sideways scroll on phones. Seeded through the API.

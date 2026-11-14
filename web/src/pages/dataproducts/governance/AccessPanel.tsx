@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { IconClipboardCheck, IconSettings, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { DataGovernanceSettings, DataPortReview, DataPortReviewFacts, DataPortReviewItem, DataProduct } from '@sm/shared';
-import { get, getOptional, post, put } from '../../../api';
+import { get, getOptional, notifyOk, post, put } from '../../../api';
 import { QueryState, useFieldErrors } from '../../../components/common';
 import { FormModal } from '../../../components/FormModal';
 import { useSubjectLabel } from '../../../components/SubjectsInput';
@@ -19,6 +19,7 @@ import {
   emptyDecision,
   toDecisionInput,
   useDecisionErrors,
+  useDecisionServerErrors,
   type DecisionDraft,
 } from '../../../components/dataproducts/DecisionFields';
 import { ProductRequests } from './AccessRequests';
@@ -41,6 +42,13 @@ export function GovernanceAccessSections({ p }: { p: DataProduct }) {
     </>
   );
 }
+
+/**
+ * The status a review shows: without four eyes nobody approves in Steward – submitting records the outcome decided
+ * elsewhere and seals it, so the review reads _Sealed_, not _Approved_ (ADR 0038 part 4).
+ */
+const reviewStatus = (r: Pick<DataPortReview, 'status' | 'fourEyes'>): 'open' | 'submitted' | 'approved' | 'sealed' =>
+  r.status === 'approved' && !r.fourEyes ? 'sealed' : r.status;
 
 function PortReviews({ p }: { p: DataProduct }) {
   const { t } = useTranslation(['dataProductGovernance', 'common']);
@@ -103,7 +111,7 @@ function PortReviews({ p }: { p: DataProduct }) {
               header: t('reviews.status'),
               cell: (r) => (
                 <Badge size="sm" variant="light" tt="none" color={r.status === 'approved' ? 'green' : r.status === 'submitted' ? 'violet' : 'yellow'}>
-                  {t(`reviews.statuses.${r.status}`)}
+                  {t(`reviews.statuses.${reviewStatus(r)}`)}
                 </Badge>
               ),
             },
@@ -301,8 +309,8 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
       {r && (
         <Stack gap="sm" data-testid="review-modal">
           <Group gap="xs">
-            <Badge variant="light" tt="none">
-              {t(`reviews.statuses.${r.status}`)}
+            <Badge variant="light" tt="none" data-testid="review-status">
+              {t(`reviews.statuses.${reviewStatus(r)}`)}
             </Badge>
             {r.fourEyes && (
               <Badge variant="outline" tt="none">
@@ -413,7 +421,9 @@ function ReviewModal({ id, onClose }: { id: string; onClose: () => void }) {
           )}
           {r.sealHash && (
             <Alert variant="light" color="green" icon={<IconShieldCheck size={16} />} p="xs">
-              <Text size="sm">{t('reviews.sealed', { user: r.approvedBy ?? '', date: fmtDate(r.approvedAt) })}</Text>
+              <Text size="sm" data-testid="review-sealed">
+                {t(r.fourEyes ? 'reviews.sealed' : 'reviews.sealedBy', { user: r.approvedBy ?? '', date: fmtDate(r.approvedAt) })}
+              </Text>
               <Text size="xs" className="mono" style={{ overflowWrap: 'anywhere' }}>
                 {r.sealHash}
               </Text>
@@ -441,13 +451,23 @@ function ReviewDecisionForm({ id, recorded }: { id: string; recorded: boolean })
   const invalidate = useInvalidateGovernance();
   const [decision, setDecision] = useState<DecisionDraft>(emptyDecision());
   const errors = useDecisionErrors(decision);
+  const server = useDecisionServerErrors(decision);
   const [tried, setTried] = useState(false);
   const [busy, run] = useBusy();
   const save = () => {
     setTried(true);
-    if (Object.values(errors).some(Boolean)) return;
+    if (Object.values(errors).some(Boolean)) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="review-decision-form"] [aria-invalid="true"]')?.focus());
+      return;
+    }
     void run(async () => {
-      await put(`/data-products/port-reviews/${enc(id)}/decision`, toDecisionInput(decision));
+      try {
+        await put(`/data-products/port-reviews/${enc(id)}/decision`, toDecisionInput(decision));
+      } catch (e) {
+        if (server.capture(e)) return;
+        throw e;
+      }
+      notifyOk(t('reviews.decisionSaved'));
       setDecision(emptyDecision());
       setTried(false);
       invalidate();
@@ -460,7 +480,7 @@ function ReviewDecisionForm({ id, recorded }: { id: string; recorded: boolean })
         help={t('reviews.decisionHelp')}
         value={decision}
         onChange={setDecision}
-        errors={tried ? errors : {}}
+        errors={{ ...(tried ? errors : {}), ...server.errors }}
         defaultRole="productOwner"
         roles={['productOwner', 'dataOwner', 'businessContact']}
         testId="review-decision-form"

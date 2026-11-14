@@ -43,10 +43,10 @@ import {
   type ServiceSummary,
   type Subject,
 } from '@sm/shared';
-import { get, getOptional, post, put } from '../../api';
+import { get, getOptional, notifyOk, post, put } from '../../api';
 import { FormModal } from '../FormModal';
 import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../contacts';
-import { DecisionFields, draftOf, toDecisionInput, useDecisionErrors, type DecisionDraft } from './DecisionFields';
+import { DecisionFields, draftOf, toDecisionInput, useDecisionErrors, useDecisionServerErrors, type DecisionDraft } from './DecisionFields';
 import { useFieldErrors } from '../common';
 import { useModuleOn } from '../../modules';
 import { ElementPicker, type PickedElement } from './ElementPicker';
@@ -567,6 +567,7 @@ export function ConsumerForm({
   const [documented, setDocumented] = useState(c ? c.approval === 'documented' : true);
   const [decision, setDecision] = useState<DecisionDraft>(draftOf(c?.decision));
   const decisionErrors = useDecisionErrors(decision);
+  const server = useDecisionServerErrors(decision);
   const [busy, run] = useBusy();
   const subjects = useQuery({
     queryKey: ['subjects'],
@@ -622,8 +623,15 @@ export function ConsumerForm({
           : { decision: null }),
       };
       const base = `/data-products/${enc(productId)}/ports/${enc(portId)}/consumers`;
-      if (c) await put(`${base}/${enc(c.id)}`, body);
-      else await post(base, body);
+      try {
+        if (c) await put(`${base}/${enc(c.id)}`, body);
+        else await post(base, body);
+      } catch (e) {
+        // an error of the documented decision is shown at its field
+        if (documented && server.capture(e)) return;
+        throw e;
+      }
+      notifyOk(t('consumers.saved'));
       onSaved();
     }, t('form.notSaved'));
   return (
@@ -748,7 +756,7 @@ export function ConsumerForm({
               help={t('consumers.decisionHelp')}
               value={decision}
               onChange={setDecision}
-              errors={v.error('decision') ? decisionErrors : {}}
+              errors={{ ...(v.error('decision') ? decisionErrors : {}), ...server.errors }}
               defaultRole="productOwner"
               roles={['productOwner', 'dataOwner', 'businessContact']}
               testId="consumer-decision"
