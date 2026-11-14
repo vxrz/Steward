@@ -82,10 +82,13 @@ async function onUnlocked(): Promise<void> {
   migrateVendorTexts();
   // module roles (0.23.0, ADR 0034 part 5): the former role "plant" becomes the plant registry's contributor grant, once
   convertDeprecatedRoles();
-  // the contacts directory (0.25.1, ADR 0038): the contacts of services, suppliers and plant sites, once
-  convertItemContacts();
-  // documented governance (0.25.1, ADR 0038): owner shares audited, owner fields and decisions as contacts, once
-  convertDataProductGovernance();
+  // the contacts directory (0.25.1, ADR 0038): the contacts of services, suppliers and plant sites, once; then documented
+  // governance: owner shares audited, owner fields and decisions as contacts, once – as the system, not as whoever
+  // unlocked the vault (who made the contacts and links, which contacts the matching sees)
+  runAs(null, () => {
+    convertItemContacts();
+    convertDataProductGovernance();
+  });
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation
   seedExamplesSource();

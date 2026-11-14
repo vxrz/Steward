@@ -142,6 +142,16 @@ beforeAll(async () => {
   await dana('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
   source.applicationId = app.id;
   source.serviceId = svc.id;
+  // 0.25.1 (ADR 0038): the contacts directory moves – contacts, their links and the Steward user each is (mapped)
+  const contacts = await import('../src/contacts/service.js');
+  const { runAs } = await import('../src/auth/context.js');
+  runAs(null, () =>
+    contacts.setLinks('service', svc.id, [
+      { role: 'business', contact: { name: 'Invented moved owner', email: 'moved.owner@invented.example', userId: 'dana' } },
+      { role: 'it', contact: { name: 'Invented moved approver', userId: 'adam' } },
+      { role: 'it', contact: { name: 'Invented moved helpdesk', kind: 'group', email: 'helpdesk@invented.example' } },
+    ]),
+  );
   // a duty of the service (#85), owned by dana, with a stored period and an exception
   const duty = await s.api('POST', '/duties', {
     serviceId: svc.id,
@@ -645,6 +655,19 @@ describe('import into SQLite through the web API', () => {
     expect(app.documents.map((d: any) => d.title)).toEqual(['Moved concept']);
     const movedService = await max('GET', `/services/${source.serviceId}`);
     expect(movedService.applications.map((a: any) => [a.id, a.role])).toEqual([[source.applicationId, 'primary']]);
+    // the contacts directory moved with the service's links; a contact's Steward user is the account it was mapped to
+    // (an archived one too)
+    expect(movedService.contacts).toEqual([
+      { role: 'business', email: 'moved.owner@invented.example', name: 'Invented moved owner' },
+      { role: 'it', email: '', name: 'Invented moved approver' },
+      { role: 'it', email: 'helpdesk@invented.example', name: 'Invented moved helpdesk' },
+    ]);
+    const movedContacts = (await max('GET', '/contacts?q=invented%20moved&status=all')).items as { name: string; user: string | null; kind: string }[];
+    expect(movedContacts.map((c) => [c.name, c.kind, c.user]).sort()).toEqual([
+      ['Invented moved approver', 'person', 'adam'],
+      ['Invented moved helpdesk', 'group', null],
+      ['Invented moved owner', 'person', 'dana@contoso.example'],
+    ]);
     expect(movedService.protectionNeed.confidentiality.effective).toBe('very_high');
     expect(movedService.protectionNeed.availability.override).toMatchObject({ level: 'high', reason: 'Cumulation' });
     // duties move with their stored periods; owners follow the mapping
