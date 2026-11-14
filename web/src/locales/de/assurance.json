@@ -141,6 +141,12 @@
         "description": "Entfernt Name, E-Mail und Einstellungen einer deaktivierten Person endgültig."
       }
     },
+    "contact": {
+      "erase": {
+        "label": "Einen Kontakt löschen",
+        "description": "Löscht einen Kontakt des Kontaktverzeichnisses und seine Verknüpfungen endgültig (DSGVO Art. 17); dokumentierte Entscheidungen behalten den Namen."
+      }
+    },
     "team": {
       "members": {
         "label": "Teammitglieder oder Rollen in einem Team hinzufügen",

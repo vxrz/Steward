@@ -118,6 +118,8 @@ Kind (ISO/IEC 27001, 27017, 27018, ISO 22301, SOC 2 type I or II, C5, TISAX, oth
 
 Contacts are people at the supplier: name, role (account manager, support, security contact, data protection officer, other), e-mail, phone and a note.
 
+Since 0.25.1 the person – name, e-mail, phone – is a contact of the [contacts directory](CONTACTS.md): _Add contact_ offers the contacts you may see (_Choose from the contacts directory_) or takes a name, e-mail and phone as before (the contact with that address you may see, else a new one). The supplier keeps its own entry for each contact – the role, the note and what it applies to – so who sees and changes a supplier contact is exactly as described here; through the directory a person is seen only by who sees one of their entries. Erasing a contact in the directory removes its supplier entries.
+
 **Company-wide or scoped** (0.18.0, [ADR 0031](adr/0031-supplier-contracts-and-contacts-scope.md)): a contact is **company-wide** (the default, as in 0.17) or **scoped** to one or more contracts, applications or systems (_Applies to_, German _Gilt für_; at most 20 items) – the account manager of the hosting contract, the support line of one product, the security contact of one platform.
 
 - A scoped contact is seen by who may see **one** of its items (and the supplier), administrators and auditors; others neither see it nor that it exists. It shows on the pages of its items – the contract, the application's and the system's _Suppliers_ panel – besides the supplier's _Contacts_ tab (company-wide first).

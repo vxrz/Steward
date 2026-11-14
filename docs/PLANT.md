@@ -48,7 +48,7 @@ The model follows two standards, so that a plant engineer finds the words they k
 
 ## Sites, hierarchy and buildings
 
-A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a description, a position (latitude, longitude, map zoom – shown as a link to OpenStreetMap), contacts, external references and own fields.
+A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a description, a position (latitude, longitude, map zoom – shown as a link to OpenStreetMap), contacts, external references and own fields. Since 0.25.1 a site's contacts are contacts of the [contacts directory](CONTACTS.md) with a free-text role: the site form picks or creates them; the API, the import and export files and change sets keep the shape of before (name, role, e-mail, phone, URL), and an import matches a contact by e-mail address among the contacts the importer may see.
 
 On the site page:
 

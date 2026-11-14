@@ -1,0 +1,152 @@
+{
+  "title": "Kontakte",
+  "description": "Die Personen und Gruppen, die Elemente für ihre fachliche Seite nennen: fachliche und IT-Kontakte von Services, Ansprechpartner bei Lieferanten, die Kontakte von Standorten und Datenprodukten. Ein Kontakt gibt nie ein Recht in Steward.",
+  "searchLabel": "Kontakte suchen",
+  "searchPlaceholder": "Name oder E-Mail-Adresse",
+  "new": "Neuer Kontakt",
+  "more": "Weitere Kontakte passen. Schränken Sie die Suche ein, um sie zu sehen.",
+  "noRight": "Ein Kontakt gibt nie ein Recht in Steward, auch wenn er ein Steward-Benutzer ist. Rechte kommen aus Rollen, besitzenden Teams und Freigaben.",
+  "kinds": {
+    "person": "Person",
+    "group": "Gruppe"
+  },
+  "status": {
+    "active": "Aktiv",
+    "left": "Ausgeschieden"
+  },
+  "statusFilter": {
+    "label": "Status",
+    "active": "Aktiv",
+    "left": "Ausgeschieden",
+    "all": "Alle"
+  },
+  "fields": {
+    "kind": "Art",
+    "name": "Name",
+    "email": "E-Mail-Adresse",
+    "emailInvalid": "Geben Sie eine E-Mail-Adresse wie name@example.com ein",
+    "phone": "Telefon",
+    "orgUnit": "Organisationseinheit",
+    "url": "Webadresse",
+    "user": "Steward-Konto",
+    "userHint": "Das Konto dieses Kontakts, falls er eines hat: nur zur Information, es gibt kein Recht.",
+    "status": "Status",
+    "statusHint": "Ein ausgeschiedener Kontakt bleibt, wo er genannt ist, und in dokumentierten Entscheidungen, wird aber nirgends neu angeboten."
+  },
+  "table": {
+    "name": "Name",
+    "email": "E-Mail-Adresse",
+    "orgUnit": "Organisationseinheit",
+    "usedBy": "Genannt bei",
+    "status": "Status"
+  },
+  "usedBy_one": "{{count}} Element",
+  "usedBy_other": "{{count}} Elemente",
+  "empty": {
+    "title": "Noch keine Kontakte",
+    "text": "Kontakte werden dort hinzugefügt, wo Elemente sie nennen – der fachliche Kontakt eines Services, der Account Manager eines Lieferanten – oder hier.",
+    "filtered": "Kein Kontakt, den Sie sehen dürfen, passt zur Suche."
+  },
+  "tabs": {
+    "label": "Kontaktlisten",
+    "all": "Kontakte",
+    "duplicates": "Mögliche Dubletten"
+  },
+  "duplicates": {
+    "intro": "Kontakte mit derselben E-Mail-Adresse. Ein neuer Kontakt, dessen Adresse zu einem passt, den seine Autorin oder sein Autor nicht sehen darf, wird getrennt angelegt – über den anderen wird nichts verraten. Ersetzen Sie den einen durch den anderen und löschen Sie ihn danach, wenn er nicht mehr gebraucht wird.",
+    "empty": "Keine Kontakte teilen sich eine E-Mail-Adresse.",
+    "links_one": "{{count}} Verknüpfung",
+    "links_other": "{{count}} Verknüpfungen"
+  },
+  "detail": {
+    "whereUsed": "Wo er genannt ist",
+    "whereUsedHint": "Zugleich die Übersicht über die Daten dieser Person für ein Auskunftsersuchen.",
+    "noLinks": "Bei keinem Element genannt.",
+    "hiddenLinks_one": "Außerdem bei {{count}} Element genannt, das Sie nicht sehen dürfen.",
+    "hiddenLinks_other": "Außerdem bei {{count}} Elementen genannt, die Sie nicht sehen dürfen.",
+    "decisions_one": "In {{count}} dokumentierten Entscheidung genannt (eingefroren: Der Name bleibt, wie er war).",
+    "decisions_other": "In {{count}} dokumentierten Entscheidungen genannt (eingefroren: Die Namen bleiben, wie sie waren).",
+    "item": "Element",
+    "kind": "Art",
+    "role": "Rolle",
+    "created": "Angelegt am {{date}} von {{by}}",
+    "updated": "Geändert am {{date}} von {{by}}",
+    "notFound": "Diesen Kontakt gibt es nicht, oder Sie dürfen ihn nicht sehen."
+  },
+  "edit": {
+    "action": "Bearbeiten",
+    "title": "Kontakt bearbeiten",
+    "createTitle": "Neuer Kontakt",
+    "save": "Speichern",
+    "create": "Anlegen",
+    "saved": "Kontakt gespeichert",
+    "created": "Kontakt angelegt"
+  },
+  "replace": {
+    "action": "Ersetzen durch…",
+    "title": "Durch einen anderen Kontakt ersetzen",
+    "intro": "Jede Verknüpfung dieses Kontakts mit einem Element, das Sie ändern dürfen, geht an den gewählten Kontakt über, zum Beispiel wenn jemand ausscheidet. Verknüpfungen mit anderen Elementen bleiben.",
+    "introAdmin": "Jede Verknüpfung dieses Kontakts geht an den gewählten Kontakt über, zum Beispiel wenn jemand ausscheidet.",
+    "target": "Ersetzen durch",
+    "markLeft": "Diesen Kontakt als ausgeschieden markieren",
+    "confirm": "Ersetzen",
+    "done_one": "{{count}} Verknüpfung übertragen",
+    "done_other": "{{count}} Verknüpfungen übertragen",
+    "skipped_one": "{{count}} Verknüpfung bleibt: Sie dürfen ihr Element nicht ändern.",
+    "skipped_other": "{{count}} Verknüpfungen bleiben: Sie dürfen ihre Elemente nicht ändern."
+  },
+  "erase": {
+    "action": "Löschen",
+    "title": "Diesen Kontakt löschen?",
+    "message": "„{{name}}“ und jede Verknüpfung mit ihm werden endgültig gelöscht (DSGVO Art. 17). Dokumentierte Entscheidungen behalten den Namen als Nachweis. Das lässt sich nicht rückgängig machen.",
+    "confirm": "Löschen",
+    "done": "Kontakt gelöscht"
+  },
+  "linkKinds": {
+    "service": "Service",
+    "supplier": "Lieferant",
+    "plant_site": "Standort",
+    "data_product": "Datenprodukt",
+    "data_domain": "Datendomäne",
+    "data_object": "Datenobjekt",
+    "data_consumer": "Registrierung eines Nutzers"
+  },
+  "roles": {
+    "business": "Fachlich",
+    "it": "IT",
+    "accountManager": "Account Manager",
+    "support": "Supportkontakt",
+    "security": "Sicherheit",
+    "dataProtection": "Datenschutz",
+    "other": "Sonstige",
+    "productOwner": "Product Owner",
+    "businessContact": "Fachlicher Kontakt",
+    "domainOwner": "Domänenverantwortliche",
+    "dataOwner": "Dateneigentümer",
+    "dataSteward": "Data Steward",
+    "consumerContact": "Kontakt des Nutzers"
+  },
+  "picker": {
+    "none": "Noch keine Kontakte.",
+    "search": "Kontakt hinzufügen",
+    "searchPlaceholder": "Name oder E-Mail-Adresse eingeben",
+    "nothingFound": "Kein Kontakt gefunden.",
+    "role": "Rolle",
+    "roleFree": "Rolle",
+    "rolePlaceholder": "z. B. Schichtleitung",
+    "add": "Hinzufügen",
+    "createNew": "Neuer Kontakt",
+    "createTitle": "Neuer Kontakt",
+    "remove": "{{name}} entfernen",
+    "new": "Neu",
+    "left": "Ausgeschieden",
+    "limit": "Höchstens {{max}} Kontakte je Rolle.",
+    "matches": "Kontakte mit dieser E-Mail-Adresse, die Sie sehen dürfen: {{names}}. Statt eines neuen Eintrags einen davon wählen?",
+    "useMatch": "{{name}} verwenden"
+  },
+  "snapshot": {
+    "label": "Entschieden von",
+    "role": "Rolle von {{name}}",
+    "frozen": "Die Namen werden eingefroren, wenn die Entscheidung erfasst wird."
+  }
+}

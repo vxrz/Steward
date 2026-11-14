@@ -21,6 +21,7 @@
     "applications": "Anwendungen",
     "systems": "Systeme",
     "suppliers": "Lieferanten",
+    "contacts": "Kontakte",
     "maintenance": "Wartung",
     "statusPages": "Statusseiten",
     "gitUpdates": "Git-Synchronisierung",
@@ -55,7 +56,7 @@
     "dataMap": "Produktkarte",
     "dataDiscovery": "Erkennung",
     "dataAccessRequests": "Zugriffsanträge",
-    "dataRecordsOfProcessing": "Verarbeitungs\u00adtätigkeiten"
+    "dataRecordsOfProcessing": "Verarbeitungs­tätigkeiten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

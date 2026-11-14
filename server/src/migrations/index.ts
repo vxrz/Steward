@@ -41,6 +41,7 @@ import { SUPPLIER_MIGRATIONS } from './suppliers.js';
 import { MODULE_MIGRATIONS } from './modules.js';
 import { DATA_PRODUCT_MIGRATIONS } from './dataproducts.js';
 import { ACCESS_MIGRATIONS } from './access.js';
+import { CONTACTS_MIGRATIONS } from './contacts.js';
 
 /**
  * The named migrations, in the order they run on a new database (db.ts). Each feature owns its list (its manifest
@@ -91,6 +92,7 @@ export const MIGRATION_LISTS: readonly (readonly NamedMigration[])[] = [
   MODULE_MIGRATIONS,
   DATA_PRODUCT_MIGRATIONS,
   ACCESS_MIGRATIONS,
+  CONTACTS_MIGRATIONS,
 ];
 
 export const NAMED_MIGRATIONS: readonly NamedMigration[] = MIGRATION_LISTS.flat();

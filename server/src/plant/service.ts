@@ -70,6 +70,7 @@ import {
   type SiteRow,
   type SiteValues,
 } from './model.js';
+import { siteContactLinks, siteContactsOf } from './contacts.js';
 
 /**
  * The plant registry's services (#218): sites with their hierarchy and buildings, assets, their images, external
@@ -113,7 +114,8 @@ const summaryOf = (
   index: SiteIndex | undefined,
   counts: Partial<Record<AssetStatus, number>> | undefined,
 ): PlantSiteSummary => {
-  const v = siteValuesOf(r, []);
+  // the list shows no contacts
+  const v = siteValuesOf(r, [], []);
   return {
     id: r.id,
     code: r.code,
@@ -158,10 +160,11 @@ export function getSite(id: string): PlantSiteDetail {
     const at = a.work_unit_id ?? a.work_center_id ?? a.area_id;
     if (at) placed.set(at, (placed.get(at) ?? 0) + 1);
   }
-  const v = siteValuesOf(row, refsOfOne('site', id));
+  const v = siteValuesOf(row, refsOfOne('site', id), siteContactsOf([row]).get(id) ?? []);
   return {
     ...summaryOf(row, perms, index, statusCounts(assets).get(id)),
     contacts: v.contacts,
+    contactLinks: siteContactLinks(id),
     refs: v.refs,
     fields: v.fields,
     areas: nodeTree(index, placed),
@@ -248,7 +251,7 @@ export function createSite(input: z.infer<typeof siteInput>): PlantSiteDetail {
   const v = siteValues(input.id, input);
   checkSiteCode(v.code, v.id);
   db().tx(() => {
-    upsertSite(v, { at: nowIso(), by: u.username });
+    upsertSite(v, { at: nowIso(), by: u.username }, { contactLinks: input.contactLinks });
     assignCreatorTeams('site', v.id, u);
     audit({ action: 'site.created', entityType: 'site', entityId: v.id, summary: `Site "${v.name}" (${v.id}) added`, details: { code: v.code } });
   });
@@ -258,14 +261,20 @@ export function createSite(input: z.infer<typeof siteInput>): PlantSiteDetail {
 export function updateSite(id: string, input: z.infer<typeof siteUpdate>): PlantSiteDetail {
   const row = manageableSite(id, 'change this site');
   const u = me();
-  const before = siteValuesOf(row, refsOfOne('site', id));
+  const before = siteValuesOf(row, refsOfOne('site', id), siteContactsOf([row]).get(id) ?? []);
   const v = siteValues(id, input);
   checkSiteCode(v.code, id);
-  const changes = changedKeys(before, v);
+  // the picker (0.25.1) sends directory links: the contacts changed when the links do
+  const links = input.contactLinks;
+  if (links) v.contacts = before.contacts;
+  const pairs = (l: { role: string; contactId?: string }[]) => JSON.stringify(l.map((x) => [x.role, x.contactId ?? null]));
+  const linksChanged = !!links && pairs(links) !== pairs(siteContactLinks(id).map((l) => ({ role: l.role, contactId: l.contact.id })));
+  const changes = [...changedKeys(before, v), ...(linksChanged ? ['contacts'] : [])];
   if (!changes.length) return getSite(id);
   db().tx(() => {
     // a record changed by hand keeps where it came from (a later import still knows it)
-    upsertSite(v, { at: nowIso(), by: u.username }, { keepSource: true });
+    upsertSite(v, { at: nowIso(), by: u.username }, { keepSource: true, contactLinks: linksChanged ? links : undefined });
+    if (linksChanged) v.contacts = siteContactsOf([{ id, contacts: '[]' }]).get(id) ?? [];
     audit({
       action: 'site.updated',
       entityType: 'site',

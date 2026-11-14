@@ -58,7 +58,7 @@ import {
   type PackageTeam,
   type PackageUser,
 } from './format.js';
-import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_TABLES, USER_REFS } from './tables.js';
+import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_COLUMNS, USER_ID_TABLES, USER_REFS } from './tables.js';
 import { mapValue, type NameMaps } from './refs.js';
 import { DATA_PREFIX } from './export.js';
 import { checkScaleRows } from '../catalogue/cia.js';
@@ -68,6 +68,7 @@ import { importedDefaults } from '../teams/settings.js';
 import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
+import { convertItemContacts } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 
 /**
@@ -1260,6 +1261,8 @@ function copyIntoTarget(
           if (!to || archived || d.get(`SELECT 1 FROM ${quoteIdent(t)} WHERE ${quoteIdent(userCol)} = ?`, to)) continue;
           r[userCol] = to;
         }
+        // user ids kept as documentation (a contact's Steward user): the target's id, or none
+        for (const c of USER_ID_COLUMNS) if (c.table === t && r[c.column] != null) r[c.column] = userIds.get(String(r[c.column])) ?? null;
         d.run(insert, ...cols.map((c) => r[c] ?? null));
         n++;
       }
@@ -1382,6 +1385,8 @@ function copyIntoTarget(
   migrateVendorTexts();
   // a package of a version before 0.23.0: its role "plant" becomes the plant registry's contributor grant (ADR 0034)
   convertDeprecatedRoles();
+  // a package of a version before 0.25.1: the contacts of services, suppliers and plant sites join the directory (ADR 0038)
+  convertItemContacts();
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },
