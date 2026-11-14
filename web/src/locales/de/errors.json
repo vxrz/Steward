@@ -1644,7 +1644,19 @@
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_noKey": "„{{name}}“ hat keinen privaten Schlüssel, der an den Datenvertragsdienst gehen könnte.",
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_sasl": "Die Kafka-Anmeldung {{sasl}} kann nicht an den Datenvertragsdienst gegeben werden – PLAIN und SCRAM können es.",
     "DATA_CONTRACT_SERVER_HOST": "Der Host von Server „{{server}}“ ist kein Bootstrap-Server von „{{name}}“.",
-    "DATA_CONTRACT_SQL_PLATFORM": "SQL-Qualitätsregeln werden nur auf Datenbank-Plattformen getestet – Server „{{server}}“ hat den Typ {{type}}."
+    "DATA_CONTRACT_SQL_PLATFORM": "SQL-Qualitätsregeln werden nur auf Datenbank-Plattformen getestet – Server „{{server}}“ hat den Typ {{type}}.",
+    "CONTACT_NOT_FOUND": "Diesen Kontakt gibt es nicht (mehr).",
+    "CONTACT_LEFT": "{{name}} ist ausgeschieden. Wählen Sie einen anderen Kontakt.",
+    "CONTACT_KIND_UNKNOWN": "Mit dieser Art von Element ({{kind}}) lassen sich keine Kontakte verknüpfen.",
+    "CONTACT_ROLE_UNKNOWN": "„{{role}}“ ist hier keine Kontaktrolle.",
+    "CONTACT_ROLE_LIMIT": "Höchstens {{max}} Kontakte je Rolle.",
+    "CONTACT_DECIDED_BY_LIMIT": "Es lassen sich höchstens {{max}} Kontakte nennen.",
+    "CONTACT_USER_UNKNOWN": "Es gibt kein Steward-Konto „{{user}}“.",
+    "CONTACT_REPLACE_SAME": "Ein Kontakt kann sich nicht selbst ersetzen.",
+    "FORBIDDEN_createContacts": "Sie dürfen hier keine Kontakte anlegen. Fügen Sie sie stattdessen beim Element hinzu.",
+    "FORBIDDEN_changeContact": "Sie dürfen diesen Kontakt nicht ändern: Das darf, wer ein Element ändern darf, mit dem er verknüpft ist.",
+    "FORBIDDEN_eraseContact": "Nur Administratoren löschen Kontakte.",
+    "FORBIDDEN_manageContacts": "Nur Administratoren sehen mögliche Dubletten."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

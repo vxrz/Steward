@@ -1,0 +1,152 @@
+{
+  "title": "Contacts",
+  "description": "The people and groups items name for their business side: business and IT contacts of services, people at suppliers, the contacts of sites and data products. A contact never gives a right in Steward.",
+  "searchLabel": "Search contacts",
+  "searchPlaceholder": "Name or e-mail address",
+  "new": "New contact",
+  "more": "More contacts match. Narrow the search to see them.",
+  "noRight": "A contact never gives a right in Steward, also when it is a Steward user. Rights come from roles, owning teams and shares.",
+  "kinds": {
+    "person": "Person",
+    "group": "Group"
+  },
+  "status": {
+    "active": "Active",
+    "left": "Left"
+  },
+  "statusFilter": {
+    "label": "Status",
+    "active": "Active",
+    "left": "Left",
+    "all": "All"
+  },
+  "fields": {
+    "kind": "Kind",
+    "name": "Name",
+    "email": "E-mail address",
+    "emailInvalid": "Enter an e-mail address such as name@example.com",
+    "phone": "Phone",
+    "orgUnit": "Organisational unit",
+    "url": "Web address",
+    "user": "Steward account",
+    "userHint": "The account this contact is, if they have one: for information only, it gives no right.",
+    "status": "Status",
+    "statusHint": "A contact who has left stays where it is named and in documented decisions, but is offered nowhere new."
+  },
+  "table": {
+    "name": "Name",
+    "email": "E-mail address",
+    "orgUnit": "Organisational unit",
+    "usedBy": "Named on",
+    "status": "Status"
+  },
+  "usedBy_one": "{{count}} item",
+  "usedBy_other": "{{count}} items",
+  "empty": {
+    "title": "No contacts yet",
+    "text": "Contacts are added where items name them – a service's business contact, a supplier's account manager – or here.",
+    "filtered": "No contact you may see matches the search."
+  },
+  "tabs": {
+    "label": "Contact lists",
+    "all": "Contacts",
+    "duplicates": "Possible duplicates"
+  },
+  "duplicates": {
+    "intro": "Contacts that share an e-mail address. A new contact whose address matches one its author may not see is made separately – nothing about the other is revealed. Replace one with the other, then erase it if it is not needed any more.",
+    "empty": "No contacts share an e-mail address.",
+    "links_one": "{{count}} link",
+    "links_other": "{{count}} links"
+  },
+  "detail": {
+    "whereUsed": "Where it is named",
+    "whereUsedHint": "Also the overview of this person's data for a subject access request.",
+    "noLinks": "Not named on any item.",
+    "hiddenLinks_one": "Also named on {{count}} item you may not see.",
+    "hiddenLinks_other": "Also named on {{count}} items you may not see.",
+    "decisions_one": "Named in {{count}} documented decision (frozen: the name stays as it was).",
+    "decisions_other": "Named in {{count}} documented decisions (frozen: the names stay as they were).",
+    "item": "Item",
+    "kind": "Kind",
+    "role": "Role",
+    "created": "Created {{date}} by {{by}}",
+    "updated": "Changed {{date}} by {{by}}",
+    "notFound": "This contact does not exist, or you may not see it."
+  },
+  "edit": {
+    "action": "Edit",
+    "title": "Edit contact",
+    "createTitle": "New contact",
+    "save": "Save",
+    "create": "Create",
+    "saved": "Contact saved",
+    "created": "Contact created"
+  },
+  "replace": {
+    "action": "Replace with…",
+    "title": "Replace with another contact",
+    "intro": "Every link of this contact on an item you may change moves to the contact you choose, for example when someone leaves. Links on other items stay.",
+    "introAdmin": "Every link of this contact moves to the contact you choose, for example when someone leaves.",
+    "target": "Replace with",
+    "markLeft": "Mark this contact as left",
+    "confirm": "Replace",
+    "done_one": "{{count}} link moved",
+    "done_other": "{{count}} links moved",
+    "skipped_one": "{{count}} link stays: you may not change its item.",
+    "skipped_other": "{{count}} links stay: you may not change their items."
+  },
+  "erase": {
+    "action": "Erase",
+    "title": "Erase this contact?",
+    "message": "“{{name}}” and every link to it are deleted for good (GDPR Art. 17). Documented decisions keep the name as evidence. This cannot be undone.",
+    "confirm": "Erase",
+    "done": "Contact erased"
+  },
+  "linkKinds": {
+    "service": "Service",
+    "supplier": "Supplier",
+    "plant_site": "Site",
+    "data_product": "Data product",
+    "data_domain": "Data domain",
+    "data_object": "Data object",
+    "data_consumer": "Consumer registration"
+  },
+  "roles": {
+    "business": "Business",
+    "it": "IT",
+    "accountManager": "Account manager",
+    "support": "Support",
+    "security": "Security",
+    "dataProtection": "Data protection",
+    "other": "Other",
+    "productOwner": "Product owner",
+    "businessContact": "Business contact",
+    "domainOwner": "Domain owner",
+    "dataOwner": "Data owner",
+    "dataSteward": "Data steward",
+    "consumerContact": "Consumer contact"
+  },
+  "picker": {
+    "none": "No contacts yet.",
+    "search": "Add a contact",
+    "searchPlaceholder": "Type a name or e-mail address",
+    "nothingFound": "No contact found.",
+    "role": "Role",
+    "roleFree": "Role",
+    "rolePlaceholder": "e.g. Shift lead",
+    "add": "Add",
+    "createNew": "New contact",
+    "createTitle": "New contact",
+    "remove": "Remove {{name}}",
+    "new": "New",
+    "left": "Left",
+    "limit": "At most {{max}} contacts per role.",
+    "matches": "Contacts you may see with this e-mail address: {{names}}. Pick one of them instead of a new entry?",
+    "useMatch": "Use {{name}}"
+  },
+  "snapshot": {
+    "label": "Decided by",
+    "role": "Role of {{name}}",
+    "frozen": "Names are frozen when the decision is recorded."
+  }
+}

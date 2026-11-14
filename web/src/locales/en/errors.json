@@ -1644,7 +1644,19 @@
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_noKey": "“{{name}}” has no private key to give to the data contract service.",
     "DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED_sasl": "Kafka sign-in {{sasl}} cannot be given to the data contract service – PLAIN and SCRAM can.",
     "DATA_CONTRACT_SERVER_HOST": "The host of server “{{server}}” is not a bootstrap server of “{{name}}”.",
-    "DATA_CONTRACT_SQL_PLATFORM": "SQL quality rules are tested on database platforms only – server “{{server}}” is of type {{type}}."
+    "DATA_CONTRACT_SQL_PLATFORM": "SQL quality rules are tested on database platforms only – server “{{server}}” is of type {{type}}.",
+    "CONTACT_NOT_FOUND": "This contact does not exist (any more).",
+    "CONTACT_LEFT": "{{name}} has left. Choose another contact.",
+    "CONTACT_KIND_UNKNOWN": "Contacts cannot be linked to this kind of item ({{kind}}).",
+    "CONTACT_ROLE_UNKNOWN": "“{{role}}” is not a contact role here.",
+    "CONTACT_ROLE_LIMIT": "At most {{max}} contacts per role.",
+    "CONTACT_DECIDED_BY_LIMIT": "At most {{max}} contacts can be named.",
+    "CONTACT_USER_UNKNOWN": "There is no Steward account “{{user}}”.",
+    "CONTACT_REPLACE_SAME": "A contact cannot replace itself.",
+    "FORBIDDEN_createContacts": "You are not allowed to create contacts here. Add them on the item instead.",
+    "FORBIDDEN_changeContact": "You are not allowed to change this contact: that takes who may change an item it is linked to.",
+    "FORBIDDEN_eraseContact": "Only administrators erase contacts.",
+    "FORBIDDEN_manageContacts": "Only administrators see possible duplicates."
   },
   "boundary": {
     "title": "Something went wrong on this page",

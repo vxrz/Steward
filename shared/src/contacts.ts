@@ -199,3 +199,48 @@ export interface ContactDetail extends ContactRef {
 
 /** Normalised e-mail address for matching (lower case, trimmed); empty for none. */
 export const contactEmailKey = (email: string | null | undefined): string => (email ?? '').trim().toLowerCase();
+
+/** Normalised name for matching (NFKC, lower case, single spaces, trimmed). */
+export const contactNameKey = (name: string | null | undefined): string => (name ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/** A contact in the directory's list and the picker's search. */
+export interface ContactListItem extends ContactRef {
+  email: string;
+  phone: string;
+  orgUnit: string;
+  url: string;
+  /** Links on items the reader may see */
+  usedBy: number;
+}
+
+export interface ContactList {
+  items: ContactListItem[];
+  /** More contacts match than were returned */
+  more: boolean;
+  /** May create contacts on the Contacts page (the picker creates them on the item) */
+  canCreate: boolean;
+}
+
+/** Administrators: contacts that share an e-mail address (made separately because a reader could not see the other). */
+export interface ContactDuplicateGroup {
+  email: string;
+  contacts: (ContactListItem & { links: number })[];
+}
+
+/** Replace with…: every link of the contact the reader may change moves to `targetId` (administrators: all). */
+export const contactReplaceInput = z
+  .object({
+    targetId: z.string().trim().min(1).max(100),
+    /** Mark the replaced contact as left (kept for history, offered nowhere) */
+    markLeft: z.boolean().default(false),
+  })
+  .strict();
+export type ContactReplaceInput = z.input<typeof contactReplaceInput>;
+
+export interface ContactReplaceResult {
+  /** Links moved to the target (a link the target already had on the same item and role is merged) */
+  moved: number;
+  /** Visible links on items the reader may not change: left with the contact */
+  skipped: number;
+  target: ContactDetail;
+}

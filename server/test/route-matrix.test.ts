@@ -1005,6 +1005,15 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/aws': DESIGN,
   'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'POST /api/applications/:id/components/:componentId/dependency-track': DESIGN,
+  // the contacts directory (0.25.1, ADR 0038): personal data, in a session only; the fixture contact is linked to the
+  // matrix service, so who sees the service sees it and who may change the service changes it
+  'GET /api/contacts': PLANT,
+  'GET /api/contacts/duplicates': ADMIN,
+  'GET /api/contacts/:id': ALL,
+  'POST /api/contacts': ACTIVE,
+  'PUT /api/contacts/:id': DESIGN,
+  'POST /api/contacts/:id/replace': DESIGN,
+  'DELETE /api/contacts/:id': ADMIN,
   // suppliers (0.17.0, ADR 0029): like systems; the "To confirm" decisions need a session
   'GET /api/suppliers': ALL,
   'POST /api/suppliers': DESIGN,
@@ -1656,6 +1665,14 @@ const EXPECT: Record<string, Access> = {
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
 const SESSION_ONLY = [
+  // the contacts directory (0.25.1, ADR 0038): personal data of people outside Steward, read and changed in the app
+  'GET /api/contacts',
+  'GET /api/contacts/duplicates',
+  'GET /api/contacts/:id',
+  'POST /api/contacts',
+  'PUT /api/contacts/:id',
+  'POST /api/contacts/:id/replace',
+  'DELETE /api/contacts/:id',
   // 0.25.0 (ADR 0037 part 3): a person confirms or dismisses each Industrial Edge suggestion in the app
   'POST /api/systems/edge-suggestions/confirm',
   'POST /api/systems/edge-suggestions/dismiss',
@@ -1977,6 +1994,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/users/:id/reset-password': 'always',
   'GET /api/users/:id/data-export': 'always',
   'POST /api/users/:id/pseudonymise': 'always',
+  'DELETE /api/contacts/:id': 'always',
   'POST /api/sso/providers': 'always',
   'PUT /api/sso/providers/:id': 'always',
   'DELETE /api/sso/providers/:id': 'always',
@@ -2562,6 +2580,7 @@ function fill(url: string): string {
           applications: 'application',
           systems: 'system',
           suppliers: 'supplier',
+          contacts: 'contact',
           'maintenance-windows': 'catalogueMaintenance',
           duties: 'duty',
           objectives: 'objective',
@@ -2685,6 +2704,9 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'POST /api/contacts': { name: 'Matrix contact x' },
+  'PUT /api/contacts/:id': { name: 'Matrix contact', email: 'matrix.contact@example.com' },
+  'POST /api/contacts/:id/replace': { targetId: 'ct_none' },
   'POST /api/suppliers': { name: 'Matrix supplier x', type: 'saas' },
   'PUT /api/suppliers/:id': { name: 'Matrix supplier', type: 'saas' },
   'POST /api/suppliers/:id/archive': { archived: true },
@@ -3041,6 +3063,9 @@ beforeAll(async () => {
   QUERY['GET /api/suppliers/scoped-contacts'] = `?kind=application&id=${application.id}`;
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
+  // a contact of the directory (ADR 0038) on the matrix service
+  const contact = (await a('POST', '/contacts', { name: 'Matrix contact', email: 'matrix.contact@example.com' })).id as string;
+  (await import('../src/contacts/service.js')).setLinks('service', svc.id, [{ role: 'business', contactId: contact }]);
   // a supplier with a contact, a contract and a certificate, and one waiting for confirmation (0.17.0)
   const supplier = await a('POST', '/suppliers', { name: 'Matrix supplier', type: 'saas' });
   const supplierContact = (await a('POST', `/suppliers/${supplier.id}/contacts`, { name: 'Matrix contact' })).contacts[0].id;
@@ -3124,6 +3149,7 @@ beforeAll(async () => {
   await a('POST', `/library-releases/${lib1.id}/install`, {});
   const libraryRelease = (await a('POST', '/library-releases/upload', await uploadBody(await signedRelease(MATRIX_KEY, { ...libSpec, release: '1.1.0' })))).id;
   fx = {
+    contact,
     process: proc.id,
     run: run.id,
     step: String(run.steps[0].id),
