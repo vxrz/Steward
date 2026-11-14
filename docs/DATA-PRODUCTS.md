@@ -650,6 +650,8 @@ _Ports → an output port → Who really reads_ shows what the platforms say abo
 
 ### Documented access
 
+<a id="access-requests"></a>The access requests of 0.24.0 and 0.25.0 are retired since 0.25.1: access decided elsewhere is documented on the registration.
+
 A **consumer registration** documents access that was decided elsewhere: who consumes, the purpose, the environment's binding, since and until when, the agreement, the platform identities that read, its **contacts** (`consumerContact`) – and its **approval**: _documented_ with a documented decision (who decided – the product owner, typically –, when, the evidence); _approval not documented_ – pending, for the IT maintainers to complete – for a registration converted from a pending access request or one an IT maintainer marks as pending (_Mark as pending_; `approval: notDocumented` in the API, also the state after a decision is cleared with `decision: null`); or **no approval state** (`none`, shown neutral, never flagged) for a registration made by hand without a decision – before 0.25.1 or since. Registering or changing a registration needs the product's edit right; recording the decision is audited as `dataproduct.access_documented`.
 
 - **Fulfilment** stays IT work: _Fulfil_ on a registration (who may change the product) records the platform team's ticket as a **ticket reference** of the product's ticket source and starts the platform team's **process** live as you – your run right is checked first and the process's own approvals apply (inputs `dataProduct`, `port`, `portVersion`, `consumer`, `identities`, `until`, `purpose`, `consumerId`). Once each per registration; audited as `dataproduct.consumer_fulfilment`. Steward never grants on a platform itself.
