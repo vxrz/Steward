@@ -68,12 +68,13 @@ async function seed(admin: APIRequestContext): Promise<Seed> {
     })
   ).id;
   expect((await admin.post(`/api/data-objects/${object}/elements`, { data: { elementId: prod } })).ok()).toBe(true);
-  // a registration whose approval is not documented yet, with its contact (0.25.1)
+  // a registration marked as pending – its approval is not documented yet –, with its contact (0.25.1)
   await post(admin, `/api/data-products/${product}/ports/${port}/consumers`, {
     kind: 'text',
     text: `Invented BI ${token}`,
     purpose: 'Monthly close',
     endDate: '2027-12-31',
+    approval: 'notDocumented',
     contacts: [{ role: 'consumerContact', contact: { name: `Invented BI lead ${token}`, email: `bi.lead.${key}@invented.example` } }],
   });
   return { token, product, object, port };

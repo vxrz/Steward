@@ -294,12 +294,19 @@ export const dataConsumerInput = z
       .max(L.subjects)
       .optional(),
     /**
-     * 0.25.1 (ADR 0038 part 3): the access decided elsewhere – who decided, when, the evidence. Omitted: kept; null: the
-     * approval is not documented
+     * 0.25.1 (ADR 0038 part 3): the access decided elsewhere – who decided, when, the evidence. Omitted: kept; null: no
+     * decision (the approval as `approval` says, by default _not documented_)
      */
     decision: documentedDecisionInput.nullable().optional(),
+    /**
+     * Without a decision: `notDocumented` marks the registration as pending – _approval not documented_, for the IT
+     * maintainers to complete; `none` shows no approval state. Omitted: a new registration without a decision has none,
+     * a cleared decision (`decision: null`) leaves it not documented, otherwise it is kept. Not with a decision.
+     */
+    approval: z.enum(['notDocumented', 'none']).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => !(v.decision && v.approval), { message: 'approval is given without a decision only', path: ['approval'] });
 export type DataConsumerInput = z.input<typeof dataConsumerInput>;
 
 // ---------- elements ----------

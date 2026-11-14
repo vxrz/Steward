@@ -392,7 +392,9 @@
     "contacts": "Contacts",
     "contactsHint": "Who the IT maintainers inform when the port is deprecated or its contract breaks – Steward never e-mails them.",
     "documented": "The access was decided and is documented",
-    "documentedHint": "Steward documents access decided elsewhere. Without it the registration shows “approval not documented”.",
+    "documentedHint": "Steward documents access decided elsewhere. Without it the registration shows no approval state, unless you mark it as pending.",
+    "pending": "Mark as pending: the approval still has to be documented",
+    "pendingHint": "The registration shows “approval not documented” until the IT maintainers document the decision or remove the registration.",
     "decision": "Who decided the access",
     "decisionHelp": "The access was decided outside Steward – by the product owner, in a meeting, in a ticket. Record who decided it, when and the evidence."
   },

@@ -829,9 +829,10 @@ export interface DataConsumer {
    */
   contacts: ContactLink[];
   /**
-   * 0.25.1 (ADR 0038 part 3): the access decided elsewhere and documented here – `documented` with its decision, or
-   * `notDocumented` (registrations made before 0.25.1, pending requests the upgrade converted) for the IT maintainers
-   * to complete
+   * 0.25.1 (ADR 0038 part 3): the access decided elsewhere and documented here – `documented` with its decision;
+   * `notDocumented` (_approval not documented_: a pending request the upgrade converted, or marked so by an IT
+   * maintainer) for the IT maintainers to complete; `none` – no approval state (a registration made by hand, before
+   * 0.25.1 or since, without a decision): shown neutral, never flagged
    */
   approval: DataConsumerApproval;
   decision: DocumentedDecision | null;
@@ -866,7 +867,7 @@ export interface DataConsumerContacts {
   }[];
 }
 
-export const DATA_CONSUMER_APPROVALS = ['documented', 'notDocumented'] as const;
+export const DATA_CONSUMER_APPROVALS = ['documented', 'notDocumented', 'none'] as const;
 export type DataConsumerApproval = (typeof DATA_CONSUMER_APPROVALS)[number];
 
 // ---------- the element catalogue (part 5) ----------

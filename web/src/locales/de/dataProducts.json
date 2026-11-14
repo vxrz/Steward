@@ -392,7 +392,9 @@
     "contacts": "Ansprechpersonen",
     "contactsHint": "Wen die IT-Betreuer informieren, wenn der Port abgekündigt wird oder sein Vertrag bricht – Steward schreibt ihnen nie.",
     "documented": "Der Zugriff wurde entschieden und ist dokumentiert",
-    "documentedHint": "Steward dokumentiert Zugriffe, die anderswo entschieden wurden. Ohne dies zeigt die Registrierung „Genehmigung nicht dokumentiert“.",
+    "documentedHint": "Steward dokumentiert Zugriffe, die anderswo entschieden wurden. Ohne dies zeigt die Registrierung keinen Genehmigungsstand, es sei denn, Sie markieren sie als ausstehend.",
+    "pending": "Als ausstehend markieren: Die Genehmigung ist noch zu dokumentieren",
+    "pendingHint": "Die Registrierung zeigt „Genehmigung nicht dokumentiert“, bis die IT-Betreuer die Entscheidung dokumentieren oder die Registrierung entfernen.",
     "decision": "Wer den Zugriff entschieden hat",
     "decisionHelp": "Der Zugriff wurde außerhalb von Steward entschieden – von der Produktverantwortung, in einer Besprechung, in einem Ticket. Erfassen Sie, wer ihn wann entschieden hat, und den Nachweis."
   },

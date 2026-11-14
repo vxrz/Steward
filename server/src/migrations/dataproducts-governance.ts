@@ -27,6 +27,7 @@ import type { NamedMigration } from '../db.js';
  *   dp_consumers.request_id: the access request a registration came from (approved before 0.25.1, or pending then);
  *   dp_access_requests stay as read-only history; the upgrade (dataproducts/governance-upgrade.ts, audited) turns
  *     pending ones into registrations (status `converted`, consumer_id set).
+ *   (dataproducts-007d corrects the first: a registration made by hand has no approval state, `none`.)
  *   dp_port_reviews.decision: the review's documented decision (JSON, NULL for reviews before 0.25.1 – their seal does
  *     not cover it and still verifies); documented: 1 for reviews started since 0.25.1, which need one to be submitted. Four eyes is the module setting `portReviewFourEyes` (off by default); a review
  *     keeps the four_eyes it was started with.
@@ -137,5 +138,14 @@ export const DATA_GOVERNANCE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE dp_endorsements ADD COLUMN decision TEXT;
       ALTER TABLE dp_semantic_signoffs ADD COLUMN decision TEXT;
     `,
+  },
+  {
+    // ADR 0038 part 3: a registration made by hand – before 0.25.1, or since without a decision – has no approval state
+    // (`none`, shown neutral); only registrations converted from pending access requests (request_id) and those an IT
+    // maintainer marks as pending are _approval not documented_. Registrations of approved requests are documented by
+    // the upgrade (dataproducts/governance-upgrade.ts). New registrations set the state themselves (dataproducts/ports.ts),
+    // so the column's default no longer decides. Idempotent: it only touches undocumented rows of no request.
+    name: 'dataproducts-007d-consumer-approval-none',
+    sql: `UPDATE dp_consumers SET approval = 'none' WHERE approval = 'notDocumented' AND decision IS NULL AND request_id IS NULL;`,
   },
 ];

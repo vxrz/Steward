@@ -310,6 +310,48 @@ describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals
     expect(audit).toEqual([expect.objectContaining({ entityId: product, actor: 'system' })]);
   });
 
+  it('flags only converted and explicitly pending registrations; one made by hand has no approval state', async () => {
+    const { db } = await import('../src/db.js');
+    const url = `/data-products/${product}/ports/${port}/consumers`;
+    // a registration made by hand in 0.25.0 (the column's default of 0.25.1's first migration), and a pending request
+    const legacy = 'dpc_legacy_by_hand';
+    db().run(
+      `INSERT INTO dp_consumers (id, port_id, consumer_kind, consumer_text, purpose, contacts, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, 'text', 'Invented hand-made report', 'Close', '[]', '2026-09-01T00:00:00.000Z', 'dana', '2026-09-01T00:00:00.000Z', 'dana')`,
+      legacy,
+      port,
+    );
+    const pending = await legacyRequest('pending', 'Invented pending again');
+    expect(db().get<{ approval: string }>('SELECT approval FROM dp_consumers WHERE id = ?', legacy)!.approval).toBe('notDocumented');
+    // the upgrade: the migration gives hand-made registrations no approval state; then the pending request is converted
+    const { DATA_GOVERNANCE_MIGRATIONS } = await import('../src/migrations/dataproducts-governance.js');
+    const none = DATA_GOVERNANCE_MIGRATIONS.find((m) => m.name === 'dataproducts-007d-consumer-approval-none')!;
+    db().exec(none.sql);
+    const { convertPendingRequests } = await import('../src/dataproducts/governance-upgrade.js');
+    convertPendingRequests();
+    db().exec(none.sql);
+    const listed = async () => new Map(((await dana('GET', url)) as { id: string; approval: string }[]).map((c) => [c.id, c.approval]));
+    const converted = (await dana('GET', `/data-products/access-requests/${pending}`)).consumerId as string;
+    expect((await listed()).get(legacy)).toBe('none');
+    expect((await listed()).get(converted)).toBe('notDocumented');
+    // made by hand since: none; marked as pending: not documented; the mark can be taken back; an edit keeps it
+    const plain = await dana('POST', url, { kind: 'text', text: 'Invented plain', purpose: 'Close' });
+    expect(plain).toMatchObject({ approval: 'none', decision: null });
+    const marked = await dana('POST', url, { kind: 'text', text: 'Invented marked', purpose: 'Close', approval: 'notDocumented' });
+    expect(marked).toMatchObject({ approval: 'notDocumented', decision: null });
+    expect(await dana('PUT', `${url}/${marked.id}`, { kind: 'text', text: 'Invented marked', purpose: 'Changed' })).toMatchObject({
+      approval: 'notDocumented',
+    });
+    expect(await dana('PUT', `${url}/${marked.id}`, { kind: 'text', text: 'Invented marked', approval: 'none' })).toMatchObject({ approval: 'none' });
+    expect(await dana('PUT', `${url}/${plain.id}`, { kind: 'text', text: 'Invented plain', approval: 'notDocumented' })).toMatchObject({
+      approval: 'notDocumented',
+    });
+    // a decision and a state without one do not go together
+    const owner = await contact(dana, 'Invented approval owner');
+    expect((await fail(dana('POST', url, { kind: 'text', text: 'x', approval: 'none', decision: decision(owner) }))).status).toBe(400);
+    for (const id of [legacy, plain.id, marked.id, converted]) await dana('DELETE', `${url}/${id}`);
+  });
+
   it('documents access on a registration: who decided, when, the evidence – recorded by an IT maintainer, audited', async () => {
     const owner = await contact(dana, 'Invented product owner');
     const url = `/data-products/${product}/ports/${port}/consumers`;
@@ -373,7 +415,7 @@ describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals
     await s.api('PUT', `/data-products/${product}/access-settings`, { processId });
     try {
       const c = await dana('POST', `/data-products/${product}/ports/${port}/consumers`, { kind: 'text', text: 'Invented fulfilled', purpose: 'Close' });
-      expect(c).toMatchObject({ approval: 'notDocumented', ticketId: null, runId: null });
+      expect(c).toMatchObject({ approval: 'none', ticketId: null, runId: null });
       const url = `/data-products/${product}/ports/${port}/consumers/${c.id}/fulfilment`;
       // who may not change the product does not fulfil
       expect((await fail(olivia('POST', url, { startProcess: true }))).status).toBe(403);
