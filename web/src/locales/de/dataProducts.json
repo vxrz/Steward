@@ -88,7 +88,7 @@
     "purpose": "Zweck",
     "purposeHint": "Wofür das Produkt da ist und wem es dient.",
     "owners": "Produktverantwortliche",
-    "ownersHint": "Benutzer oder Teams, die für das Produkt einstehen. Außerhalb seiner zuständigen Teams benannt, sehen und ändern sie es.",
+    "ownersHint": "Wer auf der Fachseite für das Produkt einsteht – Dokumentation: Es gibt kein Recht in Steward.",
     "support": "Unterstützung",
     "supportChannel": "Kanal",
     "supportUrl": "Webadresse",
@@ -808,7 +808,7 @@
   },
   "access": {
     "owners": "Produktverantwortliche",
-    "ownersHint": "Verantwortung, kein eigenes Recht: Außerhalb der zuständigen Teams benannt, sehen, ändern und verwalten sie das Produkt – eine solche Benennung bestätigen Sie mit Ihrer Anmeldung.",
+    "ownersHint": "Dokumentation, kein Recht: Produktverantwortliche werden für die Fachseite benannt und brauchen kein Steward-Konto. Wer das Produkt sehen oder ändern darf, ergibt sich aus den zuständigen Teams, Rollen und Freigaben oben.",
     "rules": "Wer was darf",
     "who": "Wer",
     "what": "Rechte",
@@ -822,8 +822,8 @@
         "what": "Produkte anlegen und ändern; löschen, zuständige Teams und außer Betrieb nehmen"
       },
       "owners": {
-        "who": "Produktverantwortliche",
-        "what": "Ihr Produkt sehen, ändern und verwalten"
+        "who": "Produkt-, Domänen- und Datenverantwortliche, Stewards",
+        "what": "Kein eigenes Recht – Dokumentation (geben Sie eine Freigabe, wenn nötig)"
       },
       "teams": {
         "who": "Mit zuständigen Teams",
@@ -831,7 +831,7 @@
       },
       "shares": {
         "who": "Freigaben",
-        "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Verantwortliche, Prüfer und Administratoren"
+        "what": "Ansehen, Bearbeiten oder Verwalten für eine Person, ein Team oder eine Rolle – nur für Nutzer des Moduls; eingeschränkt: nur Freigaben, Prüfer und Administratoren"
       }
     },
     "scopeHint": "Was Sie nicht sehen dürfen, wird anderswo weder aufgeführt noch gezählt noch genannt – Datenherkunft und Produktkarte zeigen es ohne Namen."
@@ -1120,6 +1120,9 @@
     "editTitle": "{{name}} ändern",
     "editNamed": "{{name}} ändern",
     "deleteNamed": "{{name}} löschen",
+    "access": "Zugriff",
+    "accessNamed": "Zugriff auf {{name}}",
+    "accessTitle": "Zugriff auf {{name}}",
     "deleteConfirm": "Die Domäne „{{name}}“ löschen? Nur eine Domäne ohne Unterdomänen, Produkte und Datenobjekte lässt sich löschen",
     "emptyTitle": "Noch keine Domänen",
     "emptyText": "Domänen gruppieren Produkte und Datenobjekte: Vertrieb, Kunde, Fertigung – mit Unterdomänen wie Vertrieb → Bestellungen.",

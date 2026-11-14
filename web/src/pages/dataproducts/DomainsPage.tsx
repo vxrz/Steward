@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Button, Group, Paper, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
-import { Link } from 'react-router-dom';
-import { IconFolders, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { ActionIcon, Anchor, Button, Group, Modal, Paper, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
+import { Link, useSearchParams } from 'react-router-dom';
+import { IconFolders, IconLock, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { DataDomain } from '@sm/shared';
 import { del, notifyError } from '../../api';
@@ -9,6 +9,7 @@ import { QueryState } from '../../components/common';
 import { ListPage } from '../../components/page/ListPage';
 import { confirmDanger } from '../../components/confirm';
 import { useSubjectLabel } from '../../components/SubjectsInput';
+import { AccessTab } from '../../components/access/AccessTab';
 import { ColorSwatchDot, DomainForm } from '../../components/dataproducts/ObjectForm';
 import { useDomains, useInvalidateDataProducts } from './api';
 import { useCanManageModule } from './rights';
@@ -16,6 +17,7 @@ import { useCanManageModule } from './rights';
 /**
  * The domains of the data products (ADR 0036 parts 1 and 12, decision 33): two levels – a domain and its sub-domains –
  * with owners and owning teams; the module's managers keep them. A domain's products and data objects are a click away.
+ * Its _Access_ (owning teams and shares, 0.25.1) opens in a dialog – also from `?open=<id>` (the shares' links).
  */
 export function DataDomainsPage() {
   const { t } = useTranslation(['dataProducts', 'common']);
@@ -24,7 +26,18 @@ export function DataDomainsPage() {
   const invalidate = useInvalidateDataProducts();
   const subject = useSubjectLabel();
   const [editing, setEditing] = useState<{ domain?: DataDomain } | null>(null);
+  const [params, setParams] = useSearchParams();
   const all = q.data ?? [];
+  const accessOf = all.find((d) => d.id === params.get('open'));
+  const openAccess = (id: string | null) =>
+    setParams(
+      (p) => {
+        if (id) p.set('open', id);
+        else p.delete('open');
+        return p;
+      },
+      { replace: true },
+    );
   const top = all.filter((d) => !d.parentId || !all.some((x) => x.id === d.parentId)).sort((a, b) => a.name.localeCompare(b.name));
   const subs = (id: string) => all.filter((d) => d.parentId === id).sort((a, b) => a.name.localeCompare(b.name));
   const remove = async (d: DataDomain) => {
@@ -72,22 +85,27 @@ export function DataDomainsPage() {
               .join(' · ')}
           </Text>
         </Stack>
-        {d.permissions.includes('edit') && (
-          <Group gap={2} wrap="nowrap">
+        <Group gap={2} wrap="nowrap">
+          <Tooltip label={t('domains.access')}>
+            <ActionIcon variant="subtle" color="gray" aria-label={t('domains.accessNamed', { name: d.name })} onClick={() => openAccess(d.id)}>
+              <IconLock size={16} />
+            </ActionIcon>
+          </Tooltip>
+          {d.permissions.includes('edit') && (
             <Tooltip label={t('common:edit')}>
               <ActionIcon variant="subtle" color="gray" aria-label={t('domains.editNamed', { name: d.name })} onClick={() => setEditing({ domain: d })}>
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
-            {d.permissions.includes('manage') && (
-              <Tooltip label={t('common:delete')}>
-                <ActionIcon variant="subtle" color="red" aria-label={t('domains.deleteNamed', { name: d.name })} onClick={() => void remove(d)}>
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Tooltip>
-            )}
-          </Group>
-        )}
+          )}
+          {d.permissions.includes('manage') && (
+            <Tooltip label={t('common:delete')}>
+              <ActionIcon variant="subtle" color="red" aria-label={t('domains.deleteNamed', { name: d.name })} onClick={() => void remove(d)}>
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
       </Group>
     </Paper>
   );
@@ -125,6 +143,9 @@ export function DataDomainsPage() {
           </Stack>
         ))}
       </SimpleGrid>
+      <Modal opened={!!accessOf} onClose={() => openAccess(null)} title={accessOf ? t('domains.accessTitle', { name: accessOf.name }) : ''} size="xl">
+        {accessOf && <AccessTab kind="data_domain" id={accessOf.id} />}
+      </Modal>
       {editing && (
         <DomainForm
           domain={editing.domain}

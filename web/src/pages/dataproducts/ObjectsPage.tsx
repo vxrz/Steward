@@ -21,7 +21,7 @@ import { ListPage } from '../../components/page/ListPage';
 import { DetailPage } from '../../components/page/DetailPage';
 import { LinkTabs } from '../../components/page/LinkTabs';
 import { confirmDanger } from '../../components/confirm';
-import { OwningTeams } from '../../components/OwningTeams';
+import { AccessTab } from '../../components/access/AccessTab';
 import { useSubjectLabel } from '../../components/SubjectsInput';
 import { ObjectForm } from '../../components/dataproducts/ObjectForm';
 import { OssieMenu } from '../../components/dataproducts/Transfer';
@@ -447,7 +447,8 @@ export function DataObjectPage() {
                   </List>
                 </Section>
               )}
-              <OwningTeams kind="data_object" id={o.id} />
+              {/* owning teams and shares (0.25.1: the data owner and stewards are documentation, ADR 0038) */}
+              <AccessTab kind="data_object" id={o.id} />
               <Text size="xs" c="dimmed">
                 {t('history.updated', { user: o.updatedBy, date: fmtDate(o.updatedAt), revision: o.revision })}
               </Text>

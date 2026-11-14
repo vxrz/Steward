@@ -88,7 +88,7 @@
     "purpose": "Purpose",
     "purposeHint": "What the product is for and who it serves.",
     "owners": "Product owners",
-    "ownersHint": "Users or teams who answer for the product. Named from outside its owning teams, they see and change it.",
+    "ownersHint": "Who answers for the product on the business side – documentation: it gives no right in Steward.",
     "support": "Support",
     "supportChannel": "Channel",
     "supportUrl": "Web address",
@@ -792,7 +792,7 @@
   },
   "access": {
     "owners": "Product owners",
-    "ownersHint": "Responsibility, not a right of its own: named from outside the owning teams they see, change and manage the product – adding such an owner asks you to confirm it is you.",
+    "ownersHint": "Documentation, not a right: product owners are named for the business side and need no Steward account. Who may see or change the product comes from its owning teams, roles and shares above.",
     "rules": "Who may do what",
     "who": "Who",
     "what": "Rights",
@@ -806,8 +806,8 @@
         "what": "Create and change products; delete, owning teams and retiring"
       },
       "owners": {
-        "who": "Product owners",
-        "what": "See, change and manage their product"
+        "who": "Product owners, domain owners, data owners, stewards",
+        "what": "No right of their own – documentation (give a share if they need one)"
       },
       "teams": {
         "who": "With owning teams",
@@ -815,7 +815,7 @@
       },
       "shares": {
         "who": "Shares",
-        "what": "View, Edit or Manage for a person, a team or a role – only for those who use the module; Restricted: only the shares, owners, auditors and administrators"
+        "what": "View, Edit or Manage for a person, a team or a role – only for those who use the module; Restricted: only the shares, auditors and administrators"
       }
     },
     "scopeHint": "What you may not see is neither listed nor counted nor named elsewhere – lineage and the map draw it without a name."
@@ -1104,6 +1104,9 @@
     "editTitle": "Change {{name}}",
     "editNamed": "Change {{name}}",
     "deleteNamed": "Delete {{name}}",
+    "access": "Access",
+    "accessNamed": "Access to {{name}}",
+    "accessTitle": "Access to {{name}}",
     "deleteConfirm": "Delete the domain “{{name}}”? Only a domain without sub-domains, products and data objects can be deleted",
     "emptyTitle": "No domains yet",
     "emptyText": "Domains group products and data objects: Sales, Customer, Manufacturing – with sub-domains such as Sales → Orders.",

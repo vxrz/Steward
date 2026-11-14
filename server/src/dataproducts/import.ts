@@ -80,7 +80,7 @@ import { Snapshot, consumerIdentity, domainEntry, elementEntry, elementKey, elem
  * what the files say; a key a file leaves out keeps Steward's value; nothing is removed).
  *
  * Every write goes through the module's services, as the person importing: their rights, the limits, the rules of
- * lifecycles, bindings and steps, the access.grant step-up for owners named from outside the owning teams and the
+ * lifecycles, bindings and steps and the
  * audit trail are those of the pages. What the person may not see does not exist for an import – a key, element,
  * platform, contract or application they may not see is refused like an unknown one, never named. The preview runs the
  * same writes in a transaction that is rolled back (not audited), so it finds what the services would refuse. The
@@ -1061,7 +1061,7 @@ function step(run: Run, file: string, entry: string, what: string, fn: () => voi
       throw e;
     }
     run.failed.add(entry);
-    if (STEP_UP.has(e.code ?? '')) run.plan.warnings.push(`${entry}: names someone outside the owning teams – importing asks you to confirm it is you`);
+    if (STEP_UP.has(e.code ?? '')) run.plan.warnings.push(`${entry}: needs a confirmation – importing asks you to confirm it is you`);
     else if (run.plan.problems.length < IL.problems)
       run.plan.problems.push({ file, path: `${entry}${what ? ` (${what})` : ''}`, message: e.message, ...(e.code ? { code: e.code } : {}) });
     return false;

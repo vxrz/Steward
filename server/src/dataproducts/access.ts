@@ -7,10 +7,9 @@ import {
   type Role,
 } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin } from '../auth/permissions.js';
 import { memberships, owningTeams, shareReasons, teamScoped, type ShareModel } from '../auth/policy.js';
 import { isRestricted } from '../auth/share-store.js';
-import { parseJson } from '../util.js';
 import { usesModule as usesModuleAccess } from '../modules/access.js';
 import { grantedModuleRoles } from '../modules/grants.js';
 
@@ -26,9 +25,10 @@ import { grantedModuleRoles } from '../modules/grants.js';
  *
  * Per item (owned kinds data_product, data_object, data_element, data_domain): without owning teams every working
  * role sees it and managers (designers) change it; with owning teams their members do (with their instance and team
- * roles), auditors see it, administrators may do everything. Named people add their rights on top: the product owner
- * (owners of a product) and a domain's owners may view, edit and manage; a data object's owner and stewards may see it
- * (responsibility, not rights – decision 6). Rights only add up.
+ * roles), auditors see it, administrators may do everything. Shares of products, domains and data objects (ADR 0033)
+ * add a level on top. Rights only add up. **Owner fields give no rights** (0.25.1, ADR 0038 part 2): product owners,
+ * domain owners, a data object's owner and stewards are documentation – who held a right only through such a field got
+ * an explicit share at the upgrade (migrations/dataproducts.ts `dataproducts-007a-owner-shares`).
  *
  * Elements can be hundreds of thousands: their owning teams are read in bulk (store.elementTeamIds) and lists filter in
  * SQL (elementScopeSql), never through the per-request index of owning teams.
@@ -117,22 +117,16 @@ function normalise(d: ItemDecision): ItemDecision {
 }
 
 /**
- * How a share gives rights on a data product (ADR 0033 part 1; the levels only – the kind has no action rights yet):
- * View sees it, Edit changes it, Manage also changes its owning teams, shares and lifecycle _retired_ and deletes it.
+ * How a share gives rights on a data product, a domain or a data object (ADR 0033 part 1; the levels only – the kinds
+ * have no action rights yet): View sees it, Edit changes it, Manage also changes its owning teams, shares and lifecycle
+ * _retired_ and deletes it.
  */
 export const DATA_PRODUCT_SHARES: ShareModel<DataProductPermission> = {
   levels: { view: ['view'], edit: ['view', 'edit'], manage: ['view', 'edit', 'manage'] },
 };
 
-function decideItem(
-  u: AuthUser | null,
-  kind: DataProductOwnedKind,
-  id: string,
-  personal: readonly DataProductPermission[],
-  subject?: string,
-  shares?: ShareModel<DataProductPermission>,
-): ItemDecision {
-  // module access first: who does not use the module has no right on its items (named owners included)
+function decideItem(u: AuthUser | null, kind: DataProductOwnedKind, id: string, shares: ShareModel<DataProductPermission>): ItemDecision {
+  // module access first: who does not use the module has no right on its items (shares included)
   if (u && !usesModuleAccess(u, 'dataProducts')) return { permissions: [], reasons: [] };
   const d = teamScoped<DataProductPermission>(
     u,
@@ -140,10 +134,10 @@ function decideItem(
     {
       all: ALL,
       byRole,
-      personal: personal.length ? { permissions: personal, ...(subject ? { subject, as: 'owner' as const } : {}) } : null,
+      personal: null,
       auditor: ['view'],
       unscoped: () => {
-        const granted = new Set<DataProductPermission>(personal);
+        const granted = new Set<DataProductPermission>();
         for (const r of u?.roles ?? []) for (const p of byRole(r)) granted.add(p);
         return ALL.filter((p) => granted.has(p));
       },
@@ -154,16 +148,15 @@ function decideItem(
   // Restricted, and on an owning team's items for its members
   const teamsOf = owningTeams(kind, id);
   const mine = memberships(u);
-  const moduleWide = (!teamsOf.length && !(shares && isRestricted(kind, id))) || teamsOf.some((t) => mine.has(t.id)) ? grantedReasons(u) : [];
+  const moduleWide = (!teamsOf.length && !isRestricted(kind, id)) || teamsOf.some((t) => mine.has(t.id)) ? grantedReasons(u) : [];
   if (moduleWide.length) {
     const reasons = [...d.reasons, ...moduleWide];
     const granted = new Set([...d.permissions, ...moduleWide.flatMap((r) => r.permissions)]);
     d.reasons = reasons;
     d.permissions = ALL.filter((p) => granted.has(p));
   }
-  if (!shares) return normalise(d);
-  // shares (ADR 0033, kinds switched to shares): they add a level; a Restricted item without owning teams gives the
-  // instance roles nothing – only its shares, its named owners, auditors (view) and administrators reach it
+  // shares (ADR 0033): they add a level; a Restricted item without owning teams gives the instance roles nothing –
+  // only its shares, auditors (view) and administrators reach it
   let reasons = d.reasons;
   if (!owningTeams(kind, id).length && isRestricted(kind, id)) {
     reasons = reasons.filter((r) => r.source !== 'instanceRole' && r.source !== 'moduleRole');
@@ -174,27 +167,19 @@ function decideItem(
   return normalise({ permissions: ALL.filter((p) => granted.has(p)), reasons });
 }
 
-const firstMatch = (u: AuthUser | null, subjects: readonly string[]): string | undefined => (u ? subjects.find((s) => matches(u, s)) : undefined);
-
-/** A data product: the product owner (owners) may view, edit and manage it. */
-export function productAccess(u: AuthUser | null, p: { id: string; owners: string | readonly string[] }): ItemDecision {
-  const owners = typeof p.owners === 'string' ? parseJson<string[]>(p.owners, []) : p.owners;
-  const owner = firstMatch(u, owners);
-  return decideItem(u, 'data_product', p.id, owner ? ALL : [], owner, DATA_PRODUCT_SHARES);
+/** A data product: its owning teams, roles and shares (its product owners are contacts and give no right). */
+export function productAccess(u: AuthUser | null, p: { id: string }): ItemDecision {
+  return decideItem(u, 'data_product', p.id, DATA_PRODUCT_SHARES);
 }
 
-/** A domain: its owners and the module's managers. */
-export function domainAccess(u: AuthUser | null, d: { id: string; owners: string | readonly string[] }): ItemDecision {
-  const owners = typeof d.owners === 'string' ? parseJson<string[]>(d.owners, []) : d.owners;
-  const owner = firstMatch(u, owners);
-  return decideItem(u, 'data_domain', d.id, owner ? ALL : [], owner);
+/** A domain: its owning teams, the module's managers and its shares (domain owners give no right). */
+export function domainAccess(u: AuthUser | null, d: { id: string }): ItemDecision {
+  return decideItem(u, 'data_domain', d.id, DATA_PRODUCT_SHARES);
 }
 
-/** A data object: its data owner and stewards see it (responsibility, not rights); editing follows its owning teams. */
-export function objectAccess(u: AuthUser | null, o: { id: string; owner: string | null; stewards: string | readonly string[] }): ItemDecision {
-  const stewards = typeof o.stewards === 'string' ? parseJson<string[]>(o.stewards, []) : o.stewards;
-  const named = firstMatch(u, [...(o.owner ? [`user:${o.owner.toLowerCase()}`] : []), ...stewards]);
-  return decideItem(u, 'data_object', o.id, named ? ['view'] : [], named);
+/** A data object: its owning teams, roles and shares (its data owner and stewards give no right). */
+export function objectAccess(u: AuthUser | null, o: { id: string }): ItemDecision {
+  return decideItem(u, 'data_object', o.id, DATA_PRODUCT_SHARES);
 }
 
 /**

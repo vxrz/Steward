@@ -27,14 +27,12 @@ import {
   type DataMemberRole,
   type RatingFloor,
   type RatingFloorDimension,
-  type OwnedKind,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentStore, currentUser, type AuthUser } from '../auth/context.js';
+import { currentStore, type AuthUser } from '../auth/context.js';
 import { forbid, me } from '../auth/access.js';
-import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, type OwningTeam } from '../auth/policy.js';
-import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
+import { assignCreatorTeams, forgetOwningTeams, owningTeams } from '../auth/policy.js';
 import { forgetShares } from '../auth/shares.js';
 import { environmentList } from '../catalogue/environments.js';
 import { currentScale } from '../catalogue/cia.js';
@@ -67,7 +65,7 @@ import { forgetGovernance } from './governance-cleanup.js';
 /**
  * Domains, data objects and data products (ADR 0036 parts 1–4, 12, 17): reading with team scope (a reader never sees,
  * counts or is told about what they may not see – a hidden domain or successor is a reference without a name), writing
- * with the rights of access.ts, named owners from outside the owning teams confirmed (access.grant), every change
+ * with the rights of access.ts (owner fields are documentation and give no right – ADR 0038 part 2), every change
  * audited. Members, ports and consumers are in members.ts and ports.ts, elements in elements.ts, steps in steps.ts.
  */
 
@@ -194,34 +192,6 @@ function checkParent(id: string | null, parentId: string | null): void {
     throw new HttpError(400, 'This domain has sub-domains: it stays a top-level domain', 'DATA_DOMAIN_LEVELS', { parent: p.name });
 }
 
-const subjectsGrant = (
-  entityType: string,
-  id: string | null,
-  label: string,
-  teams: readonly OwningTeam[],
-  field: string,
-  before: string[],
-  after: string[],
-  rights: string[],
-): NamedGrant => ({ entityType, entityId: id, label, field, teams, before, after: [...new Set(after)], rights });
-
-const teamsOf = (kind: OwnedKind, id: string | null): OwningTeam[] => (id ? owningTeams(kind, id) : newResourceTeams(currentUser()).teams);
-
-/** Named domain owners from outside its owning teams (the route's step-up asks before the handler). */
-export function domainNamesOutsiders(id: string | null, body: unknown): string[] {
-  const input = dataDomainInput.parse(body);
-  const cur = id ? domainRow(id) : undefined;
-  if (id && (!cur || !domainAccess(me(), cur).permissions.includes('edit'))) return [];
-  if (!id && !canManageModule(me())) return [];
-  return outsidersOf(
-    subjectsGrant('data_domain', id, `domain "${input.name}"`, teamsOf('data_domain', id), 'owners', parseJson(cur?.owners, []), input.owners, [
-      'view',
-      'edit',
-      'manage',
-    ]),
-  );
-}
-
 export function createDomain(body: unknown): DataDomain {
   const u = me();
   if (!canManageModule(u)) forbid('create data domains', 'dataProducts');
@@ -229,12 +199,6 @@ export function createDomain(body: unknown): DataDomain {
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_domains')!.n) >= L.domains) throw limitReached('domains', L.domains);
   refuseTakenKey('dp_domains', input.key);
   checkParent(null, input.parentId);
-  const grant = subjectsGrant('data_domain', null, `domain "${input.name}"`, teamsOf('data_domain', null), 'owners', [], input.owners, [
-    'view',
-    'edit',
-    'manage',
-  ]);
-  const added = requireNamedGrant(grant);
   const id = newId(DATA_PRODUCT_ID_PREFIX.domain);
   const now = nowIso();
   db().tx(() => {
@@ -260,7 +224,6 @@ export function createDomain(body: unknown): DataDomain {
       summary: `Data domain "${input.name}" (${input.key}) created`,
       details: { key: input.key, parentId: input.parentId },
     });
-    auditNamedGrant({ ...grant, entityId: id }, added);
   });
   return getDomain(id);
 }
@@ -271,17 +234,6 @@ export function updateDomain(id: string, body: unknown): DataDomain {
   const input = dataDomainInput.parse(body);
   refuseTakenKey('dp_domains', input.key, row.id);
   checkParent(row.id, input.parentId);
-  const grant = subjectsGrant(
-    'data_domain',
-    row.id,
-    `domain "${input.name}"`,
-    owningTeams('data_domain', row.id),
-    'owners',
-    parseJson(row.owners, []),
-    input.owners,
-    ['view', 'edit', 'manage'],
-  );
-  const added = requireNamedGrant(grant);
   db().tx(() => {
     db().run(
       `UPDATE dp_domains SET key = ?, name = ?, description = ?, parent_id = ?, colour = ?, owners = ?, revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?`,
@@ -302,7 +254,6 @@ export function updateDomain(id: string, body: unknown): DataDomain {
       summary: `Data domain "${input.name}" changed`,
       details: { before: { key: row.key, name: row.name, parentId: row.parent_id }, after: { key: input.key, name: input.name, parentId: input.parentId } },
     });
-    auditNamedGrant({ ...grant, entityId: row.id }, added);
   });
   return getDomain(row.id);
 }
@@ -320,6 +271,7 @@ export function deleteDomain(id: string): void {
   db().tx(() => {
     db().run('DELETE FROM dp_domains WHERE id = ?', row.id);
     forgetOwningTeams('data_domain', row.id);
+    forgetShares('data_domain', row.id);
     audit({ action: 'datadomain.deleted', entityType: 'data_domain', entityId: row.id, summary: `Data domain "${row.name}" (${row.key}) deleted` });
   });
 }
@@ -444,29 +396,6 @@ export function getObject(id: string): DataObject {
   };
 }
 
-const objectSubjects = (o: { owner: string | null; stewards: string[] }) => [...(o.owner ? [`user:${o.owner.toLowerCase()}`] : []), ...o.stewards];
-
-export function objectNamesOutsiders(id: string | null, body: unknown): string[] {
-  const input = dataObjectInput.parse(body);
-  const cur = id ? objectRow(id) : undefined;
-  if (id && (!cur || !objectAccess(me(), cur).permissions.includes('edit'))) return [];
-  if (!id && !canCreate(me())) return [];
-  return outsidersOf(objectGrant(cur, input.name, objectSubjects(input)));
-}
-
-function objectGrant(cur: ObjectRow | undefined, name: string, after: string[]): NamedGrant {
-  return subjectsGrant(
-    'data_object',
-    cur?.id ?? null,
-    `data object "${name}"`,
-    teamsOf('data_object', cur?.id ?? null),
-    'owner and stewards',
-    cur ? objectSubjects({ owner: cur.owner, stewards: parseJson(cur.stewards, []) }) : [],
-    after,
-    ['view'],
-  );
-}
-
 function objectValues(input: ReturnType<typeof dataObjectInput.parse>): unknown[] {
   return [
     input.key,
@@ -504,8 +433,6 @@ export function createObject(body: unknown): DataObject {
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_objects')!.n) >= L.objects) throw limitReached('objects', L.objects);
   refuseTakenKey('dp_objects', input.key);
   usableDomain(input.domainId);
-  const grant = objectGrant(undefined, input.name, objectSubjects(input));
-  const added = requireNamedGrant(grant);
   const id = newId(DATA_PRODUCT_ID_PREFIX.object);
   const now = nowIso();
   db().tx(() => {
@@ -527,7 +454,6 @@ export function createObject(body: unknown): DataObject {
       summary: `Data object "${input.name}" (${input.key}) created`,
       details: { key: input.key },
     });
-    auditNamedGrant({ ...grant, entityId: id }, added);
   });
   return getObject(id);
 }
@@ -538,8 +464,6 @@ export function updateObject(id: string, body: unknown): DataObject {
   const input = dataObjectInput.parse(body);
   refuseTakenKey('dp_objects', input.key, row.id);
   if (input.domainId !== row.domain_id) usableDomain(input.domainId);
-  const grant = objectGrant(row, input.name, objectSubjects(input));
-  const added = requireNamedGrant(grant);
   const dates = parseJson<Record<string, string>>(row.lifecycle_dates, {});
   if (input.lifecycle !== row.lifecycle) dates[input.lifecycle] = nowIso().slice(0, 10);
   db().tx(() => {
@@ -560,7 +484,6 @@ export function updateObject(id: string, body: unknown): DataObject {
       summary: `Data object "${input.name}" changed${input.lifecycle !== row.lifecycle ? ` (${row.lifecycle} → ${input.lifecycle})` : ''}`,
       details: { key: input.key, classification: input.classification, personalData: input.personalData, lifecycle: input.lifecycle },
     });
-    auditNamedGrant({ ...grant, entityId: row.id }, added);
   });
   return getObject(row.id);
 }
@@ -574,6 +497,7 @@ export function deleteObject(id: string): void {
     deleteRatings('object', row.id);
     db().run('DELETE FROM dp_objects WHERE id = ?', row.id);
     forgetOwningTeams('data_object', row.id);
+    forgetShares('data_object', row.id);
     audit({ action: 'dataobject.deleted', entityType: 'data_object', entityId: row.id, summary: `Data object "${row.name}" (${row.key}) deleted` });
   });
 }
@@ -805,28 +729,6 @@ export function getProduct(id: string): DataProduct {
   };
 }
 
-function productGrant(cur: ProductRow | undefined, name: string, owners: string[]): NamedGrant {
-  return subjectsGrant(
-    'data_product',
-    cur?.id ?? null,
-    `data product "${name}"`,
-    teamsOf('data_product', cur?.id ?? null),
-    'owners',
-    parseJson(cur?.owners, []),
-    owners,
-    ['view', 'edit', 'manage'],
-  );
-}
-
-/** Named product owners from outside the owning teams (the route's step-up asks before the handler). */
-export function productNamesOutsiders(id: string | null, body: unknown): string[] {
-  const input = dataProductInput.parse(body);
-  const cur = id ? productRow(id) : undefined;
-  if (id && (!cur || !productAccess(me(), cur).permissions.includes('edit'))) return [];
-  if (!id && !canCreate(me())) return [];
-  return outsidersOf(productGrant(cur, input.name, input.owners));
-}
-
 /** A successor: another product the caller may see. */
 function usableSuccessor(id: string | null, self: string | null): void {
   if (!id) return;
@@ -869,8 +771,6 @@ export function createProduct(body: unknown): DataProduct {
   refuseTakenKey('dp_products', input.key);
   usableDomain(input.domainId);
   usableSuccessor(input.successorId, null);
-  const grant = productGrant(undefined, input.name, input.owners);
-  const added = requireNamedGrant(grant);
   const id = newId(DATA_PRODUCT_ID_PREFIX.product);
   const now = nowIso();
   db().tx(() => {
@@ -892,7 +792,6 @@ export function createProduct(body: unknown): DataProduct {
       summary: `Data product "${input.name}" (${input.key}) created`,
       details: { key: input.key, type: input.type, domainId: input.domainId },
     });
-    auditNamedGrant({ ...grant, entityId: id }, added);
   });
   return getProduct(id);
 }
@@ -903,8 +802,6 @@ export function updateProduct(id: string, body: unknown): DataProduct {
   refuseTakenKey('dp_products', input.key, row.id);
   if (input.domainId !== row.domain_id) usableDomain(input.domainId);
   if (input.successorId !== row.successor_id) usableSuccessor(input.successorId, row.id);
-  const grant = productGrant(row, input.name, input.owners);
-  const added = requireNamedGrant(grant);
   db().tx(() => {
     db().run(
       `UPDATE dp_products SET ${PRODUCT_COLUMNS.split(', ')
@@ -925,7 +822,6 @@ export function updateProduct(id: string, body: unknown): DataProduct {
         after: { key: input.key, name: input.name, domainId: input.domainId, type: input.type },
       },
     });
-    auditNamedGrant({ ...grant, entityId: row.id }, added);
   });
   return getProduct(row.id);
 }

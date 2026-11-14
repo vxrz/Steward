@@ -69,6 +69,7 @@ import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
+import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -1382,6 +1383,8 @@ function copyIntoTarget(
   migrateVendorTexts();
   // a package of a version before 0.23.0: its role "plant" becomes the plant registry's contributor grant (ADR 0034)
   convertDeprecatedRoles();
+  // a package of a version before 0.25.1: the shares made for owner fields are audited here (ADR 0038 part 2)
+  convertDataProductGovernance();
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },

@@ -520,22 +520,22 @@ describe('team scope', () => {
     expect((await dana('PUT', `/data-products/${p.id}/rating`, { classification: 'internal' })).classification).toBe('internal');
   });
 
-  it('asks for the access.grant step-up when owners name someone outside the owning teams', async () => {
+  it('owners are documentation (0.25.1, ADR 0038): naming one asks nothing and gives no right – a share does', async () => {
     const team = ((await s.api('GET', '/teams')) as { id: string; name: string }[]).find((t) => t.name === 'Data team')!.id;
     const p = await dana('POST', '/data-products', { key: 'team-owned', name: 'Team owned' });
     await s.api('PUT', `/owning-teams/data_product/${p.id}`, { teamIds: [team] });
     const strict = await s.as('dana', PW, { autoStepUp: false });
     // a sign-in counts as a confirmation: ended here
     await strict('DELETE', '/auth/step-up');
-    const refused = await fail(strict('PUT', `/data-products/${p.id}`, { key: 'team-owned', name: 'Team owned', owners: ['user:vera'] }));
-    expect(refused).toMatchObject({ status: 403, code: 'STEP_UP_REQUIRED' });
-    // a member of the team needs no confirmation
-    await strict('PUT', `/data-products/${p.id}`, { key: 'team-owned', name: 'Team owned', owners: ['user:olivia'] });
-    // confirmed: granted and audited as an access change
-    await dana('PUT', `/data-products/${p.id}`, { key: 'team-owned', name: 'Team owned', owners: ['user:olivia', 'user:vera'] });
-    expect((await vera('GET', `/data-products/${p.id}`)).permissions).toEqual(['view', 'edit', 'manage']);
+    // naming someone from outside the owning teams widens nothing: no confirmation, no access change
+    await strict('PUT', `/data-products/${p.id}`, { key: 'team-owned', name: 'Team owned', owners: ['user:vera'] });
+    expect(await fail(vera('GET', `/data-products/${p.id}`))).toMatchObject({ status: 404 });
     const entries = await s.api('GET', '/audit?action=access.named_subjects_granted');
-    expect(JSON.stringify(entries)).toContain('user:vera');
+    expect(JSON.stringify(entries)).not.toContain(p.id);
+    // a share is how someone outside the teams gets a right (asked and audited as an access change)
+    await dana('PUT', `/access/data_product/${p.id}/shares`, { shares: [{ subject: 'user:vera', level: 'edit' }] });
+    expect((await vera('GET', `/data-products/${p.id}`)).permissions).toEqual(['view', 'edit']);
+    expect(JSON.stringify(await s.api('GET', '/audit?action=access.share_added'))).toContain('user:vera');
   });
 });
 

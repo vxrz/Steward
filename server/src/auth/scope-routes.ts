@@ -136,9 +136,9 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
   if (kind === 'ticket') return ticketAccess(u, { id: r.id, responsible: r.responsible ?? '[]' });
   if (kind === 'site') return siteAccess(u, { id: r.id, acl: r.acl ?? '[]' });
   if (kind === 'contract') return contractAccess(u, { id: r.id });
-  if (kind === 'data_product') return productAccess(u, { id: r.id, owners: r.owners ?? '[]' });
-  if (kind === 'data_domain') return domainAccess(u, { id: r.id, owners: r.owners ?? '[]' });
-  if (kind === 'data_object') return objectAccess(u, { id: r.id, owner: r.owner ?? null, stewards: r.stewards ?? '[]' });
+  if (kind === 'data_product') return productAccess(u, { id: r.id });
+  if (kind === 'data_domain') return domainAccess(u, { id: r.id });
+  if (kind === 'data_object') return objectAccess(u, { id: r.id });
   if (kind === 'data_element')
     return elementAccess(
       u,
