@@ -390,6 +390,9 @@ describe('documented access (0.25.1, ADR 0038 part 3): no requests, no approvals
     // clearing it: not documented
     const cleared = await dana('PUT', `${url}/${c.id}`, { kind: 'text', text: 'Invented BI', decision: null });
     expect(cleared).toMatchObject({ approval: 'notDocumented', decision: null });
+    // the decision taken away is in the audit log: whom it named and when
+    const changed = (await s.api('GET', `/audit?action=dataproduct.consumer_changed&entityId=${product}&limit=1`)) as { details: Record<string, unknown> }[];
+    expect(changed[0]!.details.decisionCleared).toEqual({ decidedBy: [{ name: 'Invented product owner', role: 'productOwner' }], decidedOn: yesterday() });
     // the contact's page counts the decisions that name it
     expect((await dana('GET', `/contacts/${owner}`)).decisions).toBe(0);
     await dana('PUT', `${url}/${c.id}`, { kind: 'text', text: 'Invented BI', decision: decision(owner) });

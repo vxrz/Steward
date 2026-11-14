@@ -27,7 +27,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { elementAccess, objectAccess, productAccess } from './access.js';
 import { onLifecycleChanged, onPortDeleted } from './notices.js';
 import { CONSUMER_CONTACT_ROLE, contactsOf, legacyRoleLinks, linksOfSubjects } from './contacts.js';
-import { decisionView, documentDecision } from './decisions.js';
+import { decisionNames, decisionView, documentDecision } from './decisions.js';
 import { setLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 import type { ProductReads } from './ratings.js';
@@ -775,7 +775,16 @@ export function updateConsumer(productId: string, productName: string, portId: s
       entityType: 'data_product',
       entityId: productId,
       summary: `Data product "${productName}": consumer of port "${port.name}" changed`,
-      details: { portId: port.id, consumerId: cur.id, kind: input.kind, ...(input.approval ? { approval: input.approval } : {}) },
+      details: {
+        portId: port.id,
+        consumerId: cur.id,
+        kind: input.kind,
+        ...(input.approval ? { approval: input.approval } : {}),
+        // a documented decision taken away is evidence that goes: the entry names whom it named and when
+        ...(cur.decision && !input.decision && (input.decision === null || input.approval)
+          ? { decisionCleared: decisionNames(parseJson(cur.decision, null)) }
+          : {}),
+      },
     });
   });
   return listConsumers(productId, port.id).find((c) => c.id === cur.id)!;
