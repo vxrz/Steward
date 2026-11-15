@@ -975,6 +975,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications': DESIGN,
   'GET /api/applications/:id': ALL,
   'PUT /api/applications/:id': DESIGN,
+  // business contacts (0.26.0, ADR 0039): who may change the application
+  'PUT /api/applications/:id/contacts': DESIGN,
   'POST /api/applications/:id/archive': DESIGN,
   'PUT /api/applications/:id/rating': DESIGN,
   'POST /api/applications/:id/platforms': DESIGN,
@@ -1022,6 +1024,11 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/contacts/:id': DESIGN,
   'POST /api/contacts/:id/replace': DESIGN,
   'DELETE /api/contacts/:id': ADMIN,
+  // the role catalogue (0.26.0, ADR 0039): read by the pickers (plant viewers too), kept by administrators
+  'GET /api/contact-roles': PLANT,
+  'POST /api/contact-roles': ADMIN,
+  'PUT /api/contact-roles/:key': ADMIN,
+  'DELETE /api/contact-roles/:key': ADMIN,
   // suppliers (0.17.0, ADR 0029): like systems; the "To confirm" decisions need a session
   'GET /api/suppliers': ALL,
   'POST /api/suppliers': DESIGN,
@@ -1072,6 +1079,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/systems/edge-suggestions/dismiss': DESIGN,
   'POST /api/systems/edge-suggestions/restore': DESIGN,
   'PUT /api/systems/:id': DESIGN,
+  'PUT /api/systems/:id/contacts': DESIGN,
   'DELETE /api/systems/:id': DESIGN,
   'POST /api/systems/:id/sbom/preview': DESIGN,
   'POST /api/systems/:id/sbom': DESIGN,
@@ -1681,6 +1689,11 @@ const SESSION_ONLY = [
   'PUT /api/contacts/:id',
   'POST /api/contacts/:id/replace',
   'DELETE /api/contacts/:id',
+  // the role catalogue (0.26.0, ADR 0039): read by the pickers, kept by administrators in the app
+  'GET /api/contact-roles',
+  'POST /api/contact-roles',
+  'PUT /api/contact-roles/:key',
+  'DELETE /api/contact-roles/:key',
   // 0.25.0 (ADR 0037 part 3): a person confirms or dismisses each Industrial Edge suggestion in the app
   'POST /api/systems/edge-suggestions/confirm',
   'POST /api/systems/edge-suggestions/dismiss',
@@ -2703,6 +2716,10 @@ const bodies = (): Record<string, unknown> => ({
   'PATCH /api/services/:id/links/:linkId': { label: 'changed', note: 'n', linkType: 'repository' },
   'POST /api/applications': { name: 'app x', owners: [] },
   'PUT /api/applications/:id': { name: 'app x', owners: [] },
+  'PUT /api/applications/:id/contacts': { contacts: [] },
+  'PUT /api/systems/:id/contacts': { contacts: [] },
+  'POST /api/contact-roles': { labels: { en: 'Matrix role' }, kinds: ['service'] },
+  'PUT /api/contact-roles/:key': { labels: { en: 'Matrix role' }, kinds: ['service'] },
   'POST /api/applications/:id/archive': { archived: true },
   'PUT /api/applications/:id/rating': { confidentiality: { level: 'high', justification: 'x' } },
   'POST /api/applications/:id/platforms': { platformId: fx.platform },
