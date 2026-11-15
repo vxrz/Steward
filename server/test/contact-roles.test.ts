@@ -473,6 +473,51 @@ describe('inherited along the domain hierarchy', () => {
   });
 });
 
+describe('the data products file format', () => {
+  it('reads a role by key or label with deputy and until, writes the label, and refuses an unknown role with a hint', async () => {
+    const YAML = (await import('yaml')).default;
+    const doc = {
+      version: 1,
+      domains: [
+        {
+          key: 'inv-file-domain',
+          name: 'Invented file domain',
+          contacts: [
+            { role: 'Domain architect', name: 'Invented Ann', email: 'ann@invented.example', until: '2999-06-30' },
+            { role: 'domainArchitect', name: 'Invented Ben', email: 'ben@invented.example', deputy_of: 'ann@invented.example' },
+          ],
+        },
+        {
+          key: 'inv-file-bad',
+          name: 'Invented bad domain',
+          contacts: [{ role: 'Invented no such role', name: 'Invented Ann', email: 'ann@invented.example' }],
+        },
+      ],
+    };
+    // the import is refused as a whole, naming the entry and where roles are added – it never makes a role
+    const refused = await s
+      .api('POST', '/data-products/import', { files: [{ name: 'roles.yaml', content: YAML.stringify(doc) }], mode: 'add' })
+      .catch((e) => e);
+    expect(refused).toMatchObject({ status: 400, body: { code: 'CONTACT_ROLE_UNKNOWN', detail: expect.stringContaining('domains[inv-file-bad]') } });
+    expect(refused.body.detail).toContain('Settings → Contacts → Roles');
+    expect((await s.api('GET', '/contact-roles')).some((x: { labels: { en: string } }) => x.labels.en === 'Invented no such role')).toBe(false);
+    doc.domains.pop();
+    await s.api('POST', '/data-products/import', { files: [{ name: 'roles.yaml', content: YAML.stringify(doc) }], mode: 'add' });
+    const d = (await s.api('GET', '/data-domains')).find((x: { key: string }) => x.key === 'inv-file-domain');
+    expect(d.contacts.map((l: Link) => [l.role, l.contact.name, l.until ?? null, !!l.deputyOf])).toEqual([
+      ['domainArchitect', 'Invented Ann', '2999-06-30', false],
+      ['domainArchitect', 'Invented Ben', null, true],
+    ]);
+    expect((await s.api('GET', '/data-domains')).some((x: { key: string }) => x.key === 'inv-file-bad')).toBe(false);
+    const exported = YAML.parse(await s.api('GET', '/data-products/export?format=yaml'));
+    const contacts = exported.domains.find((x: { key: string }) => x.key === 'inv-file-domain').contacts;
+    expect(contacts).toEqual([
+      { role: 'domainArchitect', role_label: 'Domain architect', name: 'Invented Ann', email: 'ann@invented.example', until: '2999-06-30' },
+      { role: 'domainArchitect', role_label: 'Domain architect', name: 'Invented Ben', email: 'ben@invented.example', deputy_of: 'ann@invented.example' },
+    ]);
+  });
+});
+
 describe('plant sites at the upgrade', () => {
   it('each distinct free-text role becomes an own role; links name it; the registry shows the same texts; once', async () => {
     await s.api('PUT', '/settings/plant', { enabled: true, enterprise: 'Invented Plant AG', labels: {}, fields: {} });
