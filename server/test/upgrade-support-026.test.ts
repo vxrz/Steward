@@ -121,7 +121,7 @@ const OLD: { id: string; key: string; support: Record<string, string>; tier: num
 /** Everything the upgrade made, for comparing two starts. */
 const made = () =>
   look((d) => ({
-    levels: d.all('SELECT id, name_en, legacy_tier FROM support_levels ORDER BY id'),
+    levels: d.all('SELECT id, name_en, name_de, legacy_tier FROM support_levels ORDER BY id'),
     channels: d.all('SELECT id, kind, item_id, purpose, tool, name, address, hours, position FROM support_channels ORDER BY id'),
     products: d.all('SELECT id, support, tier, support_level_id FROM dp_products ORDER BY id'),
     audited: d.all<{ action: string; n: number }>(
@@ -192,9 +192,12 @@ describe('upgrade of the v0.25.0 fixture to support channels and levels (ADR 003
   });
 
   it('makes levels only of the tiers in use – no examples where tiers were used', () => {
-    expect((first.levels as { name_en: string; legacy_tier: number }[]).map((l) => [l.name_en, Number(l.legacy_tier)]).sort()).toEqual([
-      ['Tier 1', 1],
-      ['Tier 3', 3],
+    // English "Tier n", German "Stufe n" (levels have names in both)
+    expect(
+      (first.levels as { name_en: string; name_de: string; legacy_tier: number }[]).map((l) => [l.name_en, l.name_de, Number(l.legacy_tier)]).sort(),
+    ).toEqual([
+      ['Tier 1', 'Stufe 1', 1],
+      ['Tier 3', 'Stufe 3', 3],
     ]);
   });
 

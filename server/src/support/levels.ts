@@ -234,13 +234,16 @@ export function deleteLevel(id: string, opts: { replaceWith?: string | null; cle
   forgetLevels();
 }
 
-/** The level made from a support tier (1–3) – the upgrade's and the deprecated `tier`'s: "Tier n", made when missing. */
+/**
+ * The level made from a support tier (1–3) – the upgrade's and the deprecated `tier`'s: "Tier n" (German "Stufe n"), made
+ * when missing.
+ */
 export function levelOfTier(tier: number): LevelRow {
   const found = levelRows(0).find((r) => r.legacy_tier === tier);
   if (found) return found;
   const actor = currentUser()?.username ?? 'system';
   return insertLevel(
-    { nameEn: `Tier ${tier}`, nameDe: `Tier ${tier}`, hours: '', firstResponse: '', note: '', slaUrl: '', legacyTier: tier },
+    { nameEn: `Tier ${tier}`, nameDe: `Stufe ${tier}`, hours: '', firstResponse: '', note: '', slaUrl: '', legacyTier: tier },
     actor,
     'made from the support tier, for administrators to rename or merge',
   );

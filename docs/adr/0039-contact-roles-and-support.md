@@ -65,7 +65,7 @@ Guides and documentation for the consumers of a data product are recorded as **w
 ### 8. Upgrade
 
 - Today's single support channel becomes one channel with purpose _questions_ (tool _e-mail_ for a `mailto:` address, else _other_), with its hours.
-- Products with tier 1, 2 or 3 get the levels _Tier 1_, _Tier 2_ and _Tier 3_ (only those in use), for administrators to rename or merge – nothing is guessed. A new installation starts with three example levels (business hours, extended, 24×7).
+- Products with tier 1, 2 or 3 get the levels _Tier 1_, _Tier 2_ and _Tier 3_ (German _Stufe 1_ to _Stufe 3_; only those in use), for administrators to rename or merge – nothing is guessed. A new installation starts with three example levels (business hours, extended, 24×7).
 - The built-in roles are seeded with their keys unchanged, so every existing link keeps its role; plant site free-text roles become own roles (part 1).
 - `tier` and `support` in the API stay readable for one release, deprecated, derived from the level and the first _questions_ channel.
 

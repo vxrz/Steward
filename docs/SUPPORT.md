@@ -72,11 +72,11 @@ This works only for readers who may see the service. For anyone else the service
 Until 0.25 a data product had one free-text _Channel_, a web address and _Hours_, plus a bare _support tier_ 1–3. At the upgrade to 0.26.0 – once, when an administrator unlocks the vault (and after a migration package is imported), as the system:
 
 - each product's single support channel becomes **one channel** with the purpose _questions_ – tool _e-mail_ for a `mailto:` address, else _other_ – with its hours;
-- the tiers in use become the levels **Tier 1**, **Tier 2** and **Tier 3** (only those in use), picked by their products – for administrators to rename or merge (_Settings → Support levels_, remove with _Level instead_). Nothing is guessed;
+- the tiers in use become the levels **Tier 1**, **Tier 2** and **Tier 3** – in German **Stufe 1** to **Stufe 3** – (only those in use), picked by their products – for administrators to rename or merge (_Settings → Support levels_, remove with _Level instead_). Nothing is guessed;
 - each product converted is audited (`dataproduct.support_converted`), each level made as `support.level_created`; a second start changes nothing;
 - an installation without any tier gets the three example levels instead.
 
-`tier` and `support` stay readable on the API for one more release, **deprecated and derived**: `tier` from the level (the tier a level was made from, else null), `support` from the first channel with the purpose _questions_. A client that still sends them is understood as the upgrade does: `support` sets (or, empty, removes) the first channel for questions, `tier` picks the level _Tier n_ (made when missing); sending back what was read changes nothing, and leaving them out keeps the channels and the level. The same holds for `support:` and `tier:` in files.
+`tier` and `support` stay readable on the API for one more release, **deprecated and derived**: `tier` from the level (the tier a level was made from, else null), `support` from the first channel with the purpose _questions_. A client that still sends them is understood as the upgrade does: `support` sets (or, empty, removes) the first channel for questions, `tier` picks the level _Tier n_ (_Stufe n_, made when missing); sending back what was read changes nothing, and leaving them out keeps the channels and the level. The same holds for `support:` and `tier:` in files.
 
 ## Storage
 

@@ -403,12 +403,12 @@ describe('the upgrade', () => {
     ]);
     expect(one).toMatchObject({
       tier: 1,
-      supportLevel: { nameEn: 'Tier 1' },
+      supportLevel: { nameEn: 'Tier 1', nameDe: 'Stufe 1' },
       support: { channel: 'Data desk', url: 'mailto:desk@shop.example', hours: '8–17' },
     });
     const two = await read('dp_upg2');
     expect(two.supportChannels[0]).toMatchObject({ tool: 'other', address: 'https://wiki.example/data' });
-    expect(two).toMatchObject({ tier: 3, supportLevel: { nameEn: 'Tier 3' } });
+    expect(two).toMatchObject({ tier: 3, supportLevel: { nameEn: 'Tier 3', nameDe: 'Stufe 3' } });
     expect((await read('dp_upg3')).supportChannels).toEqual([]);
     const converted = await audits('dataproduct.support_converted');
     expect(converted).toHaveLength(2);
