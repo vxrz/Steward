@@ -136,7 +136,8 @@
     "maturity": "Reife",
     "costsLastMonth": "Kosten Vormonat",
     "costsIncomplete": "Unvollständig: Ein Teil, den Sie nicht sehen dürfen, fehlt in der Summe.",
-    "costsHidden": "Nicht angezeigt"
+    "costsHidden": "Nicht angezeigt",
+    "supportLevel": "Support-Level"
   },
   "product": {
     "newTitle": "Neues Datenprodukt",

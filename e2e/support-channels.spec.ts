@@ -98,6 +98,17 @@ test('a designer gives a product channels, a level and a guide; errors show at t
   await expect(form).toContainText('How bad an outage of the product is');
   await page.keyboard.press('Escape');
   await expectAccessible(page, 'support: the product page');
+
+  // the list: the support level is a column the reader can add (not shown at first)
+  await page.goto(`/data-products?q=${encodeURIComponent(name)}`);
+  const table = page.getByTestId('product-table');
+  await expect(table.getByRole('link', { name })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Support level' })).toHaveCount(0);
+  await page.getByTestId('product-columns').click();
+  await page.getByTestId('product-column-supportLevel').check();
+  await page.keyboard.press('Escape');
+  await expect(table.getByRole('columnheader', { name: 'Support level' })).toBeVisible();
+  await expect(table.getByRole('row').filter({ has: page.getByRole('link', { name }) })).toContainText('Extended');
 });
 
 test('a product supported by a service shows its channels and level, marked; services and applications have the section', async ({ page, apiAs }) => {

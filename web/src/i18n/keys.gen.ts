@@ -5546,6 +5546,7 @@ export interface Resources {
     'products.costsLastMonth': string;
     'products.costsIncomplete': string;
     'products.costsHidden': string;
+    'products.supportLevel': string;
     'product.newTitle': string;
     'product.editTitle': string;
     'product.create': string;

@@ -136,7 +136,8 @@
     "maturity": "Maturity",
     "costsLastMonth": "Costs last month",
     "costsIncomplete": "Incomplete: a part you may not see is left out of the total.",
-    "costsHidden": "Not shown"
+    "costsHidden": "Not shown",
+    "supportLevel": "Support level"
   },
   "product": {
     "newTitle": "New data product",
