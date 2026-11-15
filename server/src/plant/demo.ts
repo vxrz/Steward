@@ -6,6 +6,8 @@ import { applyImport } from './import.js';
 import { plantEnabled } from './settings.js';
 import { seedAdvisoryDemo } from './advisories/demo.js';
 import { seedPlantEdgeDemo } from './demo-edge.js';
+import { ensureSiteRoles } from './contacts.js';
+import { parseYaml } from '../yaml-safe.js';
 
 /** The demo's invented enterprise (examples/plant): two sites, their hierarchy and buildings, about ten assets. */
 export const PLANT_DEMO_FILE = 'brightwater.plant.yaml';
@@ -27,10 +29,20 @@ export function seedPlantDemo(): number {
     name,
     content: fs.readFileSync(path.join(config.examplesDir, 'plant', name), 'utf8'),
   }));
+  // 0.26.0 (ADR 0039): the roles the demo's site contacts name, as own roles of the catalogue (an import makes none)
+  ensureSiteRoles(files.flatMap((f) => demoSiteRoles(f.content)));
   const r = applyImport({ files, mode: 'add', missing: 'mark', replaces: null, removeMissing: false, cascade: false });
   // 0.14: a simulated CSAF provider with invented advisories for the demo's devices (docs/ADVISORIES.md)
   seedAdvisoryDemo();
   // 0.25.0 (ADR 0037): the edge device of milling line 1 – an asset whose device is a system (plant/demo-edge.ts)
   seedPlantEdgeDemo();
   return r.counts.add;
+}
+
+/** The role texts the site contacts of a demo file name. */
+function demoSiteRoles(content: string): string[] {
+  const doc = parseYaml(content, { maxBytes: 10 * 1024 * 1024, maxKeys: 500_000, maxAliasCount: 100 }) as {
+    sites?: { contacts?: { role?: unknown }[] }[];
+  } | null;
+  return (doc?.sites ?? []).flatMap((s) => (s.contacts ?? []).map((c) => (typeof c.role === 'string' ? c.role : '')));
 }

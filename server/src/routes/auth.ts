@@ -48,7 +48,7 @@ import { logger } from '../log.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
-import { convertItemContacts } from '../contacts/upgrade.js';
+import { convertItemContacts, convertPlantSiteRoles } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
 import { ACCESS, me } from '../auth/access.js';
@@ -88,6 +88,8 @@ async function onUnlocked(): Promise<void> {
   runAs(null, () => {
     convertItemContacts();
     convertDataProductGovernance();
+    // contact roles (0.26.0, ADR 0039): plant sites' free-text roles become own roles of the catalogue, once
+    convertPlantSiteRoles();
   });
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation

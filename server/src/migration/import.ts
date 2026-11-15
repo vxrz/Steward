@@ -68,7 +68,7 @@ import { importedDefaults } from '../teams/settings.js';
 import { env } from '../config.js';
 import { migrateMonitorWindows } from '../catalogue/maintenance.js';
 import { migrateVendorTexts } from '../suppliers/migrate.js';
-import { convertItemContacts } from '../contacts/upgrade.js';
+import { convertItemContacts, convertPlantSiteRoles } from '../contacts/upgrade.js';
 import { runAs } from '../auth/context.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
@@ -1392,6 +1392,8 @@ function copyIntoTarget(
   runAs(null, () => {
     convertItemContacts();
     convertDataProductGovernance();
+    // a package of a version before 0.26.0: plant sites' free-text roles become own roles (ADR 0039)
+    convertPlantSiteRoles();
   });
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
