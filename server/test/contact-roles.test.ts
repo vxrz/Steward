@@ -229,6 +229,9 @@ describe('cardinality, deputy and until', () => {
       expect.objectContaining({ role: 'technicalLead', contact: expect.objectContaining({ id: ids.cara }), until: '2000-01-01' }),
     ]);
     expect(r.contacts[0].deputyOf).toBeUndefined();
+    // an end date is a day that exists
+    for (const until of ['2026-02-30', '2026-13-01', '31.12.2026'])
+      expect((await refusal(put([{ role: 'technicalLead', contactId: ids.ann, until }]))).status, until).toBe(400);
     // a deputy of a contact in another role, of itself, or of another deputy is refused
     expect(
       await refusal(

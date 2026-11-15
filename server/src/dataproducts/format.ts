@@ -39,6 +39,7 @@ import {
   SUPPORT_PURPOSES,
   SUPPORT_TOOLS,
   SUPPORT_URL_RE,
+  isCalendarDate,
 } from '@sm/shared';
 
 /**
@@ -187,6 +188,7 @@ export const contactFileSchema = z
     until: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine(isCalendarDate, 'a date like 2027-03-31')
       .optional()
       .describe('0.26.0: named until this day (YYYY-MM-DD)'),
   })
