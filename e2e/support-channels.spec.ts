@@ -39,7 +39,7 @@ test('a designer gives a product channels, a level and a guide; errors show at t
   await dialog.getByTestId('support-channel-address').fill('javascript:alert(1)');
   await dialog.getByTestId('support-save').click();
   await expect(dialog.getByTestId('support-channel-address')).toHaveAttribute('aria-invalid', 'true');
-  await expect(dialog).toContainText('Enter an address starting with https://, mailto: or tel:');
+  await expect(dialog).toContainText('Enter an address starting with https:// (or http://), mailto: or tel:');
   await dialog.getByTestId('support-channel-address').fill('mailto:orders-data@shop.example');
   await dialog.getByRole('textbox', { name: 'Name' }).fill('Orders data desk (invented)');
   await dialog.getByRole('textbox', { name: 'Hours' }).first().fill('Mo–Fr 08–17');
