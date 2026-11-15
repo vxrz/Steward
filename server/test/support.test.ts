@@ -498,6 +498,34 @@ describe('ODPS', () => {
   });
 });
 
+describe('ODPS import limits', () => {
+  it('keeps the first 20 channels and 30 guides and says so; an end date that is no day is left out with a warning', async () => {
+    const doc = {
+      apiVersion: 'v1.0.0',
+      kind: 'DataProduct',
+      id: 'support-odps-many',
+      name: 'Support ODPS many',
+      status: 'draft',
+      support: Array.from({ length: 21 }, (_, i) => ({ channel: `Desk ${i}`, url: `https://desk.example/${i}`, scope: 'issues' })),
+      authoritativeDefinitions: Array.from({ length: 31 }, (_, i) => ({ type: 'userGuide', url: `https://wiki.example/g${i}`, description: `Guide ${i}` })),
+      team: { members: [{ username: 'ann@shop.example', name: 'Invented Ann', role: 'productOwner', dateOut: '2026-02-30' }] },
+    };
+    const files = [{ name: 'many.odps.yaml', content: YAML.stringify(doc) }];
+    const pv = await dana('POST', '/data-products/import/preview', { files, mode: 'update' });
+    expect(pv.problems, JSON.stringify(pv.problems)).toEqual([]);
+    const said = (pv.warnings as string[]).join('\n');
+    expect(said).toContain('21 support channels – the first 20 are kept');
+    expect(said).toContain('31 user guides – the first 30 are kept');
+    expect(said).toContain('dateOut "2026-02-30"');
+    await dana('POST', '/data-products/import', { files, mode: 'update', fingerprint: pv.fingerprint });
+    const list = (await dana('GET', '/data-products?q=support-odps-many')) as { items: { id: string }[] };
+    const p = await dana('GET', `/data-products/${list.items[0]!.id}`);
+    expect([p.supportChannels.length, p.guides.length]).toEqual([20, 30]);
+    expect(p.contacts).toEqual([expect.objectContaining({ role: 'productOwner', contact: expect.objectContaining({ name: 'Invented Ann' }) })]);
+    expect(p.contacts[0].until).toBeUndefined();
+  });
+});
+
 describe('ODPS of a product supported by a service', () => {
   /** A product of the whole instance supported by the shop team's service, with nothing of its own. */
   async function supportedProduct(key: string): Promise<string> {

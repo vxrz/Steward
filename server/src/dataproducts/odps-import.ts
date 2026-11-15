@@ -9,6 +9,7 @@ import {
   DATA_PRODUCT_LIFECYCLES,
   DATA_PRODUCT_TYPES,
   isProductionEnvironment,
+  isCalendarDate,
   isSupportAddress,
   isSupportUrl,
   SUPPORT_LIMITS as SL,
@@ -158,6 +159,7 @@ export function odpsToFile(raw: Obj): OdpsConversion {
       .filter((r) => isGuide(r) && isSupportUrl(str(r.url) ?? ''))
       .map((r) => ({ title: (str(r.description) ?? str(r.url)!).slice(0, SL.title), url: str(r.url)! }));
     if (guides.length) product.guides = guides.slice(0, SL.guides);
+    if (guides.length > SL.guides) warnings.push(`ODPS ${key}: ${guides.length} user guides – the first ${SL.guides} are kept`);
   }
   // the product owners and business contacts (0.25.1: contacts): team members with those roles – an e-mail address as
   // username is the contact's address, another username a Steward user (Steward's exports of before 0.25.1); teams
@@ -180,12 +182,15 @@ export function odpsToFile(raw: Obj): OdpsConversion {
       const email = /^[^\s@]+@[^\s@]+$/.test(username) ? username : undefined;
       // a member with a name is that contact; one with only a username (Steward's exports of before 0.25.1) the account's
       const name = str(m.name);
-      const until = str(m.dateOut);
+      // the end date: a day that exists (ODPS's date format lets 2026-02-30 through)
+      const out = str(m.dateOut)?.slice(0, 10);
+      const until = out && isCalendarDate(out) ? out : undefined;
+      if (out && !until) warnings.push(`ODPS ${key}: the dateOut "${out}" of team member ${(name ?? username).slice(0, 60)} is not a date – left out`);
       contacts.push({
         role,
         name: name ?? username,
         ...(email ? { email } : name ? {} : { user: username }),
-        ...(until && /^\d{4}-\d{2}-\d{2}/.test(until) ? { until: until.slice(0, 10) } : {}),
+        ...(until ? { until } : {}),
       });
     }
     if (refusedRoles.size)
@@ -237,6 +242,7 @@ export function odpsToFile(raw: Obj): OdpsConversion {
       });
     }
     if (channels.length || marked) product.support_channels = channels.slice(0, SL.channels);
+    if (channels.length > SL.channels) warnings.push(`ODPS ${key}: ${channels.length} support channels – the first ${SL.channels} are kept`);
   }
 
   // Steward's extras
