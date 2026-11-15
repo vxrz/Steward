@@ -13,7 +13,7 @@ import { Snapshot, objectivesFile } from './export.js';
 import { defaultEnvironment } from './health.js';
 import { ratingsByItem } from './ratings.js';
 import { visibleProduct } from './service.js';
-import { supportOf } from '../support/items.js';
+import { levelSummary, supportOf } from '../support/items.js';
 import { bindingsOf, environmentsOf, marks, portObjectsOf, portsOf, type PortRow } from './store.js';
 
 /**
@@ -135,6 +135,8 @@ export function odpsDocument(productId: string, environment?: string): Obj {
   // 0.26.0 (ADR 0039 part 7): channels, the level and guides – the product's own, else its supporting service's
   const help = supportOf('data_product', [{ id: p.id, levelId: p.support_level_id, serviceId: p.supported_by_service_id }], { guides: true }).get(p.id)!;
   const shown = effectiveSupport(help);
+  const serviceName = help.supportedBy?.service.name;
+  const legacyTier = shown.level && !shown.levelFromService ? levelSummary(shown.level.id).tier : null;
   const rating = ratingsByItem('product', [p.id]).get(p.id)!;
   const ratingValue = Object.fromEntries([
     ...CIA_DIMENSIONS.filter((d) => rating[d]).map((d) => [d, rating[d]!.level]),
@@ -188,7 +190,10 @@ export function odpsDocument(productId: string, environment?: string): Obj {
           ],
         }
       : {}),
-    ...(shown.channels.some((c) => c.address) ? { support: shown.channels.filter((c) => c.address).map(odpsChannel) } : {}),
+    // channels of the supporting service are marked with it, so an import does not take them as the product's own
+    ...(shown.channels.some((c) => c.address)
+      ? { support: shown.channels.filter((c) => c.address).map((c) => odpsChannel(c, shown.channelsFromService ? serviceName : undefined)) }
+      : {}),
     ...(members.length || teams.length || ownerTeams.length
       ? {
           team: {
@@ -208,10 +213,22 @@ export function odpsDocument(productId: string, environment?: string): Obj {
         ? [
             prop(
               'supportLevel',
-              { name: shown.level.nameEn, hours: shown.level.hours, firstResponse: shown.level.firstResponse },
-              'What support the providing team promises (Steward’s support level)',
+              {
+                name: shown.level.nameEn,
+                hours: shown.level.hours,
+                firstResponse: shown.level.firstResponse,
+                ...(shown.levelFromService ? { supportedByService: serviceName } : {}),
+              },
+              shown.levelFromService
+                ? 'What support the providing team promises (Steward’s support level) – the level of the service that supports the product'
+                : 'What support the providing team promises (Steward’s support level)',
             ),
           ]
+        : []),
+      // deprecated (0.26.0, read by imports before 0.26.0; removed in a later release): the tier the level was made from
+      ...(legacyTier ? [prop('supportTier', legacyTier, 'Deprecated: the support tier the support level was made from – see supportLevel')] : []),
+      ...(serviceName
+        ? [prop('supportedByService', serviceName, 'The Steward service that supports the product: support entries marked with it are the service’s')]
         : []),
       ...(p.sunset_date ? [prop('sunsetDate', p.sunset_date)] : []),
       ...(allObjects.length ? [prop('dataObjects', allObjects, 'Data objects its output ports expose (declared)')] : []),
@@ -231,16 +248,26 @@ const SCOPE: Record<SupportPurpose, string | null> = { questions: 'interactive',
 /** Steward's tool as ODPS names it. */
 const TOOL: Record<SupportTool, string> = { ticket: 'ticket', email: 'email', teams: 'teams', slack: 'slack', web: 'web', phone: 'phone', other: 'other' };
 
-/** A channel as an ODPS support entry: name, address, tool, scope; hours and note as the description. */
-export function odpsChannel(c: SupportChannel): Obj {
+/**
+ * A channel as an ODPS support entry: name, address, tool, scope; hours and note as the description. A telephone
+ * number goes out as a valid `tel:` URI: the spaces people type become hyphens (a URI has no spaces; RFC 3966 takes
+ * `-`, `.`, `(` and `)` as visual separators). `fromService`: the channel is that supporting service's – marked
+ * (`supportedByService`), so an import does not take it as the product's own.
+ */
+export function odpsChannel(c: SupportChannel, fromService?: string): Obj {
   const scope = SCOPE[c.purpose];
   const description = [c.hours ? `Hours: ${c.hours}` : '', c.note].filter(Boolean).join('\n');
+  const custom = [
+    ...(scope ? [] : [prop('purpose', c.purpose, 'Steward’s purpose of the channel (access and onboarding)')]),
+    ...(fromService ? [prop('supportedByService', fromService, 'The channel of the service that supports the product, not the product’s own')] : []),
+  ];
   return {
     channel: c.name || TOOL[c.tool],
-    url: c.address,
+    url: /^tel:/i.test(c.address) ? c.address.replace(/\s+/g, '-') : c.address,
     ...(description ? { description } : {}),
     tool: TOOL[c.tool],
-    ...(scope ? { scope } : { customProperties: [prop('purpose', c.purpose, 'Steward’s purpose of the channel (access and onboarding)')] }),
+    ...(scope ? { scope } : {}),
+    ...(custom.length ? { customProperties: custom } : {}),
   };
 }
 

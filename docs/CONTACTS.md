@@ -30,6 +30,7 @@ Contacts are entered once per domain ([ADR 0039](adr/0039-contact-roles-and-supp
 - A **data product** shows its domain's contacts the same way – the domain's own and, in the roles the domain names none of, its parent's.
 - Inherited contacts are **never copied**: changing the domain changes every sub-domain and product at once. They count for the item's [expected roles](#roles).
 - They follow the **domain's visibility**: who may not see the domain a contact comes from sees no inherited contact from it and is not told there is one (a product whose domain they may not see inherits nothing). The product page and the scorecard read them in bulk with the product's own contacts.
+- They are shown in the app – the product and domain pages and their API (`inheritedContacts`). `/api/v1`, MCP, ODPS and the data products file format carry an item's **own** contacts only: inherited ones are the domain's, and the file format gives them with the domain (`domains:` of an export).
 - There is no inheritance between services and applications: an application can serve several services. Its page shows the contacts of the services it belongs to (those the reader may see) read only, in its _Contacts_ section.
 
 ## Deputy and until

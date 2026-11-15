@@ -31,7 +31,7 @@ const norm = (s: string) => s.normalize('NFKC').replace(/\s+/g, ' ').trim().toLo
  * German), so the plant registry's files, /api/v1, MCP and change sets show the same text as before (variants that
  * differ only in letter case show as the most used one). A link without a role stays without.
  *
- * Idempotent: a role that is a key of a plant site role already is left alone, so a second run finds nothing to do –
+ * Idempotent: a role that is the key of an own role already is left alone, so a second run finds nothing to do –
  * it runs after convertItemContacts() when the vault is opened and after a migration package is imported. Each role in
  * a transaction of its own; one audit entry for the whole conversion (contact.role_created by system). Returns the
  * number of links rewritten.
@@ -44,8 +44,11 @@ export function convertPlantSiteRoles(): { roles: number; links: number } {
   );
   if (!texts.length) return { roles: 0, links: 0 };
   const catalogue = roleCatalogue();
-  const siteKeys = new Set(catalogue.filter((r) => !r.builtIn && r.kinds.includes('plant_site')).map((r) => r.key));
-  const todo = texts.filter((t) => !siteKeys.has(t.role));
+  // a link that names an own role's key is converted already – also when the role no longer applies to sites
+  // (switched off for them since): own roles exist only from 0.26.0 on, made by this conversion or by administrators
+  // after it, so no text of before is one's key. Built-in keys never apply to sites: such a text is a text.
+  const ownKeys = new Set(catalogue.filter((r) => !r.builtIn).map((r) => r.key));
+  const todo = texts.filter((t) => !ownKeys.has(t.role));
   if (!todo.length) return { roles: 0, links: 0 };
   // the texts by their normalised form; the label is the most used variant (then the first by text)
   const groups = new Map<string, { role: string; n: number }[]>();

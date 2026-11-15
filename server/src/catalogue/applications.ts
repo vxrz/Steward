@@ -394,6 +394,7 @@ export function setApplicationContacts(id: string, body: unknown): ApplicationDe
   db().tx(() => {
     const c = writeCatalogueContacts('application', r.id, body);
     if (!c.added.length && !c.removed.length && !c.updated.length) return;
+    db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), me().username, r.id);
     audit({
       action: 'application.updated',
       entityType: 'application',

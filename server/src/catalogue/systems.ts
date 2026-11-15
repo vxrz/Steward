@@ -386,6 +386,7 @@ export function setSystemContacts(id: string, body: unknown): SystemDetail {
   db().tx(() => {
     const c = writeCatalogueContacts('system', r.id, body);
     if (!c.added.length && !c.removed.length && !c.updated.length) return;
+    db().run('UPDATE systems SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), currentUser()?.username ?? 'system', r.id);
     audit({
       action: 'system.changed',
       entityType: 'system',

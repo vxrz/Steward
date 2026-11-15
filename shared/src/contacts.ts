@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isCalendarDate } from './costPlans.js';
 
 /**
  * Contacts (0.25.1, ADR 0038, docs/CONTACTS.md): the people and groups an item names for its business side – a data
@@ -100,8 +101,8 @@ export const contactInput = z
   .strict();
 export type ContactInput = z.input<typeof contactInput>;
 
-/** A calendar date (YYYY-MM-DD). */
-export const contactDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+/** A calendar date (YYYY-MM-DD) that exists (not 2026-02-30). */
+export const contactDate = z.string().refine(isCalendarDate, 'a date like 2027-03-31');
 
 /** One contact named on an item with a role: an existing contact by id, or a new one created on the way. */
 export const contactLinkInput = z

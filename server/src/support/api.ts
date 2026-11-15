@@ -10,7 +10,7 @@ export const ApiSupportChannel = z.object({
   purpose: z.enum(SUPPORT_PURPOSES).describe('questions, issues (and incidents), announcements, access (and onboarding)'),
   tool: z.enum(SUPPORT_TOOLS),
   name: z.string(),
-  address: z.string().describe('https://, mailto: or tel:'),
+  address: z.string().describe('https:// (http:// for internal pages), mailto: or tel:'),
   hours: z.string(),
   note: z.string().describe('The queue, category or assignment group to use'),
 });

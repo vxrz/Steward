@@ -229,6 +229,9 @@ describe('cardinality, deputy and until', () => {
       expect.objectContaining({ role: 'technicalLead', contact: expect.objectContaining({ id: ids.cara }), until: '2000-01-01' }),
     ]);
     expect(r.contacts[0].deputyOf).toBeUndefined();
+    // an end date is a day that exists
+    for (const until of ['2026-02-30', '2026-13-01', '31.12.2026'])
+      expect((await refusal(put([{ role: 'technicalLead', contactId: ids.ann, until }]))).status, until).toBe(400);
     // a deputy of a contact in another role, of itself, or of another deputy is refused
     expect(
       await refusal(
@@ -328,6 +331,9 @@ describe('applications and systems', () => {
     expect(await refusal(dana('PUT', `/systems/${sys}/contacts`, { contacts: [{ role: 'applicationManager', contactId: ids.ben }] }))).toMatchObject({
       code: 'CONTACT_ROLE_UNKNOWN',
     });
+    // a change of the item: who changed it last
+    expect((await s.api('PUT', `/systems/${sys}/contacts`, { contacts: [] })).updatedBy).toBe('admin');
+    expect((await s.api('PUT', `/applications/${own}/contacts`, { contacts: [] })).updatedBy).toBe('admin');
   });
 
   it('an application shows the contacts of the services it belongs to, read only, never inherited', async () => {
@@ -426,7 +432,8 @@ describe('inherited along the domain hierarchy', () => {
     expect((await evidence(dana)).map((e) => e.key)).not.toContain('evidence.documented.missingRoles');
     expect((await evidence(dave)).find((e) => e.key === 'evidence.documented.missingRoles')).toEqual({
       key: 'evidence.documented.missingRoles',
-      values: { count: 1, roles: 'Domain architect' },
+      // the labels in English and German: the page shows the reader's language
+      values: { count: 1, roles: 'Domain architect', rolesDe: 'Domänenarchitekt' },
     });
     // an ended link does not count
     await s.api('PUT', `/data-domains/${ids.finance}`, {
@@ -568,6 +575,14 @@ describe('plant sites at the upgrade', () => {
     expect(entry).toMatchObject({ actor: 'system', details: { kind: 'plant_site', upgrade: '0.26.0', links: 4 } });
     // once: a second run finds nothing to do
     expect(ctx.runAs(null, () => convertPlantSiteRoles())).toEqual({ roles: 0, links: 0 });
+    // also when a role made from a text no longer applies to sites (switched off for them): its links are converted
+    // links, not texts – a later start must not make a role "energy" of them
+    const energy = (await s.api('GET', '/contact-roles')).find((r: { key: string }) => r.key === 'energy');
+    await s.api('PUT', '/contact-roles/energy', { labels: energy.labels, kinds: ['service'] });
+    expect(ctx.runAs(null, () => convertPlantSiteRoles())).toEqual({ roles: 0, links: 0 });
+    expect((await s.api('GET', '/plant/sites/inv-south')).contactLinks.map((l: Link) => l.role)).toEqual(['shiftLead', 'energy']);
+    expect((await s.api('GET', '/contact-roles')).filter((r: { labels: { en: string } }) => r.labels.en.toLowerCase() === 'energy')).toHaveLength(1);
+    await s.api('PUT', '/contact-roles/energy', { labels: energy.labels, kinds: ['plant_site'] });
   });
 
   it('the registry’s API and files take the old text and give the label; an unknown text is refused with a hint', async () => {

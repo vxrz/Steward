@@ -39,6 +39,7 @@ import {
   SUPPORT_PURPOSES,
   SUPPORT_TOOLS,
   SUPPORT_URL_RE,
+  isCalendarDate,
 } from '@sm/shared';
 
 /**
@@ -187,6 +188,7 @@ export const contactFileSchema = z
     until: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine(isCalendarDate, 'a date like 2027-03-31')
       .optional()
       .describe('0.26.0: named until this day (YYYY-MM-DD)'),
   })
@@ -422,7 +424,7 @@ const supportChannelSchema = z
     purpose: z.enum(SUPPORT_PURPOSES),
     tool: z.enum(SUPPORT_TOOLS).optional(),
     name: text(SL.name).optional(),
-    address: z.union([z.string().max(SL.address).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).optional(),
+    address: z.union([z.string().max(SL.address).regex(SUPPORT_ADDRESS_RE, 'an https:// (or http://), mailto: or tel: address'), z.literal('')]).optional(),
     hours: text(SL.hours).optional(),
     note: text(SL.note).optional(),
   })
@@ -443,7 +445,7 @@ export const productFileSchema = z
     support: z
       .object({
         channel: text(L.short).optional(),
-        url: z.union([z.string().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).optional(),
+        url: z.union([z.string().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https:// (or http://), mailto: or tel: address'), z.literal('')]).optional(),
         hours: text(L.short).optional(),
       })
       .strict()

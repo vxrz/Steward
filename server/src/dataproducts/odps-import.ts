@@ -9,6 +9,7 @@ import {
   DATA_PRODUCT_LIFECYCLES,
   DATA_PRODUCT_TYPES,
   isProductionEnvironment,
+  isCalendarDate,
   isSupportAddress,
   isSupportUrl,
   SUPPORT_LIMITS as SL,
@@ -26,6 +27,7 @@ import { odpsProblems } from './odps.js';
 import type { DomainRow, ProductRow } from './store.js';
 import type { ContactFile, SupportChannelFile } from './format.js';
 import { listLevels } from '../support/levels.js';
+import { catalogueVisibleNow } from '../records/access.js';
 
 /**
  * The ODPS import (ADR 0036 part 15, decision 22, phase 2): an Open Data Product Standard v1.0.0 document (`apiVersion:
@@ -73,6 +75,24 @@ function parseSource(s: string): { product: string; port: string; version: strin
   const port = space > 0 ? rest.slice(0, space) : rest;
   const version = space > 0 ? rest.slice(space + 1) : '';
   return DATA_PRODUCT_KEY_RE.test(product) && port ? { product, port, version } : null;
+}
+
+/**
+ * The service an ODPS document names as the one supporting the product (`supportedByService`, by name): its name when
+ * exactly one service of that name is one the importer may see, else a warning and nothing (undefined: the product keeps
+ * what it has; nothing is said about services the importer may not see).
+ */
+function supportingService(name: string | undefined, key: string, warnings: string[]): string | undefined {
+  if (!name) return undefined;
+  const n = name.trim().toLowerCase();
+  const hits = db()
+    .all<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM services')
+    .filter((r) => r.name.trim().toLowerCase() === n && catalogueVisibleNow('service', r));
+  if (hits.length === 1) return hits[0]!.name;
+  warnings.push(
+    `ODPS ${key}: the service "${name.slice(0, 100)}" that supports the product is ${hits.length ? 'not unique' : 'not known'} – the product's supporting service is not changed, and the channels and level of that service are not taken as the product's own`,
+  );
+  return undefined;
 }
 
 /** ODPS `scope` → Steward's purpose. */
@@ -139,6 +159,7 @@ export function odpsToFile(raw: Obj): OdpsConversion {
       .filter((r) => isGuide(r) && isSupportUrl(str(r.url) ?? ''))
       .map((r) => ({ title: (str(r.description) ?? str(r.url)!).slice(0, SL.title), url: str(r.url)! }));
     if (guides.length) product.guides = guides.slice(0, SL.guides);
+    if (guides.length > SL.guides) warnings.push(`ODPS ${key}: ${guides.length} user guides – the first ${SL.guides} are kept`);
   }
   // the product owners and business contacts (0.25.1: contacts): team members with those roles – an e-mail address as
   // username is the contact's address, another username a Steward user (Steward's exports of before 0.25.1); teams
@@ -161,12 +182,15 @@ export function odpsToFile(raw: Obj): OdpsConversion {
       const email = /^[^\s@]+@[^\s@]+$/.test(username) ? username : undefined;
       // a member with a name is that contact; one with only a username (Steward's exports of before 0.25.1) the account's
       const name = str(m.name);
-      const until = str(m.dateOut);
+      // the end date: a day that exists (ODPS's date format lets 2026-02-30 through)
+      const out = str(m.dateOut)?.slice(0, 10);
+      const until = out && isCalendarDate(out) ? out : undefined;
+      if (out && !until) warnings.push(`ODPS ${key}: the dateOut "${out}" of team member ${(name ?? username).slice(0, 60)} is not a date – left out`);
       contacts.push({
         role,
         name: name ?? username,
         ...(email ? { email } : name ? {} : { user: username }),
-        ...(until && /^\d{4}-\d{2}-\d{2}/.test(until) ? { until: until.slice(0, 10) } : {}),
+        ...(until ? { until } : {}),
       });
     }
     if (refusedRoles.size)
@@ -180,14 +204,23 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   }
   // 0.26.0 (ADR 0039 part 7): every support entry is a channel – scope as the purpose (none: Steward's purpose under its
   // customProperties, else questions), tool, and the description as hours ("Hours: …" on its first line) and note
+  // – entries marked as the supporting service's (supportedByService, as Steward exports them when the product names
+  // none of its own) are not the product's own: the product then has none, and names that service where it resolves
+  const supportedBy = supportingService(str(custom.get('supportedByService')), key, warnings);
+  if (supportedBy !== undefined) product.supported_by_service = supportedBy;
   if (Array.isArray(raw.support)) {
     const channels: SupportChannelFile[] = [];
+    let marked = 0;
     for (const x of raw.support) {
       if (!isObj(x)) continue;
+      if (customOf(x.customProperties).has('supportedByService')) {
+        marked++;
+        continue;
+      }
       const url = str(x.url) ?? '';
       if (!isSupportAddress(url)) {
         warnings.push(
-          `ODPS ${key}: the support channel "${(str(x.channel) ?? '').slice(0, 60)}" has an address Steward does not keep (https://, mailto: or tel:) – left out`,
+          `ODPS ${key}: the support channel "${(str(x.channel) ?? '').slice(0, 60)}" has an address Steward does not keep (https://, http://, mailto: or tel:) – left out`,
         );
         continue;
       }
@@ -208,7 +241,8 @@ export function odpsToFile(raw: Obj): OdpsConversion {
         note: note.slice(0, SL.note),
       });
     }
-    if (channels.length) product.support_channels = channels.slice(0, SL.channels);
+    if (channels.length || marked) product.support_channels = channels.slice(0, SL.channels);
+    if (channels.length > SL.channels) warnings.push(`ODPS ${key}: ${channels.length} support channels – the first ${SL.channels} are kept`);
   }
 
   // Steward's extras
@@ -218,7 +252,9 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   if (criticality) product.criticality = criticality;
   // the support level by its name (0.26.0); a tier of exports before 0.26.0 picks the level made from it
   const level = custom.get('supportLevel');
-  if (isObj(level) && str(level.name)) {
+  // the supporting service's level (marked as such): the product picks none of its own
+  if (isObj(level) && str(level.supportedByService)) product.support_level = null;
+  else if (isObj(level) && str(level.name)) {
     const name = str(level.name)!;
     const n = name.toLowerCase();
     if (listLevels().some((l) => l.nameEn.trim().toLowerCase() === n || (!!l.nameDe && l.nameDe.trim().toLowerCase() === n)))

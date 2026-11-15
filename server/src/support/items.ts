@@ -146,6 +146,49 @@ function channelsAndGuidesOf(
   return { channels, guides };
 }
 
+/**
+ * A page's help and support in one statement (a product page with its supporting service – the page keeps its budget
+ * of statements): the items' channels and guides, the services' rows and their channels. A service the reader may not
+ * see is dropped here with its channels, before anything is shown.
+ */
+function pageSupport(
+  kind: SupportItemKind,
+  items: { id: string }[],
+  serviceIds: string[],
+): { services: Map<string, ServiceRow>; channels: Map<string, SupportChannel[]>; guides: Map<string, Guide[]> } {
+  const ids = items.map((i) => i.id);
+  type Row = ChannelRow & { src: string; title: string; url: string; owners: string; level_id: string };
+  const rows = db().all<Row>(
+    `SELECT 'c' AS src, id, kind, item_id, purpose, tool, name, address, hours, note, '' AS title, '' AS url, '' AS owners, '' AS level_id, position
+       FROM support_channels WHERE (kind = ? AND item_id IN (${marks(ids.length)})) OR (kind = 'service' AND item_id IN (${marks(serviceIds.length)}))
+     UNION ALL
+     SELECT 'g' AS src, id, kind, item_id, '' AS purpose, '' AS tool, '' AS name, '' AS address, '' AS hours, '' AS note, title, url, '' AS owners,
+       '' AS level_id, position FROM guides WHERE kind = ? AND item_id IN (${marks(ids.length)})
+     UNION ALL
+     SELECT 's' AS src, id, 'service' AS kind, id AS item_id, '' AS purpose, '' AS tool, name, '' AS address, '' AS hours, '' AS note, '' AS title,
+       '' AS url, owners, COALESCE(support_level_id, '') AS level_id, 0 AS position FROM services WHERE id IN (${marks(serviceIds.length)})
+     ORDER BY position, id`,
+    kind,
+    ...ids,
+    ...serviceIds,
+    kind,
+    ...ids,
+    ...serviceIds,
+  );
+  const services = new Map<string, ServiceRow>();
+  for (const r of rows)
+    if (r.src === 's' && catalogueVisibleNow('service', { id: r.id, owners: r.owners }))
+      services.set(r.id, { id: r.id, name: r.name, owners: r.owners, support_level_id: r.level_id || null });
+  const channels = new Map<string, SupportChannel[]>();
+  const guides = new Map<string, Guide[]>();
+  for (const r of rows) {
+    const k = keyOf(r.kind, r.item_id);
+    if (r.src === 'c' && (r.kind !== 'service' || services.has(r.item_id))) channels.set(k, [...(channels.get(k) ?? []), channelOf(r)]);
+    else if (r.src === 'g') guides.set(k, [...(guides.get(k) ?? []), { id: r.id, title: r.title, url: r.url }]);
+  }
+  return { services, channels, guides };
+}
+
 /** The level an item picks, as it shows it (null: none, or one removed meanwhile). */
 export const levelOf = (id: string | null | undefined): SupportLevelRef | null => {
   const r = levelRow(id);
@@ -188,11 +231,20 @@ export function supportOf(
   items: { id: string; levelId: string | null; serviceId?: string | null }[],
   opts: { guides?: boolean } = {},
 ): Map<string, ItemSupport> {
-  const services = kind === 'data_product' ? visibleServices(items.map((i) => i.serviceId)) : new Map<string, ServiceRow>();
-  const { channels, guides } = channelsAndGuidesOf(
-    [...items.map((i) => ({ kind, id: i.id })), ...[...services.keys()].map((id) => ({ kind: 'service' as const, id }))],
-    opts.guides ? items.map((i) => ({ kind, id: i.id })) : [],
-  );
+  const serviceIds = kind === 'data_product' ? [...new Set(items.map((i) => i.serviceId).filter((x): x is string => !!x))] : [];
+  const { services, channels, guides } =
+    opts.guides && serviceIds.length && items.length * 2 + serviceIds.length * 2 <= CHUNK
+      ? pageSupport(kind, items, serviceIds)
+      : (() => {
+          const visible = serviceIds.length ? visibleServices(serviceIds) : new Map<string, ServiceRow>();
+          return {
+            services: visible,
+            ...channelsAndGuidesOf(
+              [...items.map((i) => ({ kind, id: i.id })), ...[...visible.keys()].map((id) => ({ kind: 'service' as const, id }))],
+              opts.guides ? items.map((i) => ({ kind, id: i.id })) : [],
+            ),
+          };
+        })();
   const out = new Map<string, ItemSupport>();
   for (const i of items) {
     const svc = i.serviceId ? services.get(i.serviceId) : undefined;
@@ -261,7 +313,7 @@ function writeParsed(kind: SupportItemKind, id: string, cur: StoredSupport, inpu
       throw new HttpError(404, `Service ${input.supportedByServiceId} not found`, 'SERVICE_NOT_FOUND', { id: input.supportedByServiceId });
     db().run('UPDATE dp_products SET supported_by_service_id = ? WHERE id = ?', input.supportedByServiceId ?? null, id);
     changes.push('supportedByService');
-    details.supportedByService = { after: input.supportedByServiceId ?? null };
+    details.supportedByService = { before: cur.serviceId ?? null, after: input.supportedByServiceId ?? null };
   }
   if (input.channels !== undefined) {
     const before = channelsOf([{ kind, id }]).get(keyOf(kind, id)) ?? [];

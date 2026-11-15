@@ -12086,7 +12086,7 @@
                 },
                 "address": {
                   "type": "string",
-                  "description": "https://, mailto: or tel:"
+                  "description": "https:// (http:// for internal pages), mailto: or tel:"
                 },
                 "hours": {
                   "type": "string"
@@ -13166,7 +13166,7 @@
                 },
                 "address": {
                   "type": "string",
-                  "description": "https://, mailto: or tel:"
+                  "description": "https:// (http:// for internal pages), mailto: or tel:"
                 },
                 "hours": {
                   "type": "string"
@@ -44431,7 +44431,7 @@
                 },
                 "address": {
                   "type": "string",
-                  "description": "https://, mailto: or tel:"
+                  "description": "https:// (http:// for internal pages), mailto: or tel:"
                 },
                 "hours": {
                   "type": "string"
@@ -44526,7 +44526,7 @@
                         },
                         "address": {
                           "type": "string",
-                          "description": "https://, mailto: or tel:"
+                          "description": "https:// (http:// for internal pages), mailto: or tel:"
                         },
                         "hours": {
                           "type": "string"
