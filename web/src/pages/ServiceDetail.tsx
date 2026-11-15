@@ -37,6 +37,7 @@ import { useMe } from '../auth';
 import { ServiceDocumentsPanel } from '../components/records/ServiceDocuments';
 import { confirmDanger } from '../components/confirm';
 import { ProtectionNeedPanel } from '../components/catalogue/cia';
+import { ItemHelpAndSupport } from '../components/support/HelpAndSupport';
 import { ServiceApplicationsPanel } from '../components/catalogue/ServiceApplications';
 import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { ScorecardPanel } from '../components/scorecard/ScorecardPanel';
@@ -203,6 +204,15 @@ export function ServiceDetailPage() {
                   </Text>
                 )}
                 <ProtectionNeedPanel service={s} onSaved={refresh} />
+                {/* 0.26.0 (ADR 0039): where its users ask and report incidents, and the support level */}
+                <ItemHelpAndSupport<ServiceDetail>
+                  kind="service"
+                  path={`/services/${s.id}`}
+                  name={s.name}
+                  support={{ channels: s.supportChannels, level: s.supportLevel, guides: [], supportedBy: null }}
+                  canEdit={editable}
+                  onSaved={refresh}
+                />
                 <OpenMeasuresPanel serviceId={s.id} />
                 <ServiceSuppliers serviceId={s.id} />
                 <LinksPanel

@@ -845,6 +845,7 @@
           }
         },
         "support": {
+          "description": "Deprecated (0.26.0): one support channel – read as its first channel for questions; use support_channels",
           "type": "object",
           "properties": {
             "channel": {
@@ -856,7 +857,7 @@
                 {
                   "type": "string",
                   "maxLength": 2000,
-                  "pattern": "^https?:\\/\\/\\S+$"
+                  "pattern": "^(?:https?:\\/\\/[^\\s/?#]+\\S*|mailto:[^\\s@]+@[^\\s@]+|tel:\\+?[0-9][0-9 ()./-]{2,39})$"
                 },
                 {
                   "type": "string",
@@ -870,6 +871,84 @@
             }
           },
           "additionalProperties": false
+        },
+        "support_channels": {
+          "description": "0.26.0: where its consumers ask, report issues and incidents, read announcements and get access – shared addresses, not people",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SupportChannel"
+          }
+        },
+        "support_level": {
+          "description": "0.26.0: the support level it picks",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "The name of a level of Settings → Support levels (English or German)"
+                },
+                "hours": {
+                  "description": "What the level promises (written by the export; the import reads the name)",
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "first_response": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "guides": {
+          "description": "0.26.0: where its consumers find guides and documentation (wiki, portal)",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2000,
+                "pattern": "^https?:\\/\\/[^\\s/?#]+\\S*$"
+              }
+            },
+            "required": [
+              "title",
+              "url"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "supported_by_service": {
+          "description": "0.26.0: the service that supports it, by name",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "criticality": {
           "anyOf": [
@@ -888,6 +967,7 @@
           ]
         },
         "tier": {
+          "description": "Deprecated (0.26.0): picks the support level made from this tier (\"Tier n\"); use support_level",
           "anyOf": [
             {
               "anyOf": [
@@ -1189,6 +1269,61 @@
       "required": [
         "key",
         "name"
+      ],
+      "additionalProperties": false
+    },
+    "SupportChannel": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "questions",
+            "issues",
+            "announcements",
+            "access"
+          ]
+        },
+        "tool": {
+          "type": "string",
+          "enum": [
+            "ticket",
+            "email",
+            "teams",
+            "slack",
+            "web",
+            "phone",
+            "other"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000,
+              "pattern": "^(?:https?:\\/\\/[^\\s/?#]+\\S*|mailto:[^\\s@]+@[^\\s@]+|tel:\\+?[0-9][0-9 ()./-]{2,39})$"
+            },
+            {
+              "type": "string",
+              "const": ""
+            }
+          ]
+        },
+        "hours": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "purpose"
       ],
       "additionalProperties": false
     },

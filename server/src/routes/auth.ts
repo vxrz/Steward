@@ -51,6 +51,7 @@ import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { convertItemContacts, convertPlantSiteRoles } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
+import { convertSupport } from '../support/upgrade.js';
 import { ACCESS, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleRole, moduleSettingsOf, moduleUseStates } from '../modules/access.js';
@@ -90,6 +91,8 @@ async function onUnlocked(): Promise<void> {
     convertDataProductGovernance();
     // contact roles (0.26.0, ADR 0039): plant sites' free-text roles become own roles of the catalogue, once
     convertPlantSiteRoles();
+    // support channels and levels (0.26.0, ADR 0039 part 8): a product's support and tier as a channel and a level, once
+    convertSupport();
   });
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation

@@ -14,6 +14,7 @@ import * as svc from './service.js';
 import * as apps from './applications.js';
 import { namesOfLinks } from '../contacts/service.js';
 import { currentScale, levelLabel } from './cia.js';
+import { apiChannel, apiLevel } from '../support/api.js';
 
 /**
  * The service catalogue in the public, read-only API. Every token owner may read services, as in the UI; the
@@ -90,6 +91,7 @@ const map = (s: svc.ServiceEntry, scale: Scale, applications: Map<string, unknow
   overdueDocuments: s.overdueDocuments,
   applications: applications.get(s.id) ?? [],
   protectionNeed: mapNeed(s.protectionNeed, scale),
+  supportLevel: apiLevel(s.supportLevel),
   createdAt: s.createdAt,
   createdBy: s.createdBy,
   updatedAt: s.updatedAt,
@@ -118,6 +120,7 @@ const mapApplication = (a: apps.ApplicationEntry, scale: Scale) => ({
   componentCount: a.componentCount,
   systemCount: a.systemCount,
   contacts: a.contacts,
+  supportLevel: apiLevel(a.supportLevel),
   createdAt: a.createdAt,
   createdBy: a.createdBy,
   updatedAt: a.updatedAt,
@@ -192,7 +195,7 @@ export function serviceApiRoutes(get: Get): void {
     async (req) => {
       const s = found(() => svc.getService((req.params as { serviceId: string }).serviceId), 'Service');
       const applications = new Map([[s.id, s.applications.map((a) => ({ id: a.id, name: a.name, archived: a.archived, role: a.role, roleText: a.roleText }))]]);
-      return { ...map(s, currentScale(), applications), links: s.links.map(mapLink) };
+      return { ...map(s, currentScale(), applications), links: s.links.map(mapLink), supportChannels: s.supportChannels.map(apiChannel) };
     },
   );
 
@@ -257,6 +260,7 @@ export function serviceApiRoutes(get: Get): void {
         components: a.components,
         stack: a.stack,
         systems: a.systems,
+        supportChannels: a.supportChannels.map(apiChannel),
       };
     },
   );

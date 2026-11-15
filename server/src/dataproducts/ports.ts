@@ -35,7 +35,6 @@ import { HIDDEN, L, actorName, elementNotFound, json, limitReached, objectNotFou
 import {
   bindingsOf,
   consumersOf,
-  consumingPorts,
   elementTeamIds,
   elementsByIds,
   marks,
@@ -114,17 +113,21 @@ export function portViews(u: AuthUser | null, productId: string, known?: Readonl
   );
   const registered = new Map<string, number>();
   for (const c of consumersOf(ids)) registered.set(c.port_id, (registered.get(c.port_id) ?? 0) + 1);
+  // where input ports' data comes from (the other products' output ports, named only where the reader sees the product)
+  // and the input ports that consume the output ports, with the products' key and name, in one statement (0.26.0: the
+  // product page stays at 20 with its help and support; at most 50 ports a product, so one IN list each)
+  const sourceIds = [...new Set(ports.map((p) => p.source_port_id).filter((x): x is string => !!x))];
+  const near = db().all<PortRow & { sp_key: string; sp_name: string }>(
+    `SELECT s.*, pr.key AS sp_key, pr.name AS sp_name FROM dp_ports s JOIN dp_products pr ON pr.id = s.product_id
+     WHERE s.source_port_id IN (${marks(ids.length)})${sourceIds.length ? ` OR s.id IN (${marks(sourceIds.length)})` : ''}`,
+    ...ids,
+    ...sourceIds,
+  );
+  const own = new Set(ids);
   const derived = new Map<string, number>();
-  for (const c of consumingPorts(ids)) if (c.source_port_id) derived.set(c.source_port_id, (derived.get(c.source_port_id) ?? 0) + 1);
-  // where input ports' data comes from: the other products' output ports, named only where the reader sees the product
-  const sourceIds = ports.map((p) => p.source_port_id).filter((x): x is string => !!x);
-  // the source ports with their products' key and name in one statement (0.25.1: the product page stays at 20)
-  const sourceRows = sourceIds.length
-    ? db().all<PortRow & { sp_key: string; sp_name: string }>(
-        `SELECT s.*, pr.key AS sp_key, pr.name AS sp_name FROM dp_ports s JOIN dp_products pr ON pr.id = s.product_id WHERE s.id IN (${marks(new Set(sourceIds).size)})`,
-        ...new Set(sourceIds),
-      )
-    : [];
+  for (const c of near) if (c.source_port_id && own.has(c.source_port_id)) derived.set(c.source_port_id, (derived.get(c.source_port_id) ?? 0) + 1);
+  const wantedSources = new Set(sourceIds);
+  const sourceRows = near.filter((r) => wantedSources.has(r.id));
   const sources = new Map(sourceRows.map((r) => [r.id, r]));
   const sourceProducts = new Map(sourceRows.map((r) => [r.product_id, { id: r.product_id, key: r.sp_key, name: r.sp_name }]));
   const elementOf = new Map<string, string[]>();

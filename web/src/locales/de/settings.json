@@ -736,6 +736,10 @@
       "title": "Katalog & Compliance",
       "description": "Die CIA-Skala, Scorecard-Regeln, Umgebungen und Compliance-Regeln."
     },
+    "support": {
+      "title": "Support-Level",
+      "description": "Was bereitstellende Teams zusagen: Zeiten, die erste Reaktion und das SLA-Dokument – gewählt von Datenprodukten, Services und Anwendungen."
+    },
     "data": {
       "title": "Daten & Aufbewahrung",
       "description": "Wie lange Daten aufbewahrt werden, Speicher, Bereinigung und Sicherungen."

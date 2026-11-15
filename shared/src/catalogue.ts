@@ -10,6 +10,7 @@ import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './rec
 import type { SegmentMember, SystemAttributes, SystemFirewall, SystemSegmentLink } from './network.js';
 import type { StackVersion } from './versions.js';
 import type { SupplierRef } from './suppliers.js';
+import type { SupportChannel, SupportLevelRef } from './support.js';
 
 /**
  * Applications in the service catalogue (#84): what people call a platform ("Insights Hub", "Industrial Edge")
@@ -175,6 +176,8 @@ export interface ApplicationSummary {
   componentCount: number;
   /** "Runs on" links to systems (#129) */
   systemCount: number;
+  /** 0.26.0 (ADR 0039 part 5): the support level it picks (null: none) */
+  supportLevel: SupportLevelRef | null;
   updatedAt: string;
 }
 
@@ -219,6 +222,8 @@ export interface ApplicationDetail extends ApplicationSummary {
    */
   serviceContacts: { serviceId: string; serviceName: string; contacts: ContactLink[] }[];
   canEdit: boolean;
+  /** 0.26.0 (ADR 0039 part 4): its support channels, in their order */
+  supportChannels: SupportChannel[];
 }
 
 export interface ApplicationCredential {

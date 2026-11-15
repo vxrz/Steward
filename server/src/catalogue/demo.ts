@@ -2,8 +2,9 @@ import { db } from '../db.js';
 import { logger } from '../log.js';
 import { currentUser, runAs } from '../auth/context.js';
 import { findUserByName, listTeams, toAuthUser } from '../auth/users.js';
-import { addServiceLink, createService, serviceInput } from './service.js';
-import { canEditApplication, rateApplication, serviceApplicationInput, setServiceApplication } from './applications.js';
+import { addServiceLink, createService, serviceInput, setServiceSupport } from './service.js';
+import { listLevels } from '../support/levels.js';
+import { canEditApplication, rateApplication, serviceApplicationInput, setApplicationSupport, setServiceApplication } from './applications.js';
 import { createSystem, linkSystem, systemInput, systemLinkInput } from './systems.js';
 import { createMaintenance, maintenanceInput } from './maintenance.js';
 import { createPage, pageInput } from './status-pages.js';
@@ -88,6 +89,42 @@ export async function setupServiceDemo(now = Date.now()): Promise<number> {
       tags: ['demo', 'ot'],
     }),
   );
+
+  // ---- help and support (0.26.0, ADR 0039): shared addresses (invented) and the example support levels ----
+  const level = (name: string) => listLevels().find((l) => l.nameEn === name)?.id ?? null;
+  step('shop support', () =>
+    setServiceSupport(shop.id, {
+      levelId: level('Extended'),
+      channels: [
+        {
+          purpose: 'issues',
+          tool: 'ticket',
+          name: 'Shop incidents (invented)',
+          address: 'https://tickets.example/new?queue=shop',
+          hours: '24×7',
+          note: 'Category Online shop, assignment group SHOP-OPS',
+        },
+        { purpose: 'questions', tool: 'teams', name: 'Shop team channel (invented)', address: 'https://teams.example/shop', hours: 'Mo–Fr 08–18' },
+        { purpose: 'announcements', tool: 'web', name: 'Shop status page (invented)', address: 'https://status.example/shop' },
+      ],
+    }),
+  );
+  step('care support', () =>
+    setServiceSupport(care.id, {
+      levelId: level('Business hours'),
+      channels: [{ purpose: 'questions', tool: 'email', name: 'Care desk (invented)', address: 'mailto:care-desk@example.com', hours: 'Mo–Fr 08–17' }],
+    }),
+  );
+
+  if (webshop)
+    step('webshop support', () =>
+      setApplicationSupport(webshop, {
+        levelId: level('Extended'),
+        channels: [
+          { purpose: 'issues', tool: 'ticket', name: 'Webshop incidents (invented)', address: 'https://tickets.example/new?queue=webshop', hours: '24×7' },
+        ],
+      }),
+    );
 
   // ---- applications with a protection need (the scorecard's fourth part) ----
   const justification = 'Demo assessment';

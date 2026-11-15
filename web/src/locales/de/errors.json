@@ -1664,7 +1664,17 @@
     "FORBIDDEN_createContacts": "Sie dürfen hier keine Kontakte anlegen. Fügen Sie sie stattdessen beim Element hinzu.",
     "FORBIDDEN_changeContact": "Sie dürfen diesen Kontakt nicht ändern: Das darf, wer ein Element ändern darf, mit dem er verknüpft ist.",
     "FORBIDDEN_eraseContact": "Nur Administratoren löschen Kontakte.",
-    "FORBIDDEN_manageContacts": "Nur Administratoren sehen mögliche Dubletten."
+    "FORBIDDEN_manageContacts": "Nur Administratoren sehen mögliche Dubletten.",
+    "SUPPORT_LEVEL_NOT_FOUND": "Support-Level {{id}} nicht gefunden – es wurde vielleicht inzwischen entfernt. Wählen Sie ein anderes.",
+    "SUPPORT_LEVEL_EXISTS": "Ein Support-Level namens {{name}} gibt es bereits.",
+    "SUPPORT_LIMIT": "Grenze erreicht: höchstens {{max}} Support-Level.",
+    "SUPPORT_LEVEL_ORDER": "Nennen Sie jedes Support-Level genau einmal, um sie zu ordnen.",
+    "SUPPORT_LEVEL_IN_USE": "{{count}} Einträge verwenden dieses Support-Level – wählen Sie das Level, das sie stattdessen erhalten, oder entfernen Sie es von ihnen.",
+    "SUPPORT_INVALID": "Nur Datenprodukte haben Anleitungen und einen unterstützenden Service.",
+    "FORBIDDEN_supportLevels": "Nur Administratoren ändern die Support-Level.",
+    "SUPPORT_LIMIT_levels": "Grenze erreicht: höchstens {{max}} Support-Level.",
+    "SUPPORT_LEVEL_ORDER_self": "Ein Support-Level kann nicht mit sich selbst zusammengelegt werden.",
+    "SUPPORT_INVALID_kind": "Nur Datenprodukte haben Anleitungen und einen unterstützenden Service."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

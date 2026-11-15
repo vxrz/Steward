@@ -49,6 +49,7 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, catalogueTeams } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
+import { channelsOf, levelOf, writeSupport } from '../support/items.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -71,6 +72,8 @@ interface ApplicationRow {
   cmdb_id: string | null;
   cmdb_url: string | null;
   tags: string;
+  /** 0.26.0 (ADR 0039): the support level it picks */
+  support_level_id: string | null;
   archived: number;
   /** The supplier (0.17.0, ADR 0029); `vendor` stays as the fallback text */
   supplier_id: string | null;
@@ -256,6 +259,7 @@ function toSummary(
     overdueDocuments: x.docs.overdue,
     componentCount: x.components,
     systemCount: x.systems,
+    supportLevel: levelOf(r.support_level_id),
     updatedAt: r.updated_at,
   };
 }
@@ -346,7 +350,27 @@ export function getApplication(id: string): ApplicationDetail {
     contacts: appLinksOf('application', [r.id]).get(r.id) ?? [],
     serviceContacts: serviceContactsOfApplication(services),
     canEdit: canEditApplication(u, r),
+    supportChannels: channelsOf([{ kind: 'application', id: r.id }]).get(`application:${r.id}`) ?? [],
   };
+}
+
+/** Changes an application's support channels and level (PUT /api/applications/:id/support; 0.26.0, ADR 0039). */
+export function setApplicationSupport(id: string, body: unknown): ApplicationDetail {
+  const u = me();
+  const cur = requireEditableApplication(id, 'change this application');
+  db().tx(() => {
+    const change = writeSupport('application', id, { levelId: cur.support_level_id ?? null }, body);
+    if (!change.changes.length) return;
+    db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, id);
+    audit({
+      action: 'application.updated',
+      entityType: 'application',
+      entityId: id,
+      summary: `Application "${cur.name}" changed (${change.changes.join(', ')})`,
+      details: { changes: change.changes, ...change.details },
+    });
+  });
+  return getApplication(id);
 }
 
 /**

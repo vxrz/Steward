@@ -8,6 +8,7 @@ import {
   dataRatingInput,
   environmentRank,
   isProductionEnvironment,
+  legacySupportOf,
   lifecycleProblems,
   type CatalogueEnvironment,
   type DataClassification,
@@ -65,6 +66,7 @@ import { onLifecycleChanged } from './notices.js';
 import { chainDomainIds, contactsOf, domainContactChains, inheritedFor, productAndDomainContacts, userSubjectsOf, writeContacts } from './contacts.js';
 import { removeItemLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
+import { forgetSupport, levelOf, levelSummary, supportOf, writeLegacySupport, writeSupport, type SupportChange } from '../support/items.js';
 
 /**
  * Domains, data objects and data products (ADR 0036 parts 1–4, 12, 17): reading with team scope (a reader never sees,
@@ -636,7 +638,9 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     lifecycle: p.lifecycle as DataProductLifecycle,
     sunsetDate: p.sunset_date,
     criticality: (p.criticality as DataProductSummary['criticality']) ?? null,
-    tier: (p.tier as DataProductSummary['tier']) ?? null,
+    // 0.26.0 (ADR 0039): the level from the kept catalogue (no statement); the deprecated tier derived from it
+    tier: levelSummary(p.support_level_id).tier,
+    supportLevel: levelOf(p.support_level_id),
     rating: ratings.get(p.id)!,
     classification: (p.classification as DataClassification | null) ?? null,
     ratingBelowObjects: !!floors.get(p.id)?.warning,
@@ -787,12 +791,17 @@ export function getProduct(id: string): DataProduct {
   const visibleIds = new Set(objectRefs.filter((r) => !r.hidden).map((r) => r.id));
   // 0.26.0 (ADR 0039 part 2): its domain's contacts (and the parent's), in the roles it names none of – read with its own
   const chain = p.domain_id ? data.chains?.get(p.domain_id) : undefined;
+  // 0.26.0 (ADR 0039): channels of the product and its supporting service in one statement, its guides in one
+  const help = supportOf('data_product', [{ id: p.id, levelId: p.support_level_id, serviceId: p.supported_by_service_id }], { guides: true }).get(p.id)!;
   return {
     ...summary!,
     inheritedContacts: inheritedFor(summary!.contacts, chain),
     description: p.description,
     purpose: p.purpose,
-    support: { channel: '', url: '', hours: '', ...parseJson<Partial<DataProduct['support']>>(p.support, {}) },
+    support: legacySupportOf(help.channels),
+    supportChannels: help.channels,
+    guides: help.guides,
+    supportedBy: help.supportedBy,
     lifecycleDates: parseJson(p.lifecycle_dates, {}),
     successor: successor ? (productAccess(u, successor).permissions.length ? refOf(successor) : HIDDEN) : null,
     valueStatement: p.value_statement,
@@ -837,9 +846,10 @@ function productValues(input: ReturnType<typeof dataProductInput.parse>): unknow
     input.domainId,
     // the product owners are contacts since 0.25.1 (writeContacts): the old column stays empty
     '[]',
-    json(input.support),
+    // support and tier are channels and a level since 0.26.0 (writeLegacySupport): the old columns stay empty
+    '{}',
     input.criticality,
-    input.tier,
+    null,
     input.version,
     input.valueStatement,
     input.valueTier,
@@ -876,12 +886,13 @@ export function createProduct(body: unknown): DataProduct {
     );
     assignCreatorTeams('data_product', id, u);
     const changed = writeContacts('data_product', id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
+    const support = writeLegacySupport(id, { levelId: null, serviceId: null }, { support: input.support, tier: input.tier });
     audit({
       action: 'dataproduct.created',
       entityType: 'data_product',
       entityId: id,
       summary: `Data product "${input.name}" (${input.key}) created`,
-      details: { key: input.key, type: input.type, domainId: input.domainId, ...(changed ? { contacts: changed } : {}) },
+      details: { key: input.key, type: input.type, domainId: input.domainId, ...(changed ? { contacts: changed } : {}), ...support.details },
     });
   });
   return getProduct(id);
@@ -904,6 +915,8 @@ export function updateProduct(id: string, body: unknown): DataProduct {
       row.id,
     );
     const changed = writeContacts('data_product', row.id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
+    // the deprecated support and tier (0.26.0): what a client sends is mapped as the upgrade does
+    const support = writeLegacySupport(row.id, storedSupport(row), { support: input.support, tier: input.tier });
     audit({
       action: 'dataproduct.updated',
       entityType: 'data_product',
@@ -913,7 +926,31 @@ export function updateProduct(id: string, body: unknown): DataProduct {
         before: { key: row.key, name: row.name, domainId: row.domain_id, type: row.type },
         after: { key: input.key, name: input.name, domainId: input.domainId, type: input.type },
         ...(changed ? { contacts: changed } : {}),
+        ...(support.changes.length ? { support: support.details } : {}),
       },
+    });
+  });
+  return getProduct(row.id);
+}
+
+const storedSupport = (row: ProductRow) => ({ levelId: row.support_level_id ?? null, serviceId: row.supported_by_service_id ?? null });
+
+/**
+ * Changes a product's help and support (PUT /api/data-products/:id/support; 0.26.0, ADR 0039): its channels, level,
+ * guides and the service that supports it – with the edit right, audited as a change of the product.
+ */
+export function setProductSupport(id: string, body: unknown): DataProduct {
+  const { row } = editableProduct(id);
+  db().tx(() => {
+    const change: SupportChange = writeSupport('data_product', row.id, storedSupport(row), body);
+    if (!change.changes.length) return;
+    db().run('UPDATE dp_products SET revision = revision + 1, updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), actorName(), row.id);
+    audit({
+      action: 'dataproduct.updated',
+      entityType: 'data_product',
+      entityId: row.id,
+      summary: `Data product "${row.name}" changed (${change.changes.join(', ')})`,
+      details: { changes: change.changes, ...change.details },
     });
   });
   return getProduct(row.id);
@@ -950,6 +987,7 @@ export function deleteProduct(id: string): void {
     db().run('UPDATE dp_products SET successor_id = NULL WHERE successor_id = ?', row.id);
     db().run("DELETE FROM dp_notices WHERE kind = 'product' AND item_id = ?", row.id);
     deleteRatings('product', row.id);
+    forgetSupport('data_product', row.id);
     db().run('DELETE FROM dp_products WHERE id = ?', row.id);
     forgetOwningTeams('data_product', row.id);
     // its shares and Restricted mark go with it (else the share job reminds and expires shares of a deleted product)

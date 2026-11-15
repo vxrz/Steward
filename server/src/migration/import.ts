@@ -72,6 +72,8 @@ import { convertItemContacts, convertPlantSiteRoles } from '../contacts/upgrade.
 import { runAs } from '../auth/context.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
+import { EXAMPLES_SEEDED_KEY, convertSupport } from '../support/upgrade.js';
+import { dropExampleLevels, onlyExampleLevels } from '../support/levels.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -402,9 +404,13 @@ const TARGET_ALLOWED = new Set([...Object.keys(NOT_MOVED), 'daily_summary_prefs'
 /** Content tables of this instance that already hold rows (the import needs them empty). */
 export function filledTargetTables(): string[] {
   const d = db();
-  return tables(d)
-    .filter((t) => !TARGET_ALLOWED.has(t))
-    .filter((t) => Number(d.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${quoteIdent(t)}`)!.n) > 0);
+  return (
+    tables(d)
+      .filter((t) => !TARGET_ALLOWED.has(t))
+      // the example support levels of a new instance (0.26.0) are replaced by the package's
+      .filter((t) => t !== 'support_levels' || !onlyExampleLevels())
+      .filter((t) => Number(d.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${quoteIdent(t)}`)!.n) > 0)
+  );
 }
 
 interface TargetUser {
@@ -1098,6 +1104,7 @@ export function checkedSettings(settings: Record<string, unknown>, dataDir: stri
     else if (k === 'debugPauseMinutes') ok = int(v, DEBUG_LIMITS.pauseMinutes.min, DEBUG_LIMITS.pauseMinutes.max) ? v : undefined;
     else if (k === 'retentionNotificationDays' || k === 'retentionMonitorDays') ok = int(v, 1, 3650) ? v : undefined;
     else if (k === 'defaultLocale') ok = typeof v === 'string' && (LOCALE_CODES as readonly string[]).includes(v) ? v : undefined;
+    else if (k === 'support.examplesSeeded') ok = typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : undefined;
     else if (k === 'theme.settings') ok = checkedThemeSettings(v) ?? undefined;
     else if (k === 'theme.logo') ok = checkedLogo(v) ?? undefined;
     else if (k === 'notifications.look') ok = checkedLook(v) ?? undefined;
@@ -1247,6 +1254,8 @@ function copyIntoTarget(
       }
     }
     // ---- content ----
+    // the example support levels of this new instance give way to the package's (0.26.0)
+    dropExampleLevels(EXAMPLES_SEEDED_KEY);
     const order = fkOrder(d, tables(d)).filter((t) => !(t in NOT_MOVED));
     const stagingTables = new Set(tables(staging));
     for (const t of order) {
@@ -1394,6 +1403,8 @@ function copyIntoTarget(
     convertDataProductGovernance();
     // a package of a version before 0.26.0: plant sites' free-text roles become own roles (ADR 0039)
     convertPlantSiteRoles();
+    // support channels and levels (0.26.0, ADR 0039 part 8): a product's support and tier as a channel and a level, once
+    convertSupport();
   });
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),

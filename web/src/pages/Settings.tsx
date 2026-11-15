@@ -27,6 +27,7 @@ import {
   IconBuildingFactory2,
   IconChevronDown,
   IconLanguage,
+  IconLifebuoy,
   IconMapPinOff,
   IconPalette,
   IconPlugConnected,
@@ -85,6 +86,7 @@ import { IfModule } from '../components/modules/ModuleOff';
 import { DataProductsSettingsCard } from '../components/dataproducts/SettingsCard';
 import { ContactRolesSettings } from '../components/contacts/ContactRolesSettings';
 import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
+import { SupportLevelsCard } from '../components/support/SupportLevelsSettings';
 
 /**
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
@@ -98,9 +100,10 @@ export const SETTINGS_AREAS = [
   'notifications',
   'appearance',
   'catalogue',
+  'contacts',
+  'support',
   'modules',
   'data',
-  'contacts',
 ] as const;
 export type SettingsArea = (typeof SETTINGS_AREAS)[number];
 const AREA_ICONS: Record<SettingsArea, Icon> = {
@@ -111,6 +114,7 @@ const AREA_ICONS: Record<SettingsArea, Icon> = {
   notifications: IconBell,
   appearance: IconPalette,
   catalogue: IconScale,
+  support: IconLifebuoy,
   modules: IconPuzzle,
   data: IconDatabase,
   // 0.26.0 (ADR 0039): the role catalogue of the contacts directory
@@ -368,6 +372,9 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
       );
     case 'contacts':
       return <ContactRolesSettings />;
+    case 'support':
+      // support levels (0.26.0, ADR 0039 part 5): what providing teams promise, picked by products, services and applications
+      return <SupportLevelsCard />;
     case 'modules':
       // the module registry (0.11.0, ADR 0016): every optional area with a switch; the plant registry (#218) and the map
       // of sites (#234) keep their own cards, off until an administrator turns them on

@@ -17,7 +17,7 @@ import * as steps from './steps.js';
  *   GET|POST /api/data-domains, GET|PUT|DELETE /api/data-domains/:id
  *   GET|POST /api/data-objects, GET|PUT|DELETE /api/data-objects/:id, PUT …/:id/rating
  *   GET|POST /api/data-objects/:id/elements, DELETE …/elements/:elementId        elements that implement it
- *   GET|POST /api/data-products, GET|PUT|DELETE /api/data-products/:id, PUT …/:id/rating
+ *   GET|POST /api/data-products, GET|PUT|DELETE /api/data-products/:id, PUT …/:id/rating, PUT …/:id/support
  *   POST     /api/data-products/:id/lifecycle                                     proposed → draft → active → deprecated → retired
  *   PUT|DELETE /api/data-products/:id/environments/:environment
  *   GET|POST /api/data-products/:id/members, PUT|DELETE …/members/:elementId
@@ -96,6 +96,8 @@ export async function dataProductRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(204).send();
   });
   app.put('/data-products/:id/rating', async (req) => svc.rateProduct(idOf(req), req.body));
+  // 0.26.0 (ADR 0039): channels, level, guides and the supporting service – with the product's edit right
+  app.put('/data-products/:id/support', async (req) => svc.setProductSupport(idOf(req), req.body ?? {}));
   // retiring is session-only (ADR 0036 security notes); the other states, too, so one route has one rule
   app.post('/data-products/:id/lifecycle', { config: { access: ACCESS.session } }, async (req) => svc.changeLifecycle(idOf(req), req.body));
   app.put('/data-products/:id/environments/:environment', async (req) => {

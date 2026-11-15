@@ -21,8 +21,10 @@ import {
   type DataProductImportProblem,
   type DataProductImportResult,
   type PlatformPermission,
+  toolOfAddress,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { listLevels } from '../support/levels.js';
 import { me } from '../auth/access.js';
 import { audit, withoutAudit } from '../audit.js';
 import { holdingNotices } from './notices.js';
@@ -704,6 +706,21 @@ function normaliseProduct(p: ProductFile): void {
   }
   for (const x of p.ports ?? []) for (const c of x.consumers ?? []) if (c.agreement) c.agreement.label ??= '';
   for (const r of p.external_refs ?? []) r.label ??= '';
+  // 0.26.0: channels as stored (the tool an address suggests), a level by its name as the catalogue holds it
+  if (p.support_channels)
+    p.support_channels = p.support_channels.map((c) => ({
+      purpose: c.purpose,
+      tool: c.tool ?? toolOfAddress(c.address ?? ''),
+      name: c.name ?? '',
+      address: c.address ?? '',
+      hours: c.hours ?? '',
+      note: c.note ?? '',
+    }));
+  if (p.support_level) {
+    const n = p.support_level.name.trim().toLowerCase();
+    const l = listLevels().find((x) => x.nameEn.trim().toLowerCase() === n || (!!x.nameDe && x.nameDe.trim().toLowerCase() === n));
+    if (l) p.support_level = { name: l.nameEn, hours: l.hours, first_response: l.firstResponse };
+  }
 }
 
 /** The same for a data object: list items an export writes without their empty values. */
@@ -1342,7 +1359,6 @@ function* elementWrites(run: Run, journal?: ElementJournal): Generator<void> {
 function productBody(r: Resolver, e: Entry<ProductFile, ProductRow>, withSuccessor: boolean) {
   const m = e.merged;
   const row = e.row;
-  const support = { channel: '', url: '', hours: '', ...parseJson<Record<string, string>>(row?.support ?? '{}', {}), ...(m.support ?? {}) };
   let successorId: string | null = row?.successor_id ?? null;
   if (m.successor !== undefined && withSuccessor) successorId = m.successor ? r.productId(m.successor) : null;
   else if (m.successor && !withSuccessor) successorId = r.productIds.get(m.successor) ?? r.product(m.successor)?.id ?? successorId;
@@ -1359,9 +1375,10 @@ function productBody(r: Resolver, e: Entry<ProductFile, ProductRow>, withSuccess
       : m.contacts !== undefined
         ? { contacts: contactLinksOf('data_product', row?.id ?? null, m.contacts, 'productOwner') }
         : {}),
-    support: { channel: support.channel ?? '', url: support.url ?? '', hours: support.hours ?? '' },
+    // deprecated (0.26.0): a file that still names them sets the first channel for questions and the level of the tier
+    ...(e.incoming.support !== undefined ? { support: { channel: m.support?.channel ?? '', url: m.support?.url ?? '', hours: m.support?.hours ?? '' } } : {}),
+    ...(e.incoming.tier !== undefined ? { tier: m.tier ?? null } : {}),
     criticality: m.criticality ?? null,
-    tier: m.tier ?? null,
     version: m.version ?? '',
     valueStatement: m.value_statement ?? '',
     valueTier: m.value_tier ?? null,
@@ -1393,6 +1410,40 @@ const BASICS: (keyof ProductFile)[] = [
   'tags',
   'external_refs',
 ];
+/** 0.26.0 (ADR 0039): help and support, written with PUT …/support after the basics. */
+const SUPPORT: (keyof ProductFile)[] = ['support_channels', 'support_level', 'guides', 'supported_by_service'];
+
+/** A level by its English or German name (404 SUPPORT_LEVEL_NOT_FOUND: the file names one the instance does not have). */
+function levelIdOf(name: string): string {
+  const n = name.trim().toLowerCase();
+  const hit = listLevels().find((l) => l.nameEn.trim().toLowerCase() === n || (!!l.nameDe && l.nameDe.trim().toLowerCase() === n));
+  if (!hit)
+    throw new HttpError(404, `The support level "${name}" is not known – an administrator adds it under Settings → Support levels`, 'SUPPORT_LEVEL_NOT_FOUND', {
+      id: name,
+    });
+  return hit.id;
+}
+
+function supportBody(r: Resolver, m: ProductFile) {
+  return {
+    ...(m.support_channels !== undefined
+      ? {
+          channels: m.support_channels.map((c) => ({
+            purpose: c.purpose,
+            tool: c.tool ?? toolOfAddress(c.address ?? ''),
+            name: c.name ?? '',
+            address: c.address ?? '',
+            hours: c.hours ?? '',
+            note: c.note ?? '',
+          })),
+        }
+      : {}),
+    ...(m.support_level !== undefined ? { levelId: m.support_level ? levelIdOf(m.support_level.name) : null } : {}),
+    ...(m.guides !== undefined ? { guides: m.guides.map((g) => ({ title: g.title, url: g.url })) } : {}),
+    ...(m.supported_by_service !== undefined ? { supportedByServiceId: m.supported_by_service ? r.named('service', m.supported_by_service) : null } : {}),
+  };
+}
+
 const pick = (x: ProductFile | null, keys: (keyof ProductFile)[]) => (x ? Object.fromEntries(keys.map((k) => [k, x[k]])) : null);
 
 /** The source of an input port as the service takes it. */
@@ -1496,6 +1547,9 @@ function writeProducts(run: Run): void {
         r.productIds.set(e.merged.key, p.id);
       });
     else r.productIds.set(e.merged.key, e.row!.id);
+    // help and support (0.26.0): what the file says over what the product has
+    if (SUPPORT.some((k) => e.incoming[k] !== undefined) && !same(pick(e.current, SUPPORT), pick(e.merged, SUPPORT)))
+      step(run, e.file, entry, 'support', () => void svc.setProductSupport(productOf(e), supportBody(r, e.merged)));
     const envs = new Map((e.current?.environments ?? []).map((x) => [x.environment, x.state]));
     for (const x of e.merged.environments ?? [])
       if (!envs.has(x.environment) || envs.get(x.environment) !== (x.state ?? 'planned'))

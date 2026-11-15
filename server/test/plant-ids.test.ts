@@ -330,6 +330,9 @@ describe('the registry of reference columns', () => {
    * that do are in REFERENCES (item_links, resource_teams, copied_from, plant_refs; credentials' used_by by its JSON).
    */
   const OTHER_KINDS: Record<string, string> = {
+    // 0.26.0 (ADR 0039): support channels and guides of data products, services and applications – never a plant kind
+    support_channels: 'the item a support channel belongs to (data product, service, application)',
+    guides: 'the item a guide belongs to (data product)',
     // 0.25.0 (ADR 0037): which kind of Industrial Edge suggestion was dismissed (createSystem, linkSystem, addApplication)
     edge_suggestion_dismissals: 'the kind of an Industrial Edge suggestion',
     ca_findings: 'the source of a corrective action finding',
