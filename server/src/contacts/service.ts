@@ -378,6 +378,10 @@ export function checkLinkRoles(
   }
 }
 
+/** checkLinkRoles for links an adapter writes itself (a supplier's contact entry): against what the item has already. */
+export const checkItemLinkRoles = (kind: ContactLinkKind, itemId: string, links: readonly { role: string; contactId?: string }[]): void =>
+  checkLinkRoles(kind, links, itemHad(kind, itemId));
+
 /** The roles and links an item has already (checkLinkRoles). */
 function itemHad(kind: ContactLinkKind, itemId: string): { roles: Set<string>; links: Set<string> } {
   const rows = db().all<{ role: string; contact_id: string }>('SELECT role, contact_id FROM contact_links WHERE kind = ? AND item_id = ?', kind, itemId);
