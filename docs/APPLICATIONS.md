@@ -24,6 +24,8 @@ A **platform** in Steward is an integration: an interface with a base URL, crede
 
 An **application** is the catalogue entry: name, description (Markdown), vendor, version, URL, the users and teams responsible for it (`user:dana`, `team:service desk`), criticality (low, medium, high, critical), tags, the CMDB entry (system, ID, link) and links – the same links as on services, both ways.
 
+Since 0.26.0 an application also has **help and support** – its support channels (purpose, tool, address, hours, note) and a **support level** from _Settings → Support levels_ – like services and data products, changed with the application's edit right ([SUPPORT.md](SUPPORT.md)).
+
 The application page shows the description and the facts open. The other sections (maintenance, rating, components, tech stack, runs on, integrations, services, credentials, documentation, duties, links) are headings that fold: a section with entries starts open, an empty one folded with its _Add_ button beside it, and the header shows the count and what needs attention (a credential that expired or is overdue opens its section). Your choice per section is kept for every application page (per user, in this browser); _Expand all_ and _Collapse all_ change only the current view. On a phone the lists start folded, except the components. Printing opens everything.
 
 One application can have several platforms, for example _Insights Hub_ ← _IH tenant prod_ and _IH tenant test_. A platform belongs to one application at most.
@@ -37,6 +39,10 @@ One application can have several platforms, for example _Insights Hub_ ← _IH t
 Applications are archived, not deleted (_Archive_ on the application page). An archived application no longer counts for the protection need of its services and disappears from the list and the pickers. Its rating, links and history stay. _Show archived applications_ lists them; _Restore_ brings one back.
 
 The list has a search (name, vendor, tag) and filters by service, criticality and protection need (applications with that level in at least one dimension, or _Not rated_).
+
+## Business contacts
+
+Since 0.26.0 ([ADR 0039](adr/0039-contact-roles-and-support.md)) an application and a system name **business contacts** in the _Contacts_ section of their page: _business owner_ and _application manager_ (applications) or _system manager_ (systems), and own roles of the [role catalogue](CONTACTS.md#roles) – people and groups from the [contacts directory](CONTACTS.md), with a [deputy and an end date](CONTACTS.md#deputy-and-until) where needed. They document who answers for it on the business side; its **owners** – the Steward users and teams who maintain it – are unchanged, and a contact gives no right. Who sees the application or system sees them, who may change it changes them. An application also shows the contacts of the services it belongs to, read only: an application can serve several services, so nothing is inherited. `/api/v1` and the CSV exports name them by name and role (`contacts`); `PUT /api/applications/{id}/contacts` and `PUT /api/systems/{id}/contacts` take the picker's links.
 
 ## Map platforms (integrations)
 

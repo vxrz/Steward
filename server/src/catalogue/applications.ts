@@ -1,3 +1,4 @@
+import type { ContactNameEntry } from '@sm/shared';
 import { z } from 'zod';
 import {
   APPLICATION_ROLES,
@@ -17,6 +18,8 @@ import {
   supplierLinkField,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { appLinksOf, contactChanges, linksOf, namesOfLinks } from '../contacts/service.js';
+import { writeCatalogueContacts } from './contacts.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, platformPermissions } from '../auth/permissions.js';
@@ -46,6 +49,7 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams, catalogueTeams } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
+import { channelsOf, levelOf, writeSupport } from '../support/items.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -68,6 +72,8 @@ interface ApplicationRow {
   cmdb_id: string | null;
   cmdb_url: string | null;
   tags: string;
+  /** 0.26.0 (ADR 0039): the support level it picks */
+  support_level_id: string | null;
   archived: number;
   /** The supplier (0.17.0, ADR 0029); `vendor` stays as the fallback text */
   supplier_id: string | null;
@@ -253,12 +259,14 @@ function toSummary(
     overdueDocuments: x.docs.overdue,
     componentCount: x.components,
     systemCount: x.systems,
+    supportLevel: levelOf(r.support_level_id),
     updatedAt: r.updated_at,
   };
 }
 
-/** An application with its description and creation (the public API's list). */
-export type ApplicationEntry = ApplicationSummary & Pick<ApplicationDetail, 'description' | 'createdAt' | 'createdBy' | 'updatedBy'>;
+/** An application with its description and creation (the public API's list); 0.26.0: its contacts by name and role. */
+export type ApplicationEntry = ApplicationSummary &
+  Pick<ApplicationDetail, 'description' | 'createdAt' | 'createdBy' | 'updatedBy'> & { contacts: ContactNameEntry[] };
 
 export function listApplicationEntries(o: { archived?: boolean } = {}): ApplicationEntry[] {
   const u = me();
@@ -276,6 +284,12 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
   const components = componentCounts();
   const systems = systemCounts();
   const suppliers = supplierRefs(rows.map((r) => r.supplier_id));
+  // 0.26.0 (ADR 0039): business contacts by name and role (CONTACT_EXPOSURE `names`), one statement for the list
+  const contacts = linksOf(
+    'application',
+    rows.map((r) => r.id),
+    { surface: 'api' },
+  );
   return rows.map((r) => ({
     ...toSummary(r, {
       services: services.get(r.id) ?? [],
@@ -290,11 +304,12 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
+    contacts: namesOfLinks(contacts.get(r.id)),
   }));
 }
 
 export function listApplications(o: { archived?: boolean } = {}): ApplicationSummary[] {
-  return listApplicationEntries(o).map(({ description: _d, createdAt: _c, createdBy: _cb, updatedBy: _ub, ...s }) => s);
+  return listApplicationEntries(o).map(({ description: _d, createdAt: _c, createdBy: _cb, updatedBy: _ub, contacts: _ct, ...s }) => s);
 }
 
 /** The living documents that apply to an application (404 for an unknown application). */
@@ -310,9 +325,10 @@ export function getApplication(id: string): ApplicationDetail {
   const documents = readableDocuments(scopedRecordIds(r.id), u);
   const components = componentsOf(r.id);
   const systems = systemLinksOf(r.id);
+  const services = servicesOf().get(r.id) ?? [];
   return {
     ...toSummary(r, {
-      services: servicesOf().get(r.id) ?? [],
+      services,
       integrations: integrations.length,
       rating: ratingsOf([r.id]).get(r.id) ?? emptyRating(),
       docs: { documents: documents.length, overdue: documents.filter((d) => d.reviewStatus === 'overdue').length },
@@ -331,8 +347,63 @@ export function getApplication(id: string): ApplicationDetail {
     stack: stackRollup(components, systems),
     systems,
     credentials: applicationCredentials(r.id, components, u),
+    contacts: appLinksOf('application', [r.id]).get(r.id) ?? [],
+    serviceContacts: serviceContactsOfApplication(services),
     canEdit: canEditApplication(u, r),
+    supportChannels: channelsOf([{ kind: 'application', id: r.id }]).get(`application:${r.id}`) ?? [],
   };
+}
+
+/** Changes an application's support channels and level (PUT /api/applications/:id/support; 0.26.0, ADR 0039). */
+export function setApplicationSupport(id: string, body: unknown): ApplicationDetail {
+  const u = me();
+  const cur = requireEditableApplication(id, 'change this application');
+  db().tx(() => {
+    const change = writeSupport('application', id, { levelId: cur.support_level_id ?? null }, body);
+    if (!change.changes.length) return;
+    db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, id);
+    audit({
+      action: 'application.updated',
+      entityType: 'application',
+      entityId: id,
+      summary: `Application "${cur.name}" changed (${change.changes.join(', ')})`,
+      details: { changes: change.changes, ...change.details },
+    });
+  });
+  return getApplication(id);
+}
+
+/**
+ * The contacts of the services an application belongs to (those the reader may see: servicesOf leaves the others out),
+ * read only and never inherited (ADR 0039 part 2): one statement for all of them.
+ */
+function serviceContactsOfApplication(services: readonly ApplicationServiceRef[]): ApplicationDetail['serviceContacts'] {
+  const links = appLinksOf(
+    'service',
+    services.map((x) => x.id),
+  );
+  return services.map((x) => ({ serviceId: x.id, serviceName: x.name, contacts: links.get(x.id) ?? [] })).filter((x) => x.contacts.length);
+}
+
+/**
+ * PUT /api/applications/:id/contacts (0.26.0): the application's business contacts – who may change it; audited as a
+ * change of the application (application.updated, the contacts added, removed and changed).
+ */
+export function setApplicationContacts(id: string, body: unknown): ApplicationDetail {
+  const r = requireEditableApplication(id, 'change the contacts of this application');
+  db().tx(() => {
+    const c = writeCatalogueContacts('application', r.id, body);
+    if (!c.added.length && !c.removed.length && !c.updated.length) return;
+    db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), me().username, r.id);
+    audit({
+      action: 'application.updated',
+      entityType: 'application',
+      entityId: r.id,
+      summary: `Application "${r.name}" changed (contacts)`,
+      details: { changes: ['contacts'], contacts: contactChanges(c) },
+    });
+  });
+  return getApplication(r.id);
 }
 
 /**

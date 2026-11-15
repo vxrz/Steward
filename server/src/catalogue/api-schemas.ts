@@ -1,4 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
+import { ContactNameEntries } from '../contacts/api-schemas.js';
 import {
   APPLICATION_ROLES,
   CIA_COLORS,
@@ -20,6 +21,7 @@ import {
   SUPPLIER_STATUSES,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
+import { ApiSupportChannel, ApiSupportLevel } from '../support/api.js';
 
 /** Response and query schemas of the service catalogue endpoints of the public API (/api/v1/services…). */
 
@@ -109,6 +111,7 @@ export const ServiceEntry = z.object({
   overdueDocuments: z.number().int().describe('Of these, the documents whose periodic review is overdue'),
   applications: z.array(ServiceApplicationRef).describe('The applications the service consists of, with their role'),
   protectionNeed: ProtectionNeed,
+  supportLevel: ApiSupportLevel.nullable().describe('0.26.0: the support level it picks'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -116,6 +119,9 @@ export const ServiceEntry = z.object({
 });
 
 export const ServiceEntryDetail = ServiceEntry.extend({
+  supportChannels: z
+    .array(ApiSupportChannel)
+    .describe('0.26.0: where its users ask and report issues and incidents, in their order – shared addresses, not people'),
   links: z
     .array(RecordLink)
     .describe('Links of the service: internal items and external URLs. Items the token owner may not see are listed with visible false, without id or name.'),
@@ -193,6 +199,8 @@ export const ApplicationEntry = z.object({
   overdueDocuments: z.number().int(),
   componentCount: z.number().int().describe('Components of the application (repositories, container images, Kafka topics, …)'),
   systemCount: z.number().int().describe('"Runs on" links to systems (one per system and environment)'),
+  contacts: ContactNameEntries.describe('0.26.0: business contacts (business owner, application manager, own roles) – documentation, never a right'),
+  supportLevel: ApiSupportLevel.nullable().describe('0.26.0: the support level it picks'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -200,6 +208,9 @@ export const ApplicationEntry = z.object({
 });
 
 export const ApplicationEntryDetail = ApplicationEntry.extend({
+  supportChannels: z
+    .array(ApiSupportChannel)
+    .describe('0.26.0: where its users ask and report issues and incidents, in their order – shared addresses, not people'),
   integrations: z
     .array(
       z.object({
@@ -282,6 +293,7 @@ export const SystemEntry = z.object({
     .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
   cmdbUrl: z.string().describe('http(s) link to the CMDB entry, or empty'),
   owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
+  contacts: ContactNameEntries.describe('0.26.0: business contacts (business owner, system manager, own roles) – documentation, never a right'),
   note: z.string(),
   attributes: z
     .object({

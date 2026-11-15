@@ -5,6 +5,8 @@ import {
   CONTACT_LIMITS,
   CONTACT_LINK_ROLES,
   contactEmailKey,
+  contactLinkEnded,
+  contactRoleOn,
   contactInput,
   contactLinkInput,
   contactNameKey,
@@ -17,6 +19,7 @@ import {
   type ContactLinkKind,
   type ContactList,
   type ContactListItem,
+  type ContactNameEntry,
   type ContactRef,
   type ContactReplaceInput,
   type ContactReplaceResult,
@@ -25,12 +28,13 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
+import { currentActor, currentUser, viaApiToken, type AuthUser } from '../auth/context.js';
 import { forbid, hasRole, me, requireAdmin } from '../auth/access.js';
 import { isAdmin } from '../auth/permissions.js';
 import { likeEscape } from '../database/sql.js';
 import { HttpError, newId, nowIso } from '../util.js';
 import { contactHooks, contactKind, contactKinds } from './registry.js';
+import { roleCatalogue, roleLabelOf, roleOf, unknownRole } from './roles.js';
 
 /**
  * The contacts directory (0.25.1, ADR 0038 part 1, docs/CONTACTS.md): one entry per person or group, linked to items
@@ -81,6 +85,10 @@ interface LinkRow {
   position: number;
   created_at: string;
   created_by: string;
+  /** 0.26.0: stands in for this contact (same role, same item) */
+  deputy_of: string | null;
+  /** 0.26.0: named until this day (YYYY-MM-DD) */
+  until: string | null;
 }
 
 /** Where personal data goes (CONTACT_EXPOSURE): the web app, the public API and MCP, exports and reports, a module's file format. */
@@ -207,18 +215,25 @@ const listItem = (r: ContactRow, usedBy: number): ContactListItem => ({
 
 // ---------- links of items (the API other modules use) ----------
 
-const roleList = (kind: ContactLinkKind): readonly string[] | null => CONTACT_LINK_ROLES[kind];
-
 function knownKind(kind: string): ContactLinkKind {
   if (!(kind in CONTACT_LINK_ROLES)) throw new HttpError(400, `Unknown contact link kind "${kind}"`, 'CONTACT_KIND_UNKNOWN', { kind });
   return kind as ContactLinkKind;
 }
 
-/** The order of an item's contacts: as entered (position, item-wide), then by role. */
-function sortLinks(kind: ContactLinkKind, rows: { role: string; position: number }[]): void {
-  const roles = roleList(kind);
-  rows.sort((a, b) => a.position - b.position || (roles ? roles.indexOf(a.role) - roles.indexOf(b.role) : a.role.localeCompare(b.role)));
+/** The order of an item's contacts: as entered (position, item-wide), then in the catalogue's order of roles. */
+function sortLinks(rows: { role: string; position: number }[]): void {
+  const order = new Map(roleCatalogue().map((r, i) => [r.key, i]));
+  const at = (role: string) => order.get(role) ?? Number.MAX_SAFE_INTEGER;
+  rows.sort((a, b) => a.position - b.position || at(a.role) - at(b.role) || a.role.localeCompare(b.role));
 }
+
+/** A link as items show it: deputy and until only when set (the shapes of before stay as they were). */
+const linkOf = (r: { role: string; deputy_of: string | null; until: string | null }, contact: ContactRef): ContactLink => ({
+  role: r.role,
+  contact,
+  ...(r.deputy_of ? { deputyOf: r.deputy_of } : {}),
+  ...(r.until ? { until: r.until } : {}),
+});
 
 /**
  * The contacts of many items of one kind, in bulk (one statement per 500 items), in the shape the surface allows
@@ -228,60 +243,194 @@ function sortLinks(kind: ContactLinkKind, rows: { role: string; position: number
 export function linksOf(kind: ContactLinkKind, itemIds: readonly string[], opts: { surface?: ContactSurface } = {}): Map<string, ContactLink[]> {
   const level = exposureLevel(kind, opts.surface ?? 'app');
   const rows = inChunks(itemIds, (part) =>
-    db().all<ContactRow & { item_id: string; role: string; position: number }>(
-      `SELECT l.item_id, l.role, l.position, ${CONTACT_COLUMNS} FROM contact_links l JOIN contacts c ON c.id = l.contact_id LEFT JOIN users u ON u.id = c.user_id
+    db().all<ContactRow & { item_id: string; role: string; position: number; deputy_of: string | null; until: string | null }>(
+      `SELECT l.item_id, l.role, l.position, l.deputy_of, l.until, ${CONTACT_COLUMNS} FROM contact_links l JOIN contacts c ON c.id = l.contact_id LEFT JOIN users u ON u.id = c.user_id
         WHERE l.kind = ? AND l.item_id IN (${marks(part.length)})`,
       kind,
       ...part,
     ),
   );
-  sortLinks(kind, rows);
+  sortLinks(rows);
   const out = new Map<string, ContactLink[]>(itemIds.map((id) => [id, []]));
-  for (const r of rows) out.get(r.item_id)?.push({ role: r.role, contact: refOf(r, level) });
+  for (const r of rows) out.get(r.item_id)?.push(linkOf(r, refOf(r, level)));
+  return out;
+}
+
+/**
+ * The contacts of items of a kind of exposure `names` for the web app's internal API (applications, systems): the full
+ * contact in a session; called with an API token, an API like /api/v1 (ADR 0038) – name, role and the linked Steward
+ * user only.
+ */
+export function appLinksOf(kind: ContactLinkKind, itemIds: readonly string[]): Map<string, ContactLink[]> {
+  if (!itemIds.length) return new Map();
+  const links = linksOf(kind, itemIds);
+  if (!viaApiToken()) return links;
+  for (const list of links.values())
+    for (const l of list) l.contact = { id: l.contact.id, kind: l.contact.kind, name: l.contact.name, status: l.contact.status, user: l.contact.user ?? null };
+  return links;
+}
+
+/**
+ * Names and roles (exports, /api/v1, MCP, reports – CONTACT_EXPOSURE `names`): the role's key and English label, the
+ * name, and – 0.26.0 – whom a deputy stands in for (by name) and until when.
+ */
+export function namesOfLinks(links: readonly ContactLink[] | undefined): ContactNameEntry[] {
+  const list = links ?? [];
+  const nameOf = new Map(list.map((l) => [l.contact.id, l.contact.name]));
+  return list.map((l) => ({
+    role: l.role,
+    roleLabel: roleLabelOf(l.role),
+    name: l.contact.name,
+    ...(l.deputyOf && nameOf.has(l.deputyOf) ? { deputyOf: nameOf.get(l.deputyOf)! } : {}),
+    ...(l.until ? { until: l.until } : {}),
+  }));
+}
+
+/**
+ * The contacts of items of several kinds in one statement (a page that shows an item and what it inherits: a product and
+ * its domains), else as linksOf per kind. Per kind, per item id; the shape the surface allows.
+ */
+export function linksOfKinds(
+  parts: readonly { kind: ContactLinkKind; ids: readonly string[] }[],
+  opts: { surface?: ContactSurface } = {},
+): Map<ContactLinkKind, Map<string, ContactLink[]>> {
+  const want = parts.map((p) => ({ kind: p.kind, ids: [...new Set(p.ids)] })).filter((p) => p.ids.length);
+  const out = new Map<ContactLinkKind, Map<string, ContactLink[]>>(parts.map((p) => [p.kind, new Map(p.ids.map((id) => [id, []]))]));
+  if (!want.length) return out;
+  if (want.reduce((n, p) => n + p.ids.length, 0) > CHUNK) {
+    for (const p of want) out.set(p.kind, linksOf(p.kind, p.ids, opts));
+    return out;
+  }
+  const rows = db().all<ContactRow & { kind: string; item_id: string; role: string; position: number; deputy_of: string | null; until: string | null }>(
+    `SELECT l.kind AS link_kind, l.item_id, l.role, l.position, l.deputy_of, l.until, ${CONTACT_COLUMNS} FROM contact_links l JOIN contacts c ON c.id = l.contact_id
+       LEFT JOIN users u ON u.id = c.user_id WHERE ${want.map((p) => `(l.kind = ? AND l.item_id IN (${marks(p.ids.length)}))`).join(' OR ')}`,
+    ...want.flatMap((p) => [p.kind, ...p.ids]),
+  ) as unknown as (ContactRow & {
+    link_kind: ContactLinkKind;
+    item_id: string;
+    role: string;
+    position: number;
+    deputy_of: string | null;
+    until: string | null;
+  })[];
+  sortLinks(rows);
+  for (const r of rows)
+    out
+      .get(r.link_kind)
+      ?.get(r.item_id)
+      ?.push(linkOf(r, refOf(r, exposureLevel(r.link_kind, opts.surface ?? 'app'))));
   return out;
 }
 
 const linkList = z.array(contactLinkInput).max(CONTACT_LIMITS.perRole * 10);
 
+/**
+ * A link as it is written: role and contact, and – 0.26.0 – who it stands in for and until when. `deputyOf` and `until`
+ * given (null clears them) are written; left out (a client or a file of before), the link keeps what it had.
+ */
+export interface ItemLink {
+  role: string;
+  contactId: string;
+  deputyOf?: string | null;
+  until?: string | null;
+}
+
 export interface SetLinksResult {
   /** Links added and removed (role and contact) */
   added: { role: string; contactId: string; name: string }[];
   removed: { role: string; contactId: string; name: string }[];
+  /** Links that stay with another deputy or until date (0.26.0) */
+  updated: { role: string; contactId: string; name: string }[];
   /** Contacts made on the way (inline) */
   created: string[];
 }
 
+/** What changed of an item's contacts, for its audit entry: "role: name" per link added, removed and changed. */
+export const contactChanges = (r: SetLinksResult): { added: string[]; removed: string[]; updated?: string[] } => ({
+  added: r.added.map((a) => `${a.role}: ${a.name}`),
+  removed: r.removed.map((a) => `${a.role}: ${a.name}`),
+  ...(r.updated.length ? { updated: r.updated.map((a) => `${a.role}: ${a.name}`) } : {}),
+});
+
+const linkKey = (role: string, contactId: string) => `${role}\u0000${contactId}`;
+
+/**
+ * The role catalogue's rules for the roles of an item's links (ADR 0039 part 1): a role switched on for the kind; a role
+ * switched off since – for the kind or altogether – only on the links that name it already (no new links; existing
+ * ones stay); a text that is no role of the catalogue only where the item names it already (plant sites: a role text
+ * of before 0.26.0 that was kept, up to 200 characters) – and a plant site's contact may have no role, as before. 400
+ * CONTACT_ROLE_UNKNOWN with the hint where roles are added, or CONTACT_ROLE_OFF, otherwise.
+ */
+export function checkLinkRoles(
+  kind: ContactLinkKind,
+  links: readonly { role: string; contactId?: string }[],
+  had: { roles: ReadonlySet<string>; links: ReadonlySet<string> },
+): void {
+  for (const l of links) {
+    if (l.role === '' && kind === 'plant_site') continue;
+    const r = roleOf(l.role);
+    if (!r || !(r.kinds.includes(kind) || r.builtInKinds?.includes(kind))) {
+      if (had.roles.has(l.role)) continue;
+      unknownRole(l.role);
+    }
+    if (contactRoleOn(r, kind) || (l.contactId && had.links.has(linkKey(l.role, l.contactId)))) continue;
+    throw new HttpError(400, `The role "${r!.labels.en}" is switched off here`, 'CONTACT_ROLE_OFF', { role: r!.labels.en });
+  }
+}
+
+/** checkLinkRoles for links an adapter writes itself (a supplier's contact entry): against what the item has already. */
+export const checkItemLinkRoles = (kind: ContactLinkKind, itemId: string, links: readonly { role: string; contactId?: string }[]): void =>
+  checkLinkRoles(kind, links, itemHad(kind, itemId));
+
+/** The roles and links an item has already (checkLinkRoles). */
+function itemHad(kind: ContactLinkKind, itemId: string): { roles: Set<string>; links: Set<string> } {
+  const rows = db().all<{ role: string; contact_id: string }>('SELECT role, contact_id FROM contact_links WHERE kind = ? AND item_id = ?', kind, itemId);
+  return { roles: new Set(rows.map((r) => r.role)), links: new Set(rows.map((r) => linkKey(r.role, r.contact_id))) };
+}
+
+/**
+ * Cardinality and deputies (ADR 0039 parts 1 and 3) of an item's links as they will be: a role of cardinality one has
+ * one current contact at most (deputies and ended links aside); a deputy stands in for a contact linked in the same
+ * role on the item that is not a deputy itself; `until` is a date.
+ */
+function checkLinkRules(links: readonly (ItemLink & { name: string })[], today: string): void {
+  const principals = new Map<string, Set<string>>();
+  for (const l of links) if (!l.deputyOf) principals.set(l.role, (principals.get(l.role) ?? new Set()).add(l.contactId));
+  for (const l of links) {
+    if (!l.deputyOf) continue;
+    if (l.deputyOf === l.contactId || !principals.get(l.role)?.has(l.deputyOf))
+      throw new HttpError(400, `${l.name} can only stand in for a contact named in the same role here`, 'CONTACT_DEPUTY_INVALID', { name: l.name });
+  }
+  const current = new Map<string, number>();
+  for (const l of links) if (!l.deputyOf && !contactLinkEnded(l, today)) current.set(l.role, (current.get(l.role) ?? 0) + 1);
+  for (const [role, n] of current) {
+    const r = roleOf(role);
+    if (r?.cardinality === 'one' && n > 1)
+      throw new HttpError(400, `"${r.labels.en}" takes one contact – name the others as deputies, or give the one leaving an end date`, 'CONTACT_ROLE_ONE', {
+        role: r.labels.en,
+      });
+  }
+}
+
+const today = () => nowIso().slice(0, 10);
+
 /**
  * Replaces the contacts of an item (only those of `opts.roles`, if given) inside the caller's transaction. Each link
  * names an existing contact by id – one the user may see (else 404 CONTACT_NOT_FOUND, as if it did not exist), active
- * unless the item had it already (CONTACT_LEFT) – or a new contact, which is made (contact.created). Roles follow
- * CONTACT_LINK_ROLES (free text of at most 80 characters where the kind has no list), at most CONTACT_LIMITS.perRole
- * contacts per role; the same contact twice in one role counts once. The caller checks that the user may change the
- * item, and audits the item's change (the result says what was added and removed).
+ * unless the item had it already (CONTACT_LEFT) – or a new contact, which is made (contact.created). Roles follow the
+ * role catalogue (checkLinkRoles: switched on for the kind, or named on the item already), with its cardinality, at most
+ * CONTACT_LIMITS.perRole contacts per role; the same contact twice in one role counts once. A deputy stands in for a
+ * contact of the same role on the item; `until` is a date (both kept when left out). The caller checks that the user
+ * may change the item, and audits the item's change (the result says what was added, removed and changed).
  */
 export function setLinks(kind: ContactLinkKind, itemId: string, input: readonly ContactLinkInput[], opts: { roles?: readonly string[] } = {}): SetLinksResult {
   knownKind(kind);
   const links = linkList.parse(input);
-  const roles = roleList(kind);
   const scope = opts.roles ? new Set(opts.roles) : null;
+  for (const l of links) if (scope && !scope.has(l.role)) unknownRole(l.role);
+  checkLinkRoles(kind, links, itemHad(kind, itemId));
   const perRole = new Map<string, number>();
-  // a free-text role the item has already may stay as it is (plant sites' roles of before 0.25.1: up to 200, or none)
-  const hadRoles = roles
-    ? new Set<string>()
-    : new Set(
-        db()
-          .all<{ role: string }>('SELECT DISTINCT role FROM contact_links WHERE kind = ? AND item_id = ?', kind, itemId)
-          .map((r) => r.role),
-      );
-  for (const l of links) {
-    if (
-      (roles && !roles.includes(l.role)) ||
-      (scope && !scope.has(l.role)) ||
-      (!roles && !hadRoles.has(l.role) && (!l.role || l.role.length > CONTACT_LIMITS.role))
-    )
-      throw new HttpError(400, `"${l.role}" is not a contact role here`, 'CONTACT_ROLE_UNKNOWN', { role: l.role });
-    perRole.set(l.role, (perRole.get(l.role) ?? 0) + 1);
-  }
+  for (const l of links) perRole.set(l.role, (perRole.get(l.role) ?? 0) + 1);
   for (const [role, n] of perRole)
     if (n > CONTACT_LIMITS.perRole)
       throw new HttpError(400, `At most ${CONTACT_LIMITS.perRole} contacts per role`, 'CONTACT_ROLE_LIMIT', { role, max: CONTACT_LIMITS.perRole });
@@ -302,8 +451,9 @@ export function setLinks(kind: ContactLinkKind, itemId: string, input: readonly 
       if (!r || !seen.get(id)?.visible) notFound(id);
       if (r!.status === 'left') throw new HttpError(409, `${r!.name} has left – choose another contact`, 'CONTACT_LEFT', { name: r!.name });
     }
+    const before = new Map(existing.map((l) => [linkKey(l.role, l.contact_id), l]));
     const created: string[] = [];
-    const wanted: { role: string; contactId: string; name: string }[] = [];
+    const wanted: (ItemLink & { name: string })[] = [];
     for (const l of links) {
       let id = l.contactId;
       let name = id ? rows.get(id)!.name : '';
@@ -313,36 +463,49 @@ export function setLinks(kind: ContactLinkKind, itemId: string, input: readonly 
         name = c.name;
         created.push(id);
       }
-      if (!wanted.some((w) => w.role === l.role && w.contactId === id)) wanted.push({ role: l.role, contactId: id, name });
+      if (wanted.some((w) => w.role === l.role && w.contactId === id)) continue;
+      const old = before.get(linkKey(l.role, id));
+      wanted.push({
+        role: l.role,
+        contactId: id,
+        name,
+        deputyOf: l.deputyOf === undefined ? (old?.deputy_of ?? null) : l.deputyOf,
+        until: l.until === undefined ? (old?.until ?? null) : l.until,
+      });
     }
-    const key = (x: { role: string; contactId?: string; contact_id?: string }) => `${x.role}\u0000${x.contactId ?? x.contact_id}`;
-    const before = new Map(existing.map((l) => [key(l), l]));
-    const after = new Set(wanted.map(key));
+    checkLinkRules(wanted, today());
+    const after = new Set(wanted.map((w) => linkKey(w.role, w.contactId)));
     const oldNames = contactRows(existing.map((l) => l.contact_id));
     const removed = existing
-      .filter((l) => !after.has(key(l)))
+      .filter((l) => !after.has(linkKey(l.role, l.contact_id)))
       .map((l) => ({ role: l.role, contactId: l.contact_id, name: oldNames.get(l.contact_id)?.name ?? '' }));
-    const added = wanted.filter((w) => !before.has(key(w)));
+    const added = wanted.filter((w) => !before.has(linkKey(w.role, w.contactId))).map(({ role, contactId, name }) => ({ role, contactId, name }));
+    const updated = wanted
+      .filter((w) => {
+        const o = before.get(linkKey(w.role, w.contactId));
+        return !!o && ((o.deputy_of ?? null) !== (w.deputyOf ?? null) || (o.until ?? null) !== (w.until ?? null));
+      })
+      .map(({ role, contactId, name }) => ({ role, contactId, name }));
     writeItemLinks(kind, itemId, wanted, { roles: opts.roles, existing: before });
-    return { added, removed, created };
+    return { added, removed, updated, created };
   });
 }
 
 /**
  * Writes an item's links as given (the caller validated the roles and that the user may name these contacts): the
- * kinds' own adapters (a plant site's free-text roles of up to 200 characters, an empty role) and the upgrade. Keeps
- * when and by whom a link that stays was made; positions follow the order given, after the item's other roles.
+ * kinds' own adapters (a plant site's kept role texts of up to 200 characters, an empty role) and the upgrade. Keeps
+ * when and by whom a link that stays was made, and its deputy and until date unless given; a deputy whose contact is
+ * no longer named in the role stands in for nobody. Positions follow the order given, after the item's other roles.
  */
 export function writeItemLinks(
   kind: ContactLinkKind,
   itemId: string,
-  links: readonly { role: string; contactId: string }[],
+  links: readonly ItemLink[],
   opts: { roles?: readonly string[]; existing?: Map<string, LinkRow> } = {},
 ): void {
-  const key = (role: string, contactId: string) => `${role}\u0000${contactId}`;
   const all = db().all<LinkRow>('SELECT * FROM contact_links WHERE kind = ? AND item_id = ?', kind, itemId);
   const scope = opts.roles ? new Set(opts.roles) : null;
-  const before = opts.existing ?? new Map(all.filter((l) => !scope || scope.has(l.role)).map((l) => [key(l.role, l.contact_id), l]));
+  const before = opts.existing ?? new Map(all.filter((l) => !scope || scope.has(l.role)).map((l) => [linkKey(l.role, l.contact_id), l]));
   const others = scope ? all.filter((l) => !scope.has(l.role)) : [];
   let pos = others.reduce((m, l) => Math.max(m, l.position + 1), 0);
   if (scope) {
@@ -351,20 +514,33 @@ export function writeItemLinks(
   const ts = nowIso();
   const actor = currentActor();
   const done = new Set<string>();
+  const rows: (ItemLink & { old?: LinkRow })[] = [];
   for (const w of links) {
-    const k = key(w.role, w.contactId);
+    const k = linkKey(w.role, w.contactId);
     if (done.has(k)) continue;
     done.add(k);
     const old = before.get(k);
+    rows.push({
+      ...w,
+      deputyOf: w.deputyOf === undefined ? (old?.deputy_of ?? null) : w.deputyOf,
+      until: w.until === undefined ? (old?.until ?? null) : w.until,
+      old,
+    });
+  }
+  const principals = new Set(rows.filter((r) => !r.deputyOf).map((r) => linkKey(r.role, r.contactId)));
+  for (const w of rows) {
+    const deputyOf = w.deputyOf && w.deputyOf !== w.contactId && principals.has(linkKey(w.role, w.deputyOf)) ? w.deputyOf : null;
     db().run(
-      'INSERT INTO contact_links (kind, item_id, role, contact_id, position, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO contact_links (kind, item_id, role, contact_id, position, created_at, created_by, deputy_of, until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       kind,
       itemId,
       w.role,
       w.contactId,
       pos++,
-      old?.created_at ?? ts,
-      old?.created_by ?? actor,
+      w.old?.created_at ?? ts,
+      w.old?.created_by ?? actor,
+      deputyOf,
+      w.until ?? null,
     );
   }
 }
@@ -640,11 +816,23 @@ export function writeLegacyLinks(kind: ContactLinkKind, itemId: string, entries:
       used.add(r.id);
       ids.push(r.id);
     }
-    writeItemLinks(
+    const byKey = new Map(current.map((l) => [linkKey(l.role, l.contact_id), l]));
+    // the role catalogue's rules (0.26.0): roles switched on for the kind or named on the item already, cardinality (in
+    // the transaction: a contact made on the way goes again when a role is refused)
+    checkLinkRoles(
       kind,
-      itemId,
-      entries.map((e, i) => ({ role: e.role, contactId: ids[i]! })),
+      entries.map((e, i) => ({ role: e.role, contactId: ids[i] })),
+      { roles: new Set(current.map((l) => l.role)), links: new Set(byKey.keys()) },
     );
+    const next = entries.map((e, i) => {
+      const old = byKey.get(linkKey(e.role, ids[i]!));
+      return { role: e.role, contactId: ids[i]!, name: e.name, deputyOf: old?.deputy_of ?? null, until: old?.until ?? null };
+    });
+    checkLinkRules(
+      next.filter((x, i) => next.findIndex((y) => y.role === x.role && y.contactId === x.contactId) === i),
+      today(),
+    );
+    writeItemLinks(kind, itemId, next);
     return ids;
   });
 }
@@ -863,7 +1051,7 @@ export function replaceContact(id: string, input: ContactReplaceInput): ContactR
       db().run('DELETE FROM contact_links WHERE kind = ? AND item_id = ? AND role = ? AND contact_id = ?', l.kind, l.item_id, l.role, id);
       if (!has.has(`${l.kind}\u0000${l.item_id}\u0000${l.role}`))
         db().run(
-          'INSERT INTO contact_links (kind, item_id, role, contact_id, position, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO contact_links (kind, item_id, role, contact_id, position, created_at, created_by, deputy_of, until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
           l.kind,
           l.item_id,
           l.role,
@@ -871,7 +1059,20 @@ export function replaceContact(id: string, input: ContactReplaceInput): ContactR
           l.position,
           l.created_at,
           l.created_by,
+          l.deputy_of === target.row.id ? null : l.deputy_of,
+          l.until,
         );
+      // who stood in for the replaced contact stands in for the target (0.26.0)
+      db().run(
+        'UPDATE contact_links SET deputy_of = ? WHERE kind = ? AND item_id = ? AND role = ? AND deputy_of = ? AND contact_id <> ?',
+        target.row.id,
+        l.kind,
+        l.item_id,
+        l.role,
+        id,
+        target.row.id,
+      );
+      db().run('UPDATE contact_links SET deputy_of = NULL WHERE kind = ? AND item_id = ? AND role = ? AND deputy_of = ?', l.kind, l.item_id, l.role, id);
       audit({
         action: 'contact.replaced',
         entityType: l.kind,
@@ -906,6 +1107,8 @@ export function eraseContact(id: string): void {
   const links = linkRowsOfContacts([id]);
   db().tx(() => {
     db().run('DELETE FROM contact_links WHERE contact_id = ?', id);
+    // a deputy of the erased contact stands in for nobody (0.26.0)
+    db().run('UPDATE contact_links SET deputy_of = NULL WHERE deputy_of = ?', id);
     const byKind = new Map<string, string[]>();
     for (const l of links) byKind.set(l.kind, [...(byKind.get(l.kind) ?? []), l.item_id]);
     for (const [kind, ids] of byKind) contactKind(kind).onLinksErased?.([...new Set(ids)]);

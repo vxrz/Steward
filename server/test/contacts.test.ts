@@ -196,10 +196,12 @@ describe('who changes a contact', () => {
     const many = Array.from({ length: 21 }, (_, i) => ({ role: 'it', contact: { name: `Invented ${i}` } }));
     expect(as('dave', () => thrown(() => svc.setLinks('service', svcB, many)))).toMatchObject({ code: 'CONTACT_ROLE_LIMIT' });
     expect(thrown(() => svc.setLinks('teapot' as never, 'x', []))).toMatchObject({ code: 'CONTACT_KIND_UNKNOWN' });
-    // plant sites: free-text roles of up to 80 characters
-    const free = svc.setLinks('plant_site', 'site_x', [{ role: 'Shift lead (night)', contactId: ids.bob }]);
-    expect(free.added).toEqual([{ role: 'Shift lead (night)', contactId: ids.bob, name: 'Invented bob' }]);
-    svc.removeItemLinks('plant_site', 'site_x');
+    // plant sites: roles of the catalogue since 0.26.0 (ADR 0039) – a free text is refused with the hint where roles are
+    // added (contact-roles.test.ts names them with own roles)
+    expect(thrown(() => svc.setLinks('plant_site', 'site_x', [{ role: 'Shift lead (night)', contactId: ids.bob }]))).toMatchObject({
+      status: 400,
+      code: 'CONTACT_ROLE_UNKNOWN',
+    });
     // a new contact on the way, and the same contact twice counts once
     const r = as('dave', () =>
       svc.setLinks('service', svcB, [

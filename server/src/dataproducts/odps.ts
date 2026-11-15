@@ -1,9 +1,10 @@
 import YAML from 'yaml';
 import { Ajv2019, type ErrorObject, type ValidateFunction } from 'ajv/dist/2019.js';
-import { CIA_DIMENSIONS, type DataObjectives } from '@sm/shared';
+import { CIA_DIMENSIONS, effectiveSupport, type DataObjectives, type SupportChannel, type SupportPurpose, type SupportTool } from '@sm/shared';
 import { db } from '../db.js';
 import { config } from '../config.js';
 import { linksOf } from '../contacts/service.js';
+import { roleLabelOf } from '../contacts/roles.js';
 import { decisionNames } from './decisions.js';
 import { owningTeams } from '../auth/policy.js';
 import { readAsset } from '../reports/pdf/assets.js';
@@ -12,13 +13,14 @@ import { Snapshot, objectivesFile } from './export.js';
 import { defaultEnvironment } from './health.js';
 import { ratingsByItem } from './ratings.js';
 import { visibleProduct } from './service.js';
+import { levelSummary, supportOf } from '../support/items.js';
 import { bindingsOf, environmentsOf, marks, portObjectsOf, portsOf, type PortRow } from './store.js';
 
 /**
  * The ODPS v1.0.0 export of a data product (ADR 0036 part 15, decision 22; Open Data Product Standard by Bitol,
  * https://github.com/bitol-io/open-data-product-standard – its JSON Schema vendored in server/assets/odps with its
  * Apache 2.0 licence): `id` = the key, `name`, `version`, `status` = the lifecycle, `domain`, `description` (purpose,
- * usage), `team` (the owners), `support`, `inputPorts` and `outputPorts` with `version` and `contractId` = the bound
+ * usage), `team` (the owners), `support` (0.26.0: the channels, ADR 0039 part 7), `inputPorts` and `outputPorts` with `version` and `contractId` = the bound
  * contract's ODCS id in one environment (production unless asked), `tags`, `authoritativeDefinitions` (external
  * references), Steward's own pages and /api/v1 as `managementPorts` (where SM_PUBLIC_URL is set), and what ODPS has no
  * field for under `customProperties` (type, rating, criticality, data objects, environments).
@@ -116,13 +118,25 @@ export function odpsDocument(productId: string, environment?: string): Obj {
   // 0.25.1 (ADR 0038): the product owners and business contacts as team members – name, role and as username (ODPS may
   // carry the address, as the file format) the e-mail address, else the linked Steward user's name, else the name
   const teams = owningTeams('data_product', p.id).map((t) => t.name);
-  const members = (linksOf('data_product', [p.id]).get(p.id) ?? []).map((l) => ({
-    username: l.contact.email || l.contact.user || l.contact.name,
-    name: l.contact.name,
-    role: l.role,
-  }));
+  // 0.26.0 (ADR 0039): every role of the catalogue goes out with its key as `role` (productOwner as before), the role's
+  // label – and whom a deputy stands in for – as `description`, an end date as `dateOut`
+  const productLinks = linksOf('data_product', [p.id]).get(p.id) ?? [];
+  const members = productLinks.map((l) => {
+    const deputyOf = l.deputyOf ? productLinks.find((x) => x.contact.id === l.deputyOf)?.contact.name : undefined;
+    return {
+      username: l.contact.email || l.contact.user || l.contact.name,
+      name: l.contact.name,
+      role: l.role,
+      description: deputyOf ? `${roleLabelOf(l.role)} (deputy for ${deputyOf})` : roleLabelOf(l.role),
+      ...(l.until ? { dateOut: l.until } : {}),
+    };
+  });
   const ownerTeams: string[] = [];
-  const support = { channel: '', url: '', hours: '', ...parseJson<Record<string, string>>(p.support, {}) };
+  // 0.26.0 (ADR 0039 part 7): channels, the level and guides – the product's own, else its supporting service's
+  const help = supportOf('data_product', [{ id: p.id, levelId: p.support_level_id, serviceId: p.supported_by_service_id }], { guides: true }).get(p.id)!;
+  const shown = effectiveSupport(help);
+  const serviceName = help.supportedBy?.service.name;
+  const legacyTier = shown.level && !shown.levelFromService ? levelSummary(shown.level.id).tier : null;
   const rating = ratingsByItem('product', [p.id]).get(p.id)!;
   const ratingValue = Object.fromEntries([
     ...CIA_DIMENSIONS.filter((d) => rating[d]).map((d) => [d, rating[d]!.level]),
@@ -146,7 +160,14 @@ export function odpsDocument(productId: string, environment?: string): Obj {
       ? { description: { ...(p.purpose ? { purpose: p.purpose } : {}), ...(p.description ? { usage: p.description } : {}) } }
       : {}),
     ...(parseJson<string[]>(p.tags, []).length ? { tags: parseJson<string[]>(p.tags, []) } : {}),
-    ...(refs.length ? { authoritativeDefinitions: refs.map((r) => ({ type: 'reference', url: r.url, ...(r.label ? { description: r.label } : {}) })) } : {}),
+    ...(refs.length || help.guides.length
+      ? {
+          authoritativeDefinitions: [
+            ...refs.map((r) => ({ type: 'reference', url: r.url, ...(r.label ? { description: r.label } : {}) })),
+            ...help.guides.map((g) => ({ type: 'userGuide', url: g.url, description: g.title })),
+          ],
+        }
+      : {}),
     ...(inputPorts.length ? { inputPorts } : {}),
     ...(outputPorts.length ? { outputPorts } : {}),
     ...(base
@@ -169,8 +190,9 @@ export function odpsDocument(productId: string, environment?: string): Obj {
           ],
         }
       : {}),
-    ...(support.url
-      ? { support: [{ channel: support.channel || 'support', url: support.url, ...(support.hours ? { description: `Hours: ${support.hours}` } : {}) }] }
+    // channels of the supporting service are marked with it, so an import does not take them as the product's own
+    ...(shown.channels.some((c) => c.address)
+      ? { support: shown.channels.filter((c) => c.address).map((c) => odpsChannel(c, shown.channelsFromService ? serviceName : undefined)) }
       : {}),
     ...(members.length || teams.length || ownerTeams.length
       ? {
@@ -187,7 +209,27 @@ export function odpsDocument(productId: string, environment?: string): Obj {
       ...(domain ? [prop('domainKey', domain)] : []),
       ...(Object.keys(ratingValue).length ? [prop('rating', ratingValue, 'CIA rating on the instance’s scale and the classification')] : []),
       ...(p.criticality ? [prop('criticality', p.criticality)] : []),
-      ...(p.tier ? [prop('supportTier', Number(p.tier))] : []),
+      ...(shown.level
+        ? [
+            prop(
+              'supportLevel',
+              {
+                name: shown.level.nameEn,
+                hours: shown.level.hours,
+                firstResponse: shown.level.firstResponse,
+                ...(shown.levelFromService ? { supportedByService: serviceName } : {}),
+              },
+              shown.levelFromService
+                ? 'What support the providing team promises (Steward’s support level) – the level of the service that supports the product'
+                : 'What support the providing team promises (Steward’s support level)',
+            ),
+          ]
+        : []),
+      // deprecated (0.26.0, read by imports before 0.26.0; removed in a later release): the tier the level was made from
+      ...(legacyTier ? [prop('supportTier', legacyTier, 'Deprecated: the support tier the support level was made from – see supportLevel')] : []),
+      ...(serviceName
+        ? [prop('supportedByService', serviceName, 'The Steward service that supports the product: support entries marked with it are the service’s')]
+        : []),
       ...(p.sunset_date ? [prop('sunsetDate', p.sunset_date)] : []),
       ...(allObjects.length ? [prop('dataObjects', allObjects, 'Data objects its output ports expose (declared)')] : []),
       prop('environments', [...new Set(envs)].sort()),
@@ -199,6 +241,34 @@ export function odpsDocument(productId: string, environment?: string): Obj {
     productCreatedTs: new Date(p.created_at).toISOString(),
   };
   return doc;
+}
+
+/** Steward's purpose as the ODPS scope (access and onboarding has none: it is kept as a custom property). */
+const SCOPE: Record<SupportPurpose, string | null> = { questions: 'interactive', issues: 'issues', announcements: 'announcements', access: null };
+/** Steward's tool as ODPS names it. */
+const TOOL: Record<SupportTool, string> = { ticket: 'ticket', email: 'email', teams: 'teams', slack: 'slack', web: 'web', phone: 'phone', other: 'other' };
+
+/**
+ * A channel as an ODPS support entry: name, address, tool, scope; hours and note as the description. A telephone
+ * number goes out as a valid `tel:` URI: the spaces people type become hyphens (a URI has no spaces; RFC 3966 takes
+ * `-`, `.`, `(` and `)` as visual separators). `fromService`: the channel is that supporting service's – marked
+ * (`supportedByService`), so an import does not take it as the product's own.
+ */
+export function odpsChannel(c: SupportChannel, fromService?: string): Obj {
+  const scope = SCOPE[c.purpose];
+  const description = [c.hours ? `Hours: ${c.hours}` : '', c.note].filter(Boolean).join('\n');
+  const custom = [
+    ...(scope ? [] : [prop('purpose', c.purpose, 'Steward’s purpose of the channel (access and onboarding)')]),
+    ...(fromService ? [prop('supportedByService', fromService, 'The channel of the service that supports the product, not the product’s own')] : []),
+  ];
+  return {
+    channel: c.name || TOOL[c.tool],
+    url: /^tel:/i.test(c.address) ? c.address.replace(/\s+/g, '-') : c.address,
+    ...(description ? { description } : {}),
+    tool: TOOL[c.tool],
+    ...(scope ? { scope } : {}),
+    ...(custom.length ? { customProperties: custom } : {}),
+  };
 }
 
 export function odpsFile(productId: string, environment?: string): { fileName: string; body: string } {

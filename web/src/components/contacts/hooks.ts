@@ -1,13 +1,27 @@
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { CONTACT_LIMITS, contactEmailKey, type ContactList } from '@sm/shared';
+import { CONTACT_LIMITS, builtInContactRoles, contactEmailKey, contactRoleLabel, type ContactList, type ContactRole } from '@sm/shared';
 import { get } from '../../api';
 
-/** The translated label of a role of a link kind (free text as it is). */
+/** The query key of the role catalogue (invalidated by the settings page). */
+export const CONTACT_ROLES_KEY = ['contacts', 'roles'] as const;
+
+/**
+ * The role catalogue (0.26.0, ADR 0039): every role with its labels, kinds, cardinality and whether it is on – read
+ * once and kept a minute. While it loads (or for a module-only user who cannot read it), the built-in roles.
+ */
+export function useContactRoles(): { roles: ContactRole[]; loaded: boolean } {
+  const q = useQuery({ queryKey: CONTACT_ROLES_KEY, queryFn: () => get<ContactRole[]>('/contact-roles'), staleTime: 60_000 });
+  return { roles: q.data ?? FALLBACK, loaded: !!q.data };
+}
+const FALLBACK = builtInContactRoles();
+
+/** The label of a role in the person's language (the catalogue's; a kept free-text role as it is). */
 export function useContactRoleLabel(): (role: string) => string {
-  const { t } = useTranslation('contacts');
-  return (role: string) => t(`roles.${role}` as 'roles.business', { defaultValue: role });
+  const { i18n } = useTranslation('contacts');
+  const { roles } = useContactRoles();
+  return (role: string) => contactRoleLabel(roles, role, i18n.language);
 }
 
 /** Search the directory (only contacts the person may see; active ones unless `status` says otherwise). */

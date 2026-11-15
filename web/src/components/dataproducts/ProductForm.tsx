@@ -67,11 +67,7 @@ export function ProductForm({
   const [domainId, setDomainId] = useState<string | null>(p?.domain && !p.domain.hidden ? p.domain.id : null);
   // 0.25.1 (ADR 0038): product owners and business contacts are contacts – documentation, never a right
   const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(p?.contacts ?? []));
-  const [channel, setChannel] = useState(p?.support.channel ?? '');
-  const [supportUrl, setSupportUrl] = useState(p?.support.url ?? '');
-  const [hours, setHours] = useState(p?.support.hours ?? '');
   const [criticality, setCriticality] = useState<DataProductCriticality | null>(p?.criticality ?? null);
-  const [tier, setTier] = useState<string | null>(p?.tier ? String(p.tier) : null);
   const [version, setVersion] = useState(p?.version ?? '');
   const [valueStatement, setValueStatement] = useState(p?.valueStatement ?? '');
   const [valueTier, setValueTier] = useState<DataValueTier | null>(p?.valueTier ?? null);
@@ -84,7 +80,6 @@ export function ProductForm({
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     key: !validKey(key) && t('form.keyInvalid'),
-    supportUrl: !!supportUrl.trim() && !isHttpUrl(supportUrl) && t('common:validation.url'),
     valueCurrency: amount !== null && !/^[A-Z]{3}$/.test(valueCurrency.trim().toUpperCase()) && t('common:validation.currency'),
     refs: refsToSend(refs).some((r) => !isHttpUrl(r.url)) && t('form.refUrlInvalid'),
   });
@@ -98,9 +93,8 @@ export function ProductForm({
         type,
         domainId,
         contacts: toLinkInputs(contacts),
-        support: { channel: channel.trim(), url: supportUrl.trim(), hours: hours.trim() },
+        // 0.26.0 (ADR 0039): support channels and the support level are edited under Help and support
         criticality,
-        tier: tier ? (Number(tier) as 1 | 2 | 3) : null,
         version: version.trim(),
         valueStatement,
         valueTier,
@@ -204,37 +198,13 @@ export function ProductForm({
             onChange={setContacts}
             testId="product-contacts"
           />
-          <Paper withBorder p="sm">
-            <Text size="sm" fw={600} mb="xs">
-              {t('form.support')}
-            </Text>
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <TextInput label={t('form.supportChannel')} maxLength={L.short} value={channel} onChange={(e) => setChannel(e.currentTarget.value)} />
-              <TextInput
-                label={t('form.supportUrl')}
-                maxLength={L.url}
-                value={supportUrl}
-                onChange={(e) => setSupportUrl(e.currentTarget.value)}
-                error={v.error('supportUrl')}
-              />
-              <TextInput label={t('form.supportHours')} maxLength={L.short} value={hours} onChange={(e) => setHours(e.currentTarget.value)} />
-            </SimpleGrid>
-          </Paper>
-          <SimpleGrid cols={{ base: 1, sm: 3 }}>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <Select
               label={t('form.criticality')}
+              description={t('form.criticalityHint')}
               data={DATA_PRODUCT_CRITICALITIES.map((x) => ({ value: x, label: t(`criticality.${x}`) }))}
               value={criticality}
               onChange={(x) => setCriticality(x as DataProductCriticality | null)}
-              clearable
-              placeholder={t('form.notSet')}
-            />
-            <Select
-              label={t('form.tier')}
-              description={t('form.tierHint')}
-              data={['1', '2', '3'].map((x) => ({ value: x, label: t('tier', { tier: x }) }))}
-              value={tier}
-              onChange={setTier}
               clearable
               placeholder={t('form.notSet')}
             />

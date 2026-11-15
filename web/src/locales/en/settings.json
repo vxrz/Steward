@@ -736,6 +736,10 @@
       "title": "Catalogue & compliance",
       "description": "The CIA scale, scorecard rules, environments and compliance rules."
     },
+    "support": {
+      "title": "Support levels",
+      "description": "What providing teams promise: hours, the first response and the SLA document – picked by data products, services and applications."
+    },
     "data": {
       "title": "Data & retention",
       "description": "How long data is kept, storage, cleanup and backups."
@@ -747,6 +751,10 @@
     "modules": {
       "title": "Modules",
       "description": "Switch optional areas on or off (costs, data contracts, compliance, status pages and others), with how mature each one is; the plant registry and its map."
+    },
+    "contacts": {
+      "title": "Contacts",
+      "description": "The roles in which items name their contacts: built-in and own roles, and which are expected."
     },
     "current": "Area: {{area}}"
   },

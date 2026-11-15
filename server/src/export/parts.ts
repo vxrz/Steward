@@ -1,3 +1,4 @@
+import type { ContactNameEntry } from '@sm/shared';
 import YAML from 'yaml';
 import {
   EXPORT_LIMITS,
@@ -54,6 +55,15 @@ export interface ExportPartDef {
 export const partLimits = { auditEntries: EXPORT_LIMITS.auditEntries as number };
 
 /** Rows of plain objects as CSV: one column per key (in order of appearance), lists joined with "; ", objects as JSON. */
+/**
+ * Contacts by name and role in one cell (0.26.0, CONTACT_EXPOSURE `names`): "Name (Role)", a deputy "Name (Role,
+ * deputy for Other)", an end date "…, until 2026-12-31", separated by semicolons.
+ */
+export const contactNamesText = (list: readonly ContactNameEntry[]): string =>
+  list
+    .map((c) => `${c.name} (${[c.roleLabel, ...(c.deputyOf ? [`deputy for ${c.deputyOf}`] : []), ...(c.until ? [`until ${c.until}`] : [])].join(', ')})`)
+    .join('; ');
+
 export function objectsCsv(items: readonly Record<string, unknown>[]): string {
   const keys: string[] = [];
   for (const i of items) for (const k of Object.keys(i)) if (!keys.includes(k)) keys.push(k);
@@ -147,7 +157,13 @@ const applications: ExportPartDef = {
   options: [],
   async write(_choice, ctx) {
     const { listApplicationEntries } = await import('../catalogue/applications.js');
-    await ctx.file('applications.csv').write(objectsCsv(listApplicationEntries({ archived: true }) as unknown as Record<string, unknown>[]));
+    await ctx
+      .file('applications.csv')
+      .write(
+        objectsCsv(
+          listApplicationEntries({ archived: true }).map((a) => ({ ...a, contacts: contactNamesText(a.contacts) })) as unknown as Record<string, unknown>[],
+        ),
+      );
   },
 };
 
@@ -158,7 +174,9 @@ const systems: ExportPartDef = {
   options: [],
   async write(_choice, ctx) {
     const { listSystemEntries } = await import('../catalogue/systems.js');
-    await ctx.file('systems.csv').write(objectsCsv(listSystemEntries() as unknown as Record<string, unknown>[]));
+    await ctx
+      .file('systems.csv')
+      .write(objectsCsv(listSystemEntries().map((x) => ({ ...x, contacts: contactNamesText(x.contacts) })) as unknown as Record<string, unknown>[]));
   },
 };
 

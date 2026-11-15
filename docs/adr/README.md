@@ -42,5 +42,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0036](0036-data-products-module.md)                   | Data products: data objects, elements, ports, pipelines                   | Accepted, built in 0.22.0 and 0.24.0 (phases 1 and 2)                  |
 | [0037](0037-data-products-connectors-files-edge.md)    | Data products phase 3: generic parts and bridges, connectors, files, edge | Accepted, built in 0.25.0                                              |
 | [0038](0038-documented-governance-contacts.md)         | Steward documents data governance; one contacts directory                 | Accepted, built in 0.25.1                                              |
+| [0039](0039-contact-roles-and-support.md)              | Contact roles, inherited contacts, support channels and levels            | Accepted, built in 0.26.0                                              |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

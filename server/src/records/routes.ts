@@ -367,6 +367,8 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     catalogue.createService(catalogue.serviceInput.parse(req.body)),
   );
   app.get('/services/:id', async (req) => catalogue.getService(params(req).id!));
+  // 0.26.0 (ADR 0039): support channels and level – with the service's edit right
+  app.put('/services/:id/support', async (req) => catalogue.setServiceSupport(params(req).id!, req.body ?? {}));
   app.put('/services/:id', { config: { stepUp: namedGrantRule((req) => catalogue.serviceNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
     catalogue.updateService(params(req).id!, catalogue.serviceInput.parse(req.body)),
   );

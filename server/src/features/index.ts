@@ -24,6 +24,7 @@ import records from './records.js';
 import catalogue from './catalogue.js';
 import suppliers from './suppliers.js';
 import contacts from './contacts.js';
+import support from './support.js';
 import versions from './versions.js';
 import backup from './backup.js';
 import tickets from './tickets.js';
@@ -82,6 +83,7 @@ export const FEATURES: readonly FeatureManifest[] = [
   catalogue,
   suppliers,
   contacts,
+  support,
   versions,
   backup,
   tickets,

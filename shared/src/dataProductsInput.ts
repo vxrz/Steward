@@ -34,6 +34,7 @@ import {
 } from './dataProducts.js';
 import { dataElementPropertiesInput, dataNamespaceValue, dataTechnologyValue } from './dataTechnologies.js';
 import { contactLinkInput, documentedDecisionInput } from './contacts.js';
+import { SUPPORT_ADDRESS_RE } from './support.js';
 
 /**
  * Input schemas of the data products module's internal API (ADR 0036 part 19): every array has its `.max()`, every
@@ -169,15 +170,24 @@ export const dataProductInput = z
     /** Deprecated (0.25.1): the product owners as subjects – use contacts (role productOwner) */
     owners: legacySubjects(),
     contacts: contacts(),
+    /**
+     * Deprecated (0.26.0, ADR 0039): one support channel – sets the product's first channel with the purpose questions
+     * (PUT …/support carries the channels); left out: the channels stay as they are
+     */
     support: z
-      .object({ channel: text(L.short).default(''), url: z.union([httpUrl(), z.literal('')]).default(''), hours: text(L.short).default('') })
+      .object({
+        channel: text(L.short).default(''),
+        url: z.union([z.string().trim().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https:// (or http://), mailto: or tel: address'), z.literal('')]).default(''),
+        hours: text(L.short).default(''),
+      })
       .strict()
-      .default({ channel: '', url: '', hours: '' }),
+      .optional(),
     criticality: z.enum(DATA_PRODUCT_CRITICALITIES).nullable().default(null),
+    /** Deprecated (0.26.0, ADR 0039): picks the support level made from this tier ("Tier n"); left out: the level stays */
     tier: z
       .union([z.literal(1), z.literal(2), z.literal(3)])
       .nullable()
-      .default(null),
+      .optional(),
     version: text(60).default(''),
     valueStatement: text().default(''),
     valueTier: z.enum(DATA_VALUE_TIERS).nullable().default(null),

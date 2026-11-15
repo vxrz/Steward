@@ -1,4 +1,5 @@
 import type { ContactLink } from './contacts.js';
+import type { SupportChannel, SupportLevelRef } from './support.js';
 /**
  * Records (change requests, decision records) and the minimal service
  * catalogue. Shared by server and web: workflows, default record types,
@@ -829,6 +830,8 @@ export interface ServiceSummary {
   applicationCount: number;
   /** Per dimension: derived from its applications (maximum principle), the override and the effective level */
   protectionNeed: ServiceProtectionNeed;
+  /** 0.26.0 (ADR 0039 part 5): the support level it picks (null: none) */
+  supportLevel: SupportLevelRef | null;
   updatedAt: string;
 }
 
@@ -868,7 +871,8 @@ export interface ServiceDetail extends ServiceSummary {
   applications: ServiceApplication[];
   canEdit: boolean;
   /** The contacts as directory links (0.25.1, ADR 0038; the web app's picker): `contacts` is the same in the shape of before */
-  contactLinks: ContactLink[];
+  contactLinks: ContactLink[]; /** 0.26.0 (ADR 0039 part 4): its support channels, in their order */
+  supportChannels: SupportChannel[];
 }
 
 export interface LinkTarget {

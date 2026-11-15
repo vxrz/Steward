@@ -736,6 +736,10 @@
       "title": "Katalog & Compliance",
       "description": "Die CIA-Skala, Scorecard-Regeln, Umgebungen und Compliance-Regeln."
     },
+    "support": {
+      "title": "Support-Level",
+      "description": "Was bereitstellende Teams zusagen: Zeiten, die erste Reaktion und das SLA-Dokument – gewählt von Datenprodukten, Services und Anwendungen."
+    },
     "data": {
       "title": "Daten & Aufbewahrung",
       "description": "Wie lange Daten aufbewahrt werden, Speicher, Bereinigung und Sicherungen."
@@ -747,6 +751,10 @@
     "modules": {
       "title": "Module",
       "description": "Optionale Bereiche ein- oder ausschalten (Kosten, Datenverträge, Compliance, Statusseiten und andere), mit dem Reifegrad jedes Bereichs; das Werksregister und seine Karte."
+    },
+    "contacts": {
+      "title": "Kontakte",
+      "description": "Die Rollen, in denen Einträge ihre Kontakte nennen: eingebaute und eigene Rollen und welche erwartet werden."
     },
     "current": "Bereich: {{area}}"
   },

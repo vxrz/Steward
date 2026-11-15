@@ -155,7 +155,8 @@ describe('personal data of accounts and the API token', () => {
     await dana('PUT', `/data-products/${product}`, { key: 'compat-orders', name: 'Compat orders', owners: ['user:dana'] });
     expect((await get(`/v1/data-products/${product}`)).body).toMatchObject({
       owners: ['user:dana'],
-      contacts: expect.arrayContaining([{ role: 'productOwner', name: 'Invented dana' }]),
+      // 0.26.0: with the role's label (ADR 0039)
+      contacts: expect.arrayContaining([{ role: 'productOwner', roleLabel: 'Product owner', name: 'Invented dana' }]),
     });
     expect((await get(`/data-products/${product}`)).body.owners).toEqual(['user:dana']);
     // in the app: everything

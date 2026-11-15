@@ -659,7 +659,7 @@ const STATE_ICON: Record<DataScorecardState, { icon: Icon; color: string }> = {
 
 /** The scorecard of a product in an environment (ADR 0036 part 13): its parts and ISO/IEC 25012 dimensions with their evidence, and the maturity they give. */
 export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductScorecard> }) {
-  const { t } = useTranslation(['dataProducts', 'dataProductViews', 'applications']);
+  const { t, i18n } = useTranslation(['dataProducts', 'dataProductViews', 'applications']);
   const s = query.data;
   const level = useLevel();
   const [unfolded, setUnfolded] = useState<Set<string>>(() => new Set());
@@ -670,6 +670,11 @@ export function ScorecardPanel({ query }: { query: UseQueryResult<DataProductSco
     // a health status in words (healthy.status)
     if (typeof values.status === 'string') values.status = t(`dataProductViews:health.${values.status as 'up'}`);
     if (typeof values.source === 'string') values.source = t(`scorecard.sources.${values.source as 'monitor'}`);
+    // contact roles by their labels in the reader's language (documented.missingRoles: English and German)
+    if (typeof values.rolesDe === 'string') {
+      if (i18n.language.startsWith('de') && values.rolesDe) values.roles = values.rolesDe;
+      delete values.rolesDe;
+    }
     // a CIA level and dimensions by their labels, never their keys (confidentiality.rated, rated.belowFloor)
     if (typeof values.level === 'string') values.level = level('confidentiality', values.level)?.label ?? values.level;
     if (typeof values.dimensions === 'string')

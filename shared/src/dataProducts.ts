@@ -1,7 +1,8 @@
 import { CIA_DIMENSIONS, levelRank, type ApplicationRating, type CiaDimension, type CiaLevel, type CiaColor } from './catalogue.js';
 import type { MonitorStatus } from './monitors.js';
 import type { CostEstimateSummary } from './costCalculators.js';
-import type { ContactLink, DocumentedDecision } from './contacts.js';
+import type { ContactLink, DocumentedDecision, InheritedContactLink } from './contacts.js';
+import type { Guide, SupportChannel, SupportLevelRef, SupportedByService } from './support.js';
 
 /**
  * The data products module (0.22.0, ADR 0036, docs/DATA-PRODUCTS.md): data objects say what the business data is, how
@@ -470,6 +471,11 @@ export interface DataDomain {
   owners: DataSubject[];
   /** 0.25.1 (ADR 0038): its domain owners (contacts; documentation, never a right) */
   contacts: ContactLink[];
+  /**
+   * 0.26.0 (ADR 0039 part 2): a sub-domain's contacts from its parent domain, in the roles it names none of its own –
+   * never copied; only when the reader may see the parent (the single domain's page)
+   */
+  inheritedContacts?: InheritedContactLink[];
   owningTeams: OwningTeamRef[];
   /** Products and data objects in it the reader may see */
   products: number;
@@ -624,6 +630,7 @@ export function ratingFloor(
 
 // ---------- data products (part 3) ----------
 
+/** Deprecated (0.26.0, ADR 0039): derived from the first channel with the purpose questions – use supportChannels */
 export interface DataProductSupport {
   channel: string;
   url: string;
@@ -639,7 +646,10 @@ export interface DataProductSummary {
   lifecycle: DataProductLifecycle;
   sunsetDate: string | null;
   criticality: DataProductCriticality | null;
+  /** Deprecated (0.26.0, ADR 0039): the tier its support level was made from at the upgrade – use supportLevel */
   tier: DataProductSupportTier | null;
+  /** 0.26.0 (ADR 0039 part 5): the support level it picks (null: none) */
+  supportLevel: SupportLevelRef | null;
   rating: DataRating;
   classification: DataClassification | null;
   /** The rating floor is not met and no reason is given (ratingBelowObjects) */
@@ -667,9 +677,24 @@ export interface DataProductEnvironment {
 }
 
 export interface DataProduct extends DataProductSummary {
+  /**
+   * 0.26.0 (ADR 0039 part 2): the contacts of its domain (and the domain's parent), in the roles the product names none
+   * of its own – never copied, marked with the domain they come from; only from domains the reader may see
+   */
+  inheritedContacts: InheritedContactLink[];
   description: string;
   purpose: string;
+  /** Deprecated (0.26.0, ADR 0039): its first channel with the purpose questions – use supportChannels */
   support: DataProductSupport;
+  /** 0.26.0 (ADR 0039 part 4): its own support channels, in their order */
+  supportChannels: SupportChannel[];
+  /** 0.26.0 (ADR 0039 part 6): where its consumers find guides and documentation */
+  guides: Guide[];
+  /**
+   * 0.26.0 (ADR 0039 part 4): the service that supports it, with that service's channels and level – shown where the
+   * product names none of its own; null: none, or a service the reader may not see (then not named)
+   */
+  supportedBy: SupportedByService | null;
   /** When each lifecycle state was reached (ISO dates) */
   lifecycleDates: Partial<Record<DataProductLifecycle, string>>;
   successor: DataRef | null;

@@ -53,3 +53,29 @@ export function installFocusReturn(doc: Document = document): () => void {
     openers.clear();
   };
 }
+
+/**
+ * After a row of a list was removed (or moved): the focus goes to the same control of the row now at `index` – the
+ * one that took the removed row's place – else of the last row, else to `fallback`, so it is never lost to <body>
+ * (WCAG 2.4.3). Runs once the list shows the change (`gone` has left) and a dialog outside `scope` (the confirmation that asked) has
+ * left the page – while it closes, its focus trap would take the focus back; disabled and hidden controls are skipped.
+ */
+export function focusRowControl(
+  scope: HTMLElement | null | undefined,
+  selector: string,
+  index: number,
+  fallback?: () => HTMLElement | null | undefined,
+  /** The removed row: waited for until it has left the page (the list re-renders after its data came back) */
+  gone?: string,
+): void {
+  const otherDialogOpen = () => [...document.querySelectorAll(DIALOG)].some((d) => !scope || !d.contains(scope));
+  const waiting = () => otherDialogOpen() || (!!gone && !!scope?.querySelector(gone));
+  const attempt = (framesLeft: number) =>
+    requestAnimationFrame(() => {
+      if (framesLeft > 0 && waiting()) return attempt(framesLeft - 1);
+      const all = [...(scope?.querySelectorAll<HTMLElement>(selector) ?? [])].filter((el) => !el.matches(':disabled') && el.getClientRects().length > 0);
+      (all[Math.min(Math.max(index, 0), all.length - 1)] ?? fallback?.())?.focus();
+    });
+  // at most about a second: a dialog that stays open (another one the person opened) does not hold it back for ever
+  attempt(60);
+}

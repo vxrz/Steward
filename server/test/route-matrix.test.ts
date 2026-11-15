@@ -443,6 +443,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/data-products/:id': DESIGN,
   'DELETE /api/data-products/:id': DESIGN,
   'PUT /api/data-products/:id/rating': DESIGN,
+  // support channels, level and guides (0.26.0, ADR 0039): the product's edit right
+  'PUT /api/data-products/:id/support': DESIGN,
   'POST /api/data-products/:id/lifecycle': DESIGN,
   'PUT /api/data-products/:id/environments/:environment': DESIGN,
   'DELETE /api/data-products/:id/environments/:environment': DESIGN,
@@ -962,6 +964,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/services': DESIGN,
   'GET /api/services/:id': ALL,
   'PUT /api/services/:id': DESIGN,
+  'PUT /api/services/:id/support': DESIGN,
   'POST /api/services/:id/archive': DESIGN,
   'POST /api/services/:id/links': DESIGN,
   // types of external links: everyone reads them (the add-link dialog), administrators manage their own
@@ -975,8 +978,11 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications': DESIGN,
   'GET /api/applications/:id': ALL,
   'PUT /api/applications/:id': DESIGN,
+  // business contacts (0.26.0, ADR 0039): who may change the application
+  'PUT /api/applications/:id/contacts': DESIGN,
   'POST /api/applications/:id/archive': DESIGN,
   'PUT /api/applications/:id/rating': DESIGN,
+  'PUT /api/applications/:id/support': DESIGN,
   'POST /api/applications/:id/platforms': DESIGN,
   'DELETE /api/applications/:id/platforms/:platformId': DESIGN,
   'POST /api/applications/:id/links': DESIGN,
@@ -1016,12 +1022,24 @@ const EXPECT: Record<string, Access> = {
   // the contacts directory (0.25.1, ADR 0038): personal data, in a session only; the fixture contact is linked to the
   // matrix service, so who sees the service sees it and who may change the service changes it
   'GET /api/contacts': PLANT,
+  // the support level catalogue (0.26.0, ADR 0039 part 5): read by everyone (a module-only user picks a level too),
+  // changed by administrators
+  'GET /api/support/levels': PLANT,
+  'POST /api/support/levels': ADMIN,
+  'PUT /api/support/levels/order': ADMIN,
+  'PUT /api/support/levels/:id': ADMIN,
+  'DELETE /api/support/levels/:id': ADMIN,
   'GET /api/contacts/duplicates': ADMIN,
   'GET /api/contacts/:id': ALL,
   'POST /api/contacts': ACTIVE,
   'PUT /api/contacts/:id': DESIGN,
   'POST /api/contacts/:id/replace': DESIGN,
   'DELETE /api/contacts/:id': ADMIN,
+  // the role catalogue (0.26.0, ADR 0039): read by the pickers (plant viewers too), kept by administrators
+  'GET /api/contact-roles': PLANT,
+  'POST /api/contact-roles': ADMIN,
+  'PUT /api/contact-roles/:key': ADMIN,
+  'DELETE /api/contact-roles/:key': ADMIN,
   // suppliers (0.17.0, ADR 0029): like systems; the "To confirm" decisions need a session
   'GET /api/suppliers': ALL,
   'POST /api/suppliers': DESIGN,
@@ -1072,6 +1090,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/systems/edge-suggestions/dismiss': DESIGN,
   'POST /api/systems/edge-suggestions/restore': DESIGN,
   'PUT /api/systems/:id': DESIGN,
+  'PUT /api/systems/:id/contacts': DESIGN,
   'DELETE /api/systems/:id': DESIGN,
   'POST /api/systems/:id/sbom/preview': DESIGN,
   'POST /api/systems/:id/sbom': DESIGN,
@@ -1681,6 +1700,11 @@ const SESSION_ONLY = [
   'PUT /api/contacts/:id',
   'POST /api/contacts/:id/replace',
   'DELETE /api/contacts/:id',
+  // the role catalogue (0.26.0, ADR 0039): read by the pickers, kept by administrators in the app
+  'GET /api/contact-roles',
+  'POST /api/contact-roles',
+  'PUT /api/contact-roles/:key',
+  'DELETE /api/contact-roles/:key',
   // 0.25.0 (ADR 0037 part 3): a person confirms or dismisses each Industrial Edge suggestion in the app
   'POST /api/systems/edge-suggestions/confirm',
   'POST /api/systems/edge-suggestions/dismiss',
@@ -2617,6 +2641,7 @@ function fill(url: string): string {
           'data-objects': 'dataObject',
           'data-elements': 'dataElement',
           'data-domains': 'dataDomain',
+          support: 'supportLevel',
         };
         return seg(map[prefix] ?? '', `none_${prefix}`);
       })
@@ -2703,8 +2728,18 @@ const bodies = (): Record<string, unknown> => ({
   'PATCH /api/services/:id/links/:linkId': { label: 'changed', note: 'n', linkType: 'repository' },
   'POST /api/applications': { name: 'app x', owners: [] },
   'PUT /api/applications/:id': { name: 'app x', owners: [] },
+  'PUT /api/applications/:id/contacts': { contacts: [] },
+  'PUT /api/systems/:id/contacts': { contacts: [] },
+  'POST /api/contact-roles': { labels: { en: 'Matrix role' }, kinds: ['service'] },
+  'PUT /api/contact-roles/:key': { labels: { en: 'Matrix role' }, kinds: ['service'] },
   'POST /api/applications/:id/archive': { archived: true },
   'PUT /api/applications/:id/rating': { confidentiality: { level: 'high', justification: 'x' } },
+  'PUT /api/applications/:id/support': { channels: [] },
+  'PUT /api/services/:id/support': { channels: [] },
+  'PUT /api/data-products/:id/support': { channels: [] },
+  'POST /api/support/levels': { nameEn: 'Matrix level' },
+  'PUT /api/support/levels/order': { ids: [] },
+  'PUT /api/support/levels/:id': { nameEn: 'Matrix level changed' },
   'POST /api/applications/:id/platforms': { platformId: fx.platform },
   'POST /api/applications/:id/links': { url: 'https://cmdb.example.com/7', label: 'x' },
   'PATCH /api/applications/:id/links/:linkId': { label: 'changed', note: 'n' },
@@ -3178,6 +3213,8 @@ beforeAll(async () => {
     spec: (await a('GET', `/platforms/${gatus.id}/specs`))[0].id,
     dashboard: (await a('GET', '/dashboards'))[0].id,
     dataset: (await a('GET', '/datasets'))[0].key,
+    // a support level of the catalogue (0.26.0): the examples of a new installation
+    supportLevel: (await a('GET', '/support/levels'))[0].id,
     monitor: mon.id,
     check: monD.definition.checks[0].id,
     maintenance: (await a('POST', `/monitors/${mon.id}/maintenance`, { endsAt: new Date(Date.now() + 3600000).toISOString(), reason: 'x' })).id,

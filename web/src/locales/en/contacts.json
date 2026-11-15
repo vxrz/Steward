@@ -109,22 +109,9 @@
     "data_product": "Data product",
     "data_domain": "Data domain",
     "data_object": "Data object",
-    "data_consumer": "Consumer registration"
-  },
-  "roles": {
-    "business": "Business owner",
-    "it": "IT operations",
-    "accountManager": "Account manager",
-    "support": "Support",
-    "security": "Security",
-    "dataProtection": "Data protection",
-    "other": "Other",
-    "productOwner": "Product owner",
-    "businessContact": "Business contact",
-    "domainOwner": "Domain owner",
-    "dataOwner": "Data owner",
-    "dataSteward": "Data steward",
-    "consumerContact": "Consumer contact"
+    "data_consumer": "Consumer registration",
+    "application": "Application",
+    "system": "System"
   },
   "picker": {
     "none": "No contacts yet.",
@@ -147,12 +134,92 @@
     "roleFirst": "Give the role first, then pick or create the contact.",
     "added": "{{name}} added as {{role}}",
     "addedDecider": "{{name}} added",
-    "removed": "{{name}} removed"
+    "removed": "{{name}} removed",
+    "noRole": "No role",
+    "details": "Deputy and end date: {{name}}",
+    "deputyOf": "Deputy for",
+    "deputyNone": "Nobody",
+    "until": "Until",
+    "deputyFor": "Deputy for {{name}}",
+    "ended": "Ended {{date}}",
+    "untilDate": "Until {{date}}",
+    "roleOff": "Role switched off",
+    "noRoles": "No contact role is switched on for this kind of item. Administrators add roles under Settings → Contacts → Roles.",
+    "oneTaken": "{{role}} takes one contact: a new one is added as deputy for {{name}} – change it in its details, or give {{name}} an end date.",
+    "deputyNobody": "Nobody else is named as {{role}} here.",
+    "untilHint": "The last day; after it the contact shows as ended."
   },
   "snapshot": {
     "label": "Decided by",
     "role": "Role of {{name}}",
     "frozen": "Names are frozen when the decision is recorded.",
     "limit": "At most {{max}} contacts."
+  },
+  "inherited": {
+    "hint": "Shown from the domain, never copied: change them on the domain.",
+    "from": "from domain {{name}}"
+  },
+  "expected": {
+    "missing_one": "Expected, but nobody is named: {{roles}}",
+    "missing_other": "Expected, but nobody is named: {{roles}}"
+  },
+  "section": {
+    "title": "Contacts",
+    "edit": "Edit contacts",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saved": "Contacts saved"
+  },
+  "serviceContacts": {
+    "title": "Contacts of its services",
+    "hint": "Read only: an application can serve several services, so their contacts are shown, not inherited."
+  },
+  "catalogue": {
+    "title": "Contact roles",
+    "description": "The roles in which items name their contacts. Built-in roles keep their key because Steward relies on them (product owner, domain owner, data owner and steward, consumer contact); they can be relabelled and switched off, not deleted. Own roles are documentation only. A role switched off takes no new contacts; those named in it stay and are marked.",
+    "new": "New role",
+    "edit": "Edit role",
+    "editTitle": "Edit “{{name}}”",
+    "newTitle": "New contact role",
+    "key": "Key",
+    "keyHint": "Letters and digits, starting with a lower-case letter, e.g. domainArchitect. Left empty, it is made from the English label. It never changes.",
+    "labelEn": "Label (English)",
+    "labelDe": "Label (German)",
+    "descriptionField": "Description",
+    "kinds": "Applies to",
+    "kindsHint": "A built-in role applies to its own kinds only: switch it off for a kind here.",
+    "cardinality": "Contacts per item",
+    "cardinalities": {
+      "one": "One (plus deputies)",
+      "many": "Several"
+    },
+    "expected": "Expected",
+    "expectedHint": "An item without a current contact in this role gets a hint on its page; for data products the scorecard notes it too.",
+    "active": "Switched on",
+    "builtIn": "Built in",
+    "own": "Own",
+    "off": "Off",
+    "inUse_one": "{{count}} link",
+    "inUse_other": "{{count}} links",
+    "unused": "Unused",
+    "delete": "Delete",
+    "deleteTitle": "Delete the role “{{name}}”?",
+    "deleteMessage": "Nobody is named in it. This cannot be undone.",
+    "deleted": "Role deleted",
+    "saved": "Role saved",
+    "created": "Role created",
+    "save": "Save",
+    "create": "Create",
+    "cancel": "Cancel",
+    "table": {
+      "label": "Role",
+      "kinds": "Applies to",
+      "cardinality": "Per item",
+      "status": "Status",
+      "usage": "In use",
+      "actions": "Actions"
+    },
+    "deleteInUse": "In use – switch it off instead",
+    "activeHint": "Switched off, the role takes no new contacts; those named in it stay and are marked."
   }
 }

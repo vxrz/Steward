@@ -1,3 +1,4 @@
+import { roleKeyFor } from '../contacts/roles.js';
 import {
   CIA_DIMENSIONS,
   DATA_CLASSIFICATIONS,
@@ -8,6 +9,14 @@ import {
   DATA_PRODUCT_LIFECYCLES,
   DATA_PRODUCT_TYPES,
   isProductionEnvironment,
+  isCalendarDate,
+  isSupportAddress,
+  isSupportUrl,
+  SUPPORT_LIMITS as SL,
+  SUPPORT_PURPOSES,
+  SUPPORT_TOOLS,
+  toolOfAddress,
+  type SupportPurpose,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
@@ -16,7 +25,9 @@ import { environmentList } from '../catalogue/environments.js';
 import { domainAccess, productAccess } from './access.js';
 import { odpsProblems } from './odps.js';
 import type { DomainRow, ProductRow } from './store.js';
-import type { ContactFile } from './format.js';
+import type { ContactFile, SupportChannelFile } from './format.js';
+import { listLevels } from '../support/levels.js';
+import { catalogueVisibleNow } from '../records/access.js';
 
 /**
  * The ODPS import (ADR 0036 part 15, decision 22, phase 2): an Open Data Product Standard v1.0.0 document (`apiVersion:
@@ -29,7 +40,8 @@ import type { ContactFile } from './format.js';
  * one environment – the one named under the document's `customProperties` (`environment`, as Steward exports it), else
  * the instance's production environment. An input port's source is the output port its `customProperties` name
  * (`<product key>/<port> <version>`, as Steward exports it), else the visible output port bound to the same contract,
- * else a text. Steward's own extras under `customProperties` (type, criticality, support tier, sunset date, rating, data
+ * else a text. Steward's own extras under `customProperties` (type, criticality, support level – or the support tier of
+ * exports before 0.26.0 –, sunset date, rating, data
  * objects, environments) are read back, so an exported product imports unchanged. What cannot be mapped is a warning of
  * the preview, never silently dropped; the document is checked against the vendored ODPS JSON Schema first.
  */
@@ -64,6 +76,28 @@ function parseSource(s: string): { product: string; port: string; version: strin
   const version = space > 0 ? rest.slice(space + 1) : '';
   return DATA_PRODUCT_KEY_RE.test(product) && port ? { product, port, version } : null;
 }
+
+/**
+ * The service an ODPS document names as the one supporting the product (`supportedByService`, by name): its name when
+ * exactly one service of that name is one the importer may see, else a warning and nothing (undefined: the product keeps
+ * what it has; nothing is said about services the importer may not see).
+ */
+function supportingService(name: string | undefined, key: string, warnings: string[]): string | undefined {
+  if (!name) return undefined;
+  const n = name.trim().toLowerCase();
+  const hits = db()
+    .all<{ id: string; name: string; owners: string }>('SELECT id, name, owners FROM services')
+    .filter((r) => r.name.trim().toLowerCase() === n && catalogueVisibleNow('service', r));
+  if (hits.length === 1) return hits[0]!.name;
+  warnings.push(
+    `ODPS ${key}: the service "${name.slice(0, 100)}" that supports the product is ${hits.length ? 'not unique' : 'not known'} – the product's supporting service is not changed, and the channels and level of that service are not taken as the product's own`,
+  );
+  return undefined;
+}
+
+/** ODPS `scope` → Steward's purpose. */
+const PURPOSE_OF_SCOPE: Record<string, SupportPurpose> = { interactive: 'questions', issues: 'issues', announcements: 'announcements' };
+const isGuide = (r: Obj) => (str(r.type) ?? '').toLowerCase() === 'userguide';
 
 export interface OdpsConversion {
   /** A file of Steward's format (`version: 1`, `data_product:`), to be checked by the format's schema */
@@ -114,45 +148,101 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   }
   if (Array.isArray(raw.tags)) product.tags = raw.tags.filter((t): t is string => typeof t === 'string').slice(0, 50);
   if (Array.isArray(raw.authoritativeDefinitions)) {
-    const refs = raw.authoritativeDefinitions
-      .filter(isObj)
+    const defs = raw.authoritativeDefinitions.filter(isObj);
+    const refs = defs
+      .filter((r) => !isGuide(r))
       .map((r) => ({ url: str(r.url) ?? '', label: str(r.description) ?? (str(r.type) === 'reference' ? '' : (str(r.type) ?? '')) }))
       .filter((r) => /^https?:\/\//i.test(r.url));
     if (refs.length) product.external_refs = refs.slice(0, 20);
+    // 0.26.0 (ADR 0039 part 6): user guides are where the consumers find guides and documentation
+    const guides = defs
+      .filter((r) => isGuide(r) && isSupportUrl(str(r.url) ?? ''))
+      .map((r) => ({ title: (str(r.description) ?? str(r.url)!).slice(0, SL.title), url: str(r.url)! }));
+    if (guides.length) product.guides = guides.slice(0, SL.guides);
+    if (guides.length > SL.guides) warnings.push(`ODPS ${key}: ${guides.length} user guides – the first ${SL.guides} are kept`);
   }
   // the product owners and business contacts (0.25.1: contacts): team members with those roles – an e-mail address as
   // username is the contact's address, another username a Steward user (Steward's exports of before 0.25.1); teams
   // named as owners (ownerTeams of before) become group contacts
   if (isObj(raw.team)) {
     const contacts: ContactFile[] = [];
-    const roleOf = (r: string) => (r === 'productowner' ? 'productOwner' : r === 'businesscontact' ? 'businessContact' : null);
+    // 0.26.0 (ADR 0039): a role of the catalogue for data products by its key or label (productOwner as before); an
+    // unknown role is refused with a hint – the import makes no role
+    const refusedRoles = new Set<string>();
     for (const m of Array.isArray(raw.team.members) ? raw.team.members : []) {
       if (!isObj(m)) continue;
-      const role = roleOf((str(m.role) ?? '').toLowerCase());
+      const text = str(m.role) ?? '';
+      const role = text ? roleKeyFor('data_product', text) : undefined;
       const username = str(m.username);
-      if (!role || !username) continue;
+      if (!username) continue;
+      if (!role) {
+        if (text) refusedRoles.add(text);
+        continue;
+      }
       const email = /^[^\s@]+@[^\s@]+$/.test(username) ? username : undefined;
       // a member with a name is that contact; one with only a username (Steward's exports of before 0.25.1) the account's
       const name = str(m.name);
-      contacts.push({ role, name: name ?? username, ...(email ? { email } : name ? {} : { user: username }) });
+      // the end date: a day that exists (ODPS's date format lets 2026-02-30 through)
+      const out = str(m.dateOut)?.slice(0, 10);
+      const until = out && isCalendarDate(out) ? out : undefined;
+      if (out && !until) warnings.push(`ODPS ${key}: the dateOut "${out}" of team member ${(name ?? username).slice(0, 60)} is not a date – left out`);
+      contacts.push({
+        role,
+        name: name ?? username,
+        ...(email ? { email } : name ? {} : { user: username }),
+        ...(until ? { until } : {}),
+      });
     }
+    if (refusedRoles.size)
+      warnings.push(
+        `ODPS ${key}: team members in roles that are not contact roles of data products are not kept (${[...refusedRoles].join(', ')}) – administrators add roles under Settings → Contacts → Roles`,
+      );
     const ownerTeams = customOf(raw.team.customProperties).get('ownerTeams');
     if (Array.isArray(ownerTeams))
       for (const t of ownerTeams) if (typeof t === 'string' && t.trim()) contacts.push({ role: 'productOwner', name: t.trim(), kind: 'group' });
     if (contacts.length) product.contacts = contacts;
-    if (
-      Array.isArray(raw.team.members) &&
-      raw.team.members.some((m) => isObj(m) && !['productowner', 'businesscontact'].includes((str(m.role) ?? '').toLowerCase()))
-    )
-      warnings.push(`ODPS ${key}: team members other than product owners and business contacts are not kept (owning teams are set in Steward)`);
   }
+  // 0.26.0 (ADR 0039 part 7): every support entry is a channel – scope as the purpose (none: Steward's purpose under its
+  // customProperties, else questions), tool, and the description as hours ("Hours: …" on its first line) and note
+  // – entries marked as the supporting service's (supportedByService, as Steward exports them when the product names
+  // none of its own) are not the product's own: the product then has none, and names that service where it resolves
+  const supportedBy = supportingService(str(custom.get('supportedByService')), key, warnings);
+  if (supportedBy !== undefined) product.supported_by_service = supportedBy;
   if (Array.isArray(raw.support)) {
-    const s = raw.support.find((x) => isObj(x) && str(x.url));
-    if (isObj(s)) {
-      // Steward exports the support hours as the description "Hours: …"
-      const d = str(s.description) ?? '';
-      product.support = { channel: str(s.channel) ?? '', url: str(s.url) ?? '', ...(d.startsWith('Hours: ') ? { hours: d.slice(7).slice(0, 200) } : {}) };
+    const channels: SupportChannelFile[] = [];
+    let marked = 0;
+    for (const x of raw.support) {
+      if (!isObj(x)) continue;
+      if (customOf(x.customProperties).has('supportedByService')) {
+        marked++;
+        continue;
+      }
+      const url = str(x.url) ?? '';
+      if (!isSupportAddress(url)) {
+        warnings.push(
+          `ODPS ${key}: the support channel "${(str(x.channel) ?? '').slice(0, 60)}" has an address Steward does not keep (https://, http://, mailto: or tel:) – left out`,
+        );
+        continue;
+      }
+      const scope = (str(x.scope) ?? '').toLowerCase();
+      const own = pick(customOf(x.customProperties).get('purpose'), SUPPORT_PURPOSES);
+      const purpose = PURPOSE_OF_SCOPE[scope] ?? own ?? 'questions';
+      const tool = pick((str(x.tool) ?? '').toLowerCase(), SUPPORT_TOOLS) ?? (str(x.tool) ? 'other' : toolOfAddress(url));
+      const d = str(x.description) ?? '';
+      const [first, ...rest] = d.split('\n');
+      const hours = first?.startsWith('Hours: ') ? first.slice(7).trim() : '';
+      const note = (hours ? rest.join('\n') : d).trim();
+      channels.push({
+        purpose,
+        tool,
+        name: (str(x.channel) ?? '').slice(0, SL.name),
+        address: url,
+        hours: hours.slice(0, SL.hours),
+        note: note.slice(0, SL.note),
+      });
     }
+    if (channels.length || marked) product.support_channels = channels.slice(0, SL.channels);
+    if (channels.length > SL.channels) warnings.push(`ODPS ${key}: ${channels.length} support channels – the first ${SL.channels} are kept`);
   }
 
   // Steward's extras
@@ -160,8 +250,20 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   if (type) product.type = type;
   const criticality = pick(custom.get('criticality'), DATA_PRODUCT_CRITICALITIES);
   if (criticality) product.criticality = criticality;
-  const tier = custom.get('supportTier');
-  if (tier === 1 || tier === 2 || tier === 3) product.tier = tier;
+  // the support level by its name (0.26.0); a tier of exports before 0.26.0 picks the level made from it
+  const level = custom.get('supportLevel');
+  // the supporting service's level (marked as such): the product picks none of its own
+  if (isObj(level) && str(level.supportedByService)) product.support_level = null;
+  else if (isObj(level) && str(level.name)) {
+    const name = str(level.name)!;
+    const n = name.toLowerCase();
+    if (listLevels().some((l) => l.nameEn.trim().toLowerCase() === n || (!!l.nameDe && l.nameDe.trim().toLowerCase() === n)))
+      product.support_level = { name: name.slice(0, SL.name) };
+    else warnings.push(`ODPS ${key}: the support level "${name.slice(0, 100)}" is not one of Settings → Support levels – left out`);
+  } else {
+    const tier = custom.get('supportTier');
+    if (tier === 1 || tier === 2 || tier === 3) product.tier = tier;
+  }
   if (str(custom.get('sunsetDate'))) product.sunset_date = str(custom.get('sunsetDate'));
   const rating = custom.get('rating');
   if (isObj(rating)) {

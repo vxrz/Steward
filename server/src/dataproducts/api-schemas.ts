@@ -1,3 +1,4 @@
+import { ContactNameEntries } from '../contacts/api-schemas.js';
 import { z, type ZodTypeAny } from 'zod';
 import {
   DATA_CLASSIFICATIONS,
@@ -18,6 +19,7 @@ import {
   LEGAL_BASES,
   PERSONAL_DATA_LEVELS,
 } from '@sm/shared';
+import { ApiGuide, ApiSupportChannel, ApiSupportLevel, ApiSupportedBy } from '../support/api.js';
 
 /**
  * Response and query schemas of the data products module in the public API (/api/v1/data-products, /data-elements,
@@ -75,7 +77,12 @@ export const DataProductEntry = z.object({
   lifecycle: z.enum(DATA_PRODUCT_LIFECYCLES),
   sunsetDate: z.string().nullable(),
   criticality: z.enum(DATA_PRODUCT_CRITICALITIES).nullable(),
-  tier: z.number().int().nullable().describe('Support tier 1–3'),
+  tier: z
+    .number()
+    .int()
+    .nullable()
+    .describe('Deprecated (0.26.0, removed in a later release): the support tier 1–3 its support level was made from at the upgrade – see supportLevel'),
+  supportLevel: ApiSupportLevel.nullable().describe('0.26.0: the support level it picks'),
   rating: Rating,
   classification: z.enum(DATA_CLASSIFICATIONS).nullable(),
   ratingBelowObjects: z.boolean().describe('Rated below the data objects it exposes without a reason'),
@@ -84,7 +91,9 @@ export const DataProductEntry = z.object({
   owners: z
     .array(z.string())
     .describe('Deprecated (0.25.1, removed in a later release): the Steward users linked to its product owner contacts, as user:<name> – see contacts'),
-  contacts: ContactNames.describe('Product owners and business contacts (0.25.1): documentation, never a right in Steward'),
+  contacts: ContactNameEntries.describe(
+    'Product owners, business contacts and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward',
+  ),
   owningTeams: z.array(z.object({ id: z.string(), name: z.string() })),
   tags: z.array(z.string()),
   version: z.string(),
@@ -137,7 +146,12 @@ const Port = z.object({
 export const DataProductDetail = DataProductEntry.extend({
   description: z.string(),
   purpose: z.string(),
-  support: z.object({ channel: z.string(), url: z.string(), hours: z.string() }),
+  support: z
+    .object({ channel: z.string(), url: z.string(), hours: z.string() })
+    .describe('Deprecated (0.26.0, removed in a later release): its first channel for questions – see supportChannels'),
+  supportChannels: z.array(ApiSupportChannel).describe('0.26.0: its own support channels, in their order'),
+  guides: z.array(ApiGuide).describe('0.26.0: where its consumers find guides and documentation'),
+  supportedBy: ApiSupportedBy.nullable(),
   lifecycleDates: z.record(z.string(), z.string()).describe('When each lifecycle state was reached'),
   successor: Ref.nullable(),
   valueStatement: z.string(),
@@ -205,7 +219,7 @@ export const DataObjectEntry = z.object({
   personalData: z.enum(PERSONAL_DATA_LEVELS),
   rating: Rating,
   owner: z.string().nullable().describe('Deprecated (0.25.1): the Steward user linked to its data owner contact – see contacts'),
-  contacts: ContactNames.describe('Data owner and data stewards (0.25.1): documentation, never a right in Steward'),
+  contacts: ContactNameEntries.describe('Data owner, data stewards and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward'),
   updatedAt: ts(),
 });
 

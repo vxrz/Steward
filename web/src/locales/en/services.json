@@ -20,10 +20,6 @@
     "critical": "Critical"
   },
   "contacts": "Contacts",
-  "contactRoles": {
-    "business": "Business owner",
-    "it": "IT operations"
-  },
   "noContacts": "No contacts",
   "owners": "Responsible in Steward",
   "ownersHelp": "Users and teams who may edit this service: user:<name> or team:<name>",

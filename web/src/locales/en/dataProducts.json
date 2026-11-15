@@ -39,7 +39,6 @@
     "medium": "Medium",
     "low": "Low"
   },
-  "tier": "Tier {{tier}}",
   "portTypes": {
     "table": "Table or view",
     "topic": "Topic",
@@ -89,13 +88,8 @@
     "purposeHint": "What the product is for and who it serves.",
     "owners": "Contacts",
     "ownersHint": "Product owners and business contacts – documentation, never a right in Steward.",
-    "support": "Support",
-    "supportChannel": "Channel",
-    "supportUrl": "Web address",
-    "supportHours": "Hours",
     "criticality": "Criticality",
-    "tier": "Support tier",
-    "tierHint": "1 to 3: how the product is supported (hours, response).",
+    "criticalityHint": "How bad an outage of the product is. What support is promised is its support level, under Help and support.",
     "version": "Version",
     "versionHint": "A label (ODPS version); the history is the audit trail.",
     "value": "Business value",
@@ -142,7 +136,8 @@
     "maturity": "Maturity",
     "costsLastMonth": "Costs last month",
     "costsIncomplete": "Incomplete: a part you may not see is left out of the total.",
-    "costsHidden": "Not shown"
+    "costsHidden": "Not shown",
+    "supportLevel": "Support level"
   },
   "product": {
     "newTitle": "New data product",
@@ -715,6 +710,8 @@
         "has": "{{done}} of {{of}}: description, owner, domain, type, data objects",
         "genericParts_one": "{{count}} generic part (no discovery yet)",
         "genericParts_other": "{{count}} generic parts (no discovery yet)",
+        "missingRoles_one": "Expected contact role without a contact: {{roles}}",
+        "missingRoles_other": "Expected contact roles without a contact: {{roles}}",
         "technologyNotInList_one": "{{count}} generic part with a technology not in the list",
         "technologyNotInList_other": "{{count}} generic parts with a technology not in the list"
       },

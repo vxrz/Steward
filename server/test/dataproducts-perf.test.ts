@@ -207,6 +207,72 @@ async function measure(url: string): Promise<{ statements: number; ms: number }>
   return { statements, ms: Math.round(times[1]!) };
 }
 
+/**
+ * The product page at its fullest (0.26.0, ADR 0039): its domain is a sub-domain whose parent names contacts, it names
+ * contacts of its own (one a deputy with an end date) and lacks an expected role of data products, it has channels,
+ * guides, a level and a supporting service with a channel and a level of its own.
+ */
+async function fullHelp(productId: string): Promise<void> {
+  const { db } = await import('../src/db.js');
+  const { forgetRoleCatalogue } = await import('../src/contacts/roles.js');
+  const { forgetLevels } = await import('../src/support/levels.js');
+  const now = new Date().toISOString();
+  const product = db().get<{ domain_id: string }>('SELECT domain_id FROM dp_products WHERE id = ?', productId)!;
+  const parent = ids.domains.find((d) => d !== product.domain_id)!;
+  db().run('UPDATE dp_domains SET parent_id = ? WHERE id = ?', parent, product.domain_id);
+  const service = ((await s.api('POST', '/services', { name: 'Perf data desk' })) as { id: string }).id;
+  const level = ((await s.api('POST', '/support/levels', { nameEn: 'Perf level', hours: 'Every day' })) as { id: string }).id;
+  db().run('UPDATE dp_products SET support_level_id = ?, supported_by_service_id = ? WHERE id = ?', level, service, productId);
+  db().run('UPDATE services SET support_level_id = ? WHERE id = ?', level, service);
+  await insert(
+    'contacts',
+    ['id', 'kind', 'name', 'name_norm', 'email', 'email_norm', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    ['a', 'b', 'c', 'd'].map((x) => [`cnt_perf${x}`, 'person', `Perf ${x}`, `perf ${x}`, `${x}@perf.example`, `${x}@perf.example`, now, 'perf', now, 'perf']),
+  );
+  await insert(
+    'contact_links',
+    ['kind', 'item_id', 'role', 'contact_id', 'position', 'created_at', 'created_by', 'deputy_of', 'until'],
+    [
+      ['data_product', productId, 'productOwner', 'cnt_perfa', 0, now, 'perf', null, null],
+      ['data_product', productId, 'productOwner', 'cnt_perfb', 1, now, 'perf', 'cnt_perfa', '2099-12-31'],
+      ['data_domain', product.domain_id, 'domainOwner', 'cnt_perfc', 0, now, 'perf', null, null],
+      ['data_domain', parent, 'domainArchitect', 'cnt_perfd', 0, now, 'perf', null, null],
+    ],
+  );
+  await insert(
+    'contact_roles',
+    ['key', 'label_en', 'label_de', 'kinds', 'expected', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    [
+      ['domainArchitect', 'Domain architect', 'Domänenarchitekt', '["data_domain","data_product"]', 0, now, 'perf', now, 'perf'],
+      ['technicalLead', 'Technical lead', 'Technische Leitung', '["data_product"]', 1, now, 'perf', now, 'perf'],
+    ],
+  );
+  forgetRoleCatalogue();
+  forgetLevels();
+  const channel = (kind: string, item: string, i: number) => [
+    `spc_perf${kind}${i}`,
+    kind,
+    item,
+    'questions',
+    'email',
+    `Desk ${i}`,
+    `mailto:desk${i}@perf.example`,
+    i,
+    now,
+    'perf',
+  ];
+  await insert(
+    'support_channels',
+    ['id', 'kind', 'item_id', 'purpose', 'tool', 'name', 'address', 'position', 'created_at', 'created_by'],
+    [channel('data_product', productId, 0), channel('data_product', productId, 1), channel('service', service, 0)],
+  );
+  await insert(
+    'guides',
+    ['id', 'kind', 'item_id', 'title', 'url', 'position', 'created_at', 'created_by'],
+    [['spg_perf0', 'data_product', productId, 'Guide', 'https://wiki.perf.example/guide', 0, now, 'perf']],
+  );
+}
+
 /** What every request costs (sign-in, settings): a product that is not found. */
 async function overhead(): Promise<number> {
   await dana('GET', '/data-products/dpr_none').catch(() => undefined);
@@ -225,6 +291,18 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
 
   it('a product costs a fixed number of statements, however many members and steps it has', async () => {
     const p = ids.products[Math.floor(V.products / 2)]!;
+    // 0.26.0: at its fullest – inherited contacts, an expected role, help and support with a supporting service
+    await fullHelp(p);
+    const page = (await dana('GET', `/data-products/${p}`)) as {
+      inheritedContacts: { role: string }[];
+      supportChannels: unknown[];
+      guides: unknown[];
+      supportedBy: { channels: unknown[]; level: unknown } | null;
+    };
+    expect(page.inheritedContacts.map((l) => l.role).sort()).toEqual(['domainArchitect', 'domainOwner']);
+    expect([page.supportChannels.length, page.guides.length, page.supportedBy?.channels.length, !!page.supportedBy?.level]).toEqual([2, 1, 1, true]);
+    const card = (await dana('GET', `/data-products/${p}/scorecard`)) as { parts: { evidence: { key: string }[] }[] };
+    expect(card.parts.flatMap((x) => x.evidence.map((e) => e.key))).toContain('evidence.documented.missingRoles');
     const reads: [string, string][] = [
       ['product page', `/data-products/${p}`],
       ['members', `/data-products/${p}/members`],
@@ -261,13 +339,16 @@ describe(`reads at volume (${V.elements.toLocaleString('en')} elements, ${V.prod
     // roles granted – module_access and module_grants in one statement per request, ADR 0034 phase 2 – and reads
     // the Restricted scopes of shares once per request, ADR 0033). 0.25.0: 26 → 20 – the ports, bindings, declared and
     // implemented data objects and the members its rating floor reads are read once for the page (ProductReads), the
-    // member counts come from those members
+    // member counts come from those members. 0.26.0 (ADR 0039): still 20 with a sub-domain's inherited contacts – read
+    // with the product's own – and help and support with a supporting service – its row, its channels and the
+    // product's channels and guides in one statement
     const base = await overhead();
     expect(report['product page (grown)']!.statements - base).toBeLessThanOrEqual(20);
     // the scorecard: at most 37 beyond (0.25.0: 51 → 37) – the floor's ports, bindings and members read once, the check
     // links of the output elements once for their freshness samples and their health, one read of the bound contracts
     // for lint and personal fields, completeness results only for ports with a completeness objective, and traceability
-    // walks upstream only (one statement per level)
+    // walks upstream only (one statement per level). 0.26.0: still 37 with an expected contact role – the roles of
+    // the product and of its domain and the domain's parent in one statement
     expect(report['scorecard (grown)']!.statements - base).toBeLessThanOrEqual(37);
   }, 300_000);
 

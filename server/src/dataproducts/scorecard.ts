@@ -1,6 +1,10 @@
 import {
   CIA_DIMENSIONS,
   ISO_25012_DIMENSIONS,
+  contactRoleOn,
+  contactToday,
+  inheritByRole,
+  missingExpectedRoles,
   isGenericElementKind,
   maturityLevel,
   worstHealth,
@@ -15,7 +19,8 @@ import {
   type MonitorStatus,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { linksOf } from '../contacts/service.js';
+import { roleCatalogue, roleLabelOf } from '../contacts/roles.js';
+import { domainAccess } from './access.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { currentScale } from '../catalogue/cia.js';
@@ -124,8 +129,10 @@ export function scorecardsOf(
     known && known.length === productIds.length && known.every((k) => productIds.includes(k.id))
       ? new Map(known.map((k) => [k.id, k]))
       : productsByIds(productIds);
-  // 0.25.1: a product owner is a contact with that role (one statement for every product)
-  const owned = new Set([...linksOf('data_product', [...products.keys()])].filter(([, l]) => l.some((x) => x.role === 'productOwner')).map(([id]) => id));
+  // 0.25.1: a product owner is a contact with that role; 0.26.0 (ADR 0039): the expected roles of the role catalogue –
+  // own contacts and those inherited from the domains the reader may see. The roles of the products and of their
+  // domains, with the domains' parents, in one statement (per 250 products)
+  const { owned, missing: missingRoles } = contactRoleFacts(u, [...products.values()]);
   const ids = [...products.keys()];
   if (!ids.length) return out;
   const scale = currentScale();
@@ -264,6 +271,22 @@ export function scorecardsOf(
         .filter(([, v]) => !v)
         .map(([k]) => ev(`documented.missing.${k}`)),
       ...(generic.length ? [ev('documented.genericParts', { count: generic.length })] : []),
+      // the roles by their labels in English (`roles`) and German (`rolesDe`): the page shows the reader's language
+      ...(missingRoles.get(p.id)?.length
+        ? [
+            ev('documented.missingRoles', {
+              count: missingRoles.get(p.id)!.length,
+              roles: missingRoles
+                .get(p.id)!
+                .map((k) => roleLabelOf(k))
+                .join(', '),
+              rolesDe: missingRoles
+                .get(p.id)!
+                .map((k) => roleLabelOf(k, 'de'))
+                .join(', '),
+            }),
+          ]
+        : []),
       ...(unlisted ? [ev('documented.technologyNotInList', { count: unlisted })] : []),
     ]);
 
@@ -522,4 +545,72 @@ export function productScorecard(productId: string, q: { environment?: string })
   const u = me();
   const { row } = visibleProduct(productId, u);
   return scorecardsOf(u, [row.id], q.environment, Date.now(), [row]).get(row.id)!;
+}
+
+interface RoleFact {
+  src: 'p' | 'd';
+  item_id: string;
+  parent_id: string | null;
+  role: string | null;
+  until: string | null;
+}
+
+/**
+ * Which products name a product owner, and the expected contact roles of data products (role catalogue, 0.26.0) each
+ * lacks: no current contact in the role of its own or inherited from its domain (ADR 0039 part 2, from domains the reader
+ * may see; a hidden sub-domain hides its parent's too). One statement per 250 products: the roles the products name
+ * contacts in and – only when a role of data products is expected – the roles of their domains and the domains'
+ * parents, with the hierarchy.
+ */
+function contactRoleFacts(u: AuthUser | null, products: readonly ProductRow[]): { owned: Set<string>; missing: Map<string, string[]> } {
+  const owned = new Set<string>();
+  const missing = new Map<string, string[]>();
+  if (!products.length) return { owned, missing };
+  const catalogue = roleCatalogue();
+  const expected = catalogue.some((r) => r.expected && contactRoleOn(r, 'data_product'));
+  const own = new Map<string, { role: string; until: string | null }[]>();
+  const domains = new Map<string, { parent: string | null; links: { role: string; until: string | null }[] }>();
+  for (let i = 0; i < products.length; i += 250) {
+    const part = products.slice(i, i + 250);
+    const ids = part.map((p) => p.id);
+    const domainIds = expected ? [...new Set(part.map((p) => p.domain_id).filter((d): d is string => !!d))] : [];
+    const productSql = `SELECT 'p' AS src, item_id, CAST(NULL AS TEXT) AS parent_id, role, until FROM contact_links WHERE kind = 'data_product' AND item_id IN (${marks(ids.length)})`;
+    const rows = domainIds.length
+      ? db().all<RoleFact>(
+          `${productSql}
+           UNION ALL
+           SELECT 'd' AS src, d.id AS item_id, d.parent_id, l.role, l.until FROM dp_domains d
+             LEFT JOIN contact_links l ON l.kind = 'data_domain' AND l.item_id = d.id
+             WHERE d.id IN (${marks(domainIds.length)}) OR d.id IN (SELECT parent_id FROM dp_domains WHERE id IN (${marks(domainIds.length)}))`,
+          ...ids,
+          ...domainIds,
+          ...domainIds,
+        )
+      : db().all<RoleFact>(productSql, ...ids);
+    for (const r of rows) {
+      if (r.src === 'p') {
+        if (r.role === 'productOwner') owned.add(r.item_id);
+        own.set(r.item_id, [...(own.get(r.item_id) ?? []), { role: r.role!, until: r.until }]);
+        continue;
+      }
+      const d = domains.get(r.item_id) ?? { parent: r.parent_id, links: [] };
+      if (r.role !== null) d.links.push({ role: r.role, until: r.until });
+      domains.set(r.item_id, d);
+    }
+  }
+  if (!expected) return { owned, missing };
+  const seen = new Map<string, boolean>();
+  const visible = (id: string) => {
+    if (!seen.has(id)) seen.set(id, domainAccess(u, { id }).permissions.length > 0);
+    return seen.get(id)!;
+  };
+  const today = contactToday();
+  for (const p of products) {
+    const mine = own.get(p.id) ?? [];
+    const d = p.domain_id ? domains.get(p.domain_id) : undefined;
+    const parent = d?.parent ? domains.get(d.parent) : undefined;
+    const chain = d && visible(p.domain_id!) ? [...d.links, ...(parent && visible(d.parent!) ? inheritByRole(d.links, parent.links) : [])] : [];
+    missing.set(p.id, missingExpectedRoles(catalogue, 'data_product', mine, inheritByRole(mine, chain), today));
+  }
+  return { owned, missing };
 }

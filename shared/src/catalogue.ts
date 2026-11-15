@@ -1,3 +1,4 @@
+import type { ContactLink } from './contacts.js';
 import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { RepositoryReadout } from './git.js';
 import type { TopicReadout } from './kafka.js';
@@ -9,6 +10,7 @@ import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './rec
 import type { SegmentMember, SystemAttributes, SystemFirewall, SystemSegmentLink } from './network.js';
 import type { StackVersion } from './versions.js';
 import type { SupplierRef } from './suppliers.js';
+import type { SupportChannel, SupportLevelRef } from './support.js';
 
 /**
  * Applications in the service catalogue (#84): what people call a platform ("Insights Hub", "Industrial Edge")
@@ -174,6 +176,8 @@ export interface ApplicationSummary {
   componentCount: number;
   /** "Runs on" links to systems (#129) */
   systemCount: number;
+  /** 0.26.0 (ADR 0039 part 5): the support level it picks (null: none) */
+  supportLevel: SupportLevelRef | null;
   updatedAt: string;
 }
 
@@ -207,7 +211,19 @@ export interface ApplicationDetail extends ApplicationSummary {
   credentials: ApplicationCredential[];
   /** The systems the application runs on, per environment (#129) */
   systems: ApplicationSystemLink[];
+  /**
+   * 0.26.0 (ADR 0039): its business contacts (business owner, application manager, own roles) – documentation beside
+   * the owners, never a right. Via an API token by name and role only.
+   */
+  contacts: ContactLink[];
+  /**
+   * 0.26.0: the contacts of the services it belongs to (that the reader may see), read only – never inherited: an
+   * application can serve several services
+   */
+  serviceContacts: { serviceId: string; serviceName: string; contacts: ContactLink[] }[];
   canEdit: boolean;
+  /** 0.26.0 (ADR 0039 part 4): its support channels, in their order */
+  supportChannels: SupportChannel[];
 }
 
 export interface ApplicationCredential {
@@ -519,6 +535,8 @@ export interface SystemDetail extends SystemSummary {
   backlinks: Backlink[];
   /** Firewall changes, approved rules and tickets that name it (#208) */
   firewall: SystemFirewall;
+  /** 0.26.0 (ADR 0039): its business contacts (business owner, system manager, own roles) – never a right */
+  contacts: ContactLink[];
   createdAt: string;
   createdBy: string;
   updatedBy: string;

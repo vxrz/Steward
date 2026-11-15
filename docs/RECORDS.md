@@ -448,6 +448,7 @@ _Services_ lists the services your team runs. A service has:
 - contacts: the **business owner** and **IT operations** (and more if needed) – since 0.25.1 contacts of the [contacts directory](CONTACTS.md), picked or created in the form; the API and exports show them as before (role, e-mail address, name);
 - **responsible in Steward**: users and teams (`user:dana`, `team:service desk`) who may edit it in addition to designers and administrators;
 - an optional **criticality**: low, medium, high, critical;
+- **help and support** (0.26.0): where its users ask and report issues and incidents – support channels with purpose, tool, address and hours – and the **support level** it promises (_Settings → Support levels_); see [SUPPORT.md](SUPPORT.md). A data product can name the service that supports it and then shows its channels and level;
 - the **CMDB entry**: system (e.g. _ServiceNow_), ID and a link that opens the entry;
 - tags and links to platforms, monitors, processes, dashboards, runs and documents, and external links with a type such as runbook, repository or vendor portal ([Link types](#link-types)).
 
