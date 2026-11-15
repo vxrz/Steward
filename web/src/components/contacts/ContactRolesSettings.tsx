@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   ActionIcon,
   Badge,
@@ -58,7 +59,13 @@ export function ContactRolesSettings() {
       await changed();
       notifyOk(t('catalogue.deleted'));
       // the focus goes to the row that took its place (its Edit button), not to the top of the page
-      focusRowControl(card.current, '[data-role-edit]', index, () => card.current?.querySelector<HTMLElement>('[data-testid="contact-role-new"]'));
+      focusRowControl(
+        card.current,
+        '[data-role-edit]',
+        index,
+        () => card.current?.querySelector<HTMLElement>('[data-testid="contact-role-new"]'),
+        `[data-testid="contact-role-delete-${CSS.escape(r.key)}"]`,
+      );
     } catch (e) {
       notifyError(e);
     }
@@ -242,8 +249,9 @@ function RoleForm({ role, onClose, onSaved }: { role?: ContactRole; onClose: () 
     } catch (e) {
       const field = refusedField(e, en, de);
       if (!field) return notifyError(e);
-      setServer({ [field]: errorText(e) });
-      requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+      // rendered at once, so the field to focus is marked invalid already
+      flushSync(() => setServer({ [field]: errorText(e) }));
+      document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
     } finally {
       setBusy(false);
     }

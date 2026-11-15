@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { IconEdit } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -37,18 +38,23 @@ export function ItemContactsSection({
   const [saving, setSaving] = useState(false);
   // the server's refusal, shown at the picker (a role switched off, a second contact in a role of one, a bad deputy)
   const [error, setError] = useState<string | undefined>();
-  const focus = (selector: string) => requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus());
+  const focus = (selector: string) => document.querySelector<HTMLElement>(selector)?.focus();
   const start = () => {
-    setValue(fromLinks(contacts));
-    setError(undefined);
-    setEditing(true);
+    // rendered at once, so the picker is there to take the focus
+    flushSync(() => {
+      setValue(fromLinks(contacts));
+      setError(undefined);
+      setEditing(true);
+    });
     // into the picker: its role, else (no role to choose) its search
     focus(`[data-testid="${id}-picker-role"]:not(:disabled), [data-testid="${id}-picker-search"]`);
   };
   /** Back to reading: the focus returns to Edit (the buttons that had it are gone). */
   const stop = () => {
-    setEditing(false);
-    setError(undefined);
+    flushSync(() => {
+      setEditing(false);
+      setError(undefined);
+    });
     focus(`[data-testid="${id}-edit"]`);
   };
   const save = async () => {

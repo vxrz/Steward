@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import {
   ActionIcon,
   Alert,
@@ -496,10 +497,10 @@ export function SupportEditor({
         await onSave(body);
       } catch (e) {
         const fields = serverFieldErrors(e, t('fields.levelGone'));
-        setServer(fields);
-        // shown at its field (and focused there); anything else as a notification
+        // shown at its field (rendered at once, then focused there); anything else as a notification
         if (!Object.keys(fields).length) throw e;
-        requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+        flushSync(() => setServer(fields));
+        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       }
     }, t('notSaved'));
 

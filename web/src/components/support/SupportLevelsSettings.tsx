@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ActionIcon, Button, Card, Group, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Title, Tooltip, VisuallyHidden } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -34,10 +35,16 @@ export function SupportLevelsCard() {
   const rows = list.data ?? [];
   const name = (x: SupportLevel) => levelName(x, i18n.language);
   /** After a removal: the focus on the row that took its place (its Change button), else the last one, else Add level. */
-  const focusAfterRemoval = (index: number) => {
+  const focusAfterRemoval = (index: number, id: string) => {
     // the notification says it; an earlier "moved" would name a level that is gone
     setSaid('');
-    focusRowControl(card.current, '[data-level-edit]', index, () => card.current?.querySelector<HTMLElement>('[data-testid="support-level-add"]'));
+    focusRowControl(
+      card.current,
+      '[data-level-edit]',
+      index,
+      () => card.current?.querySelector<HTMLElement>('[data-testid="support-level-add"]'),
+      `[data-level-id="${CSS.escape(id)}"]`,
+    );
   };
   const moveLevel = async (i: number, d: -1 | 1) => {
     const ids = rows.map((r) => r.id);
@@ -47,13 +54,23 @@ export function SupportLevelsCard() {
     try {
       qc.setQueryData(['support-levels'], await put<SupportLevel[]>('/support/levels/order', { ids }));
       const x = rows[i]!;
-      setSaid(t('levels.moved', { name: name(x), n: j + 1, count: ids.length }));
       // the focus stays on the moved row: on the same button, or the other one at the top or the bottom
       const enabled = (dir: 'up' | 'down') =>
         [...(card.current?.querySelectorAll<HTMLElement>(`[data-level-move="${dir}"][data-level-id="${x.id}"]`) ?? [])].find(
           (el) => !el.matches(':disabled') && el.getClientRects().length > 0,
         );
-      requestAnimationFrame(() => (enabled(d === -1 ? 'up' : 'down') ?? enabled(d === -1 ? 'down' : 'up'))?.focus());
+      setSaid(t('levels.moved', { name: name(x), n: j + 1, count: ids.length }));
+      // once the list shows the new order (the cache update renders a moment later): the row's up button is the j-th
+      const placed = () =>
+        [...(card.current?.querySelectorAll<HTMLElement>('[data-level-move="up"]') ?? [])]
+          .filter((el) => el.getClientRects().length > 0)
+          .findIndex((el) => el.dataset.levelId === x.id) === j;
+      const attempt = (framesLeft: number) =>
+        requestAnimationFrame(() => {
+          if (framesLeft > 0 && !placed()) return attempt(framesLeft - 1);
+          (enabled(d === -1 ? 'up' : 'down') ?? enabled(d === -1 ? 'down' : 'up'))?.focus();
+        });
+      attempt(60);
     } catch (e) {
       notifyError(e);
     }
@@ -66,7 +83,7 @@ export function SupportLevelsCard() {
       await del(`/support/levels/${encodeURIComponent(x.id)}`);
       await changed();
       notifyOk(t('levels.removed'));
-      focusAfterRemoval(index);
+      focusAfterRemoval(index, x.id);
     } catch (e) {
       notifyError(e);
     }
@@ -228,11 +245,12 @@ export function SupportLevelsCard() {
           others={rows.filter((r) => r.id !== removing.id)}
           onClose={() => setRemoving(null)}
           onRemoved={async () => {
-            const index = rows.findIndex((r) => r.id === removing.id);
+            const { id } = removing;
+            const index = rows.findIndex((r) => r.id === id);
             await changed();
             setRemoving(null);
             notifyOk(t('levels.removed'));
-            focusAfterRemoval(index);
+            focusAfterRemoval(index, id);
           }}
         />
       )}
@@ -266,8 +284,9 @@ function LevelForm({ level, onClose, onSaved }: { level?: SupportLevel; onClose:
         else await post('/support/levels', body);
       } catch (e) {
         if (!(e instanceof ApiError) || e.code !== 'SUPPORT_LEVEL_EXISTS') throw e;
-        setTaken(errorText(e));
-        requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="support-level-name"]')?.focus());
+        // rendered at once, then focused
+        flushSync(() => setTaken(errorText(e)));
+        document.querySelector<HTMLElement>('[data-testid="support-level-name"]')?.focus();
         return;
       }
       onSaved();
