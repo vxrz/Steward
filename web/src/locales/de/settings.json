@@ -754,7 +754,7 @@
     },
     "contacts": {
       "title": "Kontakte",
-      "description": "Die Rollen, in denen Einträge ihre Kontakte nennen: eingebaute und eigene Rollen, was erwartet wird."
+      "description": "Die Rollen, in denen Einträge ihre Kontakte nennen: eingebaute und eigene Rollen und welche erwartet werden."
     },
     "current": "Bereich: {{area}}"
   },

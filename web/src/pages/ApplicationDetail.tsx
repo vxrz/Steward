@@ -141,6 +141,7 @@ export function ApplicationDetailPage() {
                 support={{ channels: a.supportChannels, level: a.supportLevel, guides: [], supportedBy: null }}
                 canEdit={a.canEdit && !a.archived}
                 onSaved={refresh}
+                sectionId="application-support"
               />
               <ComponentsPanel app={a} onSaved={refresh} />
               {a.stack.length > 0 && (

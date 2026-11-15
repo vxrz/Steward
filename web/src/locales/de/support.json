@@ -12,8 +12,10 @@
     "moveUp": "Kanal {{n}} nach oben",
     "moveDown": "Kanal {{n}} nach unten",
     "remove": "Kanal {{n}} entfernen",
-    "hint": "Nennen Sie gemeinsame Adressen – ein Team-Postfach, eine Ticket-Queue, einen Kanal – nicht die einer Person. Personen sind Kontakte.",
-    "max": "Höchstens {{max}} Kanäle."
+    "hint": "Nennen Sie gemeinsame Adressen – ein Team-Postfach, eine Ticket-Warteschlange, einen Teams- oder Slack-Kanal –, nie die eigene Adresse einer Person. Personen sind Kontakte.",
+    "max": "Höchstens {{max}} Kanäle.",
+    "removed": "Kanal {{n}} entfernt",
+    "moved": "Kanal ist jetzt an Position {{n}} von {{count}}"
   },
   "purposes": {
     "questions": "Fragen",
@@ -32,9 +34,9 @@
   },
   "fields": {
     "purpose": "Zweck",
-    "tool": "Werkzeug",
+    "tool": "Kanalart",
     "name": "Name",
-    "namePlaceholder": "Daten-Desk",
+    "namePlaceholder": "Daten-Helpdesk",
     "address": "Adresse",
     "addressHint": "https://, mailto: oder tel:",
     "addressInvalid": "Geben Sie eine Adresse ein, die mit https://, mailto: oder tel: beginnt",
@@ -42,17 +44,18 @@
     "hours": "Zeiten",
     "hoursPlaceholder": "Mo–Fr 08:00–17:00",
     "note": "Hinweis",
-    "noteHint": "Die Queue, Kategorie oder Zuweisungsgruppe, die zu verwenden ist",
+    "noteHint": "Die zu verwendende Warteschlange, Kategorie oder Zuweisungsgruppe",
     "level": "Support-Level",
     "levelHint": "Was das bereitstellende Team zusagt. Administratoren pflegen die Level unter Einstellungen → Support-Level.",
     "noLevel": "Kein Support-Level",
-    "service": "Unterstützt durch Service",
+    "service": "Unterstützender Service",
     "serviceHint": "Seine Kanäle und sein Support-Level erscheinen hier, sofern dieses Produkt keine eigenen nennt.",
     "noService": "Kein Service",
     "guideTitle": "Titel",
     "guideUrl": "Webadresse",
     "urlInvalid": "Geben Sie eine Webadresse ein, die mit https:// beginnt",
-    "serverInvalid": "Prüfen Sie diesen Wert"
+    "serverInvalid": "Prüfen Sie diesen Wert",
+    "levelGone": "Dieses Support-Level gibt es nicht mehr – es wurde vielleicht inzwischen entfernt. Wählen Sie ein anderes."
   },
   "level": {
     "title": "Support-Level",
@@ -66,13 +69,15 @@
   "guides": {
     "title": "Anleitungen und Dokumentation",
     "none": "Noch keine Anleitungen.",
-    "hint": "Wo die Konsumenten Anleitungen und Dokumentation finden – eine Wiki-, SharePoint- oder Portalseite. Konsumenten können Steward meist nicht öffnen.",
+    "hint": "Wo die Nutzer Anleitungen und Dokumentation finden – eine Wiki-, SharePoint- oder Portalseite. Nutzer können Steward meist nicht öffnen.",
     "add": "Anleitung hinzufügen",
     "item": "Anleitung {{n}}",
     "moveUp": "Anleitung {{n}} nach oben",
     "moveDown": "Anleitung {{n}} nach unten",
     "remove": "Anleitung {{n}} entfernen",
-    "opensNewTab": "(öffnet in einem neuen Tab)"
+    "opensNewTab": "(öffnet in einem neuen Tab)",
+    "removed": "Anleitung {{n}} entfernt",
+    "moved": "Anleitung ist jetzt an Position {{n}} von {{count}}"
   },
   "notSaved": "Hilfe und Support wurden nicht gespeichert",
   "levels": {
@@ -88,9 +93,9 @@
     "note": "Hinweis",
     "slaUrl": "SLA-Dokument",
     "slaUrlHint": "Eine Webadresse, die mit https:// beginnt",
-    "usage": "Verwendet von",
+    "usage": "Verwendung",
     "usageCount_one": "{{count}} Eintrag",
-    "usageCount_other": "{{count}} Einträgen",
+    "usageCount_other": "{{count}} Einträge",
     "actions": "Aktionen",
     "newTitle": "Neues Support-Level",
     "editTitle": "{{name}} ändern",
@@ -102,11 +107,14 @@
     "removeInUseTitle": "{{name}} entfernen",
     "removeInUse_one": "{{count}} Eintrag verwendet dieses Level. Wählen Sie das Level, das er stattdessen erhält, oder lassen Sie ihn ohne.",
     "removeInUse_other": "{{count}} Einträge verwenden dieses Level. Wählen Sie das Level, das sie stattdessen erhalten, oder lassen Sie sie ohne.",
-    "replaceWith": "Level stattdessen",
-    "replaceNone": "Kein Level",
+    "replaceWith": "Ersetzen durch",
+    "replaceNone": "Kein Level (Einträge bleiben ohne)",
     "removeButton": "Level entfernen",
     "saved": "Support-Level gespeichert",
     "removed": "Support-Level entfernt",
-    "readOnly": "Nur Administratoren ändern die Support-Level."
-  }
+    "readOnly": "Nur Administratoren ändern die Support-Level.",
+    "name": "Name",
+    "moved": "{{name}} ist jetzt an Position {{n}} von {{count}}"
+  },
+  "saved": "Hilfe und Support gespeichert"
 }

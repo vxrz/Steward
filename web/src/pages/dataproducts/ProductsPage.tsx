@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconAlertTriangle, IconColumns3, IconPackages, IconPlus, IconTopologyStar3 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { DATA_PRODUCT_LIFECYCLES, DATA_PRODUCT_TYPES, HEALTH_STATUSES, type DataHealthStatus, type DataProductSummary, type Team } from '@sm/shared';
+import { DATA_PRODUCT_LIFECYCLES, DATA_PRODUCT_TYPES, HEALTH_STATUSES, levelName, type DataHealthStatus, type DataProductSummary, type Team } from '@sm/shared';
 import { getOptional } from '../../api';
 import { QueryState, useCreateParam } from '../../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../../components/DataTable';
@@ -25,7 +25,7 @@ import { useCanCreate } from './rights';
 const to = (p: { id: string }) => `/data-products/${encodeURIComponent(p.id)}`;
 
 /** Columns the reader can add or remove (name, domain, type, lifecycle, health and rating are always shown). */
-const OPTIONAL_COLUMNS = ['environments', 'classification', 'maturity', 'costs', 'value', 'updated'] as const;
+const OPTIONAL_COLUMNS = ['environments', 'classification', 'maturity', 'costs', 'value', 'supportLevel', 'updated'] as const;
 type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number];
 const DEFAULT_COLUMNS: OptionalColumn[] = ['maturity', 'costs'];
 const COLUMNS_PREF = 'list.columns.data-products';
@@ -51,6 +51,7 @@ function ColumnChooser({ shown, onChange }: { shown: Set<OptionalColumn>; onChan
     maturity: t('products.maturity'),
     costs: t('products.costsLastMonth'),
     value: t('products.value'),
+    supportLevel: t('products.supportLevel'),
     updated: t('products.updated'),
   };
   return (
@@ -79,7 +80,7 @@ function ColumnChooser({ shown, onChange }: { shown: Set<OptionalColumn>; onChan
  * health – in the address, so a filtered list can be shared. Paged by the server (100 at a time), cards on phones.
  */
 export function DataProductsPage() {
-  const { t } = useTranslation(['dataProducts', 'dataProductViews', 'common']);
+  const { t, i18n } = useTranslation(['dataProducts', 'dataProductViews', 'common']);
   const navigate = useNavigate();
   const canCreate = useCanCreate();
   const invalidate = useInvalidateDataProducts();
@@ -292,6 +293,11 @@ export function DataProductsPage() {
                     {t('products.inEnvironments', { list: p.environments.join(', ') })}
                   </Text>
                 )}
+                {optional.has('supportLevel') && p.supportLevel && (
+                  <Text size="xs" c="dimmed">
+                    {t('products.supportLevel')}: {levelName(p.supportLevel, i18n.language)}
+                  </Text>
+                )}
                 {factsOf.has(p.id) && (
                   <Text size="xs" c="dimmed">
                     {t('scorecard.maturityShort', { level: factsOf.get(p.id)!.maturity })}
@@ -385,6 +391,13 @@ export function DataProductsPage() {
                 sortValue: (p) => (p.valueTier ? ['low', 'medium', 'high'].indexOf(p.valueTier) : null),
                 nowrap: true,
                 cell: (p) => (p.valueTier ? t(`valueTier.${p.valueTier}`) : '–'),
+              },
+              {
+                // 0.26.0 (ADR 0039): the level the product picks itself (one supported by a service shows the service's on its page)
+                key: 'supportLevel',
+                header: t('products.supportLevel'),
+                sortValue: (p) => (p.supportLevel ? levelName(p.supportLevel, i18n.language) : null),
+                cell: (p) => (p.supportLevel ? levelName(p.supportLevel, i18n.language) : '–'),
               },
               { key: 'updated', header: t('products.updated'), sortValue: (p) => p.updatedAt, nowrap: true, cell: (p) => fmtRelative(p.updatedAt) },
             ] satisfies DataColumn<DataProductSummary>[]

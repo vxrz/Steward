@@ -17,8 +17,9 @@ test.describe('the role catalogue', () => {
     const card = page.getByTestId('contact-roles');
     await expect(card.getByTestId('contact-role-productOwner')).toContainText('Product owner');
     await expect(card.getByTestId('contact-role-applicationManager')).toContainText('Application manager');
-    // built-in roles are switched off, never deleted
-    await expect(card.getByTestId('contact-role-delete-productOwner')).toBeDisabled();
+    // built-in roles are switched off, never deleted: they have no delete button
+    await expect(card.getByTestId('contact-role-delete-productOwner')).toHaveCount(0);
+    await expect(card.getByTestId('contact-role-productOwner').getByRole('button', { name: 'Edit “Product owner”' })).toBeVisible();
     await expectAccessible(page, 'contact roles: the catalogue');
 
     const label = uniq('Invented reviewer');
@@ -27,7 +28,14 @@ test.describe('the role catalogue', () => {
     await form.getByTestId('contact-role-label-en').fill(label);
     await form.getByTestId('contact-role-label-de').fill(`${label} (de)`);
     await form.getByTestId('contact-role-kind-system').check();
-    await form.getByText('One (deputies aside)').click();
+    await form.getByText('One (plus deputies)').click();
+    // a key that is taken: the server's refusal is shown at the key field, which gets the focus
+    await form.getByTestId('contact-role-key').fill('productOwner');
+    await form.getByTestId('contact-role-save').click();
+    await expect(form.getByTestId('contact-role-key')).toHaveAttribute('aria-invalid', 'true');
+    await expect(form.getByTestId('contact-role-key')).toBeFocused();
+    await expect(form).toContainText('The key “productOwner” is taken');
+    await form.getByTestId('contact-role-key').fill('');
     await expectAccessible(page, 'contact roles: a new role');
     await form.getByTestId('contact-role-save').click();
     await expect(form).toBeHidden();
@@ -52,6 +60,8 @@ test.describe('the role catalogue', () => {
       .getByRole('button', { name: 'Delete' })
       .click();
     await expect(card.locator('[data-testid^="contact-role-"]').filter({ hasText: label })).toHaveCount(0);
+    // the focus stays in the list (on the row that took its place, or the last one), not lost to the page
+    await expect(card.locator('[data-role-edit]:focus')).toHaveCount(1);
   });
 
   test('the plant site form picks a role of the catalogue; the registry shows its label', async ({ page, apiAs }) => {
@@ -140,5 +150,50 @@ test.describe('business contacts of an application', () => {
       expect.objectContaining({ role: 'businessOwner', contact: expect.objectContaining({ name: first }) }),
       expect.objectContaining({ role: 'businessOwner', deputyOf: ids[first], until: '2999-12-31', contact: expect.objectContaining({ name: second }) }),
     ]);
+  });
+});
+
+test.describe('business contacts of a system', () => {
+  test.use({ storageState: authFile('dana') });
+
+  test('an expected role is hinted at; the focus moves into the picker and back; a refusal shows at the picker', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const dana = await apiAs('dana');
+    const label = uniq('Invented backup owner');
+    const role = await json(await admin.post('/api/contact-roles', { data: { labels: { en: label }, kinds: ['system'], expected: true } }));
+    const sys = await json(await admin.post('/api/systems', { data: { name: uniq('E2E Invented roles system'), kind: 'server', owners: [] } }));
+    const person = uniq('Invented Rhea');
+    await json(await dana.post('/api/contacts', { data: { name: person, email: `${person.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@invented.example` } }));
+    try {
+      await page.goto(`/systems/${sys.id}`);
+      const section = page.getByTestId('system-contacts');
+      // the hint names the expected role, in a colour readable on the page (axe checks the contrast)
+      await expect(section.getByTestId('contacts-expected')).toContainText(`Expected, but nobody is named: ${label}`);
+      await expectAccessible(page, 'contacts: an expected role without a contact');
+
+      // Edit puts the focus into the picker; Cancel gives it back to Edit
+      await section.getByTestId('system-contacts-edit').click();
+      const picker = section.getByTestId('system-contacts-picker');
+      await expect(picker.getByTestId('system-contacts-picker-role')).toBeFocused();
+      await section.getByRole('button', { name: 'Cancel' }).click();
+      await expect(section.getByTestId('system-contacts-edit')).toBeFocused();
+
+      // the role is switched off while the picker is open: the refusal is shown at the picker, not as a passing notice
+      await section.getByTestId('system-contacts-edit').click();
+      await picker.getByTestId('system-contacts-picker-role').click();
+      await page.getByRole('option', { name: label }).click();
+      await picker.getByTestId('system-contacts-picker-search').fill(person);
+      await page.getByRole('option', { name: person }).click();
+      await json(
+        await admin.put(`/api/contact-roles/${role.key}`, {
+          data: { labels: role.labels, description: role.description, kinds: role.kinds, cardinality: role.cardinality, expected: true, active: false },
+        }),
+      );
+      await section.getByTestId('system-contacts-save').click();
+      await expect(picker.getByRole('alert')).toContainText('is switched off here');
+      await expect(picker).toBeVisible();
+    } finally {
+      await admin.delete(`/api/contact-roles/${role.key}`);
+    }
   });
 });

@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import {
   ActionIcon,
   Alert,
@@ -55,10 +56,12 @@ import {
   type SupportPurpose,
   type SupportTool,
 } from '@sm/shared';
-import { ApiError, get, put } from '../../api';
+import { ApiError, get, notifyOk, put } from '../../api';
+import { focusRowControl } from '../../focusReturn';
 import { errorText } from '../../i18n/errors';
 import { FormModal } from '../FormModal';
 import { FormButtons, useBusy } from '../dataproducts/form';
+import { CollapsibleSection } from '../page/CollapsibleSection';
 
 /**
  * Help and support of a data product, service or application (0.26.0, ADR 0039, docs/SUPPORT.md): its channels first
@@ -83,8 +86,8 @@ export function useSupportLevels(enabled = true) {
   return useQuery({ queryKey: ['support-levels'], queryFn: () => get<SupportLevel[]>('/support/levels'), enabled, staleTime: 60_000 });
 }
 
-/** An external link that says it opens a new tab. */
-function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+/** An external link that says it opens a new tab (web addresses; mailto: and tel: open where they open). */
+export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   const { t } = useTranslation('support');
   const web = /^https?:/i.test(href);
   return (
@@ -181,22 +184,105 @@ function FromService({ name, id }: { name: string; id: string }) {
   );
 }
 
-/** The section on an item's page. */
+/**
+ * The section on an item's page: a card of its own (data products, services), or – with `sectionId`, on a page of
+ * folding sections (applications) – a section that folds like its neighbours.
+ */
 export function HelpAndSupportSection({
   kind,
   support,
   canEdit,
   onEdit,
+  sectionId,
 }: {
   kind: SupportItemKind;
   support: ItemSupport;
   canEdit: boolean;
   onEdit: () => void;
+  sectionId?: string;
 }) {
   const { t } = useTranslation('support');
   const shown = effectiveSupport(support);
   const svc = support.supportedBy?.service;
   const titleId = `support-title-${kind}`;
+  const edit = canEdit && (
+    <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={onEdit} data-testid="support-edit">
+      {t('edit')}
+    </Button>
+  );
+  const body = (
+    <Stack gap="md">
+      <Stack gap={6}>
+        <Group gap="xs" justify="space-between" wrap="wrap">
+          <Title order={3} size="h6">
+            {t('channels.title')}
+          </Title>
+          {shown.channelsFromService && svc && <FromService name={svc.name} id={svc.id} />}
+        </Group>
+        {shown.channels.length ? (
+          <Stack gap={6} component="ul" m={0} p={0}>
+            {shown.channels.map((c) => (
+              <ChannelCard key={c.id} c={c} />
+            ))}
+          </Stack>
+        ) : (
+          <Text size="sm" c="dimmed">
+            {t('channels.none')}
+          </Text>
+        )}
+      </Stack>
+      <Stack gap={6}>
+        <Group gap="xs" justify="space-between" wrap="wrap">
+          <Title order={3} size="h6">
+            {t('level.title')}
+          </Title>
+          {shown.levelFromService && svc && <FromService name={svc.name} id={svc.id} />}
+        </Group>
+        {shown.level ? (
+          <LevelView level={shown.level} />
+        ) : (
+          <Text size="sm" c="dimmed">
+            {t('level.none')}
+          </Text>
+        )}
+      </Stack>
+      {kind === 'data_product' && (
+        <Stack gap={6}>
+          <Title order={3} size="h6">
+            {t('guides.title')}
+          </Title>
+          {support.guides.length ? (
+            <Stack gap={4} component="ul" m={0} p={0} style={{ listStyle: 'none' }} data-testid="support-guides">
+              {support.guides.map((g) => (
+                <li key={g.id}>
+                  <ExternalLink href={g.url}>{g.title}</ExternalLink>
+                </li>
+              ))}
+            </Stack>
+          ) : (
+            <Text size="sm" c="dimmed">
+              {t('guides.none')}
+            </Text>
+          )}
+        </Stack>
+      )}
+    </Stack>
+  );
+  if (sectionId)
+    return (
+      <CollapsibleSection
+        id={sectionId}
+        testId="help-and-support"
+        onlyInGroup
+        size="h5"
+        title={t('title')}
+        count={shown.channels.length}
+        defaultOpen
+        actions={edit || undefined}
+      >
+        {body}
+      </CollapsibleSection>
+    );
   return (
     <Paper withBorder p="md" data-testid="help-and-support" component="section" aria-labelledby={titleId}>
       <Group justify="space-between" mb="sm" gap="xs" wrap="wrap">
@@ -206,68 +292,9 @@ export function HelpAndSupportSection({
             {t('title')}
           </Title>
         </Group>
-        {canEdit && (
-          <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={onEdit} data-testid="support-edit">
-            {t('edit')}
-          </Button>
-        )}
+        {edit}
       </Group>
-      <Stack gap="md">
-        <Stack gap={6}>
-          <Group gap="xs" justify="space-between" wrap="wrap">
-            <Title order={3} size="h6">
-              {t('channels.title')}
-            </Title>
-            {shown.channelsFromService && svc && <FromService name={svc.name} id={svc.id} />}
-          </Group>
-          {shown.channels.length ? (
-            <Stack gap={6} component="ul" m={0} p={0}>
-              {shown.channels.map((c) => (
-                <ChannelCard key={c.id} c={c} />
-              ))}
-            </Stack>
-          ) : (
-            <Text size="sm" c="dimmed">
-              {t('channels.none')}
-            </Text>
-          )}
-        </Stack>
-        <Stack gap={6}>
-          <Group gap="xs" justify="space-between" wrap="wrap">
-            <Title order={3} size="h6">
-              {t('level.title')}
-            </Title>
-            {shown.levelFromService && svc && <FromService name={svc.name} id={svc.id} />}
-          </Group>
-          {shown.level ? (
-            <LevelView level={shown.level} />
-          ) : (
-            <Text size="sm" c="dimmed">
-              {t('level.none')}
-            </Text>
-          )}
-        </Stack>
-        {kind === 'data_product' && (
-          <Stack gap={6}>
-            <Title order={3} size="h6">
-              {t('guides.title')}
-            </Title>
-            {support.guides.length ? (
-              <Stack gap={4} component="ul" m={0} p={0} style={{ listStyle: 'none' }} data-testid="support-guides">
-                {support.guides.map((g) => (
-                  <li key={g.id}>
-                    <ExternalLink href={g.url}>{g.title}</ExternalLink>
-                  </li>
-                ))}
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">
-                {t('guides.none')}
-              </Text>
-            )}
-          </Stack>
-        )}
-      </Stack>
+      {body}
     </Paper>
   );
 }
@@ -290,11 +317,12 @@ const draftOf = (c: Omit<SupportChannel, 'id'>): ChannelDraft => ({
 
 /**
  * The fields of the server's refusal: an INVALID_INPUT names them ("channels.1.address: …"), a missing level or service
- * is its field – with the text to show there (null: the general "Check this value").
+ * is its field – with the text to show there (null: the general "Check this value"). `levelGone`: the text for a level
+ * removed meanwhile (the code's own text names the level, here only its internal id).
  */
-export function serverFieldErrors(e: unknown): Record<string, string | null> {
+export function serverFieldErrors(e: unknown, levelGone: string): Record<string, string | null> {
   if (!(e instanceof ApiError)) return {};
-  if (e.code === 'SUPPORT_LEVEL_NOT_FOUND') return { levelId: errorText(e) };
+  if (e.code === 'SUPPORT_LEVEL_NOT_FOUND') return { levelId: levelGone };
   if (e.code === 'SERVICE_NOT_FOUND') return { supportedByServiceId: errorText(e) };
   if (e.code !== 'INVALID_INPUT') return {};
   const details = String((e.params as { details?: unknown } | undefined)?.details ?? '');
@@ -323,17 +351,17 @@ function RowActions({
   return (
     <Group gap={4} wrap="nowrap">
       <Tooltip label={labels.up}>
-        <ActionIcon variant="subtle" size="lg" aria-label={labels.up} disabled={i === 0} onClick={() => onMove(-1)}>
+        <ActionIcon variant="subtle" size="lg" aria-label={labels.up} disabled={i === 0} onClick={() => onMove(-1)} data-row-move="up">
           <IconArrowUp size={16} />
         </ActionIcon>
       </Tooltip>
       <Tooltip label={labels.down}>
-        <ActionIcon variant="subtle" size="lg" aria-label={labels.down} disabled={i === n - 1} onClick={() => onMove(1)}>
+        <ActionIcon variant="subtle" size="lg" aria-label={labels.down} disabled={i === n - 1} onClick={() => onMove(1)} data-row-move="down">
           <IconArrowDown size={16} />
         </ActionIcon>
       </Tooltip>
       <Tooltip label={labels.remove}>
-        <ActionIcon variant="subtle" color="red" size="lg" aria-label={labels.remove} onClick={onRemove}>
+        <ActionIcon variant="subtle" color="red" size="lg" aria-label={labels.remove} onClick={onRemove} data-row-remove>
           <IconTrash size={16} />
         </ActionIcon>
       </Tooltip>
@@ -378,6 +406,44 @@ export function SupportEditor({
   const [shown, setShown] = useState(false);
   const [server, setServer] = useState<Record<string, string | null>>({});
   const [busy, run] = useBusy();
+  // what changed, for screen readers (moved and removed rows change silently)
+  const [said, setSaid] = useState('');
+  const channelList = useRef<HTMLDivElement>(null);
+  const guideList = useRef<HTMLDivElement>(null);
+  /**
+   * After a row moved: the focus on the same button of the row at its new place (or the other one at the top or the
+   * bottom). After a removal: on the remove button of the row that took its place, else the last row's, else on Add.
+   */
+  const afterMove = (box: HTMLElement | null, to: number, d: -1 | 1) =>
+    requestAnimationFrame(() => {
+      const row = box?.querySelectorAll<HTMLElement>('[data-row]')[to];
+      const button = (dir: 'up' | 'down') => row?.querySelector<HTMLElement>(`[data-row-move="${dir}"]:not(:disabled)`);
+      (button(d === -1 ? 'up' : 'down') ?? button(d === -1 ? 'down' : 'up'))?.focus();
+    });
+  const afterRemoval = (box: HTMLElement | null, index: number, add: string) =>
+    focusRowControl(box, '[data-row-remove]', index, () => box?.querySelector<HTMLElement>(`[data-testid="${add}"]`));
+  const moveChannel = (i: number, d: -1 | 1) => {
+    setChannels((cs) => move(cs, i, d));
+    setSaid(t('channels.moved', { n: i + d + 1, count: channels.length }));
+    afterMove(channelList.current, i + d, d);
+  };
+  const removeChannel = (i: number) => {
+    setChannels((cs) => cs.filter((_, j) => j !== i));
+    setServer({});
+    setSaid(t('channels.removed', { n: i + 1 }));
+    afterRemoval(channelList.current, i, 'support-channel-add');
+  };
+  const moveGuide = (i: number, d: -1 | 1) => {
+    setGuides((gs) => move(gs, i, d));
+    setSaid(t('guides.moved', { n: i + d + 1, count: guides.length }));
+    afterMove(guideList.current, i + d, d);
+  };
+  const removeGuide = (i: number) => {
+    setGuides((gs) => gs.filter((_, j) => j !== i));
+    setServer({});
+    setSaid(t('guides.removed', { n: i + 1 }));
+    afterRemoval(guideList.current, i, 'support-guide-add');
+  };
 
   const channelError = (c: ChannelDraft, field: 'name' | 'address'): string | undefined => {
     if (field === 'address' && c.address.trim() && !isSupportAddress(c.address)) return t('fields.addressInvalid');
@@ -430,11 +496,11 @@ export function SupportEditor({
       try {
         await onSave(body);
       } catch (e) {
-        const fields = serverFieldErrors(e);
-        setServer(fields);
-        // shown at its field (and focused there); anything else as a notification
+        const fields = serverFieldErrors(e, t('fields.levelGone'));
+        // shown at its field (rendered at once, then focused there); anything else as a notification
         if (!Object.keys(fields).length) throw e;
-        requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+        flushSync(() => setServer(fields));
+        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       }
     }, t('notSaved'));
 
@@ -453,7 +519,7 @@ export function SupportEditor({
         }}
       >
         <Stack gap="md">
-          <Stack gap="xs">
+          <Stack gap="xs" ref={channelList}>
             <Title order={3} size="h6">
               {t('channels.title')}
             </Title>
@@ -461,7 +527,7 @@ export function SupportEditor({
               <Text size="sm">{t('channels.hint')}</Text>
             </Alert>
             {channels.map((c, i) => (
-              <Paper key={c.key} withBorder p="xs" role="group" aria-label={t('channels.item', { n: i + 1 })} data-testid="support-channel-row">
+              <Paper key={c.key} withBorder p="xs" role="group" aria-label={t('channels.item', { n: i + 1 })} data-testid="support-channel-row" data-row>
                 <Stack gap="xs">
                   <Group justify="space-between" wrap="nowrap" gap="xs">
                     <Text size="sm" fw={600}>
@@ -475,8 +541,8 @@ export function SupportEditor({
                         down: t('channels.moveDown', { n: i + 1 }),
                         remove: t('channels.remove', { n: i + 1 }),
                       }}
-                      onMove={(d) => setChannels((cs) => move(cs, i, d))}
-                      onRemove={() => setChannels((cs) => cs.filter((_, j) => j !== i))}
+                      onMove={(d) => moveChannel(i, d)}
+                      onRemove={() => removeChannel(i)}
                     />
                   </Group>
                   <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
@@ -590,7 +656,7 @@ export function SupportEditor({
                 error={err('supportedByServiceId')}
                 data-testid="support-service-select"
               />
-              <Stack gap="xs">
+              <Stack gap="xs" ref={guideList}>
                 <Title order={3} size="h6">
                   {t('guides.title')}
                 </Title>
@@ -598,7 +664,7 @@ export function SupportEditor({
                   {t('guides.hint')}
                 </Text>
                 {guides.map((g, i) => (
-                  <Paper key={g.key} withBorder p="xs" role="group" aria-label={t('guides.item', { n: i + 1 })} data-testid="support-guide-row">
+                  <Paper key={g.key} withBorder p="xs" role="group" aria-label={t('guides.item', { n: i + 1 })} data-testid="support-guide-row" data-row>
                     <Group align="flex-start" gap="xs" wrap="wrap">
                       <TextInput
                         label={t('fields.guideTitle')}
@@ -622,8 +688,8 @@ export function SupportEditor({
                           i={i}
                           n={guides.length}
                           labels={{ up: t('guides.moveUp', { n: i + 1 }), down: t('guides.moveDown', { n: i + 1 }), remove: t('guides.remove', { n: i + 1 }) }}
-                          onMove={(d) => setGuides((gs) => move(gs, i, d))}
-                          onRemove={() => setGuides((gs) => gs.filter((_, j) => j !== i))}
+                          onMove={(d) => moveGuide(i, d)}
+                          onRemove={() => removeGuide(i)}
                         />
                       </div>
                     </Group>
@@ -647,6 +713,9 @@ export function SupportEditor({
           )}
           <FormButtons busy={busy} testId="support-save" />
         </Stack>
+        <VisuallyHidden role="status" aria-live="polite" data-testid="support-editor-status">
+          {said}
+        </VisuallyHidden>
       </form>
     </FormModal>
   );
@@ -660,6 +729,7 @@ export function ItemHelpAndSupport<T>({
   support,
   canEdit,
   onSaved,
+  sectionId,
 }: {
   kind: SupportItemKind;
   /** The item's API path, e.g. /services/svc_… */
@@ -668,11 +738,14 @@ export function ItemHelpAndSupport<T>({
   support: ItemSupport;
   canEdit: boolean;
   onSaved: (item: T) => void;
+  /** On a page of folding sections (an application's): the section's id – it folds like its neighbours */
+  sectionId?: string;
 }) {
+  const { t } = useTranslation('support');
   const [editing, setEditing] = useState(false);
   return (
     <>
-      <HelpAndSupportSection kind={kind} support={support} canEdit={canEdit} onEdit={() => setEditing(true)} />
+      <HelpAndSupportSection kind={kind} support={support} canEdit={canEdit} onEdit={() => setEditing(true)} sectionId={sectionId} />
       {editing && (
         <SupportEditor
           kind={kind}
@@ -682,6 +755,7 @@ export function ItemHelpAndSupport<T>({
           onSave={async (body) => {
             onSaved(await put<T>(`${path}/support`, body));
             setEditing(false);
+            notifyOk(t('saved'));
           }}
         />
       )}

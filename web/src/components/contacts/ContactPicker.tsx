@@ -189,6 +189,7 @@ export function ContactPicker({
                         data={others.map((x) => ({ value: x.contactId!, label: rowName(x) }))}
                         value={v.deputyOf ?? null}
                         onChange={(d) => update(i, { deputyOf: d })}
+                        description={others.length ? undefined : t('picker.deputyNobody', { role: roleLabel(v.role) })}
                         clearable
                         disabled={!others.length}
                         w={{ base: '100%', xs: 220 }}
@@ -198,6 +199,7 @@ export function ContactPicker({
                     <TextInput
                       type="date"
                       label={t('picker.until')}
+                      description={t('picker.untilHint')}
                       value={v.until ?? ''}
                       onChange={(e) => update(i, { until: e.currentTarget.value || null })}
                       w={{ base: '100%', xs: 180 }}
@@ -391,7 +393,8 @@ export function ExpectedRolesHint({
   const missing = loaded ? missingExpectedRoles(roles, kind, links, inherited) : [];
   if (!missing.length) return null;
   return (
-    <Text size="xs" c="orange.8" data-testid="contacts-expected">
+    // the theme's orange text colour: 4.5:1 on light and dark backgrounds (orange.8 is 3.6:1 on white)
+    <Text size="xs" c="orange" data-testid="contacts-expected">
       {t('expected.missing', { count: missing.length, roles: missing.map(roleLabel).join(', ') })}
     </Text>
   );

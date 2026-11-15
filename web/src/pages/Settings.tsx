@@ -201,7 +201,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   // settings are the administrators' (the server checks it); others see where their own settings are
   const readOnly = !caps.manageSettings;
   const d = useInstanceSettings(!readOnly);
-  // on phones the ten areas fold behind "Area: <current>" (open until an area is chosen)
+  // on phones the areas fold behind "Area: <current>" (open until an area is chosen)
   const narrow = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
   const [navOpen, setNavOpen] = useState(false);
   const [navFor, setNavFor] = useState(area);

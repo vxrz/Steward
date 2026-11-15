@@ -72,7 +72,7 @@ This works only for readers who may see the service. For anyone else the service
 Until 0.25 a data product had one free-text _Channel_, a web address and _Hours_, plus a bare _support tier_ 1–3. At the upgrade to 0.26.0 – once, when an administrator unlocks the vault (and after a migration package is imported), as the system:
 
 - each product's single support channel becomes **one channel** with the purpose _questions_ – tool _e-mail_ for a `mailto:` address, else _other_ – with its hours;
-- the tiers in use become the levels **Tier 1**, **Tier 2** and **Tier 3** – in German **Stufe 1** to **Stufe 3** – (only those in use), picked by their products – for administrators to rename or merge (_Settings → Support levels_, remove with _Level instead_). Nothing is guessed;
+- the tiers in use become the levels **Tier 1**, **Tier 2** and **Tier 3** – in German **Stufe 1** to **Stufe 3** – (only those in use), picked by their products – for administrators to rename or merge (_Settings → Support levels_, remove with _Replace with_). Nothing is guessed;
 - each product converted is audited (`dataproduct.support_converted`), each level made as `support.level_created`; a second start changes nothing;
 - an installation without any tier gets the three example levels instead.
 

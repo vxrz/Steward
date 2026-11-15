@@ -2275,11 +2275,12 @@ export interface Resources {
     'picker.roleOff': string;
     'picker.noRoles': string;
     'picker.oneTaken': string;
+    'picker.deputyNobody': string;
+    'picker.untilHint': string;
     'snapshot.label': string;
     'snapshot.role': string;
     'snapshot.frozen': string;
     'snapshot.limit': string;
-    'inherited.title': string;
     'inherited.hint': string;
     'inherited.from': string;
     'expected.missing_one': string;
@@ -2332,7 +2333,7 @@ export interface Resources {
     'catalogue.table.usage': string;
     'catalogue.table.actions': string;
     'catalogue.deleteInUse': string;
-    'catalogue.deleteBuiltIn': string;
+    'catalogue.activeHint': string;
   };
   contracts: {
     'results.passed': string;
@@ -5544,6 +5545,7 @@ export interface Resources {
     'products.costsLastMonth': string;
     'products.costsIncomplete': string;
     'products.costsHidden': string;
+    'products.supportLevel': string;
     'product.newTitle': string;
     'product.editTitle': string;
     'product.create': string;
@@ -17690,8 +17692,6 @@ export interface Resources {
     'criticalities.high': string;
     'criticalities.critical': string;
     contacts: string;
-    'contactRoles.business': string;
-    'contactRoles.it': string;
     noContacts: string;
     owners: string;
     ownersHelp: string;
@@ -19009,6 +19009,8 @@ export interface Resources {
     'channels.remove': string;
     'channels.hint': string;
     'channels.max': string;
+    'channels.removed': string;
+    'channels.moved': string;
     'purposes.questions': string;
     'purposes.issues': string;
     'purposes.announcements': string;
@@ -19042,6 +19044,7 @@ export interface Resources {
     'fields.guideUrl': string;
     'fields.urlInvalid': string;
     'fields.serverInvalid': string;
+    'fields.levelGone': string;
     'level.title': string;
     'level.none': string;
     'level.fromService': string;
@@ -19058,6 +19061,8 @@ export interface Resources {
     'guides.moveDown': string;
     'guides.remove': string;
     'guides.opensNewTab': string;
+    'guides.removed': string;
+    'guides.moved': string;
     notSaved: string;
     'levels.title': string;
     'levels.description': string;
@@ -19091,6 +19096,9 @@ export interface Resources {
     'levels.saved': string;
     'levels.removed': string;
     'levels.readOnly': string;
+    'levels.name': string;
+    'levels.moved': string;
+    saved: string;
   };
   system: {
     'theme.title': string;

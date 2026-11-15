@@ -53,6 +53,15 @@ test('a designer gives a product channels, a level and a guide; errors show at t
   await second.getByTestId('support-channel-address').fill('https://tickets.example/new?queue=orders');
   await second.getByRole('textbox', { name: 'Note' }).fill('Assignment group ORDERS-DATA');
   await dialog.getByRole('button', { name: 'Move channel 2 up' }).click();
+  // the focus stays on the moved row (now first: its up button is off, so on its down button), and it is said
+  await expect(dialog.getByRole('button', { name: 'Move channel 1 down' })).toBeFocused();
+  await expect(dialog.getByTestId('support-editor-status')).toHaveText('Channel moved to position 1 of 2');
+  // a third channel, removed again: the focus goes to the remove button of the row before it
+  await dialog.getByTestId('support-channel-add').click();
+  await dialog.getByRole('button', { name: 'Remove channel 3' }).click();
+  await expect(dialog.getByTestId('support-channel-row')).toHaveCount(2);
+  await expect(dialog.getByRole('button', { name: 'Remove channel 2' })).toBeFocused();
+  await expect(dialog.getByTestId('support-editor-status')).toHaveText('Channel 3 removed');
   // a guide
   await dialog.getByTestId('support-guide-add').click();
   await dialog.getByRole('textbox', { name: 'Title' }).fill('Orders data – user guide (invented)');
@@ -63,10 +72,15 @@ test('a designer gives a product channels, a level and a guide; errors show at t
   expect((await admin.delete(`/api/support/levels/${doomed.id}`)).ok()).toBe(true);
   await dialog.getByTestId('support-save').click();
   await expect(dialog.getByTestId('support-level-select')).toHaveAttribute('aria-invalid', 'true');
-  await expect(dialog).toContainText(doomed.id);
+  // said in words, without the level's internal id
+  await expect(dialog).toContainText('This support level no longer exists');
+  await expect(dialog).not.toContainText(doomed.id);
   await chooseOption(page, 'Support level', 'Extended');
   await dialog.getByTestId('support-save').click();
   await expect(dialog).toBeHidden();
+  await expect(page.getByText('Help and support saved')).toBeVisible();
+  // the focus is back on the button that opened the editor
+  await expect(section.getByTestId('support-edit')).toBeFocused();
 
   // the page: channels first (incidents now on top), then the level with its promise, then the guide
   const channels = section.getByTestId('support-channel');
@@ -84,6 +98,17 @@ test('a designer gives a product channels, a level and a guide; errors show at t
   await expect(form).toContainText('How bad an outage of the product is');
   await page.keyboard.press('Escape');
   await expectAccessible(page, 'support: the product page');
+
+  // the list: the support level is a column the reader can add (not shown at first)
+  await page.goto(`/data-products?q=${encodeURIComponent(name)}`);
+  const table = page.getByTestId('product-table');
+  await expect(table.getByRole('link', { name })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Support level' })).toHaveCount(0);
+  await page.getByTestId('product-columns').click();
+  await page.getByTestId('product-column-supportLevel').check();
+  await page.keyboard.press('Escape');
+  await expect(table.getByRole('columnheader', { name: 'Support level' })).toBeVisible();
+  await expect(table.getByRole('row').filter({ has: page.getByRole('link', { name }) })).toContainText('Extended');
 });
 
 test('a product supported by a service shows its channels and level, marked; services and applications have the section', async ({ page, apiAs }) => {
@@ -149,13 +174,23 @@ test('administrators keep the support levels', async ({ loginAs }) => {
   await dialog.getByRole('textbox', { name: 'SLA document' }).fill('ftp://not-a-web-address');
   await dialog.getByTestId('support-level-save').click();
   await expect(dialog).toContainText('Enter a web address starting with https://');
+  // a name another level has: the server's refusal at the name field, which gets the focus
+  await dialog.getByTestId('support-level-name').fill('Business hours');
+  await dialog.getByRole('textbox', { name: 'SLA document' }).fill('https://wiki.example/sla/gold');
+  await dialog.getByTestId('support-level-save').click();
+  await expect(dialog.getByTestId('support-level-name')).toHaveAttribute('aria-invalid', 'true');
+  await expect(dialog.getByTestId('support-level-name')).toBeFocused();
+  await expect(dialog).toContainText('A support level named Business hours exists already');
+  await dialog.getByTestId('support-level-name').fill(level);
   await dialog.getByRole('textbox', { name: 'SLA document' }).fill('https://wiki.example/sla/gold');
   await expectAccessible(page, 'support: level form');
   await dialog.getByTestId('support-level-save').click();
   await expect(dialog).toBeHidden();
   await expect(card).toContainText(level);
-  // moved up, and removed again (focus back on the page)
+  // moved up – the focus stays on its button, the move is said – and removed again (the focus stays in the list)
   await card.getByRole('button', { name: `Move ${level} up` }).click();
+  await expect(card.getByRole('button', { name: `Move ${level} up` })).toBeFocused();
+  await expect(card.getByTestId('support-levels-status')).toContainText(`${level} moved to position`);
   await card.getByRole('button', { name: `Remove ${level}` }).click();
   await page
     .getByRole('dialog')
@@ -163,6 +198,7 @@ test('administrators keep the support levels', async ({ loginAs }) => {
     .last()
     .click();
   await expect(card).not.toContainText(level);
+  await expect(card.locator('[data-level-edit]:focus')).toHaveCount(1);
 });
 
 test('help and support on a phone: cards, no sideways scroll @mobile', async ({ page, apiAs, loginAs }) => {
