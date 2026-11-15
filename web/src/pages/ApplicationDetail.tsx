@@ -17,6 +17,7 @@ import { fmtDate, fmtDay } from '../format';
 import { CriticalityBadge } from './Services';
 import { ApplicationFormModal } from './Applications';
 import { RatingPanel } from '../components/catalogue/cia';
+import { ItemHelpAndSupport } from '../components/support/HelpAndSupport';
 import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { ComponentsPanel } from '../components/catalogue/ComponentsPanel';
@@ -131,6 +132,15 @@ export function ApplicationDetailPage() {
                 </Text>
               )}
               <RatingPanel app={a} onSaved={refresh} />
+              {/* 0.26.0 (ADR 0039): where its users ask and report incidents, and the support level */}
+              <ItemHelpAndSupport<ApplicationDetail>
+                kind="application"
+                path={`/applications/${a.id}`}
+                name={a.name}
+                support={{ channels: a.supportChannels, level: a.supportLevel, guides: [], supportedBy: null }}
+                canEdit={a.canEdit && !a.archived}
+                onSaved={refresh}
+              />
               <ComponentsPanel app={a} onSaved={refresh} />
               {a.stack.length > 0 && (
                 <IfModule module="versionWatch">

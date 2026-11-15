@@ -39,7 +39,6 @@
     "medium": "Mittel",
     "low": "Niedrig"
   },
-  "tier": "Stufe {{tier}}",
   "portTypes": {
     "table": "Tabelle oder Sicht",
     "topic": "Topic",
@@ -89,13 +88,8 @@
     "purposeHint": "Wofür das Produkt da ist und wem es dient.",
     "owners": "Kontakte",
     "ownersHint": "Produktverantwortliche und fachliche Ansprechpersonen – Dokumentation, nie ein Recht in Steward.",
-    "support": "Unterstützung",
-    "supportChannel": "Kanal",
-    "supportUrl": "Webadresse",
-    "supportHours": "Zeiten",
     "criticality": "Kritikalität",
-    "tier": "Unterstützungsstufe",
-    "tierHint": "1 bis 3: wie das Produkt unterstützt wird (Zeiten, Reaktion).",
+    "criticalityHint": "Wie schlimm ein Ausfall des Produkts ist. Welche Unterstützung zugesagt ist, sagt sein Support-Level unter Hilfe und Support.",
     "version": "Fassung",
     "versionHint": "Eine Bezeichnung (ODPS-Version); die Historie ist das Audit-Protokoll.",
     "value": "Geschäftlicher Wert",

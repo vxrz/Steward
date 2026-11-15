@@ -26,6 +26,7 @@ import {
   IconBuildingFactory2,
   IconChevronDown,
   IconLanguage,
+  IconLifebuoy,
   IconMapPinOff,
   IconPalette,
   IconPlugConnected,
@@ -83,12 +84,24 @@ import { ModulesCard } from '../components/settings/ModulesCard';
 import { IfModule } from '../components/modules/ModuleOff';
 import { DataProductsSettingsCard } from '../components/dataproducts/SettingsCard';
 import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
+import { SupportLevelsCard } from '../components/support/SupportLevelsSettings';
 
 /**
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
  * administrators change. Personal settings are on the profile, team settings on the team.
  */
-export const SETTINGS_AREAS = ['general', 'security', 'assurance', 'integrations', 'notifications', 'appearance', 'catalogue', 'modules', 'data'] as const;
+export const SETTINGS_AREAS = [
+  'general',
+  'security',
+  'assurance',
+  'integrations',
+  'notifications',
+  'appearance',
+  'catalogue',
+  'support',
+  'modules',
+  'data',
+] as const;
 export type SettingsArea = (typeof SETTINGS_AREAS)[number];
 const AREA_ICONS: Record<SettingsArea, Icon> = {
   general: IconSettings,
@@ -98,6 +111,7 @@ const AREA_ICONS: Record<SettingsArea, Icon> = {
   notifications: IconBell,
   appearance: IconPalette,
   catalogue: IconScale,
+  support: IconLifebuoy,
   modules: IconPuzzle,
   data: IconDatabase,
 };
@@ -351,6 +365,9 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           </IfModule>
         </>
       );
+    case 'support':
+      // support levels (0.26.0, ADR 0039 part 5): what providing teams promise, picked by products, services and applications
+      return <SupportLevelsCard />;
     case 'modules':
       // the module registry (0.11.0, ADR 0016): every optional area with a switch; the plant registry (#218) and the map
       // of sites (#234) keep their own cards, off until an administrator turns them on

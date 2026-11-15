@@ -47,6 +47,7 @@ import { EndorsementBadge, EndorsementSection } from './governance/Endorsement';
 import { PromotionForm } from './governance/Promotion';
 import { SemanticModelTab } from './semantic/SemanticModelTab';
 import { RopaDetailsSection } from './semantic/RopaDetails';
+import { ItemHelpAndSupport } from '../../components/support/HelpAndSupport';
 
 const TABS = ['', 'ports', 'pipeline', 'elements', 'health', 'costs', 'semantic-model', 'access', 'links', 'history'] as const;
 type Tab = (typeof TABS)[number];
@@ -336,15 +337,6 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
                 )}
               </Fact>
               <Fact label={t('form.criticality')}>{p.criticality ? t(`criticality.${p.criticality}`) : '–'}</Fact>
-              <Fact label={t('form.tier')}>{p.tier ? t('tier', { tier: p.tier }) : '–'}</Fact>
-              <Fact label={t('form.support')}>
-                {[p.support.channel, p.support.hours].filter(Boolean).join(' · ') || (p.support.url ? '' : '–')}
-                {p.support.url && (
-                  <Anchor href={p.support.url} target="_blank" rel="noopener noreferrer" size="sm" display="block">
-                    {p.support.url}
-                  </Anchor>
-                )}
-              </Fact>
               <Fact label={t('form.version')}>{p.version || '–'}</Fact>
               <Fact label={t('product.members')}>
                 {t('product.memberCounts', {
@@ -380,10 +372,31 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
               </List>
             )}
           </Section>
+          {/* 0.26.0 (ADR 0039): channels, support level and guides – or those of the service that supports it */}
+          <ProductHelpAndSupport p={p} />
           <EnvironmentsSection p={p} />
         </Stack>
       </Grid.Col>
     </Grid>
+  );
+}
+
+/** Help and support of the product (0.26.0, ADR 0039): changed with the edit right. */
+function ProductHelpAndSupport({ p }: { p: DataProduct }) {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateDataProducts();
+  return (
+    <ItemHelpAndSupport<DataProduct>
+      kind="data_product"
+      path={`/data-products/${encodeURIComponent(p.id)}`}
+      name={p.name}
+      support={{ channels: p.supportChannels, level: p.supportLevel, guides: p.guides, supportedBy: p.supportedBy }}
+      canEdit={p.permissions.includes('edit')}
+      onSaved={(x) => {
+        qc.setQueryData(dpKeys.product(p.id), x);
+        invalidate();
+      }}
+    />
   );
 }
 
