@@ -11363,6 +11363,54 @@
             "additionalProperties": false,
             "description": "Protection need per dimension: derived from the applications (maximum principle), override and effective level"
           },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "English"
+                  },
+                  "nameDe": {
+                    "type": "string"
+                  },
+                  "hours": {
+                    "type": "string"
+                  },
+                  "firstResponse": {
+                    "type": "string",
+                    "description": "What the providing team promises as its first response (documentation, not measured)"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "slaUrl": {
+                    "type": "string",
+                    "description": "The SLA document (\"\" for none)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameDe",
+                  "hours",
+                  "firstResponse",
+                  "note",
+                  "slaUrl"
+                ],
+                "additionalProperties": false,
+                "description": "The support level the item picks (Settings → Support levels)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.26.0: the support level it picks"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -11395,6 +11443,7 @@
           "overdueDocuments",
           "applications",
           "protectionNeed",
+          "supportLevel",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -11941,6 +11990,54 @@
             "additionalProperties": false,
             "description": "Protection need per dimension: derived from the applications (maximum principle), override and effective level"
           },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "English"
+                  },
+                  "nameDe": {
+                    "type": "string"
+                  },
+                  "hours": {
+                    "type": "string"
+                  },
+                  "firstResponse": {
+                    "type": "string",
+                    "description": "What the providing team promises as its first response (documentation, not measured)"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "slaUrl": {
+                    "type": "string",
+                    "description": "The SLA document (\"\" for none)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameDe",
+                  "hours",
+                  "firstResponse",
+                  "note",
+                  "slaUrl"
+                ],
+                "additionalProperties": false,
+                "description": "The support level the item picks (Settings → Support levels)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.26.0: the support level it picks"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -11956,6 +12053,60 @@
           },
           "updatedBy": {
             "type": "string"
+          },
+          "supportChannels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "purpose": {
+                  "type": "string",
+                  "enum": [
+                    "questions",
+                    "issues",
+                    "announcements",
+                    "access"
+                  ],
+                  "description": "questions, issues (and incidents), announcements, access (and onboarding)"
+                },
+                "tool": {
+                  "type": "string",
+                  "enum": [
+                    "ticket",
+                    "email",
+                    "teams",
+                    "slack",
+                    "web",
+                    "phone",
+                    "other"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "https://, mailto: or tel:"
+                },
+                "hours": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string",
+                  "description": "The queue, category or assignment group to use"
+                }
+              },
+              "required": [
+                "purpose",
+                "tool",
+                "name",
+                "address",
+                "hours",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: where its users ask and report issues and incidents, in their order – shared addresses, not people"
           },
           "links": {
             "type": "array",
@@ -12038,10 +12189,12 @@
           "overdueDocuments",
           "applications",
           "protectionNeed",
+          "supportLevel",
           "createdAt",
           "createdBy",
           "updatedAt",
           "updatedBy",
+          "supportChannels",
           "links"
         ],
         "additionalProperties": false
@@ -12400,6 +12553,54 @@
             "type": "integer",
             "description": "\"Runs on\" links to systems (one per system and environment)"
           },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "English"
+                  },
+                  "nameDe": {
+                    "type": "string"
+                  },
+                  "hours": {
+                    "type": "string"
+                  },
+                  "firstResponse": {
+                    "type": "string",
+                    "description": "What the providing team promises as its first response (documentation, not measured)"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "slaUrl": {
+                    "type": "string",
+                    "description": "The SLA document (\"\" for none)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameDe",
+                  "hours",
+                  "firstResponse",
+                  "note",
+                  "slaUrl"
+                ],
+                "additionalProperties": false,
+                "description": "The support level the item picks (Settings → Support levels)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.26.0: the support level it picks"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -12438,6 +12639,7 @@
           "overdueDocuments",
           "componentCount",
           "systemCount",
+          "supportLevel",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -12799,6 +13001,54 @@
             "type": "integer",
             "description": "\"Runs on\" links to systems (one per system and environment)"
           },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "English"
+                  },
+                  "nameDe": {
+                    "type": "string"
+                  },
+                  "hours": {
+                    "type": "string"
+                  },
+                  "firstResponse": {
+                    "type": "string",
+                    "description": "What the providing team promises as its first response (documentation, not measured)"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "slaUrl": {
+                    "type": "string",
+                    "description": "The SLA document (\"\" for none)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameDe",
+                  "hours",
+                  "firstResponse",
+                  "note",
+                  "slaUrl"
+                ],
+                "additionalProperties": false,
+                "description": "The support level the item picks (Settings → Support levels)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.26.0: the support level it picks"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -12814,6 +13064,60 @@
           },
           "updatedBy": {
             "type": "string"
+          },
+          "supportChannels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "purpose": {
+                  "type": "string",
+                  "enum": [
+                    "questions",
+                    "issues",
+                    "announcements",
+                    "access"
+                  ],
+                  "description": "questions, issues (and incidents), announcements, access (and onboarding)"
+                },
+                "tool": {
+                  "type": "string",
+                  "enum": [
+                    "ticket",
+                    "email",
+                    "teams",
+                    "slack",
+                    "web",
+                    "phone",
+                    "other"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "https://, mailto: or tel:"
+                },
+                "hours": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string",
+                  "description": "The queue, category or assignment group to use"
+                }
+              },
+              "required": [
+                "purpose",
+                "tool",
+                "name",
+                "address",
+                "hours",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: where its users ask and report issues and incidents, in their order – shared addresses, not people"
           },
           "integrations": {
             "type": "array",
@@ -13831,10 +14135,12 @@
           "overdueDocuments",
           "componentCount",
           "systemCount",
+          "supportLevel",
           "createdAt",
           "createdBy",
           "updatedAt",
           "updatedBy",
+          "supportChannels",
           "integrations",
           "links",
           "components",
@@ -43159,7 +43465,55 @@
                 "type": "null"
               }
             ],
-            "description": "Support tier 1–3"
+            "description": "Deprecated (0.26.0, removed in a later release): the support tier 1–3 its support level was made from at the upgrade – see supportLevel"
+          },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "English"
+                  },
+                  "nameDe": {
+                    "type": "string"
+                  },
+                  "hours": {
+                    "type": "string"
+                  },
+                  "firstResponse": {
+                    "type": "string",
+                    "description": "What the providing team promises as its first response (documentation, not measured)"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "slaUrl": {
+                    "type": "string",
+                    "description": "The SLA document (\"\" for none)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameDe",
+                  "hours",
+                  "firstResponse",
+                  "note",
+                  "slaUrl"
+                ],
+                "additionalProperties": false,
+                "description": "The support level the item picks (Settings → Support levels)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.26.0: the support level it picks"
           },
           "rating": {
             "type": "object",
@@ -43439,6 +43793,7 @@
           "sunsetDate",
           "criticality",
           "tier",
+          "supportLevel",
           "rating",
           "classification",
           "ratingBelowObjects",
@@ -43567,7 +43922,55 @@
                 "type": "null"
               }
             ],
-            "description": "Support tier 1–3"
+            "description": "Deprecated (0.26.0, removed in a later release): the support tier 1–3 its support level was made from at the upgrade – see supportLevel"
+          },
+          "supportLevel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "English"
+                  },
+                  "nameDe": {
+                    "type": "string"
+                  },
+                  "hours": {
+                    "type": "string"
+                  },
+                  "firstResponse": {
+                    "type": "string",
+                    "description": "What the providing team promises as its first response (documentation, not measured)"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "slaUrl": {
+                    "type": "string",
+                    "description": "The SLA document (\"\" for none)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameDe",
+                  "hours",
+                  "firstResponse",
+                  "note",
+                  "slaUrl"
+                ],
+                "additionalProperties": false,
+                "description": "The support level the item picks (Settings → Support levels)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0.26.0: the support level it picks"
           },
           "rating": {
             "type": "object",
@@ -43860,7 +44263,219 @@
               "url",
               "hours"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Deprecated (0.26.0, removed in a later release): its first channel for questions – see supportChannels"
+          },
+          "supportChannels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "purpose": {
+                  "type": "string",
+                  "enum": [
+                    "questions",
+                    "issues",
+                    "announcements",
+                    "access"
+                  ],
+                  "description": "questions, issues (and incidents), announcements, access (and onboarding)"
+                },
+                "tool": {
+                  "type": "string",
+                  "enum": [
+                    "ticket",
+                    "email",
+                    "teams",
+                    "slack",
+                    "web",
+                    "phone",
+                    "other"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string",
+                  "description": "https://, mailto: or tel:"
+                },
+                "hours": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string",
+                  "description": "The queue, category or assignment group to use"
+                }
+              },
+              "required": [
+                "purpose",
+                "tool",
+                "name",
+                "address",
+                "hours",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: its own support channels, in their order"
+          },
+          "guides": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "url"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: where its consumers find guides and documentation"
+          },
+          "supportedBy": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "service": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "channels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "purpose": {
+                          "type": "string",
+                          "enum": [
+                            "questions",
+                            "issues",
+                            "announcements",
+                            "access"
+                          ],
+                          "description": "questions, issues (and incidents), announcements, access (and onboarding)"
+                        },
+                        "tool": {
+                          "type": "string",
+                          "enum": [
+                            "ticket",
+                            "email",
+                            "teams",
+                            "slack",
+                            "web",
+                            "phone",
+                            "other"
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "address": {
+                          "type": "string",
+                          "description": "https://, mailto: or tel:"
+                        },
+                        "hours": {
+                          "type": "string"
+                        },
+                        "note": {
+                          "type": "string",
+                          "description": "The queue, category or assignment group to use"
+                        }
+                      },
+                      "required": [
+                        "purpose",
+                        "tool",
+                        "name",
+                        "address",
+                        "hours",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "level": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "English"
+                          },
+                          "nameDe": {
+                            "type": "string"
+                          },
+                          "hours": {
+                            "type": "string"
+                          },
+                          "firstResponse": {
+                            "type": "string",
+                            "description": "What the providing team promises as its first response (documentation, not measured)"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "slaUrl": {
+                            "type": "string",
+                            "description": "The SLA document (\"\" for none)"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "nameDe",
+                          "hours",
+                          "firstResponse",
+                          "note",
+                          "slaUrl"
+                        ],
+                        "additionalProperties": false,
+                        "description": "The support level the item picks (Settings → Support levels)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The support level the item picks (Settings → Support levels)"
+                  }
+                },
+                "required": [
+                  "service",
+                  "channels",
+                  "level"
+                ],
+                "additionalProperties": false,
+                "description": "The service that supports it, with its channels and level – what applies where the item names none of its own. Null: none, or a service the token owner may not see"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The service that supports it, with its channels and level – what applies where the item names none of its own. Null: none, or a service the token owner may not see"
           },
           "lifecycleDates": {
             "type": "object",
@@ -44628,6 +45243,7 @@
           "sunsetDate",
           "criticality",
           "tier",
+          "supportLevel",
           "rating",
           "classification",
           "ratingBelowObjects",
@@ -44643,6 +45259,9 @@
           "description",
           "purpose",
           "support",
+          "supportChannels",
+          "guides",
+          "supportedBy",
           "lifecycleDates",
           "successor",
           "valueStatement",
