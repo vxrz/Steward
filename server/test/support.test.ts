@@ -442,7 +442,12 @@ describe('the upgrade', () => {
     await s.api('PUT', '/data-products/dp_upg4/support', { channels: hours.supportChannels.map(({ id: _i, ...c }: { id: string }) => c), guides: [] });
     const file = YAML.parse((await s.api('GET', '/data-products/dp_upg4/export')) as string);
     const entry = file.data_product ?? file.data_products[0];
-    const files = [{ name: 'hours.data-products.yaml', content: YAML.stringify({ ...file, data_product: { ...entry, key: 'upg-hours-copy', name: 'Hours copy', lifecycle: 'draft' } }) }];
+    const files = [
+      {
+        name: 'hours.data-products.yaml',
+        content: YAML.stringify({ ...file, data_product: { ...entry, key: 'upg-hours-copy', name: 'Hours copy', lifecycle: 'draft' } }),
+      },
+    ];
     const pv = await s.api('POST', '/data-products/import/preview', { files, mode: 'update' });
     expect(pv.problems, JSON.stringify(pv.problems)).toEqual([]);
     await s.api('POST', '/data-products/import', { files, mode: 'update', fingerprint: pv.fingerprint });
