@@ -235,10 +235,11 @@ export type ContactRoleLang = 'en' | 'de';
 export const BUILT_IN_CONTACT_ROLE_LABELS: Readonly<Record<string, { en: string; de: string }>> = {
   business: { en: 'Business owner', de: 'Fachlich verantwortlich' },
   it: { en: 'IT operations', de: 'IT-Betrieb' },
-  accountManager: { en: 'Account manager', de: 'Account Manager' },
+  // as the supplier pages named them
+  accountManager: { en: 'Account manager', de: 'Account-Manager' },
   support: { en: 'Support', de: 'Supportkontakt' },
-  security: { en: 'Security', de: 'Sicherheit' },
-  dataProtection: { en: 'Data protection', de: 'Datenschutz' },
+  security: { en: 'Security contact', de: 'Sicherheitskontakt' },
+  dataProtection: { en: 'Data protection officer', de: 'Datenschutzbeauftragte(r)' },
   other: { en: 'Other', de: 'Sonstige' },
   productOwner: { en: 'Product owner', de: 'Product Owner' },
   businessContact: { en: 'Business contact', de: 'Fachlicher Kontakt' },
