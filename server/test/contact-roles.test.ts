@@ -426,7 +426,8 @@ describe('inherited along the domain hierarchy', () => {
     expect((await evidence(dana)).map((e) => e.key)).not.toContain('evidence.documented.missingRoles');
     expect((await evidence(dave)).find((e) => e.key === 'evidence.documented.missingRoles')).toEqual({
       key: 'evidence.documented.missingRoles',
-      values: { count: 1, roles: 'Domain architect' },
+      // the labels in English and German: the page shows the reader's language
+      values: { count: 1, roles: 'Domain architect', rolesDe: 'Domänenarchitekt' },
     });
     // an ended link does not count
     await s.api('PUT', `/data-domains/${ids.finance}`, {

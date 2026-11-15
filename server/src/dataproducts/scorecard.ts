@@ -271,6 +271,7 @@ export function scorecardsOf(
         .filter(([, v]) => !v)
         .map(([k]) => ev(`documented.missing.${k}`)),
       ...(generic.length ? [ev('documented.genericParts', { count: generic.length })] : []),
+      // the roles by their labels in English (`roles`) and German (`rolesDe`): the page shows the reader's language
       ...(missingRoles.get(p.id)?.length
         ? [
             ev('documented.missingRoles', {
@@ -278,6 +279,10 @@ export function scorecardsOf(
               roles: missingRoles
                 .get(p.id)!
                 .map((k) => roleLabelOf(k))
+                .join(', '),
+              rolesDe: missingRoles
+                .get(p.id)!
+                .map((k) => roleLabelOf(k, 'de'))
                 .join(', '),
             }),
           ]
