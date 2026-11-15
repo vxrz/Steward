@@ -4,6 +4,7 @@ import { CIA_DIMENSIONS, type DataObjectives } from '@sm/shared';
 import { db } from '../db.js';
 import { config } from '../config.js';
 import { linksOf } from '../contacts/service.js';
+import { roleLabelOf } from '../contacts/roles.js';
 import { decisionNames } from './decisions.js';
 import { owningTeams } from '../auth/policy.js';
 import { readAsset } from '../reports/pdf/assets.js';
@@ -116,11 +117,19 @@ export function odpsDocument(productId: string, environment?: string): Obj {
   // 0.25.1 (ADR 0038): the product owners and business contacts as team members – name, role and as username (ODPS may
   // carry the address, as the file format) the e-mail address, else the linked Steward user's name, else the name
   const teams = owningTeams('data_product', p.id).map((t) => t.name);
-  const members = (linksOf('data_product', [p.id]).get(p.id) ?? []).map((l) => ({
-    username: l.contact.email || l.contact.user || l.contact.name,
-    name: l.contact.name,
-    role: l.role,
-  }));
+  // 0.26.0 (ADR 0039): every role of the catalogue goes out with its key as `role` (productOwner as before), the role's
+  // label – and whom a deputy stands in for – as `description`, an end date as `dateOut`
+  const productLinks = linksOf('data_product', [p.id]).get(p.id) ?? [];
+  const members = productLinks.map((l) => {
+    const deputyOf = l.deputyOf ? productLinks.find((x) => x.contact.id === l.deputyOf)?.contact.name : undefined;
+    return {
+      username: l.contact.email || l.contact.user || l.contact.name,
+      name: l.contact.name,
+      role: l.role,
+      description: deputyOf ? `${roleLabelOf(l.role)} (deputy for ${deputyOf})` : roleLabelOf(l.role),
+      ...(l.until ? { dateOut: l.until } : {}),
+    };
+  });
   const ownerTeams: string[] = [];
   const support = { channel: '', url: '', hours: '', ...parseJson<Record<string, string>>(p.support, {}) };
   const rating = ratingsByItem('product', [p.id]).get(p.id)!;

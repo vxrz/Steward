@@ -1,7 +1,7 @@
 import { CIA_DIMENSIONS, levelRank, type ApplicationRating, type CiaDimension, type CiaLevel, type CiaColor } from './catalogue.js';
 import type { MonitorStatus } from './monitors.js';
 import type { CostEstimateSummary } from './costCalculators.js';
-import type { ContactLink, DocumentedDecision } from './contacts.js';
+import type { ContactLink, DocumentedDecision, InheritedContactLink } from './contacts.js';
 
 /**
  * The data products module (0.22.0, ADR 0036, docs/DATA-PRODUCTS.md): data objects say what the business data is, how
@@ -470,6 +470,11 @@ export interface DataDomain {
   owners: DataSubject[];
   /** 0.25.1 (ADR 0038): its domain owners (contacts; documentation, never a right) */
   contacts: ContactLink[];
+  /**
+   * 0.26.0 (ADR 0039 part 2): a sub-domain's contacts from its parent domain, in the roles it names none of its own –
+   * never copied; only when the reader may see the parent (the single domain's page)
+   */
+  inheritedContacts?: InheritedContactLink[];
   owningTeams: OwningTeamRef[];
   /** Products and data objects in it the reader may see */
   products: number;
@@ -667,6 +672,11 @@ export interface DataProductEnvironment {
 }
 
 export interface DataProduct extends DataProductSummary {
+  /**
+   * 0.26.0 (ADR 0039 part 2): the contacts of its domain (and the domain's parent), in the roles the product names none
+   * of its own – never copied, marked with the domain they come from; only from domains the reader may see
+   */
+  inheritedContacts: InheritedContactLink[];
   description: string;
   purpose: string;
   support: DataProductSupport;

@@ -1,6 +1,8 @@
 import {
   CONTACT_LINK_ROLES,
+  inheritByRole,
   type ContactLink,
+  type InheritedContactLink,
   type ContactLinkInput,
   type ContactLinkKind,
   type DataConsumerContacts,
@@ -12,7 +14,8 @@ import { audit } from '../audit.js';
 import { forbid, me } from '../auth/access.js';
 import { viaApiToken } from '../auth/context.js';
 import type { ContactHooks, ContactKindDef } from '../contacts/registry.js';
-import { contactForGroup, contactForUser, importContact, linksOf, setLinks, type ContactSurface } from '../contacts/service.js';
+import { roleLabelOf } from '../contacts/roles.js';
+import { contactChanges, contactForGroup, contactForUser, importContact, linksOf, namesOfLinks, setLinks, type ContactSurface } from '../contacts/service.js';
 import { t } from '../i18n/index.js';
 import { csvTable } from '../csv.js';
 import { canCreate, domainAccess, objectAccess, productAccess } from './access.js';
@@ -181,9 +184,8 @@ export const userSubjectsOf = (links: readonly ContactLink[] | undefined, role: 
   ...new Set((links ?? []).filter((l) => l.role === role && l.contact.user).map((l) => `user:${l.contact.user!.toLowerCase()}`)),
 ];
 
-/** Names and roles only (exports, /api/v1, MCP, reports). */
-export const namesOf = (links: readonly ContactLink[] | undefined): { role: string; name: string }[] =>
-  (links ?? []).map((l) => ({ role: l.role, name: l.contact.name }));
+/** Names and roles only (exports, /api/v1, MCP, reports); 0.26.0: the role's label, deputy and until. */
+export const namesOf = namesOfLinks;
 
 /**
  * The links of one role after an old subject field (`owners`, `owner`, `stewards`, a consumer's `contacts` as
@@ -216,7 +218,7 @@ export function writeContacts(
   kind: ContactLinkKind,
   itemId: string,
   input: { contacts?: readonly ContactLinkInput[] | null; legacy?: readonly { role: string; subjects: readonly string[] | undefined }[] },
-): { added: string[]; removed: string[] } | null {
+): { added: string[]; removed: string[]; updated?: string[] } | null {
   let links: ContactLinkInput[] | null = null;
   if (input.contacts) links = [...input.contacts];
   else if (input.legacy?.some((l) => l.subjects !== undefined)) {
@@ -231,8 +233,7 @@ export function writeContacts(
     links.push(...keep.filter((k) => !covered.has(k.role)).map((k) => ({ role: k.role, contactId: k.contact.id })));
   }
   if (!links) return null;
-  const r = setLinks(kind, itemId, links);
-  return { added: r.added.map((a) => `${a.role}: ${a.name}`), removed: r.removed.map((a) => `${a.role}: ${a.name}`) };
+  return contactChanges(setLinks(kind, itemId, links));
 }
 
 /**
@@ -248,6 +249,49 @@ export function contactsOf(kind: ContactLinkKind, ids: readonly string[], surfac
     for (const l of list) l.contact = { id: l.contact.id, kind: l.contact.kind, name: l.contact.name, status: l.contact.status, user: l.contact.user ?? null };
   return links;
 }
+
+// ---------- inherited along the domain hierarchy (0.26.0, ADR 0039 part 2) ----------
+
+/** A domain as inheritance needs it: its name and parent. */
+export interface DomainNode {
+  id: string;
+  name: string;
+  parent_id: string | null;
+}
+
+/**
+ * What items inherit from domains, in bulk (one statement for every domain involved): per domain id, its contacts as an
+ * item in it sees them – its own (from it) and, in the roles it names none of its own, its parent's (from the parent).
+ * Never copied: read from the domains every time. Only from domains the reader may see (`visible`): a hidden domain
+ * gives nothing, and nothing says there was something (a hidden sub-domain hides its parent's too – the product would
+ * otherwise tell where its domain sits).
+ */
+export function domainContactChains(
+  domainIds: readonly (string | null)[],
+  domains: ReadonlyMap<string, DomainNode>,
+  visible: (id: string) => boolean,
+  surface: ContactSurface = 'app',
+): Map<string, InheritedContactLink[]> {
+  const wanted = [...new Set(domainIds.filter((id): id is string => !!id && domains.has(id) && visible(id)))];
+  const out = new Map<string, InheritedContactLink[]>();
+  if (!wanted.length) return out;
+  const parents = wanted.map((id) => domains.get(id)!.parent_id).filter((p): p is string => !!p && domains.has(p) && visible(p));
+  const links = contactsOf('data_domain', [...new Set([...wanted, ...parents])], surface);
+  const mark = (id: string): InheritedContactLink[] => {
+    const d = domains.get(id)!;
+    return (links.get(id) ?? []).map((l) => ({ ...l, from: { kind: 'data_domain', id: d.id, name: d.name } }));
+  };
+  for (const id of wanted) {
+    const own = mark(id);
+    const parent = domains.get(id)!.parent_id;
+    out.set(id, [...own, ...(parent && parents.includes(parent) ? inheritByRole(own, mark(parent)) : [])]);
+  }
+  return out;
+}
+
+/** The contacts an item inherits: those of the chain in the roles the item names none of its own. */
+export const inheritedFor = (own: readonly ContactLink[], chain: readonly InheritedContactLink[] | undefined): InheritedContactLink[] =>
+  inheritByRole(own, chain ?? []);
 
 // ---------- the consumers' contacts (ADR 0038 part 6) ----------
 
@@ -304,7 +348,8 @@ export function consumerContactsCsv(productId: string, portId: string | null, la
   const k = (key: string) => t(lang, `dataProducts.consumerContacts.${key}` as never);
   const rows: string[][] = [];
   for (const e of v.entries)
-    for (const c of e.contacts.length ? e.contacts : [null]) rows.push([e.portName, e.consumer, c?.name ?? '', c ? k(`roles.${c.role}`) : '', c?.email ?? '']);
+    for (const c of e.contacts.length ? e.contacts : [null])
+      rows.push([e.portName, e.consumer, c?.name ?? '', c ? roleLabelOf(c.role, lang) : '', c?.email ?? '']);
   audit({
     action: 'dataproduct.consumer_contacts_exported',
     entityType: 'data_product',

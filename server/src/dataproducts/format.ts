@@ -164,11 +164,26 @@ const ciaRating = () => ({ confidentiality: ratingDimension(), integrity: rating
  */
 export const contactFileSchema = z
   .object({
-    role: z.string().min(1).max(CONTACT_LIMITS.role),
+    role: z
+      .string()
+      .min(1)
+      .max(CONTACT_LIMITS.roleLabel)
+      .describe('The role’s key in the role catalogue (0.26.0: its label is read too); an unknown role is refused – roles are added in Steward'),
+    role_label: z.string().max(CONTACT_LIMITS.roleLabel).optional().describe('0.26.0: the role’s English label (written by the export, not read)'),
     name: z.string().min(1).max(CONTACT_LIMITS.name),
     kind: z.enum(CONTACT_KINDS).optional().describe('person (default) or group – a shared mailbox, a board, an office'),
     email: z.string().max(CONTACT_LIMITS.email).optional(),
     user: z.string().max(L.short).optional().describe('The Steward user this contact is, if any – documentation, never a right'),
+    deputy_of: z
+      .string()
+      .max(CONTACT_LIMITS.name)
+      .optional()
+      .describe('0.26.0: stands in for the contact of this name (or e-mail address) named in the same role on the entry'),
+    until: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe('0.26.0: named until this day (YYYY-MM-DD)'),
   })
   .strict()
   .meta({ id: 'Contact' });

@@ -61,7 +61,7 @@ import {
 } from './store.js';
 import { portViews } from './ports.js';
 import { onLifecycleChanged } from './notices.js';
-import { contactsOf, userSubjectsOf, writeContacts } from './contacts.js';
+import { contactsOf, domainContactChains, inheritedFor, userSubjectsOf, writeContacts } from './contacts.js';
 import { removeItemLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 
@@ -184,8 +184,15 @@ function visibleDomain(id: string): { row: DomainRow; perms: DataProductPermissi
 }
 
 export function getDomain(id: string): DataDomain {
+  const u = me();
   const { row, perms } = visibleDomain(id);
-  return domainView(row, perms, domainCounts(me()).get(row.id), contactsOf('data_domain', [row.id]).get(row.id));
+  // 0.26.0 (ADR 0039 part 2): a sub-domain shows its parent's contacts in the roles it names none of its own – when the
+  // reader may see the parent (else nothing says there are any)
+  const parent = row.parent_id ? domainRow(row.parent_id) : undefined;
+  const nodes = new Map<string, DomainRow>([[row.id, row], ...(parent ? ([[parent.id, parent]] as const) : [])]);
+  const chain = domainContactChains([row.id], nodes, (x) => x === row.id || domainAccess(u, nodes.get(x)!).permissions.length > 0).get(row.id) ?? [];
+  const own = chain.filter((l) => l.from.id === row.id).map(({ from: _f, ...l }) => l);
+  return { ...domainView(row, perms, domainCounts(u).get(row.id), own), inheritedContacts: chain.filter((l) => l.from.id !== row.id) };
 }
 
 /** The key of a domain, data object or product is unique; one the reader may not see is not named. */
@@ -580,6 +587,9 @@ interface SummaryData {
   read: ProductReads;
   envRows: ProductEnvironmentRow[];
   list: CatalogueEnvironment[];
+  /** Every domain, and how the reader sees each (0.26.0: the product page's inherited contacts read them once) */
+  domainRows?: DomainRow[];
+  domains?: Map<string, DataRef>;
 }
 
 /** The summaries of these products as `u` sees them (bulk: a fixed number of statements for the page), with what they read. */
@@ -596,7 +606,8 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     scale,
     read,
   );
-  const domains = domainRefs(u);
+  const domainRows = allDomains();
+  const domains = domainRefs(u, domainRows);
   const links = contactsOf('data_product', ids);
   const envRows = environmentsOf(ids);
   const envs = new Map<string, string[]>();
@@ -624,7 +635,7 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     permissions: perms,
     updatedAt: p.updated_at,
   }));
-  return { items, floors, objects: read.objects ?? new Map(), read, envRows, list };
+  return { items, floors, objects: read.objects ?? new Map(), read, envRows, list, domainRows, domains };
 }
 
 const summaries = (u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): DataProductSummary[] => summaryData(u, rows).items;
@@ -749,8 +760,17 @@ export function getProduct(id: string): DataProduct {
     return { environment: name, state: e.state as DataEnvironmentState, monitorId: e.monitor_id, production: isProductionEnvironment(list, name) };
   });
   const visibleIds = new Set(objectRefs.filter((r) => !r.hidden).map((r) => r.id));
+  // 0.26.0 (ADR 0039 part 2): its domain's contacts (and the parent's), in the roles it names none of – one statement
+  const chain = p.domain_id
+    ? domainContactChains(
+        [p.domain_id],
+        new Map((data.domainRows ?? []).map((d) => [d.id, d])),
+        (id) => !!data.domains?.get(id) && !data.domains.get(id)!.hidden,
+      ).get(p.domain_id)
+    : undefined;
   return {
     ...summary!,
+    inheritedContacts: inheritedFor(summary!.contacts, chain),
     description: p.description,
     purpose: p.purpose,
     support: { channel: '', url: '', hours: '', ...parseJson<Partial<DataProduct['support']>>(p.support, {}) },

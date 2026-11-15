@@ -1,3 +1,4 @@
+import { roleKeyFor } from '../contacts/roles.js';
 import {
   CIA_DIMENSIONS,
   DATA_CLASSIFICATIONS,
@@ -125,26 +126,38 @@ export function odpsToFile(raw: Obj): OdpsConversion {
   // named as owners (ownerTeams of before) become group contacts
   if (isObj(raw.team)) {
     const contacts: ContactFile[] = [];
-    const roleOf = (r: string) => (r === 'productowner' ? 'productOwner' : r === 'businesscontact' ? 'businessContact' : null);
+    // 0.26.0 (ADR 0039): a role of the catalogue for data products by its key or label (productOwner as before); an
+    // unknown role is refused with a hint – the import makes no role
+    const refusedRoles = new Set<string>();
     for (const m of Array.isArray(raw.team.members) ? raw.team.members : []) {
       if (!isObj(m)) continue;
-      const role = roleOf((str(m.role) ?? '').toLowerCase());
+      const text = str(m.role) ?? '';
+      const role = text ? roleKeyFor('data_product', text) : undefined;
       const username = str(m.username);
-      if (!role || !username) continue;
+      if (!username) continue;
+      if (!role) {
+        if (text) refusedRoles.add(text);
+        continue;
+      }
       const email = /^[^\s@]+@[^\s@]+$/.test(username) ? username : undefined;
       // a member with a name is that contact; one with only a username (Steward's exports of before 0.25.1) the account's
       const name = str(m.name);
-      contacts.push({ role, name: name ?? username, ...(email ? { email } : name ? {} : { user: username }) });
+      const until = str(m.dateOut);
+      contacts.push({
+        role,
+        name: name ?? username,
+        ...(email ? { email } : name ? {} : { user: username }),
+        ...(until && /^\d{4}-\d{2}-\d{2}/.test(until) ? { until: until.slice(0, 10) } : {}),
+      });
     }
+    if (refusedRoles.size)
+      warnings.push(
+        `ODPS ${key}: team members in roles that are not contact roles of data products are not kept (${[...refusedRoles].join(', ')}) – administrators add roles under Settings → Contacts → Roles`,
+      );
     const ownerTeams = customOf(raw.team.customProperties).get('ownerTeams');
     if (Array.isArray(ownerTeams))
       for (const t of ownerTeams) if (typeof t === 'string' && t.trim()) contacts.push({ role: 'productOwner', name: t.trim(), kind: 'group' });
     if (contacts.length) product.contacts = contacts;
-    if (
-      Array.isArray(raw.team.members) &&
-      raw.team.members.some((m) => isObj(m) && !['productowner', 'businesscontact'].includes((str(m.role) ?? '').toLowerCase()))
-    )
-      warnings.push(`ODPS ${key}: team members other than product owners and business contacts are not kept (owning teams are set in Steward)`);
   }
   if (Array.isArray(raw.support)) {
     const s = raw.support.find((x) => isObj(x) && str(x.url));
