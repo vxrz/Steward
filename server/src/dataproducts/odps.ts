@@ -1,6 +1,6 @@
 import YAML from 'yaml';
 import { Ajv2019, type ErrorObject, type ValidateFunction } from 'ajv/dist/2019.js';
-import { CIA_DIMENSIONS, type DataObjectives } from '@sm/shared';
+import { CIA_DIMENSIONS, effectiveSupport, type DataObjectives, type SupportChannel, type SupportPurpose, type SupportTool } from '@sm/shared';
 import { db } from '../db.js';
 import { config } from '../config.js';
 import { linksOf } from '../contacts/service.js';
@@ -12,6 +12,7 @@ import { Snapshot, objectivesFile } from './export.js';
 import { defaultEnvironment } from './health.js';
 import { ratingsByItem } from './ratings.js';
 import { visibleProduct } from './service.js';
+import { supportOf } from '../support/items.js';
 import { bindingsOf, environmentsOf, marks, portObjectsOf, portsOf, type PortRow } from './store.js';
 
 /**
@@ -122,7 +123,9 @@ export function odpsDocument(productId: string, environment?: string): Obj {
     role: l.role,
   }));
   const ownerTeams: string[] = [];
-  const support = { channel: '', url: '', hours: '', ...parseJson<Record<string, string>>(p.support, {}) };
+  // 0.26.0 (ADR 0039 part 7): channels, the level and guides – the product's own, else its supporting service's
+  const help = supportOf('data_product', [{ id: p.id, levelId: p.support_level_id, serviceId: p.supported_by_service_id }], { guides: true }).get(p.id)!;
+  const shown = effectiveSupport(help);
   const rating = ratingsByItem('product', [p.id]).get(p.id)!;
   const ratingValue = Object.fromEntries([
     ...CIA_DIMENSIONS.filter((d) => rating[d]).map((d) => [d, rating[d]!.level]),
@@ -146,7 +149,14 @@ export function odpsDocument(productId: string, environment?: string): Obj {
       ? { description: { ...(p.purpose ? { purpose: p.purpose } : {}), ...(p.description ? { usage: p.description } : {}) } }
       : {}),
     ...(parseJson<string[]>(p.tags, []).length ? { tags: parseJson<string[]>(p.tags, []) } : {}),
-    ...(refs.length ? { authoritativeDefinitions: refs.map((r) => ({ type: 'reference', url: r.url, ...(r.label ? { description: r.label } : {}) })) } : {}),
+    ...(refs.length || help.guides.length
+      ? {
+          authoritativeDefinitions: [
+            ...refs.map((r) => ({ type: 'reference', url: r.url, ...(r.label ? { description: r.label } : {}) })),
+            ...help.guides.map((g) => ({ type: 'userGuide', url: g.url, description: g.title })),
+          ],
+        }
+      : {}),
     ...(inputPorts.length ? { inputPorts } : {}),
     ...(outputPorts.length ? { outputPorts } : {}),
     ...(base
@@ -169,9 +179,7 @@ export function odpsDocument(productId: string, environment?: string): Obj {
           ],
         }
       : {}),
-    ...(support.url
-      ? { support: [{ channel: support.channel || 'support', url: support.url, ...(support.hours ? { description: `Hours: ${support.hours}` } : {}) }] }
-      : {}),
+    ...(shown.channels.some((c) => c.address) ? { support: shown.channels.filter((c) => c.address).map(odpsChannel) } : {}),
     ...(members.length || teams.length || ownerTeams.length
       ? {
           team: {
@@ -187,7 +195,15 @@ export function odpsDocument(productId: string, environment?: string): Obj {
       ...(domain ? [prop('domainKey', domain)] : []),
       ...(Object.keys(ratingValue).length ? [prop('rating', ratingValue, 'CIA rating on the instance’s scale and the classification')] : []),
       ...(p.criticality ? [prop('criticality', p.criticality)] : []),
-      ...(p.tier ? [prop('supportTier', Number(p.tier))] : []),
+      ...(shown.level
+        ? [
+            prop(
+              'supportLevel',
+              { name: shown.level.nameEn, hours: shown.level.hours, firstResponse: shown.level.firstResponse },
+              'What support the providing team promises (Steward’s support level)',
+            ),
+          ]
+        : []),
       ...(p.sunset_date ? [prop('sunsetDate', p.sunset_date)] : []),
       ...(allObjects.length ? [prop('dataObjects', allObjects, 'Data objects its output ports expose (declared)')] : []),
       prop('environments', [...new Set(envs)].sort()),
@@ -199,6 +215,24 @@ export function odpsDocument(productId: string, environment?: string): Obj {
     productCreatedTs: new Date(p.created_at).toISOString(),
   };
   return doc;
+}
+
+/** Steward's purpose as the ODPS scope (access and onboarding has none: it is kept as a custom property). */
+const SCOPE: Record<SupportPurpose, string | null> = { questions: 'interactive', issues: 'issues', announcements: 'announcements', access: null };
+/** Steward's tool as ODPS names it. */
+const TOOL: Record<SupportTool, string> = { ticket: 'ticket', email: 'email', teams: 'teams', slack: 'slack', web: 'web', phone: 'phone', other: 'other' };
+
+/** A channel as an ODPS support entry: name, address, tool, scope; hours and note as the description. */
+export function odpsChannel(c: SupportChannel): Obj {
+  const scope = SCOPE[c.purpose];
+  const description = [c.hours ? `Hours: ${c.hours}` : '', c.note].filter(Boolean).join('\n');
+  return {
+    channel: c.name || TOOL[c.tool],
+    url: c.address,
+    ...(description ? { description } : {}),
+    tool: TOOL[c.tool],
+    ...(scope ? { scope } : { customProperties: [prop('purpose', c.purpose, 'Steward’s purpose of the channel (access and onboarding)')] }),
+  };
 }
 
 export function odpsFile(productId: string, environment?: string): { fileName: string; body: string } {

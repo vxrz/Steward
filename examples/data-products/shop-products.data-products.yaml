@@ -15,9 +15,22 @@ data_products:
     contacts:
       - { role: productOwner, name: Max Example, email: max.example@shop.example }
       - { role: businessContact, name: Shop controlling (invented), kind: group, email: controlling@shop.example }
-    support: { channel: "#orders-data (invented)", url: "https://wiki.example/orders-data", hours: "Mo–Fr 08–17" }
+    # 0.26.0 (docs/SUPPORT.md): where consumers ask, report incidents, read news and get access – shared addresses, not people
+    support_channels:
+      - { purpose: questions, tool: teams, name: "#orders-data (invented)", address: "https://teams.example/orders-data", hours: "Mo–Fr 08–17" }
+      - purpose: issues
+        tool: ticket
+        name: Shop data incidents (invented)
+        address: "https://tickets.example/new?queue=shop-data"
+        hours: "24×7"
+        note: "Category Data products › Orders, assignment group SHOP-DATA"
+      - { purpose: announcements, tool: email, name: Orders data news (invented), address: "mailto:orders-data-news@shop.example" }
+      - { purpose: access, tool: web, name: Access to shop data (invented), address: "https://portal.example/access/shop-data" }
+    support_level: { name: 24×7 }
+    guides:
+      - { title: "Orders data – user guide (invented)", url: "https://wiki.example/orders-data/guide" }
+      - { title: "Order statuses explained (invented)", url: "https://wiki.example/orders-data/statuses" }
     criticality: high
-    tier: 1
     version: "2.1"
     value_statement: Fulfilment and invoicing run on it; the sales figures start here.
     value_tier: high
@@ -153,8 +166,10 @@ data_products:
     description: One record per customer with their orders and the channels they use – names and e-mails pseudonymised.
     purpose: Segmentation and service without access to the customer master data itself.
     contacts: [{ role: productOwner, name: Max Example, email: max.example@shop.example }]
+    support_channels:
+      - { purpose: questions, tool: email, name: Customer data desk (invented), address: "mailto:customer-data@shop.example", hours: "Mo–Fr 09–16" }
+    support_level: { name: Business hours }
     criticality: medium
-    tier: 2
     value_statement: Campaigns and the service desk use it instead of copies of the CRM.
     value_tier: medium
     lifecycle: active
@@ -201,6 +216,9 @@ data_products:
     domain: sales
     description: Daily sales per region for the finance tools and the management report – a table and an API.
     contacts: [{ role: productOwner, name: Max Example, email: max.example@shop.example }]
+    # 0.26.0: supported by the shop's service – its channels and support level show on the product
+    supported_by_service: Online shop (demo)
+    guides: [{ title: "Sales mart in the BI portal (invented)", url: "https://bi.example/sales-mart" }]
     criticality: medium
     value_statement: The monthly management report reads it.
     value_tier: medium

@@ -31,6 +31,7 @@ import type { OssieVersion } from '../semantic/ossie.js';
 import { dataObjectsSemanticModel } from './ossie.js';
 import { namesOf } from './contacts.js';
 import { decisionNames } from './decisions.js';
+import { apiChannel, apiLevel, apiSupportedBy } from '../support/api.js';
 
 /**
  * The data products module in the public, read-only API (ADR 0036 part 19): products (paged; domain, lifecycle, type,
@@ -76,6 +77,7 @@ function entryOf(p: DataProductSummary, h: ProductHealth | undefined) {
     sunsetDate: p.sunsetDate,
     criticality: p.criticality,
     tier: p.tier,
+    supportLevel: apiLevel(p.supportLevel),
     rating: p.rating,
     classification: p.classification,
     ratingBelowObjects: p.ratingBelowObjects,
@@ -149,6 +151,9 @@ export function productDetail(p: DataProduct) {
     description: p.description,
     purpose: p.purpose,
     support: p.support,
+    supportChannels: p.supportChannels.map(apiChannel),
+    guides: p.guides.map((g) => ({ title: g.title, url: g.url })),
+    supportedBy: apiSupportedBy(p.supportedBy),
     lifecycleDates: p.lifecycleDates,
     successor: ref(p.successor),
     valueStatement: p.valueStatement,

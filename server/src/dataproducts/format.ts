@@ -34,6 +34,11 @@ import {
   dataElementPropertiesInput,
   dataNamespaceValue,
   dataTechnologyValue,
+  SUPPORT_ADDRESS_RE,
+  SUPPORT_LIMITS as SL,
+  SUPPORT_PURPOSES,
+  SUPPORT_TOOLS,
+  SUPPORT_URL_RE,
 } from '@sm/shared';
 
 /**
@@ -397,6 +402,19 @@ export type StepFile = z.infer<typeof stepSchema>;
 
 const reason = () => z.string().trim().max(CIA_LIMITS.reason).nullable().optional();
 
+const supportChannelSchema = z
+  .object({
+    purpose: z.enum(SUPPORT_PURPOSES),
+    tool: z.enum(SUPPORT_TOOLS).optional(),
+    name: text(SL.name).optional(),
+    address: z.union([z.string().max(SL.address).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).optional(),
+    hours: text(SL.hours).optional(),
+    note: text(SL.note).optional(),
+  })
+  .strict()
+  .meta({ id: 'SupportChannel' });
+export type SupportChannelFile = z.infer<typeof supportChannelSchema>;
+
 export const productFileSchema = z
   .object({
     key: key('Unique key of the product (ODPS id)'),
@@ -408,14 +426,41 @@ export const productFileSchema = z
     owners: list(L.subjects, subject()).optional().describe('Deprecated (0.25.1): product owners as user:/team: – read as contacts'),
     contacts: contacts('productOwner, businessContact'),
     support: z
-      .object({ channel: text(L.short).optional(), url: z.union([httpUrl(), z.literal('')]).optional(), hours: text(L.short).optional() })
+      .object({
+        channel: text(L.short).optional(),
+        url: z.union([z.string().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).optional(),
+        hours: text(L.short).optional(),
+      })
       .strict()
-      .optional(),
+      .optional()
+      .describe('Deprecated (0.26.0): one support channel – read as its first channel for questions; use support_channels'),
+    support_channels: z
+      .array(supportChannelSchema)
+      .max(SL.channels)
+      .optional()
+      .describe('0.26.0: where its consumers ask, report issues and incidents, read announcements and get access – shared addresses, not people'),
+    support_level: z
+      .object({
+        name: z.string().trim().min(1).max(SL.name).describe('The name of a level of Settings → Support levels (English or German)'),
+        hours: text(SL.hours).optional().describe('What the level promises (written by the export; the import reads the name)'),
+        first_response: text(SL.firstResponse).optional(),
+      })
+      .strict()
+      .nullable()
+      .optional()
+      .describe('0.26.0: the support level it picks'),
+    guides: z
+      .array(z.object({ title: z.string().trim().min(1).max(SL.title), url: z.string().max(SL.url).regex(SUPPORT_URL_RE, 'an https:// address') }).strict())
+      .max(SL.guides)
+      .optional()
+      .describe('0.26.0: where its consumers find guides and documentation (wiki, portal)'),
+    supported_by_service: z.string().trim().min(1).max(160).nullable().optional().describe('0.26.0: the service that supports it, by name'),
     criticality: z.enum(DATA_PRODUCT_CRITICALITIES).nullable().optional(),
     tier: z
       .union([z.literal(1), z.literal(2), z.literal(3)])
       .nullable()
-      .optional(),
+      .optional()
+      .describe('Deprecated (0.26.0): picks the support level made from this tier ("Tier n"); use support_level'),
     version: text(60).optional(),
     value_statement: text().optional(),
     value_tier: z.enum(DATA_VALUE_TIERS).nullable().optional(),

@@ -103,9 +103,13 @@ export interface ProductRow {
   type: string | null;
   domain_id: string | null;
   owners: string;
+  /** Deprecated (0.26.0): emptied by the upgrade – channels are support_channels */
   support: string;
   criticality: string | null;
+  /** Deprecated (0.26.0): emptied by the upgrade – the level is support_level_id */
   tier: number | null;
+  support_level_id: string | null;
+  supported_by_service_id: string | null;
   classification: string | null;
   lifecycle: string;
   lifecycle_dates: string;

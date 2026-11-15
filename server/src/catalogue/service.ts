@@ -25,6 +25,7 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { assignCreatorTeams } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { serviceContactsOf, writeServiceContacts } from './contacts.js';
+import { channelsOf, levelOf, writeSupport } from '../support/items.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -47,6 +48,8 @@ interface ServiceRow {
   cmdb_url: string | null;
   tags: string;
   archived: number;
+  /** 0.26.0 (ADR 0039): the support level it picks */
+  support_level_id: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -127,6 +130,7 @@ function toSummary(
     overdueDocuments: docs.overdue,
     applicationCount: apps.count,
     protectionNeed: apps.need,
+    supportLevel: levelOf(r.support_level_id),
     updatedAt: r.updated_at,
   };
 }
@@ -276,7 +280,28 @@ export function getService(id: string): ServiceDetail {
     applications,
     canEdit: canEditService(u, { kind: 'service', id: r.id, owners: s.owners }),
     contactLinks: contacts.links,
+    supportChannels: channelsOf([{ kind: 'service', id: r.id }]).get(`service:${r.id}`) ?? [],
   };
+}
+
+/** Changes a service's support channels and level (PUT /api/services/:id/support; 0.26.0, ADR 0039). */
+export function setServiceSupport(id: string, body: unknown): ServiceDetail {
+  const u = me();
+  const cur = row(id);
+  if (!canEditService(u, { kind: 'service', id: cur.id, owners: parseJson(cur.owners, []) })) forbid('change this service', 'changeService');
+  db().tx(() => {
+    const change = writeSupport('service', id, { levelId: cur.support_level_id ?? null }, body);
+    if (!change.changes.length) return;
+    db().run('UPDATE services SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, id);
+    audit({
+      action: 'service.updated',
+      entityType: 'service',
+      entityId: id,
+      summary: `Service "${cur.name}" changed (${change.changes.join(', ')})`,
+      details: { changes: change.changes, ...change.details },
+    });
+  });
+  return getService(id);
 }
 
 const dedupe = <T>(xs: T[], key: (x: T) => string) => [...new Map(xs.map((x) => [key(x), x])).values()];

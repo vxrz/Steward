@@ -7,6 +7,8 @@ import {
   type DataStep,
   type DataStepRunner,
   type PlatformPermission,
+  type Guide,
+  type SupportChannel,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { linksOf } from '../contacts/service.js';
@@ -21,6 +23,7 @@ import { domainNotFound } from './common.js';
 import { identitiesOf } from './consumers-actual.js';
 import { sortEnvironments, visibleProduct } from './service.js';
 import { productsSteps } from './steps.js';
+import { channelsOf, guidesOf, levelOf } from '../support/items.js';
 import { ratingsByItem } from './ratings.js';
 import {
   bindingsOf,
@@ -429,6 +432,9 @@ export interface ProductFacts {
   identities: Map<string, string[]>;
   sourcePorts: Map<string, PortRow>;
   steps: Map<string, DataStep[]>;
+  /** 0.26.0 (ADR 0039): support channels and guides by product */
+  channels: Map<string, SupportChannel[]>;
+  guides: Map<string, Guide[]>;
 }
 
 const groupBy = <T>(rows: T[], key: (r: T) => string): Map<string, T[]> => {
@@ -491,6 +497,41 @@ export function productFacts(s: Snapshot, productIds: readonly string[]): Produc
     consumers: groupBy(consumers, (c) => c.port_id),
     sourcePorts,
     steps,
+    ...supportFacts(productIds),
+  };
+}
+
+/** The channels and guides of products, in bulk (two statements). */
+function supportFacts(productIds: readonly string[]): Pick<ProductFacts, 'channels' | 'guides'> {
+  const items = productIds.map((id) => ({ kind: 'data_product' as const, id }));
+  const strip = (m: Map<string, unknown[]>) => new Map([...m].map(([k, v]) => [k.slice('data_product:'.length), v]));
+  return {
+    channels: strip(channelsOf(items)) as Map<string, SupportChannel[]>,
+    guides: strip(guidesOf(items)) as Map<string, Guide[]>,
+  };
+}
+
+/** A product's help and support in the file format (0.26.0): channels, level, guides, the supporting service by name. */
+function supportEntry(
+  s: Snapshot,
+  p: ProductRow,
+  facts: ProductFacts,
+): Pick<ProductFile, 'support_channels' | 'support_level' | 'guides' | 'supported_by_service'> {
+  const level = levelOf(p.support_level_id);
+  const service = p.supported_by_service_id ? s.catalogueName('service', p.supported_by_service_id) : null;
+  return {
+    support_channels: (facts.channels.get(p.id) ?? []).map((c) => ({
+      purpose: c.purpose,
+      tool: c.tool,
+      name: c.name,
+      address: c.address,
+      hours: c.hours,
+      note: c.note,
+    })),
+    support_level: level ? { name: level.nameEn, hours: level.hours, first_response: level.firstResponse } : null,
+    guides: (facts.guides.get(p.id) ?? []).map((g) => ({ title: g.title, url: g.url })),
+    // a service the reader may not see is left out (not named, not removed by an import of the file)
+    ...(p.supported_by_service_id && !service ? {} : { supported_by_service: service }),
   };
 }
 
@@ -514,7 +555,6 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
   const byId = new Map(ports.map((x) => [x.id, x]));
   const domain = s.domainKey(p.domain_id);
   const successor = p.successor_id ? s.productKey(p.successor_id) : null;
-  const support = { channel: '', url: '', hours: '', ...parseJson<Record<string, string>>(p.support, {}) };
   const portEntry = (x: PortRow): PortFile => {
     let source: PortFile['source'] = null;
     let keepSource = true;
@@ -606,9 +646,8 @@ export function productEntry(s: Snapshot, p: ProductRow, environment?: string, f
     type: (p.type as ProductFile['type']) ?? null,
     ...(domain !== undefined ? { domain } : {}),
     contacts: s.contactsOf('data_product', p.id),
-    support: { channel: support.channel ?? '', url: support.url ?? '', hours: support.hours ?? '' },
+    ...supportEntry(s, p, facts),
     criticality: (p.criticality as ProductFile['criticality']) ?? null,
-    tier: (p.tier === null ? null : Number(p.tier)) as ProductFile['tier'],
     version: p.version,
     value_statement: p.value_statement,
     value_tier: (p.value_tier as ProductFile['value_tier']) ?? null,
@@ -719,6 +758,11 @@ export function exportDocument(scope: ExportScope = {}): ExportResult {
   for (const p of products) s.noteProduct(p);
   const productIds = products.map((p) => p.id);
   s.products(products.flatMap((p) => (p.successor_id ? [p.successor_id] : [])));
+  // the services that support them (0.26.0), by name where the reader may see them: one statement per 500
+  s.catalogue(
+    'service',
+    products.flatMap((p) => (p.supported_by_service_id ? [p.supported_by_service_id] : [])),
+  );
   const facts = productFacts(s, productIds);
   // the contacts of the products and their registrations: two statements for the whole export
   s.preloadContacts(
