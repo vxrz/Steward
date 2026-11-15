@@ -1,3 +1,4 @@
+import type { ContactLink } from './contacts.js';
 import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
 import type { RepositoryReadout } from './git.js';
 import type { TopicReadout } from './kafka.js';
@@ -207,6 +208,16 @@ export interface ApplicationDetail extends ApplicationSummary {
   credentials: ApplicationCredential[];
   /** The systems the application runs on, per environment (#129) */
   systems: ApplicationSystemLink[];
+  /**
+   * 0.26.0 (ADR 0039): its business contacts (business owner, application manager, own roles) – documentation beside
+   * the owners, never a right. Via an API token by name and role only.
+   */
+  contacts: ContactLink[];
+  /**
+   * 0.26.0: the contacts of the services it belongs to (that the reader may see), read only – never inherited: an
+   * application can serve several services
+   */
+  serviceContacts: { serviceId: string; serviceName: string; contacts: ContactLink[] }[];
   canEdit: boolean;
 }
 
@@ -519,6 +530,8 @@ export interface SystemDetail extends SystemSummary {
   backlinks: Backlink[];
   /** Firewall changes, approved rules and tickets that name it (#208) */
   firewall: SystemFirewall;
+  /** 0.26.0 (ADR 0039): its business contacts (business owner, system manager, own roles) – never a right */
+  contacts: ContactLink[];
   createdAt: string;
   createdBy: string;
   updatedBy: string;

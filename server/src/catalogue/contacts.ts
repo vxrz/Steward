@@ -4,7 +4,9 @@ import { canEditService, canViewCatalogue } from '../records/access.js';
 import type { ContactLink, ContactLinkInput, ServiceContact } from '@sm/shared';
 import { moduleOnly } from '../auth/policy.js';
 import type { ContactKindDef } from '../contacts/registry.js';
-import { LegacyContactMatcher, linksOf, setLinks, writeItemLinks, writeLegacyLinks } from '../contacts/service.js';
+import { LegacyContactMatcher, linksOf, setLinks, writeItemLinks, writeLegacyLinks, type SetLinksResult } from '../contacts/service.js';
+import { contactLinkInput } from '@sm/shared';
+import { z } from 'zod';
 
 /**
  * Services as a link kind of the contacts directory (ADR 0038, docs/CONTACTS.md): a service's business and IT
@@ -38,6 +40,51 @@ export const serviceContactKind: ContactKindDef = {
   names: (ids) => new Map(serviceRows(ids).map((r) => [r.id, r.name])),
   href: (id) => `/services/${encodeURIComponent(id)}`,
 };
+
+// ---------- applications and systems (0.26.0, ADR 0039 part 1) ----------
+
+function catalogueRows(table: 'applications' | 'systems', ids: readonly string[]): { id: string; name: string; owners: string }[] {
+  const out: { id: string; name: string; owners: string }[] = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    out.push(...db().all<{ id: string; name: string; owners: string }>(`SELECT id, name, owners FROM ${table} WHERE id IN (${marks(part.length)})`, ...part));
+  }
+  return out;
+}
+
+/**
+ * Applications and systems as link kinds: their business contacts (business owner, application or system manager,
+ * own roles) are seen by who sees the item and changed by who may change it – the catalogue's rules (owning teams,
+ * roles, shares, #131). Their `owners` (who maintains them, with rights) are unchanged; a contact gives no right.
+ */
+function catalogueKind(kind: 'application' | 'system', table: 'applications' | 'systems', path: string): ContactKindDef {
+  return {
+    visibleIds: (u, ids) =>
+      moduleOnly(u)
+        ? new Set()
+        : new Set(
+            catalogueRows(table, ids)
+              .filter((r) => canViewCatalogue(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) }))
+              .map((r) => r.id),
+          ),
+    canChange: (u, id) => {
+      const r = moduleOnly(u) ? undefined : catalogueRows(table, [id])[0];
+      return !!r && canEditService(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
+    },
+    names: (ids) => new Map(catalogueRows(table, ids).map((r) => [r.id, r.name])),
+    href: (id) => `/${path}/${encodeURIComponent(id)}`,
+  };
+}
+
+export const applicationContactKind = catalogueKind('application', 'applications', 'applications');
+export const systemContactKind = catalogueKind('system', 'systems', 'systems');
+
+/** PUT /api/applications/:id/contacts and /api/systems/:id/contacts: the item's contacts (the picker's links). */
+export const catalogueContactsInput = z.object({ contacts: z.array(contactLinkInput).max(200) }).strict();
+
+/** Writes an application's or system's contacts (the caller checked the edit right and audits the result). */
+export const writeCatalogueContacts = (kind: 'application' | 'system', id: string, body: unknown): SetLinksResult =>
+  setLinks(kind, id, catalogueContactsInput.parse(body).contacts);
 
 // ---------- a service's contacts in their shape of before 0.25.1 (role, e-mail, name) ----------
 
