@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-15
+
+Steward 0.26.0 is about **contacts and support** ([ADR 0039](docs/adr/0039-contact-roles-and-support.md)). Contact roles become a catalogue administrators keep – the built-in roles Steward relies on, and own roles such as domain manager or domain architect – and applications and systems name business contacts too. A sub-domain and a data product show their domain's contacts without copying them, and a contact can stand in for another until a date. Support is no longer one free-text channel and a bare tier: data products, services and applications list **support channels** with what each is for (questions, issues and incidents, announcements, access), pick a **support level** that says what is promised, and data products name the **guides** consumers find elsewhere and the service that supports them. It is documentation for IT maintainers, audits and the catalogues Steward exports to; Steward runs no help desk. The upgrade converts every product's support channel and tier, and every plant site's free-text roles, once and audited; nobody's rights change.
+
 ### Added
 
 - **Contact roles** ([docs/CONTACTS.md](docs/CONTACTS.md#roles), [ADR 0039](docs/adr/0039-contact-roles-and-support.md) part 1): _Settings → Contacts → Roles_ keeps the roles items name their contacts in – the built-in ones of before, which administrators can relabel and switch off per kind, and own roles such as _domain architect_ or _technical lead_, with one or several contacts per item and whether a role is expected (an item without one gets a hint; the data products scorecard notes it).
@@ -1636,7 +1640,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.25.1...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/vxrz/steward/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/vxrz/steward/compare/v0.25.0...v0.25.1
 [0.25.0]: https://github.com/vxrz/steward/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/vxrz/steward/compare/v0.23.0...v0.24.0
