@@ -35,7 +35,7 @@ A new installation starts with three example levels – _Business hours_, _Exten
 
 ## Guides (data products)
 
-Guides and documentation for the consumers of a data product are recorded as **where the consumers find them** – a wiki, SharePoint or portal page: a title and an external `https://` address, at most 30. Steward's own living documents can still be linked to a product as internal IT documentation; they are not consumer guides, because consumers usually cannot open Steward.
+Guides and documentation for the consumers of a data product are recorded as **where the consumers find them** – a wiki, SharePoint or portal page: a title and an external `https://` address (`http://` is taken for internal pages), at most 30. Steward's own living documents can still be linked to a product as internal IT documentation; they are not consumer guides, because consumers usually cannot open Steward.
 
 ## A data product supported by a service
 
@@ -55,16 +55,17 @@ This works only for readers who may see the service. For anyone else the service
 - **File format and Git sync:** `support_channels`, `support_level` (by name – English or German; the export also writes its hours and first response), `guides` and `supported_by_service` (by name). A level the instance does not have is a problem of the preview (`SUPPORT_LEVEL_NOT_FOUND`): an administrator adds it first.
 - **ODPS v1.0.0** (export and import, checked against the vendored schema):
 
-  | Steward                                    | ODPS                                                                                    |
-  | ------------------------------------------ | --------------------------------------------------------------------------------------- |
-  | each channel with an address               | an entry of `support[]`: `channel` = name, `url` = address, `tool`                      |
-  | purpose questions / issues / announcements | `scope`: `interactive` / `issues` / `announcements`                                     |
-  | purpose access and onboarding              | no scope; `customProperties: [{ property: purpose, value: access }]` on the entry       |
-  | hours and note                             | `description`: `Hours: …` on its first line, then the note                              |
-  | the support level                          | `customProperties` of the product: `supportLevel` with `name`, `hours`, `firstResponse` |
-  | guides                                     | `authoritativeDefinitions` with `type: userGuide` (`description` = title)               |
+  | Steward                                    | ODPS                                                                                                         |
+  | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+  | each channel with an address               | an entry of `support[]`: `channel` = name, `url` = address (a `tel:` number with hyphens for spaces), `tool` |
+  | purpose questions / issues / announcements | `scope`: `interactive` / `issues` / `announcements`                                                          |
+  | purpose access and onboarding              | no scope; `customProperties: [{ property: purpose, value: access }]` on the entry                            |
+  | hours and note                             | `description`: `Hours: …` on its first line, then the note                                                   |
+  | the support level                          | `customProperties` of the product: `supportLevel` with `name`, `hours`, `firstResponse`                      |
+  | guides                                     | `authoritativeDefinitions` with `type: userGuide` (`description` = title)                                    |
+  | the supporting service                     | `customProperties` of the product: `supportedByService` = its name                                           |
 
-  The export carries what the page shows – a product's own channels and level, else those of its supporting service the reader may see. The import reads them back; a level whose name the instance does not have, and an address that is not `https://`, `mailto:` or `tel:`, are hints of the preview and left out.
+  The export carries what the page shows – a product's own channels and level, else those of its supporting service the reader may see. Channels and a level taken from the supporting service are **marked** with it (`supportedByService` in the entry's `customProperties`, and in the value of `supportLevel`), so catalogues see what applies and an import does not make them the product's own: it leaves the product without own channels or level and names the supporting service instead – when exactly one service of that name is one the importer may see; otherwise the preview says so and the service is not changed. The deprecated `supportTier` is still written (0.26 only) for a product's own level made from a tier. The import reads the rest back; a level whose name the instance does not have, and an address that is not `https://`, `http://`, `mailto:` or `tel:`, are hints of the preview and left out.
 
 ## Upgrade
 

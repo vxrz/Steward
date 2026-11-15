@@ -445,6 +445,8 @@ describe('ODPS', () => {
     expect(byName('Orders news')).toMatchObject({ tool: 'email', scope: 'announcements' });
     expect(byName('Access desk')).toMatchObject({ tool: 'phone', customProperties: [{ property: 'purpose', value: 'access' }] });
     expect(byName('Access desk').scope).toBeUndefined();
+    // a telephone number as a valid tel: URI – no spaces (RFC 3966 visual separators instead)
+    expect(byName('Access desk').url).toBe('tel:+49-30-1234567');
     expect(doc.customProperties.find((c: { property: string }) => c.property === 'supportLevel').value).toEqual({
       name: 'Extended',
       hours: expect.any(String),
@@ -463,13 +465,86 @@ describe('ODPS', () => {
     const back = await dana('GET', `/data-products/${list.items[0]!.id}`);
     const strip = (cs: { id?: string }[]) => cs.map(({ id: _i, ...c }) => c);
     const orig = await dana('GET', `/data-products/${product}`);
-    expect(strip(back.supportChannels)).toEqual(strip(orig.supportChannels));
+    const tel = (cs: { address: string }[]) => cs.map((c) => ({ ...c, address: c.address.startsWith('tel:') ? c.address.replace(/ /g, '-') : c.address }));
+    expect(strip(back.supportChannels)).toEqual(tel(strip(orig.supportChannels)));
     expect(back.supportLevel).toEqual(orig.supportLevel);
     expect(strip(back.guides)).toEqual(strip(orig.guides));
     // and its export is the same document again (but for the id and name)
     const again = YAML.parse((await dana('GET', `/data-products/${back.id}/odps`)) as string);
     expect(odpsProblems(again)).toEqual([]);
     expect(again.support).toEqual(doc.support);
+  });
+});
+
+describe('ODPS of a product supported by a service', () => {
+  /** A product of the whole instance supported by the shop team's service, with nothing of its own. */
+  async function supportedProduct(key: string): Promise<string> {
+    const id = (await s.api('POST', '/data-products', { key, name: key })).id;
+    await s.api('PUT', `/data-products/${id}/support`, { supportedByServiceId: svcShop });
+    return id;
+  }
+  const importAs = async (c: Client, doc: Record<string, unknown>) => {
+    const files = [{ name: `${String(doc.id)}.odps.yaml`, content: YAML.stringify(doc) }];
+    const pv = await c('POST', '/data-products/import/preview', { files, mode: 'update' });
+    expect(pv.problems).toEqual([]);
+    await c('POST', '/data-products/import', { files, mode: 'update', fingerprint: pv.fingerprint });
+    const list = (await c('GET', `/data-products?q=${String(doc.id)}`)) as { items: { id: string; key: string }[] };
+    return { warnings: pv.warnings as string[], product: await c('GET', `/data-products/${list.items.find((x) => x.key === doc.id)!.id}`) };
+  };
+
+  it('exports what the page shows, marks the service’s channels and level, and an import names the service instead of copying them', async () => {
+    const { odpsProblems } = await import('../src/dataproducts/odps.js');
+    const id = await supportedProduct('support-odps-svc');
+    const doc = YAML.parse((await s.api('GET', `/data-products/${id}/odps`)) as string);
+    expect(odpsProblems(doc)).toEqual([]);
+    // catalogues get the channels and the level that apply – marked as the service's
+    expect(doc.support).toEqual([
+      expect.objectContaining({
+        channel: 'Shop incidents',
+        url: 'https://tickets.example/shop',
+        customProperties: [expect.objectContaining({ property: 'supportedByService', value: 'Support online shop' })],
+      }),
+    ]);
+    const custom = (k: string) => doc.customProperties.find((c: { property: string }) => c.property === k)?.value;
+    expect(custom('supportLevel')).toMatchObject({ name: '24×7', supportedByService: 'Support online shop' });
+    expect(custom('supportedByService')).toBe('Support online shop');
+    // the import (as who may see the service): the copy is supported by the service, nothing becomes its own
+    const back = await importAs(s.api as unknown as Client, { ...doc, id: 'support-odps-svc-copy', name: 'Copy' });
+    expect(back.product.supportChannels).toEqual([]);
+    expect(back.product.supportLevel).toBeNull();
+    expect(back.product.supportedBy).toMatchObject({ service: { id: svcShop }, channels: [{ name: 'Shop incidents' }], level: { nameEn: '24×7' } });
+    // and the copy exports the same support again
+    const again = YAML.parse((await s.api('GET', `/data-products/${back.product.id}/odps`)) as string);
+    expect(again.support).toEqual(doc.support);
+  });
+
+  it('as who may not see the service: neither the service nor its channels and level are taken – a warning says so', async () => {
+    const id = await supportedProduct('support-odps-hidden');
+    const doc = YAML.parse((await s.api('GET', `/data-products/${id}/odps`)) as string);
+    // dana does not see the shop team's service
+    const back = await importAs(dana, { ...doc, id: 'support-odps-hidden-copy', name: 'Hidden copy' });
+    expect(back.warnings.join('\n')).toContain('"Support online shop" that supports the product is not known');
+    expect(back.product.supportChannels).toEqual([]);
+    expect(back.product.supportLevel).toBeNull();
+    expect(back.product.supportedBy).toBeNull();
+    expect((await s.api('GET', `/data-products/${back.product.id}`)).supportedBy).toBeNull();
+  });
+
+  it('a product with its own level and channels exports them unmarked; the deprecated supportTier follows a level made from a tier', async () => {
+    const id = await supportedProduct('support-odps-own');
+    // the level the upgrade (and the deprecated tier) makes from tier 2
+    const { levelOfTier } = await import('../src/support/levels.js');
+    const levelId2 = levelOfTier(2).id;
+    await s.api('PUT', `/data-products/${id}/support`, {
+      channels: [{ purpose: 'questions', tool: 'email', name: 'Own desk', address: 'mailto:own@shop.example' }],
+      levelId: levelId2,
+    });
+    const doc = YAML.parse((await s.api('GET', `/data-products/${id}/odps`)) as string);
+    expect(doc.support).toEqual([{ channel: 'Own desk', url: 'mailto:own@shop.example', tool: 'email', scope: 'interactive' }]);
+    const custom = (k: string) => doc.customProperties.find((c: { property: string }) => c.property === k)?.value;
+    expect(custom('supportLevel')).toEqual({ name: 'Tier 2', hours: '', firstResponse: '' });
+    expect(custom('supportTier')).toBe(2);
+    expect(custom('supportedByService')).toBe('Support online shop');
   });
 });
 
