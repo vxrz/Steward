@@ -715,6 +715,8 @@
         "has": "{{done}} of {{of}}: description, owner, domain, type, data objects",
         "genericParts_one": "{{count}} generic part (no discovery yet)",
         "genericParts_other": "{{count}} generic parts (no discovery yet)",
+        "missingRoles_one": "Expected contact role without a contact: {{roles}}",
+        "missingRoles_other": "Expected contact roles without a contact: {{roles}}",
         "technologyNotInList_one": "{{count}} generic part with a technology not in the list",
         "technologyNotInList_other": "{{count}} generic parts with a technology not in the list"
       },

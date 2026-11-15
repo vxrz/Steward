@@ -138,7 +138,13 @@
         "role": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 80
+          "maxLength": 200,
+          "description": "The role’s key in the role catalogue (0.26.0: its label is read too); an unknown role is refused – roles are added in Steward"
+        },
+        "role_label": {
+          "description": "0.26.0: the role’s English label (written by the export, not read)",
+          "type": "string",
+          "maxLength": 200
         },
         "name": {
           "type": "string",
@@ -161,6 +167,16 @@
           "description": "The Steward user this contact is, if any – documentation, never a right",
           "type": "string",
           "maxLength": 200
+        },
+        "deputy_of": {
+          "description": "0.26.0: stands in for the contact of this name (or e-mail address) named in the same role on the entry",
+          "type": "string",
+          "maxLength": 200
+        },
+        "until": {
+          "description": "0.26.0: named until this day (YYYY-MM-DD)",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
         }
       },
       "required": [

@@ -1,6 +1,10 @@
 import {
   CIA_DIMENSIONS,
   ISO_25012_DIMENSIONS,
+  contactRoleOn,
+  contactToday,
+  missingExpectedRoles,
+  type ContactLink,
   isGenericElementKind,
   maturityLevel,
   worstHealth,
@@ -16,6 +20,9 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { linksOf } from '../contacts/service.js';
+import { roleCatalogue, roleLabelOf } from '../contacts/roles.js';
+import { domainContactChains, inheritedFor, type DomainNode } from './contacts.js';
+import { domainAccess } from './access.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { currentScale } from '../catalogue/cia.js';
@@ -125,7 +132,11 @@ export function scorecardsOf(
       ? new Map(known.map((k) => [k.id, k]))
       : productsByIds(productIds);
   // 0.25.1: a product owner is a contact with that role (one statement for every product)
-  const owned = new Set([...linksOf('data_product', [...products.keys()])].filter(([, l]) => l.some((x) => x.role === 'productOwner')).map(([id]) => id));
+  const productLinks = linksOf('data_product', [...products.keys()]);
+  const owned = new Set([...productLinks].filter(([, l]) => l.some((x) => x.role === 'productOwner')).map(([id]) => id));
+  // 0.26.0 (ADR 0039): the expected roles of the role catalogue – own contacts and those inherited from the domains the
+  // reader may see (two statements, only when a role of data products is expected)
+  const missingRoles = expectedRolesMissing(u, [...products.values()], productLinks);
   const ids = [...products.keys()];
   if (!ids.length) return out;
   const scale = currentScale();
@@ -264,6 +275,17 @@ export function scorecardsOf(
         .filter(([, v]) => !v)
         .map(([k]) => ev(`documented.missing.${k}`)),
       ...(generic.length ? [ev('documented.genericParts', { count: generic.length })] : []),
+      ...(missingRoles.get(p.id)?.length
+        ? [
+            ev('documented.missingRoles', {
+              count: missingRoles.get(p.id)!.length,
+              roles: missingRoles
+                .get(p.id)!
+                .map((k) => roleLabelOf(k))
+                .join(', '),
+            }),
+          ]
+        : []),
       ...(unlisted ? [ev('documented.technologyNotInList', { count: unlisted })] : []),
     ]);
 
@@ -522,4 +544,36 @@ export function productScorecard(productId: string, q: { environment?: string })
   const u = me();
   const { row } = visibleProduct(productId, u);
   return scorecardsOf(u, [row.id], q.environment, Date.now(), [row]).get(row.id)!;
+}
+
+/**
+ * The expected contact roles of data products (role catalogue, 0.26.0) each product lacks: no current contact in the
+ * role of its own or inherited from its domain (ADR 0039 part 2, from domains the reader may see). Nothing is read when
+ * no role of data products is expected.
+ */
+function expectedRolesMissing(u: AuthUser | null, products: readonly ProductRow[], links: Map<string, ContactLink[]>): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const catalogue = roleCatalogue();
+  if (!catalogue.some((r) => r.expected && contactRoleOn(r, 'data_product')) || !products.length) return out;
+  const nodes = new Map(
+    db()
+      .all<DomainNode>('SELECT id, name, parent_id FROM dp_domains')
+      .map((d) => [d.id, d]),
+  );
+  const seen = new Map<string, boolean>();
+  const visible = (id: string) => {
+    if (!seen.has(id)) seen.set(id, domainAccess(u, { id }).permissions.length > 0);
+    return seen.get(id)!;
+  };
+  const chains = domainContactChains(
+    products.map((p) => p.domain_id),
+    nodes,
+    visible,
+  );
+  const today = contactToday();
+  for (const p of products) {
+    const own = links.get(p.id) ?? [];
+    out.set(p.id, missingExpectedRoles(catalogue, 'data_product', own, inheritedFor(own, p.domain_id ? chains.get(p.domain_id) : undefined), today));
+  }
+  return out;
 }

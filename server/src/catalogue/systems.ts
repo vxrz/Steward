@@ -16,6 +16,9 @@ import {
   supplierLinkField,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { appLinksOf, contactChanges, linksOf, namesOfLinks, removeItemLinks } from '../contacts/service.js';
+import { writeCatalogueContacts } from './contacts.js';
+import type { ContactLink, ContactNameEntry } from '@sm/shared';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { platformPermissions } from '../auth/permissions.js';
@@ -219,7 +222,10 @@ const sbomOf = (r: SystemRow): SystemDetail['sbom'] =>
     : null;
 
 /** A system with its stack, SBOM, creation and applications (the public API's list and the detail page). */
-export type SystemEntry = Omit<SystemDetail, 'canEdit' | 'credentials' | 'members' | 'backlinks' | 'firewall'>;
+export type SystemEntry = Omit<SystemDetail, 'canEdit' | 'credentials' | 'members' | 'backlinks' | 'firewall' | 'contacts'> & {
+  /** 0.26.0: business contacts – by name and role in the list (/api/v1, exports), the full links on the detail page */
+  contacts: ContactNameEntry[];
+};
 
 type AppRef = { id: string; name: string; archived: number; owners: string };
 /** The applications the reader may see (#131), by id. */
@@ -236,7 +242,13 @@ function toEntryOf(
   r: SystemRow,
   stack: StackEntry[],
   links: LinkRow[],
-  ctx: { platforms: Map<string, PlatformRow>; apps: Map<string, AppRef>; u: AuthUser | null; suppliers?: ReturnType<typeof supplierRefs> },
+  ctx: {
+    platforms: Map<string, PlatformRow>;
+    apps: Map<string, AppRef>;
+    u: AuthUser | null;
+    suppliers?: ReturnType<typeof supplierRefs>;
+    contacts?: Map<string, ContactLink[]>;
+  },
 ): SystemEntry {
   const { platforms, apps, u, suppliers } = ctx;
   // applications the reader may not see are left out (#131)
@@ -259,6 +271,7 @@ function toEntryOf(
     sbom: sbomOf(r),
     applications,
     segments: segmentsOf(r.id),
+    contacts: namesOfLinks(ctx.contacts?.get(r.id)),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
@@ -272,7 +285,18 @@ export function listSystemEntries(): SystemEntry[] {
   const rows = db()
     .all<SystemRow>('SELECT * FROM systems ORDER BY name')
     .filter((r) => canViewCatalogue(u, { kind: 'system', id: r.id, owners: parseJson<string[]>(r.owners, []) }));
-  const ctx = { platforms: platformsById(), apps: appsById(), u, suppliers: supplierRefs(rows.map((r) => r.supplier_id)) };
+  const ctx = {
+    platforms: platformsById(),
+    apps: appsById(),
+    u,
+    suppliers: supplierRefs(rows.map((r) => r.supplier_id)),
+    // 0.26.0 (ADR 0039): business contacts by name and role, one statement for the list
+    contacts: linksOf(
+      'system',
+      rows.map((r) => r.id),
+      { surface: 'api' },
+    ),
+  };
   return rows.map((r) => toEntryOf(r, stacks.get(r.id) ?? [], links.get(r.id) ?? [], ctx));
 }
 
@@ -345,6 +369,7 @@ export function getSystem(id: string): SystemDetail {
   const links = db().all<LinkRow>('SELECT * FROM application_systems WHERE system_id = ?', id);
   return {
     ...toEntryOf(r, stacksOf([id]).get(id) ?? [], links, { platforms: platformsById(), apps: appsById(), u }),
+    contacts: appLinksOf('system', [id]).get(id) ?? [],
     credentials: systemCredentials(id, u),
     members: r.kind === 'network' ? membersOf(id) : [],
     // records that link to it: firewall changes and their approved rules are in the panel (firewall), the rest here
@@ -352,6 +377,24 @@ export function getSystem(id: string): SystemDetail {
     firewall: firewallOf(id),
     canEdit: canEditSystem(u, r),
   };
+}
+
+/** PUT /api/systems/:id/contacts (0.26.0): the system's business contacts; audited as system.changed. */
+export function setSystemContacts(id: string, body: unknown): SystemDetail {
+  const r = row(id);
+  if (!canEditSystem(currentUser(), r)) forbid('change the contacts of this system', 'changeSystem');
+  db().tx(() => {
+    const c = writeCatalogueContacts('system', r.id, body);
+    if (!c.added.length && !c.removed.length && !c.updated.length) return;
+    audit({
+      action: 'system.changed',
+      entityType: 'system',
+      entityId: r.id,
+      summary: `System "${r.name}" changed (contacts)`,
+      details: { changes: ['contacts'], contacts: contactChanges(c) },
+    });
+  });
+  return getSystem(r.id);
 }
 
 /** The systems an application runs on, with their stacks, in environment order. */
@@ -597,6 +640,8 @@ export function deleteSystem(id: string): void {
     if (devices.length) db().run('UPDATE plant_devices SET system_id = NULL WHERE system_id = ?', id);
     const segments = forgetSegments(id);
     db().run('DELETE FROM systems WHERE id = ?', id);
+    // its contact links (0.26.0): the contacts stay in the directory
+    removeItemLinks('system', id);
     // its owning teams go with it: a later resource with the same id (dashboard slugs) does not inherit them
     forgetOwningTeams('system', id);
     // and its shares and scope (ADR 0033)

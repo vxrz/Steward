@@ -1,4 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
+import { ContactNameEntries } from '../contacts/api-schemas.js';
 import {
   APPLICATION_ROLES,
   CIA_COLORS,
@@ -193,6 +194,7 @@ export const ApplicationEntry = z.object({
   overdueDocuments: z.number().int(),
   componentCount: z.number().int().describe('Components of the application (repositories, container images, Kafka topics, …)'),
   systemCount: z.number().int().describe('"Runs on" links to systems (one per system and environment)'),
+  contacts: ContactNameEntries.describe('0.26.0: business contacts (business owner, application manager, own roles) – documentation, never a right'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -282,6 +284,7 @@ export const SystemEntry = z.object({
     .describe('The linked supplier (0.17.0; null: none, or one the token owner may not see); vendor is the fallback text'),
   cmdbUrl: z.string().describe('http(s) link to the CMDB entry, or empty'),
   owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
+  contacts: ContactNameEntries.describe('0.26.0: business contacts (business owner, system manager, own roles) – documentation, never a right'),
   note: z.string(),
   attributes: z
     .object({

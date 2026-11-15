@@ -12,6 +12,7 @@ import * as systems from './systems.js';
 import { environmentList } from './environments.js';
 import * as svc from './service.js';
 import * as apps from './applications.js';
+import { namesOfLinks } from '../contacts/service.js';
 import { currentScale, levelLabel } from './cia.js';
 
 /**
@@ -116,6 +117,7 @@ const mapApplication = (a: apps.ApplicationEntry, scale: Scale) => ({
   overdueDocuments: a.overdueDocuments,
   componentCount: a.componentCount,
   systemCount: a.systemCount,
+  contacts: a.contacts,
   createdAt: a.createdAt,
   createdBy: a.createdBy,
   updatedAt: a.updatedAt,
@@ -241,7 +243,7 @@ export function serviceApiRoutes(get: Get): void {
     async (req) => {
       const a = found(() => apps.getApplication((req.params as { applicationId: string }).applicationId), 'Application');
       return {
-        ...mapApplication(a, currentScale()),
+        ...mapApplication({ ...a, contacts: namesOfLinks(a.contacts) }, currentScale()),
         integrations: a.integrations.map((i) => ({
           visible: i.visible,
           platformId: i.platformId,
@@ -335,7 +337,7 @@ export function serviceApiRoutes(get: Get): void {
         firewall: _f,
         ...x
       } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
-      return x;
+      return { ...x, contacts: namesOfLinks(x.contacts) };
     },
   );
 

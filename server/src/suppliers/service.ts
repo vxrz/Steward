@@ -71,7 +71,7 @@ import { normVendor } from '../plant/advisories/match.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { moduleAvailable } from '../modules/access.js';
 import { supplierVisible, visibleContracts } from './links.js';
-import { removeItemLinks, snapshotsOf, writeItemLinks, writeLegacyLinks } from '../contacts/service.js';
+import { checkItemLinkRoles, removeItemLinks, snapshotsOf, writeItemLinks, writeLegacyLinks } from '../contacts/service.js';
 import { forgetShares } from '../auth/shares.js';
 import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
 import { dropSchedules, type ScheduleRow } from '../costs/schedule-model.js';
@@ -1434,6 +1434,8 @@ export function addContact(supplierId: string, input: z.infer<typeof supplierCon
  * may see, else a new one). Returns the person's name, e-mail and phone as the entry now shows them.
  */
 function linkPerson(entryId: string, input: z.infer<typeof supplierContactInput>, cur?: ContactRow): { name: string; email: string; phone: string } {
+  // the role catalogue (0.26.0): a supplier role switched off takes no new contact (writeLegacyLinks checks itself)
+  if (input.contactId) checkItemLinkRoles('supplier', entryId, [{ role: input.role, contactId: input.contactId }]);
   if (input.contactId && input.contactId !== cur?.contact_id) {
     snapshotsOf([{ contactId: input.contactId, role: input.role }]);
     writeItemLinks('supplier', entryId, [{ role: input.role, contactId: input.contactId }]);

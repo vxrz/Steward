@@ -76,7 +76,7 @@ import {
   type SiteRow,
   type SiteValues,
 } from './model.js';
-import { siteContactsOf } from './contacts.js';
+import { siteContactsOf, siteRoleKnown } from './contacts.js';
 
 /**
  * YAML import of the plant registry (#218): parse and check the files (size, keys, depth, the schema, the model rules),
@@ -608,6 +608,13 @@ function compute(input: ImportInput, importId: string): Computed {
     for (const [i, c] of after.contacts.entries()) {
       if (c.email && !/^[^\s@]+@[^\s@]+$/.test(c.email)) problems.push({ ...ps, path: `${ps.path}.contacts[${i}].email`, message: 'Use an e-mail address' });
       if (c.url && !isHttpUrl(c.url)) problems.push({ ...ps, path: `${ps.path}.contacts[${i}].url`, message: 'Use an http or https address' });
+      // 0.26.0 (ADR 0039): a role of the catalogue (its key or label) or one the site names already – an import never makes a role
+      if (!siteRoleKnown(c.role, before?.contacts ?? []))
+        problems.push({
+          ...ps,
+          path: `${ps.path}.contacts[${i}].role`,
+          message: `"${c.role}" is not a contact role of sites – administrators add it under Settings → Contacts → Roles`,
+        });
     }
     after.refs.forEach(
       (r, i) => r.url && !isHttpUrl(r.url) && problems.push({ ...ps, path: `${ps.path}.external_refs[${i}].url`, message: 'Use an http or https address' }),

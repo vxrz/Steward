@@ -10,6 +10,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { linksOf } from '../contacts/service.js';
+import { roleLabelOf } from '../contacts/roles.js';
 import { me } from '../auth/access.js';
 import type { AuthUser } from '../auth/context.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
@@ -95,12 +96,19 @@ export class Snapshot {
     for (const [id, links] of linksOf(kind, missing, { surface: 'file' }))
       this.contactCache.set(
         `${kind}:${id}`,
-        links.map((l) => ({
-          role: l.role,
-          name: l.contact.name,
-          ...(l.contact.kind === 'group' ? { kind: 'group' as const } : {}),
-          ...(l.contact.email ? { email: l.contact.email } : {}),
-        })),
+        links.map((l) => {
+          const deputyOf = l.deputyOf ? links.find((x) => x.contact.id === l.deputyOf)?.contact : undefined;
+          return {
+            role: l.role,
+            // 0.26.0 (ADR 0039): the role's label beside its key, deputy and until
+            role_label: roleLabelOf(l.role),
+            name: l.contact.name,
+            ...(l.contact.kind === 'group' ? { kind: 'group' as const } : {}),
+            ...(l.contact.email ? { email: l.contact.email } : {}),
+            ...(deputyOf ? { deputy_of: deputyOf.email || deputyOf.name } : {}),
+            ...(l.until ? { until: l.until } : {}),
+          };
+        }),
       );
   }
   contactsOf(kind: ContactLinkKind, id: string): ContactFile[] {

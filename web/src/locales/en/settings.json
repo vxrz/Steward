@@ -748,6 +748,10 @@
       "title": "Modules",
       "description": "Switch optional areas on or off (costs, data contracts, compliance, status pages and others), with how mature each one is; the plant registry and its map."
     },
+    "contacts": {
+      "title": "Contacts",
+      "description": "The roles items name their contacts in: built-in and own roles, what is expected."
+    },
     "current": "Area: {{area}}"
   },
   "endOfLife": {

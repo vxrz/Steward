@@ -28,6 +28,7 @@ import { audit, withoutAudit } from '../audit.js';
 import { holdingNotices } from './notices.js';
 import { linksOfSubjects } from './contacts.js';
 import { contactForUser, importContact, linksOf } from '../contacts/service.js';
+import { roleKeyFor, unknownRole } from '../contacts/roles.js';
 import { contractAccess, platformAccess } from '../auth/policy.js';
 import { permissionsFor } from '../processes/service.js';
 import { canViewCatalogue } from '../records/access.js';
@@ -307,11 +308,14 @@ const MERGED = new Set(['rating', 'rating.reasons', 'support', 'ports.objectives
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
+/** Keys the export writes for people to read and the import does not read (a contact's role label, 0.26.0). */
+const WRITTEN_ONLY = new Set(['role_label']);
+
 function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
   if (isObj(v))
     return `{${Object.keys(v)
-      .filter((k) => v[k] !== undefined)
+      .filter((k) => v[k] !== undefined && !WRITTEN_ONLY.has(k))
       .sort()
       .map((k) => `${JSON.stringify(k)}:${stable(v[k])}`)
       .join(',')}}`;
@@ -433,21 +437,32 @@ interface PlatformRef {
 function contactLinksOf(kind: ContactLinkKind, itemId: string | null, files: readonly (ContactFile | string)[], defaultRole: string): ContactLinkInput[] {
   const own = itemId ? (linksOf(kind, [itemId]).get(itemId) ?? []) : [];
   const out: ContactLinkInput[] = [];
+  const named: { role: string; id: string; name: string; email: string }[] = [];
+  const deputies: { at: number; role: string; of: string }[] = [];
   for (const f of files) {
     if (typeof f === 'string') {
       out.push(...linksOfSubjects([f], defaultRole));
       continue;
     }
+    // 0.26.0 (ADR 0039): the role's key or label; an unknown role is refused with a hint – an import never makes one
+    const role = roleKeyFor(kind, f.role) ?? (own.some((l) => l.role === f.role) ? f.role : unknownRole(f.role));
     const email = (f.email ?? '').trim().toLowerCase();
     const mine = own.find(
-      (l) =>
-        l.role === f.role && (email ? (l.contact.email ?? '').toLowerCase() === email : l.contact.name.trim().toLowerCase() === f.name.trim().toLowerCase()),
+      (l) => l.role === role && (email ? (l.contact.email ?? '').toLowerCase() === email : l.contact.name.trim().toLowerCase() === f.name.trim().toLowerCase()),
     );
     const id =
       mine?.contact.id ??
       (f.user ? contactForUser(f.user, { email: f.email ?? '' })?.id : undefined) ??
       importContact({ kind: f.kind ?? 'person', name: f.name, email: f.email ?? '' }).id;
-    if (!out.some((x) => x.role === f.role && x.contactId === id)) out.push({ role: f.role, contactId: id });
+    if (out.some((x) => x.role === role && x.contactId === id)) continue;
+    named.push({ role, id, name: f.name.trim().toLowerCase(), email });
+    if (f.deputy_of) deputies.push({ at: out.length, role, of: f.deputy_of.trim().toLowerCase() });
+    out.push({ role, contactId: id, deputyOf: null, until: f.until ?? null });
+  }
+  // a deputy names the contact it stands in for by e-mail address or name, in the same role
+  for (const d of deputies) {
+    const p = named.find((n) => n.role === d.role && (n.email === d.of || n.name === d.of));
+    out[d.at] = { ...out[d.at]!, deputyOf: p?.id ?? null };
   }
   return out;
 }

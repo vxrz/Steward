@@ -731,6 +731,8 @@
         "has": "{{done}} von {{of}}: Beschreibung, Verantwortliche, Domäne, Typ, Datenobjekte",
         "genericParts_one": "{{count}} generischer Bestandteil (noch ohne Erkennung)",
         "genericParts_other": "{{count}} generische Bestandteile (noch ohne Erkennung)",
+        "missingRoles_one": "Erwartete Kontaktrolle ohne Kontakt: {{roles}}",
+        "missingRoles_other": "Erwartete Kontaktrollen ohne Kontakt: {{roles}}",
         "technologyNotInList_one": "{{count}} generischer Bestandteil mit einer Technologie, die nicht in der Liste steht",
         "technologyNotInList_other": "{{count}} generische Bestandteile mit einer Technologie, die nicht in der Liste steht"
       },

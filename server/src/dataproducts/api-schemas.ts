@@ -1,3 +1,4 @@
+import { ContactNameEntries } from '../contacts/api-schemas.js';
 import { z, type ZodTypeAny } from 'zod';
 import {
   DATA_CLASSIFICATIONS,
@@ -84,7 +85,9 @@ export const DataProductEntry = z.object({
   owners: z
     .array(z.string())
     .describe('Deprecated (0.25.1, removed in a later release): the Steward users linked to its product owner contacts, as user:<name> – see contacts'),
-  contacts: ContactNames.describe('Product owners and business contacts (0.25.1): documentation, never a right in Steward'),
+  contacts: ContactNameEntries.describe(
+    'Product owners, business contacts and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward',
+  ),
   owningTeams: z.array(z.object({ id: z.string(), name: z.string() })),
   tags: z.array(z.string()),
   version: z.string(),
@@ -205,7 +208,7 @@ export const DataObjectEntry = z.object({
   personalData: z.enum(PERSONAL_DATA_LEVELS),
   rating: Rating,
   owner: z.string().nullable().describe('Deprecated (0.25.1): the Steward user linked to its data owner contact – see contacts'),
-  contacts: ContactNames.describe('Data owner and data stewards (0.25.1): documentation, never a right in Steward'),
+  contacts: ContactNameEntries.describe('Data owner, data stewards and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward'),
   updatedAt: ts(),
 });
 

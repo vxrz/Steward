@@ -60,6 +60,8 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.put('/applications/:id', { config: { stepUp: namedGrantRule((req) => apps.applicationNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
     apps.updateApplication(params(req).id!, apps.applicationInput.parse(req.body)),
   );
+  // business contacts (0.26.0, ADR 0039): who may change the application; documentation, never a right
+  app.put('/applications/:id/contacts', async (req) => apps.setApplicationContacts(params(req).id!, req.body ?? {}));
   app.post('/applications/:id/archive', async (req) =>
     apps.setApplicationArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
   );
@@ -187,6 +189,7 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.put('/systems/:id', { config: { stepUp: namedGrantRule((req) => systems.systemNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
     systems.updateSystem(params(req).id!, systems.systemInput.parse(req.body)),
   );
+  app.put('/systems/:id/contacts', async (req) => systems.setSystemContacts(params(req).id!, req.body ?? {}));
   app.delete('/systems/:id', async (req) => {
     systems.deleteSystem(params(req).id!);
     return { ok: true };

@@ -109,22 +109,9 @@
     "data_product": "Datenprodukt",
     "data_domain": "Datendomäne",
     "data_object": "Datenobjekt",
-    "data_consumer": "Registrierung eines Nutzers"
-  },
-  "roles": {
-    "business": "Fachlich verantwortlich",
-    "it": "IT-Betrieb",
-    "accountManager": "Account Manager",
-    "support": "Supportkontakt",
-    "security": "Sicherheit",
-    "dataProtection": "Datenschutz",
-    "other": "Sonstige",
-    "productOwner": "Product Owner",
-    "businessContact": "Fachlicher Kontakt",
-    "domainOwner": "Domänenverantwortliche",
-    "dataOwner": "Dateneigentümer",
-    "dataSteward": "Data Steward",
-    "consumerContact": "Kontakt des Nutzers"
+    "data_consumer": "Registrierung eines Nutzers",
+    "application": "Anwendung",
+    "system": "System"
   },
   "picker": {
     "none": "Noch keine Kontakte.",
@@ -147,12 +134,91 @@
     "roleFirst": "Geben Sie zuerst die Rolle an, dann wählen oder erstellen Sie den Kontakt.",
     "added": "{{name}} als {{role}} hinzugefügt",
     "addedDecider": "{{name}} hinzugefügt",
-    "removed": "{{name}} entfernt"
+    "removed": "{{name}} entfernt",
+    "noRole": "Keine Rolle",
+    "details": "Vertretung und Enddatum: {{name}}",
+    "deputyOf": "Vertritt",
+    "deputyNone": "Niemanden",
+    "until": "Bis",
+    "deputyFor": "Vertritt {{name}}",
+    "ended": "Beendet am {{date}}",
+    "untilDate": "Bis {{date}}",
+    "roleOff": "Rolle ausgeschaltet",
+    "noRoles": "Für diese Art von Eintrag ist keine Kontaktrolle eingeschaltet. Administratoren legen Rollen unter Einstellungen → Kontakte → Rollen an.",
+    "oneTaken": "{{role}} hat einen Kontakt: Ein neuer wird als Vertretung von {{name}} hinzugefügt – ändern Sie das in seinen Details, oder geben Sie {{name}} ein Enddatum."
   },
   "snapshot": {
     "label": "Entschieden von",
     "role": "Rolle von {{name}}",
     "frozen": "Die Namen werden eingefroren, wenn die Entscheidung erfasst wird.",
     "limit": "Höchstens {{max}} Kontakte."
+  },
+  "inherited": {
+    "title": "Aus der Domäne",
+    "hint": "Aus der Domäne angezeigt, nie kopiert: Ändern Sie sie an der Domäne.",
+    "from": "aus Domäne {{name}}"
+  },
+  "expected": {
+    "missing_one": "Erwartet, aber niemand ist genannt: {{roles}}",
+    "missing_other": "Erwartet, aber niemand ist genannt: {{roles}}"
+  },
+  "section": {
+    "title": "Kontakte",
+    "edit": "Kontakte bearbeiten",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "saved": "Kontakte gespeichert"
+  },
+  "serviceContacts": {
+    "title": "Kontakte seiner Services",
+    "hint": "Nur lesend: Eine Anwendung kann mehreren Services dienen, daher werden ihre Kontakte angezeigt, nicht geerbt."
+  },
+  "catalogue": {
+    "title": "Kontaktrollen",
+    "description": "Die Rollen, in denen Einträge ihre Kontakte nennen. Eingebaute Rollen behalten ihren Schlüssel: Steward stützt sich auf sie (Product Owner, Domänenverantwortliche, Dateneigentümer und Data Steward, Kontakt des Nutzers). Eigene Rollen dienen nur der Dokumentation. Eine ausgeschaltete Rolle nimmt keine neuen Kontakte auf; genannte bleiben und werden markiert.",
+    "new": "Neue Rolle",
+    "edit": "Rolle bearbeiten",
+    "editTitle": "„{{name}}“ bearbeiten",
+    "newTitle": "Neue Kontaktrolle",
+    "key": "Schlüssel",
+    "keyHint": "Buchstaben und Ziffern, beginnend mit einem Kleinbuchstaben, z. B. domainArchitect. Leer gelassen, wird er aus der englischen Bezeichnung gebildet. Er ändert sich nie.",
+    "labelEn": "Bezeichnung (Englisch)",
+    "labelDe": "Bezeichnung (Deutsch)",
+    "descriptionField": "Beschreibung",
+    "kinds": "Gilt für",
+    "kindsHint": "Eine eingebaute Rolle gilt nur für ihre eigenen Arten: Schalten Sie sie hier für eine Art aus.",
+    "cardinality": "Kontakte je Eintrag",
+    "cardinalities": {
+      "one": "Einer (ohne Vertretungen)",
+      "many": "Mehrere"
+    },
+    "expected": "Erwartet",
+    "expectedHint": "Ein Eintrag ohne aktuellen Kontakt in dieser Rolle erhält einen Hinweis; Datenprodukte: Die Scorecard vermerkt es.",
+    "active": "Eingeschaltet",
+    "builtIn": "Eingebaut",
+    "own": "Eigene",
+    "off": "Aus",
+    "inUse_one": "{{count}} Verknüpfung",
+    "inUse_other": "{{count}} Verknüpfungen",
+    "unused": "Nicht verwendet",
+    "delete": "Löschen",
+    "deleteTitle": "Rolle „{{name}}“ löschen?",
+    "deleteMessage": "Niemand ist in ihr genannt. Das lässt sich nicht rückgängig machen.",
+    "deleted": "Rolle gelöscht",
+    "saved": "Rolle gespeichert",
+    "created": "Rolle angelegt",
+    "save": "Speichern",
+    "create": "Anlegen",
+    "cancel": "Abbrechen",
+    "table": {
+      "label": "Rolle",
+      "kinds": "Gilt für",
+      "cardinality": "Je Eintrag",
+      "status": "Status",
+      "usage": "Verwendet",
+      "actions": "Aktionen"
+    },
+    "deleteInUse": "Verwendet – schalten Sie sie stattdessen aus",
+    "deleteBuiltIn": "Eingebaute Rollen werden ausgeschaltet, nicht gelöscht"
   }
 }

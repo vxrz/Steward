@@ -16,6 +16,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { ExpectedRolesHint } from '../components/contacts';
 import { useMe } from '../auth';
 import {
   ASSET_STATUSES,
@@ -433,6 +434,8 @@ export function PlantSitePage() {
                     ))}
                   </Stack>
                 )}
+                {/* 0.26.0 (ADR 0039): expected roles of the role catalogue */}
+                <ExpectedRolesHint kind="plant_site" links={s.contactLinks ?? []} />
               </Field>
               <Field label={t('refs.title')}>
                 <RefsView refs={s.refs} />
