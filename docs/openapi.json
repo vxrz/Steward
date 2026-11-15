@@ -12400,6 +12400,40 @@
             "type": "integer",
             "description": "\"Runs on\" links to systems (one per system and environment)"
           },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
+                }
+              },
+              "required": [
+                "role",
+                "roleLabel",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: business contacts (business owner, application manager, own roles) – documentation, never a right"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -12438,6 +12472,7 @@
           "overdueDocuments",
           "componentCount",
           "systemCount",
+          "contacts",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -12798,6 +12833,40 @@
           "systemCount": {
             "type": "integer",
             "description": "\"Runs on\" links to systems (one per system and environment)"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
+                }
+              },
+              "required": [
+                "role",
+                "roleLabel",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: business contacts (business owner, application manager, own roles) – documentation, never a right"
           },
           "createdAt": {
             "type": "string",
@@ -13831,6 +13900,7 @@
           "overdueDocuments",
           "componentCount",
           "systemCount",
+          "contacts",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -14170,6 +14240,40 @@
               "type": "string"
             },
             "description": "Steward users and teams responsible: user:<name>, team:<name>"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
+                }
+              },
+              "required": [
+                "role",
+                "roleLabel",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "0.26.0: business contacts (business owner, system manager, own roles) – documentation, never a right"
           },
           "note": {
             "type": "string"
@@ -14713,6 +14817,7 @@
           "supplier",
           "cmdbUrl",
           "owners",
+          "contacts",
           "note",
           "attributes",
           "platform",
@@ -43338,19 +43443,33 @@
               "type": "object",
               "properties": {
                 "role": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
                 },
                 "name": {
                   "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
                 }
               },
               "required": [
                 "role",
+                "roleLabel",
                 "name"
               ],
               "additionalProperties": false
             },
-            "description": "Product owners and business contacts (0.25.1): documentation, never a right in Steward"
+            "description": "Product owners, business contacts and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward"
           },
           "owningTeams": {
             "type": "array",
@@ -43746,19 +43865,33 @@
               "type": "object",
               "properties": {
                 "role": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
                 },
                 "name": {
                   "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
                 }
               },
               "required": [
                 "role",
+                "roleLabel",
                 "name"
               ],
               "additionalProperties": false
             },
-            "description": "Product owners and business contacts (0.25.1): documentation, never a right in Steward"
+            "description": "Product owners, business contacts and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward"
           },
           "owningTeams": {
             "type": "array",
@@ -45410,19 +45543,33 @@
               "type": "object",
               "properties": {
                 "role": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
                 },
                 "name": {
                   "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
                 }
               },
               "required": [
                 "role",
+                "roleLabel",
                 "name"
               ],
               "additionalProperties": false
             },
-            "description": "Data owner and data stewards (0.25.1): documentation, never a right in Steward"
+            "description": "Data owner, data stewards and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward"
           },
           "updatedAt": {
             "type": "string",
@@ -45668,19 +45815,33 @@
               "type": "object",
               "properties": {
                 "role": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The role’s key in the role catalogue (e.g. productOwner, businessOwner, an own role’s key)"
+                },
+                "roleLabel": {
+                  "type": "string",
+                  "description": "The role’s English label (0.26.0)"
                 },
                 "name": {
                   "type": "string"
+                },
+                "deputyOf": {
+                  "type": "string",
+                  "description": "0.26.0: the name of the contact this one stands in for (same role)"
+                },
+                "until": {
+                  "type": "string",
+                  "description": "0.26.0: named until this day (YYYY-MM-DD); after it the link is ended"
                 }
               },
               "required": [
                 "role",
+                "roleLabel",
                 "name"
               ],
               "additionalProperties": false
             },
-            "description": "Data owner and data stewards (0.25.1): documentation, never a right in Steward"
+            "description": "Data owner, data stewards and the roles of the catalogue (0.25.1, 0.26.0): documentation, never a right in Steward"
           },
           "updatedAt": {
             "type": "string",
