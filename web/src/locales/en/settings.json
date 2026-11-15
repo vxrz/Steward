@@ -754,7 +754,7 @@
     },
     "contacts": {
       "title": "Contacts",
-      "description": "The roles items name their contacts in: built-in and own roles, what is expected."
+      "description": "The roles in which items name their contacts: built-in and own roles, and which are expected."
     },
     "current": "Area: {{area}}"
   },

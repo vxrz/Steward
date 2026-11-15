@@ -175,7 +175,7 @@
   },
   "catalogue": {
     "title": "Kontaktrollen",
-    "description": "Die Rollen, in denen Einträge ihre Kontakte nennen. Eingebaute Rollen behalten ihren Schlüssel: Steward stützt sich auf sie (Product Owner, Domänenverantwortliche, Dateneigentümer und Data Steward, Kontakt des Nutzers). Eigene Rollen dienen nur der Dokumentation. Eine ausgeschaltete Rolle nimmt keine neuen Kontakte auf; genannte bleiben und werden markiert.",
+    "description": "Die Rollen, in denen Einträge ihre Kontakte nennen. Eingebaute Rollen behalten ihren Schlüssel, weil Steward sich auf sie stützt (Product Owner, Domänenverantwortliche, Dateneigentümer und Data Steward, Kontakt des Nutzers); sie lassen sich umbenennen und ausschalten, nicht löschen. Eigene Rollen dienen nur der Dokumentation. Eine ausgeschaltete Rolle nimmt keine neuen Kontakte auf; die darin genannten bleiben und werden markiert.",
     "new": "Neue Rolle",
     "edit": "Rolle bearbeiten",
     "editTitle": "„{{name}}“ bearbeiten",
@@ -189,11 +189,11 @@
     "kindsHint": "Eine eingebaute Rolle gilt nur für ihre eigenen Arten: Schalten Sie sie hier für eine Art aus.",
     "cardinality": "Kontakte je Eintrag",
     "cardinalities": {
-      "one": "Einer (ohne Vertretungen)",
+      "one": "Einer (zuzüglich Vertretungen)",
       "many": "Mehrere"
     },
     "expected": "Erwartet",
-    "expectedHint": "Ein Eintrag ohne aktuellen Kontakt in dieser Rolle erhält einen Hinweis; Datenprodukte: Die Scorecard vermerkt es.",
+    "expectedHint": "Ein Eintrag ohne aktuellen Kontakt in dieser Rolle erhält auf seiner Seite einen Hinweis; bei Datenprodukten vermerkt es auch die Scorecard.",
     "active": "Eingeschaltet",
     "builtIn": "Eingebaut",
     "own": "Eigene",
@@ -219,6 +219,6 @@
       "actions": "Aktionen"
     },
     "deleteInUse": "Verwendet – schalten Sie sie stattdessen aus",
-    "deleteBuiltIn": "Eingebaute Rollen werden ausgeschaltet, nicht gelöscht"
+    "activeHint": "Ausgeschaltet nimmt die Rolle keine neuen Kontakte auf; die darin genannten bleiben und werden markiert."
   }
 }

@@ -175,7 +175,7 @@
   },
   "catalogue": {
     "title": "Contact roles",
-    "description": "The roles items name their contacts in. Built-in roles keep their key: Steward relies on them (product owner, domain owner, data owner and steward, consumer contact). Own roles are documentation only. A role switched off takes no new contacts; those named stay and are marked.",
+    "description": "The roles in which items name their contacts. Built-in roles keep their key because Steward relies on them (product owner, domain owner, data owner and steward, consumer contact); they can be relabelled and switched off, not deleted. Own roles are documentation only. A role switched off takes no new contacts; those named in it stay and are marked.",
     "new": "New role",
     "edit": "Edit role",
     "editTitle": "Edit “{{name}}”",
@@ -189,11 +189,11 @@
     "kindsHint": "A built-in role applies to its own kinds only: switch it off for a kind here.",
     "cardinality": "Contacts per item",
     "cardinalities": {
-      "one": "One (deputies aside)",
+      "one": "One (plus deputies)",
       "many": "Several"
     },
     "expected": "Expected",
-    "expectedHint": "An item without a current contact in this role gets a hint; data products: the scorecard notes it.",
+    "expectedHint": "An item without a current contact in this role gets a hint on its page; for data products the scorecard notes it too.",
     "active": "Switched on",
     "builtIn": "Built in",
     "own": "Own",
@@ -219,6 +219,6 @@
       "actions": "Actions"
     },
     "deleteInUse": "In use – switch it off instead",
-    "deleteBuiltIn": "Built-in roles are switched off, not deleted"
+    "activeHint": "Switched off, the role takes no new contacts; those named in it stay and are marked."
   }
 }

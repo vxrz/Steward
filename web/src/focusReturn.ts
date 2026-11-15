@@ -53,3 +53,15 @@ export function installFocusReturn(doc: Document = document): () => void {
     openers.clear();
   };
 }
+
+/**
+ * After a row of a list was removed (or moved): the focus goes to the same control of the row now at `index` – the
+ * one that took the removed row's place – else of the last row, else to `fallback`, so it is never lost to <body>
+ * (WCAG 2.4.3). Runs after the next paint, once the list shows the change; disabled and hidden controls are skipped.
+ */
+export function focusRowControl(scope: ParentNode | null | undefined, selector: string, index: number, fallback?: () => HTMLElement | null | undefined): void {
+  requestAnimationFrame(() => {
+    const all = [...(scope?.querySelectorAll<HTMLElement>(selector) ?? [])].filter((el) => !el.matches(':disabled') && el.getClientRects().length > 0);
+    (all[Math.min(Math.max(index, 0), all.length - 1)] ?? fallback?.())?.focus();
+  });
+}

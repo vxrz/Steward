@@ -17,8 +17,9 @@ test.describe('the role catalogue', () => {
     const card = page.getByTestId('contact-roles');
     await expect(card.getByTestId('contact-role-productOwner')).toContainText('Product owner');
     await expect(card.getByTestId('contact-role-applicationManager')).toContainText('Application manager');
-    // built-in roles are switched off, never deleted
-    await expect(card.getByTestId('contact-role-delete-productOwner')).toBeDisabled();
+    // built-in roles are switched off, never deleted: they have no delete button
+    await expect(card.getByTestId('contact-role-delete-productOwner')).toHaveCount(0);
+    await expect(card.getByTestId('contact-role-productOwner').getByRole('button', { name: 'Edit “Product owner”' })).toBeVisible();
     await expectAccessible(page, 'contact roles: the catalogue');
 
     const label = uniq('Invented reviewer');
@@ -27,7 +28,14 @@ test.describe('the role catalogue', () => {
     await form.getByTestId('contact-role-label-en').fill(label);
     await form.getByTestId('contact-role-label-de').fill(`${label} (de)`);
     await form.getByTestId('contact-role-kind-system').check();
-    await form.getByText('One (deputies aside)').click();
+    await form.getByText('One (plus deputies)').click();
+    // a key that is taken: the server's refusal is shown at the key field, which gets the focus
+    await form.getByTestId('contact-role-key').fill('productOwner');
+    await form.getByTestId('contact-role-save').click();
+    await expect(form.getByTestId('contact-role-key')).toHaveAttribute('aria-invalid', 'true');
+    await expect(form.getByTestId('contact-role-key')).toBeFocused();
+    await expect(form).toContainText('The key “productOwner” is taken');
+    await form.getByTestId('contact-role-key').fill('');
     await expectAccessible(page, 'contact roles: a new role');
     await form.getByTestId('contact-role-save').click();
     await expect(form).toBeHidden();
@@ -52,6 +60,8 @@ test.describe('the role catalogue', () => {
       .getByRole('button', { name: 'Delete' })
       .click();
     await expect(card.locator('[data-testid^="contact-role-"]').filter({ hasText: label })).toHaveCount(0);
+    // the focus stays in the list (on the row that took its place, or the last one), not lost to the page
+    await expect(card.locator('[data-role-edit]:focus')).toHaveCount(1);
   });
 
   test('the plant site form picks a role of the catalogue; the registry shows its label', async ({ page, apiAs }) => {

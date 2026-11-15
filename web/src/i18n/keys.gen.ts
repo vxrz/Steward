@@ -2332,7 +2332,7 @@ export interface Resources {
     'catalogue.table.usage': string;
     'catalogue.table.actions': string;
     'catalogue.deleteInUse': string;
-    'catalogue.deleteBuiltIn': string;
+    'catalogue.activeHint': string;
   };
   contracts: {
     'results.passed': string;
