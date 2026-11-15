@@ -313,7 +313,7 @@ function writeParsed(kind: SupportItemKind, id: string, cur: StoredSupport, inpu
       throw new HttpError(404, `Service ${input.supportedByServiceId} not found`, 'SERVICE_NOT_FOUND', { id: input.supportedByServiceId });
     db().run('UPDATE dp_products SET supported_by_service_id = ? WHERE id = ?', input.supportedByServiceId ?? null, id);
     changes.push('supportedByService');
-    details.supportedByService = { after: input.supportedByServiceId ?? null };
+    details.supportedByService = { before: cur.serviceId ?? null, after: input.supportedByServiceId ?? null };
   }
   if (input.channels !== undefined) {
     const before = channelsOf([{ kind, id }]).get(keyOf(kind, id)) ?? [];

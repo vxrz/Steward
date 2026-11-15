@@ -203,6 +203,11 @@ describe('a product supported by a service', () => {
       code: 'SERVICE_NOT_FOUND',
     });
     await s.api('PUT', `/data-products/${supported}/support`, { supportedByServiceId: svcShop });
+    // audited with its before and after, like the item's other fields
+    expect((await audits('dataproduct.updated', supported)).at(-1)!.details).toMatchObject({
+      changes: ['supportedByService'],
+      supportedByService: { before: null, after: svcShop },
+    });
     const seen = await olivia('GET', `/data-products/${supported}`);
     expect(seen.supportChannels).toEqual([]);
     expect(seen.supportedBy).toMatchObject({
