@@ -117,6 +117,7 @@ test.describe('phone @mobile', () => {
       '/settings/integrations',
       '/settings/notifications',
       '/settings/catalogue',
+      '/settings/support',
       '/settings/status',
     ]) {
       await admin.goto(path);

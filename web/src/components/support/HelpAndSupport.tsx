@@ -56,6 +56,7 @@ import {
   type SupportTool,
 } from '@sm/shared';
 import { ApiError, get, put } from '../../api';
+import { errorText } from '../../i18n/errors';
 import { FormModal } from '../FormModal';
 import { FormButtons, useBusy } from '../dataproducts/form';
 
@@ -287,17 +288,20 @@ const draftOf = (c: Omit<SupportChannel, 'id'>): ChannelDraft => ({
   key: nextKey++,
 });
 
-/** The server's field of an INVALID_INPUT ("channels.1.address: …") or a refusal that names one. */
-export function serverFieldErrors(e: unknown): Record<string, true> {
+/**
+ * The fields of the server's refusal: an INVALID_INPUT names them ("channels.1.address: …"), a missing level or service
+ * is its field – with the text to show there (null: the general "Check this value").
+ */
+export function serverFieldErrors(e: unknown): Record<string, string | null> {
   if (!(e instanceof ApiError)) return {};
-  if (e.code === 'SUPPORT_LEVEL_NOT_FOUND') return { levelId: true };
-  if (e.code === 'SERVICE_NOT_FOUND') return { supportedByServiceId: true };
+  if (e.code === 'SUPPORT_LEVEL_NOT_FOUND') return { levelId: errorText(e) };
+  if (e.code === 'SERVICE_NOT_FOUND') return { supportedByServiceId: errorText(e) };
   if (e.code !== 'INVALID_INPUT') return {};
   const details = String((e.params as { details?: unknown } | undefined)?.details ?? '');
-  const out: Record<string, true> = {};
+  const out: Record<string, string | null> = {};
   for (const part of details.split('; ')) {
     const path = part.split(':')[0]?.trim();
-    if (path) out[path] = true;
+    if (path) out[path] = null;
   }
   return out;
 }
@@ -372,7 +376,7 @@ export function SupportEditor({
   const initialService = support.supportedBy?.service.id ?? null;
   const [serviceId, setServiceId] = useState<string | null>(initialService);
   const [shown, setShown] = useState(false);
-  const [server, setServer] = useState<Record<string, true>>({});
+  const [server, setServer] = useState<Record<string, string | null>>({});
   const [busy, run] = useBusy();
 
   const channelError = (c: ChannelDraft, field: 'name' | 'address'): string | undefined => {
@@ -386,7 +390,7 @@ export function SupportEditor({
     return undefined;
   };
   const invalid = channels.some((c) => channelError(c, 'address')) || (product && guides.some((g) => guideError(g, 'title') || guideError(g, 'url')));
-  const err = (path: string, local?: string) => (shown && local) || (server[path] ? t('fields.serverInvalid') : undefined);
+  const err = (path: string, local?: string) => (shown && local) || (path in server ? (server[path] ?? t('fields.serverInvalid')) : undefined);
 
   const levelOptions = useMemo(() => (levels.data ?? []).map((l) => ({ value: l.id, label: levelName(l, i18n.language) })), [levels.data, i18n.language]);
   const chosen = levels.data?.find((l) => l.id === levelId);
@@ -428,8 +432,9 @@ export function SupportEditor({
       } catch (e) {
         const fields = serverFieldErrors(e);
         setServer(fields);
-        if (Object.keys(fields).length) requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
-        throw e;
+        // shown at its field (and focused there); anything else as a notification
+        if (!Object.keys(fields).length) throw e;
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
       }
     }, t('notSaved'));
 

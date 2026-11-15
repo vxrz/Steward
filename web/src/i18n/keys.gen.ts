@@ -9447,6 +9447,16 @@ export interface Resources {
     'codes.FORBIDDEN_changeContact': string;
     'codes.FORBIDDEN_eraseContact': string;
     'codes.FORBIDDEN_manageContacts': string;
+    'codes.SUPPORT_LEVEL_NOT_FOUND': string;
+    'codes.SUPPORT_LEVEL_EXISTS': string;
+    'codes.SUPPORT_LIMIT': string;
+    'codes.SUPPORT_LEVEL_ORDER': string;
+    'codes.SUPPORT_LEVEL_IN_USE': string;
+    'codes.SUPPORT_INVALID': string;
+    'codes.FORBIDDEN_supportLevels': string;
+    'codes.SUPPORT_LIMIT_levels': string;
+    'codes.SUPPORT_LEVEL_ORDER_self': string;
+    'codes.SUPPORT_INVALID_kind': string;
     'boundary.title': string;
     'boundary.text': string;
     'boundary.retry': string;

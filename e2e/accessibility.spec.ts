@@ -252,7 +252,7 @@ test.describe('accessibility – every area', () => {
     ['system status', '/settings/status'],
     ['backups', '/settings/backups'],
     ['migration', '/settings/migration'],
-    ...(['general', 'security', 'assurance', 'integrations', 'notifications', 'appearance', 'catalogue', 'modules', 'data'] as const).map(
+    ...(['general', 'security', 'assurance', 'integrations', 'notifications', 'appearance', 'catalogue', 'support', 'modules', 'data'] as const).map(
       (area): [string, string] => [`settings: ${area}`, `/settings/${area}`],
     ),
   ];

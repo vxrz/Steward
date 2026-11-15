@@ -1654,7 +1654,17 @@
     "FORBIDDEN_createContacts": "You are not allowed to create contacts here. Add them on the item instead.",
     "FORBIDDEN_changeContact": "You are not allowed to change this contact: that takes who may change an item it is linked to.",
     "FORBIDDEN_eraseContact": "Only administrators erase contacts.",
-    "FORBIDDEN_manageContacts": "Only administrators see possible duplicates."
+    "FORBIDDEN_manageContacts": "Only administrators see possible duplicates.",
+    "SUPPORT_LEVEL_NOT_FOUND": "Support level {{id}} not found – it may have been removed meanwhile. Choose another one.",
+    "SUPPORT_LEVEL_EXISTS": "A support level named {{name}} exists already.",
+    "SUPPORT_LIMIT": "Limit reached: at most {{max}} support levels.",
+    "SUPPORT_LEVEL_ORDER": "Name every support level once to order them.",
+    "SUPPORT_LEVEL_IN_USE": "{{count}} items use this support level – choose the level they get instead, or remove it from them.",
+    "SUPPORT_INVALID": "Only data products have guides and a supporting service.",
+    "FORBIDDEN_supportLevels": "Only administrators change the support levels.",
+    "SUPPORT_LIMIT_levels": "Limit reached: at most {{max}} support levels.",
+    "SUPPORT_LEVEL_ORDER_self": "A support level cannot be merged into itself.",
+    "SUPPORT_INVALID_kind": "Only data products have guides and a supporting service."
   },
   "boundary": {
     "title": "Something went wrong on this page",
