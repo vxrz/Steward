@@ -38,6 +38,10 @@ Applications are archived, not deleted (_Archive_ on the application page). An a
 
 The list has a search (name, vendor, tag) and filters by service, criticality and protection need (applications with that level in at least one dimension, or _Not rated_).
 
+## Business contacts
+
+Since 0.26.0 ([ADR 0039](adr/0039-contact-roles-and-support.md)) an application and a system name **business contacts** in the _Contacts_ section of their page: _business owner_ and _application manager_ (applications) or _system manager_ (systems), and own roles of the [role catalogue](CONTACTS.md#roles) – people and groups from the [contacts directory](CONTACTS.md), with a [deputy and an end date](CONTACTS.md#deputy-and-until) where needed. They document who answers for it on the business side; its **owners** – the Steward users and teams who maintain it – are unchanged, and a contact gives no right. Who sees the application or system sees them, who may change it changes them. An application also shows the contacts of the services it belongs to, read only: an application can serve several services, so nothing is inherited. `/api/v1` and the CSV exports name them by name and role (`contacts`); `PUT /api/applications/{id}/contacts` and `PUT /api/systems/{id}/contacts` take the picker's links.
+
 ## Map platforms (integrations)
 
 On the application page, _Integrations → Map platform_, choose the platform and _Save_.

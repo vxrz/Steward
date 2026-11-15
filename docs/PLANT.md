@@ -48,7 +48,7 @@ The model follows two standards, so that a plant engineer finds the words they k
 
 ## Sites, hierarchy and buildings
 
-A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a description, a position (latitude, longitude, map zoom – shown as a link to OpenStreetMap), contacts, external references and own fields. Since 0.25.1 a site's contacts are contacts of the [contacts directory](CONTACTS.md) with a free-text role: the site form picks or creates them; the API, the import and export files and change sets keep the shape of before (name, role, e-mail, phone, URL), and an import matches a contact by e-mail address among the contacts the importer may see.
+A **site** has a code (short, unique, e.g. `RVS`), a name with translations, a description, a position (latitude, longitude, map zoom – shown as a link to OpenStreetMap), contacts, external references and own fields. Since 0.25.1 a site's contacts are contacts of the [contacts directory](CONTACTS.md): the site form picks or creates them; the API, the import and export files and change sets keep the shape of before (name, role, e-mail, phone, URL), and an import matches a contact by e-mail address among the contacts the importer may see. Since 0.26.0 their roles are roles of the [role catalogue](CONTACTS.md#roles) – the free-text roles of before became own roles at the upgrade, with the same texts – and the site form offers them in a picker. The API and the files show the role's label where the text was and take the text back (a role's key or label, letter case aside); a role that is in the catalogue for no site is refused with a hint – the import's preview names it – until an administrator adds it under _Settings → Contacts → Roles_.
 
 On the site page:
 
