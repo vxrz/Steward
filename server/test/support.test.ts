@@ -1,5 +1,6 @@
 import YAML from 'yaml';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { isSupportAddress, isSupportUrl } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
@@ -184,6 +185,22 @@ describe('channels, level and guides of a data product', () => {
     await s.api('PUT', `/owning-teams/data_product/${secret}`, { teamIds: [team] });
     expect(await refused(bert('GET', `/data-products/${secret}`))).toMatchObject({ status: 404 });
     expect(await refused(bert('PUT', `/data-products/${secret}/support`, { channels: [] }))).toMatchObject({ status: 404 });
+  });
+});
+
+describe('the address check', () => {
+  it('accepts the same addresses and takes linear time on a long one', () => {
+    for (const ok of ['https://data.example/help', 'http://intranet.example', 'mailto:desk@shop.example', 'tel:+49 9131 0000'])
+      expect(isSupportAddress(ok), ok).toBe(true);
+    for (const bad of ['https://', 'https:///x', 'https://a b', 'ftp://x.example', 'desk@shop.example']) expect(isSupportAddress(bad), bad).toBe(false);
+    expect(isSupportUrl('https://wiki.example/guide')).toBe(true);
+    expect(isSupportUrl('mailto:desk@shop.example')).toBe(false);
+    // one way to match each address: a long input that fails at its end is refused at once
+    const long = `http://${'!'.repeat(200_000)} x`;
+    const started = performance.now();
+    expect(isSupportAddress(long)).toBe(false);
+    expect(isSupportUrl(long)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(250);
   });
 });
 

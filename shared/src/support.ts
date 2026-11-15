@@ -47,9 +47,12 @@ export const SUPPORT_LIMITS = {
  * A channel's address: a web address (`https://`; `http://` is taken for internal pages), an e-mail address
  * (`mailto:`) or a telephone number (`tel:`).
  */
-export const SUPPORT_ADDRESS_RE = /^(?:https?:\/\/[^\s/?#]+\S*|mailto:[^\s@]+@[^\s@]+|tel:\+?[0-9][0-9 ()./-]{2,39})$/i;
-/** An external web address (guides, the SLA document). */
-export const SUPPORT_URL_RE = /^https?:\/\/[^\s/?#]+\S*$/i;
+export const SUPPORT_ADDRESS_RE = /^(?:https?:\/\/[^\s/?#]\S*|mailto:[^\s@]+@[^\s@]+|tel:\+?[0-9][0-9 ()./-]{2,39})$/i;
+/**
+ * An external web address (guides, the SLA document). The host's first character and then no white space: one way to
+ * match each address, so a long input takes linear time.
+ */
+export const SUPPORT_URL_RE = /^https?:\/\/[^\s/?#]\S*$/i;
 
 /** Whether an address is acceptable for a channel ('' is: a channel may have only a name). */
 export const isSupportAddress = (v: string): boolean => v === '' || SUPPORT_ADDRESS_RE.test(v.trim());
