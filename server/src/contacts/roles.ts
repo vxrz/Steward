@@ -14,6 +14,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser } from '../auth/context.js';
 import { me, requireAdmin } from '../auth/access.js';
+import { contactKind } from './registry.js';
 import { isAdmin } from '../auth/permissions.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 
@@ -45,6 +46,7 @@ interface RoleRow {
   built_in: number | boolean;
   active: number | boolean;
   position: number;
+  source: string;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -54,7 +56,7 @@ interface RoleRow {
 /** At most this many own roles (the catalogue is a short list people pick from). */
 export const OWN_ROLE_LIMIT = 300;
 
-let cached: { at: number; list: ContactRole[] } | null = null;
+let cached: { at: number; list: ContactRole[]; fromSiteText: Set<string> } | null = null;
 const KEEP_MS = 60_000;
 
 const LINK_KINDS = Object.keys(CONTACT_LINK_ROLES) as ContactLinkKind[];
@@ -94,9 +96,18 @@ export function roleCatalogue(now = Date.now()): ContactRole[] {
       .map((r) => fromRow(r))
       .sort((a, b) => a.labels.en.localeCompare(b.labels.en) || a.key.localeCompare(b.key)),
   ];
-  cached = { at: now, list };
+  cached = { at: now, list, fromSiteText: new Set(rows.filter((r) => r.source === SITE_TEXT).map((r) => r.key)) };
   return list;
 }
+
+/** `source` of a role the upgrade made from a plant site's free-text role. */
+const SITE_TEXT = 'plant_site_text';
+
+/** The roles the upgrade made from plant sites' free texts that no administrator has saved since. */
+const fromSiteText = (): Set<string> => {
+  roleCatalogue();
+  return cached?.fromSiteText ?? new Set();
+};
 
 /** Forgets the kept catalogue (tests, and after a change). */
 export function forgetRoleCatalogue(): void {
@@ -171,13 +182,29 @@ function usage(): Map<string, Partial<Record<ContactLinkKind, number>>> {
   return out;
 }
 
-/** GET /api/contact-roles – every signed-in person (the pickers); administrators also get each role's usage. */
+/**
+ * GET /api/contact-roles – every signed-in person (the pickers); administrators also get each role's usage. A role the
+ * upgrade made from a plant site's free-text role – text that was shown only to who saw the site – is listed for others
+ * only where they may see a site that names it (one statement and the sites' own visibility check), until an
+ * administrator saves it: nobody learns a hidden site's text from the catalogue.
+ */
 export function listRoles(): ContactRole[] {
   const u = me();
   const list = roleCatalogue();
-  if (!isAdmin(u)) return list;
-  const used = usage();
-  return list.map((r) => ({ ...r, usage: used.get(r.key) ?? {} }));
+  const texts = fromSiteText();
+  if (isAdmin(u)) {
+    const used = usage();
+    return list.map((r) => ({ ...r, usage: used.get(r.key) ?? {}, ...(texts.has(r.key) ? { fromSiteText: true } : {}) }));
+  }
+  if (!texts.size) return list;
+  const marks = [...texts].map(() => '?').join(', ');
+  const links = db().all<{ role: string; item_id: string }>(
+    `SELECT DISTINCT role, item_id FROM contact_links WHERE kind = 'plant_site' AND role IN (${marks})`,
+    ...texts,
+  );
+  const seen = contactKind('plant_site').visibleIds(u, [...new Set(links.map((l) => l.item_id))]);
+  const shown = new Set(links.filter((l) => seen.has(l.item_id)).map((l) => l.role));
+  return list.filter((r) => !texts.has(r.key) || shown.has(r.key));
 }
 
 // ---------- changing it (administrators) ----------
@@ -203,14 +230,14 @@ function refuseLabelClash(key: string, input: Parsed, kinds: readonly ContactLin
   }
 }
 
-function write(key: string, input: Parsed, opts: { builtIn: boolean; existing: RoleRow | undefined; position?: number }): void {
+function write(key: string, input: Parsed, opts: { builtIn: boolean; existing: RoleRow | undefined; position?: number; source?: string }): void {
   const u = currentUser();
   const actor = u?.username ?? 'system';
   const now = nowIso();
   if (opts.existing)
     db().run(
-      `UPDATE contact_roles SET label_en = ?, label_de = ?, description = ?, kinds = ?, cardinality = ?, expected = ?, active = ?, updated_at = ?, updated_by = ?
-        WHERE key = ?`,
+      `UPDATE contact_roles SET label_en = ?, label_de = ?, description = ?, kinds = ?, cardinality = ?, expected = ?, active = ?, source = '', updated_at = ?,
+        updated_by = ? WHERE key = ?`,
       input.labels.en,
       input.labels.de,
       input.description,
@@ -224,8 +251,8 @@ function write(key: string, input: Parsed, opts: { builtIn: boolean; existing: R
     );
   else
     db().run(
-      `INSERT INTO contact_roles (key, label_en, label_de, description, kinds, cardinality, expected, built_in, active, position, created_at, created_by, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO contact_roles (key, label_en, label_de, description, kinds, cardinality, expected, built_in, active, position, source, created_at, created_by,
+        updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       key,
       input.labels.en,
       input.labels.de,
@@ -236,6 +263,7 @@ function write(key: string, input: Parsed, opts: { builtIn: boolean; existing: R
       opts.builtIn ? 1 : 0,
       input.active ? 1 : 0,
       opts.position ?? 1000,
+      opts.source ?? '',
       now,
       actor,
       now,
@@ -352,14 +380,14 @@ export function deleteRole(rawKey: string): void {
  * An own role made by the upgrade (no administrator: as the system, audited by the caller as a whole): the text as its
  * English and German label, the given kinds.
  */
-export function insertUpgradeRole(label: string, kinds: readonly ContactLinkKind[], taken: Set<string>): string {
+export function insertUpgradeRole(label: string, kinds: readonly ContactLinkKind[], taken: Set<string>, opts: { fromSiteText?: boolean } = {}): string {
   const key = newRoleKey(label, taken);
   taken.add(key);
   const text = label.trim().slice(0, 200);
   write(
     key,
     { labels: { en: text, de: text }, description: '', kinds: [...kinds], cardinality: 'many', expected: false, active: true },
-    { builtIn: false, existing: undefined },
+    { builtIn: false, existing: undefined, source: opts.fromSiteText ? SITE_TEXT : '' },
   );
   return key;
 }

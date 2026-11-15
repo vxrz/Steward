@@ -203,6 +203,11 @@ export interface ContactRole {
   updatedBy: string;
   /** Administrators only: links per kind (a role in use cannot be deleted) */
   usage?: Partial<Record<ContactLinkKind, number>>;
+  /**
+   * Administrators only: made by the upgrade from a plant site's free-text role (0.26.0) – shown to others only where
+   * they see a site that names it, until an administrator saves it
+   */
+  fromSiteText?: boolean;
 }
 
 export const contactRoleInput = z

@@ -23,7 +23,9 @@ import type { NamedMigration } from '../db.js';
  *     kinds it applies to (JSON array of link kinds: switched on), one or many contacts per item (`cardinality`),
  *     `expected` (an item without one gets a hint), built-in (CONTACT_LINK_ROLES: never deleted or re-keyed, kinds only
  *     a part of their seed), active (switched off: no new links, existing ones stay and are marked), a position for
- *     the order and who made and changed it. The built-in roles – every role of before, keys and kinds unchanged, so
+ *     the order, where it came from (`source`: 'plant_site_text' for a role the upgrade made from a site's free text –
+ *     shown only to who sees a site that names it until an administrator saves it, '' otherwise) and who made and
+ *     changed it. The built-in roles – every role of before, keys and kinds unchanged, so
  *     no link changes, and the new ones of applications and systems – are part of the catalogue from the start
  *     (CONTACT_LINK_ROLES, BUILT_IN_CONTACT_ROLE_LABELS); a row of a built-in role holds what an administrator changed
  *     (no rows are inserted here: a new installation's tables stay empty, as a migration package's target needs them).
@@ -84,6 +86,7 @@ export const CONTACTS_MIGRATIONS: NamedMigration[] = [
         built_in INTEGER NOT NULL DEFAULT 0,
         active INTEGER NOT NULL DEFAULT 1,
         position INTEGER NOT NULL DEFAULT 1000,
+        source TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         created_by TEXT NOT NULL,
         updated_at TEXT NOT NULL,

@@ -59,7 +59,7 @@ export function convertPlantSiteRoles(): { roles: number; links: number } {
       const own = roleCatalogue().find(
         (r) => !r.builtIn && r.kinds.includes('plant_site') && (norm(r.labels.en) === n || (!!r.labels.de && norm(r.labels.de) === n)),
       );
-      const key = own?.key ?? insertUpgradeRole(label, ['plant_site'], taken);
+      const key = own?.key ?? insertUpgradeRole(label, ['plant_site'], taken, { fromSiteText: true });
       let count = 0;
       for (const v of variants) {
         // the same contact named on a site in two variants of the text: one link
