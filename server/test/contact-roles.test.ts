@@ -331,6 +331,9 @@ describe('applications and systems', () => {
     expect(await refusal(dana('PUT', `/systems/${sys}/contacts`, { contacts: [{ role: 'applicationManager', contactId: ids.ben }] }))).toMatchObject({
       code: 'CONTACT_ROLE_UNKNOWN',
     });
+    // a change of the item: who changed it last
+    expect((await s.api('PUT', `/systems/${sys}/contacts`, { contacts: [] })).updatedBy).toBe('admin');
+    expect((await s.api('PUT', `/applications/${own}/contacts`, { contacts: [] })).updatedBy).toBe('admin');
   });
 
   it('an application shows the contacts of the services it belongs to, read only, never inherited', async () => {
