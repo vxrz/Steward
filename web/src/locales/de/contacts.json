@@ -145,7 +145,9 @@
     "untilDate": "Bis {{date}}",
     "roleOff": "Rolle ausgeschaltet",
     "noRoles": "Für diese Art von Eintrag ist keine Kontaktrolle eingeschaltet. Administratoren legen Rollen unter Einstellungen → Kontakte → Rollen an.",
-    "oneTaken": "{{role}} hat einen Kontakt: Ein neuer wird als Vertretung von {{name}} hinzugefügt – ändern Sie das in seinen Details, oder geben Sie {{name}} ein Enddatum."
+    "oneTaken": "{{role}} hat einen Kontakt: Ein neuer wird als Vertretung von {{name}} hinzugefügt – ändern Sie das in seinen Details, oder geben Sie {{name}} ein Enddatum.",
+    "deputyNobody": "Niemand sonst ist hier als {{role}} genannt.",
+    "untilHint": "Der letzte Tag; danach erscheint der Kontakt als beendet."
   },
   "snapshot": {
     "label": "Entschieden von",

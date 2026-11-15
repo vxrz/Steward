@@ -2275,6 +2275,8 @@ export interface Resources {
     'picker.roleOff': string;
     'picker.noRoles': string;
     'picker.oneTaken': string;
+    'picker.deputyNobody': string;
+    'picker.untilHint': string;
     'snapshot.label': string;
     'snapshot.role': string;
     'snapshot.frozen': string;

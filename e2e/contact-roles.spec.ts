@@ -152,3 +152,48 @@ test.describe('business contacts of an application', () => {
     ]);
   });
 });
+
+test.describe('business contacts of a system', () => {
+  test.use({ storageState: authFile('dana') });
+
+  test('an expected role is hinted at; the focus moves into the picker and back; a refusal shows at the picker', async ({ page, apiAs }) => {
+    const admin = await apiAs('admin');
+    const dana = await apiAs('dana');
+    const label = uniq('Invented backup owner');
+    const role = await json(await admin.post('/api/contact-roles', { data: { labels: { en: label }, kinds: ['system'], expected: true } }));
+    const sys = await json(await admin.post('/api/systems', { data: { name: uniq('E2E Invented roles system'), kind: 'server', owners: [] } }));
+    const person = uniq('Invented Rhea');
+    await json(await dana.post('/api/contacts', { data: { name: person, email: `${person.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@invented.example` } }));
+    try {
+      await page.goto(`/systems/${sys.id}`);
+      const section = page.getByTestId('system-contacts');
+      // the hint names the expected role, in a colour readable on the page (axe checks the contrast)
+      await expect(section.getByTestId('contacts-expected')).toContainText(`Expected, but nobody is named: ${label}`);
+      await expectAccessible(page, 'contacts: an expected role without a contact');
+
+      // Edit puts the focus into the picker; Cancel gives it back to Edit
+      await section.getByTestId('system-contacts-edit').click();
+      const picker = section.getByTestId('system-contacts-picker');
+      await expect(picker.getByTestId('system-contacts-picker-role')).toBeFocused();
+      await section.getByRole('button', { name: 'Cancel' }).click();
+      await expect(section.getByTestId('system-contacts-edit')).toBeFocused();
+
+      // the role is switched off while the picker is open: the refusal is shown at the picker, not as a passing notice
+      await section.getByTestId('system-contacts-edit').click();
+      await picker.getByTestId('system-contacts-picker-role').click();
+      await page.getByRole('option', { name: label }).click();
+      await picker.getByTestId('system-contacts-picker-search').fill(person);
+      await page.getByRole('option', { name: person }).click();
+      await json(
+        await admin.put(`/api/contact-roles/${role.key}`, {
+          data: { labels: role.labels, description: role.description, kinds: role.kinds, cardinality: role.cardinality, expected: true, active: false },
+        }),
+      );
+      await section.getByTestId('system-contacts-save').click();
+      await expect(picker.getByRole('alert')).toContainText('is switched off here');
+      await expect(picker).toBeVisible();
+    } finally {
+      await admin.delete(`/api/contact-roles/${role.key}`);
+    }
+  });
+});

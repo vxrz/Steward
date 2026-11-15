@@ -3,7 +3,8 @@ import { Button, Group, Stack, Text } from '@mantine/core';
 import { IconEdit } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ContactLink, ContactLinkInput, ContactLinkKind } from '@sm/shared';
-import { notifyError, notifyOk } from '../../api';
+import { notifyOk } from '../../api';
+import { errorText } from '../../i18n/errors';
 import { CollapsibleSection } from '../page/CollapsibleSection';
 import { ContactLinksView, ContactPicker, ExpectedRolesHint, fromLinks, sameContacts, toLinkInputs, type ContactPickerValue } from './ContactPicker';
 
@@ -34,18 +35,30 @@ export function ItemContactsSection({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<ContactPickerValue[]>([]);
   const [saving, setSaving] = useState(false);
+  // the server's refusal, shown at the picker (a role switched off, a second contact in a role of one, a bad deputy)
+  const [error, setError] = useState<string | undefined>();
+  const focus = (selector: string) => requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus());
   const start = () => {
     setValue(fromLinks(contacts));
+    setError(undefined);
     setEditing(true);
+    // into the picker: its role, else (no role to choose) its search
+    focus(`[data-testid="${id}-picker-role"]:not(:disabled), [data-testid="${id}-picker-search"]`);
+  };
+  /** Back to reading: the focus returns to Edit (the buttons that had it are gone). */
+  const stop = () => {
+    setEditing(false);
+    setError(undefined);
+    focus(`[data-testid="${id}-edit"]`);
   };
   const save = async () => {
     setSaving(true);
     try {
       await onSave(toLinkInputs(value));
-      setEditing(false);
+      stop();
       notifyOk(t('section.saved'));
     } catch (e) {
-      notifyError(e);
+      setError(errorText(e));
     } finally {
       setSaving(false);
     }
@@ -72,9 +85,19 @@ export function ItemContactsSection({
         </Text>
         {editing ? (
           <>
-            <ContactPicker kind={kind} label={t('section.title')} value={value} onChange={setValue} testId={`${id}-picker`} />
+            <ContactPicker
+              kind={kind}
+              label={t('section.title')}
+              value={value}
+              onChange={(v) => {
+                setValue(v);
+                setError(undefined);
+              }}
+              error={error}
+              testId={`${id}-picker`}
+            />
             <Group gap="xs" justify="flex-end">
-              <Button variant="default" size="xs" onClick={() => setEditing(false)} disabled={saving}>
+              <Button variant="default" size="xs" onClick={stop} disabled={saving}>
                 {t('section.cancel')}
               </Button>
               <Button size="xs" onClick={save} loading={saving} disabled={sameContacts(value, fromLinks(contacts))} data-testid={`${id}-save`}>
