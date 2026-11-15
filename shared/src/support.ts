@@ -77,7 +77,9 @@ export const supportChannelInput = z
     note: text(SUPPORT_LIMITS.note).default(''),
   })
   .strict()
-  .refine((c) => !!(c.name || c.address), { message: 'Give the channel a name or an address', path: ['address'] });
+  // a name or an address; hours alone are taken too – the upgrade made such a channel of a product's support hours of
+  // before 0.26.0 (0.25 took hours without a channel), and the file format and the API must take back what they give
+  .refine((c) => !!(c.name || c.address || c.hours), { message: 'Give the channel a name or an address', path: ['address'] });
 export type SupportChannelInput = z.input<typeof supportChannelInput>;
 
 export const guideInput = z

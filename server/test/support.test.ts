@@ -416,6 +416,8 @@ describe('the upgrade', () => {
     row('dp_upg1', 'upg-mail', JSON.stringify({ channel: 'Data desk', url: 'mailto:desk@shop.example', hours: '8–17' }), 1);
     row('dp_upg2', 'upg-wiki', JSON.stringify({ channel: '#data', url: 'https://wiki.example/data', hours: '' }), 3);
     row('dp_upg3', 'upg-none', '{}', null);
+    // 0.25 took support hours without a channel
+    row('dp_upg4', 'upg-hours', JSON.stringify({ channel: '', url: '', hours: '24×7' }), null);
     runAs(null, () => convertSupport());
     forgetLevels();
     const read = async (id: string) => s.api('GET', `/data-products/${id}`);
@@ -433,12 +435,24 @@ describe('the upgrade', () => {
     expect(two).toMatchObject({ tier: 3, supportLevel: { nameEn: 'Tier 3', nameDe: 'Stufe 3' } });
     expect((await read('dp_upg3')).supportChannels).toEqual([]);
     const converted = await audits('dataproduct.support_converted');
-    expect(converted).toHaveLength(2);
+    expect(converted).toHaveLength(3);
+    // a channel of the hours alone: the API and the file format take back what they give
+    const hours = await read('dp_upg4');
+    expect(hours.supportChannels).toEqual([expect.objectContaining({ name: '', address: '', hours: '24×7' })]);
+    await s.api('PUT', '/data-products/dp_upg4/support', { channels: hours.supportChannels.map(({ id: _i, ...c }: { id: string }) => c), guides: [] });
+    const file = YAML.parse((await s.api('GET', '/data-products/dp_upg4/export')) as string);
+    const entry = file.data_product ?? file.data_products[0];
+    const files = [{ name: 'hours.data-products.yaml', content: YAML.stringify({ ...file, data_product: { ...entry, key: 'upg-hours-copy', name: 'Hours copy', lifecycle: 'draft' } }) }];
+    const pv = await s.api('POST', '/data-products/import/preview', { files, mode: 'update' });
+    expect(pv.problems, JSON.stringify(pv.problems)).toEqual([]);
+    await s.api('POST', '/data-products/import', { files, mode: 'update', fingerprint: pv.fingerprint });
+    const copy = (await s.api('GET', '/data-products?q=upg-hours-copy')) as { items: { id: string }[] };
+    expect((await read(copy.items[0]!.id)).supportChannels).toEqual([expect.objectContaining({ name: '', address: '', hours: '24×7' })]);
     expect(db().get<{ support: string; tier: null }>("SELECT support, tier FROM dp_products WHERE id = 'dp_upg1'")).toEqual({ support: '{}', tier: null });
     // a second run changes nothing; the example levels are not made again
     const levels = (await s.api('GET', '/support/levels')).length;
     runAs(null, () => convertSupport());
-    expect(await audits('dataproduct.support_converted')).toHaveLength(2);
+    expect(await audits('dataproduct.support_converted')).toHaveLength(3);
     expect((await s.api('GET', '/support/levels')).length).toBe(levels);
     expect((await read('dp_upg1')).supportChannels).toHaveLength(1);
   });

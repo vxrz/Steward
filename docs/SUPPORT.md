@@ -17,7 +17,7 @@ A channel is a shared place to go:
 | **Hours**   | When it is staffed: the incident queue may run 24×7, the mailbox business hours                        |
 | **Note**    | The queue, category or assignment group to use                                                         |
 
-A channel needs a name or an address. An item has at most 20, in the order you give them – put the one people should try first at the top.
+A channel needs a name or an address (the upgrade's channel of a product that had only support hours has only its hours: the editor asks for a name when it is changed). An item has at most 20, in the order you give them – put the one people should try first at the top.
 
 **Channels name shared addresses, not people.** A team mailbox, a ticket queue, a Teams channel – never someone's own address: people change jobs and go on holiday. People are [contacts](CONTACTS.md); the editor says so.
 
