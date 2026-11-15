@@ -591,6 +591,8 @@ export const SETTINGS_MOVED = [
   'compliance.corrective',
   // 0.25.1 (ADR 0038 part 4): four eyes for port access reviews
   'modules.dataProducts.governance',
+  // 0.26.0 (ADR 0039 part 8): the example support levels were made once (removed ones do not come back)
+  'support.examplesSeeded',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

@@ -79,4 +79,4 @@ Until 0.25 a data product had one free-text _Channel_, a web address and _Hours_
 
 ## Storage
 
-`support_levels` (the catalogue), `support_channels` and `guides` (polymorphic: kind and item, with their position), `support_level_id` on data products, services and applications, and `supported_by_service_id` on data products – migration `support-001-channels-levels`. They are part of backups and migration packages; a deleted data product's channels and guides go with it (services and applications are archived, never deleted).
+`support_levels` (the catalogue), `support_channels` and `guides` (polymorphic: kind and item, with their position), `support_level_id` on data products, services and applications, and `supported_by_service_id` on data products – migration `support-001-channels-levels`. They are part of backups and migration packages – a new instance's untouched example levels give way to the package's levels, and a package from before 0.26.0 is upgraded after the import as described above; a deleted data product's channels and guides go with it (services and applications are archived, never deleted).

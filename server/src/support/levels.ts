@@ -245,3 +245,25 @@ export function levelOfTier(tier: number): LevelRow {
     'made from the support tier, for administrators to rename or merge',
   );
 }
+
+/**
+ * The example levels of a new installation, as made (by the system, never changed, made from no tier). A migration
+ * package is imported into a new instance: these are no data of it – the package's levels replace them.
+ */
+const EXAMPLE_WHERE = "created_by = 'system' AND updated_by = 'system' AND updated_at = created_at AND legacy_tier IS NULL";
+
+/** Whether the catalogue holds nothing but the untouched examples (or nothing). */
+export function onlyExampleLevels(): boolean {
+  return !db().get(`SELECT 1 FROM support_levels WHERE NOT (${EXAMPLE_WHERE})`);
+}
+
+/**
+ * Before a migration package is imported: the untouched examples go, and so does the note that they were made – the
+ * package's levels come instead, and a package from before 0.26.0 is upgraded after the import as that instance would
+ * have been (examples only without levels and tiers).
+ */
+export function dropExampleLevels(seededKey: string): void {
+  db().run(`DELETE FROM support_levels WHERE ${EXAMPLE_WHERE}`);
+  db().run('DELETE FROM settings WHERE key = ?', seededKey);
+  forgetLevels();
+}
