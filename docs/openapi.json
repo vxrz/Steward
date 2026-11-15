@@ -44495,6 +44495,7 @@
                     "additionalProperties": false
                   },
                   "channels": {
+                    "maxItems": 20,
                     "type": "array",
                     "items": {
                       "type": "object",
