@@ -177,7 +177,7 @@ export const dataProductInput = z
     support: z
       .object({
         channel: text(L.short).default(''),
-        url: z.union([z.string().trim().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).default(''),
+        url: z.union([z.string().trim().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https:// (or http://), mailto: or tel: address'), z.literal('')]).default(''),
         hours: text(L.short).default(''),
       })
       .strict()

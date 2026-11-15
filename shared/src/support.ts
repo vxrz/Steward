@@ -5,7 +5,7 @@ import { z } from 'zod';
  * data product and the users of a service or application ask, report a problem and find documentation, and what support
  * the providing team promises. Documentation – Steward is not a help desk and does not measure a level.
  *
- * - A **channel** has a purpose, a tool, a name, an address (`https://`, `mailto:`, `tel:`), hours and a note (the
+ * - A **channel** has a purpose, a tool, a name, an address (`https://` – `http://` for internal pages –, `mailto:`, `tel:`), hours and a note (the
  *   queue or assignment group to use). Channels name shared addresses, not people: people are contacts (ADR 0038).
  * - A **support level** is an entry of the administrators' catalogue (_Settings → Support levels_): a name in English
  *   and German, hours, one first-response time as text, a note and optionally the address of the SLA document. An item
@@ -72,7 +72,7 @@ export const supportChannelInput = z
     purpose: z.enum(SUPPORT_PURPOSES),
     tool: z.enum(SUPPORT_TOOLS),
     name: text(SUPPORT_LIMITS.name).default(''),
-    address: text(SUPPORT_LIMITS.address).refine(isSupportAddress, 'an https://, mailto: or tel: address').default(''),
+    address: text(SUPPORT_LIMITS.address).refine(isSupportAddress, 'an https:// (or http://), mailto: or tel: address').default(''),
     hours: text(SUPPORT_LIMITS.hours).default(''),
     note: text(SUPPORT_LIMITS.note).default(''),
   })

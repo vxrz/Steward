@@ -45,7 +45,7 @@ Support becomes **a list of channels** on data products, services and applicatio
 
 - **Purpose:** questions, issues and incidents, announcements, access and onboarding.
 - **Tool:** ticket system, e-mail, Microsoft Teams, Slack, web page, phone, other.
-- **Name, address** (`https://`, `mailto:`, `tel:`), **hours** (per channel – the incident queue may run 24×7, the mailbox business hours) and a **note** (the queue, category or assignment group to use).
+- **Name, address** (`https://` – also `http://`, for internal pages –, `mailto:`, `tel:`), **hours** (per channel – the incident queue may run 24×7, the mailbox business hours) and a **note** (the queue, category or assignment group to use).
 - Channels name shared addresses, not people; the form says so. People are contacts.
 - A **data product can name the service that supports it**: it then shows that service's channels and support level, marked as such, unless it names its own.
 

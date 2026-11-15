@@ -422,7 +422,7 @@ const supportChannelSchema = z
     purpose: z.enum(SUPPORT_PURPOSES),
     tool: z.enum(SUPPORT_TOOLS).optional(),
     name: text(SL.name).optional(),
-    address: z.union([z.string().max(SL.address).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).optional(),
+    address: z.union([z.string().max(SL.address).regex(SUPPORT_ADDRESS_RE, 'an https:// (or http://), mailto: or tel: address'), z.literal('')]).optional(),
     hours: text(SL.hours).optional(),
     note: text(SL.note).optional(),
   })
@@ -443,7 +443,7 @@ export const productFileSchema = z
     support: z
       .object({
         channel: text(L.short).optional(),
-        url: z.union([z.string().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https://, mailto: or tel: address'), z.literal('')]).optional(),
+        url: z.union([z.string().max(L.url).regex(SUPPORT_ADDRESS_RE, 'an https:// (or http://), mailto: or tel: address'), z.literal('')]).optional(),
         hours: text(L.short).optional(),
       })
       .strict()
