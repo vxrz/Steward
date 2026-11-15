@@ -1660,6 +1660,7 @@
     "CONTACT_ROLE_BUILT_IN": "Eingebaute Rollen behalten ihren Schlüssel und ihre Arten und werden nicht gelöscht: Schalten Sie sie stattdessen aus.",
     "CONTACT_ROLE_IN_USE": "„{{role}}“ wird verwendet ({{count}} Verknüpfungen). Schalten Sie sie stattdessen aus.",
     "CONTACT_ROLE_KINDS": "Eine Rolle gilt für mindestens eine Art von Eintrag.",
+    "CONTACT_ROLE_OWN_KINDS": "Eigene Rollen gelten nicht für Lieferanten: Die Kontakte eines Lieferanten behalten die Lieferantenrollen mit ihrem Geltungsbereich und ihrer Notiz.",
     "CONTACT_ROLE_LIMIT_REACHED": "Höchstens {{max}} eigene Kontaktrollen.",
     "FORBIDDEN_createContacts": "Sie dürfen hier keine Kontakte anlegen. Fügen Sie sie stattdessen beim Element hinzu.",
     "FORBIDDEN_changeContact": "Sie dürfen diesen Kontakt nicht ändern: Das darf, wer ein Element ändern darf, mit dem er verknüpft ist.",

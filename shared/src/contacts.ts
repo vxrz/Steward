@@ -45,6 +45,11 @@ export const CONTACT_LINK_ROLES = {
 
 export type ContactLinkKind = keyof typeof CONTACT_LINK_ROLES;
 export const CONTACT_LINK_KINDS = Object.keys(CONTACT_LINK_ROLES) as ContactLinkKind[];
+/**
+ * The kinds own roles of the role catalogue may apply to (0.26.0, ADR 0039): every kind but suppliers, whose contact
+ * entries keep the supplier roles with their scope and note (ADR 0031).
+ */
+export const OWN_ROLE_KINDS: readonly ContactLinkKind[] = CONTACT_LINK_KINDS.filter((k) => k !== 'supplier');
 
 /**
  * What may leave the app for a link kind: `app` – shown in the app only (never in /api/v1, MCP, datasets or exports;

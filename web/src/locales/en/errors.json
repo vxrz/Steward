@@ -1660,6 +1660,7 @@
     "CONTACT_ROLE_BUILT_IN": "Built-in roles keep their key and their kinds and are not deleted: switch them off instead.",
     "CONTACT_ROLE_IN_USE": "“{{role}}” is in use ({{count}} links). Switch it off instead.",
     "CONTACT_ROLE_KINDS": "A role applies to at least one kind of item.",
+    "CONTACT_ROLE_OWN_KINDS": "Own roles do not apply to suppliers: a supplier's contacts keep the supplier roles with their scope and note.",
     "CONTACT_ROLE_LIMIT_REACHED": "At most {{max}} own contact roles.",
     "FORBIDDEN_createContacts": "You are not allowed to create contacts here. Add them on the item instead.",
     "FORBIDDEN_changeContact": "You are not allowed to change this contact: that takes who may change an item it is linked to.",

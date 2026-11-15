@@ -20,7 +20,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CONTACT_LIMITS, CONTACT_LINK_KINDS, type ContactLinkKind, type ContactRole, type ContactRoleCardinality } from '@sm/shared';
+import { CONTACT_LIMITS, OWN_ROLE_KINDS, type ContactLinkKind, type ContactRole, type ContactRoleCardinality } from '@sm/shared';
 import { ApiError, del, notifyError, notifyOk, post, put } from '../../api';
 import { errorText } from '../../i18n/errors';
 import { focusRowControl } from '../../focusReturn';
@@ -225,7 +225,7 @@ function RoleForm({ role, onClose, onSaved }: { role?: ContactRole; onClose: () 
   // what the server refused, shown at its field until that field changes
   const [server, setServer] = useState<Partial<Record<'key' | 'en' | 'de' | 'kinds', string>>>({});
   const clear = (f: 'key' | 'en' | 'de' | 'kinds') => setServer(({ [f]: _gone, ...rest }) => rest);
-  const offered = role?.builtIn ? (role.builtInKinds ?? role.kinds) : CONTACT_LINK_KINDS;
+  const offered = role?.builtIn ? (role.builtInKinds ?? role.kinds) : OWN_ROLE_KINDS;
   const v = useFieldErrors({
     key: !role && !!key.trim() && !KEY_RE.test(key.trim()) && t('common:validation.invalid'),
     en: !en.trim() && t('common:validation.required'),
@@ -373,7 +373,8 @@ function RoleForm({ role, onClose, onSaved }: { role?: ContactRole; onClose: () 
 function refusedField(e: unknown, en: string, de: string): 'key' | 'en' | 'de' | 'kinds' | null {
   if (!(e instanceof ApiError)) return null;
   if (e.code === 'CONTACT_ROLE_TAKEN') return 'key';
-  if (e.code === 'CONTACT_ROLE_KINDS' || (e.code === 'CONTACT_ROLE_BUILT_IN' && e.params?.context === 'kinds')) return 'kinds';
+  if (e.code === 'CONTACT_ROLE_KINDS' || e.code === 'CONTACT_ROLE_OWN_KINDS' || (e.code === 'CONTACT_ROLE_BUILT_IN' && e.params?.context === 'kinds'))
+    return 'kinds';
   if (e.code === 'CONTACT_ROLE_LABEL_TAKEN') {
     const label = String(e.params?.label ?? '')
       .trim()

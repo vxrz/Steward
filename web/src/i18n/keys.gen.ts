@@ -9510,6 +9510,7 @@ export interface Resources {
     'codes.CONTACT_ROLE_BUILT_IN': string;
     'codes.CONTACT_ROLE_IN_USE': string;
     'codes.CONTACT_ROLE_KINDS': string;
+    'codes.CONTACT_ROLE_OWN_KINDS': string;
     'codes.CONTACT_ROLE_LIMIT_REACHED': string;
     'codes.FORBIDDEN_createContacts': string;
     'codes.FORBIDDEN_changeContact': string;

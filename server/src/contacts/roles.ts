@@ -1,5 +1,6 @@
 import {
   CONTACT_LINK_ROLES,
+  OWN_ROLE_KINDS,
   builtInContactRoles,
   contactRoleInput,
   contactRoleKey,
@@ -216,6 +217,12 @@ const notFound = (key: string): never => {
 type Parsed = ReturnType<typeof contactRoleInput.parse>;
 
 /** Two roles of one kind must not share a label: a role text of a file or an import would be ambiguous. */
+/** Own roles apply to every kind but suppliers (OWN_ROLE_KINDS): a supplier's contact entries keep the supplier roles. */
+function refuseOwnKinds(kinds: readonly ContactLinkKind[]): void {
+  const refused = kinds.filter((k) => !OWN_ROLE_KINDS.includes(k));
+  if (refused.length) throw new HttpError(400, `Own roles do not apply to ${refused.join(', ')}`, 'CONTACT_ROLE_OWN_KINDS', { kinds: refused.join(', ') });
+}
+
 function refuseLabelClash(key: string, input: Parsed, kinds: readonly ContactLinkKind[]): void {
   const mine = [input.labels.en, input.labels.de].filter(Boolean).map(norm);
   for (const r of roleCatalogue()) {
@@ -288,6 +295,7 @@ export function createRole(body: unknown): ContactRole {
   const input = contactRoleInput.parse(body);
   const kinds = [...new Set(input.kinds)];
   if (!kinds.length) throw new HttpError(400, 'A role applies to at least one kind of item', 'CONTACT_ROLE_KINDS');
+  refuseOwnKinds(kinds);
   const key = input.key ? contactRoleKey.parse(input.key) : newRoleKey(input.labels.en);
   if (roleCatalogue().some((r) => r.key.toLowerCase() === key.toLowerCase()))
     throw new HttpError(409, `The key "${key}" is taken`, 'CONTACT_ROLE_TAKEN', { key });
@@ -326,7 +334,10 @@ export function updateRole(rawKey: string, body: unknown): ContactRole {
     const extra = kinds.filter((k) => !current.builtInKinds!.includes(k));
     if (extra.length)
       throw new HttpError(409, `The built-in role "${current.labels.en}" applies only to its own kinds`, 'CONTACT_ROLE_BUILT_IN', { key, context: 'kinds' });
-  } else if (!kinds.length) throw new HttpError(400, 'A role applies to at least one kind of item', 'CONTACT_ROLE_KINDS');
+  } else {
+    if (!kinds.length) throw new HttpError(400, 'A role applies to at least one kind of item', 'CONTACT_ROLE_KINDS');
+    refuseOwnKinds(kinds);
+  }
   const parsed = { ...input, kinds };
   refuseLabelClash(key, parsed, kinds);
   const existing = db().get<RoleRow>('SELECT * FROM contact_roles WHERE key = ?', key);

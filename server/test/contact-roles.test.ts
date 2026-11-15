@@ -128,8 +128,17 @@ describe('the role catalogue', () => {
       code: 'CONTACT_ROLE_LABEL_TAKEN',
     });
     expect(await refusal(s.api('POST', '/contact-roles', { labels: { en: 'Nothing' }, kinds: [] }))).toEqual({ status: 400, code: 'CONTACT_ROLE_KINDS' });
+    // suppliers keep the supplier roles (their entries carry scope and note): an own role never applies to them
+    expect(await refusal(s.api('POST', '/contact-roles', { labels: { en: 'Key account' }, kinds: ['supplier', 'service'] }))).toEqual({
+      status: 400,
+      code: 'CONTACT_ROLE_OWN_KINDS',
+    });
     const lead = await s.api('POST', '/contact-roles', { labels: { en: 'Technical lead' }, kinds: ['application', 'data_product'], cardinality: 'one' });
     expect(lead.key).toBe('technicalLead');
+    expect(await refusal(s.api('PUT', '/contact-roles/technicalLead', { labels: { en: 'Technical lead' }, kinds: ['application', 'supplier'] }))).toEqual({
+      status: 400,
+      code: 'CONTACT_ROLE_OWN_KINDS',
+    });
     const audit = await s.api('GET', '/audit?action=contact.role_created&limit=5');
     expect(audit.map((e: { entityId: string }) => e.entityId)).toEqual(expect.arrayContaining(['domainArchitect', 'technicalLead']));
   });
