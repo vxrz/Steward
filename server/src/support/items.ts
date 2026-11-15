@@ -105,6 +105,47 @@ export function guidesOf(items: { kind: SupportItemKind; id: string }[]): Map<st
   return new Map([...rowsOf<GuideRow>('guides', items)].map(([k, rows]) => [k, rows.map((r) => ({ id: r.id, title: r.title, url: r.url }))]));
 }
 
+/** `(kind = ? AND item_id IN (…)) OR …` over items of several kinds, with its parameters. */
+function itemsWhere(items: { kind: string; id: string }[]): { sql: string; params: string[] } {
+  const byKind = new Map<string, Set<string>>();
+  for (const i of items) byKind.set(i.kind, (byKind.get(i.kind) ?? new Set()).add(i.id));
+  const parts = [...byKind].map(([kind, ids]) => ({ kind, ids: [...ids] }));
+  return {
+    sql: parts.map((p) => `(kind = ? AND item_id IN (${marks(p.ids.length)}))`).join(' OR '),
+    params: parts.flatMap((p) => [p.kind, ...p.ids]),
+  };
+}
+
+/**
+ * Channels and guides together – one statement for an item's page (the product page keeps its budget of statements);
+ * many items (more than one chunk) are read with one statement per kind of fact and chunk instead.
+ */
+function channelsAndGuidesOf(
+  channelItems: { kind: SupportItemKind; id: string }[],
+  guideItems: { kind: SupportItemKind; id: string }[],
+): { channels: Map<string, SupportChannel[]>; guides: Map<string, Guide[]> } {
+  if (!channelItems.length || !guideItems.length || channelItems.length + guideItems.length > CHUNK)
+    return { channels: channelsOf(channelItems), guides: guidesOf(guideItems) };
+  const c = itemsWhere(channelItems);
+  const g = itemsWhere(guideItems);
+  const rows = db().all<ChannelRow & { src: string; title: string; url: string }>(
+    `SELECT 'c' AS src, id, kind, item_id, purpose, tool, name, address, hours, note, '' AS title, '' AS url, position FROM support_channels WHERE ${c.sql}
+     UNION ALL
+     SELECT 'g' AS src, id, kind, item_id, '' AS purpose, '' AS tool, '' AS name, '' AS address, '' AS hours, '' AS note, title, url, position FROM guides WHERE ${g.sql}
+     ORDER BY position, id`,
+    ...c.params,
+    ...g.params,
+  );
+  const channels = new Map<string, SupportChannel[]>();
+  const guides = new Map<string, Guide[]>();
+  for (const r of rows) {
+    const k = keyOf(r.kind, r.item_id);
+    if (r.src === 'c') channels.set(k, [...(channels.get(k) ?? []), channelOf(r)]);
+    else guides.set(k, [...(guides.get(k) ?? []), { id: r.id, title: r.title, url: r.url }]);
+  }
+  return { channels, guides };
+}
+
 /** The level an item picks, as it shows it (null: none, or one removed meanwhile). */
 export const levelOf = (id: string | null | undefined): SupportLevelRef | null => {
   const r = levelRow(id);
@@ -148,8 +189,10 @@ export function supportOf(
   opts: { guides?: boolean } = {},
 ): Map<string, ItemSupport> {
   const services = kind === 'data_product' ? visibleServices(items.map((i) => i.serviceId)) : new Map<string, ServiceRow>();
-  const channels = channelsOf([...items.map((i) => ({ kind, id: i.id })), ...[...services.keys()].map((id) => ({ kind: 'service' as const, id }))]);
-  const guides = opts.guides ? guidesOf(items.map((i) => ({ kind, id: i.id }))) : new Map<string, Guide[]>();
+  const { channels, guides } = channelsAndGuidesOf(
+    [...items.map((i) => ({ kind, id: i.id })), ...[...services.keys()].map((id) => ({ kind: 'service' as const, id }))],
+    opts.guides ? items.map((i) => ({ kind, id: i.id })) : [],
+  );
   const out = new Map<string, ItemSupport>();
   for (const i of items) {
     const svc = i.serviceId ? services.get(i.serviceId) : undefined;
