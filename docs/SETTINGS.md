@@ -23,6 +23,7 @@ Each area has a stable address. On a phone the list of areas folds behind _Area:
 | Notifications          | `/settings/notifications` | channels, routes and allowed e-mail domains; look of e-mails and Teams messages; daily summaries; credential reminders                                                               |
 | Appearance & branding  | `/settings/appearance`    | colours, name and logo of the app; report branding                                                                                                                                   |
 | Catalogue & compliance | `/settings/catalogue`     | four-eyes rule for dismissing access findings; CIA scale; expected documents (scorecard rules); environments                                                                         |
+| Support levels         | `/settings/support`       | what providing teams promise – hours, first response, SLA document – picked by data products, services and applications ([SUPPORT.md](SUPPORT.md))                                   |
 | Modules                | `/settings/modules`       | optional areas with their maturity, each switched on or off ([MODULES.md](MODULES.md)); the plant registry – switch, enterprise, display names, own fields ([PLANT.md](PLANT.md))    |
 | Data & retention       | `/settings/data`          | data retention and storage, cleanup; backups (`/settings/backups`); system status (`/settings/status`). Called _Maintenance_ until 0.3.0: `/settings/maintenance` leads here         |
 
@@ -74,6 +75,7 @@ Where a personal value has a default, the profile says where it comes from:
 | Daily summaries allowed (for everyone), credential reminders                       | instance        | administrators                                  | _Settings → Notifications_                   |
 | Colours, name and logo of the app; report branding                                 | instance        | administrators                                  | _Settings → Appearance & branding_           |
 | Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_          |
+| Support levels (0.26.0)                                                            | instance        | administrators                                  | _Settings → Support levels_                  |
 | Modules: on/off (step-up)                                                          | instance        | administrators                                  | _Settings → Modules_                         |
 | Plant registry: on/off, enterprise, display names, own fields                      | instance        | administrators                                  | _Settings → Modules_                         |
 | Data retention and storage, backups, exports, system status                        | instance        | administrators (system status: auditors see it) | _Settings → Maintenance_                     |
