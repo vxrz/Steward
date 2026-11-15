@@ -85,7 +85,7 @@ export type SupportChannelInput = z.input<typeof supportChannelInput>;
 export const guideInput = z
   .object({
     title: z.string().trim().min(1).max(SUPPORT_LIMITS.title),
-    url: text(SUPPORT_LIMITS.url).refine(isSupportUrl, 'an https:// address'),
+    url: text(SUPPORT_LIMITS.url).refine(isSupportUrl, 'an https:// (or http://) address'),
   })
   .strict();
 export type GuideInput = z.input<typeof guideInput>;
@@ -111,7 +111,7 @@ export const supportLevelInput = z
     hours: text(SUPPORT_LIMITS.hours).default(''),
     firstResponse: text(SUPPORT_LIMITS.firstResponse).default(''),
     note: text(SUPPORT_LIMITS.levelNote).default(''),
-    slaUrl: z.union([text(SUPPORT_LIMITS.url).refine(isSupportUrl, 'an https:// address'), z.literal('')]).default(''),
+    slaUrl: z.union([text(SUPPORT_LIMITS.url).refine(isSupportUrl, 'an https:// (or http://) address'), z.literal('')]).default(''),
   })
   .strict();
 export type SupportLevelInput = z.input<typeof supportLevelInput>;
