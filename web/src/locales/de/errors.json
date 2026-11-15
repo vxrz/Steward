@@ -1665,7 +1665,7 @@
     "FORBIDDEN_changeContact": "Sie dürfen diesen Kontakt nicht ändern: Das darf, wer ein Element ändern darf, mit dem er verknüpft ist.",
     "FORBIDDEN_eraseContact": "Nur Administratoren löschen Kontakte.",
     "FORBIDDEN_manageContacts": "Nur Administratoren sehen mögliche Dubletten.",
-    "SUPPORT_LEVEL_NOT_FOUND": "Support-Level {{id}} nicht gefunden – es wurde vielleicht inzwischen entfernt. Wählen Sie ein anderes.",
+    "SUPPORT_LEVEL_NOT_FOUND": "Das Support-Level „{{id}}“ gibt es nicht (mehr). Administratoren legen Support-Level unter Einstellungen → Support-Level an.",
     "SUPPORT_LEVEL_EXISTS": "Ein Support-Level namens {{name}} gibt es bereits.",
     "SUPPORT_LIMIT": "Grenze erreicht: höchstens {{max}} Support-Level.",
     "SUPPORT_LEVEL_ORDER": "Nennen Sie jedes Support-Level genau einmal, um sie zu ordnen.",

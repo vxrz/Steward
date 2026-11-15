@@ -19009,6 +19009,8 @@ export interface Resources {
     'channels.remove': string;
     'channels.hint': string;
     'channels.max': string;
+    'channels.removed': string;
+    'channels.moved': string;
     'purposes.questions': string;
     'purposes.issues': string;
     'purposes.announcements': string;
@@ -19042,6 +19044,7 @@ export interface Resources {
     'fields.guideUrl': string;
     'fields.urlInvalid': string;
     'fields.serverInvalid': string;
+    'fields.levelGone': string;
     'level.title': string;
     'level.none': string;
     'level.fromService': string;
@@ -19058,6 +19061,8 @@ export interface Resources {
     'guides.moveDown': string;
     'guides.remove': string;
     'guides.opensNewTab': string;
+    'guides.removed': string;
+    'guides.moved': string;
     notSaved: string;
     'levels.title': string;
     'levels.description': string;
@@ -19091,15 +19096,15 @@ export interface Resources {
     'levels.saved': string;
     'levels.removed': string;
     'levels.readOnly': string;
+    'levels.name': string;
+    'levels.moved': string;
+    saved: string;
   };
   system: {
     'theme.title': string;
     'theme.intro': string;
     'theme.primary': string;
     'theme.primaryHint': string;
-    'levels.name': string;
-    'levels.moved': string;
-    saved: string;
     'theme.accent': string;
     'theme.accentHint': string;
     'theme.invalidColor': string;

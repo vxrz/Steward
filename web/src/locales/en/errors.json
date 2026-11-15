@@ -1665,7 +1665,7 @@
     "FORBIDDEN_changeContact": "You are not allowed to change this contact: that takes who may change an item it is linked to.",
     "FORBIDDEN_eraseContact": "Only administrators erase contacts.",
     "FORBIDDEN_manageContacts": "Only administrators see possible duplicates.",
-    "SUPPORT_LEVEL_NOT_FOUND": "Support level {{id}} not found – it may have been removed meanwhile. Choose another one.",
+    "SUPPORT_LEVEL_NOT_FOUND": "The support level “{{id}}” does not exist (any more). Administrators add support levels under Settings → Support levels.",
     "SUPPORT_LEVEL_EXISTS": "A support level named {{name}} exists already.",
     "SUPPORT_LIMIT": "Limit reached: at most {{max}} support levels.",
     "SUPPORT_LEVEL_ORDER": "Name every support level once to order them.",

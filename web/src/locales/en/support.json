@@ -12,8 +12,10 @@
     "moveUp": "Move channel {{n}} up",
     "moveDown": "Move channel {{n}} down",
     "remove": "Remove channel {{n}}",
-    "hint": "Name shared addresses – a team mailbox, a ticket queue, a channel – not a person’s. People are contacts.",
-    "max": "At most {{max}} channels."
+    "hint": "Name shared addresses – a team mailbox, a ticket queue, a Teams or Slack channel – never a person’s own. People are contacts.",
+    "max": "At most {{max}} channels.",
+    "removed": "Channel {{n}} removed",
+    "moved": "Channel moved to position {{n}} of {{count}}"
   },
   "purposes": {
     "questions": "Questions",
@@ -52,7 +54,8 @@
     "guideTitle": "Title",
     "guideUrl": "Web address",
     "urlInvalid": "Enter a web address starting with https://",
-    "serverInvalid": "Check this value"
+    "serverInvalid": "Check this value",
+    "levelGone": "This support level no longer exists – it may have been removed meanwhile. Choose another one."
   },
   "level": {
     "title": "Support level",
@@ -72,7 +75,9 @@
     "moveUp": "Move guide {{n}} up",
     "moveDown": "Move guide {{n}} down",
     "remove": "Remove guide {{n}}",
-    "opensNewTab": "(opens in a new tab)"
+    "opensNewTab": "(opens in a new tab)",
+    "removed": "Guide {{n}} removed",
+    "moved": "Guide moved to position {{n}} of {{count}}"
   },
   "notSaved": "Help and support were not saved",
   "levels": {
