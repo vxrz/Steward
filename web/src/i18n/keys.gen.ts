@@ -17693,8 +17693,6 @@ export interface Resources {
     'criticalities.high': string;
     'criticalities.critical': string;
     contacts: string;
-    'contactRoles.business': string;
-    'contactRoles.it': string;
     noContacts: string;
     owners: string;
     ownersHelp: string;
