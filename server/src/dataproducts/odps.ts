@@ -251,8 +251,8 @@ const TOOL: Record<SupportTool, string> = { ticket: 'ticket', email: 'email', te
 /**
  * A channel as an ODPS support entry: name, address, tool, scope; hours and note as the description. A telephone
  * number goes out as a valid `tel:` URI: the spaces people type become hyphens (a URI has no spaces; RFC 3966 takes
- * `-`, `.`, `(` and `)` as visual separators). `fromService`: the channel is that supporting service's – marked (`supportedByService`), so an import
- * does not take it as the product's own.
+ * `-`, `.`, `(` and `)` as visual separators). `fromService`: the channel is that supporting service's – marked
+ * (`supportedByService`), so an import does not take it as the product's own.
  */
 export function odpsChannel(c: SupportChannel, fromService?: string): Obj {
   const scope = SCOPE[c.purpose];
