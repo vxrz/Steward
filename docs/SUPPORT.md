@@ -51,7 +51,7 @@ This works only for readers who may see the service. For anyone else the service
 
 ## Exchange
 
-- **`/api/v1` and MCP:** data products carry `supportChannels`, `supportLevel` (name, German name, hours, first response, note, SLA document), `guides` and `supportedBy` (the service with its channels and level, or null); services and applications `supportChannels` and `supportLevel`. Lists show the level.
+- **`/api/v1` and MCP:** data products carry `supportChannels`, `supportLevel` (name, German name, hours, first response, note, SLA document), `guides` and `supportedBy` (the service with its channels and level, or null); services and applications `supportChannels` and `supportLevel` (`/api/v1` only – MCP has no tools for services and applications). Lists show the level.
 - **File format and Git sync:** `support_channels`, `support_level` (by name – English or German; the export also writes its hours and first response), `guides` and `supported_by_service` (by name). A level the instance does not have is a problem of the preview (`SUPPORT_LEVEL_NOT_FOUND`): an administrator adds it first.
 - **ODPS v1.0.0** (export and import, checked against the vendored schema):
 
