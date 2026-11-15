@@ -506,7 +506,7 @@ describe('ODPS', () => {
     const back = await dana('GET', `/data-products/${list.items[0]!.id}`);
     const strip = (cs: { id?: string }[]) => cs.map(({ id: _i, ...c }) => c);
     const orig = await dana('GET', `/data-products/${product}`);
-    const tel = (cs: { address: string }[]) => cs.map((c) => ({ ...c, address: c.address.startsWith('tel:') ? c.address.replace(/ /g, '-') : c.address }));
+    const tel = (cs: { address?: string }[]) => cs.map((c) => ({ ...c, address: c.address?.startsWith('tel:') ? c.address.replace(/ /g, '-') : c.address }));
     expect(strip(back.supportChannels)).toEqual(tel(strip(orig.supportChannels)));
     expect(back.supportLevel).toEqual(orig.supportLevel);
     expect(strip(back.guides)).toEqual(strip(orig.guides));
