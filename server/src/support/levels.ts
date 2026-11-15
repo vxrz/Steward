@@ -39,20 +39,28 @@ export const ID_PREFIX = 'spl_';
 let cached: { at: number; rows: LevelRow[] } | null = null;
 /** How long the list is kept without a change here (another process of the instance may have changed it). */
 const KEEP_MS = 60_000;
+/**
+ * A level was written in a transaction that may not have ended yet: what is read meanwhile is not kept – the
+ * transaction may be rolled back (an import's preview writes and rolls back), and a kept list would name a level that
+ * does not exist.
+ */
+let changedInTx = false;
 
-/** The catalogue as stored, in its order (kept). */
+/** The catalogue as stored, in its order (kept; `now` 0: read afresh – before a change is checked or written). */
 export function levelRows(now = Date.now()): LevelRow[] {
-  if (cached && now - cached.at < KEEP_MS) return cached.rows;
+  if (!db().inTransaction) changedInTx = false;
+  if (cached && now !== 0 && now - cached.at < KEEP_MS) return cached.rows;
   const rows = db()
     .all<LevelRow>('SELECT * FROM support_levels ORDER BY position, name_en, id')
     .map((r) => ({ ...r, position: Number(r.position), legacy_tier: r.legacy_tier === null ? null : Number(r.legacy_tier) }));
-  cached = { at: now, rows };
+  cached = changedInTx ? null : { at: Date.now(), rows };
   return rows;
 }
 
-/** Forgets the kept list (tests, and after a change). */
+/** Forgets the kept list (tests, and after a change – inside a transaction until it has ended). */
 export function forgetLevels(): void {
   cached = null;
+  if (db().inTransaction) changedInTx = true;
 }
 
 export const levelRef = (r: LevelRow): SupportLevelRef => ({

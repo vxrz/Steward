@@ -366,6 +366,23 @@ describe('the deprecated support and tier', () => {
   });
 });
 
+describe('the deprecated tier in a file', () => {
+  it('makes its level once, also after the preview tried it (the preview is rolled back)', async () => {
+    const file = ['version: 1', 'data_product:', '  key: support-file-tier', '  name: Support file tier', '  tier: 1'].join('\n');
+    const files = [{ name: 'tier.data-products.yaml', content: file }];
+    const pv = await dana('POST', '/data-products/import/preview', { files, mode: 'update' });
+    expect(pv.problems).toEqual([]);
+    // the preview's level went with its transaction: the list does not show it
+    expect(((await s.api('GET', '/support/levels')) as { nameEn: string }[]).filter((l) => l.nameEn === 'Tier 1')).toHaveLength(0);
+    await dana('POST', '/data-products/import', { files, mode: 'update', fingerprint: pv.fingerprint });
+    const list = (await dana('GET', '/data-products?q=support-file-tier')) as { items: { id: string }[] };
+    const p = await dana('GET', `/data-products/${list.items[0]!.id}`);
+    expect(p).toMatchObject({ tier: 1, supportLevel: { nameEn: 'Tier 1', nameDe: 'Stufe 1' } });
+    const { db } = await import('../src/db.js');
+    expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM support_levels WHERE id = ?', p.supportLevel.id)).toEqual({ n: 1 });
+  });
+});
+
 describe('deleting a product', () => {
   it('removes its channels and guides', async () => {
     const id = (await dana('POST', '/data-products', { key: 'support-gone', name: 'Support gone' })).id;
