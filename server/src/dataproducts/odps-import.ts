@@ -37,7 +37,8 @@ import { listLevels } from '../support/levels.js';
  * one environment – the one named under the document's `customProperties` (`environment`, as Steward exports it), else
  * the instance's production environment. An input port's source is the output port its `customProperties` name
  * (`<product key>/<port> <version>`, as Steward exports it), else the visible output port bound to the same contract,
- * else a text. Steward's own extras under `customProperties` (type, criticality, support tier, sunset date, rating, data
+ * else a text. Steward's own extras under `customProperties` (type, criticality, support level – or the support tier of
+ * exports before 0.26.0 –, sunset date, rating, data
  * objects, environments) are read back, so an exported product imports unchanged. What cannot be mapped is a warning of
  * the preview, never silently dropped; the document is checked against the vendored ODPS JSON Schema first.
  */

@@ -19,7 +19,7 @@ import { bindingsOf, environmentsOf, marks, portObjectsOf, portsOf, type PortRow
  * The ODPS v1.0.0 export of a data product (ADR 0036 part 15, decision 22; Open Data Product Standard by Bitol,
  * https://github.com/bitol-io/open-data-product-standard – its JSON Schema vendored in server/assets/odps with its
  * Apache 2.0 licence): `id` = the key, `name`, `version`, `status` = the lifecycle, `domain`, `description` (purpose,
- * usage), `team` (the owners), `support`, `inputPorts` and `outputPorts` with `version` and `contractId` = the bound
+ * usage), `team` (the owners), `support` (0.26.0: the channels, ADR 0039 part 7), `inputPorts` and `outputPorts` with `version` and `contractId` = the bound
  * contract's ODCS id in one environment (production unless asked), `tags`, `authoritativeDefinitions` (external
  * references), Steward's own pages and /api/v1 as `managementPorts` (where SM_PUBLIC_URL is set), and what ODPS has no
  * field for under `customProperties` (type, rating, criticality, data objects, environments).

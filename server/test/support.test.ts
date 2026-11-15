@@ -272,6 +272,47 @@ describe('services and applications', () => {
   });
 });
 
+describe('MCP', () => {
+  it('get_data_product carries the channels, the level and the guides', async () => {
+    // the protocol version of the MCP tests (dataproducts-api.test.ts)
+    const MCP_PROTOCOL_VERSION = '2026-07-28';
+    await s.api('PUT', '/mcp-server', { enabled: true });
+    const token = (await dana('POST', '/me/tokens', { name: 'support mcp', scope: 'mcp' })).token;
+    const res = await fetch(`${s.base}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${token}`,
+        'mcp-protocol-version': MCP_PROTOCOL_VERSION,
+        'mcp-method': 'tools/call',
+        'mcp-name': 'get_data_product',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'get_data_product',
+          arguments: { productId: product },
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': MCP_PROTOCOL_VERSION,
+            'io.modelcontextprotocol/clientCapabilities': {},
+            'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+          },
+        },
+      }),
+    });
+    const body = await res.json();
+    expect(body.error, JSON.stringify(body)).toBeUndefined();
+    expect(body.result.structuredContent).toMatchObject({
+      supportLevel: { name: 'Extended' },
+      supportChannels: expect.arrayContaining([expect.objectContaining({ purpose: 'issues', tool: 'ticket' })]),
+      guides: [{ title: 'User guide', url: 'https://wiki.example/orders/guide' }],
+    });
+  });
+});
+
 describe('the deprecated support and tier', () => {
   it('map input the way the upgrade does, and what was read back changes nothing', async () => {
     const id = (
