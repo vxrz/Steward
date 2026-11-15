@@ -51,6 +51,7 @@ import { migrateVendorTexts } from '../suppliers/migrate.js';
 import { convertItemContacts } from '../contacts/upgrade.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
+import { convertSupport } from '../support/upgrade.js';
 import { ACCESS, me } from '../auth/access.js';
 import { plantEnabled } from '../plant/settings.js';
 import { moduleRole, moduleSettingsOf, moduleUseStates } from '../modules/access.js';
@@ -88,6 +89,8 @@ async function onUnlocked(): Promise<void> {
   runAs(null, () => {
     convertItemContacts();
     convertDataProductGovernance();
+    // support channels and levels (0.26.0, ADR 0039 part 8): a product's support and tier as a channel and a level, once
+    convertSupport();
   });
   sso.sealProviderConfigs();
   // Steward's example library as a disabled Git sync source, once per installation

@@ -72,6 +72,7 @@ import { convertItemContacts } from '../contacts/upgrade.js';
 import { runAs } from '../auth/context.js';
 import { convertDeprecatedRoles } from '../modules/user-roles.js';
 import { convertDataProductGovernance } from '../dataproducts/governance-upgrade.js';
+import { convertSupport } from '../support/upgrade.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -1392,6 +1393,8 @@ function copyIntoTarget(
   runAs(null, () => {
     convertItemContacts();
     convertDataProductGovernance();
+    // support channels and levels (0.26.0, ADR 0039 part 8): a product's support and tier as a channel and a level, once
+    convertSupport();
   });
   const paused = [
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),

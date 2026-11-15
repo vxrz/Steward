@@ -241,6 +241,11 @@ export const HISTORY_COLUMNS: string[] = [
   'contacts.created_by',
   'contacts.updated_by',
   'contact_links.created_by',
+  // support levels, channels and guides (0.26.0, ADR 0039): who made and changed a level, who added a channel or guide
+  'support_levels.created_by',
+  'support_levels.updated_by',
+  'support_channels.created_by',
+  'guides.created_by',
   // 0.25.0 (ADR 0037 part 3): who dismissed a suggestion of the Industrial Edge installations readout
   'edge_suggestion_dismissals.dismissed_by',
   // who shared a resource and who made it Restricted (0.21.0, ADR 0033)

@@ -43,6 +43,7 @@ import { DATA_PRODUCT_MIGRATIONS } from './dataproducts.js';
 import { ACCESS_MIGRATIONS } from './access.js';
 import { CONTACTS_MIGRATIONS } from './contacts.js';
 import { DATA_GOVERNANCE_MIGRATIONS } from './dataproducts-governance.js';
+import { SUPPORT_MIGRATIONS } from './support.js';
 
 /**
  * The named migrations, in the order they run on a new database (db.ts). Each feature owns its list (its manifest
@@ -96,6 +97,8 @@ export const MIGRATION_LISTS: readonly (readonly NamedMigration[])[] = [
   CONTACTS_MIGRATIONS,
   // 0.25.1 (ADR 0038): after the contacts directory – its upgrade steps make contacts and links
   DATA_GOVERNANCE_MIGRATIONS,
+  // 0.26.0 (ADR 0039 parts 4–8): support channels, levels and guides of data products, services and applications
+  SUPPORT_MIGRATIONS,
 ];
 
 export const NAMED_MIGRATIONS: readonly NamedMigration[] = MIGRATION_LISTS.flat();
