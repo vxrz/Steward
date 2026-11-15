@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import {
   type ContactListItem,
   SUPPLIER_CONTACT_ROLES,
+  contactRoleOn,
   SUPPLIER_LIMITS,
   type ApplicationSummary,
   type ScopedContacts,
@@ -21,7 +22,7 @@ import { del, get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { FormModal, FormModalCancel } from '../FormModal';
-import { ContactLine, ContactSearchSelect } from '../contacts';
+import { ContactLine, ContactSearchSelect, useContactRoleLabel, useContactRoles } from '../contacts';
 
 const pathOf = (supplierId: string, x: { kind: SupplierContactScopeKind; id: string }) =>
   x.kind === 'contract' ? `/suppliers/${supplierId}/contracts/${x.id}` : x.kind === 'application' ? `/applications/${x.id}` : `/systems/${x.id}`;
@@ -80,6 +81,7 @@ export function SupplierContacts({
   contractId?: string;
 }) {
   const { t } = useTranslation(['suppliers', 'common']);
+  const roleLabel = useContactRoleLabel();
   const [editing, setEditing] = useState<SupplierContact | 'new' | null>(null);
   const canAdd = s.status !== 'archived' && (s.canEdit || (!!contractId && !!s.contracts.find((c) => c.id === contractId)?.canEdit));
   const remove = async (c: SupplierContact) => {
@@ -141,7 +143,7 @@ export function SupplierContacts({
               <Text size="sm" fw={500}>
                 {c.name}{' '}
                 <Text span size="xs" c="dimmed">
-                  {t(`contacts.roles.${c.role}`)}
+                  {roleLabel(c.role)}
                 </Text>
               </Text>
               <Group gap="sm" wrap="wrap">
@@ -219,6 +221,8 @@ function ContactModal({
   const { t } = useTranslation(['suppliers', 'common']);
   const [name, setName] = useState(contact?.name ?? '');
   const [role, setRole] = useState<SupplierContactRole>(contact?.role ?? 'accountManager');
+  const { roles: roleCatalogue } = useContactRoles();
+  const roleLabel = useContactRoleLabel();
   const [email, setEmail] = useState(contact?.email ?? '');
   const [phone, setPhone] = useState(contact?.phone ?? '');
   const [note, setNote] = useState(contact?.note ?? '');
@@ -303,7 +307,18 @@ function ContactModal({
           )}
           <Select
             label={t('contacts.role')}
-            data={SUPPLIER_CONTACT_ROLES.map((r) => ({ value: r, label: t(`contacts.roles.${r}`) }))}
+            // 0.26.0 (ADR 0039): the supplier roles switched on in the role catalogue (the entry's own role stays), its labels
+            data={SUPPLIER_CONTACT_ROLES.filter(
+              (r) =>
+                r === contact?.role ||
+                contactRoleOn(
+                  roleCatalogue.find((x) => x.key === r),
+                  'supplier',
+                ),
+            ).map((r) => ({
+              value: r,
+              label: roleLabel(r),
+            }))}
             value={role}
             allowDeselect={false}
             onChange={(r) => r && setRole(r as SupplierContactRole)}
@@ -355,6 +370,7 @@ function ContactModal({
 /** The contacts scoped to an application or system, per supplier (its _Suppliers_ panel, ADR 0031). */
 export function ItemContacts({ kind, id }: { kind: 'application' | 'system'; id: string }) {
   const { t } = useTranslation('suppliers');
+  const roleLabel = useContactRoleLabel();
   const q = useQuery({
     queryKey: ['suppliers', 'scoped-contacts', kind, id],
     queryFn: () => get<ScopedContacts[]>(`/suppliers/scoped-contacts?kind=${kind}&id=${encodeURIComponent(id)}`),
@@ -372,7 +388,7 @@ export function ItemContacts({ kind, id }: { kind: 'application' | 'system'; id:
               {c.name}
             </Anchor>{' '}
             <Text span size="xs" c="dimmed">
-              {t(`contacts.roles.${c.role}`)} · {g.supplier.name}
+              {roleLabel(c.role)} · {g.supplier.name}
             </Text>
             {c.email && (
               <>
