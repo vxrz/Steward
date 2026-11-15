@@ -3,7 +3,8 @@ import { ActionIcon, Anchor, Button, Group, Modal, Paper, SimpleGrid, Stack, Tex
 import { Link, useSearchParams } from 'react-router-dom';
 import { IconFolders, IconLock, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { DataDomain } from '@sm/shared';
+import { inheritByRole, type DataDomain, type InheritedContactLink } from '@sm/shared';
+import { ExpectedRolesHint, InheritedContactsView } from '../../components/contacts';
 import { del, notifyError } from '../../api';
 import { QueryState } from '../../components/common';
 import { ListPage } from '../../components/page/ListPage';
@@ -48,6 +49,11 @@ export function DataDomainsPage() {
     }
   };
   const none = q.isSuccess && all.length === 0;
+  /** A sub-domain's contacts from its parent – a parent the reader may see (it is in the list) – in the roles it names none of. */
+  const inheritedOf = (d: DataDomain): InheritedContactLink[] => {
+    const parent = all.find((x) => x.id === d.parentId);
+    return parent ? inheritByRole(d.contacts, parent.contacts).map((l) => ({ ...l, from: { kind: 'data_domain', id: parent.id, name: parent.name } })) : [];
+  };
   const card = (d: DataDomain, sub = false) => (
     <Paper key={d.id} withBorder p="sm" component="article" aria-labelledby={`domain-${d.id}`} data-testid={`domain-${d.key}`} ml={sub ? 'lg' : 0}>
       <Group justify="space-between" wrap="nowrap" align="flex-start">
@@ -82,6 +88,9 @@ export function DataDomainsPage() {
               .filter(Boolean)
               .join(' · ')}
           </Text>
+          {/* 0.26.0 (ADR 0039): a sub-domain shows its parent's contacts in the roles it names none of (never copied) */}
+          {sub && <InheritedContactsView links={inheritedOf(d)} testId={`domain-${d.key}-inherited`} />}
+          <ExpectedRolesHint kind="data_domain" links={d.contacts} inherited={sub ? inheritedOf(d) : []} />
         </Stack>
         <Group gap={2} wrap="nowrap">
           <Tooltip label={t('domains.access')}>

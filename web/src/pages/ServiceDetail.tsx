@@ -21,6 +21,7 @@ import {
   IconLock,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { ExpectedRolesHint, useContactRoleLabel } from '../components/contacts';
 import { CopyId } from '../components/CopyId';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ServiceDetail } from '@sm/shared';
@@ -257,6 +258,7 @@ export function ServiceDetailPage() {
 function ServiceFacts({ service: s }: { service: ServiceDetail }) {
   const { t } = useTranslation(['services', 'common']);
   const subjectName = useSubjectLabel();
+  const contactRole = useContactRoleLabel();
   return (
     <Paper withBorder p="sm">
       <Stack gap="sm">
@@ -268,7 +270,7 @@ function ServiceFacts({ service: s }: { service: ServiceDetail }) {
           ) : (
             s.contacts.map((c) => (
               <Text key={`${c.role}${c.email}${c.name ?? ''}`} size="sm">
-                {t(`contactRoles.${c.role}`)}: {/* a contact of the directory may have no e-mail address (0.25.1): its name then, without a link */}
+                {contactRole(c.role)}: {/* a contact of the directory may have no e-mail address (0.25.1): its name then, without a link */}
                 {c.email ? (
                   <Anchor href={`mailto:${c.email}`} size="sm">
                     {c.name ? `${c.name} <${c.email}>` : c.email}
@@ -279,6 +281,8 @@ function ServiceFacts({ service: s }: { service: ServiceDetail }) {
               </Text>
             ))
           )}
+          {/* 0.26.0 (ADR 0039): expected roles of the role catalogue */}
+          <ExpectedRolesHint kind="service" links={s.contacts} />
         </Field>
         <Field label={t('owners')}>
           <Text size="sm" data-testid="service-owners">

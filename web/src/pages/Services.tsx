@@ -17,7 +17,7 @@ import { useListParams } from '../components/page/params';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { ServiceTabs } from '../components/page/LinkTabs';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
-import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../components/contacts';
+import { ContactPicker, fromLinks, toLinkInputs, useContactRoleLabel, type ContactPickerValue } from '../components/contacts';
 
 export const CRITICALITY_COLORS: Record<string, string> = { low: 'gray', medium: 'blue', high: 'orange', critical: 'red' };
 
@@ -69,6 +69,7 @@ export const CRITICALITY_RANK: Record<string, number> = { low: 1, medium: 2, hig
 
 export function ServicesPage() {
   const { t } = useTranslation(['services', 'common', 'applications']);
+  const contactRole = useContactRoleLabel();
   const subjectName = useSubjectLabel();
   const navigate = useNavigate();
   // the filters live in the address (?q=, ?criticality=, ?owner=, ?archived=1, ?tag=), so a filtered list can be shared
@@ -139,7 +140,7 @@ export function ServicesPage() {
       cell: (s) =>
         s.contacts.map((c) => (
           <Text key={`${c.role}${c.email}${c.name ?? ''}`} size="xs">
-            {t(`contactRoles.${c.role}`)}: {c.email || c.name}
+            {contactRole(c.role)}: {c.email || c.name}
           </Text>
         )),
     },

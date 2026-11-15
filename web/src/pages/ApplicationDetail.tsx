@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { CopyId } from '../components/CopyId';
 import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ApplicationDocument, Platform } from '@sm/shared';
-import { del, get, notifyError, patch, post } from '../api';
+import { del, get, notifyError, patch, post, put } from '../api';
 import { DetailState, useFieldErrors } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge } from '../components/records/common';
@@ -38,9 +38,10 @@ import { SupplierText } from '../components/suppliers/SupplierPicker';
 import { ItemContacts } from '../components/suppliers/ScopedContacts';
 import { TableScroll } from '../components/TableScroll';
 import { useSubjectLabel } from '../components/SubjectsInput';
+import { ContactLinksView, ItemContactsSection } from '../components/contacts';
 
 export function ApplicationDetailPage() {
-  const { t } = useTranslation(['applications', 'common']);
+  const { t } = useTranslation(['applications', 'common', 'contacts']);
   const subjectName = useSubjectLabel();
   const { id } = useParams();
   const qc = useQueryClient();
@@ -137,6 +138,32 @@ export function ApplicationDetailPage() {
                   <StackVersions app={a} />
                 </IfModule>
               )}
+              <ItemContactsSection
+                id="application-contacts"
+                kind="application"
+                contacts={a.contacts}
+                canEdit={a.canEdit}
+                onSave={async (contacts) => refresh(await put<ApplicationDetail>(`/applications/${a.id}/contacts`, { contacts }))}
+              >
+                {a.serviceContacts.length > 0 && (
+                  <Stack gap={6} data-testid="application-service-contacts">
+                    <Text size="sm" fw={500}>
+                      {t('contacts:serviceContacts.title')}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {t('contacts:serviceContacts.hint')}
+                    </Text>
+                    {a.serviceContacts.map((s) => (
+                      <Stack key={s.serviceId} gap={2}>
+                        <Anchor component={Link} to={`/services/${s.serviceId}`} size="sm">
+                          {s.serviceName}
+                        </Anchor>
+                        <ContactLinksView links={s.contacts} kind="service" />
+                      </Stack>
+                    ))}
+                  </Stack>
+                )}
+              </ItemContactsSection>
               <RunsOnPanel app={a} onSaved={refresh} />
               <IntegrationsPanel app={a} onSaved={refresh} />
               <CollectorCollections kind="application" id={a.id} />

@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconEdit, IconExternalLink, IconFileImport, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { SbomPreview, SystemDetail } from '@sm/shared';
-import { del, get, notifyError } from '../api';
+import { del, get, notifyError, put } from '../api';
 import { CopyId } from '../components/CopyId';
 import { DetailState } from '../components/common';
 import { Field } from '../components/records/common';
@@ -28,6 +28,7 @@ import { CostAttributionPanel } from '../components/costs/Attribution';
 import { IfModule } from '../components/modules/ModuleOff';
 import { TableScroll } from '../components/TableScroll';
 import { useSubjectLabel } from '../components/SubjectsInput';
+import { ItemContactsSection } from '../components/contacts';
 import { IemStatus, SystemEdgePanels } from '../components/plant/EdgeDevice';
 import type { IemDeviceStatus } from '@sm/shared';
 
@@ -121,6 +122,15 @@ export function SystemDetailPage() {
             {s.note && <Text size="sm">{s.note}</Text>}
             <MaintenancePanel kind="system" id={s.id} canPlan={s.canEdit} />
             <FirewallNetworkPanel system={s} />
+            <ItemContactsSection
+              id="system-contacts"
+              kind="system"
+              contacts={s.contacts}
+              canEdit={s.canEdit}
+              onSave={async (contacts) => {
+                qc.setQueryData(['system', id], await put<SystemDetail>(`/systems/${s.id}/contacts`, { contacts }));
+              }}
+            />
             <Stack gap="xs" data-testid="system-stack">
               <Text fw={600}>{t('components.stack')}</Text>
               <StackBadges stack={s.stack} holder={{ kind: 'system', id: s.id }} />

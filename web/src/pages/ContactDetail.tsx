@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconArrowsExchange, IconPencil, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CONTACT_LINK_ROLES, type ContactDetail, type ContactInput, type ContactListItem, type ContactReplaceResult } from '@sm/shared';
+import { type ContactDetail, type ContactInput, type ContactListItem, type ContactReplaceResult } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { DetailState } from '../components/common';
@@ -101,7 +101,7 @@ export function ContactDetailPage() {
     onError: (e) => notifyError(e),
   });
   const back = { to: '/contacts', label: t('title') };
-  const linkRole = (l: ContactDetail['links'][number]) => (CONTACT_LINK_ROLES[l.kind] ? roleLabel(l.role) : l.role);
+  const linkRole = (l: ContactDetail['links'][number]) => roleLabel(l.role);
   const itemLink = (l: ContactDetail['links'][number]) =>
     l.href ? (
       <Anchor component={Link} to={l.href} size="sm" fw={500}>

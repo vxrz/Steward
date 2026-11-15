@@ -748,6 +748,10 @@
       "title": "Module",
       "description": "Optionale Bereiche ein- oder ausschalten (Kosten, Datenverträge, Compliance, Statusseiten und andere), mit dem Reifegrad jedes Bereichs; das Werksregister und seine Karte."
     },
+    "contacts": {
+      "title": "Kontakte",
+      "description": "Die Rollen, in denen Einträge ihre Kontakte nennen: eingebaute und eigene Rollen, was erwartet wird."
+    },
     "current": "Bereich: {{area}}"
   },
   "endOfLife": {

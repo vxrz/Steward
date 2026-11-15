@@ -22,6 +22,7 @@ import {
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  IconAddressBook,
   IconBell,
   IconBuildingFactory2,
   IconChevronDown,
@@ -82,13 +83,25 @@ import { PlantHistorySettingsGate } from '../components/plant/PlantHistorySettin
 import { ModulesCard } from '../components/settings/ModulesCard';
 import { IfModule } from '../components/modules/ModuleOff';
 import { DataProductsSettingsCard } from '../components/dataproducts/SettingsCard';
+import { ContactRolesSettings } from '../components/contacts/ContactRolesSettings';
 import { MapTileOrigins, PlantMapSettingsGate } from '../components/plant/map/PlantMapSettingsCard';
 
 /**
  * Settings by area (#136). Each area has a stable URL (/settings/<area>); everything here is an instance setting that
  * administrators change. Personal settings are on the profile, team settings on the team.
  */
-export const SETTINGS_AREAS = ['general', 'security', 'assurance', 'integrations', 'notifications', 'appearance', 'catalogue', 'modules', 'data'] as const;
+export const SETTINGS_AREAS = [
+  'general',
+  'security',
+  'assurance',
+  'integrations',
+  'notifications',
+  'appearance',
+  'catalogue',
+  'modules',
+  'data',
+  'contacts',
+] as const;
 export type SettingsArea = (typeof SETTINGS_AREAS)[number];
 const AREA_ICONS: Record<SettingsArea, Icon> = {
   general: IconSettings,
@@ -100,6 +113,8 @@ const AREA_ICONS: Record<SettingsArea, Icon> = {
   catalogue: IconScale,
   modules: IconPuzzle,
   data: IconDatabase,
+  // 0.26.0 (ADR 0039): the role catalogue of the contacts directory
+  contacts: IconAddressBook,
 };
 /** Areas that were renamed: their old addresses lead to the new ones. */
 const FORMER_AREAS: Record<string, SettingsArea> = { maintenance: 'data' };
@@ -351,6 +366,8 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
           </IfModule>
         </>
       );
+    case 'contacts':
+      return <ContactRolesSettings />;
     case 'modules':
       // the module registry (0.11.0, ADR 0016): every optional area with a switch; the plant registry (#218) and the map
       // of sites (#234) keep their own cards, off until an administrator turns them on

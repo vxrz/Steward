@@ -29,7 +29,7 @@ import { LinkTabs } from '../../components/page/LinkTabs';
 import { confirmDanger } from '../../components/confirm';
 import { RatingBadges } from '../../components/catalogue/cia';
 import { EnvironmentBadge, useEnvironmentList } from '../../components/catalogue/environments';
-import { ContactLinksView } from '../../components/contacts';
+import { ContactLinksView, ExpectedRolesHint, InheritedContactsView } from '../../components/contacts';
 import { LifecycleForm, ProductForm, RatingForm } from '../../components/dataproducts/ProductForm';
 import { ProductTransferItems } from '../../components/dataproducts/Transfer';
 import { fmtDay, fmtNumber } from '../../format';
@@ -323,6 +323,9 @@ function Overview({ p, onRate }: { p: DataProduct; onRate?: () => void }) {
                     {t('product.noOwner')}
                   </Text>
                 )}
+                {/* 0.26.0 (ADR 0039): its domain's contacts, never copied; expected roles of the role catalogue */}
+                <InheritedContactsView links={p.inheritedContacts ?? []} testId="product-inherited-contacts" />
+                <ExpectedRolesHint kind="data_product" links={p.contacts} inherited={p.inheritedContacts ?? []} />
               </Fact>
               <Fact label={t('product.rating')} testId="product-rating">
                 <RatingBadges rating={p.rating} size="sm" />
