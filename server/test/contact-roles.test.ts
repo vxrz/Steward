@@ -569,6 +569,14 @@ describe('plant sites at the upgrade', () => {
     expect(entry).toMatchObject({ actor: 'system', details: { kind: 'plant_site', upgrade: '0.26.0', links: 4 } });
     // once: a second run finds nothing to do
     expect(ctx.runAs(null, () => convertPlantSiteRoles())).toEqual({ roles: 0, links: 0 });
+    // also when a role made from a text no longer applies to sites (switched off for them): its links are converted
+    // links, not texts – a later start must not make a role "energy" of them
+    const energy = (await s.api('GET', '/contact-roles')).find((r: { key: string }) => r.key === 'energy');
+    await s.api('PUT', '/contact-roles/energy', { labels: energy.labels, kinds: ['service'] });
+    expect(ctx.runAs(null, () => convertPlantSiteRoles())).toEqual({ roles: 0, links: 0 });
+    expect((await s.api('GET', '/plant/sites/inv-south')).contactLinks.map((l: Link) => l.role)).toEqual(['shiftLead', 'energy']);
+    expect((await s.api('GET', '/contact-roles')).filter((r: { labels: { en: string } }) => r.labels.en.toLowerCase() === 'energy')).toHaveLength(1);
+    await s.api('PUT', '/contact-roles/energy', { labels: energy.labels, kinds: ['plant_site'] });
   });
 
   it('the registry’s API and files take the old text and give the label; an unknown text is refused with a hint', async () => {
