@@ -156,7 +156,6 @@
     "limit": "At most {{max}} contacts."
   },
   "inherited": {
-    "title": "From the domain",
     "hint": "Shown from the domain, never copied: change them on the domain.",
     "from": "from domain {{name}}"
   },

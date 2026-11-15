@@ -1652,7 +1652,7 @@
     "CONTACT_USER_UNKNOWN": "Es gibt kein Steward-Konto „{{user}}“.",
     "CONTACT_REPLACE_SAME": "Ein Kontakt kann sich nicht selbst ersetzen.",
     "CONTACT_ROLE_OFF": "Die Rolle „{{role}}“ ist hier ausgeschaltet: Sie nimmt keine neuen Kontakte auf.",
-    "CONTACT_ROLE_ONE": "„{{role}}“ hat einen Kontakt. Nennen Sie die anderen als Vertretung, oder geben Sie dem ausscheidenden ein Enddatum.",
+    "CONTACT_ROLE_ONE": "„{{role}}“ hat nur einen Kontakt. Nennen Sie die anderen als Vertretung, oder geben Sie dem ausscheidenden Kontakt ein Enddatum.",
     "CONTACT_DEPUTY_INVALID": "{{name}} kann nur einen Kontakt vertreten, der hier in derselben Rolle genannt ist.",
     "CONTACT_ROLE_NOT_FOUND": "Diese Kontaktrolle gibt es nicht (mehr).",
     "CONTACT_ROLE_TAKEN": "Der Schlüssel „{{key}}“ ist vergeben. Wählen Sie einen anderen.",

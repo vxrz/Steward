@@ -145,7 +145,7 @@
     "untilDate": "Bis {{date}}",
     "roleOff": "Rolle ausgeschaltet",
     "noRoles": "Für diese Art von Eintrag ist keine Kontaktrolle eingeschaltet. Administratoren legen Rollen unter Einstellungen → Kontakte → Rollen an.",
-    "oneTaken": "{{role}} hat einen Kontakt: Ein neuer wird als Vertretung von {{name}} hinzugefügt – ändern Sie das in seinen Details, oder geben Sie {{name}} ein Enddatum.",
+    "oneTaken": "{{role}} hat nur einen Kontakt: Ein neuer wird als Vertretung von {{name}} hinzugefügt – ändern Sie das in seinen Details, oder geben Sie {{name}} ein Enddatum.",
     "deputyNobody": "Niemand sonst ist hier als {{role}} genannt.",
     "untilHint": "Der letzte Tag; danach erscheint der Kontakt als beendet."
   },
@@ -156,8 +156,7 @@
     "limit": "Höchstens {{max}} Kontakte."
   },
   "inherited": {
-    "title": "Aus der Domäne",
-    "hint": "Aus der Domäne angezeigt, nie kopiert: Ändern Sie sie an der Domäne.",
+    "hint": "Von der Domäne übernommen, nicht kopiert: Ändern Sie sie an der Domäne.",
     "from": "aus Domäne {{name}}"
   },
   "expected": {
@@ -172,7 +171,7 @@
     "saved": "Kontakte gespeichert"
   },
   "serviceContacts": {
-    "title": "Kontakte seiner Services",
+    "title": "Kontakte ihrer Services",
     "hint": "Nur lesend: Eine Anwendung kann mehreren Services dienen, daher werden ihre Kontakte angezeigt, nicht geerbt."
   },
   "catalogue": {

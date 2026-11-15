@@ -2281,7 +2281,6 @@ export interface Resources {
     'snapshot.role': string;
     'snapshot.frozen': string;
     'snapshot.limit': string;
-    'inherited.title': string;
     'inherited.hint': string;
     'inherited.from': string;
     'expected.missing_one': string;
