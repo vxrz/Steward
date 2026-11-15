@@ -83,8 +83,8 @@ export function useSupportLevels(enabled = true) {
   return useQuery({ queryKey: ['support-levels'], queryFn: () => get<SupportLevel[]>('/support/levels'), enabled, staleTime: 60_000 });
 }
 
-/** An external link that says it opens a new tab. */
-function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
+/** An external link that says it opens a new tab (web addresses; mailto: and tel: open where they open). */
+export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {
   const { t } = useTranslation('support');
   const web = /^https?:/i.test(href);
   return (

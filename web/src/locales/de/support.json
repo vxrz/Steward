@@ -88,9 +88,9 @@
     "note": "Hinweis",
     "slaUrl": "SLA-Dokument",
     "slaUrlHint": "Eine Webadresse, die mit https:// beginnt",
-    "usage": "Verwendet von",
+    "usage": "Verwendung",
     "usageCount_one": "{{count}} Eintrag",
-    "usageCount_other": "{{count}} Einträgen",
+    "usageCount_other": "{{count}} Einträge",
     "actions": "Aktionen",
     "newTitle": "Neues Support-Level",
     "editTitle": "{{name}} ändern",
@@ -102,11 +102,14 @@
     "removeInUseTitle": "{{name}} entfernen",
     "removeInUse_one": "{{count}} Eintrag verwendet dieses Level. Wählen Sie das Level, das er stattdessen erhält, oder lassen Sie ihn ohne.",
     "removeInUse_other": "{{count}} Einträge verwenden dieses Level. Wählen Sie das Level, das sie stattdessen erhalten, oder lassen Sie sie ohne.",
-    "replaceWith": "Level stattdessen",
-    "replaceNone": "Kein Level",
+    "replaceWith": "Ersetzen durch",
+    "replaceNone": "Kein Level (Einträge bleiben ohne)",
     "removeButton": "Level entfernen",
     "saved": "Support-Level gespeichert",
     "removed": "Support-Level entfernt",
-    "readOnly": "Nur Administratoren ändern die Support-Level."
-  }
+    "readOnly": "Nur Administratoren ändern die Support-Level.",
+    "name": "Name",
+    "moved": "{{name}} ist jetzt an Position {{n}} von {{count}}"
+  },
+  "saved": "Hilfe und Support gespeichert"
 }

@@ -174,6 +174,14 @@ test('help and support on a phone: cards, no sideways scroll @mobile', async ({ 
       data: {
         channels: [
           {
+  // a name another level has: the server's refusal at the name field, which gets the focus
+  await dialog.getByTestId('support-level-name').fill('Business hours');
+  await dialog.getByRole('textbox', { name: 'SLA document' }).fill('https://wiki.example/sla/gold');
+  await dialog.getByTestId('support-level-save').click();
+  await expect(dialog.getByTestId('support-level-name')).toHaveAttribute('aria-invalid', 'true');
+  await expect(dialog.getByTestId('support-level-name')).toBeFocused();
+  await expect(dialog).toContainText('A support level named Business hours exists already');
+  await dialog.getByTestId('support-level-name').fill(level);
             purpose: 'questions',
             tool: 'teams',
             name: 'A rather long channel name of the invented orders data team',
@@ -181,6 +189,8 @@ test('help and support on a phone: cards, no sideways scroll @mobile', async ({ 
             hours: 'Mo–Fr 08–17',
           },
         ],
+  await expect(card.getByRole('button', { name: `Move ${level} up` })).toBeFocused();
+  await expect(card.getByTestId('support-levels-status')).toContainText(`${level} moved to position`);
         guides: [{ title: 'Guide', url: 'https://wiki.example/a/very/long/path/to/the/invented/orders/data/guide/page' }],
       },
     }),
@@ -188,6 +198,7 @@ test('help and support on a phone: cards, no sideways scroll @mobile', async ({ 
   await page.goto(`/data-products/${product.id}`);
   await expect(page.getByTestId('support-channel')).toHaveCount(1);
   await expectNoHorizontalScroll(page);
+  await expect(card.locator('[data-level-edit]:focus')).toHaveCount(1);
   await expectAccessible(page, 'support: phone');
   await page.getByTestId('help-and-support').getByTestId('support-edit').click();
   await expect(page.getByRole('dialog')).toBeVisible();

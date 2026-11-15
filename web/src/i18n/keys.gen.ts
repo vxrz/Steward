@@ -19097,6 +19097,9 @@ export interface Resources {
     'theme.intro': string;
     'theme.primary': string;
     'theme.primaryHint': string;
+    'levels.name': string;
+    'levels.moved': string;
+    saved: string;
     'theme.accent': string;
     'theme.accentHint': string;
     'theme.invalidColor': string;
