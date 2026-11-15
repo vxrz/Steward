@@ -15,7 +15,17 @@ import { forbid, me } from '../auth/access.js';
 import { viaApiToken } from '../auth/context.js';
 import type { ContactHooks, ContactKindDef } from '../contacts/registry.js';
 import { roleLabelOf } from '../contacts/roles.js';
-import { contactChanges, contactForGroup, contactForUser, importContact, linksOf, namesOfLinks, setLinks, type ContactSurface } from '../contacts/service.js';
+import {
+  contactChanges,
+  contactForGroup,
+  contactForUser,
+  importContact,
+  linksOf,
+  linksOfKinds,
+  namesOfLinks,
+  setLinks,
+  type ContactSurface,
+} from '../contacts/service.js';
 import { t } from '../i18n/index.js';
 import { csvTable } from '../csv.js';
 import { canCreate, domainAccess, objectAccess, productAccess } from './access.js';
@@ -243,11 +253,46 @@ export function writeContacts(
  */
 export function contactsOf(kind: ContactLinkKind, ids: readonly string[], surface: ContactSurface = 'app'): Map<string, ContactLink[]> {
   if (!ids.length) return new Map();
-  const links = linksOf(kind, ids, { surface });
+  return forSurface(linksOf(kind, ids, { surface }), surface);
+}
+
+/** An API token on the internal API: names, roles and the linked user only (see contactsOf). */
+function forSurface(links: Map<string, ContactLink[]>, surface: ContactSurface): Map<string, ContactLink[]> {
   if (surface !== 'app' || !viaApiToken()) return links;
   for (const list of links.values())
     for (const l of list) l.contact = { id: l.contact.id, kind: l.contact.kind, name: l.contact.name, status: l.contact.status, user: l.contact.user ?? null };
   return links;
+}
+
+/**
+ * The contacts of products and of the domains they inherit from, in one statement (the product page, 0.26.0): `domains`
+ * are the ids whose contacts domainContactChains() then reads from `preloaded`.
+ */
+export function productAndDomainContacts(
+  productIds: readonly string[],
+  domainIds: readonly string[],
+  surface: ContactSurface = 'app',
+): { products: Map<string, ContactLink[]>; domains: Map<string, ContactLink[]> } {
+  const all = linksOfKinds(
+    [
+      { kind: 'data_product', ids: productIds },
+      { kind: 'data_domain', ids: domainIds },
+    ],
+    { surface },
+  );
+  return { products: forSurface(all.get('data_product') ?? new Map(), surface), domains: forSurface(all.get('data_domain') ?? new Map(), surface) };
+}
+
+/** The domains whose contacts inherit to these domains' items: each domain and its parent, those the reader may see. */
+export function chainDomainIds(domainIds: readonly (string | null)[], domains: ReadonlyMap<string, DomainNode>, visible: (id: string) => boolean): string[] {
+  const out = new Set<string>();
+  for (const id of domainIds) {
+    if (!id || !domains.has(id) || !visible(id)) continue;
+    out.add(id);
+    const p = domains.get(id)!.parent_id;
+    if (p && domains.has(p) && visible(p)) out.add(p);
+  }
+  return [...out];
 }
 
 // ---------- inherited along the domain hierarchy (0.26.0, ADR 0039 part 2) ----------
@@ -271,12 +316,14 @@ export function domainContactChains(
   domains: ReadonlyMap<string, DomainNode>,
   visible: (id: string) => boolean,
   surface: ContactSurface = 'app',
+  /** The domains' contacts read already (productAndDomainContacts) */
+  preloaded?: Map<string, ContactLink[]>,
 ): Map<string, InheritedContactLink[]> {
   const wanted = [...new Set(domainIds.filter((id): id is string => !!id && domains.has(id) && visible(id)))];
   const out = new Map<string, InheritedContactLink[]>();
   if (!wanted.length) return out;
   const parents = wanted.map((id) => domains.get(id)!.parent_id).filter((p): p is string => !!p && domains.has(p) && visible(p));
-  const links = contactsOf('data_domain', [...new Set([...wanted, ...parents])], surface);
+  const links = preloaded ?? contactsOf('data_domain', [...new Set([...wanted, ...parents])], surface);
   const mark = (id: string): InheritedContactLink[] => {
     const d = domains.get(id)!;
     return (links.get(id) ?? []).map((l) => ({ ...l, from: { kind: 'data_domain', id: d.id, name: d.name } }));

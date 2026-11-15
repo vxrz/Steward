@@ -28,6 +28,7 @@ import {
   type RatingFloor,
   type RatingFloorDimension,
   type ContactLink,
+  type InheritedContactLink,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -61,7 +62,7 @@ import {
 } from './store.js';
 import { portViews } from './ports.js';
 import { onLifecycleChanged } from './notices.js';
-import { contactsOf, domainContactChains, inheritedFor, userSubjectsOf, writeContacts } from './contacts.js';
+import { chainDomainIds, contactsOf, domainContactChains, inheritedFor, productAndDomainContacts, userSubjectsOf, writeContacts } from './contacts.js';
 import { removeItemLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 
@@ -587,13 +588,15 @@ interface SummaryData {
   read: ProductReads;
   envRows: ProductEnvironmentRow[];
   list: CatalogueEnvironment[];
-  /** Every domain, and how the reader sees each (0.26.0: the product page's inherited contacts read them once) */
-  domainRows?: DomainRow[];
-  domains?: Map<string, DataRef>;
+  /** 0.26.0 (`inherit`): per domain id, the contacts its products inherit */
+  chains?: Map<string, InheritedContactLink[]>;
 }
 
-/** The summaries of these products as `u` sees them (bulk: a fixed number of statements for the page), with what they read. */
-function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): SummaryData {
+/**
+ * The summaries of these products as `u` sees them (bulk: a fixed number of statements for the page), with what they
+ * read. `inherit` (the product page, 0.26.0): the contacts of the domains they inherit from, read with theirs.
+ */
+function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[], opts: { inherit?: boolean } = {}): SummaryData {
   const list = environmentList();
   if (!rows.length) return { items: [], floors: new Map(), objects: new Map(), read: {}, envRows: [], list };
   const scale = currentScale();
@@ -608,7 +611,19 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
   );
   const domainRows = allDomains();
   const domains = domainRefs(u, domainRows);
-  const links = contactsOf('data_product', ids);
+  const nodes = new Map(domainRows.map((d) => [d.id, d]));
+  const seesDomain = (id: string) => !!domains.get(id) && !domains.get(id)!.hidden;
+  const read2 = opts.inherit
+    ? productAndDomainContacts(
+        ids,
+        chainDomainIds(
+          rows.map((r) => r.row.domain_id),
+          nodes,
+          seesDomain,
+        ),
+      )
+    : { products: contactsOf('data_product', ids), domains: undefined };
+  const links = read2.products;
   const envRows = environmentsOf(ids);
   const envs = new Map<string, string[]>();
   for (const e of envRows) envs.set(e.product_id, [...(envs.get(e.product_id) ?? []), e.environment]);
@@ -635,7 +650,17 @@ function summaryData(u: AuthUser | null, rows: { row: ProductRow; perms: DataPro
     permissions: perms,
     updatedAt: p.updated_at,
   }));
-  return { items, floors, objects: read.objects ?? new Map(), read, envRows, list, domainRows, domains };
+  // 0.26.0 (ADR 0039 part 2): what each product inherits from its domain (and the domain's parent)
+  const chains = read2.domains
+    ? domainContactChains(
+        rows.map((r) => r.row.domain_id),
+        nodes,
+        seesDomain,
+        'app',
+        read2.domains,
+      )
+    : undefined;
+  return { items, floors, objects: read.objects ?? new Map(), read, envRows, list, chains };
 }
 
 const summaries = (u: AuthUser | null, rows: { row: ProductRow; perms: DataProductPermission[] }[]): DataProductSummary[] => summaryData(u, rows).items;
@@ -739,7 +764,7 @@ export function touchProduct(id: string): void {
 export function getProduct(id: string): DataProduct {
   const u = me();
   const { row: p, perms } = visibleProduct(id, u);
-  const data = summaryData(u, [{ row: p, perms }]);
+  const data = summaryData(u, [{ row: p, perms }], { inherit: true });
   const summary = data.items[0];
   const { list, envRows } = data;
   const ports = portViews(u, p.id, data.objects, data.read);
@@ -760,14 +785,8 @@ export function getProduct(id: string): DataProduct {
     return { environment: name, state: e.state as DataEnvironmentState, monitorId: e.monitor_id, production: isProductionEnvironment(list, name) };
   });
   const visibleIds = new Set(objectRefs.filter((r) => !r.hidden).map((r) => r.id));
-  // 0.26.0 (ADR 0039 part 2): its domain's contacts (and the parent's), in the roles it names none of – one statement
-  const chain = p.domain_id
-    ? domainContactChains(
-        [p.domain_id],
-        new Map((data.domainRows ?? []).map((d) => [d.id, d])),
-        (id) => !!data.domains?.get(id) && !data.domains.get(id)!.hidden,
-      ).get(p.domain_id)
-    : undefined;
+  // 0.26.0 (ADR 0039 part 2): its domain's contacts (and the parent's), in the roles it names none of – read with its own
+  const chain = p.domain_id ? data.chains?.get(p.domain_id) : undefined;
   return {
     ...summary!,
     inheritedContacts: inheritedFor(summary!.contacts, chain),

@@ -286,6 +286,42 @@ export function namesOfLinks(links: readonly ContactLink[] | undefined): Contact
   }));
 }
 
+/**
+ * The contacts of items of several kinds in one statement (a page that shows an item and what it inherits: a product and
+ * its domains), else as linksOf per kind. Per kind, per item id; the shape the surface allows.
+ */
+export function linksOfKinds(
+  parts: readonly { kind: ContactLinkKind; ids: readonly string[] }[],
+  opts: { surface?: ContactSurface } = {},
+): Map<ContactLinkKind, Map<string, ContactLink[]>> {
+  const want = parts.map((p) => ({ kind: p.kind, ids: [...new Set(p.ids)] })).filter((p) => p.ids.length);
+  const out = new Map<ContactLinkKind, Map<string, ContactLink[]>>(parts.map((p) => [p.kind, new Map(p.ids.map((id) => [id, []]))]));
+  if (!want.length) return out;
+  if (want.reduce((n, p) => n + p.ids.length, 0) > CHUNK) {
+    for (const p of want) out.set(p.kind, linksOf(p.kind, p.ids, opts));
+    return out;
+  }
+  const rows = db().all<ContactRow & { kind: string; item_id: string; role: string; position: number; deputy_of: string | null; until: string | null }>(
+    `SELECT l.kind AS link_kind, l.item_id, l.role, l.position, l.deputy_of, l.until, ${CONTACT_COLUMNS} FROM contact_links l JOIN contacts c ON c.id = l.contact_id
+       LEFT JOIN users u ON u.id = c.user_id WHERE ${want.map((p) => `(l.kind = ? AND l.item_id IN (${marks(p.ids.length)}))`).join(' OR ')}`,
+    ...want.flatMap((p) => [p.kind, ...p.ids]),
+  ) as unknown as (ContactRow & {
+    link_kind: ContactLinkKind;
+    item_id: string;
+    role: string;
+    position: number;
+    deputy_of: string | null;
+    until: string | null;
+  })[];
+  sortLinks(rows);
+  for (const r of rows)
+    out
+      .get(r.link_kind)
+      ?.get(r.item_id)
+      ?.push(linkOf(r, refOf(r, exposureLevel(r.link_kind, opts.surface ?? 'app'))));
+  return out;
+}
+
 const linkList = z.array(contactLinkInput).max(CONTACT_LIMITS.perRole * 10);
 
 /**
