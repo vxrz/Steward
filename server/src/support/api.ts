@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SUPPORT_PURPOSES, SUPPORT_TOOLS, type ItemSupport, type SupportChannel, type SupportLevelRef } from '@sm/shared';
+import { SUPPORT_LIMITS, SUPPORT_PURPOSES, SUPPORT_TOOLS, type ItemSupport, type SupportChannel, type SupportLevelRef } from '@sm/shared';
 
 /**
  * Support channels, levels and guides in the public API (/api/v1) and the MCP tools (0.26.0, ADR 0039 part 7): one
@@ -32,7 +32,7 @@ export const ApiGuide = z.object({ title: z.string(), url: z.string() });
 export const ApiSupportedBy = z
   .object({
     service: z.object({ id: z.string(), name: z.string() }),
-    channels: z.array(ApiSupportChannel),
+    channels: z.array(ApiSupportChannel).max(SUPPORT_LIMITS.channels),
     level: ApiSupportLevel.nullable(),
   })
   .describe(
