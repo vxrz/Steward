@@ -17,6 +17,21 @@ import type { NamedMigration } from '../db.js';
  *     who linked it and when. One row per kind, item, role and contact; who sees a contact is computed from these rows
  *     (contacts/visibility.ts), so the index on contact_id serves the directory's pages.
  */
+/*
+ * contacts-002-roles (0.26.0, ADR 0039 parts 1 and 3):
+ *   contact_roles: the role catalogue (Settings → Contacts → Roles) – key, English and German label, a description, the
+ *     kinds it applies to (JSON array of link kinds: switched on), one or many contacts per item (`cardinality`),
+ *     `expected` (an item without one gets a hint), built-in (CONTACT_LINK_ROLES: never deleted or re-keyed, kinds only
+ *     a part of their seed), active (switched off: no new links, existing ones stay and are marked), a position for
+ *     the order and who made and changed it. The built-in roles – every role of before, keys and kinds unchanged, so
+ *     no link changes, and the new ones of applications and systems – are part of the catalogue from the start
+ *     (CONTACT_LINK_ROLES, BUILT_IN_CONTACT_ROLE_LABELS); a row of a built-in role holds what an administrator changed
+ *     (no rows are inserted here: a new installation's tables stay empty, as a migration package's target needs them).
+ *     Plant sites' free-text roles become own roles when the vault is first opened (contacts/upgrade.ts
+ *     convertPlantSiteRoles, audited, idempotent).
+ *   contact_links.deputy_of: stands in for that contact (contacts.id) in the same role on the same item, or NULL.
+ *   contact_links.until: named until that day (YYYY-MM-DD), or NULL: after it the link is marked ended.
+ */
 export const CONTACTS_MIGRATIONS: NamedMigration[] = [
   {
     name: 'contacts-001-directory',
@@ -53,6 +68,29 @@ export const CONTACTS_MIGRATIONS: NamedMigration[] = [
         PRIMARY KEY (kind, item_id, role, contact_id)
       );
       CREATE INDEX contact_links_contact ON contact_links(contact_id);
+    `,
+  },
+  {
+    name: 'contacts-002-roles',
+    sql: `
+      CREATE TABLE contact_roles (
+        key TEXT PRIMARY KEY,
+        label_en TEXT NOT NULL,
+        label_de TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        kinds TEXT NOT NULL DEFAULT '[]',
+        cardinality TEXT NOT NULL DEFAULT 'many',
+        expected INTEGER NOT NULL DEFAULT 0,
+        built_in INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        position INTEGER NOT NULL DEFAULT 1000,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      ALTER TABLE contact_links ADD COLUMN deputy_of TEXT;
+      ALTER TABLE contact_links ADD COLUMN until TEXT;
     `,
   },
 ];

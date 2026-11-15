@@ -3,6 +3,7 @@ import { contactInput, contactReplaceInput } from '@sm/shared';
 import { ACCESS, type RouteAccess } from '../auth/access.js';
 import { params } from '../routes/params.js';
 import * as svc from './service.js';
+import * as roles from './roles.js';
 
 /**
  * The contacts directory (mounted under /api; ADR 0038, docs/CONTACTS.md). Personal data of people who often have no
@@ -15,6 +16,11 @@ import * as svc from './service.js';
  *   PUT    /contacts/:id             change (who may change one item it is linked to, administrators)
  *   POST   /contacts/:id/replace     Replace with… {targetId, markLeft?}
  *   DELETE /contacts/:id             erase (administrators, step-up, GDPR Art. 17)
+ *   GET    /contact-roles            the role catalogue (0.26.0, ADR 0039): every signed-in person (the pickers);
+ *                                    administrators also get each role's usage
+ *   POST   /contact-roles            administrators: an own role
+ *   PUT    /contact-roles/:key       administrators: change a role (a built-in one: labels, kinds of its own, on/off)
+ *   DELETE /contact-roles/:key       administrators: an own role nobody names
  */
 
 /**
@@ -33,6 +39,13 @@ export async function contactRoutes(app: FastifyInstance): Promise<void> {
   app.post('/contacts/:id/replace', { config: { access: SESSION } }, async (req) =>
     svc.replaceContact(params(req).id!, contactReplaceInput.parse(req.body ?? {})),
   );
+  app.get('/contact-roles', { config: { access: READ } }, async () => roles.listRoles());
+  app.post('/contact-roles', { config: { access: ACCESS.adminSession } }, async (req) => roles.createRole(req.body ?? {}));
+  app.put('/contact-roles/:key', { config: { access: ACCESS.adminSession } }, async (req) => roles.updateRole(params(req).key!, req.body ?? {}));
+  app.delete('/contact-roles/:key', { config: { access: ACCESS.adminSession } }, async (req) => {
+    roles.deleteRole(params(req).key!);
+    return { ok: true };
+  });
   app.delete('/contacts/:id', { config: { access: ACCESS.adminSession, stepUp: { action: 'eraseContact', who: 'manageUsers' } } }, async (req) => {
     svc.eraseContact(params(req).id!);
     return { ok: true };
