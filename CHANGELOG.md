@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Private keys pasted into a password field could not be read** ([docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md#private-key-formats)): a browser drops the line breaks of text pasted into a single-line field, so a PEM key entered for the key-pair JWT (Snowflake and other platforms), a client assertion, mutual TLS or an MQTT client certificate was stored on one line, and the connection test failed with `DECODER routines::unsupported`. Steward now restores the PEM structure where it reads the key – headers such as `Proc-Type`/`DEK-Info`, the empty line after them, the body in lines of 64 characters, each block of a certificate chain – for PKCS#8, encrypted PKCS#8 and the traditional `RSA PRIVATE KEY` (also encrypted). **Keys already saved on one line work after the update without being entered again.** The add-platform wizard, the _Credentials_ tab and an identity's credentials take a PEM key or certificate in a multi-line field (also when one is pasted into a password field); stored values are still never shown. A key that cannot be read says why – a wrong or missing passphrase, an OpenSSH key (with the `ssh-keygen` command to convert it), a PuTTY key or DER – and never shows the key; a trailing line break of a passphrase pasted from a file is ignored.
+
 ## [0.26.1] - 2026-11-16
 
 Steward 0.26.1 fixes the Kubernetes integration for clusters without cert-manager: the cert-manager certificates are optional, so namespaces, the monitor check and the example process work when the cluster has no cert-manager or the service account may not read certificates. It also adds the upgrade fixture of 0.26.0.

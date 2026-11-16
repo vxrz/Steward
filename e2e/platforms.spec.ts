@@ -1,6 +1,7 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { json, platformId, uniq } from './support/helpers';
+import { expectAccessible } from './support/axe';
 
 test.use({ storageState: authFile('admin') });
 
@@ -234,5 +235,73 @@ test('a new address of a platform asks what happens to its stored credentials (s
   await ask.getByRole('button', { name: 'Remove them' }).click();
   await expect(page.getByText('Platform saved').first()).toBeVisible();
   await expect.poll(secretKeys).toEqual([]);
+  await api.delete(`/api/platforms/${p.id}`);
+});
+
+test('a PEM key is entered in a multi-line field, also when pasted into a password field, and one stored on one line still signs in (0.26.2)', async ({
+  page,
+  apiAs,
+}) => {
+  const crypto = await import('node:crypto');
+  const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
+  const body = pem.split('\n')[1]!;
+  const hint = 'Paste the whole file including the BEGIN and END lines.';
+
+  // the setup wizard: the Snowflake key is a text area
+  await page.goto('/platforms');
+  await page.getByRole('button', { name: 'Add platform' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add a platform' });
+  await dialog.getByRole('textbox', { name: 'Search connectors' }).fill('snowflake');
+  await dialog.getByTestId('wizard-connector').filter({ hasText: 'Snowflake' }).first().click();
+  const wizardKey = dialog.getByTestId('secret-privateKey');
+  await expect(wizardKey).toHaveJSProperty('tagName', 'TEXTAREA');
+  await expect(dialog.getByText(hint)).toBeVisible();
+  await expect(dialog.getByTestId('secret-privateKeyPassphrase')).toHaveAttribute('type', 'password');
+  await page.keyboard.press('Escape');
+
+  // a Snowflake platform like the demo's (its account answers 390144 for a key it does not know: the key was read)
+  const api = await apiAs('admin');
+  const demo = (await json<{ id: string; kind: string }[]>(await api.get('/api/platforms'))).find((x) => x.kind === 'snowflake')!;
+  const base = await json<Record<string, unknown>>(await api.get(`/api/platforms/${demo.id}`));
+  const p = await json<{ id: string }>(
+    await api.post('/api/platforms', { data: { name: uniq('Snowflake PEM'), kind: 'snowflake', baseUrl: base.baseUrl, config: base.config, secrets: {} } }),
+  );
+  await page.goto(`/platforms/${p.id}`);
+  await page.getByRole('tab', { name: 'Credentials' }).click();
+  const name = page.getByRole('combobox', { name: 'Name' });
+  const value = page.getByTestId('credential-value');
+
+  // privateKey: a text area; a key on one line (as a password field stored it before) is stored and read
+  await name.fill('privateKey');
+  await name.press('Escape');
+  await expect(value).toHaveJSProperty('tagName', 'TEXTAREA');
+  await expect(page.getByText(hint)).toBeVisible();
+  await expectAccessible(page, 'credentials: a PEM key');
+  await value.fill(pem.replace(/\n/g, ''));
+  await page.getByRole('button', { name: 'Store secret' }).click();
+  await expect(page.getByRole('cell', { name: 'privateKey' })).toBeVisible();
+  await page.getByRole('button', { name: 'Test connection' }).click();
+  const result = page.getByRole('alert').filter({ hasText: 'JWT token is invalid' });
+  await expect(result).toBeVisible();
+  await expect(result).not.toContainText('cannot be read');
+
+  // another name: a password field – until a PEM is pasted, which keeps its line breaks in a text area
+  await expect(value).toHaveAttribute('type', 'password');
+  await name.fill('pastedKey');
+  await name.press('Escape');
+  await value.evaluate((el, text) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  }, pem);
+  await expect(value).toHaveJSProperty('tagName', 'TEXTAREA');
+  await expect(value).toBeFocused();
+  await expect(value).toHaveValue(pem);
+  await page.getByRole('button', { name: 'Store secret' }).click();
+  await expect(page.getByRole('cell', { name: 'pastedKey' })).toBeVisible();
+  // stored values are never shown again
+  await expect(value).toHaveValue('');
+  expect(await page.content()).not.toContain(body);
+  expect(await (await api.get(`/api/platforms/${p.id}`)).text()).not.toContain(body);
   await api.delete(`/api/platforms/${p.id}`);
 });

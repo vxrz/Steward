@@ -41,7 +41,7 @@ The ACCOUNT_USAGE views cover the whole account, also dropped objects and histor
 3. Under _Platforms_, a platform of type _Snowflake (SQL API, read-only)_:
    - **Base URL**: `https://<account identifier>.snowflakecomputing.com` (e.g. `https://myorg-myaccount.snowflakecomputing.com`).
    - **Variables**: `account` – the account identifier as Snowflake expects it in the JWT (`MYORG-MYACCOUNT`, or the account locator `XY12345`; upper case is applied), `user`, `role` and `warehouse`.
-   - **Credentials**: `privateKey` (the PEM of `steward_key.p8`), `privateKeyPassphrase` if it is encrypted.
+   - **Credentials**: `privateKey` (the PEM of `steward_key.p8`: paste the whole file including the BEGIN and END lines into the multi-line field), `privateKeyPassphrase` if it is encrypted. Accepted are PKCS#8 (`BEGIN PRIVATE KEY`), encrypted PKCS#8 (`BEGIN ENCRYPTED PRIVATE KEY`) and the traditional `BEGIN RSA PRIVATE KEY`, also encrypted (`Proc-Type: 4,ENCRYPTED`) – the encrypted ones with the passphrase; not an OpenSSH key (`BEGIN OPENSSH PRIVATE KEY`: convert a copy with `ssh-keygen -p -m PEM -f <copy>`), a PuTTY key or DER. A key that lost its line breaks – pasted into a single-line field before 0.26.2 – is read as well; it need not be entered again ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#private-key-formats)).
    - Sign-in is the _key-pair JWT_ with the Snowflake claims and the header `X-Snowflake-Authorization-Token-Type: KEYPAIR_JWT`, preset ([PLATFORM-SIGN-IN.md](PLATFORM-SIGN-IN.md#key-pair-jwt)).
 
 _Test connection_ shows account, user, role and warehouse, and whether the ACCOUNT_USAGE views can be read.

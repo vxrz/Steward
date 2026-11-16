@@ -277,6 +277,7 @@
     "namePlaceholder": "z. B. clientSecret",
     "replaces": "Ersetzt den gespeicherten Wert von „{{key}}“.",
     "store": "Geheimnis speichern",
+    "pemHint": "Fügen Sie die ganze Datei einschließlich der BEGIN- und END-Zeile ein.",
     "removeTitle": "Geheimnis entfernen",
     "removeText": "Geheimnis <b>{{key}}</b> entfernen? Prozesse, die es verwenden, schlagen fehl, bis es wieder gesetzt ist."
   },

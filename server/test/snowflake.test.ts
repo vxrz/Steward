@@ -76,6 +76,55 @@ describe('Snowflake platform', () => {
     expect(check).toMatchObject({ status: 'unknown', message: expect.stringMatching(/^Snowflake could not be read: .*JWT token is invalid.*RSA_PUBLIC_KEY/) });
   });
 
+  it('signs in with a key stored on one line (a single-line field before 0.26.2), also an encrypted one with its passphrase', async () => {
+    const crypto = await import('node:crypto');
+    const { getSecrets } = await import('../src/platforms/service.js');
+    // the demo user's key, as the demo stored it
+    const key = crypto.createPrivateKey(getSecrets(sf).privateKey!);
+    const flat = (pem: string) => pem.replace(/\n/g, '');
+    const base = await s.api('GET', `/platforms/${sf}`);
+    const variants: [string, Record<string, string>][] = [
+      ['PKCS#8', { privateKey: flat(key.export({ type: 'pkcs8', format: 'pem' }) as string) }],
+      [
+        'encrypted PKCS#8',
+        {
+          privateKey: flat(key.export({ type: 'pkcs8', format: 'pem', cipher: 'aes-256-cbc', passphrase: 'pass phrase' }) as string),
+          privateKeyPassphrase: 'pass phrase\n',
+        },
+      ],
+      [
+        'encrypted PKCS#1',
+        {
+          privateKey: key.export({ type: 'pkcs1', format: 'pem', cipher: 'des-ede3-cbc', passphrase: 'pass phrase' }).toString().replace(/\n/g, ' '),
+          privateKeyPassphrase: 'pass phrase',
+        },
+      ],
+    ];
+    for (const [name, secrets] of variants) {
+      // what OpenSSL made of it before: DECODER routines::unsupported
+      expect(() => crypto.createPrivateKey({ key: secrets.privateKey!, format: 'pem', passphrase: 'pass phrase' }), name).toThrow();
+      // stored as it was (nothing to enter again): repaired where it is read
+      const p = await s.api('POST', '/platforms', { ...base, name: `Snowflake one-line key ${name}`, secrets });
+      expect(await s.api('POST', `/platforms/${p.id}/test`, {}), name).toMatchObject({
+        ok: true,
+        message: expect.stringContaining('ACCOUNT_USAGE views can be read'),
+      });
+      const check = await s.api('POST', '/monitors/check-preview', {
+        check: { id: 'sf', name: 'Orders fresh', type: 'snowflake', platform: p.id, mode: 'freshness', object: 'SHOP.SALES.ORDERS', maxAgeMinutes: 60 },
+      });
+      expect(check.status, name).toBe('up');
+    }
+    // a wrong passphrase says what to check, and never shows the key
+    const wrong = await s.api('POST', '/platforms', {
+      ...base,
+      name: 'Snowflake wrong passphrase',
+      secrets: { ...variants[1]![1], privateKeyPassphrase: 'other' },
+    });
+    const t = await s.api('POST', `/platforms/${wrong.id}/test`, {});
+    expect(t).toMatchObject({ ok: false, message: expect.stringContaining('check the passphrase (secret privateKeyPassphrase)') });
+    expect(t.message).not.toContain(variants[1]![1].privateKey!.slice(60, 100));
+  });
+
   it('a 390144 with a region in the account identifier says what the JWT needs', async () => {
     const base = await s.api('GET', `/platforms/${sf}`);
     await s.api('PUT', `/platforms/${sf}`, { config: { ...base.config, variables: { ...base.config.variables, account: 'xy12345.eu-central-1' } } });

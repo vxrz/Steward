@@ -277,6 +277,7 @@
     "namePlaceholder": "e.g. clientSecret",
     "replaces": "This replaces the stored value of “{{key}}”.",
     "store": "Store secret",
+    "pemHint": "Paste the whole file including the BEGIN and END lines.",
     "removeTitle": "Remove secret",
     "removeText": "Remove the secret <b>{{key}}</b>? Processes using it will fail until it is set again."
   },

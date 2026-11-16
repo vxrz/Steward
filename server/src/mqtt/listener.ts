@@ -7,6 +7,7 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError } from '../util.js';
 import { assertAddressSafe, assertNetAllowed, guardedLookup } from '../platforms/outbound.js';
+import { normalizePem } from '../platforms/pem.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { getSettings } from '../settings.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
@@ -52,10 +53,19 @@ async function assertBrokerAllowed(platform: Platform): Promise<URL> {
   return u;
 }
 
+/** The client certificate (credentials certificate and privateKey, PEM) – one stored on one line is repaired (0.26.2). */
+function clientCertificate(cert: string, key: string): { cert: string; key: string } {
+  try {
+    return { cert: normalizePem(cert), key: normalizePem(key) };
+  } catch (e) {
+    throw new Error(`The client certificate (credentials certificate and privateKey) cannot be read: ${(e as Error).message}`);
+  }
+}
+
 function options(platform: Platform, secrets: Record<string, string>) {
   const tlsOpts = {
     ...(platform.config.http?.caPem ? { ca: platform.config.http.caPem } : {}),
-    ...(secrets.certificate && secrets.privateKey ? { cert: secrets.certificate, key: secrets.privateKey } : {}),
+    ...(secrets.certificate && secrets.privateKey ? clientCertificate(secrets.certificate, secrets.privateKey) : {}),
     rejectUnauthorized: !platform.config.http?.insecureTls,
   };
   return {
