@@ -1,5 +1,5 @@
 name: Kubernetes
-description: Deployments, pods and cert-manager certificates of the namespaces you follow – fed by "Kubernetes – Namespace health" (every 15 minutes, read-only service account).
+description: Deployments, pods and cert-manager certificates (if the cluster has cert-manager) of the namespaces you follow – fed by "Kubernetes – Namespace health" (every 15 minutes, read-only service account).
 refreshSeconds: 60
 widgets:
   - id: intro

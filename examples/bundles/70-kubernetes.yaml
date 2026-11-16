@@ -1,8 +1,9 @@
 # steward-min-version: 0.4.0
 name: Kubernetes (namespace health)
 description: |
-  Deployments, pods and cert-manager certificates of the namespaces you list, every 15 minutes, with the "Kubernetes"
-  dashboard and, optionally, the namespace monitor. Use the read-only service account of docs/KUBERNETES.md.
+  Deployments, pods and – if the cluster has cert-manager – its certificates of the namespaces you list, every 15
+  minutes, with the "Kubernetes" dashboard and, optionally, the namespace monitor. Use the read-only service account of
+  docs/KUBERNETES.md; without cert-manager, turn the process input "Read cert-manager certificates" off.
 tags: [kubernetes]
 platforms:
   - key: k8s
