@@ -170,6 +170,35 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ deployments: 5, notReady: 1, unhealthyPods: 1, certsEnding: 1 });
   });
 
+  it('Kubernetes – Namespace health without cert-manager (0.26.1): input off reads no certificates, 403 does not stop the run', async () => {
+    const mock = await import('../src/mock/mockKubernetes.js');
+    const run = async (inputs: Record<string, unknown>) => {
+      const { id: runId } = await s.api('POST', '/runs', { processId: 'kubernetes-namespace-health', bindings: { k8s: platformByKind.kubernetes }, inputs });
+      const r = await finish(runId);
+      expect([r.status, r.error]).toEqual(['succeeded', null]);
+      const certs = r.steps.filter((x: any) => x.stepId === 'certificates');
+      return { certs, rows: (await s.api('GET', '/datasets/k8s.health')).rows as any[] };
+    };
+    try {
+      // off: the cert-manager API is never asked, no step fails, no certificate rows – the deployments are there
+      mock.resetKubernetes();
+      let r = await run({ readCertificates: false });
+      expect(mock.certificateRequests()).toBe(0);
+      expect(r.certs.map((x: any) => x.status)).toEqual(['skipped', 'skipped']);
+      expect(r.rows.some((x: any) => x._key.includes('/certificate/'))).toBe(false);
+      expect(r.rows.find((x: any) => x._key === 'shop-prod/deployment/worker')).toMatchObject({ Ready: '1/2', _status: 'warning' });
+      // on, the service account has no rule for cert-manager.io (403): the step fails, the run goes on and publishes
+      mock.setCertificates('forbidden');
+      r = await run({ readCertificates: true });
+      expect(mock.certificateRequests()).toBe(2);
+      expect(r.certs.map((x: any) => x.status)).toEqual(['failed', 'failed']);
+      expect(r.rows.some((x: any) => x._key.includes('/certificate/'))).toBe(false);
+      expect(r.rows.filter((x: any) => x._key.includes('/deployment/'))).toHaveLength(5);
+    } finally {
+      mock.resetKubernetes();
+    }
+  });
+
   it('Git – Repository health finds the failing default branch and the high alert', async () => {
     // runs after "runs 82-…" above, against the mock GitHub (server/src/mock/mockGitPlatforms.ts)
     const d = await s.api('GET', '/datasets/git.repositories');

@@ -10,9 +10,13 @@ Steward reads Kubernetes clusters (also OpenShift, Rancher, AKS, EKS, GKE) with 
 
 ## Connect a cluster
 
-1. Create the service account and the read-only role below (one `ClusterRole`, bound per namespace or cluster-wide).
+1. Create the service account and the read-only role below (one `ClusterRole`, bound per namespace or cluster-wide). The rule for `cert-manager.io` is optional – leave it out when the cluster has no cert-manager ([Certificates](#certificates-cert-manager)).
 2. In Steward, _Platforms → New → Kubernetes cluster (read-only)_. Base URL: the API server, e.g. `https://k8s-api.example.com:6443`. Credential **token**: the service account token. For a private CA, add it under the platform's HTTP settings. The outbound policy must allow the API server.
 3. _Test connection_ calls `GET /version`.
+
+| Platform variable | Meaning                                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **certManager**   | `on` (default; also when the variable is missing, as on platforms from before 0.26.1) or `off` – read cert-manager certificates or not |
 
 ```yaml
 apiVersion: v1
@@ -29,6 +33,7 @@ rules:
   - apiGroups: ['']
     resources: ['pods']
     verbs: ['get', 'list']
+  # optional: only where the cluster has cert-manager (see "Certificates (cert-manager)")
   - apiGroups: ['cert-manager.io']
     resources: ['certificates']
     verbs: ['get', 'list']
@@ -49,12 +54,25 @@ On the application page, _Components → Add_: type **Kubernetes namespace**, th
 
 - **Deployments** with ready and wanted replicas (`web 3/3, worker 1/2`) and their images (init containers too).
 - **Pods that are not well**: waiting with a reason such as `CrashLoopBackOff` or `ImagePullBackOff`, failed, pending for more than 10 minutes, or 5 restarts and more.
-- **cert-manager certificates** with their end (`status.notAfter`); those ending within 30 days are shown. Without cert-manager in the cluster the line says so; TLS secrets without cert-manager are not read.
+- **cert-manager certificates** with their end (`status.notAfter`), if the cluster has cert-manager; those ending within 30 days are shown. When they are not read, the line says why ([Certificates](#certificates-cert-manager)); TLS secrets without cert-manager are not read.
 - **Tech stack**: each image is mapped to an endoflife.date product and the version of its tag (`postgres:16.4-alpine` → PostgreSQL 16.4, `node:24-alpine` → Node.js 24, `nginx:1.27.3` → nginx 1.27.3). The entries have the source _read from the cluster_; they follow the images, and an entry entered by hand wins. When several images run one product, the oldest version counts. **Images Steward cannot map** (your own, e.g. `ghcr.io/acme/shop-web`) are listed as _not mapped_ instead of being guessed.
 
 **Own images.** _Applications → End of life → settings_, _Own container images_: one line per image and product, e.g. `ghcr.io/acme/base-node = nodejs`; the version comes from the tag. They come before the built-in list (official images such as postgres, mysql, mariadb, mongo, redis, valkey, rabbitmq, elasticsearch, nginx, httpd, haproxy, traefik, node, python, php, ruby, golang, eclipse-temurin, tomcat, alpine, ubuntu, debian, grafana, prometheus, keycloak, kafka; `shared/src/kubernetes.ts`). A rule matches the end of the repository, so `acme/postgres-backup` is not taken for PostgreSQL.
 
 End-of-life messages, the scorecard part _Tech stack_ and the end-of-life overview then cover the namespaces like any component ([APPLICATIONS.md](APPLICATIONS.md#end-of-life)). A read that changes the stack is audited as `application.component_cluster_read`; a read that fails keeps the stack and shows why (`no permission (403)` …).
+
+## Certificates (cert-manager)
+
+Certificates are optional: deployments, pods and the tech stack are read whether or not Steward may read certificates. Kubernetes checks the rights before it looks for the resource, so a service account without the `cert-manager.io` rule gets **403** for certificates even where cert-manager is not installed; only with the rule does a cluster without cert-manager answer **404**. The namespace's line on the application page says which it was:
+
+| Answer to the certificates call                   | The line says                                                     |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| 404                                               | _No cert-manager in the cluster: certificates are not read_       |
+| 403                                               | _Certificates not read: the service account may not list … (403)_ |
+| anything else (5xx, timeout)                      | _Certificates could not be read: …_ with the reason               |
+| not asked – the platform's `certManager` is `off` | _Certificates are not read: turned off for this cluster …_        |
+
+Without cert-manager, set the platform's variable **certManager** to `off`: Steward then never calls the cert-manager API. The monitor check type **Kubernetes deployments** never reads certificates. The example process has its own input, _Read cert-manager certificates_ (`readCertificates`, on by default); with it off, no certificates are read and no step fails; with it on, a 403 or 404 is tolerated (the step is marked failed, the run goes on and publishes the deployments).
 
 ## Monitor check
 
@@ -68,4 +86,4 @@ Up when every deployment (or the one named) has all replicas ready; **degraded**
 
 ## Demo and tests
 
-Demo mode adds **Kubernetes (demo)**, a simulated API server (`server/src/mock/mockKubernetes.ts`) with the namespaces `shop-prod` (a crash-looping worker, a certificate ending in 10 days) and `shop-test`. Tests: `server/test/kubernetes.test.ts` and the example run in `server/test/examples.test.ts`.
+Demo mode adds **Kubernetes (demo)**, a simulated API server (`server/src/mock/mockKubernetes.ts`) with the namespaces `shop-prod` (a crash-looping worker, a certificate ending in 10 days) and `shop-test`. Tests: `server/test/kubernetes.test.ts` (with certificates answering 403, 404 and 500, and turned off) and the example run in `server/test/examples.test.ts`.

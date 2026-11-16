@@ -6,7 +6,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  *   GET /version
  *   GET /apis/apps/v1/namespaces/{ns}/deployments[/{name}]
  *   GET /api/v1/namespaces/{ns}/pods
- *   GET /apis/cert-manager.io/v1/namespaces/{ns}/certificates   (404 when cert-manager is "not installed")
+ *   GET /apis/cert-manager.io/v1/namespaces/{ns}/certificates   (404 when cert-manager is "not installed", 403 when the
+ *       service account has no rule for cert-manager.io, 500 for a broken API – setCertificates)
  * Authentication: `Authorization: Bearer <service account token>`; the namespace "forbidden" answers 403 like RBAC does.
  */
 
@@ -69,7 +70,10 @@ function seed(): Record<string, Ns> {
 }
 
 let data = seed();
-let certManager = true;
+/** How the certificates call answers: a list, 404 (cert-manager not installed), 403 (no rule for it), 500 */
+export type MockCertificates = 'ok' | 'notInstalled' | 'forbidden' | 'error';
+let certAnswer: MockCertificates = 'ok';
+let certRequests = 0;
 
 /** For tests: change a deployment, or say whether cert-manager is installed. */
 export function setDeployment(ns: string, name: string, patch: Partial<Deployment>): void {
@@ -77,11 +81,20 @@ export function setDeployment(ns: string, name: string, patch: Partial<Deploymen
   if (d) Object.assign(d, patch);
 }
 export function setCertManager(installed: boolean): void {
-  certManager = installed;
+  certAnswer = installed ? 'ok' : 'notInstalled';
+}
+/** For tests (0.26.1): how the certificates call answers. */
+export function setCertificates(answer: MockCertificates): void {
+  certAnswer = answer;
+}
+/** For tests (0.26.1): how often the certificates were asked for since the last reset. */
+export function certificateRequests(): number {
+  return certRequests;
 }
 export function resetKubernetes(): void {
   data = seed();
-  certManager = true;
+  certAnswer = 'ok';
+  certRequests = 0;
 }
 
 const status = (reply: FastifyReply, code: number, reason: string, message: string) =>
@@ -150,8 +163,18 @@ export async function mockKubernetes(app: FastifyInstance): Promise<void> {
   });
   app.get('/kubernetes/apis/cert-manager.io/v1/namespaces/:ns/certificates', async (req, reply) => {
     const { ns } = req.params as { ns: string };
+    certRequests++;
     if (!allowed(req, reply, ns)) return reply;
-    if (!certManager) return status(reply, 404, 'NotFound', 'the server could not find the requested resource');
+    if (certAnswer === 'notInstalled') return status(reply, 404, 'NotFound', 'the server could not find the requested resource');
+    // RBAC answers before the resource is looked up: without a rule for cert-manager.io, 403 whether it is installed or not
+    if (certAnswer === 'forbidden')
+      return status(
+        reply,
+        403,
+        'Forbidden',
+        `certificates.cert-manager.io is forbidden: User "system:serviceaccount:steward:reader" cannot list resource "certificates" in API group "cert-manager.io" in the namespace "${ns}"`,
+      );
+    if (certAnswer === 'error') return status(reply, 500, 'InternalError', 'an error on the server has prevented the request from succeeding');
     return {
       kind: 'CertificateList',
       apiVersion: 'cert-manager.io/v1',

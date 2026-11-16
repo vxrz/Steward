@@ -4,9 +4,14 @@ description: |
   Reads the namespaces you list from a Kubernetes cluster (read-only service
   account, see docs/KUBERNETES.md): every deployment with ready and wanted
   replicas and its images, the pods that are not well (crash-looping, failed,
-  many restarts) and the cert-manager certificates with their end. Checks warn
-  while a deployment is not fully ready, a pod crash-loops, or a certificate
-  ends within the warning days. Read-only.
+  many restarts) and, if the cluster has cert-manager, its certificates with
+  their end. Checks warn while a deployment is not fully ready, a pod
+  crash-loops, or a certificate ends within the warning days. Read-only.
+
+  Without cert-manager, turn "Read cert-manager certificates" off: the
+  certificates are then not asked for and no step fails. With it on, a cluster
+  that answers 403 or 404 for them is tolerated (the step is marked failed, the
+  deployments and pods are still published).
 
   Recommended schedule: every 15 minutes (`*/15 * * * *`), with "message on
   change" in the schedule's notification policy. Publishes `k8s.health` (one row
@@ -29,6 +34,10 @@ inputs:
     label: Warn when a certificate ends within (days)
     type: number
     default: 30
+  - name: readCertificates
+    label: Read cert-manager certificates
+    type: boolean
+    default: true
 steps:
   - id: read
     type: forEach
@@ -59,6 +68,8 @@ steps:
         connection: k8s
         method: GET
         path: "/apis/cert-manager.io/v1/namespaces/{{ $encodeUrlComponent(vars.ns) }}/certificates"
+        # only when asked for; 403 (no rule for cert-manager.io) or 404 (not installed) do not stop the run
+        when: "inputs.readCertificates = true"
         onError: continue
         saveAs: certs
       - id: summarize
@@ -89,7 +100,7 @@ steps:
                   "daysLeft": null
                 }
               )];
-              $certs := $exists(vars.certs.error) ? [] : [vars.certs.body.items.(
+              $certs := $not($exists(vars.certs.body.items)) ? [] : [vars.certs.body.items.(
                 $days := $exists(status.notAfter) ? $floor(($toMillis(status.notAfter) - $millis()) / 86400000) : null;
                 {
                   "key": $ns & '/certificate/' & metadata.name,

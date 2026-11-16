@@ -121,10 +121,46 @@ export interface NamespaceReadout {
   deployments: { name: string; ready: number; desired: number; images: string[] }[];
   /** Pods that are not running well: crash-looping, failed, pending for long, many restarts */
   unhealthyPods: { name: string; reason: string; restarts: number }[];
-  /** cert-manager Certificates; null when cert-manager is not installed */
+  /** cert-manager Certificates; null when they were not read – certificatesState says why */
   certificates: { name: string; notAfter: string | null; ready: boolean }[] | null;
+  /**
+   * Whether the certificates were read (0.26.1); absent in readouts of earlier versions, where null certificates meant
+   * "cert-manager not installed" – use namespaceCertificatesState().
+   */
+  certificatesState?: CertificatesState;
+  /** Why the certificates could not be read (forbidden, failed); null otherwise */
+  certificatesError?: string | null;
   /** Images Steward could not map to a product */
   unmapped: string[];
+}
+
+/**
+ * The cert-manager certificates of a namespace are optional (0.26.1): a cluster without cert-manager, or a service
+ * account without a rule for cert-manager.io, still has its deployments and pods read.
+ * - read: read (the list may be empty)
+ * - notInstalled: the cluster answered 404 – cert-manager is not installed
+ * - forbidden: the cluster answered 403 – the service account may not list certificates
+ * - off: the platform's variable certManager is off – Steward does not ask
+ * - failed: any other failure of that one call (e.g. 5xx, timeout); certificatesError says why (null when the namespace
+ *   itself was never read – its error says why)
+ */
+export const CERTIFICATES_STATES = ['read', 'notInstalled', 'forbidden', 'off', 'failed'] as const;
+export type CertificatesState = (typeof CERTIFICATES_STATES)[number];
+
+/** The state of a readout's certificates, also for readouts stored before 0.26.1 (no state: null meant "not installed"). */
+export function namespaceCertificatesState(r: Pick<NamespaceReadout, 'certificates' | 'certificatesState'>): CertificatesState {
+  return r.certificatesState ?? (r.certificates === null ? 'notInstalled' : 'read');
+}
+
+/**
+ * Whether Steward reads cert-manager certificates from a Kubernetes platform: its variable certManager, on unless it
+ * says off (also false, no, 0) – platforms created before 0.26.1 have no such variable and keep reading.
+ */
+export function readsCertManager(variables: Record<string, unknown> | undefined): boolean {
+  const v = String(variables?.certManager ?? 'on')
+    .trim()
+    .toLowerCase();
+  return !['off', 'false', 'no', '0'].includes(v);
 }
 
 export const KUBERNETES_LIMITS = {

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { imageProduct, splitImage, tagVersion } from '@sm/shared';
+import { imageProduct, namespaceCertificatesState, readsCertManager, splitImage, tagVersion } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 import { timeLimit } from './time.js';
 
@@ -131,6 +131,7 @@ describe('Kubernetes namespace of an application', () => {
     a = await s.api('POST', `/applications/${app.id}/components/${ok.id}/cluster`, {});
     const c = a.components.find((x: any) => x.id === ok.id);
     expect(c.cluster.certificates).toBeNull();
+    expect(c.cluster).toMatchObject({ certificatesState: 'notInstalled', certificatesError: null, error: null });
     expect(c.cluster.unmapped).toEqual([]);
     expect(c.stack.map((x: any) => [x.product, x.version])).toEqual([
       ['nodejs', '2.5.0'],
@@ -143,6 +144,90 @@ describe('Kubernetes namespace of an application', () => {
     const { runKubernetesJob } = await import('../src/catalogue/kubernetes.js');
     expect(await runKubernetesJob(Date.now())).toBe(0);
     expect(await runKubernetesJob(Date.now() + 7 * 3_600_000)).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('cert-manager certificates are optional (0.26.1)', () => {
+  const read = async (appName: string) => {
+    const app = await s.api('POST', '/applications', { name: appName, owners: [] });
+    let a = await s.api('POST', `/applications/${app.id}/components`, {
+      type: 'kubernetes-namespace',
+      name: 'shop-prod',
+      environment: 'prod',
+      platformId: k8sId,
+    });
+    a = await s.api('POST', `/applications/${app.id}/components/${a.components[0].id}/cluster`, {});
+    return a.components[0];
+  };
+
+  it.each([
+    ['forbidden', 'forbidden', /^no permission \(403\): certificates\.cert-manager\.io is forbidden/],
+    ['notInstalled', 'notInstalled', null],
+    ['error', 'failed', /^the cluster answered HTTP 500/],
+  ] as const)('a certificates call answering %s does not fail the read (state %s)', async (answer, state, why) => {
+    mock.resetKubernetes();
+    mock.setCertificates(answer);
+    const c = await read(`Shop, certificates ${answer}`);
+    expect(c.cluster.error).toBeNull();
+    expect(c.cluster.deployments.map((d: any) => `${d.name} ${d.ready}/${d.desired}`)).toEqual(['web 3/3', 'db 1/1', 'worker 1/2']);
+    expect(c.cluster.unhealthyPods).toEqual([{ name: 'worker-5d4b-y2', reason: 'CrashLoopBackOff', restarts: 14 }]);
+    expect(c.cluster.certificates).toBeNull();
+    expect(c.cluster.certificatesState).toBe(state);
+    if (why) expect(c.cluster.certificatesError).toMatch(why);
+    else expect(c.cluster.certificatesError).toBeNull();
+    // the tech stack is filled all the same
+    expect(c.stack.map((x: any) => x.product)).toEqual(['nginx', 'nodejs', 'postgresql']);
+    expect(mock.certificateRequests()).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a read with certificates says so', async () => {
+    mock.resetKubernetes();
+    const c = await read('Shop, certificates read');
+    expect(c.cluster).toMatchObject({ certificatesState: 'read', certificatesError: null });
+    expect(c.cluster.certificates).toHaveLength(2);
+  });
+
+  it('with the platform variable certManager = off, the cert-manager API is never called', async () => {
+    mock.resetKubernetes();
+    mock.setCertificates('forbidden');
+    const p = await s.api('GET', `/platforms/${k8sId}`);
+    await s.api('PUT', `/platforms/${k8sId}`, { config: { ...p.config, variables: { ...p.config.variables, certManager: 'off' } } });
+    try {
+      const c = await read('Shop, certificates off');
+      expect(c.cluster).toMatchObject({ error: null, certificates: null, certificatesState: 'off', certificatesError: null });
+      expect(c.cluster.deployments).toHaveLength(3);
+      expect(mock.certificateRequests()).toBe(0);
+    } finally {
+      await s.api('PUT', `/platforms/${k8sId}`, { config: p.config });
+      mock.resetKubernetes();
+    }
+  });
+
+  it('the monitor check never asks for certificates, so a 403 there does not matter', async () => {
+    mock.resetKubernetes();
+    mock.setCertificates('forbidden');
+    const { monitor } = await s.api('POST', '/monitors', {
+      definition: {
+        name: 'Shop on Kubernetes without cert-manager',
+        failuresBeforeDown: 1,
+        checks: [{ id: 'web', name: 'web', type: 'kubernetes', platform: 'Kubernetes (demo)', namespace: 'shop-prod', deployment: 'web' }],
+      },
+    });
+    await eng.evaluateMonitorNow(monitor.id);
+    const m = await s.api('GET', `/monitors/${monitor.id}`);
+    expect(m.checks.map((c: any) => [c.status, c.last?.message])).toEqual([['up', 'Kubernetes: shop-prod/web – 3/3 ready']]);
+    expect(mock.certificateRequests()).toBe(0);
+    mock.resetKubernetes();
+  });
+
+  it('the variable is on unless it says off; readouts from before 0.26.1 keep their meaning', () => {
+    expect(readsCertManager(undefined)).toBe(true);
+    expect(readsCertManager({})).toBe(true);
+    expect(readsCertManager({ certManager: 'on' })).toBe(true);
+    for (const off of ['off', 'OFF', ' false ', 'no', '0']) expect(readsCertManager({ certManager: off })).toBe(false);
+    expect(namespaceCertificatesState({ certificates: null })).toBe('notInstalled');
+    expect(namespaceCertificatesState({ certificates: [] })).toBe('read');
+    expect(namespaceCertificatesState({ certificates: null, certificatesState: 'forbidden' })).toBe('forbidden');
   });
 });
 

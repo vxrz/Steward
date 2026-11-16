@@ -32,6 +32,7 @@ import {
   DTRACK_KIND,
   COMPONENT_TYPES,
   GIT_PLATFORM_KINDS,
+  namespaceCertificatesState,
   type AwsAccessKey,
   type AwsResource,
   type AwsIamUser,
@@ -40,6 +41,7 @@ import {
   type PeekedMessage,
   type ApplicationDetail,
   type ComponentType,
+  type NamespaceReadout,
   type SbomChange,
   type SbomPreview,
   type StackEntry,
@@ -348,17 +350,33 @@ function ClusterLine({ component: c }: { component: ApplicationComponent }) {
           {t('components.cluster.certs', { certs: soon.map((x) => `${x.name} ${fmtDate(x.notAfter!)}`).join(', ') })}
         </Text>
       )}
-      {r.certificates === null && (
-        <Text size="xs" c="dimmed">
-          {t('components.cluster.noCertManager')}
-        </Text>
-      )}
+      <CertificatesLine readout={r} />
       {r.unmapped.length > 0 && (
         <Text size="xs" c="dimmed">
           {t('components.cluster.unmapped', { images: r.unmapped.join(', ') })}
         </Text>
       )}
     </Stack>
+  );
+}
+
+/** Why a namespace has no certificates (0.26.1): cert-manager not installed, no right to read them, turned off, or failed. */
+function CertificatesLine({ readout: r }: { readout: NamespaceReadout }) {
+  const { t } = useTranslation('applications');
+  const state = namespaceCertificatesState(r);
+  if (state === 'read' || (state === 'failed' && !r.certificatesError)) return null;
+  const text =
+    state === 'notInstalled'
+      ? t('components.cluster.noCertManager')
+      : state === 'forbidden'
+        ? t('components.cluster.certsForbidden')
+        : state === 'off'
+          ? t('components.cluster.certsOff')
+          : t('components.cluster.certsFailed', { error: r.certificatesError });
+  return (
+    <Text size="xs" c="dimmed" data-testid="cluster-certificates">
+      {text}
+    </Text>
   );
 }
 

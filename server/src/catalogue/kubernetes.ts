@@ -1,4 +1,4 @@
-import { imageProduct, KUBERNETES_LIMITS, type ImageProductRule, type NamespaceReadout, type Platform } from '@sm/shared';
+import { imageProduct, KUBERNETES_LIMITS, readsCertManager, type ImageProductRule, type NamespaceReadout, type Platform } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
@@ -12,7 +12,7 @@ import { lifecycleSettings } from './lifecycle.js';
 /**
  * Kubernetes namespaces of applications (#111): a component of type kubernetes-namespace names a cluster (a platform
  * of kind kubernetes, read-only service account token) and a namespace. Steward reads its deployments with their
- * images, the pods that are not well, and cert-manager certificates; the images that map to a product become the
+ * images, the pods that are not well, and cert-manager certificates (optional); the images that map to a product become the
  * component's tech stack (source "cluster"; entries entered by hand win), so end-of-life checks cover them.
  */
 
@@ -20,28 +20,70 @@ export const KUBERNETES_KIND = 'kubernetes';
 
 const ns = (n: string) => encodeURIComponent(n);
 
-async function get(platform: Platform, secrets: Record<string, string>, path: string, optional = false): Promise<Record<string, unknown> | null> {
+/** A failed call of the Kubernetes API, with the status the cluster answered (0: no answer). */
+class KubernetesError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+async function get(platform: Platform, secrets: Record<string, string>, path: string): Promise<Record<string, unknown>> {
   const r = await platformRequest(platform, secrets, { method: 'GET', url: path, headers: { accept: 'application/json' } }, AbortSignal.timeout(30000));
   if (r.ok) return r.body as Record<string, unknown>;
-  if (optional && r.status === 404) return null;
   const msg = (r.body as { message?: string } | null)?.message;
-  if (r.status === 401) throw new Error('the cluster refused the token (401) – check the service account token');
-  if (r.status === 403) throw new Error(`no permission (403)${msg ? `: ${String(msg).slice(0, 200)}` : ''} – see the read-only role in docs/KUBERNETES.md`);
-  throw new Error(`the cluster answered HTTP ${r.status}${msg ? `: ${String(msg).slice(0, 200)}` : ''}`);
+  if (r.status === 401) throw new KubernetesError('the cluster refused the token (401) – check the service account token', 401);
+  if (r.status === 403)
+    throw new KubernetesError(`no permission (403)${msg ? `: ${String(msg).slice(0, 200)}` : ''} – see the read-only role in docs/KUBERNETES.md`, 403);
+  throw new KubernetesError(`the cluster answered HTTP ${r.status}${msg ? `: ${String(msg).slice(0, 200)}` : ''}`, r.status);
 }
 
 type Obj = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Certificates = Pick<NamespaceReadout, 'certificates' | 'certificatesState' | 'certificatesError'>;
 
-/** Reads a namespace: deployments, unhealthy pods, cert-manager certificates. */
+/**
+ * The cert-manager certificates of a namespace – optional (0.26.1): this call never fails the read. Kubernetes checks
+ * the rights before it looks up the resource, so a service account without a rule for cert-manager.io gets 403 even
+ * where cert-manager is not installed (404 only with the rule, or for a cluster-wide reader).
+ */
+async function readCertificates(platform: Platform, secrets: Record<string, string>, namespace: string): Promise<Certificates> {
+  if (!readsCertManager(platform.config.variables)) return { certificates: null, certificatesState: 'off', certificatesError: null };
+  let list: Record<string, unknown>;
+  try {
+    list = await get(platform, secrets, `/apis/cert-manager.io/v1/namespaces/${ns(namespace)}/certificates`);
+  } catch (e) {
+    const status = e instanceof KubernetesError ? e.status : 0;
+    if (status === 404) return { certificates: null, certificatesState: 'notInstalled', certificatesError: null };
+    return { certificates: null, certificatesState: status === 403 ? 'forbidden' : 'failed', certificatesError: (e as Error).message.slice(0, 500) };
+  }
+  const certificates = ((list.items ?? []) as Obj[]).map((c) => ({
+    name: String(c.metadata?.name ?? ''),
+    notAfter: c.status?.notAfter ? String(c.status.notAfter) : null,
+    ready: ((c.status?.conditions ?? []) as Obj[]).some((x) => x.type === 'Ready' && x.status === 'True'),
+  }));
+  return { certificates, certificatesState: 'read', certificatesError: null };
+}
+
+/**
+ * Reads a namespace: deployments, unhealthy pods and – unless `certificates: false` (the monitor check, which does not
+ * use them) or the platform turns them off – cert-manager certificates. Deployments and pods must be readable; the
+ * certificates never fail the read.
+ */
 export async function readNamespace(
   platform: Platform,
   secrets: Record<string, string>,
   namespace: string,
   now = Date.now(),
+  opts: { certificates?: boolean } = {},
 ): Promise<Omit<NamespaceReadout, 'unmapped' | 'readAt' | 'error'>> {
-  const deps = ((await get(platform, secrets, `/apis/apps/v1/namespaces/${ns(namespace)}/deployments`))?.items ?? []) as Obj[];
-  const pods = ((await get(platform, secrets, `/api/v1/namespaces/${ns(namespace)}/pods`))?.items ?? []) as Obj[];
-  const certs = await get(platform, secrets, `/apis/cert-manager.io/v1/namespaces/${ns(namespace)}/certificates`, true);
+  const deps = ((await get(platform, secrets, `/apis/apps/v1/namespaces/${ns(namespace)}/deployments`)).items ?? []) as Obj[];
+  const pods = ((await get(platform, secrets, `/api/v1/namespaces/${ns(namespace)}/pods`)).items ?? []) as Obj[];
+  const certs: Certificates =
+    opts.certificates === false
+      ? { certificates: null, certificatesState: 'off', certificatesError: null }
+      : await readCertificates(platform, secrets, namespace);
   const deployments = deps.map((d) => ({
     name: String(d.metadata?.name ?? ''),
     desired: Number(d.spec?.replicas ?? 1),
@@ -68,15 +110,7 @@ export async function readNamespace(
             : null;
     if (reason && phase !== 'Succeeded') unhealthyPods.push({ name: String(p.metadata?.name ?? ''), reason, restarts });
   }
-  const certificates =
-    certs === null
-      ? null
-      : ((certs.items ?? []) as Obj[]).map((c) => ({
-          name: String(c.metadata?.name ?? ''),
-          notAfter: c.status?.notAfter ? String(c.status.notAfter) : null,
-          ready: ((c.status?.conditions ?? []) as Obj[]).some((x) => x.type === 'Ready' && x.status === 'True'),
-        }));
-  return { deployments, unhealthyPods, certificates };
+  return { deployments, unhealthyPods, ...certs };
 }
 
 /** Numeric comparison of versions: the oldest one wins when several images run the same product. */
@@ -188,7 +222,12 @@ export async function refreshNamespace(componentId: string, actor: string, now =
       db().get<{ cluster_state: string | null }>('SELECT cluster_state FROM application_components WHERE id = ?', componentId)?.cluster_state ?? null,
       null,
     );
-    readout = { ...(prev ?? { deployments: [], unhealthyPods: [], certificates: null, unmapped: [] }), readAt: at, error: (e as Error).message.slice(0, 500) };
+    readout = {
+      // never read: nothing about certificates either (the error says why)
+      ...(prev ?? { deployments: [], unhealthyPods: [], certificates: null, certificatesState: 'failed', certificatesError: null, unmapped: [] }),
+      readAt: at,
+      error: (e as Error).message.slice(0, 500),
+    };
   }
   db().run('UPDATE application_components SET cluster_state = ? WHERE id = ?', JSON.stringify(readout), componentId);
   if (diff.added.length || diff.changed.length || diff.removed.length)
