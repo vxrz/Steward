@@ -4,6 +4,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
+import { projectAnswer } from './mockSnowflakeProject.js';
 import { dataConsumerAnswer } from './mockDataConsumers.js';
 import { dataElementAnswer } from './mockDataElements.js';
 
@@ -16,7 +17,9 @@ import { dataElementAnswer } from './mockDataElements.js';
  * Statements of processes (the example templates) are answered without a tag: SHOW GRANTS ON DATABASE, SHOW GRANTS OF
  * ROLE (from the same grants as GRANTS_TO_ROLES / GRANTS_TO_USERS), and SELECTs from ACCOUNT_USAGE.USERS,
  * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list. The
- * cost estimate and the waste check (0.21.0) are answered from mockSnowflakeUsage.ts, with SHOW WAREHOUSES.
+ * cost estimate and the waste check (0.21.0) are answered from mockSnowflakeUsage.ts, with SHOW WAREHOUSES; the
+ * project templates without ACCOUNT_USAGE (0.26.2: SHOW TASKS / DYNAMIC TABLES / STREAMS IN DATABASE, TASK_HISTORY and
+ * DYNAMIC_TABLE_REFRESH_HISTORY of a database's INFORMATION_SCHEMA) from mockSnowflakeProject.ts.
  * GRANTS_TO_USERS, WAREHOUSE_METERING_HISTORY and TASK_HISTORY – the columns by the aliases of the SELECT list.
  *
  * Data products discovery (ADR 0036 part 5, tags steward:dp-…) reads a catalogue of its own (CATALOGUE below): the
@@ -358,6 +361,9 @@ function untagged(sql: string, arg: (i: number) => string): { names: string[]; r
   }
   const view = /FROM\s+SNOWFLAKE\.ACCOUNT_USAGE\.([A-Z_]+)/i.exec(sql)?.[1]?.toUpperCase();
   const names = selectAliases(sql);
+  // the project templates (0.26.2): SHOW … IN DATABASE and the database's INFORMATION_SCHEMA table functions
+  const project = projectAnswer(sql, arg, names, (db) => catalogueDatabases.includes(db));
+  if (project) return project;
   const usage = usageAnswer(sql, view, names, arg);
   if (usage) return usage;
   if (view === 'USERS') {

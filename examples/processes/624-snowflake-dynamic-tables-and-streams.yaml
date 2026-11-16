@@ -1,0 +1,365 @@
+# steward-min-version: 0.21.0
+name: "Snowflake – Dynamic tables and streams (project)"
+description: |
+  Whether the dynamic tables of a project's databases keep up and its
+  streams stay readable, read with nothing but the project's own grants – no
+  SNOWFLAKE.ACCOUNT_USAGE, no account-wide privilege. For every database:
+  SHOW DYNAMIC TABLES IN DATABASE (target lag, scheduling state, data
+  timestamp), the database's own INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY
+  table function for the last N hours (at most 168: the function covers seven
+  days) and SHOW STREAMS IN DATABASE (stale, stale after). Findings: failed
+  refreshes with the error, a lag of more than a factor times the target lag
+  (now, from the data timestamp, or at the end of a refresh in the period),
+  suspended dynamic tables, stale streams and streams that go stale within N
+  days (read them – consume their changes – before then, or they have to be
+  created again). Checks warn on each kind of finding.
+
+  Recommended schedule: hourly (`40 * * * *`). Publishes
+  `snowflake.project-pipelines` (one row per dynamic table and stream) for
+  the "Snowflake project pipelines" dashboard. Needs a Snowflake platform
+  (key-pair JWT, docs/SNOWFLAKE.md) whose role has USAGE on the database and
+  its schemas, MONITOR on the dynamic tables, SELECT on the streams (SHOW
+  STREAMS lists only the streams the role has a privilege on) and USAGE on a
+  warehouse for the SELECT – the SHOW commands need none. Database names must
+  be plain identifiers (letters, digits, _ and $, starting with a letter or
+  _): a table function's database cannot be a bind parameter, so the name is
+  checked before anything is sent and then written as a quoted identifier in
+  upper case; anything else is refused.
+recommendedSchedule: "40 * * * *"
+tags: [operations, pipelines, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only, project grants are enough)
+inputs:
+  - name: databases
+    label: Databases of the project
+    type: list
+    default: [PRJ_SALES_INSIGHTS_DEV]
+    required: true
+  - name: hours
+    label: Refreshes of the last … hours (1–168)
+    type: number
+    default: 24
+  - name: lagFactor
+    label: Lagging – lag above this factor × the target lag
+    type: number
+    default: 2
+  - name: staleWithinDays
+    label: Streams that go stale within (days)
+    type: number
+    default: 7
+constants:
+  # <DB> is replaced by the checked database name as a quoted identifier; the period is a bind parameter (-hours)
+  refreshSql: >-
+    SELECT DATABASE_NAME, SCHEMA_NAME, NAME, COUNT(*) AS REFRESHES,
+    COUNT_IF(STATE = 'FAILED') AS FAILED,
+    COUNT_IF(STATE = 'UPSTREAM_FAILED') AS UPSTREAM_FAILED,
+    MAX_BY(STATE, DATA_TIMESTAMP) AS LAST_STATE,
+    TO_VARCHAR(MAX(IFF(STATE IN ('FAILED', 'UPSTREAM_FAILED'), DATA_TIMESTAMP, NULL)), 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_FAILURE,
+    MAX_BY(STATE_CODE, IFF(STATE IN ('FAILED', 'UPSTREAM_FAILED'), DATA_TIMESTAMP, NULL)) AS LAST_ERROR_CODE,
+    MAX_BY(STATE_MESSAGE, IFF(STATE IN ('FAILED', 'UPSTREAM_FAILED'), DATA_TIMESTAMP, NULL)) AS LAST_ERROR,
+    MAX(TARGET_LAG_SEC) AS TARGET_LAG_SEC,
+    MAX(IFF(STATE = 'SUCCEEDED', DATEDIFF('second', DATA_TIMESTAMP, REFRESH_END_TIME), NULL)) AS MAX_LAG_SEC
+    FROM TABLE(<DB>.INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY(DATA_TIMESTAMP_START => DATEADD('hour', ?, CURRENT_TIMESTAMP()), RESULT_LIMIT => 10000))
+    WHERE STATE NOT IN ('SCHEDULED', 'EXECUTING')
+    GROUP BY DATABASE_NAME, SCHEMA_NAME, NAME
+    ORDER BY DATABASE_NAME, SCHEMA_NAME, NAME
+steps:
+  - id: valid
+    type: check
+    name: Database names are plain Snowflake identifiers
+    condition: >-
+      $count(inputs.databases) > 0 and $count(inputs.databases) <= 20
+        and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+    message: >-
+      {{ $count(inputs.databases) > 0 and $count(inputs.databases) <= 20 and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+        ? 'Databases: ' & $join(inputs.databases, ', ')
+        : 'Database names may contain only letters, digits, _ and $, start with a letter or _ (no quotes, dots or spaces), at most 20 databases' }}
+    failRun: true
+  - id: setup
+    type: set
+    name: Database names and the period
+    values:
+      # unquoted identifiers are stored in upper case
+      dbs: "{{ [$distinct(inputs.databases.$uppercase($trim($)))] }}"
+      hours: "{{ $max([1, $min([168, $round($number(inputs.hours))])]) }}"
+      factor: "{{ $max([1, $number(inputs.lagFactor)]) }}"
+      staleDays: "{{ $max([0, $number(inputs.staleWithinDays)]) }}"
+  - id: perDatabase
+    type: forEach
+    name: Dynamic tables and streams per database (2 in parallel)
+    items: vars.dbs
+    as: db
+    concurrency: 2
+    maxItems: 20
+    saveAs: perDatabase
+    steps:
+      - id: ident
+        type: set
+        name: The database as a quoted identifier
+        values:
+          # checked again here: only a plain identifier ever reaches a statement
+          dbIdent: >-
+            {{ $contains(vars.db, /^[A-Z_][A-Z0-9_$]{0,254}$/) ? '"' & vars.db & '"' : $error('not a plain Snowflake identifier: ' & vars.db) }}
+      - id: showDynamicTables
+        type: http
+        name: SHOW DYNAMIC TABLES IN DATABASE
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        # 422: the database does not exist or the role may not use it – reported, the other databases go on
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ 'SHOW DYNAMIC TABLES IN DATABASE ' & vars.dbIdent }}"
+          timeout: 60
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: dtShown
+      - id: readRefreshes
+        type: http
+        name: Refreshes of the last hours (INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY)
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ $replace($const.refreshSql, '<DB>', vars.dbIdent) }}"
+          bindings:
+            "1": { type: FIXED, value: "{{ $string(-vars.hours) }}" }
+          timeout: 120
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: refreshRead
+      - id: showStreams
+        type: http
+        name: SHOW STREAMS IN DATABASE
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ 'SHOW STREAMS IN DATABASE ' & vars.dbIdent }}"
+          timeout: 60
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: streamsShown
+      - id: objectsOfDb
+        type: set
+        name: One row per dynamic table and stream
+        values:
+          problem: >-
+            {{ [
+              vars.dtShown.status != 200 ? vars.db & ': SHOW DYNAMIC TABLES failed – ' & $substring($string(vars.dtShown.body.message), 0, 200) : undefined,
+              vars.refreshRead.status != 200 ? vars.db & ': DYNAMIC_TABLE_REFRESH_HISTORY failed – ' & $substring($string(vars.refreshRead.body.message), 0, 200) : undefined,
+              vars.streamsShown.status != 200 ? vars.db & ': SHOW STREAMS failed – ' & $substring($string(vars.streamsShown.body.message), 0, 200) : undefined
+            ] }}
+          # the SQL API answers rows as arrays, with the column names in resultSetMetaData (lower case for SHOW)
+          dtRows: >-
+            {{ vars.dtShown.status = 200 ? ($c := [vars.dtShown.body.resultSetMetaData.rowType.name];
+              [$map(vars.dtShown.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) : [] }}
+          refreshRows: >-
+            {{ vars.refreshRead.status = 200 ? ($c := [vars.refreshRead.body.resultSetMetaData.rowType.name];
+              [$map(vars.refreshRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) : [] }}
+          streamRows: >-
+            {{ vars.streamsShown.status = 200 ? ($c := [vars.streamsShown.body.resultSetMetaData.rowType.name];
+              [$map(vars.streamsShown.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) : [] }}
+          objects: >-
+            {{ (
+              $db := vars.db;
+              $hist := vars.refreshRows;
+              $n := function($v) { $v ? $number($v) : 0 };
+              $sfTime := function($v) { $v ? ($contains($v, '-') ? $ts($v) : $round($number($substringBefore($v & ' ', ' ')) * 1000)) : undefined };
+              $secs := function($s) {(
+                $m := $match($lowercase($trim($string($s))), /^(\d+)\s*(second|minute|hour|day)s?$/);
+                $m ? $number($m.groups[0]) * ($m.groups[1] = 'day' ? 86400 : ($m.groups[1] = 'hour' ? 3600 : ($m.groups[1] = 'minute' ? 60 : 1))) : null
+              )};
+              $dur := function($s) { $s = null ? '–' : ($s >= 86400 ? $round($s / 86400, 1) & ' d' : ($s >= 3600 ? $round($s / 3600, 1) & ' h' : $round($s / 60) & ' min')) };
+              $at := $millis();
+              $dts := [vars.dtRows.(
+                $k := database_name & '.' & schema_name & '.' & name;
+                $h := $hist[(DATABASE_NAME & '.' & SCHEMA_NAME & '.' & NAME) = $k][0];
+                $state := $uppercase($string(scheduling_state));
+                $target := $secs(target_lag) ? $secs(target_lag) : ($h.TARGET_LAG_SEC ? $number($h.TARGET_LAG_SEC) : null);
+                $lag := $sfTime(data_timestamp) ? $round(($at - $sfTime(data_timestamp)) / 1000) : null;
+                $maxLag := $h.MAX_LAG_SEC ? $number($h.MAX_LAG_SEC) : null;
+                $failed := $n($h.FAILED) + $n($h.UPSTREAM_FAILED);
+                $lagging := $state != 'SUSPENDED' and $target != null
+                  and (($lag != null and $lag > $vars.factor * $target) or ($maxLag != null and $maxLag > $vars.factor * $target));
+                $findings := [
+                  $failed > 0 ? $failed & ' failed refresh(es), last ' & $substring($string($h.LAST_FAILURE), 0, 16) & ': '
+                    & ($h.LAST_ERROR_CODE ? $h.LAST_ERROR_CODE & ' ' : '') & $substring($replace($string($h.LAST_ERROR), '\n', ' '), 0, 300) : undefined,
+                  $state = 'SUSPENDED' ? 'suspended' : undefined,
+                  $lagging ? 'lag ' & $dur($lag) & ($maxLag != null ? ' (up to ' & $dur($maxLag) & ' after a refresh)' : '') & ', target ' & target_lag : undefined
+                ];
+                {
+                  "key": $k,
+                  "database": $db,
+                  "schema": schema_name,
+                  "name": name,
+                  "kind": "dynamic table",
+                  "state": $lowercase($state),
+                  "targetLag": target_lag ? target_lag : '–',
+                  "lag": $dur($lag),
+                  "lagSeconds": $lag,
+                  "targetSeconds": $target,
+                  "refreshes": $n($h.REFRESHES),
+                  "failed": $failed,
+                  "lastState": $h.LAST_STATE ? $h.LAST_STATE : '–',
+                  "lastError": $failed > 0 ? ($h.LAST_ERROR_CODE ? $h.LAST_ERROR_CODE & ': ' : '') & $substring($replace($string($h.LAST_ERROR), '\n', ' '), 0, 300) : '',
+                  "lagging": $lagging ? true : false,
+                  "suspended": $state = 'SUSPENDED',
+                  "stale": false,
+                  "staleSoon": false,
+                  "staleAfter": '–',
+                  "findings": $count($findings) ? $join($findings, '; ') : ''
+                }
+              )];
+              $streams := [vars.streamRows.(
+                $after := $sfTime(stale_after);
+                $days := $after ? ($after - $at) / 86400000 : null;
+                $isStale := $string(stale) = 'true';
+                $soon := $not($isStale) and $days != null and $days <= $vars.staleDays;
+                $invalid := invalid_reason and invalid_reason != 'N/A' ? invalid_reason : null;
+                $findings := [
+                  $isStale ? 'stale since ' & ($after ? $fromMillis($after, '[Y0001]-[M01]-[D01]') : '?') & ': its changes are lost, create it again' : undefined,
+                  $soon ? 'goes stale on ' & $fromMillis($after, '[Y0001]-[M01]-[D01]') & ' (in ' & $round($days, 1) & ' days) unless it is read' : undefined,
+                  $invalid ? 'invalid: ' & $invalid : undefined
+                ];
+                {
+                  "key": database_name & '.' & schema_name & '.' & name,
+                  "database": $db,
+                  "schema": schema_name,
+                  "name": name,
+                  "kind": "stream",
+                  "state": $isStale ? 'stale' : ($invalid ? 'invalid' : 'ok'),
+                  "targetLag": '–',
+                  "lag": '–',
+                  "lagSeconds": null,
+                  "targetSeconds": null,
+                  "refreshes": 0,
+                  "failed": 0,
+                  "lastState": '–',
+                  "lastError": '',
+                  "lagging": false,
+                  "suspended": false,
+                  "stale": $isStale or ($invalid ? true : false),
+                  "staleSoon": $soon ? true : false,
+                  "staleAfter": $after ? $fromMillis($after, '[Y0001]-[M01]-[D01]') : '–',
+                  "table": table_name,
+                  "findings": $count($findings) ? $join($findings, '; ') : ''
+                }
+              )];
+              $append($dts, $streams)
+            ) }}
+  - id: collect
+    type: set
+    name: All dynamic tables and streams
+    values:
+      rows: "{{ [vars.perDatabase.results.objects] }}"
+      problems: "{{ [vars.perDatabase.results.problem] }}"
+      failedDts: "{{ [vars.rows[failed > 0]] }}"
+      laggingDts: "{{ [vars.rows[lagging]] }}"
+      suspendedDts: "{{ [vars.rows[suspended]] }}"
+      staleStreams: "{{ [vars.rows[stale]] }}"
+      soonStaleStreams: "{{ [vars.rows[staleSoon]] }}"
+  - id: publish
+    type: publish
+    name: Publish the dynamic tables and streams
+    dataset: snowflake.project-pipelines
+    title: Snowflake project dynamic tables and streams
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Database, value: database }
+      - { label: Schema, value: schema }
+      - { label: Name, value: name }
+      - { label: Kind, value: kind }
+      - { label: State, value: state }
+      - { label: Target lag, value: targetLag }
+      - { label: Lag, value: lag }
+      - { label: Refreshes, value: refreshes }
+      - { label: Failed refreshes, value: failed }
+      - { label: Last refresh, value: lastState }
+      - { label: Last error, value: lastError }
+      - { label: Stale after, value: staleAfter }
+      - { label: Findings, value: "findings ? findings : '–'" }
+    status: >-
+      stale or (failed > 0 and lastState in ['FAILED', 'UPSTREAM_FAILED']) ? 'critical'
+        : (failed > 0 or lagging or suspended or staleSoon ? 'warning' : 'good')
+    statusText: findings
+    metrics:
+      databases: "$count(vars.dbs)"
+      dynamicTables: "$count(vars.rows[kind = 'dynamic table'])"
+      streams: "$count(vars.rows[kind = 'stream'])"
+      refreshFailures: "$count(vars.failedDts)"
+      failedRefreshes: "$sum([vars.rows.failed])"
+      lagging: "$count(vars.laggingDts)"
+      suspended: "$count(vars.suspendedDts)"
+      staleStreams: "$count(vars.staleStreams)"
+      soonStale: "$count(vars.soonStaleStreams)"
+      unreadable: "$count(vars.problems)"
+    staleAfterMinutes: 240
+  - id: readable
+    type: check
+    name: Every database could be read
+    severity: warning
+    condition: "$count(vars.problems) = 0"
+    message: "{{ $count(vars.problems) = 0 ? 'Dynamic tables, refreshes and streams of ' & $join(vars.dbs, ', ') & ' read' : $join(vars.problems, '; ') }}"
+    headline: "{{ $count(vars.problems) & ' Snowflake reads failed (database missing or no privilege)' }}"
+    value: "$count(vars.problems)"
+    items: vars.problems
+  - id: refreshOk
+    type: check
+    name: No refresh failed
+    severity: warning
+    condition: "$count(vars.failedDts) = 0"
+    message: "{{ $count(vars.failedDts) = 0 ? 'No dynamic table refresh failed in ' & vars.hours & ' h' : $join(vars.failedDts.(key & ': ' & findings), '; ') }}"
+    headline: "{{ $count(vars.failedDts) & ' Snowflake dynamic tables failed to refresh' }}"
+    value: "$count(vars.failedDts)"
+    items: "vars.failedDts.(key & ': ' & lastError)"
+  - id: lagOk
+    type: check
+    name: Dynamic tables keep their target lag
+    severity: warning
+    condition: "$count(vars.laggingDts) = 0"
+    message: "{{ $count(vars.laggingDts) = 0 ? 'Every running dynamic table is within ' & vars.factor & ' × its target lag' : $join(vars.laggingDts.(key & ': ' & findings), '; ') }}"
+    headline: "{{ $count(vars.laggingDts) & ' Snowflake dynamic tables lag behind their target' }}"
+    value: "$count(vars.laggingDts)"
+    items: "vars.laggingDts.(key & ': lag ' & lag & ', target ' & targetLag)"
+  - id: suspendedOk
+    type: check
+    name: No dynamic table is suspended
+    severity: warning
+    condition: "$count(vars.suspendedDts) = 0"
+    message: "{{ $count(vars.suspendedDts) = 0 ? 'No dynamic table is suspended' : 'Suspended: ' & $join(vars.suspendedDts.key, ', ') }}"
+    headline: "{{ $count(vars.suspendedDts) & ' Snowflake dynamic tables are suspended' }}"
+    value: "$count(vars.suspendedDts)"
+    items: "vars.suspendedDts.key"
+  - id: streamsOk
+    type: check
+    name: Streams are not stale and do not go stale soon
+    severity: warning
+    condition: "$count(vars.staleStreams) + $count(vars.soonStaleStreams) = 0"
+    message: >-
+      {{ $count(vars.staleStreams) + $count(vars.soonStaleStreams) = 0 ? 'No stream is stale or goes stale within ' & vars.staleDays & ' days'
+        : $join([vars.staleStreams, vars.soonStaleStreams].(key & ': ' & findings), '; ') }}
+    headline: "{{ ($count(vars.staleStreams) + $count(vars.soonStaleStreams)) & ' Snowflake streams are stale or go stale soon' }}"
+    value: "$count(vars.staleStreams) + $count(vars.soonStaleStreams)"
+    items: "[vars.staleStreams, vars.soonStaleStreams].(key & ': ' & findings)"
+  - id: summary
+    type: report
+    name: Summary
+    title: "Dynamic tables and streams: {{ $join(vars.dbs, ', ') }}"
+    text: |
+      - Dynamic tables: **{{ $count(vars.rows[kind = 'dynamic table']) }}** – failed refreshes: **{{ $count(vars.failedDts) }}**, lagging: **{{ $count(vars.laggingDts) }}**, suspended: **{{ $count(vars.suspendedDts) }}**
+      - Streams: **{{ $count(vars.rows[kind = 'stream']) }}** – stale: **{{ $count(vars.staleStreams) }}**, stale within {{ vars.staleDays }} days: **{{ $count(vars.soonStaleStreams) }}**
+      {{ $count(vars.problems) ? '- Not readable: ' & $join(vars.problems, '; ') : '' }}
+    rows: "vars.rows[findings != '']"
+    columns:
+      - { label: Object, value: key }
+      - { label: Kind, value: kind }
+      - { label: Findings, value: findings }
