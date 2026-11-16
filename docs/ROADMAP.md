@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.26.0 (November 2026)._
+_Last reviewed for 0.26.1 (November 2026)._
 
 ## What Steward is for
 
@@ -87,10 +87,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.25.0:** data products, phase 3 – generic parts and bridges with one technology list; lineage from Debezium, Kafka Connect and Confluent connectors and an OpenLineage export; file-based products on S3 with Snowflake stages and pipes; edge devices linked to their systems with Runs on, Collects data from and Industrial Edge suggestions; semantic models (Apache Ossie) as governed records; previews; Art. 30 transfers and measures; dbt parsing in a worker, large imports in the background, fewer statements; the fixes of a release review.
 - **0.25.1:** Steward documents data governance, it doesn't run it ([ADR 0038](adr/0038-documented-governance-contacts.md)) – one contacts directory for services, suppliers, plant sites and data products; owner fields give no rights (explicit shares at the upgrade); documented access instead of access requests; port access reviews, endorsements and semantic model approvals record decisions made elsewhere; notices to the IT maintainers; the fixes of a release review.
 - **0.26.0:** contacts and support ([ADR 0039](adr/0039-contact-roles-and-support.md)) – a role catalogue with own roles, business contacts of applications and systems, contacts inherited along the domains, deputy and until; support channels with a purpose, support levels instead of a tier, guides and the supporting service of a data product.
+- **0.26.1:** Kubernetes without cert-manager – namespaces, the monitor check and the example process work when the cluster has no cert-manager or the service account may not read certificates.
 
 ## Next
 
-- **After 0.26.0:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
+- **After 0.26.1:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
 
 ## Later
 
