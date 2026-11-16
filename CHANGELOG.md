@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Snowflake with project roles only – two example processes without `ACCOUNT_USAGE`** ([docs/SNOWFLAKE.md](docs/SNOWFLAKE.md#without-account_usage-project-roles)): for teams whose roles reach only their project database, where every `ACCOUNT_USAGE` read fails with _Schema 'SNOWFLAKE.ACCOUNT_USAGE' does not exist or not authorized_. **623 Snowflake – Task health (project)** reads `SHOW TASKS IN DATABASE` and the database's `INFORMATION_SCHEMA.TASK_HISTORY`: failed runs with error code and message, skipped and cancelled runs, runs slower than a factor × the task's median, suspended tasks and started tasks that did not run although scheduled (`snowflake.project-tasks`). **624 Snowflake – Dynamic tables and streams (project)** reads `SHOW DYNAMIC TABLES`, `INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY` and `SHOW STREAMS`: failed refreshes, lag above a factor × the target lag, suspended dynamic tables, stale streams and streams going stale within N days (`snowflake.project-pipelines`). Both need only USAGE on the database and its schemas, MONITOR on the tasks or dynamic tables, SELECT on the streams and a warehouse; database names must be plain identifiers and are checked before anything is sent. With the dashboard _Snowflake project pipelines_, the bundle _Snowflake (project, without ACCOUNT_USAGE)_ and the demo account's tasks, dynamic tables and streams.
+
 ## [0.26.1] - 2026-11-16
 
 Steward 0.26.1 fixes the Kubernetes integration for clusters without cert-manager: the cert-manager certificates are optional, so namespaces, the monitor check and the example process work when the cluster has no cert-manager or the service account may not read certificates. It also adds the upgrade fixture of 0.26.0.
