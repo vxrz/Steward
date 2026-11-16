@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import {
   DATA_CONTRACT_LIMITS,
   DATA_CONTRACT_PLATFORM_SERVER_TYPES,
@@ -27,6 +26,7 @@ import { getConnection, getPlatform } from '../platforms/service.js';
 import { buildUrl, credentialsAllowed, platformRequest } from '../platforms/http.js';
 import { assertAddressSafe, assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
+import { readPrivateKey } from '../platforms/pem.js';
 import { ownCall } from '../platforms/deniedPaths.js';
 import { redactSecrets } from '../platforms/testConnection.js';
 import { assertDatabaseAllowed, databaseSettings } from '../dbms/service.js';
@@ -216,10 +216,8 @@ export async function platformServerHeaders(
     // decrypted here when the platform's key has a passphrase
     let der: string;
     try {
-      der = crypto
-        .createPrivateKey({ key: secrets.privateKey, format: 'pem', ...(secrets.privateKeyPassphrase ? { passphrase: secrets.privateKeyPassphrase } : {}) })
-        .export({ type: 'pkcs8', format: 'der' })
-        .toString('base64');
+      // also a key stored on one line (pasted into a single-line field before 0.26.2)
+      der = readPrivateKey(secrets.privateKey, secrets.privateKeyPassphrase).export({ type: 'pkcs8', format: 'der' }).toString('base64');
     } catch {
       throw new HttpError(409, `"${x.database.name}" has no private key for the data contract service`, 'DATA_CONTRACT_SERVER_TYPE_UNSUPPORTED', {
         server: x.server,

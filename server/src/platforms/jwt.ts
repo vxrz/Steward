@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { normalizePem, readPrivateKey } from './pem.js';
 
 /**
  * Key-pair JWT sign-in (#114): Steward signs a short-lived JWT with the platform's private key (credential privateKey,
@@ -15,13 +16,12 @@ export const JWT_MAX_LIFETIME = 3600;
 
 const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
+/**
+ * The platform's private key (credential privateKey, PEM; encrypted with privateKeyPassphrase). A key stored on one
+ * line (pasted into a single-line field before 0.26.2) is repaired first (normalizePem).
+ */
 export function privateKeyOf(pem: string | undefined, passphrase?: string): crypto.KeyObject {
-  if (!pem?.trim()) throw new Error('Secret "privateKey" (PEM) is not set');
-  try {
-    return crypto.createPrivateKey({ key: pem, format: 'pem', ...(passphrase ? { passphrase } : {}) });
-  } catch (e) {
-    throw new Error(`The private key cannot be read${passphrase ? '' : ' (encrypted keys need the secret privateKeyPassphrase)'}: ${(e as Error).message}`);
-  }
+  return readPrivateKey(pem, passphrase);
 }
 
 /** SHA256:<base64 of the SHA-256 of the DER public key> – what Snowflake calls the public key fingerprint. */
@@ -68,7 +68,7 @@ export function certificateThumbprints(certPem: string | undefined, sha1Hex?: st
   if (certPem?.trim()) {
     let cert: crypto.X509Certificate;
     try {
-      cert = new crypto.X509Certificate(certPem);
+      cert = new crypto.X509Certificate(normalizePem(certPem));
     } catch (e) {
       throw new Error(`The certificate cannot be read (PEM of the public certificate expected): ${(e as Error).message}`);
     }

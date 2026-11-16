@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { debeziumMatches, debeziumSource, isConnectSecretKey, redactConnectAnswer, redactConnectValue, trimTrace } from '@sm/shared';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { selfSigned } from './certs.js';
 
 /**
  * Kafka Connect (0.9.0, #223): the platform kind kafka-connect, read-only – the readout of connectors, tasks and plugins
@@ -350,48 +351,21 @@ describe('monitor check kafka-connect', () => {
   });
 });
 
-// ---------- mutual TLS: a self-signed certificate, DER by hand (no openssl) ----------
-
-function len(n: number): Buffer {
-  if (n < 0x80) return Buffer.from([n]);
-  const bytes: number[] = [];
-  for (let x = n; x > 0; x >>= 8) bytes.unshift(x & 0xff);
-  return Buffer.from([0x80 | bytes.length, ...bytes]);
-}
-const tlv = (tag: number, body: Buffer) => Buffer.concat([Buffer.from([tag]), len(body.length), body]);
-const seq = (...items: Buffer[]) => tlv(0x30, Buffer.concat(items));
-const time = (d: Date) => tlv(0x17, Buffer.from(d.toISOString().slice(2, 19).replace(/[-:T]/g, '') + 'Z', 'ascii'));
-function selfSigned(cn: string): { cert: string; key: string } {
-  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
-  const sha256WithRsa = seq(Buffer.from([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b]), Buffer.from([0x05, 0x00]));
-  const name = seq(tlv(0x31, seq(Buffer.from([0x06, 0x03, 0x55, 0x04, 0x03]), tlv(0x0c, Buffer.from(cn)))));
-  const tbs = seq(
-    tlv(0xa0, tlv(0x02, Buffer.from([2]))),
-    tlv(0x02, Buffer.from([0x42])),
-    sha256WithRsa,
-    name,
-    seq(time(new Date(Date.now() - 86400000)), time(new Date(Date.now() + 365 * 86400000))),
-    name,
-    publicKey.export({ type: 'spki', format: 'der' }),
-  );
-  const der = seq(tbs, sha256WithRsa, tlv(0x03, Buffer.concat([Buffer.from([0]), crypto.sign('sha256', tbs, privateKey)])));
-  const b64 = der
-    .toString('base64')
-    .replace(/(.{64})/g, '$1\n')
-    .trim();
-  return { cert: `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----\n`, key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() };
-}
+// ---------- mutual TLS ----------
 
 describe('sign-in with a client certificate (mutual TLS)', () => {
   it('presents the certificate in tlsCertificate / tlsKey to the platform', async () => {
     const server = selfSigned('localhost');
     const client = selfSigned('steward-connect-reader');
     const fingerprint = new crypto.X509Certificate(client.cert).fingerprint256;
+    // a second client certificate, stored on one line as a single-line field did before 0.26.2
+    const oneLine = selfSigned('steward-connect-reader-2');
+    const oneLineFingerprint = new crypto.X509Certificate(oneLine.cert).fingerprint256;
     const seen: string[] = [];
     const api = https.createServer({ key: server.key, cert: server.cert, requestCert: true, rejectUnauthorized: false }, (req, res) => {
       const peer = (req.socket as import('node:tls').TLSSocket).getPeerCertificate();
       seen.push(peer?.fingerprint256 ?? 'none');
-      if (peer?.fingerprint256 !== fingerprint) {
+      if (peer?.fingerprint256 !== fingerprint && peer?.fingerprint256 !== oneLineFingerprint) {
         res.writeHead(401, { 'content-type': 'application/json' }).end('{"error_code":401,"message":"client certificate required"}');
         return;
       }
@@ -411,6 +385,11 @@ describe('sign-in with a client certificate (mutual TLS)', () => {
       await s.api('PUT', `/platforms/${p.id}/secrets`, { tlsCertificate: client.cert, tlsKey: client.key });
       expect(await s.api('POST', `/platforms/${p.id}/test`, {})).toMatchObject({ ok: true, status: 200 });
       expect(seen).toContain(fingerprint);
+      // certificate and key without their line breaks: repaired where they are read (0.26.2)
+      const flat = (pem: string) => pem.replace(/\n/g, '');
+      await s.api('PUT', `/platforms/${p.id}/secrets`, { tlsCertificate: flat(oneLine.cert), tlsKey: flat(oneLine.key) });
+      expect(await s.api('POST', `/platforms/${p.id}/test`, {})).toMatchObject({ ok: true, status: 200 });
+      expect(seen.at(-1)).toBe(oneLineFingerprint);
       // the key never leaves Steward
       expect(JSON.stringify(await s.api('GET', `/platforms/${p.id}`))).not.toContain('PRIVATE KEY');
     } finally {
