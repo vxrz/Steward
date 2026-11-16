@@ -74,7 +74,7 @@ On the application page, _Components → Add component_: a **type** and a **name
 
 An application without components works as before. Within an application, a name is used once per type and environment.
 
-A component of type **Kubernetes namespace** names its **cluster** (a platform of kind Kubernetes): Steward reads its deployments, the images (into the tech stack, source _read from the cluster_), pods that are not well and cert-manager certificates every 6 hours or on _Read now_ ([KUBERNETES.md](KUBERNETES.md)).
+A component of type **Kubernetes namespace** names its **cluster** (a platform of kind Kubernetes): Steward reads its deployments, the images (into the tech stack, source _read from the cluster_), pods that are not well and – if the cluster has cert-manager – its certificates every 6 hours or on _Read now_ ([KUBERNETES.md](KUBERNETES.md)).
 
 A component of type **Repository** can name its **Git platform** (GitHub, GitLab or Forgejo/Gitea) with the repository path as name (`acme/shop-web`): Steward reads the default branch and its pipeline, the latest release, open security alerts, packages, deploy keys and tokens (each can be added to the credentials register) and the tech stack from the repository's files (source _read from the repository files_) every 6 hours or on _Read now_ ([GIT-PLATFORMS.md](GIT-PLATFORMS.md)).
 
