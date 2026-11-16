@@ -720,6 +720,196 @@ describe('Prometheus – SLO and error-budget report', () => {
   });
 });
 
+describe('Snowflake – project templates without ACCOUNT_USAGE (0.26.2)', () => {
+  const checksOf = (r: any) => Object.fromEntries(r.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+  const DB = 'PRJ_SALES_INSIGHTS_DEV';
+
+  it('task health: failed, slow, skipped, suspended and missed runs from TASK_HISTORY and SHOW TASKS', async () => {
+    const { resetSnowflakeStatements, snowflakeStatements } = await import('../src/mock/mockSnowflake.js');
+    resetSnowflakeStatements();
+    const r = await finish(await start('snowflake-task-health', { snowflake: platformByKind.snowflake! }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toEqual({
+      valid: 'succeeded',
+      readable: 'succeeded',
+      historyVisible: 'succeeded',
+      failuresOk: 'failed',
+      suspendedOk: 'failed',
+      ranOk: 'failed',
+      speedOk: 'failed',
+    });
+    const d = await s.api('GET', '/datasets/snowflake.project-tasks');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(Object.keys(by).sort()).toEqual(
+      ['ETL.ARCHIVE_EVENTS', 'ETL.BUILD_CUSTOMER_FACTS', 'ETL.LOAD_ORDERS', 'MART.EXPORT_FORECAST', 'MART.REFRESH_KPIS'].map((k) => `${DB}.${k}`),
+    );
+    expect(by[`${DB}.ETL.LOAD_ORDERS`]).toMatchObject({
+      State: 'started',
+      Runs: 24,
+      Failed: 3,
+      'Last state': 'FAILED',
+      'Last error': "100038: Numeric value 'n/a' is not recognized (file orders_2026-11.csv, line 1207)",
+      'Slow runs': 0,
+      _status: 'critical',
+    });
+    // usually 45 s: 300 s and 420 s are more than twice the median and longer than a minute
+    expect(by[`${DB}.ETL.BUILD_CUSTOMER_FACTS`]).toMatchObject({
+      Runs: 24,
+      Skipped: 1,
+      'Median (s)': 45,
+      'Longest (s)': 420,
+      'Slow runs': 2,
+      _status: 'warning',
+    });
+    expect(by[`${DB}.ETL.BUILD_CUSTOMER_FACTS`].Findings).toBe('2 run(s) slower than 2 × the median of 45 s (longest 420 s); 1 skipped, 0 cancelled');
+    expect(by[`${DB}.MART.REFRESH_KPIS`]).toMatchObject({ Runs: 1, Findings: '–', _status: 'good' });
+    expect(by[`${DB}.MART.EXPORT_FORECAST`]).toMatchObject({ State: 'suspended', Runs: 0, Findings: 'suspended', _status: 'warning' });
+    expect(by[`${DB}.ETL.ARCHIVE_EVENTS`]).toMatchObject({
+      State: 'started',
+      Runs: 0,
+      Findings: 'no run in 24 h although started with schedule 30 MINUTE',
+      _status: 'warning',
+    });
+    expect(d.metrics).toMatchObject({
+      databases: 1,
+      tasks: 5,
+      failed: 1,
+      failedRuns: 3,
+      suspended: 1,
+      notRun: 1,
+      slow: 1,
+      skippedOrCancelled: 1,
+      unreadable: 0,
+    });
+    // only the project database's own INFORMATION_SCHEMA and SHOW, the database as a quoted identifier
+    const sent = snowflakeStatements().filter((x) => x.sql.includes(DB));
+    expect(sent.map((x) => x.sql.split(/\s+/).slice(0, 2).join(' ')).sort()).toEqual(['SELECT DATABASE_NAME,', 'SHOW TASKS']);
+    expect(sent.find((x) => x.sql.startsWith('SHOW'))!.sql).toBe(`SHOW TASKS IN DATABASE "${DB}"`);
+    expect(sent.find((x) => x.sql.startsWith('SELECT'))!.sql).toContain(`FROM TABLE("${DB}".INFORMATION_SCHEMA.TASK_HISTORY(`);
+    expect(sent.find((x) => x.sql.startsWith('SELECT'))!.bindings).toEqual(['2', '60', '-24']);
+    expect(sent.some((x) => /ACCOUNT_USAGE/i.test(x.sql))).toBe(false);
+  });
+
+  it('task health: a short period expects only the frequent schedules, a large factor finds no slow run, a missing database is named', async () => {
+    const r = await finish(
+      await start(
+        'snowflake-task-health',
+        { snowflake: platformByKind.snowflake! },
+        { databases: ['prj_sales_insights_dev', 'NO_SUCH_DB'], hours: 1, slowFactor: 10 },
+      ),
+    );
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toMatchObject({ readable: 'failed', ranOk: 'failed', speedOk: 'succeeded' });
+    const d = await s.api('GET', '/datasets/snowflake.project-tasks');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    // daily at 05:30 is not due within an hour; every 30 minutes is
+    expect(by[`${DB}.MART.REFRESH_KPIS`]).toMatchObject({ Runs: 0, _status: 'good' });
+    expect(by[`${DB}.ETL.ARCHIVE_EVENTS`].Findings).toBe('no run in 1 h although started with schedule 30 MINUTE');
+    expect(by[`${DB}.ETL.LOAD_ORDERS`]).toMatchObject({ Runs: 1, Failed: 1 });
+    expect(d.metrics).toMatchObject({ databases: 2, slow: 0, notRun: 1, unreadable: 2 });
+    const readable = r.steps.find((x: any) => x.stepId === 'readable');
+    expect(readable.summary).toContain("NO_SUCH_DB: SHOW TASKS failed – SQL compilation error:\nDatabase 'NO_SUCH_DB' does not exist or not authorized.");
+  });
+
+  it('dynamic tables and streams: failed refreshes, lag above target, suspended, stale and soon stale streams', async () => {
+    const r = await finish(await start('snowflake-dynamic-tables-and-streams', { snowflake: platformByKind.snowflake! }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toEqual({
+      valid: 'succeeded',
+      readable: 'succeeded',
+      refreshOk: 'failed',
+      lagOk: 'failed',
+      suspendedOk: 'failed',
+      streamsOk: 'failed',
+    });
+    const d = await s.api('GET', '/datasets/snowflake.project-pipelines');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(by[`${DB}.MART.SALES_DAILY_DT`]).toMatchObject({
+      Kind: 'dynamic table',
+      State: 'running',
+      'Target lag': '1 hour',
+      Lag: '20 min',
+      Refreshes: 24,
+      _status: 'good',
+    });
+    expect(by[`${DB}.MART.CUSTOMER_SEGMENTS_DT`]).toMatchObject({
+      State: 'running',
+      'Target lag': '30 minutes',
+      Lag: '5 h',
+      Refreshes: 12,
+      'Failed refreshes': 5,
+      'Last refresh': 'FAILED',
+      'Last error': `002003: SQL compilation error: Object '${DB}.ETL.CRM_CONTACTS_V' does not exist or not authorized.`,
+      _status: 'critical',
+    });
+    expect(by[`${DB}.MART.CUSTOMER_SEGMENTS_DT`].Findings).toMatch(
+      /^5 failed refresh\(es\), last .*; lag 5 h \(up to 20 min after a refresh\), target 30 minutes$/,
+    );
+    // suspended: a finding of its own, its lag is not counted again
+    expect(by[`${DB}.ETL.ORDERS_ENRICHED_DT`]).toMatchObject({ State: 'suspended', Findings: 'suspended', _status: 'warning' });
+    expect(by[`${DB}.ETL.ORDERS_CHANGES`]).toMatchObject({ Kind: 'stream', State: 'ok', _status: 'good' });
+    expect(by[`${DB}.ETL.CONTACTS_CHANGES`]).toMatchObject({ Kind: 'stream', State: 'stale', _status: 'critical' });
+    expect(by[`${DB}.ETL.EVENTS_CHANGES`]).toMatchObject({ State: 'ok', _status: 'warning' });
+    expect(by[`${DB}.ETL.EVENTS_CHANGES`].Findings).toMatch(/^goes stale on \d{4}-\d{2}-\d{2} \(in 2 days\) unless it is read$/);
+    expect(d.metrics).toMatchObject({
+      databases: 1,
+      dynamicTables: 3,
+      streams: 3,
+      refreshFailures: 1,
+      failedRefreshes: 5,
+      lagging: 1,
+      suspended: 1,
+      staleStreams: 1,
+      soonStale: 1,
+      unreadable: 0,
+    });
+    // a stream that goes stale in two days is fine when only the next day counts
+    const r2 = await finish(
+      await start('snowflake-dynamic-tables-and-streams', { snowflake: platformByKind.snowflake! }, { staleWithinDays: 1, lagFactor: 20 }),
+    );
+    expect(checksOf(r2)).toMatchObject({ lagOk: 'succeeded', streamsOk: 'failed' });
+    expect((await s.api('GET', '/datasets/snowflake.project-pipelines')).metrics).toMatchObject({ lagging: 0, staleStreams: 1, soonStale: 0 });
+  });
+
+  it('both refuse database names that are no plain identifiers before anything is sent', async () => {
+    const { resetSnowflakeStatements, snowflakeStatements } = await import('../src/mock/mockSnowflake.js');
+    resetSnowflakeStatements();
+    for (const processId of ['snowflake-task-health', 'snowflake-dynamic-tables-and-streams'])
+      for (const bad of ['X; DROP TABLE Y', 'a.b', '"PRJ_SALES_INSIGHTS_DEV"', "PRJ'X", 'PRJ X', '1PRJ']) {
+        const r = await finish(await start(processId, { snowflake: platformByKind.snowflake! }, { databases: [DB, bad] }));
+        expect([processId, bad, r.status]).toEqual([processId, bad, 'failed']);
+        expect(r.steps.find((x: any) => x.stepId === 'valid').status).toBe('failed');
+        expect(r.steps.some((x: any) => x.stepId === 'perDatabase')).toBe(false);
+        expect(snowflakeStatements().filter((x) => x.sql.includes(bad))).toEqual([]);
+      }
+    expect(snowflakeStatements().filter((x) => /DROP TABLE/i.test(x.sql))).toEqual([]);
+  });
+
+  it('both only read and never touch ACCOUNT_USAGE: SELECT or SHOW, every call marked as not mutating', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const YAML = (await import('yaml')).default;
+    for (const f of ['623-snowflake-task-health.yaml', '624-snowflake-dynamic-tables-and-streams.yaml']) {
+      const text = fs.readFileSync(path.resolve(__dirname, '..', '..', 'examples', 'processes', f), 'utf8');
+      const def = YAML.parse(text);
+      const calls = def.steps.flatMap((x: any) => (x.type === 'forEach' ? x.steps : [x])).filter((x: any) => x.type === 'http');
+      expect(calls.length, f).toBeGreaterThanOrEqual(2);
+      for (const c of calls) {
+        expect([c.mutating, c.method, c.path], `${f} ${c.id}`).toEqual([false, 'POST', '/api/v2/statements']);
+        expect(c.body.statement, `${f} ${c.id}`).toMatch(
+          /^\{\{ ('SHOW (TASKS|DYNAMIC TABLES|STREAMS) IN DATABASE ' & vars\.dbIdent|\$replace\(\$const\.\w+, '<DB>', vars\.dbIdent\)) \}\}$/,
+        );
+      }
+      for (const sql of Object.values(def.constants) as string[]) {
+        expect(sql).toMatch(/^SELECT /);
+        expect(sql).not.toMatch(/\b(ALTER|DROP|CREATE|INSERT|UPDATE|DELETE|MERGE|GRANT|REVOKE|CALL|EXECUTE)\b/i);
+        expect(sql).toMatch(/FROM TABLE\(<DB>\.INFORMATION_SCHEMA\.[A-Z_]+\(/);
+      }
+      expect(text, f).not.toMatch(/SNOWFLAKE\.ACCOUNT_USAGE\.|FROM ACCOUNT_USAGE/);
+    }
+  });
+});
+
 describe('monitor examples', () => {
   it('every example monitor imports in the demo with generic platform names (no "(demo)" in the files)', async () => {
     const fs = await import('node:fs');
@@ -779,6 +969,17 @@ describe('template metadata for the gallery', () => {
       datasets: ['snowflake.waste'],
       dashboards: [{ id: '62-snowflake-costs', name: 'Snowflake costs' }],
       minVersion: '0.21.0',
+    });
+    expect(by['623-snowflake-task-health']).toMatchObject({
+      recommendedSchedule: { cron: '10 * * * *', text: expect.stringMatching(/^hourly/) },
+      datasets: ['snowflake.project-tasks'],
+      dashboards: [{ id: '64-snowflake-project-pipelines', name: 'Snowflake project pipelines' }],
+      minVersion: '0.21.0',
+    });
+    expect(by['624-snowflake-dynamic-tables-and-streams']).toMatchObject({
+      connectionKinds: ['snowflake'],
+      datasets: ['snowflake.project-pipelines'],
+      dashboards: [{ id: '64-snowflake-project-pipelines', name: 'Snowflake project pipelines' }],
     });
     // a slot that takes several kinds
     expect(by['82-github-repository-health']).toMatchObject({
