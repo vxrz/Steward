@@ -155,33 +155,33 @@ describe('Snowflake – project access review', () => {
     const keys = seen.map((x) => x.key).sort();
     expect(keys).toEqual(
       [
-        'PRD_SDC_OPQ_PBI_DEV|PBI_REPORTING|Z003ABCD',
-        'PRD_SDC_OPQ_PBI_DEV|PBI_REPORTING|Z006MNOP',
-        'PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READONLY|SVC_PBI_GATEWAY',
-        'PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READONLY|Z003ABCD',
-        'PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READONLY|Z004EFGH',
-        'PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READWRITE|SVC_PBI_ETL',
-        'PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READWRITE|Z005IJKL',
-        'PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READWRITE|Z007QRST',
+        'PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|Z003ABCD',
+        'PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|Z006MNOP',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|SVC_PBI_GATEWAY',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|Z003ABCD',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|Z004EFGH',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|SVC_PBI_ETL',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|Z005IJKL',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|Z007QRST',
       ].sort(),
     );
     // recently active people and technical users are preselected; the inactive, the disabled and the never active are not
     const pre = Object.fromEntries(seen.map((x) => [x.key.split('|').slice(1).join('|'), x.preselected]));
     expect(pre).toMatchObject({
-      'PRD_SDC_OPQ_PBI_DEV_READONLY|Z003ABCD': true,
-      'PRD_SDC_OPQ_PBI_DEV_READONLY|SVC_PBI_GATEWAY': true,
-      'PRD_SDC_OPQ_PBI_DEV_READWRITE|SVC_PBI_ETL': true,
-      'PRD_SDC_OPQ_PBI_DEV_READONLY|Z004EFGH': false, // 200 days
-      'PRD_SDC_OPQ_PBI_DEV_READWRITE|Z005IJKL': false, // disabled
+      'PRJ_SALES_INSIGHTS_DEV_READONLY|Z003ABCD': true,
+      'PRJ_SALES_INSIGHTS_DEV_READONLY|SVC_PBI_GATEWAY': true,
+      'PRJ_SALES_INSIGHTS_DEV_READWRITE|SVC_PBI_ETL': true,
+      'PRJ_SALES_INSIGHTS_DEV_READONLY|Z004EFGH': false, // 200 days
+      'PRJ_SALES_INSIGHTS_DEV_READWRITE|Z005IJKL': false, // disabled
       'PBI_REPORTING|Z006MNOP': false, // 91 days
     });
 
     // the data set: paths through the nested roles, the type, the review result
     const d = await s.api('GET', '/datasets/snowflake.project-access');
     const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
-    expect(by['PRD_SDC_OPQ_PBI_DEV|PBI_REPORTING|Z006MNOP']).toMatchObject({
-      Path: 'PRD_SDC_OPQ_PBI_DEV_READONLY ← PBI_REPORTING ← Z006MNOP',
-      'Database role': 'PRD_SDC_OPQ_PBI_DEV_READONLY',
+    expect(by['PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|Z006MNOP']).toMatchObject({
+      Path: 'PRJ_SALES_INSIGHTS_DEV_READONLY ← PBI_REPORTING ← Z006MNOP',
+      'Database role': 'PRJ_SALES_INSIGHTS_DEV_READONLY',
       Privileges: 'USAGE, MONITOR',
       Name: 'Mia Neumann',
       'E-mail': 'mia.neumann@example.com',
@@ -190,23 +190,23 @@ describe('Snowflake – project access review', () => {
       Review: 'revoked',
       _status: 'warning',
     });
-    expect(by['PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READWRITE|Z005IJKL']).toMatchObject({ Type: 'disabled', Review: 'revoked', _status: 'critical' });
-    expect(by['PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READWRITE|SVC_PBI_ETL']).toMatchObject({
+    expect(by['PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|Z005IJKL']).toMatchObject({ Type: 'disabled', Review: 'revoked', _status: 'critical' });
+    expect(by['PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|SVC_PBI_ETL']).toMatchObject({
       Type: 'technical',
       'Sign-in': 'password, no MFA',
       Review: 'kept',
       _status: 'warning',
     });
-    expect(by['PRD_SDC_OPQ_PBI_DEV|PRD_SDC_OPQ_PBI_DEV_READONLY|SVC_PBI_GATEWAY']).toMatchObject({ Type: 'technical', 'Sign-in': 'key pair' });
+    expect(by['PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|SVC_PBI_GATEWAY']).toMatchObject({ Type: 'technical', 'Sign-in': 'key pair' });
     expect(d.metrics).toMatchObject({ grants: 8, users: 7, people: 4, technical: 2, disabled: 1, inactive: 2, revoked: 3 });
 
     // four-eyes by Adam, the REVOKE statements in the manual step (quoted identifiers), verified by a second person
     const confirm = r.tasks.find((t: any) => t.mode === 'approve');
     expect(confirm).toMatchObject({ decidedBy: 'adam', fourEyes: true });
     const manual = r.tasks.find((t: any) => t.mode === 'manual');
-    expect(manual.instructions).toContain('REVOKE ROLE "PRD_SDC_OPQ_PBI_DEV_READWRITE" FROM USER "Z005IJKL";');
+    expect(manual.instructions).toContain('REVOKE ROLE "PRJ_SALES_INSIGHTS_DEV_READWRITE" FROM USER "Z005IJKL";');
     expect(manual.instructions).toContain('REVOKE ROLE "PBI_REPORTING" FROM USER "Z006MNOP";');
-    expect(manual.instructions).toContain('REVOKE ROLE "PRD_SDC_OPQ_PBI_DEV_READONLY" FROM USER "Z004EFGH";');
+    expect(manual.instructions).toContain('REVOKE ROLE "PRJ_SALES_INSIGHTS_DEV_READONLY" FROM USER "Z004EFGH";');
     // SYSADMIN (through the owner role) is account administration: named, not followed
     expect(manual.instructions).not.toContain('BOB');
     // the entries are created once the run's protocol is archived
@@ -216,8 +216,8 @@ describe('Snowflake – project access review', () => {
       if (list.length < 3) await sleep(200);
     }
     expect(list.map((e: any) => [e.subjectId, e.kind, e.revoked]).sort()).toEqual([
-      ['Z004EFGH', 'revoke', ['role:PRD_SDC_OPQ_PBI_DEV_READONLY']],
-      ['Z005IJKL', 'revoke', ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE']],
+      ['Z004EFGH', 'revoke', ['role:PRJ_SALES_INSIGHTS_DEV_READONLY']],
+      ['Z005IJKL', 'revoke', ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE']],
       ['Z006MNOP', 'revoke', ['role:PBI_REPORTING']],
     ]);
   });
@@ -251,7 +251,7 @@ describe('Snowflake – account hygiene and usage', () => {
     const by = Object.fromEntries(users.rows.map((x: any) => [x._key, x]));
     expect(by.Z004EFGH).toMatchObject({ Type: 'person', 'Sign-in': 'password, no MFA', _status: 'warning' });
     expect(by.Z004EFGH.Findings).toBe('no login for 200 days; password without MFA');
-    expect(by.Z005IJKL).toMatchObject({ Type: 'disabled', Roles: 'PRD_SDC_OPQ_PBI_DEV_READWRITE', _status: 'critical' });
+    expect(by.Z005IJKL).toMatchObject({ Type: 'disabled', Roles: 'PRJ_SALES_INSIGHTS_DEV_READWRITE', _status: 'critical' });
     expect(by.SVC_PBI_ETL).toMatchObject({ Type: 'technical', Findings: 'technical user with a password' });
     expect(by.SVC_PBI_GATEWAY).toMatchObject({ Type: 'technical', 'Sign-in': 'key pair', Findings: '–', _status: 'good' });
     expect(by.BREAKGLASS_ADMIN).toMatchObject({ Type: 'person', 'Last login': 'never' });
@@ -315,7 +315,7 @@ describe('Snowflake – cost estimate and trend', () => {
 
     const storage = await s.api('GET', '/datasets/snowflake.cost-storage');
     const st = Object.fromEntries(storage.rows.map((x: any) => [x._key, x]));
-    expect(Object.keys(st).sort()).toEqual(['(stages)', 'CRM', 'PRD_SDC_OPQ_PBI_DEV', 'SHOP']);
+    expect(Object.keys(st).sort()).toEqual(['(stages)', 'CRM', 'PRJ_SALES_INSIGHTS_DEV', 'SHOP']);
     expect(st.SHOP).toMatchObject({ 'Size (TB)': 2.395, 'Fail-safe (TB)': 0.299 });
     expect(storage.metrics).toMatchObject({ databases: 3 });
     near(

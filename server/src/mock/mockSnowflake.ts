@@ -104,7 +104,7 @@ function measureMonths(from: string): string[] {
 }
 /**
  * Users of the account. The four short names serve the SHOP and CRM databases; the project database
- * PRD_SDC_OPQ_PBI_DEV (#project access review) is used by people with employee ids and two technical users.
+ * PRJ_SALES_INSIGHTS_DEV (#project access review) is used by people with employee ids and two technical users.
  * login: days since the last successful login (null: never).
  */
 interface DemoUser {
@@ -167,26 +167,26 @@ const USER_ROLES = [
   ['BOB', 'SYSADMIN'],
   ['ETL_SVC', 'LOADER'],
   ['OLD_BI', 'REPORTER'],
-  ['Z003ABCD', 'PRD_SDC_OPQ_PBI_DEV_READONLY'],
+  ['Z003ABCD', 'PRJ_SALES_INSIGHTS_DEV_READONLY'],
   ['Z003ABCD', 'PBI_REPORTING'],
-  ['Z004EFGH', 'PRD_SDC_OPQ_PBI_DEV_READONLY'],
-  ['Z005IJKL', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
+  ['Z004EFGH', 'PRJ_SALES_INSIGHTS_DEV_READONLY'],
+  ['Z005IJKL', 'PRJ_SALES_INSIGHTS_DEV_READWRITE'],
   ['Z006MNOP', 'PBI_REPORTING'],
-  ['Z007QRST', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
+  ['Z007QRST', 'PRJ_SALES_INSIGHTS_DEV_READWRITE'],
   ['Z007QRST', 'ACCOUNTADMIN'],
   ['Z007QRST', 'SECURITYADMIN'],
   ['BREAKGLASS_ADMIN', 'ACCOUNTADMIN'],
-  ['SVC_PBI_GATEWAY', 'PRD_SDC_OPQ_PBI_DEV_READONLY'],
-  ['SVC_PBI_ETL', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
+  ['SVC_PBI_GATEWAY', 'PRJ_SALES_INSIGHTS_DEV_READONLY'],
+  ['SVC_PBI_ETL', 'PRJ_SALES_INSIGHTS_DEV_READWRITE'],
 ];
 /** NAME (a role) granted to GRANTEE_NAME (a role) */
 const ROLE_HIERARCHY = [
   ['REPORTER', 'ANALYST'],
   ['ANALYST', 'SYSADMIN'],
-  ['PRD_SDC_OPQ_PBI_DEV_READONLY', 'PRD_SDC_OPQ_PBI_DEV_READWRITE'],
-  ['PRD_SDC_OPQ_PBI_DEV_READONLY', 'PBI_REPORTING'],
-  ['PRD_SDC_OPQ_PBI_DEV_READWRITE', 'PRD_SDC_OPQ_PBI_DEV_OWNER'],
-  ['PRD_SDC_OPQ_PBI_DEV_OWNER', 'SYSADMIN'],
+  ['PRJ_SALES_INSIGHTS_DEV_READONLY', 'PRJ_SALES_INSIGHTS_DEV_READWRITE'],
+  ['PRJ_SALES_INSIGHTS_DEV_READONLY', 'PBI_REPORTING'],
+  ['PRJ_SALES_INSIGHTS_DEV_READWRITE', 'PRJ_SALES_INSIGHTS_DEV_OWNER'],
+  ['PRJ_SALES_INSIGHTS_DEV_OWNER', 'SYSADMIN'],
   ['SYSADMIN', 'ACCOUNTADMIN'],
   ['SECURITYADMIN', 'ACCOUNTADMIN'],
 ];
@@ -200,11 +200,11 @@ const OBJECT_GRANTS = [
   { privilege: 'USAGE', on: 'SCHEMA', name: 'STAGING', catalog: 'SHOP', schema: null, grantee: 'LOADER' },
   { privilege: 'INSERT', on: 'TABLE', name: 'RAW_EVENTS', catalog: 'SHOP', schema: 'STAGING', grantee: 'LOADER' },
   { privilege: 'SELECT', on: 'TABLE', name: 'CONTACTS', catalog: 'CRM', schema: 'CORE', grantee: 'ANALYST' },
-  { privilege: 'OWNERSHIP', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_OWNER' },
-  { privilege: 'USAGE', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READONLY' },
-  { privilege: 'MONITOR', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READONLY' },
-  { privilege: 'USAGE', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READWRITE' },
-  { privilege: 'CREATE SCHEMA', on: 'DATABASE', name: 'PRD_SDC_OPQ_PBI_DEV', catalog: null, schema: null, grantee: 'PRD_SDC_OPQ_PBI_DEV_READWRITE' },
+  { privilege: 'OWNERSHIP', on: 'DATABASE', name: 'PRJ_SALES_INSIGHTS_DEV', catalog: null, schema: null, grantee: 'PRJ_SALES_INSIGHTS_DEV_OWNER' },
+  { privilege: 'USAGE', on: 'DATABASE', name: 'PRJ_SALES_INSIGHTS_DEV', catalog: null, schema: null, grantee: 'PRJ_SALES_INSIGHTS_DEV_READONLY' },
+  { privilege: 'MONITOR', on: 'DATABASE', name: 'PRJ_SALES_INSIGHTS_DEV', catalog: null, schema: null, grantee: 'PRJ_SALES_INSIGHTS_DEV_READONLY' },
+  { privilege: 'USAGE', on: 'DATABASE', name: 'PRJ_SALES_INSIGHTS_DEV', catalog: null, schema: null, grantee: 'PRJ_SALES_INSIGHTS_DEV_READWRITE' },
+  { privilege: 'CREATE SCHEMA', on: 'DATABASE', name: 'PRJ_SALES_INSIGHTS_DEV', catalog: null, schema: null, grantee: 'PRJ_SALES_INSIGHTS_DEV_READWRITE' },
 ];
 
 function fingerprint(k: crypto.KeyObject): string {
@@ -444,7 +444,7 @@ export interface SnowflakeCatalogueObject {
   detail?: string;
 }
 
-const SEEDED_DATABASES = ['SHOP', 'SHOP_DEV', 'CRM', 'PRD_SDC_OPQ_PBI_DEV'];
+const SEEDED_DATABASES = ['SHOP', 'SHOP_DEV', 'CRM', 'PRJ_SALES_INSIGHTS_DEV'];
 
 function seedCatalogue(): SnowflakeCatalogueObject[] {
   let id = 1000;

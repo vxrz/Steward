@@ -372,7 +372,7 @@ describe('Snowflake (account usage)', () => {
     const src = await dana('POST', '/data-products/discovery-sources', {
       name: 'CRM by account usage',
       platformId: snowflake,
-      scope: ['CRM', 'PRD_SDC_OPQ_PBI_DEV'],
+      scope: ['CRM', 'PRJ_SALES_INSIGHTS_DEV'],
       mode: 'accountUsage',
       enabled: false,
     });

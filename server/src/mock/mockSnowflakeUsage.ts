@@ -152,7 +152,7 @@ function serviceDay(type: string, daysAgo: number): { compute: number; cloud: nu
 const DATABASES = [
   { name: 'SHOP', tb: 2.4, failsafe: 0.3 },
   { name: 'CRM', tb: 0.35, failsafe: 0.02 },
-  { name: 'PRD_SDC_OPQ_PBI_DEV', tb: 0.8, failsafe: 0.1 },
+  { name: 'PRJ_SALES_INSIGHTS_DEV', tb: 0.8, failsafe: 0.1 },
 ];
 const STAGE_TB = 0.15;
 const grown = (tb: number, daysAgo: number) => tb * TB * (1 - daysAgo * 0.002);
@@ -175,7 +175,7 @@ const TABLES = [
   { db: 'CRM', schema: 'CORE', name: 'CONTACTS', active: 0.01, timeTravel: 0, failsafe: 0.001, transient: false, createdDays: 900, readDays: 0.5 },
   { db: 'CRM', schema: 'CORE', name: 'CONTACTS_BACKUP_2025', active: 0.08, timeTravel: 0, failsafe: 0.004, transient: false, createdDays: 200, readDays: 140 },
   {
-    db: 'PRD_SDC_OPQ_PBI_DEV',
+    db: 'PRJ_SALES_INSIGHTS_DEV',
     schema: 'REPORTING',
     name: 'SALES_CUBE',
     active: 0.3,
