@@ -782,7 +782,8 @@ async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Prom
   const { platform, secrets } = platformFor(ctx.owner, c.platform, c.identity);
   let r;
   try {
-    r = await readNamespace(platform, secrets, c.namespace);
+    // the check does not use certificates: never asked, so a cluster without cert-manager (403/404) does not matter
+    r = await readNamespace(platform, secrets, c.namespace, Date.now(), { certificates: false });
   } catch (e) {
     return { status: 'unknown', message: `Kubernetes could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
   }

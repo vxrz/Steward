@@ -450,6 +450,9 @@ export interface Resources {
     'components.cluster.unhealthy': string;
     'components.cluster.certs': string;
     'components.cluster.noCertManager': string;
+    'components.cluster.certsForbidden': string;
+    'components.cluster.certsOff': string;
+    'components.cluster.certsFailed': string;
     'components.cluster.unmapped': string;
     'components.cluster.platform': string;
     'components.cluster.platformHint': string;

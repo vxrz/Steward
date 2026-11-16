@@ -183,9 +183,9 @@ export const PRESETS: PlatformPreset[] = [
     kind: 'kubernetes',
     label: 'Kubernetes cluster (read-only)',
     description:
-      'A Kubernetes API server (also OpenShift, Rancher, AKS, EKS, GKE): application components of type "Kubernetes namespace" name it, and Steward reads their deployments and images (tech stack and end of life), pods that are not well and cert-manager certificates; monitors check deployments. Use a service account with the read-only role from docs/KUBERNETES.md and put its token into the credential token. For a private CA, add it under the platform\'s HTTP settings.',
+      'A Kubernetes API server (also OpenShift, Rancher, AKS, EKS, GKE): application components of type "Kubernetes namespace" name it, and Steward reads their deployments and images (tech stack and end of life), pods that are not well and, if the cluster has cert-manager, its certificates; monitors check deployments. Use a service account with the read-only role from docs/KUBERNETES.md and put its token into the credential token. Variable certManager: on (default) or off – off and Steward never asks for cert-manager certificates; without cert-manager, or without a rule for it in the role, the namespaces are still read. For a private CA, add it under the platform\'s HTTP settings.',
     baseUrl: 'https://k8s-api.example.com:6443',
-    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/version' },
+    config: { auth: { type: 'bearer' }, variables: { certManager: 'on' }, http: {}, testPath: '/version' },
     secretFields: [
       { key: 'token', label: 'Service account token', help: 'kubectl create token steward-reader -n steward --duration=8760h, or a long-lived token secret' },
     ],
