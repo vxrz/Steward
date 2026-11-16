@@ -1000,14 +1000,26 @@ export interface Platform {
   identities?: PlatformIdentity[];
 }
 
+/**
+ * A credential a connector type asks for. `auth`: the authentication the field is for – filled in on a preset with
+ * authentication "none", it picks that type. `multiline` (0.26.2): the value is the text of a file with line breaks –
+ * a PEM key or certificate – and is entered in a multi-line field (a single-line field loses the line breaks).
+ */
+export interface PresetSecretField {
+  key: string;
+  label: string;
+  help?: string;
+  auth?: AuthType;
+  multiline?: boolean;
+}
+
 export interface PlatformPreset {
   kind: string;
   label: string;
   description: string;
   baseUrl: string;
   config: PlatformConfig;
-  /** `auth`: the authentication the field is for – filled in on a preset with authentication "none", it picks that type */
-  secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
+  secretFields: PresetSecretField[];
   docs: { title: string; url: string }[];
   /** Saved/imported connector type (vs. built-in preset) */
   custom?: boolean;
@@ -1026,7 +1038,7 @@ export interface ConnectorPackage {
   description: string;
   baseUrl: string;
   config: PlatformConfig;
-  secretFields: { key: string; label: string; help?: string; auth?: AuthType }[];
+  secretFields: PresetSecretField[];
   docs: { title: string; url: string }[];
   specs: { name: string; content: string; pathPrefix?: string }[];
   /**

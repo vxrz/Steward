@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { isMultilineSecret } from '@sm/shared';
 import { PEM_MAX_CHARS, dekInfoIvHexLength, normalizePem, pemPassphrase, readPrivateKey } from '../src/platforms/pem.js';
 import { certificateThumbprints, privateKeyOf } from '../src/platforms/jwt.js';
 import { selfSigned } from './certs.js';
@@ -187,5 +188,17 @@ describe('readPrivateKey', () => {
     expect(pemPassphrase(` ${PASS} \t\n`)).toBe(` ${PASS} \t`);
     expect(fingerprint(privateKeyOf(stripped(pkcs1Enc), `${PASS}\n`))).toBe(fingerprint(rsa));
     expect(() => privateKeyOf(stripped(pkcs1Enc), `${PASS} \n`)).toThrow(/check the passphrase/);
+  });
+});
+
+describe('isMultilineSecret', () => {
+  it('a PEM credential, a field marked multi-line, or a value with line breaks or a BEGIN line', () => {
+    expect(isMultilineSecret('privateKey')).toBe(true);
+    expect(isMultilineSecret(' tlsKey ')).toBe(true);
+    expect(isMultilineSecret('password')).toBe(false);
+    expect(isMultilineSecret('signingKey', '', [{ key: 'signingKey', multiline: true }])).toBe(true);
+    expect(isMultilineSecret('signingKey', '-----BEGIN PRIVATE KEY-----')).toBe(true);
+    expect(isMultilineSecret('note', 'a\nb')).toBe(true);
+    expect(isMultilineSecret('token', 'abc')).toBe(false);
   });
 });

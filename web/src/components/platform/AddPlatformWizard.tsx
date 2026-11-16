@@ -12,7 +12,6 @@ import {
   NumberInput,
   SimpleGrid,
   Paper,
-  PasswordInput,
   Select,
   Stack,
   Stepper,
@@ -43,6 +42,7 @@ import { EnvironmentInput } from '../catalogue/environments';
 import { fmtNumber } from '../../format';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from './presetText';
 import { GetStartedPanel, TestHints } from './onboarding';
+import { SecretInput } from './SecretInput';
 import { KindMaturityBadge } from '../modules/MaturityBadge';
 
 /** Groups of the connector list: the kind's descriptor (shared/src/platformKinds.ts); own connector types: "Custom". */
@@ -336,14 +336,14 @@ export function AddPlatformWizard({
                 </Text>
               )}
               {preset.secretFields.map((f) => (
-                <PasswordInput
+                <SecretInput
                   key={f.key}
                   label={presetSecretLabel(preset, f)}
                   description={presetSecretHelp(preset, f) ?? t('form.storedAs', { key: f.key })}
                   value={secrets[f.key] ?? ''}
-                  onChange={(e) => setSecrets({ ...secrets, [f.key]: e.currentTarget.value })}
-                  // a secret for the platform: the browser must not fill in the password saved for Steward
-                  autoComplete="new-password"
+                  onChange={(v) => setSecrets({ ...secrets, [f.key]: v })}
+                  multiline={!!f.multiline}
+                  testId={`secret-${f.key}`}
                 />
               ))}
               {authFields.length > 0 && (

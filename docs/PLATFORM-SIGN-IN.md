@@ -112,6 +112,22 @@ http:
 
 Create the key pair with `openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out steward_key.p8` and `openssl rsa -in steward_key.p8 -pubout`, and give the user the public key (`ALTER USER … SET RSA_PUBLIC_KEY = '…'`). The private key goes into the credential `privateKey`; it never leaves Steward.
 
+### Private key formats
+
+The credential `privateKey` is the text of a PEM file – paste the whole file, including the BEGIN and END lines; the field for it has several lines. Accepted:
+
+| Format                    | First line                                                                      | Passphrase (`privateKeyPassphrase`) |
+| ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------- |
+| PKCS#8                    | `-----BEGIN PRIVATE KEY-----`                                                   | –                                   |
+| PKCS#8, encrypted         | `-----BEGIN ENCRYPTED PRIVATE KEY-----`                                         | needed                              |
+| PKCS#1 (traditional RSA)  | `-----BEGIN RSA PRIVATE KEY-----`                                               | –                                   |
+| PKCS#1, encrypted         | `-----BEGIN RSA PRIVATE KEY-----`, then `Proc-Type: 4,ENCRYPTED`, `DEK-Info: …` | needed                              |
+| EC (SEC1, also encrypted) | `-----BEGIN EC PRIVATE KEY-----`                                                | when encrypted                      |
+
+Not accepted: an OpenSSH key (`-----BEGIN OPENSSH PRIVATE KEY-----` – convert a copy of the file with `ssh-keygen -p -m PEM -f <copy>`, or `-m PKCS8`), a PuTTY key (`.ppk` – export it as PEM with PuTTYgen), DER (binary) or base64 without the BEGIN and END lines. A trailing line break of a passphrase pasted from a file is ignored; other characters, spaces included, are part of it.
+
+A key whose line breaks were lost – pasted into a single-line field before 0.26.2, or with the line breaks turned into spaces – is read as well: Steward restores the PEM structure when it reads the key (headers, the empty line after them, the body in lines of 64 characters), so such a key need not be entered again. The same holds for the `certificate` of a client assertion and for the client certificate and key of mutual TLS and MQTT. When a key cannot be read, the test says why – a wrong passphrase, a missing one, or a format from the list above – and never shows the key.
+
 ## Client assertion (certificate)
 
 OAuth2 client credentials can sign in with a **client assertion** instead of the client secret (RFC 7523 `private_key_jwt`, what Entra ID calls certificate credentials): _Send client credentials as → Client assertion signed with a certificate_ (`clientAuth: assertion`), or simply no `clientSecret` but a `privateKey`. For every token Steward signs a JWT valid for ten minutes – RS256 for an RSA key, PS256 for RSA-PSS, ES256 for EC –, with the client id as `iss` and `sub`, the token URL as `aud`, `nbf`, `iat`, `exp` and a random `jti`, and names the certificate in its header by `x5t#S256` and `x5t` (SHA-256 and SHA-1 thumbprints of the credential `certificate`, the public certificate in PEM; or `x5t` from the variable `certificateThumbprint`, a SHA-1 thumbprint in hex). It posts `client_id`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer` and `client_assertion` to the token URL; the private key never leaves Steward. The _scope_ may use `{{ baseUrl }}` and `{{ vars.x }}` like the token URL – Microsoft Graph asks for `{{ baseUrl }}/.default`. See [ENTRA.md](ENTRA.md#certificate-or-client-secret).
