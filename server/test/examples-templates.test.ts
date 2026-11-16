@@ -155,32 +155,32 @@ describe('Snowflake – project access review', () => {
     const keys = seen.map((x) => x.key).sort();
     expect(keys).toEqual(
       [
-        'PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|Z003ABCD',
-        'PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|Z006MNOP',
+        'PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|EMP10003',
+        'PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|EMP10006',
         'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|SVC_PBI_GATEWAY',
-        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|Z003ABCD',
-        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|Z004EFGH',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|EMP10003',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READONLY|EMP10004',
         'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|SVC_PBI_ETL',
-        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|Z005IJKL',
-        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|Z007QRST',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|EMP10005',
+        'PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|EMP10007',
       ].sort(),
     );
     // recently active people and technical users are preselected; the inactive, the disabled and the never active are not
     const pre = Object.fromEntries(seen.map((x) => [x.key.split('|').slice(1).join('|'), x.preselected]));
     expect(pre).toMatchObject({
-      'PRJ_SALES_INSIGHTS_DEV_READONLY|Z003ABCD': true,
+      'PRJ_SALES_INSIGHTS_DEV_READONLY|EMP10003': true,
       'PRJ_SALES_INSIGHTS_DEV_READONLY|SVC_PBI_GATEWAY': true,
       'PRJ_SALES_INSIGHTS_DEV_READWRITE|SVC_PBI_ETL': true,
-      'PRJ_SALES_INSIGHTS_DEV_READONLY|Z004EFGH': false, // 200 days
-      'PRJ_SALES_INSIGHTS_DEV_READWRITE|Z005IJKL': false, // disabled
-      'PBI_REPORTING|Z006MNOP': false, // 91 days
+      'PRJ_SALES_INSIGHTS_DEV_READONLY|EMP10004': false, // 200 days
+      'PRJ_SALES_INSIGHTS_DEV_READWRITE|EMP10005': false, // disabled
+      'PBI_REPORTING|EMP10006': false, // 91 days
     });
 
     // the data set: paths through the nested roles, the type, the review result
     const d = await s.api('GET', '/datasets/snowflake.project-access');
     const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
-    expect(by['PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|Z006MNOP']).toMatchObject({
-      Path: 'PRJ_SALES_INSIGHTS_DEV_READONLY ← PBI_REPORTING ← Z006MNOP',
+    expect(by['PRJ_SALES_INSIGHTS_DEV|PBI_REPORTING|EMP10006']).toMatchObject({
+      Path: 'PRJ_SALES_INSIGHTS_DEV_READONLY ← PBI_REPORTING ← EMP10006',
       'Database role': 'PRJ_SALES_INSIGHTS_DEV_READONLY',
       Privileges: 'USAGE, MONITOR',
       Name: 'Mia Neumann',
@@ -190,7 +190,7 @@ describe('Snowflake – project access review', () => {
       Review: 'revoked',
       _status: 'warning',
     });
-    expect(by['PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|Z005IJKL']).toMatchObject({ Type: 'disabled', Review: 'revoked', _status: 'critical' });
+    expect(by['PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|EMP10005']).toMatchObject({ Type: 'disabled', Review: 'revoked', _status: 'critical' });
     expect(by['PRJ_SALES_INSIGHTS_DEV|PRJ_SALES_INSIGHTS_DEV_READWRITE|SVC_PBI_ETL']).toMatchObject({
       Type: 'technical',
       'Sign-in': 'password, no MFA',
@@ -204,9 +204,9 @@ describe('Snowflake – project access review', () => {
     const confirm = r.tasks.find((t: any) => t.mode === 'approve');
     expect(confirm).toMatchObject({ decidedBy: 'adam', fourEyes: true });
     const manual = r.tasks.find((t: any) => t.mode === 'manual');
-    expect(manual.instructions).toContain('REVOKE ROLE "PRJ_SALES_INSIGHTS_DEV_READWRITE" FROM USER "Z005IJKL";');
-    expect(manual.instructions).toContain('REVOKE ROLE "PBI_REPORTING" FROM USER "Z006MNOP";');
-    expect(manual.instructions).toContain('REVOKE ROLE "PRJ_SALES_INSIGHTS_DEV_READONLY" FROM USER "Z004EFGH";');
+    expect(manual.instructions).toContain('REVOKE ROLE "PRJ_SALES_INSIGHTS_DEV_READWRITE" FROM USER "EMP10005";');
+    expect(manual.instructions).toContain('REVOKE ROLE "PBI_REPORTING" FROM USER "EMP10006";');
+    expect(manual.instructions).toContain('REVOKE ROLE "PRJ_SALES_INSIGHTS_DEV_READONLY" FROM USER "EMP10004";');
     // SYSADMIN (through the owner role) is account administration: named, not followed
     expect(manual.instructions).not.toContain('BOB');
     // the entries are created once the run's protocol is archived
@@ -216,9 +216,9 @@ describe('Snowflake – project access review', () => {
       if (list.length < 3) await sleep(200);
     }
     expect(list.map((e: any) => [e.subjectId, e.kind, e.revoked]).sort()).toEqual([
-      ['Z004EFGH', 'revoke', ['role:PRJ_SALES_INSIGHTS_DEV_READONLY']],
-      ['Z005IJKL', 'revoke', ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE']],
-      ['Z006MNOP', 'revoke', ['role:PBI_REPORTING']],
+      ['EMP10004', 'revoke', ['role:PRJ_SALES_INSIGHTS_DEV_READONLY']],
+      ['EMP10005', 'revoke', ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE']],
+      ['EMP10006', 'revoke', ['role:PBI_REPORTING']],
     ]);
   });
 
@@ -249,9 +249,9 @@ describe('Snowflake – account hygiene and usage', () => {
     });
     const users = await s.api('GET', '/datasets/snowflake.users');
     const by = Object.fromEntries(users.rows.map((x: any) => [x._key, x]));
-    expect(by.Z004EFGH).toMatchObject({ Type: 'person', 'Sign-in': 'password, no MFA', _status: 'warning' });
-    expect(by.Z004EFGH.Findings).toBe('no login for 200 days; password without MFA');
-    expect(by.Z005IJKL).toMatchObject({ Type: 'disabled', Roles: 'PRJ_SALES_INSIGHTS_DEV_READWRITE', _status: 'critical' });
+    expect(by.EMP10004).toMatchObject({ Type: 'person', 'Sign-in': 'password, no MFA', _status: 'warning' });
+    expect(by.EMP10004.Findings).toBe('no login for 200 days; password without MFA');
+    expect(by.EMP10005).toMatchObject({ Type: 'disabled', Roles: 'PRJ_SALES_INSIGHTS_DEV_READWRITE', _status: 'critical' });
     expect(by.SVC_PBI_ETL).toMatchObject({ Type: 'technical', Findings: 'technical user with a password' });
     expect(by.SVC_PBI_GATEWAY).toMatchObject({ Type: 'technical', 'Sign-in': 'key pair', Findings: '–', _status: 'good' });
     expect(by.BREAKGLASS_ADMIN).toMatchObject({ Type: 'person', 'Last login': 'never' });
@@ -395,7 +395,7 @@ describe('Snowflake – waste check', () => {
     expect(by['Serverless feature, rarely read|SHOP.REPORTING.DAILY_REVENUE_MV']).toBeTruthy();
     // search optimisation on ORDERS serves thousands of queries
     expect(by['Serverless feature, rarely read|SHOP.SALES.ORDERS']).toBeUndefined();
-    expect(by['Long failed queries|Z004EFGH on BI_WH']).toMatchObject({ 'Saving per month (credits)': 28 });
+    expect(by['Long failed queries|EMP10004 on BI_WH']).toMatchObject({ 'Saving per month (credits)': 28 });
     expect(d.metrics).toMatchObject({
       findings: 15,
       idleWarehouses: 1,

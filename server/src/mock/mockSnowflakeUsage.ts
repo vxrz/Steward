@@ -163,7 +163,7 @@ const ATTRIBUTION = [
   { tag: 'powerbi', user: 'SVC_PBI_GATEWAY', warehouse: 'PBI_WH', share: 0.6, queries: 250 },
   { tag: 'powerbi', user: 'SVC_PBI_ETL', warehouse: 'PBI_WH', share: 0.2, queries: 40 },
   { tag: '', user: 'ALICE', warehouse: 'BI_WH', share: 0.3, queries: 600 },
-  { tag: 'adhoc', user: 'Z007QRST', warehouse: 'BI_WH', share: 0.2, queries: 250 },
+  { tag: 'adhoc', user: 'EMP10007', warehouse: 'BI_WH', share: 0.2, queries: 250 },
 ];
 
 /** Tables (TABLE_STORAGE_METRICS) with the days since a query last read them (null: not within a year) */
@@ -229,7 +229,7 @@ const PIPES = [
 ];
 /** Queries that ran long and then failed or were cancelled, per 30 days */
 const LONG_FAILED = [
-  { user: 'Z004EFGH', warehouse: 'BI_WH', size: 'Large', queries: 6, cancelled: 4, hours: 3.5, error: 'SQL execution canceled' },
+  { user: 'EMP10004', warehouse: 'BI_WH', size: 'Large', queries: 6, cancelled: 4, hours: 3.5, error: 'SQL execution canceled' },
   {
     user: 'ETL_SVC',
     warehouse: 'TRANSFORM_WH',
