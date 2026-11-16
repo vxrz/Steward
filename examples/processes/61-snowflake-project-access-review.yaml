@@ -4,8 +4,8 @@ description: |
   Periodic review of who can reach the databases of a project, the way it is
   done by hand with
 
-    SHOW GRANTS ON DATABASE PRD_SDC_OPQ_PBI_DEV;
-    SHOW GRANTS OF ROLE "PRD_SDC_OPQ_PBI_DEV_READONLY";
+    SHOW GRANTS ON DATABASE PRJ_SALES_INSIGHTS_DEV;
+    SHOW GRANTS OF ROLE "PRJ_SALES_INSIGHTS_DEV_READONLY";
 
   For every database: the roles with a privilege on it, then for every such
   role who it is granted to – nested roles are followed (up to four levels) to
@@ -35,7 +35,7 @@ inputs:
   - name: databases
     label: Databases of the project
     type: list
-    default: [PRD_SDC_OPQ_PBI_DEV]
+    default: [PRJ_SALES_INSIGHTS_DEV]
     required: true
   - name: rolePrefixes
     label: Only database roles starting with (empty = all)

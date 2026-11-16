@@ -116,11 +116,11 @@ describe('access reviews with the Snowflake source', () => {
       ETL_SVC: { type: 'technical', rights: ['role:LOADER'] },
       OLD_BI: { type: 'disabled', rights: ['role:REPORTER'] },
       // employee ids as user names: the e-mail address is how person reviews find them
-      Z005IJKL: { type: 'disabled', rights: ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE'], aliases: ['karla.lang@example.com'] },
-      SVC_PBI_ETL: { type: 'technical', rights: ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE'] },
+      EMP10005: { type: 'disabled', rights: ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE'], aliases: ['karla.lang@example.com'] },
+      SVC_PBI_ETL: { type: 'technical', rights: ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE'] },
     });
     expect(all.ALICE.aliases).toBeUndefined(); // the login name is the e-mail address already
-    expect(all.Z007QRST.rights).toEqual(['role:ACCOUNTADMIN', 'role:PRD_SDC_OPQ_PBI_DEV_READWRITE', 'role:SECURITYADMIN']);
+    expect(all.EMP10007.rights).toEqual(['role:ACCOUNTADMIN', 'role:PRJ_SALES_INSIGHTS_DEV_READWRITE', 'role:SECURITYADMIN']);
   });
 
   it('person reviews find a Snowflake user by the e-mail address and show the last login', async () => {
@@ -128,7 +128,7 @@ describe('access reviews with the Snowflake source', () => {
       name: 'Snowflake project',
       platformId: sf,
       source: 'snowflake',
-      scope: 'PRD_SDC_OPQ_PBI_DEV',
+      scope: 'PRJ_SALES_INSIGHTS_DEV',
     });
     const r = await s.api('POST', '/compliance/person-reviews', {
       title: 'Leaver Karla Lang',
@@ -138,9 +138,9 @@ describe('access reviews with the Snowflake source', () => {
     });
     expect(r.sources[0]).toMatchObject({ origin: 'live', matched: 1 });
     expect(r.items.map((i: any) => [i.subjectId, i.right])).toEqual([
-      ['Z005IJKL', 'CREATE SCHEMA DATABASE PRD_SDC_OPQ_PBI_DEV'],
-      ['Z005IJKL', 'MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV'], // READWRITE has READONLY
-      ['Z005IJKL', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV'],
+      ['EMP10005', 'CREATE SCHEMA DATABASE PRJ_SALES_INSIGHTS_DEV'],
+      ['EMP10005', 'MONITOR DATABASE PRJ_SALES_INSIGHTS_DEV'], // READWRITE has READONLY
+      ['EMP10005', 'USAGE DATABASE PRJ_SALES_INSIGHTS_DEV'],
     ]);
     expect(r.items[0].subjectActivity).toMatch(/^last login \d{4}-\d{2}-\d{2} \(380 days ago\)$/);
     // the same as data (the web app's own words), and the e-mail address that matched (0.4.0)
@@ -154,8 +154,8 @@ describe('access reviews with the Snowflake source', () => {
       identifiers: ['HANS.ILG@example.com'],
       checkIds: [c.id],
     });
-    // through PRD_SDC_OPQ_PBI_DEV_READONLY; signs in with a password and no MFA
-    expect(hans.items.map((i: any) => i.right)).toEqual(['MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV']);
+    // through PRJ_SALES_INSIGHTS_DEV_READONLY; signs in with a password and no MFA
+    expect(hans.items.map((i: any) => i.right)).toEqual(['MONITOR DATABASE PRJ_SALES_INSIGHTS_DEV', 'USAGE DATABASE PRJ_SALES_INSIGHTS_DEV']);
     expect(hans.items[0].subjectActivity).toContain('password without MFA');
     expect(hans.items[0].subjectActivityInfo.passwordWithoutMfa).toBe(true);
   });
