@@ -3,6 +3,7 @@ import { Agent } from 'undici';
 import {
   AUTH_TYPES,
   CONNECTOR_FORMATS,
+  PEM_SECRET_KEYS,
   type ConnectorIdentityTemplate,
   type ConnectorPackage,
   type IdentityOperationFilter,
@@ -48,7 +49,9 @@ const packageSchema = z.object({
   baseUrl: z.string().default(''),
   config: z.any(),
   secretFields: z
-    .array(z.object({ key: z.string(), label: z.string(), help: z.string().optional(), auth: z.enum(AUTH_TYPES).optional() }))
+    .array(
+      z.object({ key: z.string(), label: z.string(), help: z.string().optional(), auth: z.enum(AUTH_TYPES).optional(), multiline: z.boolean().optional() }),
+    )
     .max(100)
     .default([]),
   docs: z
@@ -148,7 +151,7 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
       http: { ...cfg.http, caPem: cfg.http?.caPem },
       ...(ai ? { ai: { ...ai, allowedData: { platforms: [], datasets: [], inputs: false } } } : {}),
     }))(p.config),
-    secretFields: secretKeys.map((k) => ({ key: k, label: k })),
+    secretFields: secretKeys.map((k) => ({ key: k, label: k, ...(PEM_SECRET_KEYS.includes(k) ? { multiline: true } : {}) })),
     docs: listDocs(platformId)
       .filter((d) => d.kind === 'link' && d.url)
       .map((d) => ({ title: d.title, url: d.url! })),

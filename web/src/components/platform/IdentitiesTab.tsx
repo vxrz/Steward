@@ -11,7 +11,6 @@ import {
   JsonInput,
   Modal,
   Paper,
-  PasswordInput,
   ScrollArea,
   SegmentedControl,
   Select,
@@ -33,6 +32,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   DATABASE_KIND,
+  isMultilineSecret,
   type ApiOperation,
   type Credential,
   type IdentityOperationFilter,
@@ -49,6 +49,7 @@ import { confirmDanger } from '../confirm';
 import { useMe } from '../../auth';
 import { PrivilegedBadge } from './PrivilegedBadge';
 import { TableScroll } from '../TableScroll';
+import { SecretInput } from './SecretInput';
 
 /**
  * The identities of a platform (ADR 0009; 0.13.0: editable). A row per identity; its managers add identities and change
@@ -659,6 +660,8 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
+  // a new value field after each store (a text area for a key goes back to a password field)
+  const [round, setRound] = useState(0);
   // "This is a rotation" (0.14.0, ADR 0009 step 4): on by default where register entries document the identity
   const registered = (identity.registerEntries ?? 0) > 0;
   const [rotation, setRotation] = useState(true);
@@ -671,6 +674,7 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
       notifyOk(ok);
       setKey('');
       setValue('');
+      setRound((r) => r + 1);
     } catch (e) {
       notifyError(e, t('credentials.notStored'));
     } finally {
@@ -724,12 +728,13 @@ function CredentialsForm({ platform, identity }: { platform: Platform; identity:
             onChange={setKey}
             data-testid="identity-secret-name"
           />
-          <PasswordInput
+          <SecretInput
+            key={round}
             label={t('common:value')}
             value={value}
-            onChange={(e) => setValue(e.currentTarget.value)}
-            autoComplete="new-password"
-            data-testid="identity-secret-value"
+            onChange={setValue}
+            multiline={isMultilineSecret(key, value)}
+            testId="identity-secret-value"
           />
           {registered && (
             <Checkbox

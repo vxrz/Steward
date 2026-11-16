@@ -6,6 +6,22 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.26.2] - 2026-11-16
+
+Steward 0.26.2 reads private keys again that were pasted into a password field – the browser drops their line breaks; key fields now take several lines – and adds two Snowflake examples for teams that have only roles on their project database, without `ACCOUNT_USAGE`. The Snowflake demo uses generic names, and the upgrade fixture of 0.26.1 is added.
+
+### Added
+
+- **Snowflake with project roles only – two example processes without `ACCOUNT_USAGE`** ([docs/SNOWFLAKE.md](docs/SNOWFLAKE.md#without-account_usage-project-roles)): for teams whose roles reach only their project database, where every `ACCOUNT_USAGE` read fails with _Schema 'SNOWFLAKE.ACCOUNT_USAGE' does not exist or not authorized_. **623 Snowflake – Task health (project)** reads `SHOW TASKS IN DATABASE` and the database's `INFORMATION_SCHEMA.TASK_HISTORY`: failed runs with error code and message, skipped and cancelled runs, runs slower than a factor × the task's median, suspended tasks and started tasks that did not run although scheduled (`snowflake.project-tasks`). **624 Snowflake – Dynamic tables and streams (project)** reads `SHOW DYNAMIC TABLES`, `INFORMATION_SCHEMA.DYNAMIC_TABLE_REFRESH_HISTORY` and `SHOW STREAMS`: failed refreshes, lag above a factor × the target lag, suspended dynamic tables, stale streams and streams going stale within N days (`snowflake.project-pipelines`). Both need only USAGE on the database and its schemas, MONITOR on the tasks or dynamic tables, SELECT on the streams and a warehouse; database names must be plain identifiers and are checked before anything is sent. With the dashboard _Snowflake project pipelines_, the bundle _Snowflake (project, without ACCOUNT_USAGE)_ and the demo account's tasks, dynamic tables and streams.
+
+### Changed
+
+- **Snowflake demo names are generic**: the demo's project database is `PRJ_SALES_INSIGHTS_DEV` (roles `…_READONLY`, `…_READWRITE`, `…_OWNER`) and its people log in as `EMP10003` … `EMP10007` – in the demo, the mock, the example _Snowflake – Project access review_ and the docs.
+
+### Fixed
+
+- **Private keys pasted into a password field could not be read** ([docs/PLATFORM-SIGN-IN.md](docs/PLATFORM-SIGN-IN.md#private-key-formats)): a browser drops the line breaks of text pasted into a single-line field, so a PEM key entered for the key-pair JWT (Snowflake and other platforms), a client assertion, mutual TLS or an MQTT client certificate was stored on one line, and the connection test failed with `DECODER routines::unsupported`. Steward now restores the PEM structure where it reads the key – headers such as `Proc-Type`/`DEK-Info`, the empty line after them, the body in lines of 64 characters, each block of a certificate chain – for PKCS#8, encrypted PKCS#8 and the traditional `RSA PRIVATE KEY` (also encrypted). **Keys already saved on one line work after the update without being entered again.** The add-platform wizard, the _Credentials_ tab and an identity's credentials take a PEM key or certificate in a multi-line field (also when one is pasted into a password field); stored values are still never shown. A key that cannot be read says why – a wrong or missing passphrase, an OpenSSH key (with the `ssh-keygen` command to convert it), a PuTTY key or DER – and never shows the key; a trailing line break of a passphrase pasted from a file is ignored.
+
 ## [0.26.1] - 2026-11-16
 
 Steward 0.26.1 fixes the Kubernetes integration for clusters without cert-manager: the cert-manager certificates are optional, so namespaces, the monitor check and the example process work when the cluster has no cert-manager or the service account may not read certificates. It also adds the upgrade fixture of 0.26.0.
@@ -1648,7 +1664,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.26.1...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.26.2...HEAD
+[0.26.2]: https://github.com/vxrz/steward/compare/v0.26.1...v0.26.2
 [0.26.1]: https://github.com/vxrz/steward/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/vxrz/steward/compare/v0.25.1...v0.26.0
 [0.25.1]: https://github.com/vxrz/steward/compare/v0.25.0...v0.25.1

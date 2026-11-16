@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ActionIcon, Alert, Autocomplete, Badge, Button, Group, Modal, Paper, PasswordInput, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Autocomplete, Badge, Button, Group, Modal, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { IconLock, IconPencil, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import type { Platform } from '@sm/shared';
+import { isMultilineSecret, type Platform } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { Hint } from '../common';
 import { requiredSecrets } from './SettingsTab';
 import { platformKeys } from '../../queryKeys';
 import { TableScroll } from '../TableScroll';
+import { SecretInput } from './SecretInput';
 
 const COMMON_KEYS = ['clientId', 'clientSecret', 'username', 'password', 'token', 'apiKey'];
 
@@ -19,6 +20,8 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  // a new value field after each store (a text area for a key goes back to a password field)
+  const [round, setRound] = useState(0);
   const needed = requiredSecrets(platform.config.auth);
   const missing = needed.filter((k) => !platform.secretKeys.includes(k));
 
@@ -33,6 +36,7 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
       notifyOk(t('credentials.stored', { key: key.trim() }));
       setKey('');
       setValue('');
+      setRound((r) => r + 1);
     } catch (e) {
       notifyError(e, t('credentials.notStored'));
     } finally {
@@ -140,7 +144,14 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
                 value={key}
                 onChange={setKey}
               />
-              <PasswordInput label={t('common:value')} value={value} onChange={(e) => setValue(e.currentTarget.value)} autoComplete="new-password" />
+              <SecretInput
+                key={round}
+                label={t('common:value')}
+                value={value}
+                onChange={setValue}
+                multiline={isMultilineSecret(key, value)}
+                testId="credential-value"
+              />
               {platform.secretKeys.includes(key.trim()) && <Hint>{t('credentials.replaces', { key: key.trim() })}</Hint>}
               <Group justify="flex-end">
                 <Button type="submit" loading={busy} disabled={!key.trim() || !value || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key.trim())}>

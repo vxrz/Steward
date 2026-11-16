@@ -41,3 +41,16 @@ export function impliedAuthType(
   if (types.includes('bearer')) return 'bearer';
   return types[0] ?? 'none';
 }
+
+/**
+ * Credentials that hold the text of a PEM file (0.26.2): the private key of the key-pair JWT and of a client assertion,
+ * its certificate, and the client certificate of mutual TLS or an MQTT broker. They are entered in a multi-line field
+ * – a single-line field drops the line breaks of pasted text. Presets mark theirs (`multiline` of a secret field).
+ */
+export const PEM_SECRET_KEYS: readonly string[] = ['privateKey', 'certificate', 'tlsCertificate', 'tlsKey'];
+
+/** Whether a credential is entered as multi-line text: marked so by its preset, a PEM credential, or a value with line breaks or a PEM BEGIN line. */
+export function isMultilineSecret(key: string, value = '', fields: readonly { key: string; multiline?: boolean }[] = []): boolean {
+  const k = key.trim();
+  return fields.some((f) => f.key === k && f.multiline) || PEM_SECRET_KEYS.includes(k) || value.includes('\n') || value.trimStart().startsWith('-----BEGIN ');
+}

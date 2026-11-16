@@ -17,7 +17,6 @@ import {
   Loader,
   Modal,
   Paper,
-  PasswordInput,
   Select,
   SimpleGrid,
   Stack,
@@ -50,6 +49,7 @@ import { ListPage, useStoredListView } from '../components/page/ListPage';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { platformKeys } from '../queryKeys';
 import { AddPlatformWizard } from '../components/platform/AddPlatformWizard';
+import { SecretInput } from '../components/platform/SecretInput';
 import { TableScroll } from '../components/TableScroll';
 
 export const KIND_COLORS: Record<string, string> = {
@@ -646,14 +646,14 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
             <>
               <Divider label={t('form.credentials')} labelPosition="left" />
               {preset.secretFields.map((f) => (
-                <PasswordInput
+                <SecretInput
                   key={f.key}
                   label={presetSecretLabel(preset, f)}
                   description={presetSecretHelp(preset, f) ?? t('form.storedAs', { key: f.key })}
                   value={secrets[f.key] ?? ''}
-                  onChange={(e) => setSecrets({ ...secrets, [f.key]: e.currentTarget.value })}
-                  // a secret for the platform: the browser must not fill in the password saved for Steward
-                  autoComplete="new-password"
+                  onChange={(v) => setSecrets({ ...secrets, [f.key]: v })}
+                  multiline={!!f.multiline}
+                  testId={`secret-${f.key}`}
                 />
               ))}
               <Hint>{t('form.credentialsHint')}</Hint>

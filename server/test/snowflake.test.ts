@@ -76,6 +76,55 @@ describe('Snowflake platform', () => {
     expect(check).toMatchObject({ status: 'unknown', message: expect.stringMatching(/^Snowflake could not be read: .*JWT token is invalid.*RSA_PUBLIC_KEY/) });
   });
 
+  it('signs in with a key stored on one line (a single-line field before 0.26.2), also an encrypted one with its passphrase', async () => {
+    const crypto = await import('node:crypto');
+    const { getSecrets } = await import('../src/platforms/service.js');
+    // the demo user's key, as the demo stored it
+    const key = crypto.createPrivateKey(getSecrets(sf).privateKey!);
+    const flat = (pem: string) => pem.replace(/\n/g, '');
+    const base = await s.api('GET', `/platforms/${sf}`);
+    const variants: [string, Record<string, string>][] = [
+      ['PKCS#8', { privateKey: flat(key.export({ type: 'pkcs8', format: 'pem' }) as string) }],
+      [
+        'encrypted PKCS#8',
+        {
+          privateKey: flat(key.export({ type: 'pkcs8', format: 'pem', cipher: 'aes-256-cbc', passphrase: 'pass phrase' }) as string),
+          privateKeyPassphrase: 'pass phrase\n',
+        },
+      ],
+      [
+        'encrypted PKCS#1',
+        {
+          privateKey: key.export({ type: 'pkcs1', format: 'pem', cipher: 'des-ede3-cbc', passphrase: 'pass phrase' }).toString().replace(/\n/g, ' '),
+          privateKeyPassphrase: 'pass phrase',
+        },
+      ],
+    ];
+    for (const [name, secrets] of variants) {
+      // what OpenSSL made of it before: DECODER routines::unsupported
+      expect(() => crypto.createPrivateKey({ key: secrets.privateKey!, format: 'pem', passphrase: 'pass phrase' }), name).toThrow();
+      // stored as it was (nothing to enter again): repaired where it is read
+      const p = await s.api('POST', '/platforms', { ...base, name: `Snowflake one-line key ${name}`, secrets });
+      expect(await s.api('POST', `/platforms/${p.id}/test`, {}), name).toMatchObject({
+        ok: true,
+        message: expect.stringContaining('ACCOUNT_USAGE views can be read'),
+      });
+      const check = await s.api('POST', '/monitors/check-preview', {
+        check: { id: 'sf', name: 'Orders fresh', type: 'snowflake', platform: p.id, mode: 'freshness', object: 'SHOP.SALES.ORDERS', maxAgeMinutes: 60 },
+      });
+      expect(check.status, name).toBe('up');
+    }
+    // a wrong passphrase says what to check, and never shows the key
+    const wrong = await s.api('POST', '/platforms', {
+      ...base,
+      name: 'Snowflake wrong passphrase',
+      secrets: { ...variants[1]![1], privateKeyPassphrase: 'other' },
+    });
+    const t = await s.api('POST', `/platforms/${wrong.id}/test`, {});
+    expect(t).toMatchObject({ ok: false, message: expect.stringContaining('check the passphrase (secret privateKeyPassphrase)') });
+    expect(t.message).not.toContain(variants[1]![1].privateKey!.slice(60, 100));
+  });
+
   it('a 390144 with a region in the account identifier says what the JWT needs', async () => {
     const base = await s.api('GET', `/platforms/${sf}`);
     await s.api('PUT', `/platforms/${sf}`, { config: { ...base.config, variables: { ...base.config.variables, account: 'xy12345.eu-central-1' } } });
@@ -116,11 +165,11 @@ describe('access reviews with the Snowflake source', () => {
       ETL_SVC: { type: 'technical', rights: ['role:LOADER'] },
       OLD_BI: { type: 'disabled', rights: ['role:REPORTER'] },
       // employee ids as user names: the e-mail address is how person reviews find them
-      Z005IJKL: { type: 'disabled', rights: ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE'], aliases: ['karla.lang@example.com'] },
-      SVC_PBI_ETL: { type: 'technical', rights: ['role:PRD_SDC_OPQ_PBI_DEV_READWRITE'] },
+      EMP10005: { type: 'disabled', rights: ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE'], aliases: ['karla.lang@example.com'] },
+      SVC_PBI_ETL: { type: 'technical', rights: ['role:PRJ_SALES_INSIGHTS_DEV_READWRITE'] },
     });
     expect(all.ALICE.aliases).toBeUndefined(); // the login name is the e-mail address already
-    expect(all.Z007QRST.rights).toEqual(['role:ACCOUNTADMIN', 'role:PRD_SDC_OPQ_PBI_DEV_READWRITE', 'role:SECURITYADMIN']);
+    expect(all.EMP10007.rights).toEqual(['role:ACCOUNTADMIN', 'role:PRJ_SALES_INSIGHTS_DEV_READWRITE', 'role:SECURITYADMIN']);
   });
 
   it('person reviews find a Snowflake user by the e-mail address and show the last login', async () => {
@@ -128,7 +177,7 @@ describe('access reviews with the Snowflake source', () => {
       name: 'Snowflake project',
       platformId: sf,
       source: 'snowflake',
-      scope: 'PRD_SDC_OPQ_PBI_DEV',
+      scope: 'PRJ_SALES_INSIGHTS_DEV',
     });
     const r = await s.api('POST', '/compliance/person-reviews', {
       title: 'Leaver Karla Lang',
@@ -138,9 +187,9 @@ describe('access reviews with the Snowflake source', () => {
     });
     expect(r.sources[0]).toMatchObject({ origin: 'live', matched: 1 });
     expect(r.items.map((i: any) => [i.subjectId, i.right])).toEqual([
-      ['Z005IJKL', 'CREATE SCHEMA DATABASE PRD_SDC_OPQ_PBI_DEV'],
-      ['Z005IJKL', 'MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV'], // READWRITE has READONLY
-      ['Z005IJKL', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV'],
+      ['EMP10005', 'CREATE SCHEMA DATABASE PRJ_SALES_INSIGHTS_DEV'],
+      ['EMP10005', 'MONITOR DATABASE PRJ_SALES_INSIGHTS_DEV'], // READWRITE has READONLY
+      ['EMP10005', 'USAGE DATABASE PRJ_SALES_INSIGHTS_DEV'],
     ]);
     expect(r.items[0].subjectActivity).toMatch(/^last login \d{4}-\d{2}-\d{2} \(380 days ago\)$/);
     // the same as data (the web app's own words), and the e-mail address that matched (0.4.0)
@@ -154,8 +203,8 @@ describe('access reviews with the Snowflake source', () => {
       identifiers: ['HANS.ILG@example.com'],
       checkIds: [c.id],
     });
-    // through PRD_SDC_OPQ_PBI_DEV_READONLY; signs in with a password and no MFA
-    expect(hans.items.map((i: any) => i.right)).toEqual(['MONITOR DATABASE PRD_SDC_OPQ_PBI_DEV', 'USAGE DATABASE PRD_SDC_OPQ_PBI_DEV']);
+    // through PRJ_SALES_INSIGHTS_DEV_READONLY; signs in with a password and no MFA
+    expect(hans.items.map((i: any) => i.right)).toEqual(['MONITOR DATABASE PRJ_SALES_INSIGHTS_DEV', 'USAGE DATABASE PRJ_SALES_INSIGHTS_DEV']);
     expect(hans.items[0].subjectActivity).toContain('password without MFA');
     expect(hans.items[0].subjectActivityInfo.passwordWithoutMfa).toBe(true);
   });

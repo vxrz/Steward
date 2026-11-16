@@ -296,8 +296,9 @@ export const PRESETS: PlatformPreset[] = [
     secretFields: [
       {
         key: 'privateKey',
-        label: 'Private key (PEM, PKCS#8)',
-        help: 'openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt; give the user the public key with ALTER USER … SET RSA_PUBLIC_KEY',
+        label: 'Private key (PEM: PKCS#8, or PKCS#1 RSA PRIVATE KEY)',
+        help: 'An encrypted key also needs the passphrase below. Create one with openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt; give the user the public key with ALTER USER … SET RSA_PUBLIC_KEY',
+        multiline: true,
       },
       { key: 'privateKeyPassphrase', label: 'Passphrase of the private key (optional)' },
     ],
@@ -393,8 +394,8 @@ export const PRESETS: PlatformPreset[] = [
       { key: 'username', label: 'User name (basic)', auth: 'basic', help: 'A user of the REST API that may read connectors (docs/KAFKA.md)' },
       { key: 'password', label: 'Password (basic)', auth: 'basic' },
       { key: 'token', label: 'Bearer token', auth: 'bearer' },
-      { key: 'tlsCertificate', label: 'Client certificate (PEM, mutual TLS)' },
-      { key: 'tlsKey', label: 'Private key of the client certificate (PEM)' },
+      { key: 'tlsCertificate', label: 'Client certificate (PEM, mutual TLS)', multiline: true },
+      { key: 'tlsKey', label: 'Private key of the client certificate (PEM)', multiline: true },
       { key: 'tlsKeyPassphrase', label: 'Passphrase of the private key (optional)' },
     ],
     docs: [
@@ -464,8 +465,14 @@ export const PRESETS: PlatformPreset[] = [
         key: 'certificate',
         label: 'Certificate (PEM, public part)',
         help: 'The certificate uploaded to the app registration (Certificates & secrets) – Steward sends its thumbprint',
+        multiline: true,
       },
-      { key: 'privateKey', label: 'Private key of the certificate (PEM, PKCS#8)', help: 'Signs the client assertion; it never leaves Steward' },
+      {
+        key: 'privateKey',
+        label: 'Private key of the certificate (PEM, PKCS#8)',
+        help: 'Signs the client assertion; it never leaves Steward',
+        multiline: true,
+      },
       { key: 'privateKeyPassphrase', label: 'Passphrase of the private key (optional)' },
     ],
     docs: [
@@ -496,8 +503,8 @@ export const PRESETS: PlatformPreset[] = [
     secretFields: [
       { key: 'username', label: 'User name' },
       { key: 'password', label: 'Password' },
-      { key: 'certificate', label: 'Client certificate (PEM, optional)' },
-      { key: 'privateKey', label: 'Client private key (PEM, optional)' },
+      { key: 'certificate', label: 'Client certificate (PEM, optional)', multiline: true },
+      { key: 'privateKey', label: 'Client private key (PEM, optional)', multiline: true },
     ],
     docs: [
       { title: 'MQTT 3.1.1 topics and wildcards', url: 'https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106' },
@@ -812,7 +819,7 @@ export const PRESETS: PlatformPreset[] = [
       { key: 'password', label: 'Password', auth: 'basic' },
       { key: 'clientId', label: 'OAuth client id' },
       { key: 'clientSecret', label: 'OAuth client secret' },
-      { key: 'privateKey', label: 'Private key (PEM, key-pair JWT)' },
+      { key: 'privateKey', label: 'Private key (PEM, key-pair JWT)', multiline: true },
       { key: 'privateKeyPassphrase', label: 'Private key passphrase (optional)' },
       { key: 'accessKeyId', label: 'AWS access key id' },
       { key: 'secretAccessKey', label: 'AWS secret access key' },

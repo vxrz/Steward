@@ -44,6 +44,7 @@ describe('template bundles', () => {
       '20-ih-tenant-usage',
       '30-snowflake',
       '31-snowflake-costs',
+      '32-snowflake-project',
       '40-git-repositories',
       '50-aws',
       '60-prometheus-slo',
@@ -194,8 +195,10 @@ describe('what next with a platform', () => {
       '62-snowflake-account-hygiene',
       '621-snowflake-cost-estimate',
       '622-snowflake-waste-check',
+      '623-snowflake-task-health',
+      '624-snowflake-dynamic-tables-and-streams',
     ]);
-    expect(g.bundles.map((b: any) => b.id)).toEqual(['30-snowflake', '31-snowflake-costs']);
+    expect(g.bundles.map((b: any) => b.id)).toEqual(['30-snowflake', '31-snowflake-costs', '32-snowflake-project']);
     expect(g.monitorTypes).toEqual(['snowflake']);
     expect(g.monitorExamples.map((e: any) => e.file)).toEqual(['50-snowflake-account.yaml']);
     expect(g.accessSources).toEqual(['snowflake']);

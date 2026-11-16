@@ -15014,6 +15014,7 @@ export interface Resources {
     'credentials.namePlaceholder': string;
     'credentials.replaces': string;
     'credentials.store': string;
+    'credentials.pemHint': string;
     'credentials.removeTitle': string;
     'credentials.removeText': string;
     'identities.none': string;

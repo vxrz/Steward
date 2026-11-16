@@ -1,0 +1,342 @@
+# steward-min-version: 0.21.0
+name: "Snowflake – Task health (project)"
+description: |
+  How the tasks of a project's databases ran, read with nothing but the
+  project's own grants – no SNOWFLAKE.ACCOUNT_USAGE, no account-wide
+  privilege. For every database: SHOW TASKS IN DATABASE (schedule and state)
+  and the database's own INFORMATION_SCHEMA.TASK_HISTORY table function for
+  the last N hours (at most 168: the function covers seven days). Per task:
+  the last state, failed runs with ERROR_CODE and ERROR_MESSAGE, skipped and
+  cancelled runs, runs that took more than a factor times the task's median,
+  suspended tasks, and started tasks that did not run although their schedule
+  says they should have (a schedule of N minutes shorter than the period, or
+  a cron schedule that runs at least daily). Checks warn on failures,
+  suspended tasks and tasks that did not run.
+
+  Recommended schedule: hourly (`10 * * * *`). Publishes
+  `snowflake.project-tasks` (one row per task) for the "Snowflake project
+  pipelines" dashboard. Needs a Snowflake platform (key-pair JWT,
+  docs/SNOWFLAKE.md) whose role has USAGE on the database and its schemas,
+  MONITOR on the tasks (SHOW TASKS and TASK_HISTORY list only the tasks the
+  role has a privilege on; OPERATE is not needed to read) and USAGE on a
+  warehouse for the SELECT – the SHOW command needs none. Database names must
+  be plain identifiers (letters, digits, _ and $, starting with a letter or
+  _): a table function's database cannot be a bind parameter, so the name is
+  checked before anything is sent and then written as a quoted identifier in
+  upper case; anything else is refused.
+recommendedSchedule: "10 * * * *"
+tags: [operations, pipelines, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only, project grants are enough)
+inputs:
+  - name: databases
+    label: Databases of the project
+    type: list
+    default: [PRJ_SALES_INSIGHTS_DEV]
+    required: true
+  - name: hours
+    label: Look at the last … hours (1–168)
+    type: number
+    default: 24
+  - name: slowFactor
+    label: Slow run – longer than this factor × the task's median
+    type: number
+    default: 2
+  - name: slowMinSeconds
+    label: Slow run – only runs of at least (seconds)
+    type: number
+    default: 60
+constants:
+  # <DB> is replaced by the checked database name as a quoted identifier; everything else is a bind parameter
+  # (1: slow factor, 2: minimum seconds of a slow run, 3: -hours)
+  historySql: >-
+    SELECT DATABASE_NAME, SCHEMA_NAME, NAME, COUNT(*) AS RUNS,
+    COUNT_IF(STATE = 'SUCCEEDED') AS SUCCEEDED,
+    COUNT_IF(STATE IN ('FAILED', 'FAILED_AND_AUTO_SUSPENDED')) AS FAILED,
+    COUNT_IF(STATE = 'SKIPPED') AS SKIPPED,
+    COUNT_IF(STATE = 'CANCELLED') AS CANCELLED,
+    MAX_BY(STATE, SCHEDULED_TIME) AS LAST_STATE,
+    TO_VARCHAR(MAX(SCHEDULED_TIME), 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_RUN,
+    TO_VARCHAR(MAX(IFF(STATE IN ('FAILED', 'FAILED_AND_AUTO_SUSPENDED'), SCHEDULED_TIME, NULL)), 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_FAILURE,
+    MAX_BY(ERROR_CODE, IFF(STATE IN ('FAILED', 'FAILED_AND_AUTO_SUSPENDED'), SCHEDULED_TIME, NULL)) AS LAST_ERROR_CODE,
+    MAX_BY(ERROR_MESSAGE, IFF(STATE IN ('FAILED', 'FAILED_AND_AUTO_SUSPENDED'), SCHEDULED_TIME, NULL)) AS LAST_ERROR,
+    MAX(MEDIAN_ALL) AS MEDIAN_SECONDS, MAX(SECONDS) AS MAX_SECONDS,
+    COUNT_IF(SECONDS > ? * MEDIAN_ALL AND SECONDS >= ?) AS SLOW_RUNS
+    FROM (SELECT DATABASE_NAME, SCHEMA_NAME, NAME, STATE, SCHEDULED_TIME, ERROR_CODE, ERROR_MESSAGE,
+    IFF(STATE = 'SUCCEEDED', DATEDIFF('millisecond', QUERY_START_TIME, COMPLETED_TIME) / 1000, NULL) AS SECONDS,
+    MEDIAN(IFF(STATE = 'SUCCEEDED', DATEDIFF('millisecond', QUERY_START_TIME, COMPLETED_TIME) / 1000, NULL)) OVER (PARTITION BY DATABASE_NAME, SCHEMA_NAME, NAME) AS MEDIAN_ALL
+    FROM TABLE(<DB>.INFORMATION_SCHEMA.TASK_HISTORY(SCHEDULED_TIME_RANGE_START => DATEADD('hour', ?, CURRENT_TIMESTAMP()), RESULT_LIMIT => 10000))
+    WHERE STATE NOT IN ('SCHEDULED', 'EXECUTING'))
+    GROUP BY DATABASE_NAME, SCHEMA_NAME, NAME
+    ORDER BY DATABASE_NAME, SCHEMA_NAME, NAME
+steps:
+  - id: valid
+    type: check
+    name: Database names are plain Snowflake identifiers
+    condition: >-
+      $count(inputs.databases) > 0 and $count(inputs.databases) <= 20
+        and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+    message: >-
+      {{ $count(inputs.databases) > 0 and $count(inputs.databases) <= 20 and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+        ? 'Databases: ' & $join(inputs.databases, ', ')
+        : 'Database names may contain only letters, digits, _ and $, start with a letter or _ (no quotes, dots or spaces), at most 20 databases' }}
+    failRun: true
+  - id: setup
+    type: set
+    name: Database names and the period
+    values:
+      # unquoted identifiers are stored in upper case
+      dbs: "{{ [$distinct(inputs.databases.$uppercase($trim($)))] }}"
+      hours: "{{ $max([1, $min([168, $round($number(inputs.hours))])]) }}"
+      factor: "{{ $max([1, $number(inputs.slowFactor)]) }}"
+  - id: perDatabase
+    type: forEach
+    name: Tasks and their runs per database (2 in parallel)
+    items: vars.dbs
+    as: db
+    concurrency: 2
+    maxItems: 20
+    saveAs: perDatabase
+    steps:
+      - id: ident
+        type: set
+        name: The database as a quoted identifier
+        values:
+          # checked again here: only a plain identifier ever reaches a statement
+          dbIdent: >-
+            {{ $contains(vars.db, /^[A-Z_][A-Z0-9_$]{0,254}$/) ? '"' & vars.db & '"' : $error('not a plain Snowflake identifier: ' & vars.db) }}
+      - id: showTasks
+        type: http
+        name: SHOW TASKS IN DATABASE
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        # 422: the database does not exist or the role may not use it – reported, the other databases go on
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ 'SHOW TASKS IN DATABASE ' & vars.dbIdent }}"
+          timeout: 60
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: tasksShown
+      - id: readHistory
+        type: http
+        name: Runs of the last hours (INFORMATION_SCHEMA.TASK_HISTORY)
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ $replace($const.historySql, '<DB>', vars.dbIdent) }}"
+          bindings:
+            "1": { type: REAL, value: "{{ $string(vars.factor) }}" }
+            "2": { type: FIXED, value: "{{ $string($max([0, $round($number(inputs.slowMinSeconds))])) }}" }
+            "3": { type: FIXED, value: "{{ $string(-vars.hours) }}" }
+          timeout: 120
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: historyRead
+      - id: tasksOfDb
+        type: set
+        name: One row per task
+        values:
+          problem: >-
+            {{ $append(
+              vars.tasksShown.status != 200 ? [vars.db & ': SHOW TASKS failed – ' & $substring($string(vars.tasksShown.body.message), 0, 200)] : [],
+              vars.historyRead.status != 200 ? [vars.db & ': TASK_HISTORY failed – ' & $substring($string(vars.historyRead.body.message), 0, 200)] : []
+            ) }}
+          # the SQL API answers rows as arrays, with the column names in resultSetMetaData (lower case for SHOW)
+          shownRows: >-
+            {{ vars.tasksShown.status = 200 ? ($c := [vars.tasksShown.body.resultSetMetaData.rowType.name];
+              [$map(vars.tasksShown.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) : [] }}
+          historyRows: >-
+            {{ vars.historyRead.status = 200 ? ($c := [vars.historyRead.body.resultSetMetaData.rowType.name];
+              [$map(vars.historyRead.body.data, function($x) { $merge($map($c, function($n, $i) { { $n: $x[$i] } })) })]) : [] }}
+          tasks: >-
+            {{ (
+              $db := vars.db;
+              $hours := vars.hours;
+              $shown := vars.shownRows;
+              $hist := vars.historyRows;
+              $n := function($v) { $v ? $number($v) : 0 };
+              $historySeen := $count($hist) > 0;
+              $expected := function($s) {(
+                $u := $uppercase($trim($string($s)));
+                $m := $match($u, /^(\d+)\s*(SECOND|MINUTE|HOUR)S?$/);
+                $f := $split($trim($substringAfter($u, 'USING CRON ')), ' ');
+                $m ? $number($m.groups[0]) * ($m.groups[1] = 'HOUR' ? 60 : ($m.groups[1] = 'SECOND' ? 1 / 60 : 1)) <= $hours * 60
+                  : ($contains($u, 'USING CRON') and $count($f) >= 5 and $f[2] = '*' and $f[3] = '*' and $f[4] = '*'
+                    ? ($hours >= 24 or ($f[1] = '*' and $hours >= 1)) : false)
+              )};
+              $keys := $distinct($append(
+                [$shown.(database_name & '.' & schema_name & '.' & name)],
+                [$hist.(DATABASE_NAME & '.' & SCHEMA_NAME & '.' & NAME)]));
+              [$keys.(
+                $k := $;
+                $t := $shown[(database_name & '.' & schema_name & '.' & name) = $k][0];
+                $h := $hist[(DATABASE_NAME & '.' & SCHEMA_NAME & '.' & NAME) = $k][0];
+                $state := $t ? $lowercase($t.state) : 'not listed';
+                $runs := $n($h.RUNS);
+                $failed := $n($h.FAILED);
+                $slow := $n($h.SLOW_RUNS);
+                $skipped := $n($h.SKIPPED);
+                $cancelled := $n($h.CANCELLED);
+                $notRun := $state = 'started' and $runs = 0 and $historySeen and $t.schedule and $expected($t.schedule);
+                $findings := [
+                  $failed > 0 ? $failed & ' failed run(s), last ' & $substring($string($h.LAST_FAILURE), 0, 16) & ': '
+                    & ($h.LAST_ERROR_CODE ? $h.LAST_ERROR_CODE & ' ' : '') & $substring($string($h.LAST_ERROR), 0, 300) : undefined,
+                  $state = 'suspended' ? 'suspended' : undefined,
+                  $notRun ? 'no run in ' & $hours & ' h although started with schedule ' & $t.schedule : undefined,
+                  $slow > 0 ? $slow & ' run(s) slower than ' & $vars.factor & ' × the median of ' & $round($n($h.MEDIAN_SECONDS)) & ' s (longest ' & $round($n($h.MAX_SECONDS)) & ' s)' : undefined,
+                  $skipped + $cancelled > 0 ? $skipped & ' skipped, ' & $cancelled & ' cancelled' : undefined
+                ];
+                {
+                  "key": $k,
+                  "database": $db,
+                  "schema": $t ? $t.schema_name : $h.SCHEMA_NAME,
+                  "task": $t ? $t.name : $h.NAME,
+                  "state": $state,
+                  "schedule": $t.schedule ? $t.schedule : ($t.predecessors and $t.predecessors != '[]' ? 'after ' & $t.predecessors : '–'),
+                  "runs": $runs,
+                  "lastState": $h.LAST_STATE ? $h.LAST_STATE : '–',
+                  "lastRun": $h.LAST_RUN ? $substring($h.LAST_RUN, 0, 16) : '–',
+                  "failed": $failed,
+                  "lastError": $failed > 0 ? ($h.LAST_ERROR_CODE ? $h.LAST_ERROR_CODE & ': ' : '') & $substring($string($h.LAST_ERROR), 0, 300) : '',
+                  "skipped": $skipped,
+                  "cancelled": $cancelled,
+                  "medianSeconds": $h.MEDIAN_SECONDS ? $round($number($h.MEDIAN_SECONDS), 1) : null,
+                  "maxSeconds": $h.MAX_SECONDS ? $round($number($h.MAX_SECONDS), 1) : null,
+                  "slow": $slow,
+                  "notRun": $notRun ? true : false,
+                  "findings": $count($findings) ? $join($findings, '; ') : ''
+                }
+              )]
+            ) }}
+          historyEmpty: >-
+            {{ vars.historyRead.status = 200 and $count(vars.historyRows) = 0 and $count(vars.tasks[state = 'started']) > 0 ? vars.db : undefined }}
+  - id: collect
+    type: set
+    name: All tasks
+    values:
+      rows: "{{ [vars.perDatabase.results.tasks] }}"
+      problems: "{{ [vars.perDatabase.results.problem] }}"
+      historyEmpty: "{{ [vars.perDatabase.results.historyEmpty[$ != null]] }}"
+      failedTasks: "{{ [vars.rows[failed > 0]] }}"
+      suspendedTasks: "{{ [vars.rows[state = 'suspended']] }}"
+      notRunTasks: "{{ [vars.rows[notRun]] }}"
+      slowTasks: "{{ [vars.rows[slow > 0]] }}"
+      irregularTasks: "{{ [vars.rows[skipped + cancelled > 0]] }}"
+      attentionTasks: "{{ [vars.rows[slow > 0 or skipped + cancelled > 0]] }}"
+  - id: publish
+    type: publish
+    name: Publish the task health
+    dataset: snowflake.project-tasks
+    title: Snowflake project tasks
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Database, value: database }
+      - { label: Schema, value: schema }
+      - { label: Task, value: task }
+      - { label: State, value: state }
+      - { label: Schedule, value: schedule }
+      - { label: Runs, value: runs }
+      - { label: Last state, value: lastState }
+      - { label: Last run, value: lastRun }
+      - { label: Failed, value: failed }
+      - { label: Last error, value: lastError }
+      - { label: Skipped, value: skipped }
+      - { label: Cancelled, value: cancelled }
+      - { label: Median (s), value: "medianSeconds != null ? medianSeconds : '–'" }
+      - { label: Longest (s), value: "maxSeconds != null ? maxSeconds : '–'" }
+      - { label: Slow runs, value: slow }
+      - { label: Findings, value: "findings ? findings : '–'" }
+    status: >-
+      failed > 0 and lastState in ['FAILED', 'FAILED_AND_AUTO_SUSPENDED'] ? 'critical'
+        : (failed > 0 or state = 'suspended' or notRun or slow > 0 or skipped + cancelled > 0 ? 'warning'
+        : (state = 'not listed' ? 'unknown' : 'good'))
+    statusText: "findings ? findings : (state = 'not listed' ? 'ran, but SHOW TASKS does not list it (dropped, or no privilege on it)' : '')"
+    metrics:
+      databases: "$count(vars.dbs)"
+      tasks: "$count(vars.rows)"
+      failed: "$count(vars.failedTasks)"
+      failedRuns: "$sum([vars.rows.failed])"
+      suspended: "$count(vars.suspendedTasks)"
+      notRun: "$count(vars.notRunTasks)"
+      slow: "$count(vars.slowTasks)"
+      skippedOrCancelled: "$count(vars.irregularTasks)"
+      unreadable: "$count(vars.problems)"
+    staleAfterMinutes: 240
+  - id: readable
+    type: check
+    name: Every database could be read
+    severity: warning
+    condition: "$count(vars.problems) = 0"
+    message: "{{ $count(vars.problems) = 0 ? 'Tasks and task history of ' & $join(vars.dbs, ', ') & ' read' : $join(vars.problems, '; ') }}"
+    headline: "{{ $count(vars.problems) & ' Snowflake reads failed (database missing or no privilege)' }}"
+    value: "$count(vars.problems)"
+    items: vars.problems
+  - id: historyVisible
+    type: check
+    name: Task history readable
+    severity: info
+    notify: false
+    condition: "$count(vars.historyEmpty) = 0"
+    message: >-
+      {{ $count(vars.historyEmpty) = 0 ? 'TASK_HISTORY lists runs, or no task is started'
+        : 'TASK_HISTORY lists no run at all in ' & $join(vars.historyEmpty, ', ') & ' although tasks are started – nothing ran in '
+          & vars.hours & ' h, or the role cannot see the runs (docs/SNOWFLAKE.md); tasks that did not run are not reported there' }}
+  - id: failuresOk
+    type: check
+    name: No task failed
+    severity: warning
+    condition: "$count(vars.failedTasks) = 0"
+    message: "{{ $count(vars.failedTasks) = 0 ? 'No task failed in ' & vars.hours & ' h' : $join(vars.failedTasks.(key & ': ' & findings), '; ') }}"
+    headline: "{{ $count(vars.failedTasks) & ' Snowflake tasks failed in ' & vars.hours & ' h' }}"
+    value: "$count(vars.failedTasks)"
+    items: "vars.failedTasks.(key & ': ' & lastError)"
+  - id: suspendedOk
+    type: check
+    name: No task is suspended
+    severity: warning
+    condition: "$count(vars.suspendedTasks) = 0"
+    message: "{{ $count(vars.suspendedTasks) = 0 ? 'No task is suspended' : 'Suspended: ' & $join(vars.suspendedTasks.key, ', ') }}"
+    headline: "{{ $count(vars.suspendedTasks) & ' Snowflake tasks are suspended' }}"
+    value: "$count(vars.suspendedTasks)"
+    items: "vars.suspendedTasks.(key & ' (' & schedule & ')')"
+  - id: ranOk
+    type: check
+    name: Started tasks ran as scheduled
+    severity: warning
+    condition: "$count(vars.notRunTasks) = 0"
+    message: "{{ $count(vars.notRunTasks) = 0 ? 'Every started task with a schedule ran' : $join(vars.notRunTasks.(key & ': ' & findings), '; ') }}"
+    headline: "{{ $count(vars.notRunTasks) & ' Snowflake tasks did not run although scheduled' }}"
+    value: "$count(vars.notRunTasks)"
+    items: "vars.notRunTasks.(key & ' (' & schedule & ')')"
+  - id: speedOk
+    type: check
+    name: No slow, skipped or cancelled runs
+    severity: info
+    notify: false
+    condition: "$count(vars.attentionTasks) = 0"
+    message: >-
+      {{ $count(vars.attentionTasks) = 0 ? 'No run took more than ' & vars.factor & ' × its median, none was skipped or cancelled'
+        : $join(vars.attentionTasks.(key & ': ' & findings), '; ') }}
+    value: "$count(vars.attentionTasks)"
+    items: "vars.attentionTasks.key"
+  - id: summary
+    type: report
+    name: Summary
+    title: "Task health: {{ $join(vars.dbs, ', ') }} (last {{ vars.hours }} h)"
+    text: |
+      - Tasks: **{{ $count(vars.rows) }}**, failed: **{{ $count(vars.failedTasks) }}** ({{ $sum([vars.rows.failed]) }} runs), suspended: **{{ $count(vars.suspendedTasks) }}**, did not run: **{{ $count(vars.notRunTasks) }}**, slow: **{{ $count(vars.slowTasks) }}**
+      {{ $count(vars.problems) ? '- Not readable: ' & $join(vars.problems, '; ') : '' }}
+    rows: "vars.rows[findings != '']"
+    columns:
+      - { label: Task, value: key }
+      - { label: State, value: state }
+      - { label: Findings, value: findings }

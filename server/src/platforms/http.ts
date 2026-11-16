@@ -13,6 +13,7 @@ import { emit } from '../events.js';
 import { assertLiteralAddressSafe, assertOutboundAllowed, assertRedirectAllowed, assertRedirectBodyClean, guardedLookup, sameDestination } from './outbound.js';
 import { parseAssumeRole, signRequest, type AwsCredentials } from './sigv4.js';
 import { JWT_ALGS, certificateThumbprints, clientAssertion, privateKeyOf, publicKeyFingerprint, signJwt } from './jwt.js';
+import { normalizePem, pemPassphrase } from './pem.js';
 import { where as originAndPath } from './answers.js';
 import { stripValues } from './deniedPaths.js';
 import { assertKindRules, destinationKinds } from './restrictedOrigins.js';
@@ -66,7 +67,13 @@ export function clientTlsOf(secrets: Record<string, string>): ClientTls | undefi
   const cert = secrets.tlsCertificate?.trim();
   const key = secrets.tlsKey?.trim();
   if (!cert || !key) return undefined;
-  return { cert, key, ...(secrets.tlsKeyPassphrase ? { passphrase: secrets.tlsKeyPassphrase } : {}) };
+  const passphrase = pemPassphrase(secrets.tlsKeyPassphrase);
+  // a certificate or key stored on one line (pasted into a single-line field before 0.26.2) is repaired here
+  try {
+    return { cert: normalizePem(cert), key: normalizePem(key), ...(passphrase ? { passphrase } : {}) };
+  } catch (e) {
+    throw Object.assign(new Error(`The client certificate (secrets tlsCertificate and tlsKey) cannot be read: ${(e as Error).message}`), { retryable: false });
+  }
 }
 
 export interface HttpResult {
