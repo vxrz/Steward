@@ -250,7 +250,7 @@ const mayMap = () => mcpControlProposals() && canTagControls(me());
 function targetsOf(kind: ControlTagKind, query: string, u: AuthUser): { id: string; label: string }[] {
   // the query is text, not a pattern (0.27.0): % and _ match themselves, on SQLite and PostgreSQL alike
   const like = `%${likeEscape(query.toLowerCase())}%`;
-  const L = "LIKE ? ESCAPE '\\'";
+  const L = "LIKE lower(?) ESCAPE '\\'";
   const sql: Record<ControlTagKind, string> = {
     process: `SELECT id FROM processes WHERE lower(name) ${L} ORDER BY name LIMIT 200`,
     recordType: `SELECT id FROM record_types WHERE lower(key) ${L} OR lower(name) ${L} ORDER BY key LIMIT 200`,
