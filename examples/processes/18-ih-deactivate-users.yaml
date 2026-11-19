@@ -1,0 +1,218 @@
+name: "Insights Hub – Deactivate or reactivate users"
+description: |
+  Blocks accounts without deleting them – or lets them in again. For each
+  user name: looks up the account, keeps its state and memberships as
+  evidence, asks for confirmation (four-eyes) and then sets the SCIM
+  attribute `active` with PUT /Users/{id} (false: deactivate, true:
+  reactivate). The Identity Management API has no endpoint of its own for
+  this: PUT replaces the user, so the request carries the user's current
+  userName, name and emails (required by the API) and changes only
+  `active`; memberships are not part of it and stay as they are, so a
+  reactivated user has the same access as before. Afterwards each account is
+  read again and the run reports whether `active` really changed – per
+  user, with the API's answer when a request failed. Accounts already in
+  the requested state and unknown user names are skipped with a note.
+
+  The Identity Management specification describes `active: false` as a
+  "soft delete"; Settings → User Management calls it Deactivate / Activate.
+  Try it on a test account of your tenant first: the run's read-back shows
+  what the tenant did.
+
+  Recommended schedule: on demand.
+  Required rights: read users (im.usr.r) and update users (im.usr.u) – e.g.
+  the role mdsp:core:im.userIamAdmin or a tenant administrator.
+tags: [offboarding, users, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: users
+    label: User names (e-mail), one per line
+    type: list
+    required: true
+    default: |
+      karla.lang@example.com
+      someone.unknown@example.com
+  - name: action
+    label: What to do
+    type: select
+    options: [deactivate, reactivate]
+    default: deactivate
+steps:
+  - id: setup
+    type: set
+    name: Prepare
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      target: "{{ inputs.action = 'reactivate' }}"
+      found: "{{ [] }}"
+      results: "{{ [] }}"
+  - id: lookup
+    type: forEach
+    name: Look up each user
+    items: inputs.users
+    as: name
+    steps:
+      - id: find
+        type: http
+        name: Find user
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Users"
+        query:
+          filter: 'userName eq "{{ $lowercase($trim(vars.name)) }}"'
+        saveAs: user
+      - id: collect
+        type: set
+        name: Collect
+        values:
+          found: "{{ $append(vars.found, [{ 'requested': $lowercase($trim(vars.name)), 'user': vars.user.body.resources[0] }]) }}"
+  - id: split
+    type: set
+    name: The accounts to change, their state as it is
+    values:
+      unknown: "{{ [vars.found[$not($exists(user))].requested] }}"
+      # evidence: the state and the memberships before the change
+      evidence: >-
+        {{ [vars.found[$exists(user)].user.{
+          'id': id,
+          'userName': userName,
+          'name': name ? name : {},
+          'emails': emails ? emails : [{ 'value': userName }],
+          'subtenants': subtenants,
+          'activeBefore': $not(active = false),
+          'memberships': [groups.display]
+        }] }}
+      toChange: "{{ [vars.evidence[activeBefore != $vars.target]] }}"
+      unchanged: "{{ [vars.evidence[activeBefore = $vars.target]] }}"
+  - id: unknownCheck
+    type: check
+    name: All user names found
+    severity: warning
+    condition: "$count(vars.unknown) = 0"
+    message: "{{ $count(vars.unknown) = 0 ? 'All users found' : 'Not found: ' & $join(vars.unknown, ', ') }}"
+  - id: approve
+    type: userTask
+    name: Confirm
+    when: "$count(vars.toChange) > 0"
+    mode: approve
+    title: "{{ inputs.action = 'reactivate' ? 'Reactivate' : 'Deactivate' }} {{ $count(vars.toChange) }} account(s)?"
+    instructions: |
+      Requested by {{ run.actor }}. A different person has to confirm.
+      {{ inputs.action = 'reactivate' ? 'The accounts can sign in again, with the memberships they kept.' : 'The accounts can no longer sign in; they and their memberships are kept.' }}
+
+      {{ $join(vars.toChange.('- **' & userName & '** – ' & ($count(memberships) > 0 ? $join(memberships, ', ') : 'no groups')), '\n') }}
+      {{ $count(vars.unchanged) > 0 ? '\nAlready ' & (inputs.action = 'reactivate' ? 'active' : 'deactivated') & ', skipped: ' & $join(vars.unchanged.userName, ', ') : '' }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    # a rejection ends the run without a change; the report says so
+    onReject: continue
+    saveAs: approval
+  - id: change
+    type: forEach
+    name: Change each account
+    when: "vars.approval.approved = true"
+    items: vars.toChange
+    as: u
+    steps:
+      - id: put
+        type: http
+        name: Set active (PUT /Users/{id})
+        connection: hub
+        method: PUT
+        path: "{{ vars.idm }}/Users/{{ vars.u.id }}"
+        body:
+          userName: "{{ vars.u.userName }}"
+          name: "{{ vars.u.name }}"
+          emails: "{{ vars.u.emails }}"
+          subtenants: "{{ vars.u.subtenants }}"
+          active: "{{ vars.target }}"
+        # every answer is kept and reported per user
+        expectStatus: [200, 204, 400, 403, 404, 409, 412, 500, 503]
+        saveAs: updated
+      - id: readBack
+        type: http
+        name: Read the account again
+        when: "$not(vars.updated.dryRun = true)"
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Users/{{ vars.u.id }}"
+        expectStatus: [200, 404]
+        saveAs: after
+      - id: result
+        type: set
+        name: Result
+        values:
+          results: >-
+            {{ $append(vars.results, [(
+              $ok := vars.updated.status in [200, 204];
+              $now := vars.after.status = 200 ? $not(vars.after.body.active = false) : null;
+              {
+                'userName': vars.u.userName,
+                'status': vars.updated.dryRun ? 'dry run' : $string(vars.updated.status),
+                'activeAfter': vars.updated.dryRun ? null : $now,
+                'result': vars.updated.dryRun ? 'dry run – not changed'
+                  : ($ok and $now = vars.target ? (vars.target ? 'reactivated' : 'deactivated')
+                  : ($ok ? 'request accepted, but active is ' & $string($now) : 'failed')),
+                'message': vars.updated.dryRun or $ok ? ''
+                  : $substring($string(vars.updated.body.errors[0].message ? vars.updated.body.errors[0].message
+                    : (vars.updated.body.error_description ? vars.updated.body.error_description : (vars.updated.body.message ? vars.updated.body.message : vars.updated.body))), 0, 300)
+              }
+            )]) }}
+  - id: outcome
+    type: set
+    name: What was done
+    values:
+      changed: "{{ [vars.evidence[($n := userName; $count($vars.results[userName = $n and result in ['deactivated', 'reactivated']]) > 0)]] }}"
+      failures: "{{ [vars.results[$not(result in ['deactivated', 'reactivated', 'dry run – not changed'])]] }}"
+  - id: failuresCheck
+    type: check
+    name: Every account changed
+    severity: warning
+    when: "vars.approval.approved = true"
+    condition: "$count(vars.failures) = 0"
+    message: "{{ $count(vars.failures) = 0 ? 'Every account is ' & (vars.target ? 'active' : 'deactivated') & ' now' : $join(vars.failures.(userName & ': HTTP ' & status & ' – ' & result & (message ? ' – ' & message : '')), '; ') }}"
+    headline: "{{ $count(vars.failures) & ' Insights Hub account(s) could not be ' & (vars.target ? 'reactivated' : 'deactivated') }}"
+    value: "$count(vars.failures)"
+    items: "vars.failures.(userName & ': ' & result & (message ? ' – ' & message : ''))"
+  - id: document
+    type: accessChange
+    name: Document the change
+    when: "$count(vars.changed) > 0"
+    connection: hub
+    kind: modify
+    items: vars.changed
+    subjectId: id
+    subjectName: userName
+    reason: "Account {{ inputs.action = 'reactivate' ? 'reactivated' : 'deactivated' }} (memberships kept)"
+    approvedBy: "{{ vars.approval.decidedBy }}"
+  - id: report
+    type: report
+    name: Report
+    title: "{{ inputs.action = 'reactivate' ? 'Reactivation' : 'Deactivation' }} result"
+    text: |
+      - Requested: **{{ $count(inputs.users) }}**, to change: **{{ $count(vars.toChange) }}**, already {{ vars.target ? 'active' : 'deactivated' }}: **{{ $count(vars.unchanged) }}**, not found: **{{ $count(vars.unknown) }}**
+      - Failed: **{{ $count(vars.failures) }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}{{ $count(vars.toChange) > 0 and vars.approval.approved != true ? ' – not confirmed, nothing changed' : '' }}
+    rows: >-
+      $append($append(
+        [vars.evidence.(
+          $n := userName;
+          $r := $vars.results[userName = $n][0];
+          {
+            'user': $n,
+            'before': activeBefore ? 'active' : 'deactivated',
+            'result': $r ? $r.result : (activeBefore = $vars.target ? 'already ' & ($vars.target ? 'active' : 'deactivated') : 'not changed'),
+            'status': $r ? $r.status : '',
+            'message': $r ? $r.message : '',
+            'memberships': $join(memberships, ', ')
+          }
+        )],
+        [vars.unknown.{ 'user': $, 'before': '–', 'result': 'not found', 'status': '', 'message': '', 'memberships': '' }]
+      ), [])
+    columns:
+      - { label: User, value: user }
+      - { label: Before, value: before }
+      - { label: Result, value: result }
+      - { label: HTTP, value: status }
+      - { label: Message, value: message }
+      - { label: Memberships (kept), value: memberships }

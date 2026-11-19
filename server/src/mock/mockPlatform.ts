@@ -52,7 +52,21 @@ interface User {
   meta: { created: string; lastModified: string };
   /** Tenants differ: an ISO string or epoch milliseconds, and missing or null for people who never signed in. */
   lastLogonTime?: string | number | null;
+  /** Lists the internal OIDC scope groups among its memberships (see OIDC_SCOPE_GROUPS). */
+  scopeGroups?: boolean;
 }
+
+/**
+ * Internal OIDC scope groups (0.27.0). Insights Hub's identity management is SCIM on Cloud Foundry UAA: every user of a
+ * zone is implicitly a member of the zone's default groups (UAA: `openid`, `profile`, `roles`, `uaa.user`, … – tenants
+ * show `email` too). They appear in the user's `groups` as DIRECT memberships but are not stored as memberships: a
+ * removal is refused, deleting the user needs none of them removed. The mock lists `openid`, `profile` and `email` for
+ * the users flagged `scopeGroups` (the leaver Karla Lang) – not for everyone, so the other examples keep their figures –
+ * and not in GET /Groups. The answer to a removal is not documented by Insights Hub (upstream UAA answers 404 "Member …
+ * does not exist in group …"); the mock refuses with 400 and an error object in the Insights Hub format, which the
+ * examples report per group.
+ */
+const OIDC_SCOPE_GROUPS = ['openid', 'profile', 'email'] as const;
 interface Group {
   id: string;
   displayName: string;
@@ -116,6 +130,8 @@ function seed() {
       meta: { created: daysAgo(400), lastModified: daysAgo(30) },
       ...lastLogon(i, d),
     };
+    // the leaver of the offboarding example signed in through OIDC: her memberships list the internal scope groups
+    if (g === 'Karla') u.scopeGroups = true;
     users.set(u.id, u);
   }
   const groups = new Map<string, Group>();
@@ -395,11 +411,18 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     return op!.toLowerCase() === 'eq' ? actual === v : op!.toLowerCase() === 'sw' ? actual.startsWith(v) : actual.includes(v);
   };
 
-  const userView = (u: User) => ({
+  const scopeGroupId = (name: string) => uid(`group:${name}`);
+  const scopeGroupOf = (id: string) => OIDC_SCOPE_GROUPS.find((n) => scopeGroupId(n) === id);
+  const userView = ({ scopeGroups, ...u }: User) => ({
     ...u,
-    groups: [...state.groups.values()].filter((g) => g.members.has(u.id)).map((g) => ({ display: g.displayName, value: g.id, type: 'DIRECT' })),
+    groups: [
+      ...[...state.groups.values()].filter((g) => g.members.has(u.id)).map((g) => ({ display: g.displayName, value: g.id, type: 'DIRECT' })),
+      ...(scopeGroups ? OIDC_SCOPE_GROUPS.map((n) => ({ display: n, value: scopeGroupId(n), type: 'DIRECT' })) : []),
+    ],
     schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
   });
+  /** An error object as Insights Hub services answer one */
+  const ihError = (message: string) => ({ errors: [{ code: 'mdsp.core.generic.badRequest', logref: crypto.randomUUID(), message }] });
   const groupView = (g: Group) => ({
     id: g.id,
     displayName: g.displayName,
@@ -447,6 +470,20 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     state.groups.forEach((g) => g.displayName === 'mdsp:core:StandardUser' && g.members.add(u.id));
     return reply.code(201).send(userView(u));
   });
+  // Update a user (ScimUserPut: userName, name and emails required; `active: false` deactivates – "a soft delete" in
+  // the specification – and `active: true` reactivates with the memberships kept)
+  app.put(`${IDM}/Users/:id`, { preHandler: ihAuth }, async (req, reply) => {
+    const u = state.users.get((req.params as { id: string }).id);
+    if (!u) return reply.code(404).send(ihError('User not found'));
+    const b = (req.body ?? {}) as Partial<User>;
+    if (!b.userName || !b.name || !Array.isArray(b.emails)) return reply.code(400).send(ihError('userName, name and emails are required'));
+    if (String(b.userName).toLowerCase() !== u.userName) return reply.code(400).send(ihError('The userName of a user cannot be changed'));
+    u.name = { givenName: b.name.givenName ?? '', familyName: b.name.familyName ?? '' };
+    u.emails = b.emails.map((e) => ({ value: String(e?.value ?? '') }));
+    u.active = b.active === undefined ? true : b.active === true;
+    u.meta = { ...u.meta, lastModified: new Date().toISOString() };
+    return reply.code(200).send(userView(u));
+  });
   app.delete(`${IDM}/Users/:id`, { preHandler: ihAuth }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     if (!state.users.delete(id)) return reply.code(404).send({ error: 'not found' });
@@ -475,6 +512,9 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   });
   app.delete(`${IDM}/Groups/:id/members/:mid`, { preHandler: ihAuth }, async (req, reply) => {
     const { id, mid } = req.params as { id: string; mid: string };
+    const scope = scopeGroupOf(id);
+    if (scope && state.users.get(mid)?.scopeGroups)
+      return reply.code(400).send(ihError(`Member ${mid} cannot be removed from the group ${scope}: it is a default group of the identity zone`));
     const g = state.groups.get(id);
     if (!g || !g.members.delete(mid)) return reply.code(404).send({ error: 'not a member' });
     return reply.code(200).send({ type: 'USER', value: mid });

@@ -1,10 +1,26 @@
 name: "Insights Hub – Offboard leavers"
 description: |
   Leaver procedure: for each user name in the list, looks up the account and
-  its group/role memberships, asks for confirmation (four-eyes) and then
-  removes all direct memberships – and optionally deletes the account.
-  Unknown user names are reported as a warning, not an error, so a list from
-  HR can be pasted as is.
+  its group/role memberships, keeps them as evidence (the approval, the
+  report and the documented access change list them as they were), asks for
+  confirmation (four-eyes) and then either deletes the account or removes
+  its memberships. Unknown user names are reported as a warning, not an
+  error, so a list from HR can be pasted as is.
+
+  - Mode "delete" deletes the account (DELETE /Users/{id}) and nothing else:
+    deleting a user needs no membership removed first – the memberships go
+    with the account.
+  - Mode "removeGroupsOnly" keeps the account and removes its direct
+    memberships, one request per group. It never touches INDIRECT
+    memberships (inherited through another group; they end with the direct
+    one) nor the groups of the input "Never touch": the internal OIDC scope
+    groups (openid, profile, email, …) every user is implicitly a member of
+    – listed as DIRECT memberships, but they cannot be removed. Each removal
+    is reported per user and group with the API's answer; a removal that
+    fails does not stop the others, and a check lists the failures.
+
+  To block an account without deleting it, use "Insights Hub – Deactivate or
+  reactivate users" (#18).
 
   Recommended schedule: on demand (or daily from an HR leaver export).
   Required rights: read users/groups, change group membership (im.g.u) and –
@@ -26,6 +42,11 @@ inputs:
     type: select
     options: [removeGroupsOnly, delete]
     default: removeGroupsOnly
+  - name: neverTouch
+    label: Never remove these groups (internal OIDC scope groups)
+    type: list
+    default:
+      [openid, profile, email, phone, address, roles, user_attributes, uaa.user, uaa.offline_token, approvals.me, password.write, scim.me, oauth.approvals]
 steps:
   - id: setup
     type: set
@@ -33,6 +54,8 @@ steps:
     values:
       idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
       leavers: "{{ [] }}"
+      results: "{{ [] }}"
+      keep: "{{ [inputs.neverTouch.$lowercase($trim($))] }}"
   - id: lookup
     type: forEach
     name: Look up each user
@@ -55,10 +78,24 @@ steps:
           leavers: "{{ $append(vars.leavers, [{ 'requested': $lowercase($trim(vars.name)), 'user': vars.found.body.resources[0] }]) }}"
   - id: split
     type: set
-    name: Known and unknown users
+    name: Known and unknown users, their memberships as they are
     values:
       known: "{{ [vars.leavers[$exists(user)].user] }}"
       unknown: "{{ [vars.leavers[$not($exists(user))].requested] }}"
+      # evidence: every membership before the change, and which of them a removal may touch
+      evidence: >-
+        {{ [vars.known.(
+          $u := $;
+          {
+            "id": $u.id,
+            "userName": $u.userName,
+            "active": $u.active,
+            "groupNames": [$u.groups.display],
+            "memberships": [$u.groups.(display & ' (' & (type ? type : 'DIRECT') & ')')],
+            "removable": [$u.groups[$not(type = 'INDIRECT') and $not($lowercase(display) in $vars.keep)].{ 'display': display, 'value': value }],
+            "kept": [$u.groups[type = 'INDIRECT' or $lowercase(display) in $vars.keep].(display & (type = 'INDIRECT' ? ' (inherited)' : ' (internal scope group)'))]
+          }
+        )] }}
   - id: unknownCheck
     type: check
     name: All user names found
@@ -73,49 +110,120 @@ steps:
     title: "Offboard {{ $count(vars.known) }} user(s) ({{ inputs.mode }})?"
     instructions: |
       Requested by {{ run.actor }}. A different person has to confirm.
+      {{ inputs.mode = 'delete' ? 'The accounts are deleted; their memberships go with them.' : 'The memberships under "remove" are removed; the accounts stay.' }}
 
-      {{ $join(vars.known.('- **' & userName & '** – ' & ($count(groups) > 0 ? $join(groups.display, ', ') : 'no groups')), '\n') }}
+      {{ $join(vars.evidence.('- **' & userName & '** – ' & ($count(memberships) > 0 ? $join(memberships, ', ') : 'no groups')
+        & ($inputs.mode = 'delete' ? '' : '\n  remove: ' & ($count(removable) > 0 ? $join(removable.display, ', ') : 'nothing') & ($count(kept) > 0 ? '; kept: ' & $join(kept, ', ') : ''))), '\n') }}
     assignees: [role:approver, role:admin]
     fourEyes: true
+    # a rejection ends the offboarding without a change; the report says so
+    onReject: continue
     saveAs: approval
   - id: offboard
     type: forEach
     name: Offboard each user
     when: "vars.approval.approved = true"
-    items: vars.known
+    items: vars.evidence
     as: u
     steps:
-      - id: memberships
-        type: forEach
-        name: Remove memberships
-        items: "vars.u.groups[$not(type = 'INDIRECT')]"
-        as: grp
-        steps:
-          - id: removeMembership
+      - id: byMode
+        type: if
+        name: Delete or remove memberships
+        condition: "$inputs.mode = 'delete'"
+        then:
+          # the account only: its memberships are not removed one by one first
+          - id: deleteUser
             type: http
-            name: Remove membership
+            name: Delete user
             connection: hub
             method: DELETE
-            path: "{{ vars.idm }}/Groups/{{ vars.grp.value }}/members/{{ vars.u.id }}"
-            expectStatus: [200, 204, 404]
-      - id: deleteUser
-        type: http
-        name: Delete user
-        when: "$inputs.mode = 'delete'"
-        connection: hub
-        method: DELETE
-        path: "{{ vars.idm }}/Users/{{ vars.u.id }}"
-        expectStatus: [200, 204, 404]
+            path: "{{ vars.idm }}/Users/{{ vars.u.id }}"
+            # every answer is kept and reported; 404: already gone
+            expectStatus: [200, 204, 400, 403, 404, 409, 500, 503]
+            saveAs: deleted
+          - id: deleteResult
+            type: set
+            name: Result of the deletion
+            values:
+              results: >-
+                {{ $append(vars.results, [{
+                  'userName': vars.u.userName,
+                  'group': '(account)',
+                  'status': vars.deleted.dryRun ? 'dry run' : $string(vars.deleted.status),
+                  'result': vars.deleted.dryRun ? 'dry run – not deleted'
+                    : (vars.deleted.status in [200, 204] ? 'deleted' : (vars.deleted.status = 404 ? 'already gone' : 'failed')),
+                  'message': vars.deleted.dryRun or vars.deleted.status in [200, 204] ? ''
+                    : $substring($string(vars.deleted.body.errors[0].message ? vars.deleted.body.errors[0].message
+                      : (vars.deleted.body.error_description ? vars.deleted.body.error_description : (vars.deleted.body.message ? vars.deleted.body.message : vars.deleted.body))), 0, 300)
+                }]) }}
+        else:
+          - id: memberships
+            type: forEach
+            name: Remove removable memberships
+            items: "vars.u.removable"
+            as: grp
+            steps:
+              - id: removeMembership
+                type: http
+                name: Remove membership
+                connection: hub
+                method: DELETE
+                path: "{{ vars.idm }}/Groups/{{ vars.grp.value }}/members/{{ vars.u.id }}"
+                # every answer is kept and reported per group; a failure does not stop the other removals
+                expectStatus: [200, 204, 400, 403, 404, 409, 500, 503]
+                saveAs: removed
+              - id: removeResult
+                type: set
+                name: Result of the removal
+                values:
+                  results: >-
+                    {{ $append(vars.results, [{
+                      'userName': vars.u.userName,
+                      'group': vars.grp.display,
+                      'status': vars.removed.dryRun ? 'dry run' : $string(vars.removed.status),
+                      'result': vars.removed.dryRun ? 'dry run – not removed'
+                        : (vars.removed.status in [200, 204] ? 'removed' : (vars.removed.status = 404 ? 'not a member (any more)' : 'failed')),
+                      'message': vars.removed.dryRun or vars.removed.status in [200, 204] ? ''
+                        : $substring($string(vars.removed.body.errors[0].message ? vars.removed.body.errors[0].message
+                          : (vars.removed.body.error_description ? vars.removed.body.error_description : (vars.removed.body.message ? vars.removed.body.message : vars.removed.body))), 0, 300)
+                    }]) }}
+  - id: outcome
+    type: set
+    name: What was done
+    values:
+      failures: "{{ [vars.results[result = 'failed']] }}"
+      # the users with a change to document: the account deleted (or already gone), or memberships removed
+      changed: >-
+        {{ [vars.evidence[(
+          $n := userName;
+          $count($vars.results[userName = $n and result in ['deleted', 'already gone', 'removed']]) > 0
+        )]] }}
+  - id: failuresCheck
+    type: check
+    name: Every deletion or removal went through
+    severity: warning
+    when: "vars.approval.approved = true"
+    condition: "$count(vars.failures) = 0"
+    message: >-
+      {{ $count(vars.failures) = 0 ? 'Nothing failed'
+        : $join(vars.failures.(userName & ' / ' & group & ': HTTP ' & status & ' – ' & message), '; ') }}
+    headline: "{{ $count(vars.failures) & ' Insights Hub offboarding request(s) failed' }}"
+    value: "$count(vars.failures)"
+    items: "vars.failures.(userName & ' / ' & group & ': HTTP ' & status & ' – ' & message)"
   - id: documentOffboarding
     type: accessChange
     name: Document offboarding
-    when: "vars.approval.approved = true"
+    when: "vars.approval.approved = true and $count(vars.changed) > 0"
     connection: hub
     kind: offboarding
-    items: vars.known
+    items: vars.changed
     subjectId: id
     subjectName: userName
-    rights: "[groups[$not(type = 'INDIRECT')].display]"
+    # delete: every membership went with the account; removeGroupsOnly: the memberships actually removed
+    rights: >-
+      $inputs.mode = 'delete' ? [groupNames]
+        : ($n := userName; [$vars.results[userName = $n and result = 'removed'].group])
+    rightsBefore: "[groupNames]"
     reason: "Leaver offboarded ({{ inputs.mode }})"
     approvedBy: "{{ vars.approval.decidedBy }}"
   - id: report
@@ -124,13 +232,24 @@ steps:
     title: Offboarding result
     text: |
       - Requested: **{{ $count(inputs.users) }}**, found: **{{ $count(vars.known) }}**, not found: **{{ $count(vars.unknown) }}**
-      - Action: **{{ inputs.mode }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}
-    rows: vars.leavers
+      - Action: **{{ inputs.mode }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}{{ $count(vars.known) > 0 and vars.approval.approved != true ? ' – not confirmed, nothing changed' : '' }}
+      - Failed requests: **{{ $count(vars.failures) }}**
+      {{ $join(vars.evidence.('- Memberships of ' & userName & ' before: ' & ($count(memberships) > 0 ? $join(memberships, ', ') : 'none')), '\n') }}
+    rows: >-
+      $append(
+        [vars.unknown.{ 'user': $, 'group': '–', 'result': 'not found', 'status': '', 'message': '' }],
+        vars.approval.approved = true
+          ? $append(
+              [vars.results.{ 'user': userName, 'group': group, 'result': result, 'status': status, 'message': message }],
+              $inputs.mode = 'removeGroupsOnly'
+                ? [vars.evidence.($n := userName; kept.{ 'user': $n, 'group': $, 'result': 'kept (never removed)', 'status': '', 'message': '' })]
+                : []
+            )
+          : [vars.evidence.{ 'user': userName, 'group': '–', 'result': 'not confirmed', 'status': '', 'message': '' }]
+      )
     columns:
-      - { label: User, value: requested }
-      - { label: Found, value: "$exists(user) ? 'yes' : 'no'" }
-      - { label: Memberships, value: "$exists(user) ? $count(user.groups[$not(type = 'INDIRECT')]) : 0" }
-      - {
-          label: Result,
-          value: "$not($exists(user)) ? 'not found' : ($vars.approval.approved = true ? ($inputs.mode = 'delete' ? 'deleted' : 'memberships removed') : 'not confirmed')",
-        }
+      - { label: User, value: user }
+      - { label: Group, value: group }
+      - { label: Result, value: result }
+      - { label: HTTP, value: status }
+      - { label: Message, value: message }

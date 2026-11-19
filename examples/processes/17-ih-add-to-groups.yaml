@@ -1,0 +1,239 @@
+name: "Insights Hub – Add users to several groups"
+description: |
+  Adds existing users to several user groups or roles at once. The groups
+  are resolved by name with the building block #90 "Resolve an Insights Hub
+  group" (a sub-process per group – import #90 too); every user is looked
+  up by user name. The plan shows each user × group: memberships that exist
+  already are skipped, an unknown group stops the run before anything
+  changes, unknown users only warn. After an approval each missing
+  membership is added – Insights Hub has no bulk endpoint for this: one
+  POST /Groups/{id}/members per user and group – and the result is reported
+  per user × group with the API's answer; a failed addition does not stop
+  the others. The added memberships are documented as access changes.
+
+  Recommended schedule: on demand.
+  Required rights: read users/groups, change group membership (im.g.u).
+tags: [onboarding, groups, subprocess, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: users
+    label: Users (user names / e-mail addresses, one per line)
+    type: list
+    required: true
+    default: |
+      noah.otto@example.com
+      greta.hahn@example.com
+      nobody@example.com
+  - name: groups
+    label: Groups or roles (display names, one per line)
+    type: list
+    required: true
+    default: |
+      mdsp_usergroup:Operators
+      mdsp_usergroup:Viewers
+steps:
+  - id: setup
+    type: set
+    name: Prepare
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      groupNames: "{{ [$distinct(inputs.groups.$trim($)[$ != ''])] }}"
+      userNames: "{{ [$distinct(inputs.users.$lowercase($trim($))[$ != ''])] }}"
+      resolved: "{{ [] }}"
+      results: "{{ [] }}"
+  - id: enough
+    type: check
+    name: Users and groups given
+    condition: "$count(vars.groupNames) > 0 and $count(vars.groupNames) <= 20 and $count(vars.userNames) > 0 and $count(vars.userNames) <= 200"
+    message: "{{ $count(vars.userNames) & ' user(s), ' & $count(vars.groupNames) & ' group(s)' & ($count(vars.groupNames) > 20 or $count(vars.userNames) > 200 ? ' – at most 200 users and 20 groups at once' : '') }}"
+    failRun: true
+  - id: resolveGroups
+    type: forEach
+    name: Resolve each group (sub-process)
+    items: vars.groupNames
+    as: groupName
+    steps:
+      - id: resolveGroup
+        type: subprocess
+        name: Resolve group
+        process: subflow-resolve-group
+        inputs:
+          groupName: "{{ vars.groupName }}"
+        saveAs: group
+      - id: keepGroup
+        type: set
+        name: Keep the group
+        values:
+          resolved: >-
+            {{ $append(vars.resolved, [{
+              'name': vars.groupName,
+              'found': vars.group.found = true,
+              'id': vars.group.groupId,
+              'memberIds': [vars.group.memberIds]
+            }]) }}
+  - id: groupsFound
+    type: check
+    name: Every group exists
+    condition: "$count(vars.resolved[found = false]) = 0"
+    message: "{{ $count(vars.resolved[found = false]) = 0 ? 'Groups: ' & $join(vars.resolved.name, ', ') : 'Unknown group(s): ' & $join(vars.resolved[found = false].name, ', ') }}"
+    failRun: true
+  - id: lookup
+    type: forEach
+    name: Look up users (4 in parallel)
+    items: vars.userNames
+    as: address
+    concurrency: 4
+    saveAs: lookups
+    steps:
+      - id: findUser
+        type: http
+        name: Find user
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Users"
+        query:
+          filter: 'userName eq "{{ vars.address }}"'
+        saveAs: found
+      - id: classify
+        type: set
+        name: Classify
+        values:
+          email: "{{ vars.address }}"
+          userId: "{{ vars.found.body.resources[0].id }}"
+          known: "{{ $count(vars.found.body.resources) > 0 }}"
+          groupsBefore: "{{ [vars.found.body.resources[0].groups.display] }}"
+  - id: plan
+    type: set
+    name: Plan per user and group
+    values:
+      unknown: "{{ [vars.lookups.results[known = false].email] }}"
+      pairs: >-
+        {{ [vars.lookups.results[known = true].(
+          $user := $;
+          $vars.resolved.{
+            'key': $user.email & '|' & name,
+            'email': $user.email,
+            'userId': $user.userId,
+            'group': name,
+            'groupId': id,
+            'state': $user.userId in memberIds ? 'member' : 'add'
+          }
+        )] }}
+      toAdd: "{{ [vars.pairs[state = 'add']] }}"
+  - id: unknownUsers
+    type: check
+    name: All users exist
+    severity: warning
+    condition: "$count(vars.unknown) = 0"
+    message: "{{ $count(vars.unknown) = 0 ? 'All users found' : 'Unknown user(s), skipped: ' & $join(vars.unknown, ', ') }}"
+  - id: approve
+    type: userTask
+    name: Approve the memberships
+    when: "$count(vars.toAdd) > 0"
+    mode: approve
+    title: "Add {{ $count(vars.toAdd) }} membership(s)?"
+    instructions: |
+      Requested by {{ run.actor }}.
+
+      {{ $join(vars.lookups.results[known = true].(
+        $e := email;
+        '- **' & $e & '** → ' & $join($vars.pairs[email = $e].(group & (state = 'member' ? ' (already a member)' : '')), ', ')
+      ), '\n') }}
+    # a rejection ends the run without a change; the report says so
+    onReject: continue
+    saveAs: approval
+  - id: add
+    type: forEach
+    name: Add each membership
+    when: "vars.approval.approved = true"
+    items: vars.toAdd
+    as: p
+    steps:
+      - id: addMember
+        type: http
+        name: Add membership
+        connection: hub
+        method: POST
+        path: "{{ vars.idm }}/Groups/{{ vars.p.groupId }}/members"
+        body:
+          type: USER
+          value: "{{ vars.p.userId }}"
+        # every answer is kept and reported per user and group; 409: a member already
+        expectStatus: [200, 201, 400, 403, 404, 409, 500, 503]
+        saveAs: added
+      - id: addResult
+        type: set
+        name: Result
+        values:
+          results: >-
+            {{ $append(vars.results, [{
+              'key': vars.p.key,
+              'status': vars.added.dryRun ? 'dry run' : $string(vars.added.status),
+              'result': vars.added.dryRun ? 'dry run – not added'
+                : (vars.added.status in [200, 201] ? 'added' : (vars.added.status = 409 ? 'already a member' : 'failed')),
+              'message': vars.added.dryRun or vars.added.status in [200, 201] ? ''
+                : $substring($string(vars.added.body.errors[0].message ? vars.added.body.errors[0].message
+                  : (vars.added.body.error_description ? vars.added.body.error_description : (vars.added.body.message ? vars.added.body.message : vars.added.body))), 0, 300)
+            }]) }}
+  - id: outcome
+    type: set
+    name: Results per user and group
+    values:
+      rows: >-
+        {{ [vars.pairs.(
+          $p := $;
+          $r := $vars.results[key = $p.key][0];
+          $merge([$p, {
+            'result': $p.state = 'member' ? 'already a member (skipped)'
+              : ($r ? $r.result : ($vars.approval.approved = true ? 'not added' : 'not approved')),
+            'status': $r ? $r.status : '',
+            'message': $r ? $r.message : ''
+          }])
+        )] }}
+      failures: "{{ [vars.rows[result = 'failed']] }}"
+      grantedUsers: >-
+        {{ [vars.lookups.results[known = true].(
+          $e := email;
+          $g := [$vars.rows[email = $e and result = 'added'].group];
+          $count($g) > 0 ? { 'email': $e, 'userId': userId, 'groups': $g, 'groupsBefore': groupsBefore } : undefined
+        )] }}
+  - id: failuresCheck
+    type: check
+    name: Every membership was added
+    severity: warning
+    when: "vars.approval.approved = true"
+    condition: "$count(vars.failures) = 0"
+    message: "{{ $count(vars.failures) = 0 ? 'Nothing failed' : $join(vars.failures.(email & ' → ' & group & ': HTTP ' & status & ' – ' & message), '; ') }}"
+    headline: "{{ $count(vars.failures) & ' Insights Hub membership(s) could not be added' }}"
+    value: "$count(vars.failures)"
+    items: "vars.failures.(email & ' → ' & group & ': HTTP ' & status & ' – ' & message)"
+  - id: documentMemberships
+    type: accessChange
+    name: Document the new memberships
+    when: "$count(vars.grantedUsers) > 0"
+    connection: hub
+    kind: grant
+    items: vars.grantedUsers
+    subjectId: userId
+    subjectName: email
+    rights: "[groups]"
+    rightsBefore: "[groupsBefore]"
+    reason: "Added to {{ $join(vars.groupNames, ', ') }}"
+    approvedBy: "{{ vars.approval.decidedBy }}"
+  - id: summary
+    type: report
+    name: Summary
+    title: "Users and {{ $join(vars.groupNames, ', ') }}"
+    text: |
+      - Users: **{{ $count(vars.userNames) }}** (unknown: {{ $count(vars.unknown) }}), groups: **{{ $count(vars.groupNames) }}**
+      - Memberships added: **{{ $count(vars.rows[result = 'added']) }}**, already there: **{{ $count(vars.rows[state = 'member']) }}**, failed: **{{ $count(vars.failures) }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}
+    rows: >-
+      $append(vars.rows, [vars.unknown.{ 'email': $, 'group': '–', 'result': 'unknown user', 'status': '', 'message': '' }])
+    columns:
+      - { label: User, value: email }
+      - { label: Group, value: group }
+      - { label: Result, value: result }
+      - { label: HTTP, value: status }
+      - { label: Message, value: message }
