@@ -910,6 +910,222 @@ describe('Snowflake – project templates without ACCOUNT_USAGE (0.26.2)', () =>
   });
 });
 
+describe('Snowflake – data volume and newest data point (0.27.0)', () => {
+  const checksOf = (r: any) => Object.fromEntries(r.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+  const DB = 'PRJ_SALES_INSIGHTS_DEV';
+  const sf = () => ({ snowflake: platformByKind.snowflake! });
+
+  it('data volume: rows and bytes per table and schema, growth and shrink against the previous run, empty and stale tables', async () => {
+    const { resetSnowflakeStatements, snowflakeStatements } = await import('../src/mock/mockSnowflake.js');
+    const { resetSnowflakeProjectVolumes } = await import('../src/mock/mockSnowflakeProject.js');
+    resetSnowflakeStatements();
+    resetSnowflakeProjectVolumes();
+    // the first run: nothing to compare with yet
+    const r1 = await finish(await start('snowflake-data-volume', sf(), { databases: [DB, 'shop'] }));
+    expect([r1.status, r1.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r1)).toEqual({
+      valid: 'succeeded',
+      readable: 'succeeded',
+      growthOk: 'succeeded',
+      shrinkOk: 'succeeded',
+      emptyOk: 'failed',
+      staleOk: 'failed',
+    });
+    expect(r1.steps.find((x: any) => x.stepId === 'growthOk').summary).toContain('No previous run to compare with yet');
+    let d = await s.api('GET', '/datasets/snowflake.data-volume');
+    let by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(
+      Object.keys(by)
+        .filter((k) => k.startsWith(`${DB}.`))
+        .sort(),
+    ).toEqual(
+      ['ARCHIVE', 'ARCHIVE.ORDERS_2023', 'ETL', 'ETL.CONTACTS_RAW', 'ETL.EVENTS_RAW', 'ETL.ORDERS_RAW', 'MART', 'MART.FORECAST_INPUT', 'MART.SALES_DAILY'].map(
+        (k) => `${DB}.${k}`,
+      ),
+    );
+    expect(by[`${DB}.ETL.ORDERS_RAW`]).toMatchObject({ Kind: 'table', Rows: 1_000_000, Bytes: 96_000_000, 'Rows before': '–', _status: 'good' });
+    expect(by[`${DB}.MART.FORECAST_INPUT`]).toMatchObject({ Rows: 0, Findings: 'empty', _status: 'warning' });
+    expect(by[`${DB}.ARCHIVE.ORDERS_2023`]).toMatchObject({ 'Days since altered': 400, Findings: 'not altered for 400 days', _status: 'warning' });
+    expect(by[`${DB}.ETL`]).toMatchObject({ Kind: 'schema', Table: '(all 3 tables)', Rows: 5_052_000, _status: 'good' });
+    // SHOP: the base tables of the catalogue (the view DAILY_REVENUE is not a base table)
+    expect(by['SHOP.SALES.ORDERS']).toMatchObject({ Rows: 1_250_000, Bytes: 412_000_000, _status: 'good' });
+    expect(by['SHOP.REPORTING.DAILY_REVENUE']).toBeUndefined();
+    expect(d.metrics).toMatchObject({ databases: 2, growing: 0, shrinking: 0, empty: 1, stale: 1, unreadable: 0 });
+
+    // the second run: the raw orders doubled, the events were purged
+    const r2 = await finish(await start('snowflake-data-volume', sf(), { databases: [DB, 'SHOP'] }));
+    expect(checksOf(r2)).toMatchObject({ growthOk: 'failed', shrinkOk: 'failed', emptyOk: 'failed', staleOk: 'failed' });
+    d = await s.api('GET', '/datasets/snowflake.data-volume');
+    by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(by[`${DB}.ETL.ORDERS_RAW`]).toMatchObject({
+      Rows: 2_000_000,
+      'Rows before': 1_000_000,
+      'Change (rows)': 1_000_000,
+      'Change (%)': 100,
+      Findings: 'grew by 100 % (1000000 → 2000000 rows) since the previous run',
+      _status: 'warning',
+    });
+    expect(by[`${DB}.ETL.EVENTS_RAW`]).toMatchObject({ 'Change (%)': -70, _status: 'critical' });
+    expect(by[`${DB}.ETL.EVENTS_RAW`].Findings).toBe('shrank by 70 % (4000000 → 1200000 rows) since the previous run');
+    // unchanged tables compare as 0 %, the schema total moves with its tables
+    expect(by['SHOP.SALES.ORDERS']).toMatchObject({ 'Change (%)': 0, _status: 'good' });
+    expect(by[`${DB}.ETL`]).toMatchObject({ Rows: 3_252_000, 'Rows before': 5_052_000, _status: 'good' });
+    expect(d.metrics).toMatchObject({ growing: 1, shrinking: 1, empty: 1, stale: 1 });
+    expect(r2.steps.find((x: any) => x.stepId === 'growthOk').summary).toContain(
+      `${DB}.ETL.ORDERS_RAW: grew by 100 % (1000000 → 2000000 rows) since the previous run`,
+    );
+
+    // a generous threshold and a schema filter: only ETL is read, the doubling is within 150 %
+    const r3 = await finish(await start('snowflake-data-volume', sf(), { databases: [DB], schemas: ['etl'], growthPercent: 150, staleDays: 1000 }));
+    expect(checksOf(r3)).toMatchObject({ growthOk: 'succeeded', shrinkOk: 'succeeded', emptyOk: 'succeeded', staleOk: 'succeeded' });
+    d = await s.api('GET', '/datasets/snowflake.data-volume');
+    expect(d.rows.map((x: any) => x._key).sort()).toEqual([`${DB}.ETL`, `${DB}.ETL.CONTACTS_RAW`, `${DB}.ETL.EVENTS_RAW`, `${DB}.ETL.ORDERS_RAW`]);
+
+    // the statements: the database's own INFORMATION_SCHEMA.TABLES, the database a quoted identifier, the schemas bound
+    const sent = snowflakeStatements().filter((x) => x.sql.includes('INFORMATION_SCHEMA.TABLES'));
+    // (two databases in parallel: in either order)
+    expect(sent.map((x) => /FROM ("[A-Z_]+")\.INFORMATION_SCHEMA\.TABLES/.exec(x.sql)?.[1]).sort()).toEqual([
+      `"${DB}"`,
+      `"${DB}"`,
+      `"${DB}"`,
+      '"SHOP"',
+      '"SHOP"',
+    ]);
+    expect(sent[0]!.sql).toMatch(/^SELECT TABLE_SCHEMA, TABLE_NAME, IS_TRANSIENT, ROW_COUNT, BYTES, /);
+    expect(sent[0]!.sql).toContain(
+      "WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA <> 'INFORMATION_SCHEMA' AND (? = '' OR ARRAY_CONTAINS(TABLE_SCHEMA::VARIANT, SPLIT(?, ',')))",
+    );
+    expect(sent[0]!.bindings).toEqual(['', '']);
+    expect(sent.at(-1)!.bindings).toEqual(['ETL', 'ETL']);
+    expect(snowflakeStatements().some((x) => /ACCOUNT_USAGE/i.test(x.sql))).toBe(false);
+  });
+
+  it('data volume: a database that does not exist is named, the others are read', async () => {
+    const r = await finish(await start('snowflake-data-volume', sf(), { databases: ['SHOP', 'NO_SUCH_DB'] }));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toMatchObject({ readable: 'failed' });
+    expect(r.steps.find((x: any) => x.stepId === 'readable').summary).toContain(
+      "NO_SUCH_DB: INFORMATION_SCHEMA.TABLES failed – SQL compilation error:\nDatabase 'NO_SUCH_DB' does not exist or not authorized.",
+    );
+    expect((await s.api('GET', '/datasets/snowflake.data-volume')).metrics).toMatchObject({ databases: 2, unreadable: 1 });
+  });
+
+  it('newest data point: MAX of the timestamp column per target against its maximum age', async () => {
+    const { resetSnowflakeStatements, snowflakeStatements } = await import('../src/mock/mockSnowflake.js');
+    resetSnowflakeStatements();
+    const r = await finish(await start('snowflake-newest-data-point', sf()));
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toEqual({ valid: 'succeeded', readable: 'succeeded', freshOk: 'failed', hasData: 'failed' });
+    const d = await s.api('GET', '/datasets/snowflake.newest-data');
+    const by = Object.fromEntries(d.rows.map((x: any) => [x._key, x]));
+    expect(Object.keys(by).sort()).toEqual([
+      `${DB}.ETL.ORDERS_RAW.ORDER_TS`,
+      `${DB}.MART.FORECAST_INPUT.SNAPSHOT_TS`,
+      `${DB}.MART.SALES_DAILY.LOADED_AT`,
+      'SHOP.SALES.ORDERS.CREATED_AT',
+    ]);
+    expect(by[`${DB}.MART.SALES_DAILY.LOADED_AT`]).toMatchObject({ 'Age (min)': 12, 'Maximum age (min)': 60, State: 'fresh', _status: 'good' });
+    expect(by[`${DB}.ETL.ORDERS_RAW.ORDER_TS`]).toMatchObject({ 'Age (min)': 7, State: 'fresh' });
+    expect(by['SHOP.SALES.ORDERS.CREATED_AT']).toMatchObject({ 'Age (min)': 1560, 'Maximum age (min)': 120, State: 'too old', _status: 'critical' });
+    expect(by['SHOP.SALES.ORDERS.CREATED_AT'].Newest).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    expect(by[`${DB}.MART.FORECAST_INPUT.SNAPSHOT_TS`]).toMatchObject({ 'Age (min)': '–', State: 'no data', _status: 'warning' });
+    expect(d.metrics).toMatchObject({ targets: 4, tooOld: 1, noData: 1, unreadable: 0, oldestMinutes: 1560 });
+    // exactly one statement per target: MAX of the quoted column from the quoted table, nothing else
+    const sent = snowflakeStatements().filter((x) => x.sql.includes('MAX('));
+    expect(sent.map((x) => x.sql).sort()).toEqual(
+      [
+        [`"${DB}"."ETL"."ORDERS_RAW"`, '"ORDER_TS"'],
+        [`"${DB}"."MART"."FORECAST_INPUT"`, '"SNAPSHOT_TS"'],
+        [`"${DB}"."MART"."SALES_DAILY"`, '"LOADED_AT"'],
+        ['"SHOP"."SALES"."ORDERS"', '"CREATED_AT"'],
+      ]
+        .map(
+          ([t, c]) =>
+            `SELECT TO_VARCHAR(MAX(${c})::TIMESTAMP_LTZ, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS NEWEST, DATEDIFF('minute', MAX(${c})::TIMESTAMP_LTZ, CURRENT_TIMESTAMP()) AS AGE_MINUTES FROM ${t}`,
+        )
+        .sort(),
+    );
+    expect(sent.every((x) => x.bindings.length === 0)).toBe(true);
+  });
+
+  it('newest data point: lower-case names are upper-cased; a missing table or column is reported per target', async () => {
+    const r = await finish(
+      await start('snowflake-newest-data-point', sf(), {
+        targets:
+          'table,timestampColumn,maxAgeMinutes\nprj_sales_insights_dev.mart.sales_daily,loaded_at,5\nSHOP.SALES.NO_SUCH_TABLE,CREATED_AT,60\nSHOP.SALES.ORDERS,NO_SUCH_COLUMN,60\n',
+      }),
+    );
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(checksOf(r)).toMatchObject({ readable: 'failed', freshOk: 'failed', hasData: 'succeeded' });
+    const by = Object.fromEntries((await s.api('GET', '/datasets/snowflake.newest-data')).rows.map((x: any) => [x._key, x]));
+    expect(by[`${DB}.MART.SALES_DAILY.LOADED_AT`]).toMatchObject({ State: 'too old', _status: 'critical' });
+    expect(by['SHOP.SALES.NO_SUCH_TABLE.CREATED_AT']).toMatchObject({
+      State: 'unreadable',
+      Error: "SQL compilation error:\nObject 'SHOP.SALES.NO_SUCH_TABLE' does not exist or not authorized.",
+      _status: 'unknown',
+    });
+    expect(by['SHOP.SALES.ORDERS.NO_SUCH_COLUMN'].Error).toContain(`invalid identifier '"NO_SUCH_COLUMN"'`);
+  });
+
+  it('both refuse names that are no plain identifiers (and the newest data point a bad age) before anything is sent', async () => {
+    const { resetSnowflakeStatements, snowflakeStatements } = await import('../src/mock/mockSnowflake.js');
+    resetSnowflakeStatements();
+    for (const bad of ['X; DROP TABLE Y', 'a.b', `"${DB}"`, "PRJ'X", 'PRJ X', '1PRJ']) {
+      for (const inputs of [{ databases: [DB, bad] }, { databases: [DB], schemas: ['ETL', bad] }]) {
+        const r = await finish(await start('snowflake-data-volume', sf(), inputs));
+        expect([bad, r.status]).toEqual([bad, 'failed']);
+        expect(r.steps.find((x: any) => x.stepId === 'valid').status).toBe('failed');
+        expect(r.steps.some((x: any) => x.stepId === 'perDatabase')).toBe(false);
+      }
+    }
+    const targets = [
+      'SHOP.SALES.ORDERS; DROP TABLE X,CREATED_AT,60',
+      'SHOP.SALES,CREATED_AT,60',
+      'SHOP.SALES.ORDERS.X,CREATED_AT,60',
+      // a quoted identifier (the CSV field "SHOP".SALES.ORDERS)
+      '"""SHOP"".SALES.ORDERS",CREATED_AT,60',
+      'SHOP.SALES.ORDERS,CREATED_AT) FROM X --,60',
+      'SHOP.SALES.ORDERS,CREATED_AT WHERE 1=1,60',
+      'SHOP.SALES.ORDERS,CREATED_AT,0',
+      'SHOP.SALES.ORDERS,CREATED_AT,-5',
+      'SHOP.SALES.ORDERS,CREATED_AT,ten',
+      'SHOP.SALES.ORDERS,,60',
+    ];
+    for (const t of targets) {
+      const r = await finish(
+        await start('snowflake-newest-data-point', sf(), { targets: `table,timestampColumn,maxAgeMinutes\n${DB}.MART.SALES_DAILY,LOADED_AT,60\n${t}\n` }),
+      );
+      expect([t, r.status]).toEqual([t, 'failed']);
+      expect(r.steps.find((x: any) => x.stepId === 'valid').status).toBe('failed');
+      expect(r.steps.some((x: any) => x.stepId === 'perTarget')).toBe(false);
+    }
+    expect(snowflakeStatements()).toEqual([]);
+  });
+
+  it('both only read: one SELECT each, every call marked as not mutating, no ACCOUNT_USAGE', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const YAML = (await import('yaml')).default;
+    for (const f of ['625-snowflake-data-volume.yaml', '626-snowflake-newest-data-point.yaml']) {
+      const text = fs.readFileSync(path.resolve(__dirname, '..', '..', 'examples', 'processes', f), 'utf8');
+      const def = YAML.parse(text);
+      const calls = def.steps.flatMap((x: any) => (x.type === 'forEach' ? x.steps : [x])).filter((x: any) => x.type === 'http');
+      expect(calls.length, f).toBe(1);
+      for (const c of calls) {
+        expect([c.mutating, c.method, c.path], `${f} ${c.id}`).toEqual([false, 'POST', '/api/v2/statements']);
+        expect(c.body.statement, f).toMatch(
+          /^\{\{ (\$replace\(\$const\.tablesSql, '<DB>', vars\.dbIdent\)|\$replace\(\$replace\(\$const\.newestSql, '<COL>', vars\.columnIdent\), '<TABLE>', vars\.tableIdent\)) \}\}$/,
+        );
+      }
+      for (const sql of Object.values(def.constants) as string[]) {
+        expect(sql).toMatch(/^SELECT /);
+        expect(sql).not.toMatch(/\b(ALTER|DROP|CREATE|INSERT|UPDATE|DELETE|MERGE|GRANT|REVOKE|CALL|EXECUTE)\b/i);
+      }
+      expect(text, f).not.toMatch(/ACCOUNT_USAGE\./);
+    }
+  });
+});
+
 describe('monitor examples', () => {
   it('every example monitor imports in the demo with generic platform names (no "(demo)" in the files)', async () => {
     const fs = await import('node:fs');
@@ -981,6 +1197,22 @@ describe('template metadata for the gallery', () => {
       datasets: ['snowflake.project-pipelines'],
       dashboards: [{ id: '64-snowflake-project-pipelines', name: 'Snowflake project pipelines' }],
     });
+    // 0.27.0: the data volume (it compares with the previous run – $previousRows) and the newest data point
+    expect(by['625-snowflake-data-volume']).toMatchObject({
+      connectionKinds: ['snowflake'],
+      recommendedSchedule: { cron: '50 5 * * *', text: expect.stringMatching(/^daily/) },
+      datasets: ['snowflake.data-volume'],
+      dashboards: [{ id: '64-snowflake-project-pipelines', name: 'Snowflake project pipelines' }],
+      minVersion: '0.27.0',
+    });
+    expect(by['626-snowflake-newest-data-point']).toMatchObject({
+      recommendedSchedule: { cron: '25 * * * *', text: expect.stringMatching(/^hourly/) },
+      datasets: ['snowflake.newest-data'],
+      dashboards: [{ id: '64-snowflake-project-pipelines', name: 'Snowflake project pipelines' }],
+    });
+    // the Insights Hub user examples run on demand
+    for (const id of ['13-ih-offboard-users', '17-ih-add-to-groups', '18-ih-deactivate-users'])
+      expect(by[id], id).toMatchObject({ connectionKinds: ['insights-hub'], recommendedSchedule: { cron: null, text: expect.stringMatching(/^on demand/) } });
     // a slot that takes several kinds
     expect(by['82-github-repository-health']).toMatchObject({
       connectionKinds: ['forgejo', 'github', 'gitlab'],

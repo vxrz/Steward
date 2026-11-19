@@ -11,6 +11,16 @@
  *
  * The invented objects live in PRJ_SALES_INSIGHTS_DEV; the other databases of the demo exist but have none, an unknown
  * database answers "does not exist or not authorized" like Snowflake. Like the rest of the mock it runs no SQL.
+ *
+ * 0.27.0 – "Data volume over time" and "Newest data point":
+ *
+ * - `SELECT … FROM "<DB>".INFORMATION_SCHEMA.TABLES WHERE …` – the base tables of a database with ROW_COUNT, BYTES and
+ *   LAST_ALTERED, filtered by the schema list of bind parameter 1 ('' = all). PRJ_SALES_INSIGHTS_DEV has the invented
+ *   tables below: one that doubles with every read (ETL.ORDERS_RAW), one purged after the first read (ETL.EVENTS_RAW),
+ *   an empty one and one not altered for 400 days; the other databases answer their catalogue tables (`tablesOf`).
+ * - `SELECT TO_VARCHAR(MAX("<COL>")::TIMESTAMP_LTZ, …) AS NEWEST, DATEDIFF('minute', …) AS AGE_MINUTES FROM
+ *   "<DB>"."<SCHEMA>"."<TABLE>"` – the newest value of a few invented timestamp columns (fresh, a day old, an empty
+ *   table); an unknown table or column answers Snowflake's errors.
  */
 
 type Cell = string | null;
@@ -128,6 +138,53 @@ const DYNAMIC_TABLES: DemoDynamicTable[] = [
   { schema: 'ETL', name: 'ORDERS_ENRICHED_DT', targetLag: '1 day', targetSeconds: 86_400, state: 'SUSPENDED', dataHoursAgo: 9 * 24, refreshes: [] },
 ];
 
+/** A base table of the project database for INFORMATION_SCHEMA.TABLES; `rows(n)`: its rows at the n-th read (0: the first). */
+interface DemoTable {
+  schema: string;
+  name: string;
+  rows: (n: number) => number;
+  alteredHours: number;
+  transient?: boolean;
+}
+const PROJECT_TABLES: DemoTable[] = [
+  // a load that doubles the raw orders with every run – sudden growth from the second read on
+  { schema: 'ETL', name: 'ORDERS_RAW', rows: (n) => 1_000_000 * 2 ** Math.min(n, 10), alteredHours: 0.1, transient: true },
+  // purged after the first read: 70 % fewer rows – sudden shrink at the second read, then steady
+  { schema: 'ETL', name: 'EVENTS_RAW', rows: (n) => (n === 0 ? 4_000_000 : 1_200_000), alteredHours: 1 },
+  { schema: 'ETL', name: 'CONTACTS_RAW', rows: () => 52_000, alteredHours: 3 },
+  { schema: 'MART', name: 'SALES_DAILY', rows: () => 3_650, alteredHours: 0.2 },
+  // created, never filled
+  { schema: 'MART', name: 'FORECAST_INPUT', rows: () => 0, alteredHours: 48 },
+  // nobody wrote to it for 400 days
+  { schema: 'ARCHIVE', name: 'ORDERS_2023', rows: () => 840_000, alteredHours: 400 * 24 },
+];
+/** Bytes of a demo table: about 96 bytes per row compressed (an empty table has none). */
+const bytesOf = (rows: number) => rows * 96;
+/** Reads of INFORMATION_SCHEMA.TABLES per database (the growing and the purged table change with them). */
+const volumeReads = new Map<string, number>();
+/** For tests: the project tables as at their first read again. */
+export function resetSnowflakeProjectVolumes(): void {
+  volumeReads.clear();
+}
+
+/** The newest value of the invented timestamp columns, in minutes ago (null: the table is empty). */
+const NEWEST: Record<string, Record<string, number | null>> = {
+  [`${PROJECT_DB}.MART.SALES_DAILY`]: { LOADED_AT: 12, SALES_DATE: 18 * 60 },
+  [`${PROJECT_DB}.ETL.ORDERS_RAW`]: { ORDER_TS: 7, LOADED_AT: 5 },
+  [`${PROJECT_DB}.MART.FORECAST_INPUT`]: { SNAPSHOT_TS: null },
+  'SHOP.SALES.ORDERS': { CREATED_AT: 26 * 60 },
+};
+
+/** A catalogue table of the other demo databases, for INFORMATION_SCHEMA.TABLES. */
+export interface VolumeTable {
+  schema: string;
+  name: string;
+  rows: number | null;
+  bytes: number | null;
+  alteredHours: number;
+  transient?: boolean;
+}
+
 const STREAMS = [
   { schema: 'ETL', name: 'ORDERS_CHANGES', table: `${PROJECT_DB}.ETL.ORDERS_RAW`, stale: false, staleAfterDays: 12 },
   { schema: 'ETL', name: 'CONTACTS_CHANGES', table: `${PROJECT_DB}.ETL.CONTACTS_RAW`, stale: true, staleAfterDays: -3 },
@@ -149,9 +206,19 @@ const newest = <T extends { hoursAgo: number }>(xs: T[], keep: (x: T) => boolean
  * The answer to a statement of the two project templates; null: not one of theirs. `aliases` are the output columns of
  * the SELECT list, `known` says whether the demo account has a database.
  */
-export function projectAnswer(sql: string, arg: (i: number) => string, aliases: string[], known: (db: string) => boolean): ProjectAnswer | null {
+export function projectAnswer(
+  sql: string,
+  arg: (i: number) => string,
+  aliases: string[],
+  known: (db: string) => boolean,
+  tablesOf: (db: string) => VolumeTable[] = () => [],
+): ProjectAnswer | null {
   const flat = sql.trim().replace(/\s+/g, ' ');
   const unknown = (db: string): ProjectAnswer => ({ error: `SQL compilation error:\nDatabase '${db}' does not exist or not authorized.` });
+  const volume = volumeAnswer(flat, arg, aliases, known, tablesOf);
+  if (volume) return volume;
+  const newestPoint = newestAnswer(flat, aliases, known, tablesOf);
+  if (newestPoint) return newestPoint;
   // the templates send the database as a quoted identifier of a plain name – nothing else is answered
   const show = /^SHOW (TASKS|DYNAMIC TABLES|STREAMS) IN DATABASE "([A-Z_][A-Z0-9_$]*)" ?;?$/.exec(flat);
   if (show) {
@@ -342,4 +409,91 @@ export function projectAnswer(sql: string, arg: (i: number) => string, aliases: 
     return [aliases.map(cell)];
   });
   return { names: aliases, rows };
+}
+
+const IDENT = /^[A-Z_][A-Z0-9_$]*$/;
+
+/** The base tables of a database (the project's invented ones, else the catalogue's) at this read. */
+function volumeTables(db: string, read: number, tablesOf: (db: string) => VolumeTable[]): VolumeTable[] {
+  if (db !== PROJECT_DB) return tablesOf(db);
+  return PROJECT_TABLES.map((t) => {
+    const rows = t.rows(read);
+    return { schema: t.schema, name: t.name, rows, bytes: bytesOf(rows), alteredHours: t.alteredHours, transient: t.transient };
+  });
+}
+
+/** `SELECT … FROM "<DB>".INFORMATION_SCHEMA.TABLES WHERE …` of "Data volume over time"; binding 1: the schemas ('' = all). */
+function volumeAnswer(
+  flat: string,
+  arg: (i: number) => string,
+  aliases: string[],
+  known: (db: string) => boolean,
+  tablesOf: (db: string) => VolumeTable[],
+): ProjectAnswer | null {
+  if (!flat.startsWith('SELECT ')) return null;
+  const at = flat.indexOf(' FROM "');
+  if (at < 0) return null;
+  const from = /^ FROM "([A-Z_][A-Z0-9_$]*)"\.INFORMATION_SCHEMA\.TABLES WHERE /.exec(flat.slice(at));
+  if (!from) return null;
+  const db = from[1]!;
+  if (!known(db)) return { error: `SQL compilation error:\nDatabase '${db}' does not exist or not authorized.` };
+  const read = volumeReads.get(db) ?? 0;
+  volumeReads.set(db, read + 1);
+  const schemas = arg(1)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const rows = volumeTables(db, read, tablesOf)
+    .filter((t) => !schemas.length || schemas.includes(t.schema))
+    .sort((a, b) => `${a.schema}.${a.name}`.localeCompare(`${b.schema}.${b.name}`))
+    .map((t) =>
+      aliases.map((c): Cell => {
+        switch (c) {
+          case 'TABLE_SCHEMA':
+            return t.schema;
+          case 'TABLE_NAME':
+            return t.name;
+          case 'IS_TRANSIENT':
+            return t.transient ? 'YES' : 'NO';
+          case 'ROW_COUNT':
+            return num(t.rows);
+          case 'BYTES':
+            return num(t.bytes);
+          case 'LAST_ALTERED':
+            return iso(t.alteredHours * H);
+          case 'DAYS_SINCE_ALTERED':
+            return String(Math.floor(t.alteredHours / 24));
+          default:
+            return null;
+        }
+      }),
+    );
+  return { names: aliases, rows };
+}
+
+/** `SELECT TO_VARCHAR(MAX("<COL>")::TIMESTAMP_LTZ, …) AS NEWEST, … FROM "<DB>"."<SCHEMA>"."<TABLE>"` of "Newest data point". */
+function newestAnswer(flat: string, aliases: string[], known: (db: string) => boolean, tablesOf: (db: string) => VolumeTable[]): ProjectAnswer | null {
+  const col = /^SELECT TO_VARCHAR\(MAX\("([A-Z_][A-Z0-9_$]*)"\)::TIMESTAMP_LTZ, /.exec(flat)?.[1];
+  if (!col) return null;
+  const at = flat.lastIndexOf(' FROM "');
+  const parts = at < 0 ? null : /^ FROM "([^"]+)"\."([^"]+)"\."([^"]+)" ?;?$/.exec(flat.slice(at));
+  if (!parts || !parts.slice(1).every((x) => IDENT.test(x))) return null;
+  const [, db, schema, table] = parts as unknown as [string, string, string, string];
+  const qualified = `${db}.${schema}.${table}`;
+  const exists = known(db) && volumeTables(db, 0, tablesOf).some((t) => t.schema === schema && t.name === table);
+  if (!exists) return { error: `SQL compilation error:\nObject '${qualified}' does not exist or not authorized.` };
+  const columns = NEWEST[qualified] ?? {};
+  if (!(col in columns)) return { error: `SQL compilation error: error line 1 at position 22\ninvalid identifier '"${col}"'` };
+  const minutes = columns[col];
+  return {
+    names: aliases,
+    rows: [
+      aliases.map((c): Cell => {
+        if (minutes === null || minutes === undefined) return null;
+        if (c === 'NEWEST') return iso(minutes * 60_000);
+        if (c === 'AGE_MINUTES') return String(minutes);
+        return null;
+      }),
+    ],
+  };
 }

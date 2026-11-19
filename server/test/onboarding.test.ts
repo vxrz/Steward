@@ -197,6 +197,8 @@ describe('what next with a platform', () => {
       '622-snowflake-waste-check',
       '623-snowflake-task-health',
       '624-snowflake-dynamic-tables-and-streams',
+      '625-snowflake-data-volume',
+      '626-snowflake-newest-data-point',
     ]);
     expect(g.bundles.map((b: any) => b.id)).toEqual(['30-snowflake', '31-snowflake-costs', '32-snowflake-project']);
     expect(g.monitorTypes).toEqual(['snowflake']);

@@ -1,0 +1,227 @@
+# steward-min-version: 0.21.0
+name: "Snowflake – Newest data point (project)"
+description: |
+  How current the data in some tables is, by the newest business timestamp
+  in the data itself: for every target – a table (DATABASE.SCHEMA.TABLE), its
+  timestamp column (e.g. a load or event time) and the largest age allowed
+  in minutes – it runs SELECT MAX(<column>) FROM <table> and publishes the
+  newest timestamp and its age. A check warns when a target is older than
+  its maximum age, has no data or cannot be read. There is no free SQL: no
+  WHERE clause, no expressions – only the column and the table.
+
+  Unlike the freshness check of the Snowflake monitor (LAST_ALTERED of the
+  table: when anything last changed it – a load of old data, a delete, an
+  ALTER), this says when the newest record in the table happened, as the
+  data says. It reads the data, so it needs a warehouse and SELECT.
+
+  Recommended schedule: hourly (`25 * * * *`). Publishes
+  `snowflake.newest-data` (one row per target) for the "Snowflake project
+  pipelines" dashboard. Needs a Snowflake platform (key-pair JWT,
+  docs/SNOWFLAKE.md) whose role has USAGE on the databases and schemas,
+  SELECT on the tables and USAGE on a warehouse. Every name must be a plain
+  identifier (letters, digits, _ and $, starting with a letter or _),
+  checked before anything is sent and written as a quoted identifier in
+  upper case – identifiers cannot be bind parameters; anything else is
+  refused. A TIMESTAMP_NTZ column is read in the session's time zone.
+recommendedSchedule: "25 * * * *"
+tags: [operations, data-freshness, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; SELECT on the tables)
+inputs:
+  - name: targets
+    label: Targets (table, timestamp column, maximum age in minutes)
+    type: table
+    columns: [table, timestampColumn, maxAgeMinutes]
+    required: true
+    default: |
+      table,timestampColumn,maxAgeMinutes
+      PRJ_SALES_INSIGHTS_DEV.MART.SALES_DAILY,LOADED_AT,60
+      PRJ_SALES_INSIGHTS_DEV.ETL.ORDERS_RAW,ORDER_TS,30
+      SHOP.SALES.ORDERS,CREATED_AT,120
+      PRJ_SALES_INSIGHTS_DEV.MART.FORECAST_INPUT,SNAPSHOT_TS,1440
+constants:
+  # <COL> and <TABLE> are replaced by the checked names as quoted identifiers – nothing else is ever inserted
+  newestSql: >-
+    SELECT TO_VARCHAR(MAX(<COL>)::TIMESTAMP_LTZ, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS NEWEST,
+    DATEDIFF('minute', MAX(<COL>)::TIMESTAMP_LTZ, CURRENT_TIMESTAMP()) AS AGE_MINUTES
+    FROM <TABLE>
+steps:
+  - id: valid
+    type: check
+    name: Targets are plain Snowflake identifiers with a maximum age
+    condition: >-
+      $count(inputs.targets) > 0 and $count(inputs.targets) <= 50
+        and $count(inputs.targets[$not(
+          $exists(table) and $exists(timestampColumn) and $exists(maxAgeMinutes)
+          and $contains($trim($string(table)), /^[A-Za-z_][A-Za-z0-9_$]{0,254}\.[A-Za-z_][A-Za-z0-9_$]{0,254}\.[A-Za-z_][A-Za-z0-9_$]{0,254}$/)
+          and $contains($trim($string(timestampColumn)), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/)
+          and $contains($trim($string(maxAgeMinutes)), /^[0-9]{1,6}$/)
+          and $number($trim($string(maxAgeMinutes))) >= 1
+        )]) = 0
+    message: >-
+      {{ (
+        $bad := inputs.targets[$not(
+          $exists(table) and $exists(timestampColumn) and $exists(maxAgeMinutes)
+          and $contains($trim($string(table)), /^[A-Za-z_][A-Za-z0-9_$]{0,254}\.[A-Za-z_][A-Za-z0-9_$]{0,254}\.[A-Za-z_][A-Za-z0-9_$]{0,254}$/)
+          and $contains($trim($string(timestampColumn)), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/)
+          and $contains($trim($string(maxAgeMinutes)), /^[0-9]{1,6}$/)
+          and $number($trim($string(maxAgeMinutes))) >= 1
+        )];
+        $count(inputs.targets) = 0 or $count(inputs.targets) > 50 ? 'Give 1 to 50 targets'
+          : ($count($bad) = 0 ? $count(inputs.targets) & ' target(s)'
+          : 'Not a DATABASE.SCHEMA.TABLE, a column name and whole minutes (1–999999) – only letters, digits, _ and $, starting with a letter or _ (no quotes, spaces or expressions): '
+            & $join($bad.($substring($string(table), 0, 80) & ' / ' & $substring($string(timestampColumn), 0, 80) & ' / ' & $substring($string(maxAgeMinutes), 0, 10)), '; '))
+      ) }}
+    failRun: true
+  - id: setup
+    type: set
+    name: The targets with their names in upper case
+    values:
+      # unquoted identifiers are stored in upper case
+      targets: >-
+        {{ [inputs.targets.(
+          $t := $split($uppercase($trim(table)), '.');
+          {
+            "key": $join($t, '.') & '.' & $uppercase($trim(timestampColumn)),
+            "table": $join($t, '.'),
+            "column": $uppercase($trim(timestampColumn)),
+            "parts": $t,
+            "maxAgeMinutes": $number($trim($string(maxAgeMinutes)))
+          }
+        )] }}
+  - id: perTarget
+    type: forEach
+    name: Newest value per target (2 in parallel)
+    items: vars.targets
+    as: target
+    concurrency: 2
+    maxItems: 50
+    saveAs: perTarget
+    steps:
+      - id: ident
+        type: set
+        name: The table and the column as quoted identifiers
+        values:
+          # checked again here: only plain identifiers ever reach a statement
+          tableIdent: >-
+            {{ $count(vars.target.parts) = 3 and $count(vars.target.parts[$not($contains($, /^[A-Z_][A-Z0-9_$]{0,254}$/))]) = 0
+              ? $join(vars.target.parts.('"' & $ & '"'), '.') : $error('not a plain Snowflake identifier: ' & vars.target.table) }}
+          columnIdent: >-
+            {{ $contains(vars.target.column, /^[A-Z_][A-Z0-9_$]{0,254}$/) ? '"' & vars.target.column & '"' : $error('not a plain Snowflake identifier: ' & vars.target.column) }}
+      - id: readNewest
+        type: http
+        name: SELECT MAX(column) FROM table
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        # 422: the table or the column does not exist, or the role may not read it – reported, the other targets go on
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ $replace($replace($const.newestSql, '<COL>', vars.columnIdent), '<TABLE>', vars.tableIdent) }}"
+          timeout: 120
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: newestRead
+      - id: result
+        type: set
+        name: Age against the maximum
+        values:
+          row: >-
+            {{ (
+              $t := vars.target;
+              $ok := vars.newestRead.status = 200;
+              $c := [vars.newestRead.body.resultSetMetaData.rowType.name];
+              $rows := $ok ? [$map(vars.newestRead.body.data, function($x) { $merge($map($c, function($k, $i) { { $k: $x[$i] } })) })] : [];
+              $r := $count($rows) > 0 ? $rows[0] : {};
+              $age := $r.AGE_MINUTES != null ? $number($r.AGE_MINUTES) : null;
+              $state := $not($ok) ? 'unreadable' : ($age = null ? 'no data' : ($age > $t.maxAgeMinutes ? 'too old' : 'fresh'));
+              {
+                "key": $t.key,
+                "table": $t.table,
+                "column": $t.column,
+                "maxAgeMinutes": $t.maxAgeMinutes,
+                "newest": $r.NEWEST ? $substring($r.NEWEST, 0, 16) : '–',
+                "ageMinutes": $age,
+                "state": $state,
+                "error": $ok ? '' : $substring($string(vars.newestRead.body.message), 0, 300)
+              }
+            ) }}
+  - id: collect
+    type: set
+    name: All targets
+    values:
+      rows: "{{ [vars.perTarget.results.row] }}"
+      tooOld: "{{ [vars.rows[state = 'too old']] }}"
+      noData: "{{ [vars.rows[state = 'no data']] }}"
+      unreadable: "{{ [vars.rows[state = 'unreadable']] }}"
+  - id: publish
+    type: publish
+    name: Publish the newest data points
+    dataset: snowflake.newest-data
+    title: Snowflake newest data points
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Table, value: table }
+      - { label: Column, value: column }
+      - { label: Newest, value: newest }
+      - { label: Age (min), value: "ageMinutes != null ? ageMinutes : '–'" }
+      - { label: Maximum age (min), value: maxAgeMinutes }
+      - { label: State, value: state }
+      - { label: Error, value: error }
+    status: "state = 'fresh' ? 'good' : (state = 'too old' ? 'critical' : (state = 'no data' ? 'warning' : 'unknown'))"
+    statusText: >-
+      state = 'too old' ? 'newest ' & newest & ', ' & ageMinutes & ' min old – more than ' & maxAgeMinutes & ' min'
+        : (state = 'no data' ? 'no value in the column (empty table)' : (state = 'unreadable' ? error : ''))
+    metrics:
+      targets: "$count(vars.rows)"
+      tooOld: "$count(vars.tooOld)"
+      noData: "$count(vars.noData)"
+      unreadable: "$count(vars.unreadable)"
+      oldestMinutes: "$max($append([0], vars.rows.ageMinutes[$type($) = 'number']))"
+    staleAfterMinutes: 240
+  - id: readable
+    type: check
+    name: Every target could be read
+    severity: warning
+    condition: "$count(vars.unreadable) = 0"
+    message: "{{ $count(vars.unreadable) = 0 ? 'All ' & $count(vars.rows) & ' target(s) read' : $join(vars.unreadable.(key & ': ' & error), '; ') }}"
+    headline: "{{ $count(vars.unreadable) & ' Snowflake tables could not be read (missing, wrong column or no privilege)' }}"
+    value: "$count(vars.unreadable)"
+    items: "vars.unreadable.(key & ': ' & error)"
+  - id: freshOk
+    type: check
+    name: Newest data within the maximum age
+    severity: warning
+    condition: "$count(vars.tooOld) = 0"
+    message: >-
+      {{ $count(vars.tooOld) = 0 ? 'Every readable target has data within its maximum age'
+        : $join(vars.tooOld.(key & ': newest ' & newest & ', ' & ageMinutes & ' min old (at most ' & maxAgeMinutes & ')'), '; ') }}
+    headline: "{{ $count(vars.tooOld) & ' Snowflake tables have no data newer than their maximum age' }}"
+    value: "$count(vars.tooOld)"
+    items: "vars.tooOld.(key & ': ' & ageMinutes & ' min (at most ' & maxAgeMinutes & ')')"
+  - id: hasData
+    type: check
+    name: Every target has data
+    severity: warning
+    condition: "$count(vars.noData) = 0"
+    message: "{{ $count(vars.noData) = 0 ? 'Every readable target has a value' : 'No value: ' & $join(vars.noData.key, ', ') }}"
+    headline: "{{ $count(vars.noData) & ' Snowflake tables have no timestamp at all (empty)' }}"
+    value: "$count(vars.noData)"
+    items: "vars.noData.key"
+  - id: summary
+    type: report
+    name: Summary
+    title: Newest data points
+    text: |
+      - Targets: **{{ $count(vars.rows) }}**, too old: **{{ $count(vars.tooOld) }}**, no data: **{{ $count(vars.noData) }}**, not readable: **{{ $count(vars.unreadable) }}**
+    rows: vars.rows
+    columns:
+      - { label: Target, value: key }
+      - { label: Newest, value: newest }
+      - { label: Age (min), value: "ageMinutes != null ? ageMinutes : '–'" }
+      - { label: Maximum (min), value: maxAgeMinutes }
+      - { label: State, value: state }
