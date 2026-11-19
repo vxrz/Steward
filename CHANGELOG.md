@@ -9,6 +9,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - **The monitor scheduler reads maintenance windows once per tick**: every second it asked the database for each monitor's own maintenance window of earlier versions, one statement per monitor – on PostgreSQL a round trip each, which blocks the event loop. It now reads them in one statement per tick, as the monitor list already did.
+- **Platform answers have a size ceiling by default**: calls that set no limit of their own – monitor checks and outputs, the request explorer, readouts of several connectors – read an answer of any size into memory, so a wrong path or a misbehaving platform could exhaust the server's memory. Such calls now fail above 64 MB (_The response of … is larger than …_); the HTTP step keeps its own limit (`maxResponseMb`).
 
 ### Fixed
 

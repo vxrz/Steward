@@ -26,7 +26,7 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   body?: unknown;
   bodyType?: 'json' | 'form' | 'text' | 'binary';
-  /** Fail when the response body is larger (bytes); default: no limit */
+  /** Fail when the response body is larger (bytes); default: DEFAULT_MAX_RESPONSE_BYTES */
   maxResponseBytes?: number;
   /** Stop reading the response body after this many bytes instead (the result is marked `truncated`). */
   truncateResponseBytes?: number;
@@ -391,6 +391,13 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal, a
 }
 
 /**
+ * The largest answer read into memory when the caller sets no limit of its own (0.27.0): an endpoint that answers far
+ * more than expected – a wrong path, a misbehaving platform – fails the call instead of filling the server's memory.
+ * Callers that read large answers set `maxResponseBytes` (the HTTP step: `maxResponseMb`) or stream to a file.
+ */
+export const DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+
+/**
  * A failed connection, or a body that could not be read to its end, as the error platformRequest retries: a timeout or
  * a network error code is retryable, a cancelled request is not. The message names origin and path only – the query
  * may carry an API key (auth.apiKeyIn "query"), and the message reaches run logs, monitor results and notifications.
@@ -467,8 +474,8 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
     let text: string;
     try {
       if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
-      else if (req.maxResponseBytes) text = await readBounded(res, req.maxResponseBytes, req.url);
-      else text = await res.text();
+      // without a limit of the caller's (a monitor check, an output, the request explorer): the default ceiling (0.27.0)
+      else text = await readBounded(res, req.maxResponseBytes || DEFAULT_MAX_RESPONSE_BYTES, req.url);
     } catch (e) {
       // the connection dropped or the time ran out while the body was read (0.27.0): retried like a failed connection
       throw transportError(e, req, signal, timeout);

@@ -66,6 +66,12 @@ describe('platform calls', () => {
         setTimeout(() => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ token })), 20);
         return;
       }
+      if (path === '/huge') {
+        // announces 100 MB: never read without a limit of the caller's
+        res.writeHead(200, { 'content-type': 'application/json', 'content-length': String(100 * 1024 * 1024) });
+        res.write('[');
+        return;
+      }
       if (path === '/dropped' && calls[path] === 1) {
         // the headers arrive, then the connection drops in the middle of the body
         res.writeHead(200, { 'content-type': 'application/json', 'content-length': '1000' });
@@ -146,6 +152,15 @@ describe('platform calls', () => {
     const r = await platformRequest(platform(), {}, { method: 'GET', url: '/dropped' });
     expect(r).toMatchObject({ status: 200, body: { ok: true, path: '/dropped' }, attempts: 2 });
     expect(calls['/dropped']).toBe(2);
+  });
+
+  it('reads at most the default ceiling of an answer when the caller sets no limit', async () => {
+    const { platformRequest, DEFAULT_MAX_RESPONSE_BYTES } = await import('../src/platforms/http.js');
+    const err = await platformRequest(platform({ http: { proxy: 'none', retry: { maxRetries: 0 } } } as Partial<Platform['config']>), {}, { method: 'GET', url: '/huge' }).then(
+      () => null,
+      (e: Error & { code?: string }) => e,
+    );
+    expect(err).toMatchObject({ code: 'ETOOLARGE', retryable: false, max: DEFAULT_MAX_RESPONSE_BYTES });
   });
 
   it('never names the query of a failed call in its error – an API key in the query stays out of logs and monitor results', async () => {
