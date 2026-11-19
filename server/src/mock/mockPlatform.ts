@@ -62,9 +62,10 @@ interface User {
  * show `email` too). They appear in the user's `groups` as DIRECT memberships but are not stored as memberships: a
  * removal is refused, deleting the user needs none of them removed. The mock lists `openid`, `profile` and `email` for
  * the users flagged `scopeGroups` (the leaver Karla Lang) – not for everyone, so the other examples keep their figures –
- * and not in GET /Groups. The answer to a removal is not documented by Insights Hub (upstream UAA answers 404 "Member …
- * does not exist in group …"); the mock refuses with 400 and an error object in the Insights Hub format, which the
- * examples report per group.
+ * and not in GET /Groups. The answer to such a removal is not documented: the specification lists only 200, 401 and 404
+ * for DELETE /Groups/{id}/members/{memberId}, upstream UAA answers 404 "Member … does not exist in group …", and a
+ * tenant made the offboarding example fail with it although that accepted 404 – so the mock refuses with 400 and an
+ * error object in the Insights Hub format, which the examples report per group whatever the status.
  */
 const OIDC_SCOPE_GROUPS = ['openid', 'profile', 'email'] as const;
 interface Group {
@@ -470,14 +471,18 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     state.groups.forEach((g) => g.displayName === 'mdsp:core:StandardUser' && g.members.add(u.id));
     return reply.code(201).send(userView(u));
   });
-  // Update a user (ScimUserPut: userName, name and emails required; `active: false` deactivates – "a soft delete" in
-  // the specification – and `active: true` reactivates with the memberships kept)
+  // Update a user (ScimUserPut of the Identity Management specification 3.3: userName, name and emails required, "Username
+  // must not be changed. Email address is required and must be equal to the username."; `active: false` deactivates –
+  // "a soft delete" – and `active: true` reactivates with the memberships kept). The specification names no error body:
+  // the mock answers with an Insights Hub error object.
   app.put(`${IDM}/Users/:id`, { preHandler: ihAuth }, async (req, reply) => {
     const u = state.users.get((req.params as { id: string }).id);
     if (!u) return reply.code(404).send(ihError('User not found'));
     const b = (req.body ?? {}) as Partial<User>;
     if (!b.userName || !b.name || !Array.isArray(b.emails)) return reply.code(400).send(ihError('userName, name and emails are required'));
     if (String(b.userName).toLowerCase() !== u.userName) return reply.code(400).send(ihError('The userName of a user cannot be changed'));
+    if (b.emails.length !== 1 || String(b.emails[0]?.value ?? '').toLowerCase() !== u.userName)
+      return reply.code(400).send(ihError('The e-mail address is required and must be equal to the userName'));
     u.name = { givenName: b.name.givenName ?? '', familyName: b.name.familyName ?? '' };
     u.emails = b.emails.map((e) => ({ value: String(e?.value ?? '') }));
     u.active = b.active === undefined ? true : b.active === true;

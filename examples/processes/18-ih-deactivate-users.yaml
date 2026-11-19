@@ -6,8 +6,9 @@ description: |
   attribute `active` with PUT /Users/{id} (false: deactivate, true:
   reactivate). The Identity Management API has no endpoint of its own for
   this: PUT replaces the user, so the request carries the user's current
-  userName, name and emails (required by the API) and changes only
-  `active`; memberships are not part of it and stay as they are, so a
+  userName and name, emails – required, and equal to the user name, as the
+  API specification says – and the user's subtenants (a subtenant user
+  must stay one), and changes only `active`; memberships are not part of it and stay as they are, so a
   reactivated user has the same access as before. Afterwards each account is
   read again and the run reports whether `active` really changed – per
   user, with the API's answer when a request failed. Accounts already in
@@ -72,13 +73,14 @@ steps:
     name: The accounts to change, their state as it is
     values:
       unknown: "{{ [vars.found[$not($exists(user))].requested] }}"
-      # evidence: the state and the memberships before the change
+      # evidence: the state and the memberships before the change; the e-mail address is the user name (the specification:
+      # "Email address is required and must be equal to the username")
       evidence: >-
         {{ [vars.found[$exists(user)].user.{
           'id': id,
           'userName': userName,
           'name': name ? name : {},
-          'emails': emails ? emails : [{ 'value': userName }],
+          'emails': [{ 'value': userName }],
           'subtenants': subtenants,
           'activeBefore': $not(active = false),
           'memberships': [groups.display]
