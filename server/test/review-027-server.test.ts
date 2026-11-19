@@ -1,6 +1,7 @@
+import { getEventListeners } from 'node:events';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Platform } from '@sm/shared';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
@@ -220,5 +221,33 @@ describe('datasets', () => {
     expect(freshnessOf(part('2026-11-13T10:00:30.000Z'), facts('0 * * * *', 60))).toMatchObject({ staleAfterMinutes: 150, staleReason: 'schedule' });
     // the schedule is gone: the stored interval
     expect(freshnessOf({ ...part('2026-11-13T06:05:00.000Z'), expected_minutes: 1440 }, null)).toMatchObject({ staleAfterMinutes: 3600 });
+  });
+});
+
+describe('process engine', () => {
+  it('a loop over sub-process runs leaves no listeners behind on the run', async () => {
+    // every AbortSignal that gets an abort listener during the run, and how many it still holds at the end
+    const signals = new Set<EventTarget>();
+    const add = EventTarget.prototype.addEventListener;
+    const spy = vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(function (this: EventTarget, ...args) {
+      if (this instanceof AbortSignal && args[0] === 'abort') signals.add(this);
+      return add.apply(this, args);
+    });
+    try {
+      await s.api('POST', '/processes', { definition: { name: 'Leak child', steps: [{ id: 'note', type: 'log', message: 'child' }] } });
+      const parent = await s.api<{ id: string }>('POST', '/processes', {
+        definition: {
+          name: 'Leak parent',
+          inputs: [{ name: 'items', type: 'list' }],
+          steps: [{ id: 'loop', type: 'forEach', items: 'inputs.items', as: 'it', steps: [{ id: 'child', type: 'subprocess', process: 'leak-child' }] }],
+        },
+      });
+      const run = await s.api<{ id: string }>('POST', '/runs', { processId: parent.id, inputs: { items: Array.from({ length: 15 }, (_, i) => `i${i}`) } });
+      expect((await s.waitRun(run.id, ['succeeded', 'failed'])).status).toBe('succeeded');
+    } finally {
+      spy.mockRestore();
+    }
+    const most = Math.max(0, ...[...signals].map((x) => getEventListeners(x, 'abort').length));
+    expect(most).toBeLessThan(5);
   });
 });

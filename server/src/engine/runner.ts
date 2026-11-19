@@ -319,13 +319,17 @@ class RunContext implements StepContext {
 
   /** Waits for the decision on a task: settleTask (a signal) calls the waiter, cancelRun or the run's abort ends it. */
   async awaitTask(taskId: string): Promise<TaskResult | null> {
+    let onAbort: (() => void) | undefined;
     try {
       return await new Promise<TaskResult | null>((resolve) => {
         taskWaiters.set(taskId, resolve);
-        this.signal.addEventListener('abort', () => resolve(null), { once: true });
+        onAbort = () => resolve(null);
+        this.signal.addEventListener('abort', onAbort, { once: true });
       });
     } finally {
       taskWaiters.delete(taskId);
+      // the run's signal lives as long as the run: a loop with a decision per item would pile up listeners (0.27.0)
+      if (onAbort) this.signal.removeEventListener('abort', onAbort);
     }
   }
 
@@ -1609,9 +1613,11 @@ async function waitForChildRun(childId: string, ctx: RunContext, key: string): P
   let waiting = false;
   let warned = false;
   let resumed = false;
+  let onAbort: (() => void) | undefined;
   const aborted = new Promise<void>((resolve) => {
     if (ctx.signal.aborted) resolve();
-    ctx.signal.addEventListener('abort', () => resolve(), { once: true });
+    onAbort = () => resolve();
+    ctx.signal.addEventListener('abort', onAbort, { once: true });
   });
   try {
     for (;;) {
@@ -1643,6 +1649,8 @@ async function waitForChildRun(childId: string, ctx: RunContext, key: string): P
       await sleep(500, ctx.signal).catch(() => undefined); // cancelled while waiting: the loop checks the signal
     }
   } finally {
+    // removed with the wait (0.27.0): a loop over sub-process runs would pile up listeners on the run's signal
+    if (onAbort) ctx.signal.removeEventListener('abort', onAbort);
     if (waiting) {
       ctx.endWait();
       if (!ctx.signal.aborted) store.setStepStatus(ctx.runId, key, 'running');
