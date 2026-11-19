@@ -1,4 +1,4 @@
-# steward-min-version: 0.2.6
+# steward-min-version: 0.27.0
 name: "Kubernetes – Namespace health"
 description: |
   Reads the namespaces you list from a Kubernetes cluster (read-only service
@@ -14,7 +14,9 @@ description: |
   deployments and pods are still published).
 
   Recommended schedule: every 15 minutes (`*/15 * * * *`), with "message on
-  change" in the schedule's notification policy. Publishes `k8s.health` (one row
+  change" in the schedule's notification policy. While a check keeps failing,
+  only another deployment, pod or certificate is news (`changeKey`); ready
+  counts, restarts and days left are in the items and the dataset. Publishes `k8s.health` (one row
   per deployment and certificate; metrics deployments, notReady, unhealthyPods,
   certsEnding) for the "Kubernetes" dashboard. The tech stack of the namespaces
   (images → products, end of life) is read by Steward itself for application
@@ -152,24 +154,29 @@ steps:
     name: All deployments ready
     severity: warning
     condition: "$count(vars.notReady) = 0"
-    message: "{{ $count(vars.notReady) = 0 ? 'All ' & $count(vars.rows[kind = 'deployment']) & ' deployments ready' : $join(vars.notReady.(namespace & '/' & name & ' ' & ready), ', ') }}"
+    message: "{{ $count(vars.notReady) = 0 ? 'All ' & $count(vars.rows[kind = 'deployment']) & ' deployments ready' : 'Not fully ready: ' & $join(vars.notReady.(namespace & '/' & name), ', ') }}"
     headline: "{{ $count(vars.notReady) }} deployments not fully ready"
     value: "$count(vars.notReady)"
     items: "vars.notReady.(namespace & '/' & name & ': ' & ready & (unhealthyPods ? ' – ' & unhealthyPods : ''))"
+    # what fails: the deployments – not their ready counts or pod names, which change while the problem stays
+    changeKey: "vars.notReady.(namespace & '/' & name)"
   - id: noCrashLoops
     type: check
     name: No pod crash-looping
     severity: warning
     condition: "$count(vars.unhealthy) = 0"
-    message: "{{ $count(vars.unhealthy) = 0 ? 'No pod crash-looping' : 'Crash-looping: ' & $join(vars.unhealthy, ', ') }}"
+    message: "{{ $count(vars.unhealthy) = 0 ? 'No pod crash-looping' : $count(vars.unhealthy) & ' pods crash-looping' }}"
     value: "$count(vars.unhealthy)"
     items: "vars.unhealthy"
+    # what fails: the pods without their generated suffix (web-7d9f8b6c5d-x2k9p → web), so a replaced pod is no news
+    changeKey: "vars.unhealthy.$replace($, /(-[bcdfghjklmnpqrstvwxz2456789]{6,10})?-[bcdfghjklmnpqrstvwxz2456789]{5}$/, '')"
   - id: certsOk
     type: check
     name: No certificate ending soon
     severity: warning
     condition: "$count(vars.ending) = 0"
-    message: "{{ $count(vars.ending) = 0 ? 'No certificate ends within ' & inputs.certDays & ' days' : $join(vars.ending.(namespace & '/' & name & ' ' & detail), ', ') }}"
+    message: "{{ $count(vars.ending) = 0 ? 'No certificate ends within ' & inputs.certDays & ' days' : 'Ending soon: ' & $join(vars.ending.(namespace & '/' & name), ', ') }}"
     headline: "{{ $count(vars.ending) }} certificates end within {{ inputs.certDays }} days"
     value: "$count(vars.ending)"
     items: "vars.ending.(namespace & '/' & name & ': ' & detail)"
+    changeKey: "vars.ending.(namespace & '/' & name & (status = 'critical' ? ' (ended)' : ''))"
