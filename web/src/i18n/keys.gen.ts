@@ -7729,6 +7729,7 @@ export interface Resources {
     'functions.systems': string;
     'functions.trend': string;
     'functions.daysUntil': string;
+    'functions.previousRows': string;
     'suggest.loopItem': string;
     'suggest.loopIndex': string;
     'suggest.input': string;
