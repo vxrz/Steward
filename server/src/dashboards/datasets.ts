@@ -698,6 +698,19 @@ export function metricForRun(
   return s ?? null;
 }
 
+/**
+ * The rows a dataset holds for a run's source (0.27.0, `$previousRows`): before the run's own publish step, those of
+ * the previous run on the same platform – for a comparison per row (a table's size since the last run). Without
+ * `_source`; empty when the dataset has no rows of that source, or belongs to a process the run may not read.
+ */
+export function previousRowsForRun(key: string, run: { runId: string; processId: string; mayRead: (datasetProcessId: string) => boolean }): DatasetRow[] {
+  const d = db().get<{ process_id: string }>('SELECT process_id FROM datasets WHERE key = ?', String(key));
+  if (!d || (d.process_id !== run.processId && !run.mayRead(d.process_id))) return [];
+  const own = sourceOfRun(run.runId).id;
+  const part = partsOf(String(key), false).find((p) => p.source === own);
+  return part ? partRows(part).map((r) => ({ ...r })) : [];
+}
+
 /** Series of a chart with the trend (and forecast) of each over `window` (#145). */
 export function withTrends(series: MetricSeries[], key: string, window: string | undefined, view?: View): MetricSeries[] {
   if (!window) return series;

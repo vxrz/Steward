@@ -1,13 +1,13 @@
 # steward-min-version: 0.21.0
 name: Snowflake project pipelines
-description: Tasks, dynamic tables and streams of a project's Snowflake databases, read with the project's own grants (no ACCOUNT_USAGE) – fed by "Snowflake – Task health (project)" and "Snowflake – Dynamic tables and streams (project)" (both hourly).
+description: Tasks, dynamic tables, streams, data volume and the newest data of a project's Snowflake databases, read with the project's own grants (no ACCOUNT_USAGE) – fed by "Snowflake – Task health (project)", "Snowflake – Dynamic tables and streams (project)", "Snowflake – Newest data point (project)" (hourly) and "Snowflake – Data volume over time (project)" (daily).
 refreshSeconds: 300
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **Snowflake project pipelines** – read by the processes *Snowflake – Task health (project)* and *Snowflake – Dynamic tables and streams (project)* from the project databases' own `INFORMATION_SCHEMA` table functions and `SHOW … IN DATABASE` – current, and only what the project role may see. Opening this page never calls Snowflake.
+      **Snowflake project pipelines** – read by the processes *Snowflake – Task health (project)*, *Snowflake – Dynamic tables and streams (project)*, *Snowflake – Data volume over time (project)* and *Snowflake – Newest data point (project)* from the project databases' own `INFORMATION_SCHEMA` and `SHOW … IN DATABASE`, and from `MAX(<timestamp>)` of the tables you name – current, and only what the project role may see. Opening this page never calls Snowflake.
       Costs, users and logins need account-wide access (`SNOWFLAKE.ACCOUNT_USAGE`) and are on the dashboards *Snowflake account* and *Snowflake costs*.
   - { id: tasks, type: kpi, title: Tasks, dataset: snowflake.project-tasks, metric: tasks, width: 2 }
   - { id: failedTasks, type: kpi, title: Tasks failed, dataset: snowflake.project-tasks, metric: failed, goodWhen: down, width: 2 }
@@ -24,5 +24,21 @@ widgets:
   - { id: staleStreams, type: kpi, title: Streams stale, dataset: snowflake.project-pipelines, metric: staleStreams, goodWhen: down, width: 2 }
   - { id: soonStale, type: kpi, title: Streams stale soon, dataset: snowflake.project-pipelines, metric: soonStale, goodWhen: down, width: 2 }
   - { id: pipelineTable, type: table, title: Dynamic tables and streams needing attention, dataset: snowflake.project-pipelines, problemsOnly: true, width: 12 }
+  - { id: volumeGb, type: kpi, title: Data (GB), dataset: snowflake.data-volume, metric: totalGb, width: 2 }
+  - { id: volumeRows, type: kpi, title: Rows, dataset: snowflake.data-volume, metric: totalRows, width: 2 }
+  - { id: growing, type: kpi, title: Tables grown suddenly, dataset: snowflake.data-volume, metric: growing, goodWhen: down, width: 2 }
+  - { id: shrinking, type: kpi, title: Tables shrunk suddenly, dataset: snowflake.data-volume, metric: shrinking, goodWhen: down, width: 2 }
+  - { id: emptyTables, type: kpi, title: Empty tables, dataset: snowflake.data-volume, metric: empty, goodWhen: down, width: 2 }
+  - { id: staleTables, type: kpi, title: Tables not altered, dataset: snowflake.data-volume, metric: stale, goodWhen: down, width: 2 }
+  - { id: volumeTrend, type: trend, title: Data volume (GB), dataset: snowflake.data-volume, metrics: [totalGb], days: 90, trendLine: true, width: 6 }
+  - { id: rowsTrend, type: trend, title: Rows, dataset: snowflake.data-volume, metrics: [totalRows], days: 90, trendLine: true, width: 6 }
+  - { id: volumeTable, type: table, title: Tables needing attention, dataset: snowflake.data-volume, problemsOnly: true, width: 12 }
+  - { id: newestTargets, type: kpi, title: Tables watched for new data, dataset: snowflake.newest-data, metric: targets, width: 3 }
+  - { id: tooOld, type: kpi, title: No new data in time, dataset: snowflake.newest-data, metric: tooOld, goodWhen: down, width: 3 }
+  - { id: noData, type: kpi, title: No data at all, dataset: snowflake.newest-data, metric: noData, goodWhen: down, width: 3 }
+  - { id: newestStatus, type: status, title: Newest data by state, dataset: snowflake.newest-data, width: 3 }
+  - { id: newestTable, type: table, title: Newest data point per table, dataset: snowflake.newest-data, width: 12 }
   - { id: taskChecks, type: checks, title: Latest task checks, process: snowflake-task-health, width: 6 }
   - { id: pipelineChecks, type: checks, title: Latest dynamic table and stream checks, process: snowflake-dynamic-tables-and-streams, width: 6 }
+  - { id: volumeChecks, type: checks, title: Latest data volume checks, process: snowflake-data-volume, width: 6 }
+  - { id: newestChecks, type: checks, title: Latest newest data checks, process: snowflake-newest-data-point, width: 6 }

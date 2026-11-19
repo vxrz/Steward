@@ -1,0 +1,334 @@
+# steward-min-version: 0.27.0
+name: "Snowflake – Data volume over time (project)"
+description: |
+  How much data the tables of a project's databases hold and how that
+  changes, read with nothing but the project's own grants – no
+  SNOWFLAKE.ACCOUNT_USAGE, no account-wide privilege. For every database (and optionally only some of
+  its schemas): ROW_COUNT, BYTES and LAST_ALTERED of each base table from the
+  database's own INFORMATION_SCHEMA.TABLES, the totals per schema, and the
+  change against the previous run (the dataset's rows of the last run, read
+  with $previousRows before this run publishes). Findings: a table that grew
+  or shrank by more than a percentage since the previous run (and by at
+  least a number of rows), empty tables, and tables not altered for N days.
+  Publish it daily and the dashboard shows the growth over time.
+
+  Recommended schedule: daily (`50 5 * * *`). Publishes
+  `snowflake.data-volume` (one row per table and one total per schema) for
+  the "Snowflake project pipelines" dashboard. Needs a Snowflake platform
+  (key-pair JWT, docs/SNOWFLAKE.md) whose role has USAGE on the database and
+  its schemas, any privilege on the tables – REFERENCES is enough, it shows
+  the metadata and never the rows (SELECT works as well) – and USAGE on a
+  warehouse. INFORMATION_SCHEMA.TABLES lists only the tables the role has a
+  privilege on. Database and schema names must be plain identifiers
+  (letters, digits, _ and $, starting with a letter or _): the database is
+  part of the view's name and cannot be a bind parameter, so it is checked
+  before anything is sent and written as a quoted identifier in upper case;
+  the schema list is a bind parameter. LAST_ALTERED also changes with DDL
+  (a new column, a rename), not only with new data.
+recommendedSchedule: "50 5 * * *"
+tags: [operations, data-volume, snowflake]
+connections:
+  - slot: snowflake
+    kind: snowflake
+    description: Snowflake account (SQL API, key-pair JWT; read-only, project grants are enough)
+inputs:
+  - name: databases
+    label: Databases of the project
+    type: list
+    default: [PRJ_SALES_INSIGHTS_DEV]
+    required: true
+  - name: schemas
+    label: Only these schemas (empty = all)
+    type: list
+  - name: growthPercent
+    label: Sudden growth – more rows than the previous run by (%)
+    type: number
+    default: 50
+  - name: shrinkPercent
+    label: Sudden shrink – fewer rows than the previous run by (%)
+    type: number
+    default: 30
+  - name: minRowChange
+    label: Growth and shrink count from a change of at least (rows)
+    type: number
+    default: 1000
+  - name: staleDays
+    label: Not altered for more than (days)
+    type: number
+    default: 30
+constants:
+  # <DB> is replaced by the checked database name as a quoted identifier; the schema list is a bind parameter (1 and 2:
+  # the schemas, comma-separated, '' = all). LIMIT: the first partition of the SQL API is read.
+  tablesSql: >-
+    SELECT TABLE_SCHEMA, TABLE_NAME, IS_TRANSIENT, ROW_COUNT, BYTES,
+    TO_VARCHAR(LAST_ALTERED, 'YYYY-MM-DD"T"HH24:MI:SS.FF3TZH:TZM') AS LAST_ALTERED,
+    DATEDIFF('day', LAST_ALTERED, CURRENT_TIMESTAMP()) AS DAYS_SINCE_ALTERED
+    FROM <DB>.INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA <> 'INFORMATION_SCHEMA'
+    AND (? = '' OR ARRAY_CONTAINS(TABLE_SCHEMA::VARIANT, SPLIT(?, ',')))
+    ORDER BY TABLE_SCHEMA, TABLE_NAME
+    LIMIT 2000
+steps:
+  - id: valid
+    type: check
+    name: Database and schema names are plain Snowflake identifiers
+    condition: >-
+      $count(inputs.databases) > 0 and $count(inputs.databases) <= 20
+        and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+        and $count(inputs.schemas) <= 50
+        and $count(inputs.schemas[$trim($) != '' and $not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+    message: >-
+      {{ $count(inputs.databases) > 0 and $count(inputs.databases) <= 20
+        and $count(inputs.databases[$not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+        and $count(inputs.schemas) <= 50
+        and $count(inputs.schemas[$trim($) != '' and $not($contains($trim($), /^[A-Za-z_][A-Za-z0-9_$]{0,254}$/))]) = 0
+        ? 'Databases: ' & $join(inputs.databases, ', ') & ($count(inputs.schemas[$trim($) != '']) ? '; schemas: ' & $join(inputs.schemas, ', ') : '')
+        : 'Database and schema names may contain only letters, digits, _ and $, start with a letter or _ (no quotes, dots or spaces), at most 20 databases and 50 schemas' }}
+    failRun: true
+  - id: setup
+    type: set
+    name: Names, limits and the previous run
+    values:
+      # unquoted identifiers are stored in upper case
+      dbs: "{{ [$distinct(inputs.databases.$uppercase($trim($)))] }}"
+      schemas: "{{ [$distinct(inputs.schemas.$uppercase($trim($))[$ != ''])] }}"
+      schemaList: "{{ $join(vars.schemas, ',') }}"
+      # the rows the previous run published for this platform – read before this run publishes its own
+      previous: "{{ [$previousRows('snowflake.data-volume')] }}"
+  - id: perDatabase
+    type: forEach
+    name: Tables per database (2 in parallel)
+    items: vars.dbs
+    as: db
+    concurrency: 2
+    maxItems: 20
+    saveAs: perDatabase
+    steps:
+      - id: ident
+        type: set
+        name: The database as a quoted identifier
+        values:
+          # checked again here: only a plain identifier ever reaches a statement
+          dbIdent: >-
+            {{ $contains(vars.db, /^[A-Z_][A-Z0-9_$]{0,254}$/) ? '"' & vars.db & '"' : $error('not a plain Snowflake identifier: ' & vars.db) }}
+      - id: readTables
+        type: http
+        name: Tables with rows, bytes and last change (INFORMATION_SCHEMA.TABLES)
+        connection: snowflake
+        method: POST
+        path: /api/v2/statements
+        mutating: false
+        # 422: the database does not exist or the role may not use it – reported, the other databases go on
+        expectStatus: [200, 422]
+        body:
+          statement: "{{ $replace($const.tablesSql, '<DB>', vars.dbIdent) }}"
+          bindings:
+            "1": { type: TEXT, value: "{{ vars.schemaList }}" }
+            "2": { type: TEXT, value: "{{ vars.schemaList }}" }
+          timeout: 120
+          role: "{{ $pvar('snowflake', 'role') }}"
+          warehouse: "{{ $pvar('snowflake', 'warehouse') }}"
+        saveAs: tablesRead
+      - id: tablesOfDb
+        type: set
+        name: One row per table
+        values:
+          problem: >-
+            {{ vars.tablesRead.status != 200 ? vars.db & ': INFORMATION_SCHEMA.TABLES failed – ' & $substring($string(vars.tablesRead.body.message), 0, 200)
+              : ($count(vars.tablesRead.body.data) >= 2000 ? vars.db & ': more than 2000 tables – only the first 2000 (by schema and name) were read' : undefined) }}
+          # the SQL API answers rows as arrays, with the column names in resultSetMetaData
+          tables: >-
+            {{ vars.tablesRead.status = 200 ? (
+              $db := vars.db;
+              $c := [vars.tablesRead.body.resultSetMetaData.rowType.name];
+              $n := function($v) { $v != null ? $number($v) : null };
+              [$map(vars.tablesRead.body.data, function($x) { $merge($map($c, function($k, $i) { { $k: $x[$i] } })) }).{
+                "key": $db & '.' & TABLE_SCHEMA & '.' & TABLE_NAME,
+                "kind": "table",
+                "database": $db,
+                "schema": TABLE_SCHEMA,
+                "table": TABLE_NAME,
+                "transient": IS_TRANSIENT = 'YES',
+                "rows": $n(ROW_COUNT),
+                "bytes": $n(BYTES),
+                "lastAltered": LAST_ALTERED ? $substring(LAST_ALTERED, 0, 16) : '–',
+                "daysSinceAltered": $n(DAYS_SINCE_ALTERED)
+              }]) : [] }}
+  - id: compare
+    type: set
+    name: Compare with the previous run
+    values:
+      problems: "{{ [vars.perDatabase.results.problem[$type($) = 'string']] }}"
+      tables: >-
+        {{ (
+          $prev := vars.previous;
+          $grow := $number(inputs.growthPercent);
+          $shrink := $number(inputs.shrinkPercent);
+          $minRows := $max([0, $number(inputs.minRowChange)]);
+          $staleDays := $number(inputs.staleDays);
+          [vars.perDatabase.results.tables.(
+            $t := $;
+            $p := $prev[_key = $t.key][0];
+            $before := $type($p.Rows) = 'number' ? $p.Rows : null;
+            $delta := $before != null and $type($t.rows) = 'number' ? $t.rows - $before : null;
+            $pct := $delta != null and $before > 0 ? $round($delta / $before * 100, 1) : null;
+            $growing := $pct != null and $pct > $grow and $delta >= $minRows;
+            $shrinking := $delta != null and $delta < 0 and -$delta >= $minRows and $before > 0 and -$delta / $before * 100 > $shrink;
+            $empty := $t.rows = 0;
+            $stale := $type($t.daysSinceAltered) = 'number' and $t.daysSinceAltered > $staleDays;
+            $findings := [
+              $growing ? 'grew by ' & $pct & ' % (' & $before & ' → ' & $t.rows & ' rows) since the previous run' : undefined,
+              $shrinking ? 'shrank by ' & -$pct & ' % (' & $before & ' → ' & $t.rows & ' rows) since the previous run' : undefined,
+              $empty ? 'empty' : undefined,
+              $stale ? 'not altered for ' & $t.daysSinceAltered & ' days' : undefined
+            ];
+            $merge([$t, {
+              "before": $before,
+              "delta": $delta,
+              "changePct": $pct,
+              "growing": $growing,
+              "shrinking": $shrinking,
+              "empty": $empty,
+              "stale": $stale,
+              "findings": $count($findings) ? $join($findings, '; ') : ''
+            }])
+          )]
+        ) }}
+      schemaTotals: >-
+        {{ (
+          $prev := vars.previous;
+          $tables := vars.tables;
+          [$distinct($tables.(database & '.' & schema)).(
+            $k := $;
+            $ts := $tables[(database & '.' & schema) = $k];
+            $rows := $sum($ts.rows[$type($) = 'number']);
+            $p := $prev[_key = $k][0];
+            $before := $type($p.Rows) = 'number' ? $p.Rows : null;
+            {
+              "key": $k,
+              "kind": "schema",
+              "database": $ts[0].database,
+              "schema": $ts[0].schema,
+              "table": "(all " & $count($ts) & " tables)",
+              "tables": $count($ts),
+              "rows": $rows,
+              "bytes": $sum($ts.bytes[$type($) = 'number']),
+              "before": $before,
+              "delta": $before != null ? $rows - $before : null,
+              "changePct": $before != null and $before > 0 ? $round(($rows - $before) / $before * 100, 1) : null,
+              "lastAltered": "–",
+              "daysSinceAltered": $min($ts.daysSinceAltered[$type($) = 'number']),
+              "findings": ""
+            }
+          )]
+        ) }}
+      rows: "{{ $append(vars.tables, vars.schemaTotals) }}"
+      growingTables: "{{ [vars.tables[growing]] }}"
+      shrinkingTables: "{{ [vars.tables[shrinking]] }}"
+      emptyTables: "{{ [vars.tables[empty]] }}"
+      staleTables: "{{ [vars.tables[stale]] }}"
+      compared: "{{ $count(vars.tables[before != null]) }}"
+  - id: publish
+    type: publish
+    name: Publish the data volume
+    dataset: snowflake.data-volume
+    title: Snowflake data volume
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Kind, value: kind }
+      - { label: Database, value: database }
+      - { label: Schema, value: schema }
+      - { label: Table, value: table }
+      - { label: Rows, value: rows }
+      - { label: Bytes, value: bytes }
+      - { label: Size (MB), value: "bytes != null ? $round(bytes / 1048576, 1) : null" }
+      - { label: Rows before, value: "before != null ? before : '–'" }
+      - { label: Change (rows), value: "delta != null ? delta : '–'" }
+      - { label: Change (%), value: "changePct != null ? changePct : '–'" }
+      - { label: Last altered, value: lastAltered }
+      - { label: Days since altered, value: "daysSinceAltered != null ? daysSinceAltered : '–'" }
+      - { label: Findings, value: "findings ? findings : '–'" }
+    status: "kind = 'schema' ? 'good' : (shrinking ? 'critical' : (growing or empty or stale ? 'warning' : 'good'))"
+    statusText: "findings"
+    metrics:
+      databases: "$count(vars.dbs)"
+      schemas: "$count(vars.schemaTotals)"
+      tables: "$count(vars.tables)"
+      totalRows: "$sum(vars.tables.rows[$type($) = 'number'])"
+      totalBytes: "$sum(vars.tables.bytes[$type($) = 'number'])"
+      totalGb: "$round($sum(vars.tables.bytes[$type($) = 'number']) / 1073741824, 3)"
+      growing: "$count(vars.growingTables)"
+      shrinking: "$count(vars.shrinkingTables)"
+      empty: "$count(vars.emptyTables)"
+      stale: "$count(vars.staleTables)"
+      unreadable: "$count(vars.problems)"
+    maxRows: 20000
+    staleAfterMinutes: 2880
+  - id: readable
+    type: check
+    name: Every database could be read
+    severity: warning
+    condition: "$count(vars.problems) = 0"
+    message: "{{ $count(vars.problems) = 0 ? 'Tables of ' & $join(vars.dbs, ', ') & ' read' : $join(vars.problems, '; ') }}"
+    headline: "{{ $count(vars.problems) & ' Snowflake databases could not be read completely (missing, no privilege or too many tables)' }}"
+    value: "$count(vars.problems)"
+    items: vars.problems
+  - id: growthOk
+    type: check
+    name: No sudden growth
+    severity: warning
+    condition: "$count(vars.growingTables) = 0"
+    message: >-
+      {{ $count(vars.growingTables) = 0
+        ? (vars.compared > 0 ? 'No table grew by more than ' & inputs.growthPercent & ' % since the previous run' : 'No previous run to compare with yet')
+        : $join(vars.growingTables.(key & ': ' & findings), '; ') }}
+    headline: "{{ $count(vars.growingTables) & ' Snowflake tables grew by more than ' & inputs.growthPercent & ' % since the previous run' }}"
+    value: "$count(vars.growingTables)"
+    items: "vars.growingTables.(key & ': ' & before & ' → ' & rows & ' rows (+' & changePct & ' %)')"
+  - id: shrinkOk
+    type: check
+    name: No sudden shrink
+    severity: warning
+    condition: "$count(vars.shrinkingTables) = 0"
+    message: >-
+      {{ $count(vars.shrinkingTables) = 0
+        ? (vars.compared > 0 ? 'No table shrank by more than ' & inputs.shrinkPercent & ' % since the previous run' : 'No previous run to compare with yet')
+        : $join(vars.shrinkingTables.(key & ': ' & findings), '; ') }}
+    headline: "{{ $count(vars.shrinkingTables) & ' Snowflake tables shrank by more than ' & inputs.shrinkPercent & ' % since the previous run' }}"
+    value: "$count(vars.shrinkingTables)"
+    items: "vars.shrinkingTables.(key & ': ' & before & ' → ' & rows & ' rows (' & changePct & ' %)')"
+  - id: emptyOk
+    type: check
+    name: No empty tables
+    severity: warning
+    condition: "$count(vars.emptyTables) = 0"
+    message: "{{ $count(vars.emptyTables) = 0 ? 'Every table has rows' : 'Empty: ' & $join(vars.emptyTables.key, ', ') }}"
+    headline: "{{ $count(vars.emptyTables) & ' Snowflake tables are empty' }}"
+    value: "$count(vars.emptyTables)"
+    items: "vars.emptyTables.key"
+  - id: staleOk
+    type: check
+    name: Every table altered recently
+    severity: warning
+    condition: "$count(vars.staleTables) = 0"
+    message: >-
+      {{ $count(vars.staleTables) = 0 ? 'Every table was altered within ' & inputs.staleDays & ' days'
+        : $join(vars.staleTables.(key & ': ' & findings), '; ') }}
+    headline: "{{ $count(vars.staleTables) & ' Snowflake tables not altered for more than ' & inputs.staleDays & ' days' }}"
+    value: "$count(vars.staleTables)"
+    items: "vars.staleTables.(key & ' (last altered ' & lastAltered & ')')"
+  - id: summary
+    type: report
+    name: Summary
+    title: "Data volume: {{ $join(vars.dbs, ', ') }}"
+    text: |
+      - Tables: **{{ $count(vars.tables) }}** in **{{ $count(vars.schemaTotals) }}** schemas, **{{ $sum(vars.tables.rows[$type($) = 'number']) }}** rows, **{{ $round($sum(vars.tables.bytes[$type($) = 'number']) / 1073741824, 2) }} GB**
+      - Since the previous run: grew **{{ $count(vars.growingTables) }}**, shrank **{{ $count(vars.shrinkingTables) }}** ({{ vars.compared }} tables compared); empty **{{ $count(vars.emptyTables) }}**, not altered for {{ inputs.staleDays }} days **{{ $count(vars.staleTables) }}**
+      {{ $count(vars.problems) ? '- Not readable: ' & $join(vars.problems, '; ') : '' }}
+    rows: "vars.rows[kind = 'schema' or findings != '']"
+    columns:
+      - { label: Table, value: key }
+      - { label: Rows, value: rows }
+      - { label: Change (%), value: "changePct != null ? changePct : '–'" }
+      - { label: Findings, value: "kind = 'schema' ? 'schema total' : findings" }
