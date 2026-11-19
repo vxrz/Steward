@@ -30,11 +30,12 @@ export function resultVars(node: FlowNode): string[] {
 }
 
 const TREND = /\$(?:trend|daysUntil)\s*\(\s*(?:(['"])([^'"/]+)\/[^'"]*\1)?/g;
+const PREVIOUS_ROWS = /\$previousRows\s*\(\s*(?:(['"])([^'"]+)\1)?/g;
 
 /**
- * The datasets a definition may read: the dataset context of its AI steps, the datasets named in $trend() and
- * $daysUntil(), and those of its sub-processes. "*" (every dataset) for $systems() – the system inventory – and for
- * a $trend()/$daysUntil() whose dataset is not written out.
+ * The datasets a definition may read: the dataset context of its AI steps, the datasets named in $trend(),
+ * $daysUntil() and $previousRows(), and those of its sub-processes. "*" (every dataset) for $systems() – the system
+ * inventory – and for a $trend()/$daysUntil()/$previousRows() whose dataset is not written out.
  */
 export function datasetsReadBy(def: ProcessDefinition, seen = new Set<string>()): Set<string> {
   const out = new Set<string>();
@@ -43,6 +44,7 @@ export function datasetsReadBy(def: ProcessDefinition, seen = new Set<string>())
     if (typeof v === 'string') {
       if (v.includes('$systems')) out.add('*');
       for (const m of v.matchAll(TREND)) out.add(m[2] ?? '*');
+      for (const m of v.matchAll(PREVIOUS_ROWS)) out.add(m[2] ?? '*');
     } else if (Array.isArray(v)) v.forEach((x) => visit(x, depth + 1));
     else if (v && typeof v === 'object') Object.values(v).forEach((x) => visit(x, depth + 1));
   };

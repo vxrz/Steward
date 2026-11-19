@@ -157,4 +157,49 @@ describe('metric trends', () => {
     expect(() => m.metricForRun('test.assets/attributes', 'month', deny)).toThrow(/24h, 7d or 30d/);
     expect(m.metricForRun('no.such/x', '7d', { ...deny, mayRead: () => true })).toBeNull();
   });
+
+  it('gives a run the rows its previous run published ($previousRows, 0.27.0) – only of datasets it may read', async () => {
+    // each run counts on from the previous run's row: 1, 2, 3
+    const counter = {
+      name: 'Count runs',
+      nodes: [
+        { id: 'start', type: 'start', x: 0, y: 0 },
+        {
+          id: 'prev',
+          type: 'set',
+          values: { before: "{{ [$previousRows('test.counter')] }}", n: "{{ $count(vars.before) ? vars.before[_key = 'runs'].Count + 1 : 1 }}" },
+          x: 1,
+          y: 0,
+        },
+        {
+          id: 'pub',
+          type: 'publish',
+          dataset: 'test.counter',
+          rows: "[{ 'n': vars.n }]",
+          key: "'runs'",
+          columns: [{ label: 'Count', value: 'n' }],
+          x: 2,
+          y: 0,
+        },
+      ],
+      wires: [
+        { from: 'start', port: 'out', to: 'prev' },
+        { from: 'prev', port: 'out', to: 'pub' },
+      ],
+    };
+    const { id: counterId } = await s.api('POST', '/processes', { definition: counter });
+    for (const expected of [1, 2, 3]) {
+      const { id } = await s.api('POST', '/runs', { processId: counterId, bindings: {} });
+      expect((await s.waitRun(id, ['succeeded', 'failed'])).status).toBe('succeeded');
+      expect((await s.api('GET', '/datasets/test.counter')).rows.map((r: any) => [r._key, r.Count])).toEqual([['runs', expected]]);
+    }
+    const m = await import('../src/dashboards/datasets.js');
+    const deny = { runId: '', processId: 'prc_other', mayRead: () => false };
+    expect(m.previousRowsForRun('test.counter', deny)).toEqual([]);
+    expect(m.previousRowsForRun('test.counter', { ...deny, processId: counterId })).toMatchObject([{ _key: 'runs', Count: 3 }]);
+    expect(m.previousRowsForRun('no.such', { ...deny, mayRead: () => true })).toEqual([]);
+    // the AI data guard counts the dataset as read by the process
+    const { datasetsReadBy } = await import('../src/ai/provenance.js');
+    expect([...datasetsReadBy(counter as any)]).toEqual(['test.counter']);
+  });
 });
