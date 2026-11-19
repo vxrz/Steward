@@ -21,16 +21,26 @@ beforeAll(async () => {
 describe('maintenance windows', () => {
   it('a monthly window started years ago keeps all its occurrences (the skip-ahead estimate never passes them)', async () => {
     const { occurrencesBetween } = await import('../../shared/src/maintenance.js');
-    const monthly = { startsAt: '2020-01-15T02:00:00Z', endsAt: '2020-01-15T04:00:00Z', recurrence: { freq: 'monthly' as const, interval: 1 }, timeZone: 'UTC' };
-    const starts = (from: string, to: string, w = monthly) => occurrencesBetween(w, Date.parse(from), Date.parse(to)).map((o) => new Date(o.start).toISOString());
-    expect(starts('2026-03-01T00:00:00Z', '2026-06-01T00:00:00Z')).toEqual(['2026-03-15T02:00:00.000Z', '2026-04-15T02:00:00.000Z', '2026-05-15T02:00:00.000Z']);
+    const monthly = {
+      startsAt: '2020-01-15T02:00:00Z',
+      endsAt: '2020-01-15T04:00:00Z',
+      recurrence: { freq: 'monthly' as const, interval: 1, until: null },
+      timeZone: 'UTC',
+    };
+    const starts = (from: string, to: string, w = monthly) =>
+      occurrencesBetween(w, Date.parse(from), Date.parse(to)).map((o) => new Date(o.start).toISOString());
+    expect(starts('2026-03-01T00:00:00Z', '2026-06-01T00:00:00Z')).toEqual([
+      '2026-03-15T02:00:00.000Z',
+      '2026-04-15T02:00:00.000Z',
+      '2026-05-15T02:00:00.000Z',
+    ]);
     // the occurrence going on is found from inside it (what "in maintenance now" asks)
     expect(starts('2026-03-15T03:00:00Z', '2026-03-15T03:00:01Z')).toEqual(['2026-03-15T02:00:00.000Z']);
     // every third month, the 31st (the last day of shorter months), in a zone with daylight saving time
     const quarterly = {
       startsAt: '2019-01-31T21:00:00Z',
       endsAt: '2019-01-31T23:00:00Z',
-      recurrence: { freq: 'monthly' as const, interval: 3 },
+      recurrence: { freq: 'monthly' as const, interval: 3, until: null },
       timeZone: 'Europe/Berlin',
     };
     expect(starts('2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', quarterly)).toEqual([
@@ -124,7 +134,10 @@ describe('platform calls', () => {
     const { renewToken } = await import('../src/platforms/http.js');
     accepted.add('token-2');
     const ctl = new AbortController();
-    const [cancelled, renewed] = await Promise.allSettled([renewToken(p, secrets, ctl.signal), (ctl.abort(), platformRequest(p, secrets, { method: 'GET', url: '/data' }))]);
+    const [cancelled, renewed] = await Promise.allSettled([
+      renewToken(p, secrets, ctl.signal),
+      (ctl.abort(), platformRequest(p, secrets, { method: 'GET', url: '/data' })),
+    ]);
     expect(cancelled.status).toBe('rejected');
     expect(renewed).toMatchObject({ status: 'fulfilled', value: { status: 200, body: { token: 'token-2' } } });
     expect(issued).toBe(2);
@@ -156,7 +169,11 @@ describe('platform calls', () => {
 
   it('reads at most the default ceiling of an answer when the caller sets no limit', async () => {
     const { platformRequest, DEFAULT_MAX_RESPONSE_BYTES } = await import('../src/platforms/http.js');
-    const err = await platformRequest(platform({ http: { proxy: 'none', retry: { maxRetries: 0 } } } as Partial<Platform['config']>), {}, { method: 'GET', url: '/huge' }).then(
+    const err = await platformRequest(
+      platform({ http: { proxy: 'none', retry: { maxRetries: 0 } } } as Partial<Platform['config']>),
+      {},
+      { method: 'GET', url: '/huge' },
+    ).then(
       () => null,
       (e: Error & { code?: string }) => e,
     );

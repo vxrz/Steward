@@ -362,6 +362,7 @@ const firing = new Map<string, Promise<unknown>>();
 
 export async function fire(id: string, manual = false, opts: { catchUp?: boolean } = {}): Promise<string | null> {
   const before = firing.get(id);
+  // the earlier fire's failure is its caller's (logged there): this one only waits for it to be done
   const mine = (before ? before.catch(() => undefined) : Promise.resolve()).then(() => fireNow(id, manual, opts));
   firing.set(id, mine);
   try {
