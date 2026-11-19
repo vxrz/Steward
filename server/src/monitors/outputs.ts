@@ -92,6 +92,20 @@ export const includeOf = (o: OutputDef) => o.include ?? (o.type === 'notificatio
 const suppressOf = (o: OutputDef) => o.suppressDependents ?? (o.type === 'notification' || o.type === 'process');
 const statusesOf = (o: OutputDef): MonitorStatus[] | undefined => o.statuses ?? (o.type === 'process' ? ['down'] : undefined);
 const peopleFacing = (o: OutputDef) => o.type === 'notification' || o.type === 'process';
+/** Outputs that interrupt people: notifications, processes (their checks notify) and Teams cards */
+const toPeople = (o: OutputDef) => peopleFacing(o) || (o.type === 'webhook' && o.format === 'teams');
+const PROBLEM: readonly MonitorStatus[] = ['down', 'degraded'];
+
+/**
+ * Still the problem that was told (0.27.0): for outputs to people, a status that is no news after the last one sent –
+ * down that became degraded (milder, not over), or – for notifications and processes, which never send them unless
+ * selected – a problem that cannot be judged for a while (unknown, blocked). The told status stays, so flapping
+ * between them sends nothing; up, off, a change to down and a new problem after a recovery do.
+ */
+const stillTold = (o: OutputDef, prev: MonitorStatus | null, now: MonitorStatus): boolean =>
+  prev !== null &&
+  PROBLEM.includes(prev) &&
+  ((toPeople(o) && prev === 'down' && now === 'degraded') || (peopleFacing(o) && !o.statuses?.includes(now) && (now === 'unknown' || now === 'blocked')));
 
 function outState(mid: string, oid: string, subject: string): OutState | undefined {
   return db().get<OutState>(
@@ -136,13 +150,17 @@ export async function dispatchOutputs(ctx: DispatchContext): Promise<void> {
     const include = includeOf(o);
     const statuses = statusesOf(o);
     const send: OutEvent[] = [];
+    /** Subjects whose status is still the told problem: the told status is kept */
+    const dampened = new Set<string>();
     for (const s of ctx.subjects) {
       const e = s.event;
       if (e.level === 'monitor' ? include === 'checks' : include === 'monitor') continue;
       if (e.level === 'check' && o.checks?.length && !o.checks.includes(e.subject)) continue;
       const st = outState(m.id, o.id, e.subject);
       const prev = st?.last_status ?? null;
-      const changed = e.status !== prev;
+      const told = stillTold(o, prev, e.status);
+      if (told) dampened.add(e.subject);
+      const changed = e.status !== prev && !told;
       const key = `${m.id}|${o.id}|${e.subject}`;
       if (o.on === 'every') {
         const due = !st?.last_sent_at || ctx.now - Date.parse(st.last_sent_at) >= (o.minIntervalSeconds ?? 60) * 1000;
@@ -188,7 +206,7 @@ export async function dispatchOutputs(ctx: DispatchContext): Promise<void> {
           const ts = new Date(ctx.now).toISOString();
           send.forEach((e, i) => {
             saveOutState(m.id, o.id, e.subject, {
-              last_status: e.status,
+              last_status: dampened.has(e.subject) ? e.previous : e.status,
               last_sent_at: ts,
               last_error: null,
               ...(runIds?.[i] ? { last_run_id: runIds[i] } : {}),

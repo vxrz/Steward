@@ -8,7 +8,8 @@ import { z } from 'zod';
  *
  * - mode: failed checks notify on change (a check starts failing, its result changes, a reminder while it keeps
  *   failing), after every run, or never. `resolved`: a message when the check passes again.
- * - change: what counts as a change – the message or severity (`result`), or only the start and end of failing (`state`).
+ * - change: what counts as a change – another severity or a newly affected item (`result`, 0.27.0: no longer any
+ *   difference in the message), or only the start and end of failing (`state`).
  * - channels: null = as configured (the routes per event); a list = only these channels (a channel turned off stays off).
  * - pause: no messages until a time (or until resumed), optionally still in the app; a pause that ends while a check
  *   still fails sends one "still failing" message.

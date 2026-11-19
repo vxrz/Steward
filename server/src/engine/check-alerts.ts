@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { emit, type CheckContent } from '../events.js';
+import { compareIdentity, identityOf, parseIdentity, toldAfter, type CheckIdentity } from './check-identity.js';
 import { sourceOfRun, type RunSource } from './notify-source.js';
 
 /**
@@ -7,15 +8,19 @@ import { sourceOfRun, type RunSource } from './notify-source.js';
  *
  * Runs started by hand notify on every failed check, as before. Runs of a source that repeats them – a schedule, a
  * webhook trigger, a monitor output, and the sub-processes of their runs – follow the source's policy:
- * - change: when a check starts failing, when its result changes, and – while it keeps failing – as a reminder every
- *   `reminderHours` (0: never). What counts as a change: the message or severity (`result`), or nothing until the
- *   check passes again (`state`: only the start and the end of failing).
+ * - change: when a check starts failing, when what fails changes, and – while it keeps failing – as a reminder every
+ *   `reminderHours` (0: never). What counts as a change (`result`, 0.27.0): another severity, or an entry of the check's
+ *   identity that was not told yet – its `changeKey`, else its items, else its message, with volatile numbers,
+ *   durations, times and generated ids masked (check-identity.ts). Entries that are gone count only when the source
+ *   sends "passes again" (`resolved`), as Alertmanager's send_resolved. The value never counts on its own: it changes
+ *   in nearly every run. Or nothing until the check passes again (`state`: only the start and the end of failing).
  * - every: after every run in which the check fails (webhook triggers and monitor outputs start with this).
  * - off: never.
  * `resolved` adds a message when the check passes again. A check step with `notify: false` never notifies. Where the
  * messages go and whether they are paused is decided when they are sent (notifications/service.ts).
  *
- * The state is kept per source, check and dry run in notify_alerts: one row while the check fails.
+ * The state is kept per source, check and dry run in notify_alerts: one row while the check fails, with what was told
+ * (`told`: the identity at the last message, plus entries that went away untold).
  */
 
 export interface CheckOutcome extends CheckContent {
@@ -33,6 +38,8 @@ export interface CheckOutcome extends CheckContent {
   notify: boolean | undefined;
   /** Whether a lower or a higher value is better (default lower) */
   betterWhen?: 'lower' | 'higher';
+  /** The step's `changeKey` (evaluated): what fails, as stable keys */
+  changeKey?: string[];
 }
 
 interface AlertRow {
@@ -41,6 +48,7 @@ interface AlertRow {
   message: string;
   value: number | null;
   notified_at: string;
+  told: string | null;
 }
 
 const HOUR = 3_600_000;
@@ -85,7 +93,7 @@ export function checkOutcome(o: CheckOutcome, now = Date.now()): void {
   const ids = { source: src.key, ...(src.kind === 'schedule' ? { scheduleId: src.id } : {}) };
   const key = [src.key, o.check, o.dryRun ? 1 : 0] as const;
   const row = db().get<AlertRow>(
-    'SELECT failing_since, severity, message, value, notified_at FROM notify_alerts WHERE source = ? AND check_name = ? AND dry_run = ?',
+    'SELECT failing_since, severity, message, value, notified_at, told FROM notify_alerts WHERE source = ? AND check_name = ? AND dry_run = ?',
     ...key,
   );
   const ts = new Date(now).toISOString();
@@ -97,9 +105,10 @@ export function checkOutcome(o: CheckOutcome, now = Date.now()): void {
   }
   const message = o.message.slice(0, MESSAGE_CHARS);
   const value = o.value ?? null;
+  const identity = identityOf({ ...(o.changeKey ? { changeKey: o.changeKey } : {}), ...(o.items ? { items: o.items } : {}), message });
   if (!row) {
     db().run(
-      'INSERT INTO notify_alerts (source, check_name, dry_run, failing_since, severity, message, value, notified_at, last_run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO notify_alerts (source, check_name, dry_run, failing_since, severity, message, value, notified_at, last_run_id, told) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ...key,
       ts,
       o.severity,
@@ -107,28 +116,47 @@ export function checkOutcome(o: CheckOutcome, now = Date.now()): void {
       value,
       ts,
       o.runId,
+      JSON.stringify(identity),
     );
     if (p.mode === 'off') return;
     emit('check.failed', { ...failed, ...ids, phase: p.mode === 'every' ? 'every' : 'new', since: ts });
     return;
   }
-  const differs = row.message !== message || row.severity !== o.severity || (value !== null && row.value !== null && Number(row.value) !== value);
+  // a row from before 0.27.0 has no identity: what fails now counts as told (an upgrade sends nothing by itself)
+  const told: CheckIdentity = parseIdentity(row.told) ?? identity;
+  // the author changed what the identity is made of (e.g. added items): not news either
+  const diff = told.by === identity.by ? compareIdentity(told, identity) : { added: [], removed: [] };
+  const severityChanged = row.severity !== o.severity;
+  const news = severityChanged || diff.added.length > 0 || (p.resolved && diff.removed.length > 0);
   // "state": only the start and the end of failing count, a different result is not news
-  const changed = p.change !== 'state' && differs;
+  const changed = p.change !== 'state' && news;
   const remind = !changed && Number(p.reminderHours) > 0 && now - Date.parse(row.notified_at) >= Number(p.reminderHours) * HOUR;
   const phase = p.mode === 'every' ? 'every' : changed ? 'changed' : remind ? 'reminder' : null;
   const send = p.mode !== 'off' && phase !== null;
+  // what was told: all of it with a reminder or "after every run", the changes with a change message; another basis
+  // is taken as it is
+  const nextTold = told.by !== identity.by ? identity : !send ? told : phase === 'changed' ? toldAfter(told, identity, p.resolved) : identity;
   db().run(
-    `UPDATE notify_alerts SET severity = ?, message = ?, value = ?, last_run_id = ?${send ? ', notified_at = ?' : ''} WHERE source = ? AND check_name = ? AND dry_run = ?`,
+    `UPDATE notify_alerts SET severity = ?, message = ?, value = ?, last_run_id = ?, told = ?${send ? ', notified_at = ?' : ''} WHERE source = ? AND check_name = ? AND dry_run = ?`,
     o.severity,
     message,
     value,
     o.runId,
+    JSON.stringify(nextTold),
     ...(send ? [ts] : []),
     ...key,
   );
   if (!send) return;
   const prev = { value: row.value === null ? null : Number(row.value), severity: row.severity };
+  // why a change was sent (0.27.0): what fails now that was not told, what no longer fails, another severity
+  const why =
+    phase === 'changed'
+      ? {
+          ...(diff.added.length && identity.by !== 'message' ? { added: diff.added } : {}),
+          ...(p.resolved && diff.removed.length && identity.by !== 'message' ? { removed: diff.removed } : {}),
+          ...(severityChanged ? { previousSeverity: row.severity } : {}),
+        }
+      : {};
   emit('check.failed', {
     ...failed,
     ...ids,
@@ -136,6 +164,7 @@ export function checkOutcome(o: CheckOutcome, now = Date.now()): void {
     since: row.failing_since,
     ...(prev.value !== null ? { previousValue: prev.value } : {}),
     direction: directionOf(o, prev),
+    ...why,
   });
 }
 

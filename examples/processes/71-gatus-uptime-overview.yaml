@@ -1,3 +1,4 @@
+# steward-min-version: 0.27.0
 name: "Gatus – Uptime overview"
 description: |
   Shows what Gatus monitors, without monitoring anything itself: reads the
@@ -110,6 +111,8 @@ steps:
     headline: "{{ $count(vars.down) }} of {{ $count(vars.rows) }} endpoints down"
     value: "$count(vars.down)"
     items: "vars.down.(group & '/' & endpoint & (error ? ' – ' & error : ''))"
+    # what fails: the endpoints, not their error texts – another error of an endpoint still down is no news
+    changeKey: "vars.down.(group & '/' & endpoint)"
   - id: report
     type: report
     name: Uptime overview

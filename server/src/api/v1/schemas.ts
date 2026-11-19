@@ -377,7 +377,11 @@ export const NotifyPolicy = z
     mode: z.enum(['change', 'every', 'off']).describe('When failed checks notify'),
     reminderHours: z.number().int().describe('On change: a reminder while still failing (0: none)'),
     resolved: z.boolean().describe('A message when a check passes again'),
-    change: z.enum(['result', 'state']).describe('result: a different message or severity is a change; state: only the start and end of failing'),
+    change: z
+      .enum(['result', 'state'])
+      .describe(
+        'result: another severity or a newly affected item (the change key, else the items, else the message with volatile numbers masked) is a change; state: only the start and end of failing',
+      ),
     channels: z
       .array(z.enum(['inApp', 'email', 'teams', 'webhook']))
       .nullable()

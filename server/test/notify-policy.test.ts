@@ -118,9 +118,10 @@ describe('notification policy and content', () => {
       runbook: 'https://wiki.example.com/runbooks/gatus',
       source: { kind: 'schedule', id: sch.id, name: sch.name },
     });
-    expect(second!.body.data).toMatchObject({ phase: 'changed', value: 1, previousValue: 2, direction: 'better' });
+    expect(second!.body.data).toMatchObject({ phase: 'changed', value: 1, previousValue: 2, direction: 'better', removed: ['mes'] });
+    // 0.27.0: the first line says what changed – an item that no longer fails (told because of "passes again")
     const [better] = await forRuns([r2]);
-    expect(better.body).toMatch(/^Got better: 2 → 1 · failing since /);
+    expect(better.body).toMatch(/^No longer failing: mes · the rest still fails, since /);
     expect(better.body).toContain('• historian');
     const [resolved] = await forRuns([r3]);
     expect(resolved.title).toBe('Passes again · All endpoints healthy – Gatus overview');

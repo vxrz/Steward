@@ -1,4 +1,4 @@
-# steward-min-version: 0.6.0
+# steward-min-version: 0.27.0
 name: "Checkmk – AI summary of the trends"
 description: |
   Asks an AI model, through an LLM gateway, which of the Checkmk trends need
@@ -102,3 +102,5 @@ steps:
     headline: "{{ vars.summary.answer.headline }}"
     value: "$count(vars.summary.answer.attention)"
     items: "vars.summary.answer.attention.(series & ': ' & why & ' – check first: ' & firstCheck)"
+    # what fails: the series – the model words its reasons differently in every run
+    changeKey: "vars.summary.answer.attention.series"

@@ -59,7 +59,7 @@
         "off": "Nie"
       },
       "hint": {
-        "change": "Wenn eine Prüfung fehlzuschlagen beginnt oder sich ihr Ergebnis ändert, und als Erinnerung, solange sie fehlschlägt.",
+        "change": "Wenn eine Prüfung fehlzuschlagen beginnt oder sich ändert, was fehlschlägt, und als Erinnerung, solange sie fehlschlägt.",
         "every": "Jede Ausführung, in der eine Prüfung fehlschlägt (per E-Mail, Teams und Webhook höchstens einmal pro Stunde).",
         "off": "Fehlgeschlagene Prüfungen stehen nur in den Ausführungen. Fehlgeschlagene Ausführungen werden weiterhin gemeldet."
       },
@@ -68,11 +68,11 @@
       "resolved": "Melden, wenn eine Prüfung wieder erfolgreich ist",
       "change": "Was als Änderung zählt",
       "changeHint": {
-        "result": "Eine andere Meldung oder ein anderer Schweregrad benachrichtigt erneut.",
+        "result": "Ein anderer Schweregrad oder ein neu betroffener Eintrag benachrichtigt erneut; Zahlen, Dauern und Zeiten, die sich in der Meldung ändern, nicht.",
         "state": "Nur Beginn und Ende des Fehlschlagens: eine Nachricht, wenn eine Prüfung fehlschlägt, Erinnerungen und – falls gewünscht – eine, wenn sie wieder besteht."
       },
       "changeKind": {
-        "result": "Eine andere Meldung oder ein anderer Schweregrad",
+        "result": "Was fehlschlägt (Schweregrad oder betroffene Einträge)",
         "state": "Nur Beginn und Ende des Fehlschlagens"
       },
       "where": "Wohin die Nachrichten gehen",

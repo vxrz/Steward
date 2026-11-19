@@ -95,17 +95,51 @@ A process that runs every few minutes and is expected to find failures (the Gatu
 
 ### When
 
-| Setting                                                                                 | What notifies                                                                                                                                                                                                    |
-| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **On change** (default for schedules)                                                   | A check that starts failing; the same check with another result; and – while it keeps failing – a reminder after _Reminder while still failing_ hours (default 4, `0` = none), with the time it started failing. |
-| **After every run** (default for webhook triggers and monitor outputs, as before 0.2.4) | Every run in which a check fails (in the app every time; e-mail, Teams and webhook at most once an hour per process and check).                                                                                  |
-| **Never**                                                                               | Nothing for failed checks; they are shown in the runs. Failed runs still notify.                                                                                                                                 |
+| Setting                                                                                 | What notifies                                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **On change** (default for schedules)                                                   | A check that starts failing; the same check when **what fails** changes (below); and – while it keeps failing – a reminder after _Reminder while still failing_ hours (default 4, `0` = none), with the time it started failing. |
+| **After every run** (default for webhook triggers and monitor outputs, as before 0.2.4) | Every run in which a check fails (in the app every time; e-mail, Teams and webhook at most once an hour per process and check).                                                                                                  |
+| **Never**                                                                               | Nothing for failed checks; they are shown in the runs. Failed runs still notify.                                                                                                                                                 |
 
-_What counts as a change_ (on change): **a different message or severity** (default), or **only the start and end of failing** – one message when a check starts failing, the reminders, and the end. _Send a message when a check passes again_ adds **Passes again** for the first passing run.
+_What counts as a change_ (on change): **what fails – severity or affected items** (default), or **only the start and end of failing** – one message when a check starts failing, the reminders, and the end. _Send a message when a check passes again_ adds **Passes again** for the first passing run.
 
 - The state is kept per source and check (dry runs separately). Changing _when_ or _what counts as a change_ starts over: a check that still fails notifies again at the next run.
-- With _a different message or severity_, keep values that change in every run (uptime percentages, timestamps) out of the message, or use `value` (below) – it says whether things got better or worse.
 - A check step with `notify: false` (_Notify when the check fails: No_ in the editor) never notifies: an informational check, shown in the run.
+
+#### What fails: how Steward tells a change from a new wording
+
+Since 0.27.0 a failing check is judged as alerting tools judge an alert (Prometheus Alertmanager, PagerDuty and Opsgenie de-duplication): by **what** fails, not by the words of its message. A process that runs every 15 minutes and finds the same deployment not ready sends one message, then a reminder every _Reminder while still failing_ hours, then – if asked for – _Passes again_; ready counts, restarts, pod names, ages and timestamps that differ from run to run do not make a new message.
+
+What fails is a list of keys, taken from the first of these the check step has:
+
+1. **`changeKey`** – an expression returning the stable names of what fails, e.g. `vars.notReady.(namespace & '/' & name)`. Used as they are.
+2. **`items`** – each item, normalised (below).
+3. **the message**, normalised.
+
+A failing check is news again when
+
+- its **severity** is another one, or
+- a key appears that was **not told yet** (_Now also failing: shop-prod/api_), or
+- a key that was told is gone (_No longer failing: shop-prod/web_) – only when the source sends _Passes again_ (as Alertmanager's `send_resolved`). Otherwise a key that went away and came back within the same failing period is not news; the next reminder says how things stand.
+
+The **value** does not count on its own: it changes in nearly every run (minutes old, endpoints down). Messages still show it with the previous one ("11 (was 12)"). A check whose count matters should list what it counts as `items` or `changeKey` – then another endpoint down is news, the same endpoints for longer are not.
+
+**The normaliser** masks what changes from run to run although nothing else did, and keeps what names things. It is applied to items and messages, not to `changeKey`:
+
+| Masked                                                                | Example                                            | Becomes                  |
+| --------------------------------------------------------------------- | -------------------------------------------------- | ------------------------ |
+| UUIDs and hexadecimal ids of 8 or more characters (a digit, a letter) | `123e4567-e89b-…`, `deadbeef12`                    | `<id>`                   |
+| dates and times                                                       | `2026-11-19`, `2026-11-19T10:15:00Z`, `19.11.2026` | `<time>`                 |
+| generated suffixes of Kubernetes pod names                            | `web-7d9f8b6c5d-x2k9p`, `agent-x2k9p`              | `web-<id>`, `agent-<id>` |
+| durations, also several in a row (English and German units)           | `5 min`, `3 days`, `1 h 20 min`, `90s`, `5 Tagen`  | `<duration>`             |
+| numbers that stand alone, with their sign                             | `12`, `-2.5`, `99.5 %`, `1/3`, `10:15`             | `#`                      |
+| a plural "s" right after a masked number                              | `1 endpoint`, `12 endpoints`                       | `# endpoint`             |
+
+Numbers that are part of a name stay (`plc-01`, `node7`, `v2`), and so do IPv4 addresses: another device is another item. Two items that differ only in a number that stands alone (`Line 1`, `Line 2`) are one key – use `changeKey` when that matters.
+
+**Why a message was sent** is its first line: _Started failing_, _Now also failing: …_, _No longer failing: …_, _Severity changed: Warning → Error_, _Changed_ (another message, for checks without items), _Still failing (reminder) · since …_, _Still failing after the pause_ and _Passes again_. The webhook data carries `phase` (`new`, `changed`, `reminder`, `every`, `pauseEnded`) and, for `changed`, `added`, `removed` and `previousSeverity`.
+
+**Upgrade to 0.27.0:** _a different message or severity_ became _what fails_; the setting keeps its value (`change: result`), nothing is migrated. Checks that failed before the upgrade count as told with what fails at their first run after it, so the upgrade itself sends nothing. Sources that chose _Only the start and end of failing_ or _After every run_ behave as before.
 
 ### Where
 
@@ -127,14 +161,15 @@ Every message about a failed check has the same structure in the app, by e-mail,
 
 What a process adds is optional – a check without it still gets a clear message from what Steward knows. On a check step:
 
-| Field      | Example                                                      | In the message                                                                           |
-| ---------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `headline` | `{{ $count(vars.down) }} of {{ vars.total }} endpoints down` | The subject and title instead of the check name (the name stays in the table)            |
-| `value`    | `$count(vars.down)`                                          | "11 (was 12) · better"; `betterWhen: higher` for values where more is better (days left) |
-| `items`    | `vars.down.(group & '/' & endpoint)`                         | Bullets, the first 10, then "+ N more"                                                   |
-| `runbook`  | `rec_…` or `https://…`                                       | _Open runbook_; the process can set a `runbook` for all its checks                       |
+| Field       | Example                                                      | In the message                                                                                                      |
+| ----------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `headline`  | `{{ $count(vars.down) }} of {{ vars.total }} endpoints down` | The subject and title instead of the check name (the name stays in the table)                                       |
+| `value`     | `$count(vars.down)`                                          | "11 (was 12) · better"; `betterWhen: higher` for values where more is better (days left)                            |
+| `items`     | `vars.down.(group & '/' & endpoint)`                         | Bullets, the first 10, then "+ N more"                                                                              |
+| `changeKey` | `vars.down.(group & '/' & endpoint)`                         | Nothing shown; what fails, for [what counts as a change](#what-fails-how-steward-tells-a-change-from-a-new-wording) |
+| `runbook`   | `rec_…` or `https://…`                                       | _Open runbook_; the process can set a `runbook` for all its checks                                                  |
 
-Without a value, better or worse follows the severity. An expression that fails only logs a warning in the run. The webhook body keeps its fields and adds `headline`, `value`, `previousValue`, `direction` (`better`, `worse`, `same`), `items`, `runbook` (null when none), `since` and `source` (`kind`, `id`, `name`). The Gatus overviews, the Insights Hub health check, the data freshness monitor and the tenant usage check use them.
+Without a value, better or worse follows the severity. An expression that fails only logs a warning in the run. The webhook body keeps its fields and adds `headline`, `value`, `previousValue`, `direction` (`better`, `worse`, `same`), `items`, `runbook` (null when none), `since` and `source` (`kind`, `id`, `name`); a `changed` message also `added`, `removed` and `previousSeverity` (0.27.0). The Gatus overviews, the Insights Hub health check, the data freshness monitor and the tenant usage check use them.
 
 ### A monitor or a process check?
 

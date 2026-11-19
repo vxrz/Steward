@@ -286,4 +286,11 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     name: 'ops-016-export-target',
     sql: `ALTER TABLE export_jobs ADD COLUMN target_fingerprint TEXT;`,
   },
+  {
+    // 0.27.0: what a failing check's last message told (its change key, items or message, engine/check-identity.ts),
+    // so a change is judged on what fails and not on the words. NULL for rows from before: what fails at the next run
+    // counts as told, so the upgrade sends nothing by itself.
+    name: 'ops-017-notify-alerts-told',
+    sql: `ALTER TABLE notify_alerts ADD COLUMN told TEXT;`,
+  },
 ];
