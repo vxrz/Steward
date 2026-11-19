@@ -43,7 +43,7 @@
       "pauseEnded": "Still failing after the pause · since {{since}}",
       "severity": "Severity changed: {{from}} → {{to}} · failing since {{since}}",
       "added": "Now also failing: {{items}} · failing since {{since}}",
-      "removed": "No longer failing: {{items}} · the rest still fails, since {{since}}",
+      "removed": "No longer failing: {{items}} · the rest has been failing since {{since}}",
       "addedRemoved": "Now also failing: {{added}}; no longer failing: {{removed}} · failing since {{since}}"
     },
     "more": "and {{count}} more"

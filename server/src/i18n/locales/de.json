@@ -43,7 +43,7 @@
       "pauseEnded": "Schlägt nach der Pause weiter fehl · seit {{since}}",
       "severity": "Schweregrad geändert: {{from}} → {{to}} · schlägt fehl seit {{since}}",
       "added": "Jetzt auch fehlgeschlagen: {{items}} · schlägt fehl seit {{since}}",
-      "removed": "Nicht mehr fehlgeschlagen: {{items}} · der Rest schlägt weiter fehl, seit {{since}}",
+      "removed": "Nicht mehr fehlgeschlagen: {{items}} · der Rest schlägt seit {{since}} fehl",
       "addedRemoved": "Jetzt auch fehlgeschlagen: {{added}}; nicht mehr fehlgeschlagen: {{removed}} · schlägt fehl seit {{since}}"
     },
     "more": "und {{count}} weitere"

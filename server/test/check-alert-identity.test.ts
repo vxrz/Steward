@@ -236,7 +236,7 @@ describe('a 15-minute schedule on change with a 4-hour reminder (the reported ca
     await fire(told, { bad: [dep('shop-prod/web', 1), dep('shop-prod/api', 1)] });
     const r6 = await fire(told, { bad: [dep('shop-prod/web', 2)] });
     const [gone] = await forRuns([r6], 'deployments not fully ready');
-    expect(lead(gone)).toMatch(/^No longer failing: shop-prod\/api: 1\/3 – api-5f6b8c9d4-qz7xw · the rest still fails, since /);
+    expect(lead(gone)).toMatch(/^No longer failing: shop-prod\/api: 1\/3 – api-5f6b8c9d4-qz7xw · the rest has been failing since /);
     expect(hooks([r6]).find((h) => h.body.data.check === 'All deployments ready')!.body.data).toMatchObject({
       phase: 'changed',
       removed: ['shop-prod/api: 1/3 – api-5f6b8c9d4-qz7xw'],
