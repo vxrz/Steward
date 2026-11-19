@@ -5,7 +5,7 @@ import { IconInbox, IconLayoutDashboard, IconRocket } from '@tabler/icons-react'
 import { Trans, useTranslation } from 'react-i18next';
 import type { DashboardData } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
-import { PageHeader } from '../components/common';
+import { PageHeader, RelTime } from '../components/common';
 import { RunTable } from '../components/RunTable';
 import { CredentialsDueCard } from '../components/credentials/CredentialsDueCard';
 import { FailedChecksCard } from '../components/dashboard/FailedChecksCard';
@@ -131,7 +131,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                       {task.title}
                     </Anchor>
                     <Text size="xs" c="dimmed" className="nowrap">
-                      {task.processName} · {fmtRelative(task.createdAt)}
+                      {task.processName} · <RelTime at={task.createdAt} />
                     </Text>
                   </Group>
                 ))}

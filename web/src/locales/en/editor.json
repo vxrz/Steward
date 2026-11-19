@@ -209,6 +209,10 @@
           "label": "Items (optional)",
           "help": "A list shown as bullets in the message, e.g. the names of the endpoints down"
         },
+        "changeKey": {
+          "label": "Change key (optional)",
+          "help": "What fails, as a list of stable names, e.g. the deployments not ready. While the check keeps failing, only a new name notifies again; default: the items, else the message"
+        },
         "runbook": {
           "label": "Runbook (optional)",
           "help": "A living document id (rec_…) or an http(s) URL; default: the process runbook"
@@ -1050,7 +1054,8 @@
     "encodeUrlComponent": "URL-encode a value.",
     "systems": "Every system with its tech stack and end of life.",
     "trend": "Trend of a dataset metric: change, changePct, perDay, confidence.",
-    "daysUntil": "Days until the trend reaches the limit; null when not approaching."
+    "daysUntil": "Days until the trend reaches the limit; null when not approaching.",
+    "previousRows": "Rows of a dataset as the previous run on this platform published them; [] without any."
   },
   "suggest": {
     "loopItem": "current loop item",

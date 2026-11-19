@@ -8,6 +8,7 @@ import { formatLocale } from '../i18n';
 import { useListView } from './page/ListPage';
 import { readJsonPref, writePref } from './page/prefs';
 import { TableScroll } from './TableScroll';
+import { ShowAll, useShowMore } from './page/ShowAll';
 
 export type SortValue = string | number | boolean | null | undefined;
 export type SortDir = 'asc' | 'desc';
@@ -66,6 +67,9 @@ function nextSort(current: SortState | null, key: string, cycle = true): SortSta
   return current.dir === 'asc' ? { key, dir: 'desc' } : null;
 }
 
+/** Rows a long list loaded in full renders at first and per "Show more" (`pageSize`) */
+export const LIST_PAGE = 200;
+
 /**
  * The list table used by the main lists (Runs, Records, Credentials …): sortable column headers
  * (client side over the rows loaded so far, or by the server with `sort`/`onSortChange`), rows that open their entry, a card list on phones
@@ -89,6 +93,7 @@ export function DataTable<T>({
   cardBreakpoint = '48em',
   verticalSpacing,
   testId,
+  pageSize,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -116,6 +121,11 @@ export function DataTable<T>({
   cardBreakpoint?: string;
   verticalSpacing?: number | string;
   testId?: string;
+  /**
+   * Renders this many rows, then "Show N more" / "Show all" (lists loaded in full that can grow long and refresh
+   * themselves: a thousand rows re-rendered every few seconds make the page sluggish). Not for lists the server pages.
+   */
+  pageSize?: number;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -136,6 +146,9 @@ export function DataTable<T>({
     const col = sort && columns.find((c) => c.key === sort.key);
     return sort && col?.sortValue ? sortRows(rows, col.sortValue, sort.dir) : rows;
   }, [rows, columns, sort, controlled]);
+  const paged = useShowMore(sorted, pageSize ?? Infinity, { page: pageSize });
+  const shown = paged.items;
+  const more = pageSize ? <ShowAll state={paged} id={testId ?? 'list'} /> : null;
   const clickable = !!(rowHref || onRowClick);
   const activate = (row: T) => (onRowClick ? onRowClick(row) : rowHref && navigate(rowHref(row)));
   const sortable = columns.filter((c) => c.sortValue || (controlled && c.serverSort));
@@ -169,12 +182,13 @@ export function DataTable<T>({
           </Group>
         )}
         <Stack gap="xs" role="list" aria-label={ariaLabel} data-testid={testId}>
-          {sorted.map((row) => (
+          {shown.map((row) => (
             <div key={rowKey(row)} role="listitem">
               {card(row)}
             </div>
           ))}
         </Stack>
+        {more}
         {footer}
       </>
     );
@@ -217,7 +231,7 @@ export function DataTable<T>({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {sorted.map((row) => {
+            {shown.map((row) => {
               const detail = rowDetail?.(row);
               return (
                 <Fragment key={rowKey(row)}>
@@ -239,6 +253,7 @@ export function DataTable<T>({
           </Table.Tbody>
         </Table>
       </TableScroll>
+      {more}
       {footer}
     </>
   );

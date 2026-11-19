@@ -2156,6 +2156,7 @@ export interface Resources {
     'packs.includeAssurance': string;
     'packs.includeAssuranceHint': string;
     'packs.assuranceReport': string;
+    'packs.deleteConfirm': string;
   };
   contacts: {
     title: string;
@@ -7139,6 +7140,8 @@ export interface Resources {
     'steps.check.fields.betterWhen.label': string;
     'steps.check.fields.items.label': string;
     'steps.check.fields.items.help': string;
+    'steps.check.fields.changeKey.label': string;
+    'steps.check.fields.changeKey.help': string;
     'steps.check.fields.runbook.label': string;
     'steps.check.fields.runbook.help': string;
     'steps.log.label': string;
@@ -7729,6 +7732,7 @@ export interface Resources {
     'functions.systems': string;
     'functions.trend': string;
     'functions.daysUntil': string;
+    'functions.previousRows': string;
     'suggest.loopItem': string;
     'suggest.loopIndex': string;
     'suggest.input': string;
@@ -11055,6 +11059,9 @@ export interface Resources {
     'outputs.send': string;
     'outputs.onChange': string;
     'outputs.onEvery': string;
+    'outputs.onChangeHint': string;
+    'outputs.onChangeHintPeople': string;
+    'outputs.onEveryHint': string;
     'outputs.atMostEvery': string;
     'outputs.subjects': string;
     'outputs.includeMonitor': string;
@@ -17390,6 +17397,9 @@ export interface Resources {
     saved: string;
     enabled: string;
     deleteConfirm: string;
+    deleted: string;
+    editFor: string;
+    deleteFor: string;
     'filters.search': string;
     'filters.state': string;
     'filters.active': string;
@@ -17404,6 +17414,7 @@ export interface Resources {
     'table.runsAs': string;
     'table.runNow': string;
     'table.actions': string;
+    'table.runNowFor': string;
     'presets.every15': string;
     'presets.hourly': string;
     'presets.daily': string;
@@ -17454,6 +17465,18 @@ export interface Resources {
     'form.notify.channel.webhook': string;
     'form.notify.urgent': string;
     'form.notify.urgentHint': string;
+    'form.notify.summary.sent': string;
+    'form.notify.summary.part.starts': string;
+    'form.notify.summary.part.changes': string;
+    'form.notify.summary.part.reminder_one': string;
+    'form.notify.summary.part.reminder_other': string;
+    'form.notify.summary.part.resolved': string;
+    'form.notify.summary.part.every': string;
+    'form.notify.summary.off': string;
+    'form.notify.summary.channels': string;
+    'form.notify.summary.urgent': string;
+    'form.notify.summary.paused': string;
+    'form.notify.summary.pausedOpen': string;
     'form.timezoneHint': string;
     'form.timezoneServer': string;
     'emptyState.title': string;
@@ -17475,6 +17498,14 @@ export interface Resources {
     'pause.badgeUntil': string;
     'pause.badgeOpen': string;
     'pause.noReason': string;
+    'pause.buttonFor': string;
+    'pause.resumeFor': string;
+    'pause.for': string;
+    'pause.hours_one': string;
+    'pause.hours_other': string;
+    'pause.days_one': string;
+    'pause.days_other': string;
+    'pause.past': string;
     'missed.badge_one': string;
     'missed.badge_other': string;
     'missed.tooltip': string;
@@ -17778,6 +17809,8 @@ export interface Resources {
     'statusPages.linkInvalid': string;
     'statusPages.noneForViewer': string;
     'statusPages.signOut': string;
+    'statusPages.deleteConfirm': string;
+    'statusPages.revokeConfirm': string;
     'hub.tabsLabel': string;
     'hub.tabs.overview': string;
     'hub.tabs.applications': string;

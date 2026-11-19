@@ -209,6 +209,10 @@
           "label": "Einträge (optional)",
           "help": "Eine Liste, die in der Nachricht als Aufzählung erscheint, z. B. die Namen der ausgefallenen Endpunkte"
         },
+        "changeKey": {
+          "label": "Änderungsschlüssel (optional)",
+          "help": "Was fehlschlägt, als Liste stabiler Namen, z. B. die nicht bereiten Deployments. Solange die Prüfung fehlschlägt, benachrichtigt nur ein neuer Name erneut; Standard: die Einträge, sonst die Meldung"
+        },
         "runbook": {
           "label": "Runbook (wahlweise)",
           "help": "Die ID eines lebenden Dokuments (rec_…) oder eine http(s)-URL; Standard: das Runbook des Prozesses"
@@ -1050,7 +1054,8 @@
     "encodeUrlComponent": "Wert URL-kodieren.",
     "systems": "Alle Systeme mit Tech-Stack und Supportende.",
     "trend": "Trend einer Kennzahl einer Datenquelle: change, changePct, perDay, confidence.",
-    "daysUntil": "Tage, bis der Trend das Limit erreicht; null, wenn er sich ihm nicht nähert."
+    "daysUntil": "Tage, bis der Trend das Limit erreicht; null, wenn er sich ihm nicht nähert.",
+    "previousRows": "Zeilen eines Datensatzes, wie der vorige Lauf auf dieser Plattform sie veröffentlicht hat; [] ohne welche."
   },
   "suggest": {
     "loopItem": "aktuelles Schleifenelement",

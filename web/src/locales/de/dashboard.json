@@ -18,7 +18,7 @@
     "allQuiet": "Alles ruhig",
     "tasks": "Wartet auf Sie",
     "tasksDetail": "Freigaben und Entscheidungen",
-    "failedRuns": "Fehlgeschlagene Ausführungen (24 h)",
+    "failedRuns": "Fehlgeschlagene Ausführungen (24 h)",
     "ofRuns_one": "von {{count}} Ausführung",
     "ofRuns_other": "von {{count}} Ausführungen",
     "runsQuiet_one": "Alles ruhig · {{count}} Ausführung",
@@ -42,7 +42,7 @@
     "scorecard": "Services mit Handlungsbedarf",
     "scorecardOf_one": "von {{services}} Service",
     "scorecardOf_other": "von {{services}} Services",
-    "runFindings": "Ausführungen mit Befunden (24 h)",
+    "runFindings": "Ausführungen mit Befunden (24 h)",
     "findingsQuiet": "Keine fehlgeschlagenen Prüfungen",
     "notSetUpYet": "Noch nicht eingerichtet",
     "notSetUp": {

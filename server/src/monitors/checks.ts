@@ -800,9 +800,10 @@ async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Prom
   const pods = r.unhealthyPods.filter((p) => !c.deployment || prefixes.some((x) => p.name.startsWith(x)));
   const down = deps.filter((d) => d.desired > 0 && d.ready === 0);
   const short = deps.filter((d) => d.ready < d.desired && !down.includes(d));
+  // restart counts grow while nothing else changes: they are in the value, the message says what is wrong (0.27.0)
   const parts = [
     ...[...down, ...short].map((d) => `${d.name} ${d.ready}/${d.desired} ready`),
-    ...pods.slice(0, 3).map((p) => `pod ${p.name} ${p.reason}${p.restarts && !p.reason.includes('restarts') ? ` (${p.restarts} restarts)` : ''}`),
+    ...pods.slice(0, 3).map((p) => `pod ${p.name} ${/^\d+ restarts$/.test(p.reason) ? 'restarting repeatedly' : p.reason}`),
   ];
   const status = down.length ? 'down' : short.length || pods.length ? 'degraded' : 'up';
   const message =
@@ -813,7 +814,11 @@ async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Prom
     status,
     message: message.slice(0, 500),
     durationMs: ms,
-    value: { deployments: deps.map((d) => ({ name: d.name, ready: d.ready, desired: d.desired })), unhealthyPods: pods.length },
+    value: {
+      deployments: deps.map((d) => ({ name: d.name, ready: d.ready, desired: d.desired })),
+      unhealthyPods: pods.length,
+      pods: pods.slice(0, 50).map((p) => ({ name: p.name, reason: p.reason, restarts: p.restarts })),
+    },
   };
 }
 

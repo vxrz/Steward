@@ -94,29 +94,30 @@ Every page of Steward's documentation, grouped by what you want to do. New here?
 
 ## Integrations by platform
 
-| Page                                             | What it covers                                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| [AWS.md](AWS.md)                                 | AWS accounts: tagged resources, costs, IAM access keys, DynamoDB checks, AWS calls    |
-| [CHANGEDETECTION.md](CHANGEDETECTION.md)         | changedetection.io for pages without an API: vendor changelogs, terms, status pages   |
-| [CHECKMK.md](CHECKMK.md)                         | Reading Checkmk states and metrics into monitors and datasets                         |
-| [CONFLUENT.md](CONFLUENT.md)                     | Confluent Cloud: clusters, connectors, schemas, API keys, access reviews, costs       |
-| [DATABASES.md](DATABASES.md)                     | PostgreSQL, MariaDB/MySQL and SQL Server, read-only: queries, access reviews, schemas |
-| [DEPENDENCY-TRACK.md](DEPENDENCY-TRACK.md)       | Vulnerabilities and policy violations of an application's components                  |
-| [ENTRA.md](ENTRA.md)                             | Microsoft Graph and Entra ID, read-only: users, groups, roles, app credentials        |
-| [GATUS.md](GATUS.md)                             | Working alongside the Gatus uptime monitor, webhook triggers from Gatus alerts        |
-| [GIT-PLATFORMS.md](GIT-PLATFORMS.md)             | GitHub, GitLab and Forgejo/Gitea, read-only                                           |
-| [IBM-PAM.md](IBM-PAM.md)                         | IBM Security Verify Privilege Vault as a source of evidence                           |
-| [INSIGHTS-HUB-USAGE.md](INSIGHTS-HUB-USAGE.md)   | The Insights Hub tenant usage and licence check with its dashboard                    |
-| [KAFKA.md](KAFKA.md)                             | Kafka topics, consumer groups, schemas, Kafka Connect and Debezium                    |
-| [KUBERNETES.md](KUBERNETES.md)                   | Kubernetes and OpenShift clusters, read-only                                          |
-| [MQTT.md](MQTT.md)                               | MQTT brokers in monitor checks: topics, silent devices, connected clients             |
-| [PROMETHEUS.md](PROMETHEUS.md)                   | PromQL checks and objectives against Prometheus, Thanos, Mimir or VictoriaMetrics     |
-| [SNOWFLAKE.md](SNOWFLAKE.md)                     | Snowflake accounts: databases, access reviews, costs                                  |
-| [API.md](API.md)                                 | Steward's read-only REST API `/api/v1` for reports, BI tools and monitoring           |
-| [openapi.json](openapi.json)                     | The OpenAPI 3.1 description of `/api/v1` (generated)                                  |
-| [MCP.md](MCP.md)                                 | The MCP server for AI assistants, the platform gateway and approved writes            |
-| [SEMANTIC-MODEL.md](SEMANTIC-MODEL.md)           | Steward's data as an Apache Ossie semantic model for BI tools and catalogues          |
-| [EXTERNAL-DASHBOARDS.md](EXTERNAL-DASHBOARDS.md) | Steward's data in Streamlit and Grafana                                               |
+| Page                                             | What it covers                                                                                              |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| [AWS.md](AWS.md)                                 | AWS accounts: tagged resources, costs, IAM access keys, DynamoDB checks, AWS calls                          |
+| [CHANGEDETECTION.md](CHANGEDETECTION.md)         | changedetection.io for pages without an API: vendor changelogs, terms, status pages                         |
+| [CHECKMK.md](CHECKMK.md)                         | Reading Checkmk states and metrics into monitors and datasets                                               |
+| [CONFLUENT.md](CONFLUENT.md)                     | Confluent Cloud: clusters, connectors, schemas, API keys, access reviews, costs                             |
+| [DATABASES.md](DATABASES.md)                     | PostgreSQL, MariaDB/MySQL and SQL Server, read-only: queries, access reviews, schemas                       |
+| [DEPENDENCY-TRACK.md](DEPENDENCY-TRACK.md)       | Vulnerabilities and policy violations of an application's components                                        |
+| [ENTRA.md](ENTRA.md)                             | Microsoft Graph and Entra ID, read-only: users, groups, roles, app credentials                              |
+| [GATUS.md](GATUS.md)                             | Working alongside the Gatus uptime monitor, webhook triggers from Gatus alerts                              |
+| [GIT-PLATFORMS.md](GIT-PLATFORMS.md)             | GitHub, GitLab and Forgejo/Gitea, read-only                                                                 |
+| [IBM-PAM.md](IBM-PAM.md)                         | IBM Security Verify Privilege Vault as a source of evidence                                                 |
+| [INSIGHTS-HUB-USAGE.md](INSIGHTS-HUB-USAGE.md)   | The Insights Hub tenant usage and licence check with its dashboard                                          |
+| [INSIGHTS-HUB-USERS.md](INSIGHTS-HUB-USERS.md)   | Insights Hub users and memberships: offboarding, adding to groups, deactivation – what the examples rely on |
+| [KAFKA.md](KAFKA.md)                             | Kafka topics, consumer groups, schemas, Kafka Connect and Debezium                                          |
+| [KUBERNETES.md](KUBERNETES.md)                   | Kubernetes and OpenShift clusters, read-only                                                                |
+| [MQTT.md](MQTT.md)                               | MQTT brokers in monitor checks: topics, silent devices, connected clients                                   |
+| [PROMETHEUS.md](PROMETHEUS.md)                   | PromQL checks and objectives against Prometheus, Thanos, Mimir or VictoriaMetrics                           |
+| [SNOWFLAKE.md](SNOWFLAKE.md)                     | Snowflake accounts: databases, access reviews, costs                                                        |
+| [API.md](API.md)                                 | Steward's read-only REST API `/api/v1` for reports, BI tools and monitoring                                 |
+| [openapi.json](openapi.json)                     | The OpenAPI 3.1 description of `/api/v1` (generated)                                                        |
+| [MCP.md](MCP.md)                                 | The MCP server for AI assistants, the platform gateway and approved writes                                  |
+| [SEMANTIC-MODEL.md](SEMANTIC-MODEL.md)           | Steward's data as an Apache Ossie semantic model for BI tools and catalogues                                |
+| [EXTERNAL-DASHBOARDS.md](EXTERNAL-DASHBOARDS.md) | Steward's data in Streamlit and Grafana                                                                     |
 
 ## Security and compliance
 

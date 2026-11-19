@@ -243,6 +243,12 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'value', label: 'Value (optional)', kind: 'expr', help: 'The number that matters, e.g. the endpoints down; messages say whether it got better' },
       { key: 'betterWhen', label: 'Better when the value is', kind: 'select', options: ['lower', 'higher'] },
       { key: 'items', label: 'Items (optional)', kind: 'expr', help: 'A list shown as bullets in the message, e.g. the names of the endpoints down' },
+      {
+        key: 'changeKey',
+        label: 'Change key (optional)',
+        kind: 'expr',
+        help: 'What fails, as a list of stable names, e.g. the deployments not ready. While the check keeps failing, only a new name notifies again; default: the items, else the message',
+      },
       { key: 'runbook', label: 'Runbook (optional)', kind: 'text', help: 'A living document id (rec_…) or an http(s) URL; default: the process runbook' },
     ],
     defaults: () => ({ condition: 'true', severity: 'error' }),

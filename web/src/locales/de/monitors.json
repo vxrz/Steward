@@ -10,7 +10,7 @@
     "fullScreen": "Vollbild",
     "checks_one": "{{count}} Prüfung",
     "checks_other": "{{count}} Prüfungen",
-    "uptimeSince": "Verfügbarkeit 24 h {{uptime}} · Status seit {{since}}",
+    "uptimeSince": "Verfügbarkeit 24 Std. {{uptime}} · Status seit {{since}}",
     "acknowledgedBy": "bestätigt von {{user}}",
     "hideOff": "Aus ausblenden",
     "offAgree": "{{state}} – alle Prüfungen stimmen überein",
@@ -32,11 +32,11 @@
   "list": {
     "count": "{{count}} {{status}}",
     "rootCauseLine": "Ursache: {{causes}}",
-    "uptimeLine": "Verfügbarkeit 24 h {{h24}} · 7 Tage {{d7}} · {{since}}",
+    "uptimeLine": "Verfügbarkeit 24 Std. {{h24}} · 7 Tage {{d7}} · {{since}}",
     "status": "Status",
     "monitor": "Monitor",
     "rootCause": "Ursache",
-    "uptime24h": "Verfügbarkeit 24 h",
+    "uptime24h": "Verfügbarkeit 24 Std.",
     "uptime7d": "Verfügbarkeit 7 Tage",
     "lastChange": "Letzte Änderung",
     "checks": "Prüfungen",
@@ -707,6 +707,9 @@
     "send": "Senden",
     "onChange": "Bei Änderung",
     "onEvery": "Bei jeder Auswertung",
+    "onChangeHint": "Jeder Statuswechsel.",
+    "onChangeHintPeople": "Wenn sich der Status ändert. Ein Problem wird einmal gemeldet, bis es vorbei ist: ein Ausfall, der zu „Beeinträchtigt“ abklingt, oder eine Weile „Unbekannt“ sendet nichts; eine Erholung, ein Wechsel zu „Ausgefallen“ und ein neues Problem schon.",
+    "onEveryHint": "Bei jeder Auswertung, auch ohne Änderung – höchstens so oft wie daneben eingestellt.",
     "atMostEvery": "Höchstens alle (s)",
     "subjects": "Gegenstand",
     "includeMonitor": "Status des Monitors",
@@ -1028,7 +1031,7 @@
     "data-element": "Datenelement aktuell"
   },
   "uptime": {
-    "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
+    "all": "24 Std. {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
   },
   "emptyState": {
     "title": "Noch keine Monitore",
@@ -1085,7 +1088,7 @@
     "covered": "Die aktuellen Einstellungen decken das beobachtete höchste Alter bereits ab."
   },
   "states": {
-    "offTime": "Erwartungsgemäß aus 24 h {{h24}} · 7 T {{d7}} · 30 T {{d30}} (zählt nicht)",
+    "offTime": "Erwartungsgemäß aus 24 Std. {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}} (zählt nicht)",
     "verdict": {
       "agrees": "stimmt",
       "contradicts": "widerspricht",

@@ -191,6 +191,8 @@ describe('AI-proposed control mappings', () => {
   it('only existing controls and items the assistant may see; accepted in part, marked as proposed', async () => {
     const targets = await call(tok.dana, 'find_mapping_targets', { kind: 'process', query: '' });
     expect(targets.data.items.length).toBeGreaterThan(0);
+    // the query is text, not a pattern: % and _ find only names that contain them (0.27.0)
+    for (const query of ['%', '_']) expect((await call(tok.dana, 'find_mapping_targets', { kind: 'process', query })).data.items).toEqual([]);
     const pid = targets.data.items[0].id;
     expect(
       (

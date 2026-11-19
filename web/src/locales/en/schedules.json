@@ -7,6 +7,9 @@
   "saved": "Schedule saved",
   "enabled": "Enabled",
   "deleteConfirm": "Delete schedule \"{{name}}\"?",
+  "deleted": "Schedule \"{{name}}\" deleted",
+  "editFor": "Edit {{name}}",
+  "deleteFor": "Delete {{name}}",
   "filters": {
     "search": "Name, process or owner",
     "state": "State",
@@ -23,7 +26,8 @@
     "last": "Last run",
     "runsAs": "runs as {{owner}}",
     "runNow": "Run now",
-    "actions": "Actions"
+    "actions": "Actions",
+    "runNowFor": "Run now: {{name}}"
   },
   "presets": {
     "every15": "Every 15 min",
@@ -59,7 +63,7 @@
         "off": "Never"
       },
       "hint": {
-        "change": "When a check starts failing or its result changes, and as a reminder while it keeps failing.",
+        "change": "When a check starts failing or what fails changes, and as a reminder while it keeps failing.",
         "every": "Every run in which a check fails (at most once an hour by e-mail, Teams and webhook).",
         "off": "Failed checks are only shown in the runs. Failed runs still notify."
       },
@@ -68,11 +72,11 @@
       "resolved": "Send a message when a check passes again",
       "change": "What counts as a change",
       "changeHint": {
-        "result": "A different message or severity notifies again.",
+        "result": "Another severity or a newly affected item notifies again; numbers, durations and times that change in the message do not.",
         "state": "Only the start and the end of failing: one message when a check starts failing, reminders, and – if wanted – one when it passes again."
       },
       "changeKind": {
-        "result": "A different message or severity",
+        "result": "What fails (severity or affected items)",
         "state": "Only the start and end of failing"
       },
       "where": "Where the messages go",
@@ -88,7 +92,23 @@
         "webhook": "Webhook"
       },
       "urgent": "Urgent – interrupts quiet hours",
-      "urgentHint": "Failed runs and checks failing with severity error reach people and channels at once, also during their quiet hours (unless they turned that off)."
+      "urgentHint": "Failed runs and checks failing with severity error reach people and channels at once, also during their quiet hours (unless they turned that off).",
+      "summary": {
+        "sent": "Messages are sent {{parts}}.",
+        "part": {
+          "starts": "when a check starts failing",
+          "changes": "when what fails changes",
+          "reminder_one": "every hour while it keeps failing",
+          "reminder_other": "every {{count}} h while it keeps failing",
+          "resolved": "when the check passes again",
+          "every": "after every run in which a check fails"
+        },
+        "off": "Failed checks send no messages; they are shown in the runs only. Failed runs still notify.",
+        "channels": "Only to: {{channels}}.",
+        "urgent": "Failed runs and errors also reach people during their quiet hours.",
+        "paused": "Paused until {{until}}.",
+        "pausedOpen": "Paused until resumed."
+      }
     },
     "timezoneHint": "Times are in this zone, also across daylight saving; a time that does not exist on the change to summer time runs an hour later.",
     "timezoneServer": "Steward’s time zone"
@@ -114,7 +134,15 @@
     "confirm": "Pause",
     "badgeUntil": "Messages paused until {{until}}",
     "badgeOpen": "Messages paused",
-    "noReason": "No reason given"
+    "noReason": "No reason given",
+    "buttonFor": "Pause messages: {{name}}",
+    "resumeFor": "Resume messages: {{name}}",
+    "for": "For",
+    "hours_one": "{{count}} hour",
+    "hours_other": "{{count}} hours",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "past": "Choose a time in the future"
   },
   "missed": {
     "badge_one": "Missed {{count}} time",

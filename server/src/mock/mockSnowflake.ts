@@ -4,7 +4,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { showWarehouses, usageAnswer } from './mockSnowflakeUsage.js';
-import { projectAnswer } from './mockSnowflakeProject.js';
+import { projectAnswer, resetSnowflakeProjectVolumes } from './mockSnowflakeProject.js';
 import { dataConsumerAnswer } from './mockDataConsumers.js';
 import { dataElementAnswer } from './mockDataElements.js';
 
@@ -362,7 +362,24 @@ function untagged(sql: string, arg: (i: number) => string): { names: string[]; r
   const view = /FROM\s+SNOWFLAKE\.ACCOUNT_USAGE\.([A-Z_]+)/i.exec(sql)?.[1]?.toUpperCase();
   const names = selectAliases(sql);
   // the project templates (0.26.2): SHOW … IN DATABASE and the database's INFORMATION_SCHEMA table functions
-  const project = projectAnswer(sql, arg, names, (db) => catalogueDatabases.includes(db));
+  const project = projectAnswer(
+    sql,
+    arg,
+    names,
+    (db) => catalogueDatabases.includes(db),
+    // INFORMATION_SCHEMA.TABLES of the other databases (0.27.0): their base tables in the catalogue
+    (db) =>
+      objects()
+        .filter((o) => o.database === db && o.type === 'BASE TABLE')
+        .map((o) => ({
+          schema: o.schema,
+          name: o.name,
+          rows: o.rows ?? null,
+          bytes: o.bytes ?? null,
+          alteredHours: o.alteredHours ?? 2,
+          transient: o.transient,
+        })),
+  );
   if (project) return project;
   const usage = usageAnswer(sql, view, names, arg);
   if (usage) return usage;
@@ -506,6 +523,7 @@ export function resetSnowflakeCatalogue(): void {
   bulk = [];
   catalogueDatabases = [...SEEDED_DATABASES];
   statements = [];
+  resetSnowflakeProjectVolumes();
 }
 
 /** TABLE_IDs of bulk objects: never used twice in a process (a dropped table's id is not given to another) */

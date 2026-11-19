@@ -8,6 +8,7 @@ import {
   type McpProposalSelection,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
 import type { AuthUser } from '../auth/context.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
@@ -247,14 +248,16 @@ const mayMap = () => mcpControlProposals() && canTagControls(me());
 
 /** Items the assistant may map: the kinds and how to find them. */
 function targetsOf(kind: ControlTagKind, query: string, u: AuthUser): { id: string; label: string }[] {
-  const like = `%${query.toLowerCase()}%`;
+  // the query is text, not a pattern (0.27.0): % and _ match themselves, on SQLite and PostgreSQL alike
+  const like = `%${likeEscape(query.toLowerCase())}%`;
+  const L = "LIKE lower(?) ESCAPE '\\'";
   const sql: Record<ControlTagKind, string> = {
-    process: 'SELECT id FROM processes WHERE lower(name) LIKE ? ORDER BY name LIMIT 200',
-    recordType: 'SELECT id FROM record_types WHERE lower(key) LIKE ? OR lower(name) LIKE ? ORDER BY key LIMIT 200',
-    record: 'SELECT id FROM records WHERE lower(number) LIKE ? OR lower(title) LIKE ? ORDER BY number LIMIT 200',
-    monitor: 'SELECT id FROM monitors WHERE is_template = 0 AND lower(name) LIKE ? ORDER BY name LIMIT 200',
-    reportSchedule: 'SELECT id FROM report_schedules WHERE lower(name) LIKE ? ORDER BY name LIMIT 200',
-    accessCheck: 'SELECT id FROM access_checks WHERE lower(name) LIKE ? ORDER BY name LIMIT 200',
+    process: `SELECT id FROM processes WHERE lower(name) ${L} ORDER BY name LIMIT 200`,
+    recordType: `SELECT id FROM record_types WHERE lower(key) ${L} OR lower(name) ${L} ORDER BY key LIMIT 200`,
+    record: `SELECT id FROM records WHERE lower(number) ${L} OR lower(title) ${L} ORDER BY number LIMIT 200`,
+    monitor: `SELECT id FROM monitors WHERE is_template = 0 AND lower(name) ${L} ORDER BY name LIMIT 200`,
+    reportSchedule: `SELECT id FROM report_schedules WHERE lower(name) ${L} ORDER BY name LIMIT 200`,
+    accessCheck: `SELECT id FROM access_checks WHERE lower(name) ${L} ORDER BY name LIMIT 200`,
   };
   const params = sql[kind].split('?').length - 1;
   const ids = db().all<{ id: string }>(sql[kind], ...Array.from({ length: params }, () => like));

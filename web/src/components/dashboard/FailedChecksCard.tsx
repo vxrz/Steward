@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { FailedCheckGroup } from '@sm/shared';
-import { SeverityBadge } from '../common';
+import { RelTime, SeverityBadge } from '../common';
 import { fmtRelative } from '../../format';
 import { useMe } from '../../auth';
 import { CollapsibleSection } from '../page/CollapsibleSection';
@@ -111,7 +111,7 @@ export function FailedChecksCard({ checks }: { checks: FailedCheckGroup[] }) {
               </Text>
             </div>
             <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-              {c.processName} · {fmtRelative(c.ts)}
+              {c.processName} · <RelTime at={c.ts} />
             </Text>
           </Group>
         ))}

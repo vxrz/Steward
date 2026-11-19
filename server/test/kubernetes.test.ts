@@ -260,9 +260,44 @@ describe('monitor check kubernetes', () => {
     const m = await s.api('GET', `/monitors/${monitor.id}`);
     const st = Object.fromEntries(m.checks.map((c: any) => [c.checkId, [c.status, c.last?.message]]));
     expect(st.web).toEqual(['up', 'Kubernetes: shop-prod/web – 3/3 ready']);
-    expect(st.worker).toEqual(['degraded', 'Kubernetes: shop-prod/worker – worker 1/2 ready, pod worker-5d4b-y2 CrashLoopBackOff (14 restarts)']);
+    // restart counts grow from evaluation to evaluation: they are in the value, not in the message (0.27.0)
+    expect(st.worker).toEqual(['degraded', 'Kubernetes: shop-prod/worker – worker 1/2 ready, pod worker-5d4b-y2 CrashLoopBackOff']);
+    expect(m.checks.find((c: any) => c.checkId === 'worker').last.value.pods).toEqual([{ name: 'worker-5d4b-y2', reason: 'CrashLoopBackOff', restarts: 14 }]);
     expect(st.db).toEqual(['down', 'Kubernetes: shop-prod/db – db 0/1 ready']);
     expect(st.all[0]).toBe('down');
     expect(st.gone).toEqual(['unknown', 'Kubernetes: no deployment "nope" in shop-prod']);
+  });
+
+  it('a deployment flapping between none and some ready replicas is told once, and its recovery once (0.27.0)', async () => {
+    mock.resetKubernetes();
+    const { monitor } = await s.api('POST', '/monitors', {
+      definition: {
+        name: 'Flapping web',
+        failuresBeforeDown: 1,
+        checks: [{ id: 'web', name: 'web', type: 'kubernetes', platform: 'Kubernetes (demo)', namespace: 'shop-prod', deployment: 'web' }],
+        outputs: [{ id: 'team', type: 'notification', subscribers: [] }],
+      },
+    });
+    const { flushNotifications } = await import('../src/notifications/service.js');
+    const told = async () => {
+      await flushNotifications();
+      const items = ((await s.api('GET', '/notifications?limit=500')) as { items: any[] }).items;
+      return items.filter((n) => n.event === 'monitor.status' && n.title.includes('Flapping web')).map((n) => n.title.split(':')[0]);
+    };
+    // a crash-looping deployment: 0 of 3 ready (down), then 1 of 3 (degraded), and again – every evaluation
+    for (const ready of [0, 1, 0, 1, 0, 1]) {
+      mock.setDeployment('shop-prod', 'web', { ready });
+      await eng.evaluateMonitorNow(monitor.id);
+      expect((await s.api('GET', `/monitors/${monitor.id}`)).status).toBe(ready ? 'degraded' : 'down');
+    }
+    // up to 0.26 each change of status was sent: six messages
+    expect(await told()).toHaveLength(1);
+    mock.setDeployment('shop-prod', 'web', { ready: 3 });
+    await eng.evaluateMonitorNow(monitor.id);
+    expect(await told()).toEqual(['Recovered', 'Down']);
+    // a new problem after the recovery is news again
+    mock.setDeployment('shop-prod', 'web', { ready: 0 });
+    await eng.evaluateMonitorNow(monitor.id);
+    expect(await told()).toHaveLength(3);
   });
 });

@@ -40,8 +40,13 @@
       "worse": "Schlechter geworden: {{from}} → {{to}} · schlägt fehl seit {{since}}",
       "changed": "Geändert · schlägt fehl seit {{since}}",
       "reminder": "Schlägt weiter fehl (Erinnerung) · seit {{since}}",
-      "pauseEnded": "Schlägt nach der Pause weiter fehl · seit {{since}}"
-    }
+      "pauseEnded": "Schlägt nach der Pause weiter fehl · seit {{since}}",
+      "severity": "Schweregrad geändert: {{from}} → {{to}} · schlägt fehl seit {{since}}",
+      "added": "Jetzt auch fehlgeschlagen: {{items}} · schlägt fehl seit {{since}}",
+      "removed": "Nicht mehr fehlgeschlagen: {{items}} · der Rest schlägt seit {{since}} fehl",
+      "addedRemoved": "Jetzt auch fehlgeschlagen: {{added}}; nicht mehr fehlgeschlagen: {{removed}} · schlägt fehl seit {{since}}"
+    },
+    "more": "und {{count}} weitere"
   },
   "checkResolved": {
     "subject": "Wieder bestanden · {{check}} – {{process}}",

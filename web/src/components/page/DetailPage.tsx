@@ -120,7 +120,8 @@ export function DetailHeader({ back, title, status, description, actions, menu, 
         title={
           status ? (
             <Group gap="sm" wrap="wrap" component="span">
-              <span>{title}</span>
+              {/* the browser tab's title (pageTitle.ts) without the status */}
+              <span data-page-title>{title}</span>
               {status}
             </Group>
           ) : (

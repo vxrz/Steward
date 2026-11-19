@@ -72,13 +72,17 @@ test('failed checks are grouped per check and the card folds and stays folded', 
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('failed-checks-toggle')).toHaveAttribute('aria-expanded', 'true');
 
-    // the link opens the runs of the process with failed checks
-    await page
+    // the link opens the runs of the process with failed checks. The card has just unfolded (150 ms) and each
+    // finding measures its "Show more" once visible, so on a busy machine a click can land while the rows still
+    // move; click again until it navigates (a click on the finding's own link instead fails the URL check)
+    const runsLink = page
       .getByTestId('failed-check')
       .filter({ hasText: `${name} – endpoints healthy` })
-      .getByRole('link', { name: 'runs with findings' })
-      .click();
-    await expect(page).toHaveURL(/\/runs\?processId=.*&checks=failed$/);
+      .getByRole('link', { name: 'runs with findings' });
+    await expect(async () => {
+      await runsLink.click({ timeout: 2_000 });
+      await expect(page).toHaveURL(/\/runs\?processId=.*&checks=failed$/, { timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
     await expect(page.getByRole('row').filter({ hasText: name })).toHaveCount(3);
   } finally {
     await api.delete(`/api/processes/${proc.id}`);

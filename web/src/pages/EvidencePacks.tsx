@@ -26,6 +26,7 @@ import { apiUrl, confirmedDownload, del, get, getOptional, notifyError, post } f
 import { useMe } from '../auth';
 import { assuranceReportUrl } from '../components/assurance/AssurancePolicyPanel';
 import { EmptyState, QueryState, TONE, useCreateParam, useFieldErrors } from '../components/common';
+import { confirmDanger } from '../components/confirm';
 import { PeriodPicker, periodRange, presetPeriod, validPeriod, type Period } from '../components/compliance/common';
 import { fmtBytes, fmtDate, fmtRelative } from '../format';
 import { ListPage } from '../components/page/ListPage';
@@ -53,6 +54,7 @@ export function EvidencePacksPage() {
   const list = packs.data ?? [];
   const { params, set } = useListParams();
   const remove = async (p: EvidencePack) => {
+    if (!(await confirmDanger({ action: 'delete', message: t('packs.deleteConfirm', { title: p.title }) }))) return;
     try {
       await del(`/compliance/evidence-packs/${p.id}`);
       await qc.invalidateQueries({ queryKey: ['evidence-packs'] });

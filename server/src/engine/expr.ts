@@ -415,6 +415,11 @@ export const CUSTOM_FUNCTIONS: { name: string; signature: string; help: string }
     signature: "$daysUntil('dataset/metric', limit?, '30d')",
     help: "Days until the trend reaches the limit (the metric's own limit when none is given); 0 when reached, null when not approaching",
   },
+  {
+    name: '$previousRows',
+    signature: "$previousRows('dataset')",
+    help: "The rows of a dataset as the previous run on the same platform published them (column labels, _key, _status) – before this run's publish step; [] without any",
+  },
 ];
 
 export async function evalExpr(expr: string, root: unknown, bindings: Bindings = {}, opts?: EvalOptions): Promise<unknown> {

@@ -18,7 +18,7 @@ import { EndOfLifeButton } from '../components/catalogue/lifecycle';
 import { VersionWatchButton } from '../components/catalogue/versions';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
-import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
 import { IfModule } from '../components/modules/ModuleOff';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { SupplierPicker, useSupplierChoice } from '../components/suppliers/SupplierPicker';
@@ -212,6 +212,7 @@ export function ApplicationsPage() {
       )}
       {list.length > 0 && (
         <DataTable
+          pageSize={LIST_PAGE}
           rows={list}
           columns={columns}
           rowKey={(a) => a.id}

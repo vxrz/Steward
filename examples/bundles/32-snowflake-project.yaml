@@ -1,12 +1,14 @@
-# steward-min-version: 0.21.0
+# steward-min-version: 0.27.0
 name: Snowflake (project, without ACCOUNT_USAGE)
 description: |
   For teams that hold only project roles: the hourly task health (failed, skipped, slow, suspended and missed task
   runs) and the hourly check of dynamic tables (failed refreshes, lag above target, suspended) and streams (stale or
-  going stale soon) of the project's databases, with the "Snowflake project pipelines" dashboard. Both read only the
-  databases' own INFORMATION_SCHEMA and SHOW commands – USAGE on the database and schemas, MONITOR on the tasks and
-  dynamic tables, SELECT on the streams and a warehouse are enough. Set the databases in the schedules' inputs.
-  Read-only (docs/SNOWFLAKE.md).
+  going stale soon) of the project's databases, the daily data volume per table and schema (growth and shrink since
+  the previous run, empty and stale tables) and the hourly newest data point of chosen tables (MAX of a timestamp
+  column against a maximum age), with the "Snowflake project pipelines" dashboard. All read only the project's own
+  objects – USAGE on the database and schemas, MONITOR on the tasks and dynamic tables, SELECT on the streams,
+  REFERENCES on the tables (SELECT on those the newest data point reads) and a warehouse are enough. Set the
+  databases and the targets in the schedules' inputs. Read-only (docs/SNOWFLAKE.md).
 tags: [operations, pipelines, snowflake]
 platforms:
   - key: snowflake
@@ -15,4 +17,6 @@ platforms:
 processes:
   - template: 623-snowflake-task-health
   - template: 624-snowflake-dynamic-tables-and-streams
+  - template: 625-snowflake-data-volume
+  - template: 626-snowflake-newest-data-point
 dashboards: [64-snowflake-project-pipelines]

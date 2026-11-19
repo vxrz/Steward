@@ -14,7 +14,7 @@ import { EnvironmentBadge, useEnvironmentList } from '../components/catalogue/en
 import { StackFields, stackBody, stackRowsOf, type StackRow } from '../components/catalogue/ComponentsPanel';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
-import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
 import { platformKeys } from '../queryKeys';
 import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalogue/network';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
@@ -203,6 +203,7 @@ export function SystemsPage() {
       )}
       {list.length > 0 && (
         <DataTable
+          pageSize={LIST_PAGE}
           rows={list}
           columns={columns}
           rowKey={(s) => s.id}

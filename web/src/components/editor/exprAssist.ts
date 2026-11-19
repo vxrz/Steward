@@ -56,6 +56,11 @@ export const STATIC_FUNCTIONS: FnHint[] = [
   { name: '$systems', signature: '$systems()', help: 'Every system with its tech stack and end of life.' },
   { name: '$trend', signature: "$trend('dataset/metric', '7d')", help: 'Trend of a dataset metric: change, changePct, perDay, confidence.' },
   { name: '$daysUntil', signature: "$daysUntil('dataset/metric', limit?, '30d')", help: 'Days until the trend reaches the limit; null when not approaching.' },
+  {
+    name: '$previousRows',
+    signature: "$previousRows('dataset')",
+    help: 'Rows of a dataset as the previous run on this platform published them; [] without any.',
+  },
   { name: '$pvar', signature: '$pvar(slot, name, default)', help: 'Platform variable of a connection slot.' },
   { name: '$secret', signature: '$secret(slot, key)', help: 'Secret of a connection slot (redacted in logs).' },
   { name: '$count', signature: '$count(array)', help: 'Number of items.' },

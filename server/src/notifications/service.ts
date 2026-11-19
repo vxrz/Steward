@@ -637,6 +637,15 @@ function reasonParts(
 }
 
 const ITEMS_SHOWN = 10;
+/** Entries named in the first line of a message (what changed) */
+const CHANGES_SHOWN = 3;
+
+/** "a, b, c and 2 more" */
+const shortList = (l: Locale, list: string[]): string =>
+  list
+    .slice(0, CHANGES_SHOWN)
+    .map((x) => x.slice(0, 120))
+    .join(', ') + (list.length > CHANGES_SHOWN ? ` ${t(l, 'checkFailed.more', { count: list.length - CHANGES_SHOWN })}` : '');
 
 export function onCheckFailed(e: DomainEvents['check.failed']): void {
   const all = activeUsers();
@@ -654,6 +663,12 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
     if (e.phase === 'pauseEnded') return t(l, 'checkFailed.lead.pauseEnded', { since });
     if (e.phase === 'every') return t(l, 'checkFailed.lead.every') + (e.value !== undefined ? ` · ${fmtValue(l, e.value)}` : '');
     if (e.phase === 'changed') {
+      // why it is news (0.27.0): another severity, what fails now that was not told, what no longer fails
+      if (e.previousSeverity) return t(l, 'checkFailed.lead.severity', { from: severityLabel(l, e.previousSeverity), to: severityLabel(l, e.severity), since });
+      if (e.added?.length && e.removed?.length)
+        return t(l, 'checkFailed.lead.addedRemoved', { added: shortList(l, e.added), removed: shortList(l, e.removed), since });
+      if (e.added?.length) return t(l, 'checkFailed.lead.added', { items: shortList(l, e.added), since });
+      if (e.removed?.length) return t(l, 'checkFailed.lead.removed', { items: shortList(l, e.removed), since });
       if (e.direction === 'better' || e.direction === 'worse') {
         const from = e.previousValue !== undefined ? fmtValue(l, e.previousValue) : '';
         const to = e.value !== undefined ? fmtValue(l, e.value) : severityLabel(l, e.severity);
@@ -715,6 +730,10 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
       previousValue: e.previousValue ?? null,
       direction: e.direction ?? null,
       items: e.items ?? [],
+      // phase changed (0.27.0): why
+      ...(e.added?.length ? { added: e.added } : {}),
+      ...(e.removed?.length ? { removed: e.removed } : {}),
+      ...(e.previousSeverity ? { previousSeverity: e.previousSeverity } : {}),
       runbook,
       source: source ? { kind: source.kind, id: source.id, name: source.name, ...(source.output ? { output: source.output } : {}) } : null,
       ...(e.aiGenerated?.length ? { aiGenerated: e.aiGenerated } : {}),

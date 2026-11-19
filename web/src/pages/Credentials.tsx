@@ -49,7 +49,7 @@ import { useMe } from '../auth';
 import { EmptyState, FilterPanel, QueryState, TONE, subjectLabel, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
 import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
-import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { AccessTab } from '../components/access/AccessTab';
@@ -241,6 +241,7 @@ function CredentialTable({ items, onOpen, onTag }: { items: Credential[]; onOpen
   ];
   return (
     <DataTable
+      pageSize={LIST_PAGE}
       rows={items}
       columns={columns}
       rowKey={(c) => c.id}

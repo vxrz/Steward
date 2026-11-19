@@ -5,7 +5,13 @@ description: |
   recently are preselected). Kept users are removed from the review group;
   for all others access is revoked after a final approval – either by
   removing all their group/role memberships or by deleting the user. The
-  revocation needs a second person (four-eyes).
+  revocation needs a second person (four-eyes). Removing memberships never
+  touches INDIRECT memberships (inherited through another group) nor the
+  groups of the input "Never remove" – the internal OIDC scope groups
+  (openid, profile, email, …) every user is implicitly a member of, listed
+  as DIRECT but not removable; each removal is reported per user and group
+  with the API's answer, and a refused one does not stop the others
+  (docs/INSIGHTS-HUB-USERS.md).
 
   Recommended schedule: quarterly, two to four weeks after "Access review 1"
   (`0 7 25 1,4,7,10 *`).
@@ -28,12 +34,19 @@ inputs:
     type: select
     options: [removeFromAllGroups, deleteUser]
     default: removeFromAllGroups
+  - name: neverTouch
+    label: Never remove these groups (internal OIDC scope groups)
+    type: list
+    default:
+      [openid, profile, email, phone, address, roles, user_attributes, uaa.user, uaa.offline_token, approvals.me, password.write, scim.me, oauth.approvals]
 steps:
   - id: setup
     type: set
     name: Resolve API paths
     values:
       idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      keep: "{{ [inputs.neverTouch.$lowercase($trim($))] }}"
+      results: "{{ [] }}"
   - id: findGroup
     type: http
     name: Find review group
@@ -139,8 +152,8 @@ steps:
         else:
           - id: memberships
             type: forEach
-            name: Remove all memberships
-            items: "vars.user.groups[$not(type = 'INDIRECT')]"
+            name: Remove all removable memberships
+            items: "vars.user.groups[$not(type = 'INDIRECT') and $not($lowercase(display) in $vars.keep)]"
             as: grp
             steps:
               - id: removeMembership
@@ -149,17 +162,60 @@ steps:
                 connection: hub
                 method: DELETE
                 path: "{{ vars.idm }}/Groups/{{ vars.grp.value }}/members/{{ vars.user.id }}"
-                expectStatus: [200, 204, 404]
+                # every answer is kept and reported per group; a refusal does not stop the other removals
+                expectStatus: [200, 204, 400, 403, 404, 409, 500, 503]
+                saveAs: removed
+              - id: removeResult
+                type: set
+                name: Result of the removal
+                values:
+                  results: >-
+                    {{ $append(vars.results, [{
+                      'userName': vars.user.userName,
+                      'group': vars.grp.display,
+                      'status': vars.removed.dryRun ? 'dry run' : $string(vars.removed.status),
+                      'result': vars.removed.dryRun ? 'dry run – not removed'
+                        : (vars.removed.status in [200, 204] ? 'removed' : (vars.removed.status = 404 ? 'not a member (any more)' : 'failed')),
+                      'message': vars.removed.dryRun or vars.removed.status in [200, 204] ? ''
+                        : $substring($string(vars.removed.body.errors[0].message ? vars.removed.body.errors[0].message
+                          : (vars.removed.body.error_description ? vars.removed.body.error_description : (vars.removed.body.message ? vars.removed.body.message : vars.removed.body))), 0, 300)
+                    }]) }}
+  - id: outcome
+    type: set
+    name: What was revoked
+    when: "vars.revokeApproval.approved = true"
+    values:
+      failures: "{{ [vars.results[result = 'failed']] }}"
+      # deleteUser: every unselected user; removeFromAllGroups: the users who lost at least one membership
+      revoked: >-
+        {{ $inputs.revokeMode = 'deleteUser' ? [vars.decision.unselected]
+          : [vars.decision.unselected[($n := userName; $count($vars.results[userName = $n and result = 'removed']) > 0)]] }}
+  - id: failuresCheck
+    type: check
+    name: Every membership removal went through
+    severity: warning
+    when: "vars.revokeApproval.approved = true and $inputs.revokeMode = 'removeFromAllGroups'"
+    condition: "$count(vars.failures) = 0"
+    message: >-
+      {{ $count(vars.failures) = 0 ? 'Nothing failed'
+        : $join(vars.failures.(userName & ' / ' & group & ': HTTP ' & status & ' – ' & message), '; ') }}
+    headline: "{{ $count(vars.failures) & ' Insights Hub membership removal(s) failed' }}"
+    value: "$count(vars.failures)"
+    items: "vars.failures.(userName & ' / ' & group & ': HTTP ' & status & ' – ' & message)"
   - id: documentRevoked
     type: accessChange
     name: Document revoked access
-    when: "vars.revokeApproval.approved = true"
+    when: "vars.revokeApproval.approved = true and $count(vars.revoked) > 0"
     connection: hub
     kind: offboarding
-    items: vars.decision.unselected
+    items: vars.revoked
     subjectId: id
     subjectName: userName
-    rights: "[groups[$not(type = 'INDIRECT')].display]"
+    # deleteUser: the memberships went with the account; removeFromAllGroups: those actually removed
+    rights: >-
+      $inputs.revokeMode = 'deleteUser' ? [groups[$not(type = 'INDIRECT')].display]
+        : ($n := userName; [$vars.results[userName = $n and result = 'removed'].group])
+    rightsBefore: "[groups.display]"
     reason: "Access review: access no longer needed ({{ inputs.revokeMode }})"
     approvedBy: "{{ vars.revokeApproval.decidedBy }}"
   - id: summary
@@ -170,7 +226,24 @@ steps:
       - Users under review: **{{ $count(vars.flagged) }}**
       - Kept (review flag cleared): **{{ $count(vars.decision.selected) }}**
       - Access revoked ({{ inputs.revokeMode }}): **{{ vars.revokeApproval.approved = true ? $count(vars.decision.unselected) : 0 }}**{{ vars.revokeApproval.approved = false ? ' – revocation was rejected, users stay in the review group' : '' }}
-    rows: "$append(vars.decision.selected.{'user': userName, 'result': 'kept'}, vars.decision.unselected.{'user': userName, 'result': $vars.revokeApproval.approved = true ? 'revoked' : 'still under review'})"
+    rows: >-
+      $append(
+        [vars.decision.selected.{ 'user': userName, 'group': '–', 'result': 'kept', 'status': '', 'message': '' }],
+        $inputs.revokeMode = 'removeFromAllGroups' and vars.revokeApproval.approved = true
+          ? $append(
+              [vars.results.{ 'user': userName, 'group': group, 'result': result, 'status': status, 'message': message }],
+              [vars.decision.unselected.(
+                $n := userName;
+                groups[type = 'INDIRECT' or $lowercase(display) in $vars.keep].{
+                  'user': $n, 'group': display, 'result': type = 'INDIRECT' ? 'kept (inherited)' : 'kept (internal scope group)', 'status': '', 'message': ''
+                }
+              )]
+            )
+          : [vars.decision.unselected.{ 'user': userName, 'group': '–', 'result': $vars.revokeApproval.approved = true ? 'deleted' : 'still under review', 'status': '', 'message': '' }]
+      )
     columns:
       - { label: User, value: user }
+      - { label: Group, value: group }
       - { label: Result, value: result }
+      - { label: HTTP, value: status }
+      - { label: Message, value: message }

@@ -18,7 +18,7 @@
     "allQuiet": "All quiet",
     "tasks": "Waiting for you",
     "tasksDetail": "Approvals and decisions",
-    "failedRuns": "Failed runs (24 h)",
+    "failedRuns": "Failed runs (24 h)",
     "ofRuns_one": "of {{count}} run",
     "ofRuns_other": "of {{count}} runs",
     "runsQuiet_one": "All quiet · {{count}} run",
@@ -42,7 +42,7 @@
     "scorecard": "Services needing attention",
     "scorecardOf_one": "of {{services}} service",
     "scorecardOf_other": "of {{services}} services",
-    "runFindings": "Runs with findings (24 h)",
+    "runFindings": "Runs with findings (24 h)",
     "findingsQuiet": "No failed checks",
     "notSetUpYet": "Not set up yet",
     "notSetUp": {

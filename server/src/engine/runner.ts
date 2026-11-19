@@ -38,7 +38,7 @@ import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import type { BrowserSession } from './browser.js';
 import * as store from './store.js';
 import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
-import { metricForRun } from '../dashboards/datasets.js';
+import { metricForRun, previousRowsForRun } from '../dashboards/datasets.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { ANY, INPUT, inputSources, runSources } from '../ai/provenance.js';
 import { logger } from '../log.js';
@@ -266,23 +266,25 @@ class RunContext implements StepContext {
         const f = forecastTo(s.points, l.value, { window, lower: l.lower });
         return f && (f.state === 'approaching' || f.state === 'reached') ? f.days : null;
       },
+      // the rows of a dataset as the previous run of this source left them (0.27.0): $previousRows('snowflake.data-volume')
+      previousRows: (key: string) =>
+        previousRowsForRun(String(key), { runId: this.runId, processId: this.processId, mayRead: (pid) => this.mayReadDataset(pid) }),
       ...extra,
     };
   }
 
   /** A dataset metric with its trend, for $trend/$daysUntil: datasets of this process, or of processes the actor may view. */
   metric(ref: string, window: string) {
-    return metricForRun(String(ref), String(window), {
-      runId: this.runId,
-      processId: this.processId,
-      mayRead: (pid) => {
-        if (pid.startsWith('monitor:') || pid.startsWith('ai:')) {
-          const u = findUserByName(this.actor);
-          return !!u && u.active && runAs(toAuthUser(u), () => builtinDatasetVisible(pid) === true);
-        }
-        return actorPermissions(this.actor, pid).includes('view');
-      },
-    });
+    return metricForRun(String(ref), String(window), { runId: this.runId, processId: this.processId, mayRead: (pid) => this.mayReadDataset(pid) });
+  }
+
+  /** Whether the run may read a dataset another process (or a monitor, the AI usage) publishes: the actor may view it. */
+  mayReadDataset(pid: string): boolean {
+    if (pid.startsWith('monitor:') || pid.startsWith('ai:')) {
+      const u = findUserByName(this.actor);
+      return !!u && u.active && runAs(toAuthUser(u), () => builtinDatasetVisible(pid) === true);
+    }
+    return actorPermissions(this.actor, pid).includes('view');
   }
 
   /** Guard rails of every expression of this run (default limits, cancelled with the run). */
@@ -319,13 +321,17 @@ class RunContext implements StepContext {
 
   /** Waits for the decision on a task: settleTask (a signal) calls the waiter, cancelRun or the run's abort ends it. */
   async awaitTask(taskId: string): Promise<TaskResult | null> {
+    let onAbort: (() => void) | undefined;
     try {
       return await new Promise<TaskResult | null>((resolve) => {
         taskWaiters.set(taskId, resolve);
-        this.signal.addEventListener('abort', () => resolve(null), { once: true });
+        onAbort = () => resolve(null);
+        this.signal.addEventListener('abort', onAbort, { once: true });
       });
     } finally {
       taskWaiters.delete(taskId);
+      // the run's signal lives as long as the run: a loop with a decision per item would pile up listeners (0.27.0)
+      if (onAbort) this.signal.removeEventListener('abort', onAbort);
     }
   }
 
@@ -1609,9 +1615,11 @@ async function waitForChildRun(childId: string, ctx: RunContext, key: string): P
   let waiting = false;
   let warned = false;
   let resumed = false;
+  let onAbort: (() => void) | undefined;
   const aborted = new Promise<void>((resolve) => {
     if (ctx.signal.aborted) resolve();
-    ctx.signal.addEventListener('abort', () => resolve(), { once: true });
+    onAbort = () => resolve();
+    ctx.signal.addEventListener('abort', onAbort, { once: true });
   });
   try {
     for (;;) {
@@ -1643,6 +1651,8 @@ async function waitForChildRun(childId: string, ctx: RunContext, key: string): P
       await sleep(500, ctx.signal).catch(() => undefined); // cancelled while waiting: the loop checks the signal
     }
   } finally {
+    // removed with the wait (0.27.0): a loop over sub-process runs would pile up listeners on the run's signal
+    if (onAbort) ctx.signal.removeEventListener('abort', onAbort);
     if (waiting) {
       ctx.endWait();
       if (!ctx.signal.aborted) store.setStepStatus(ctx.runId, key, 'running');

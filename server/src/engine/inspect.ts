@@ -5,7 +5,7 @@ import { parseJson, preview } from '../util.js';
 import { HttpError } from '../util.js';
 import { seesRun } from './visibility.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
-import { metricForRun } from '../dashboards/datasets.js';
+import { metricForRun, previousRowsForRun } from '../dashboards/datasets.js';
 import { builtinDatasetVisible } from '../dashboards/builtin.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { secretValues } from '../platforms/http.js';
@@ -215,6 +215,12 @@ export function expressionContext(processId: string, opts: { runId?: string; nod
       const f = forecastTo(m.points, l.value, { window, lower: l.lower });
       return f && (f.state === 'approaching' || f.state === 'reached') ? f.days : null;
     },
+    previousRows: (key: string) =>
+      previousRowsForRun(String(key), {
+        runId: run?.id ?? '',
+        processId,
+        mayRead: (pid) => builtinDatasetVisible(pid) ?? permissionsFor(pid).includes('view'),
+      }),
   };
   function metricOf(ref: string, window: string) {
     return metricForRun(String(ref), String(window), {

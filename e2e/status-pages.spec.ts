@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { json, uniq } from './support/helpers';
+import { confirmDialog, json, uniq } from './support/helpers';
 
 /** Service status pages (#26): what a status viewer sees, and the link without sign-in. */
 
@@ -47,4 +47,28 @@ test('a status viewer sees only the status pages; the link works without signing
     await dana.delete(`/api/status-pages/${page.id}`);
     await dana.delete(`/api/services/${service.id}`);
   }
+});
+
+test('revoking the link and deleting a status page ask first', async ({ apiAs, loginAs }) => {
+  const dana = await apiAs('dana');
+  const service = await json<{ id: string }>(await dana.post('/api/services', { data: { name: uniq('Status service'), owners: [] } }));
+  const title = uniq('Hall status');
+  const created = await json<{ id: string }>(await dana.post('/api/status-pages', { data: { title, serviceIds: [service.id] } }));
+  await dana.post(`/api/status-pages/${created.id}/link`);
+  const page = await loginAs('dana');
+  await page.goto('/status-pages');
+  const card = page.locator('.mantine-Paper-root', { hasText: title });
+  // a wall screen may show it: cancelling keeps the link
+  await card.getByRole('button', { name: 'Revoke link' }).click();
+  const ask = page.getByRole('dialog').filter({ has: page.getByTestId('confirm-dialog-confirm') });
+  await expect(ask.getByTestId('confirm-dialog-message')).toContainText(`Revoke the link of "${title}"?`);
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(card.getByRole('button', { name: 'Revoke link' })).toBeVisible();
+  await card.getByRole('button', { name: 'Revoke link' }).click();
+  await confirmDialog(page, 'Revoke', { message: title });
+  await expect(card.getByRole('button', { name: 'Revoke link' })).toHaveCount(0);
+  await card.getByRole('button', { name: `Delete ${title}` }).click();
+  await confirmDialog(page, 'Delete', { message: 'stops working' });
+  await expect(page.locator('.mantine-Paper-root', { hasText: title })).toHaveCount(0);
+  await dana.delete(`/api/services/${service.id}`);
 });

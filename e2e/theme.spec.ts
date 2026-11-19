@@ -103,7 +103,8 @@ test.describe('custom theme (own server)', () => {
     await settingsSave(page).click();
     await expect(page.getByText(/Appearance saved/)).toBeVisible();
     await expect(page.getByRole('banner').getByText('ACME Steward')).toBeVisible();
-    await expect(page).toHaveTitle('ACME Steward');
+    // the tab names the page, then the display name (0.27.0)
+    await expect(page).toHaveTitle('Settings – ACME Steward');
 
     // signed out: the sign-in page uses the theme before anyone signs in
     const login = await open(browser, { signedIn: false });

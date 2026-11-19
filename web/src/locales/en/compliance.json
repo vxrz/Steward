@@ -425,6 +425,7 @@
     "permissionsNote": "The pack only holds what you may see. Creating and downloading it is recorded in the audit log.",
     "includeAssurance": "Include the assurance report",
     "includeAssuranceHint": "The assurance policy in force in the period, its changes, how each event was confirmed, and the exceptions (PDF and JSON).",
-    "assuranceReport": "Assurance report (PDF)"
+    "assuranceReport": "Assurance report (PDF)",
+    "deleteConfirm": "Delete the evidence pack \"{{title}}\" and its file?"
   }
 }

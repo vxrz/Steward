@@ -7,6 +7,9 @@
   "saved": "Zeitplan gespeichert",
   "enabled": "Aktiv",
   "deleteConfirm": "Zeitplan „{{name}}“ löschen?",
+  "deleted": "Zeitplan „{{name}}“ gelöscht",
+  "editFor": "{{name}} bearbeiten",
+  "deleteFor": "{{name}} löschen",
   "filters": {
     "search": "Name, Prozess oder Eigentümer",
     "state": "Zustand",
@@ -23,7 +26,8 @@
     "last": "Letzte Ausführung",
     "runsAs": "läuft als {{owner}}",
     "runNow": "Jetzt ausführen",
-    "actions": "Aktionen"
+    "actions": "Aktionen",
+    "runNowFor": "Jetzt ausführen: {{name}}"
   },
   "presets": {
     "every15": "Alle 15 Min.",
@@ -59,7 +63,7 @@
         "off": "Nie"
       },
       "hint": {
-        "change": "Wenn eine Prüfung fehlzuschlagen beginnt oder sich ihr Ergebnis ändert, und als Erinnerung, solange sie fehlschlägt.",
+        "change": "Wenn eine Prüfung fehlzuschlagen beginnt oder sich ändert, was fehlschlägt, und als Erinnerung, solange sie fehlschlägt.",
         "every": "Jede Ausführung, in der eine Prüfung fehlschlägt (per E-Mail, Teams und Webhook höchstens einmal pro Stunde).",
         "off": "Fehlgeschlagene Prüfungen stehen nur in den Ausführungen. Fehlgeschlagene Ausführungen werden weiterhin gemeldet."
       },
@@ -68,11 +72,11 @@
       "resolved": "Melden, wenn eine Prüfung wieder erfolgreich ist",
       "change": "Was als Änderung zählt",
       "changeHint": {
-        "result": "Eine andere Meldung oder ein anderer Schweregrad benachrichtigt erneut.",
+        "result": "Ein anderer Schweregrad oder ein neu betroffener Eintrag benachrichtigt erneut; Zahlen, Dauern und Zeiten, die sich in der Meldung ändern, nicht.",
         "state": "Nur Beginn und Ende des Fehlschlagens: eine Nachricht, wenn eine Prüfung fehlschlägt, Erinnerungen und – falls gewünscht – eine, wenn sie wieder besteht."
       },
       "changeKind": {
-        "result": "Eine andere Meldung oder ein anderer Schweregrad",
+        "result": "Was fehlschlägt (Schweregrad oder betroffene Einträge)",
         "state": "Nur Beginn und Ende des Fehlschlagens"
       },
       "where": "Wohin die Nachrichten gehen",
@@ -88,7 +92,23 @@
         "webhook": "Webhook"
       },
       "urgent": "Dringend – unterbricht Ruhezeiten",
-      "urgentHint": "Fehlgeschlagene Ausführungen und Prüfungen mit Schweregrad Fehler erreichen Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet)."
+      "urgentHint": "Fehlgeschlagene Ausführungen und Prüfungen mit Schweregrad Fehler erreichen Personen und Kanäle sofort, auch in ihrer Ruhezeit (außer sie haben das ausgeschaltet).",
+      "summary": {
+        "sent": "Benachrichtigt wird, {{parts}}.",
+        "part": {
+          "starts": "wenn eine Prüfung fehlzuschlagen beginnt",
+          "changes": "wenn sich ändert, was fehlschlägt",
+          "reminder_one": "stündlich, solange sie fehlschlägt",
+          "reminder_other": "alle {{count}} Std., solange sie fehlschlägt",
+          "resolved": "wenn die Prüfung wieder besteht",
+          "every": "nach jeder Ausführung, in der eine Prüfung fehlschlägt"
+        },
+        "off": "Fehlgeschlagene Prüfungen senden keine Nachrichten; sie stehen nur in den Ausführungen. Fehlgeschlagene Ausführungen werden weiterhin gemeldet.",
+        "channels": "Nur an: {{channels}}.",
+        "urgent": "Fehlgeschlagene Ausführungen und Fehler erreichen Personen auch in ihrer Ruhezeit.",
+        "paused": "Pausiert bis {{until}}.",
+        "pausedOpen": "Pausiert bis zum Fortsetzen."
+      }
     },
     "timezoneHint": "Die Zeiten gelten in dieser Zone, auch über Sommer- und Winterzeit; eine Zeit, die es bei der Umstellung auf Sommerzeit nicht gibt, läuft eine Stunde später.",
     "timezoneServer": "Zeitzone von Steward"
@@ -114,7 +134,15 @@
     "confirm": "Pausieren",
     "badgeUntil": "Nachrichten pausiert bis {{until}}",
     "badgeOpen": "Nachrichten pausiert",
-    "noReason": "Kein Grund angegeben"
+    "noReason": "Kein Grund angegeben",
+    "buttonFor": "Nachrichten pausieren: {{name}}",
+    "resumeFor": "Nachrichten fortsetzen: {{name}}",
+    "for": "Für",
+    "hours_one": "{{count}} Stunde",
+    "hours_other": "{{count}} Stunden",
+    "days_one": "{{count}} Tag",
+    "days_other": "{{count}} Tage",
+    "past": "Wählen Sie einen Zeitpunkt in der Zukunft"
   },
   "missed": {
     "badge_one": "{{count}}-mal verpasst",
