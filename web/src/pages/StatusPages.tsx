@@ -25,6 +25,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { IconCopy, IconLink, IconLinkOff, IconLogout, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { confirmDanger } from '../components/confirm';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 import {
   STATUS_NOTICE_LEVELS,
@@ -231,6 +232,7 @@ export function StatusPagesPage() {
     }
   };
   const revoke = async (p: StatusPage) => {
+    if (!(await confirmDanger({ action: 'revoke', message: t('statusPages.revokeConfirm', { title: p.title }) }))) return;
     try {
       await del(`/status-pages/${p.id}/link`);
       await refresh();
@@ -239,6 +241,7 @@ export function StatusPagesPage() {
     }
   };
   const remove = async (p: StatusPage) => {
+    if (!(await confirmDanger({ action: 'delete', message: t('statusPages.deleteConfirm', { title: p.title }) }))) return;
     try {
       await del(`/status-pages/${p.id}`);
       await refresh();

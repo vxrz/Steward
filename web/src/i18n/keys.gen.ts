@@ -2156,6 +2156,7 @@ export interface Resources {
     'packs.includeAssurance': string;
     'packs.includeAssuranceHint': string;
     'packs.assuranceReport': string;
+    'packs.deleteConfirm': string;
   };
   contacts: {
     title: string;
@@ -17807,6 +17808,8 @@ export interface Resources {
     'statusPages.linkInvalid': string;
     'statusPages.noneForViewer': string;
     'statusPages.signOut': string;
+    'statusPages.deleteConfirm': string;
+    'statusPages.revokeConfirm': string;
     'hub.tabsLabel': string;
     'hub.tabs.overview': string;
     'hub.tabs.applications': string;
