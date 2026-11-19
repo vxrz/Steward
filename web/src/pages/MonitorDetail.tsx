@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Anchor, Badge, Button, Drawer, Grid, Group, Menu, Paper, ScrollArea, Stack, Table, Tabs, Text, Timeline, Title } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,7 +30,7 @@ import {
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { CopyId } from '../components/CopyId';
-import { DetailState, JsonView } from '../components/common';
+import { DetailState, JsonView, RelTime } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { LibraryOriginBadge } from '../components/libraries/parts';
 import { AccessTab } from '../components/access/AccessTab';
@@ -70,11 +70,22 @@ export function MonitorDetailPage() {
   const canStartReview = useCanStartReview();
   const { caps } = useMe();
   const [ack, setAck] = useState(false);
+  // acknowledging swaps the button for a note and removing it the note for the button: the focus follows (WCAG 2.4.3)
+  const [ackFocus, setAckFocus] = useState<'note' | 'button' | null>(null);
   const [instances, setInstances] = useState(false);
   const [secrets, setSecrets] = useState<(Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }) | null>(null);
   const selected = search.get('check');
   const select = (c: string | null) => setSearch(c ? { check: c } : {}, { replace: true });
   const refresh = () => qc.invalidateQueries({ queryKey: monitorKeys.detail(id) });
+  const acknowledged = !!q.data?.acknowledged;
+  useEffect(() => {
+    if (!ackFocus) return;
+    const target = document.querySelector<HTMLElement>(`[data-testid="${ackFocus === 'note' ? 'monitor-acknowledged' : 'monitor-acknowledge'}"]`);
+    if (target && acknowledged === (ackFocus === 'note')) {
+      target.focus();
+      setAckFocus(null);
+    }
+  }, [ackFocus, acknowledged]);
 
   const m = q.data;
   if (!m) return <DetailState query={q} back="monitors" />;
@@ -156,8 +167,15 @@ export function MonitorDetailPage() {
                 {m.enabled ? t('detail.pause') : t('detail.resume')}
               </Button>
             )}
+            {/* a problem nobody has taken yet: acknowledging it is what the person came for (and quiets its messages) */}
+            {!m.isTemplate && can('acknowledge') && m.status !== 'up' && m.status !== 'off' && !m.acknowledged && (
+              <Button size="xs" variant="default" leftSection={<IconCheck size={14} />} onClick={() => setAck(true)} data-testid="monitor-acknowledge">
+                {t('detail.acknowledgeProblem')}
+              </Button>
+            )}
             {!m.isTemplate && can('acknowledge') && (
-              <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
+              // not the play icon of "Resume" beside it: a check now evaluates again
+              <Button size="xs" variant="default" leftSection={<IconRefresh size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
                 {t('detail.checkNow')}
               </Button>
             )}
@@ -185,11 +203,6 @@ export function MonitorDetailPage() {
                 {!m.isTemplate && can('acknowledge') && (
                   <Menu.Item leftSection={<IconTool size={14} />} onClick={() => setMaint(true)}>
                     {t('maintenance.plan')}
-                  </Menu.Item>
-                )}
-                {!m.isTemplate && can('acknowledge') && m.status !== 'up' && m.status !== 'off' && !m.acknowledged && (
-                  <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
-                    {t('detail.acknowledgeProblem')}
                   </Menu.Item>
                 )}
                 {!m.isTemplate && canStartReview && (
@@ -276,11 +289,24 @@ export function MonitorDetailPage() {
           </Alert>
         )}
         {m.acknowledged && (
-          <Alert color="gray" title={t('detail.acknowledgedBy', { user: m.acknowledged.by, when: fmtRelative(m.acknowledged.at) })}>
+          <Alert
+            color="gray"
+            title={t('detail.acknowledgedBy', { user: m.acknowledged.by, when: fmtRelative(m.acknowledged.at) })}
+            tabIndex={-1}
+            data-testid="monitor-acknowledged"
+          >
             <Group justify="space-between">
               <Text size="sm">{m.acknowledged.comment || t('detail.noComment')}</Text>
               {can('acknowledge') && (
-                <Button size="compact-xs" variant="light" onClick={async () => (await del(`/monitors/${m.id}/acknowledge`).catch(notifyError), refresh())}>
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  onClick={async () => {
+                    await del(`/monitors/${m.id}/acknowledge`).catch(notifyError);
+                    setAckFocus('button');
+                    await refresh();
+                  }}
+                >
                   {t('detail.remove')}
                 </Button>
               )}
@@ -418,7 +444,16 @@ export function MonitorDetailPage() {
         />
       )}
       {reviewing && <MonitorReviewModal monitorId={m.id} since={m.status === 'down' ? m.since : null} onClose={() => setReviewing(false)} />}
-      {ack && <AcknowledgeModal monitor={m} onClose={() => setAck(false)} onSaved={refresh} />}
+      {ack && (
+        <AcknowledgeModal
+          monitor={m}
+          onClose={() => setAck(false)}
+          onSaved={() => {
+            setAckFocus('note');
+            void refresh();
+          }}
+        />
+      )}
       {instances && (
         <InstantiateModal
           template={m}
@@ -474,7 +509,9 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
                 )}
               </Table.Td>
               <Table.Td>{fmtUptime(c.uptime.h24)}</Table.Td>
-              <Table.Td className="nowrap">{fmtRelative(c.last?.ts)}</Table.Td>
+              <Table.Td className="nowrap">
+                <RelTime at={c.last?.ts} />
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
