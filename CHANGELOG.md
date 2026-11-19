@@ -9,6 +9,8 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **Monthly maintenance windows that started more than about two years ago skipped occurrences**: finding the occurrences of a repeating window jumped ahead by 28-day months and could land past the ones it was asked for, so such a window was not active when it should have been – monitors in it alerted, the calendar left months out. The jump now counts a month as 31 days and walks forward from there.
+- **A platform call whose connection dropped while the answer was read was not retried**: the retries of platform calls (429, 502–504, network errors, timeouts) only covered the time until the answer's headers arrived; a connection that broke, or the time limit that ran out, while the body was read failed the step or check at once with a bare _terminated_. Such a call is now retried like a failed connection (GET, PUT, DELETE, HEAD; POST and PATCH only with `retryNonIdempotent`).
+- **An API key sent in the query could appear in error messages**: when a platform that sends its key as a query parameter (`apiKeyIn: query`) could not be reached, the error named the whole address, key included – in run logs, monitor results and their notifications. Errors of platform calls now name the origin and path only.
 
 ## [0.26.2] - 2026-11-16
 

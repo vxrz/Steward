@@ -340,6 +340,27 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal, a
   );
 }
 
+/**
+ * A failed connection, or a body that could not be read to its end, as the error platformRequest retries: a timeout or
+ * a network error code is retryable, a cancelled request is not. The message names origin and path only – the query
+ * may carry an API key (auth.apiKeyIn "query"), and the message reaches run logs, monitor results and notifications.
+ * An error that already says whether it is retryable (a body over the size limit) is passed on as it is.
+ */
+function transportError(e: unknown, req: Pick<HttpRequest, 'method' | 'url'>, signal: AbortSignal | undefined, timeout: AbortSignal): Error {
+  const err = e as Error & { cause?: Error & { code?: string }; retryable?: boolean };
+  if (typeof err?.retryable === 'boolean') return err;
+  const cause = err.cause?.message ? ` (${err.cause.message})` : '';
+  const cancelled = !!signal?.aborted;
+  const timedOut = !cancelled && (timeout.aborted || err.name === 'TimeoutError');
+  const code = err.cause?.code ?? (err as { code?: string }).code;
+  const retryable = !cancelled && (timedOut || (!!code && RETRYABLE_CODES.has(code)));
+  return Object.assign(new Error(`${req.method} ${originAndPath(req.url)} failed: ${timedOut ? 'timeout' : err.message}${cause}`), {
+    retryable,
+    cancelled,
+    code: timedOut ? 'ETIMEDOUT' : code,
+  });
+}
+
 async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
   const headers: Record<string, string> = { accept: 'application/json, */*;q=0.5', ...(req.headers ?? {}) };
   injectTraceHeaders(headers);
@@ -380,17 +401,7 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       redirect: 'manual',
     });
   } catch (e) {
-    const err = e as Error & { cause?: Error & { code?: string } };
-    const cause = err.cause?.message ? ` (${err.cause.message})` : '';
-    const cancelled = !!signal?.aborted;
-    const timedOut = !cancelled && (timeout.aborted || err.name === 'TimeoutError');
-    const code = err.cause?.code ?? (err as { code?: string }).code;
-    const retryable = !cancelled && (timedOut || (!!code && RETRYABLE_CODES.has(code)));
-    throw Object.assign(new Error(`${req.method} ${req.url} failed: ${timedOut ? 'timeout' : err.message}${cause}`), {
-      retryable,
-      cancelled,
-      code: timedOut ? 'ETIMEDOUT' : code,
-    });
+    throw transportError(e, req, signal, timeout);
   }
   const resHeaders: Record<string, string> = {};
   res.headers.forEach((v, k) => (resHeaders[k] = v));
@@ -399,12 +410,19 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   let parsed: unknown = null;
   let truncated = false;
   if (req.responseFile && res.ok && req.method !== 'HEAD') {
-    parsed = await saveBody(res, req.responseFile);
+    parsed = await saveBody(res, req.responseFile).catch((e: unknown) => {
+      throw transportError(e, req, signal, timeout);
+    });
   } else if (req.method !== 'HEAD') {
     let text: string;
-    if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
-    else if (req.maxResponseBytes) text = await readBounded(res, req.maxResponseBytes, req.url);
-    else text = await res.text();
+    try {
+      if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
+      else if (req.maxResponseBytes) text = await readBounded(res, req.maxResponseBytes, req.url);
+      else text = await res.text();
+    } catch (e) {
+      // the connection dropped or the time ran out while the body was read (0.27.0): retried like a failed connection
+      throw transportError(e, req, signal, timeout);
+    }
     const ct = resHeaders['content-type'] ?? '';
     if (req.rawText) parsed = text;
     else if (text && (ct.includes('json') || /^[\s]*[{[]/.test(text))) {
@@ -929,7 +947,9 @@ async function followRedirects(
     }
     if (hopTrusted) {
       if (/^http:/i.test(url) && sawHttps) {
-        throw Object.assign(new Error(`Refusing to send credentials over an insecure redirect to ${url} (https → http downgrade)`), { retryable: false });
+        throw Object.assign(new Error(`Refusing to send credentials over an insecure redirect to ${originAndPath(url)} (https → http downgrade)`), {
+          retryable: false,
+        });
       }
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
@@ -962,7 +982,7 @@ async function followRedirects(
     if (req.noRedirects) return res;
     if (!REDIRECT_CODES.has(res.status) || !location || hop >= MAX_REDIRECTS) {
       if (REDIRECT_CODES.has(res.status) && location && hop >= MAX_REDIRECTS) {
-        throw Object.assign(new Error(`Too many redirects (more than ${MAX_REDIRECTS}) starting at ${req.url}`), { retryable: false });
+        throw Object.assign(new Error(`Too many redirects (more than ${MAX_REDIRECTS}) starting at ${originAndPath(req.url)}`), { retryable: false });
       }
       return res;
     }
