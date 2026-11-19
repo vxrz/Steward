@@ -104,6 +104,10 @@ export interface DomainEvents {
     source?: string;
     /** When the check started failing (runs of a source) */
     since?: string;
+    /** phase changed (0.27.0): why – what fails now that was not told, what no longer fails, the severity before */
+    added?: string[];
+    removed?: string[];
+    previousSeverity?: string;
   } & CheckContent;
   /** A check of a source's run passes again (the source asked for this message) */
   'check.resolved': {

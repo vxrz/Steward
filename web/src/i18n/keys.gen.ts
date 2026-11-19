@@ -7139,6 +7139,8 @@ export interface Resources {
     'steps.check.fields.betterWhen.label': string;
     'steps.check.fields.items.label': string;
     'steps.check.fields.items.help': string;
+    'steps.check.fields.changeKey.label': string;
+    'steps.check.fields.changeKey.help': string;
     'steps.check.fields.runbook.label': string;
     'steps.check.fields.runbook.help': string;
     'steps.log.label': string;

@@ -305,6 +305,12 @@ export interface CheckConfig {
   betterWhen?: 'lower' | 'higher';
   /** Messages: the list behind the failure (expression returning a list), shown as bullets */
   items?: string;
+  /**
+   * Messages (0.27.0): what fails, as stable keys (expression returning a list), e.g. the names of the deployments not
+   * ready. While a check keeps failing, only a key that was not told yet is news; default: the items, else the message,
+   * with volatile numbers and times masked.
+   */
+  changeKey?: string;
   /** Messages: what to do – a living document (rec_…) or an http(s) URL; default the process's runbook */
   runbook?: string;
 }
@@ -621,6 +627,7 @@ const shapes = {
     value: z.string().max(4000).optional(),
     betterWhen: z.enum(['lower', 'higher']).optional(),
     items: z.string().max(4000).optional(),
+    changeKey: z.string().max(4000).optional(),
     runbook: runbookRef.optional(),
   },
   log: { type: z.literal('log'), level: z.enum(['info', 'warn', 'error']).optional(), message: z.string(), data: z.string().optional() },

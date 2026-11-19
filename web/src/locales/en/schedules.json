@@ -59,7 +59,7 @@
         "off": "Never"
       },
       "hint": {
-        "change": "When a check starts failing or its result changes, and as a reminder while it keeps failing.",
+        "change": "When a check starts failing or what fails changes, and as a reminder while it keeps failing.",
         "every": "Every run in which a check fails (at most once an hour by e-mail, Teams and webhook).",
         "off": "Failed checks are only shown in the runs. Failed runs still notify."
       },
@@ -68,11 +68,11 @@
       "resolved": "Send a message when a check passes again",
       "change": "What counts as a change",
       "changeHint": {
-        "result": "A different message or severity notifies again.",
+        "result": "Another severity or a newly affected item notifies again; numbers, durations and times that change in the message do not.",
         "state": "Only the start and the end of failing: one message when a check starts failing, reminders, and – if wanted – one when it passes again."
       },
       "changeKind": {
-        "result": "A different message or severity",
+        "result": "What fails (severity or affected items)",
         "state": "Only the start and end of failing"
       },
       "where": "Where the messages go",

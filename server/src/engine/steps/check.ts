@@ -63,6 +63,13 @@ export const checkStep: StepExecutor<'check'> = {
 const CHECK_ITEMS_MAX = 200;
 const CHECK_ITEM_CHARS = 300;
 
+/** A list of strings from an expression's value (a single value is a list of one), within the limits. */
+const asList = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v])
+    .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, CHECK_ITEM_CHARS))
+    .filter(Boolean)
+    .slice(0, CHECK_ITEMS_MAX);
+
 /**
  * The optional content of a check's messages (#144): the headline and the items of a failure and the value. They are
  * evaluated like the message; an expression that fails only logs a warning, the check result stays as it is.
@@ -72,8 +79,8 @@ async function checkContent(
   step: NodeOf<'check'>,
   passed: boolean,
   key: string,
-): Promise<{ headline?: string; value?: number; items?: string[]; aiGenerated?: string[] }> {
-  const out: { headline?: string; value?: number; items?: string[]; aiGenerated?: string[] } = {};
+): Promise<{ headline?: string; value?: number; items?: string[]; changeKey?: string[]; aiGenerated?: string[] }> {
+  const out: { headline?: string; value?: number; items?: string[]; changeKey?: string[]; aiGenerated?: string[] } = {};
   const attempt = async (what: string, fn: () => Promise<void>) => {
     try {
       await fn();
@@ -93,11 +100,14 @@ async function checkContent(
     });
   if (!passed && step.items?.trim())
     await attempt('items', async () => {
-      const v = await ctx.eval(step.items!);
-      const list = (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v])
-        .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, CHECK_ITEM_CHARS))
-        .filter(Boolean);
-      if (list.length) out.items = list.slice(0, CHECK_ITEMS_MAX);
+      const list = asList(await ctx.eval(step.items!));
+      if (list.length) out.items = list;
+    });
+  // what fails, as stable keys (0.27.0): only another set of keys is news (check-alerts.ts)
+  if (!passed && step.changeKey?.trim())
+    await attempt('change key', async () => {
+      const list = [...new Set(asList(await ctx.eval(step.changeKey!)))];
+      if (list.length) out.changeKey = list;
     });
   const ai = passed ? undefined : ctx.aiModelsIn(out.headline, out.items, step.message ? await ctx.str(step.message).catch(() => '') : '');
   if (ai) out.aiGenerated = ai;
