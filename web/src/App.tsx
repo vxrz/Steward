@@ -26,6 +26,7 @@ import { HelpMenu } from './components/HelpMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
+import { usePageTitle } from './pageTitle';
 import { withBase } from './basePath';
 import { ShellLayoutContext } from './layout';
 import { setRecentUser } from './components/page/recent';
@@ -193,9 +194,11 @@ function SkipLink() {
   );
 }
 
+/** While a page's code loads: announced as "Loading…" (a bare spinner says nothing to a screen reader). */
 function PageLoader() {
+  const { t } = useTranslation('common');
   return (
-    <Center py={80}>
+    <Center py={80} role="status" aria-label={t('loading')} aria-busy="true" data-testid="page-loading">
       <Loader size="sm" />
     </Center>
   );
@@ -274,6 +277,7 @@ function Shell({ status }: { status: AuthStatus }) {
   const appName = useAppName();
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
+  usePageTitle(MAIN_ID, appName, location.pathname);
   const navigate = useNavigate();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const caps = status.me!.capabilities;

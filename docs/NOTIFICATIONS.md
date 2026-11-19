@@ -93,6 +93,8 @@ A process that runs every few minutes and is expected to find failures (the Gatu
 3. the source's policy (this section)
 4. personal: _E-mail notifications_ and _Teams (personal)_ in the profile
 
+The settings start with a summary of what they do in one sentence – _Messages are sent when a check starts failing, when what fails changes and every 4 h while it keeps failing._ – that follows every choice below.
+
 ### When
 
 | Setting                                                                                 | What notifies                                                                                                                                                                                                                    |
@@ -151,7 +153,7 @@ _Urgent – interrupts quiet hours_ (off by default) marks a source whose failur
 
 ### Pause
 
-_Schedules_ and _Webhook triggers_ → _Pause messages_: until a time or until resumed, with a reason, optionally still in the app. A badge on the source shows the end and the reason; runs and checks go on as usual. A pause ends on its own; when it ends while a check still fails, one **Still failing after the pause** message per check says so, so nothing is lost silently. Monitor outputs keep their pause in the monitor's definition. Audited as `schedule.paused` / `schedule.resumed` and `trigger.paused` / `trigger.resumed` (with the reason; an ended pause by `system`). API: `POST /api/schedules/{id}/pause` with `{ until, reason, inApp }`, `POST /api/schedules/{id}/resume`, the same for `/api/triggers/{id}`; `notify` is part of schedules and triggers in the API (`/api/v1` too) and of monitor process outputs.
+_Schedules_ and _Webhook triggers_ → _Pause messages_ (the bell icon of a row, or the button in the source's dialog, which _Message settings for this schedule_ in a message opens): for 1 hour to 7 days in one click, until a time or until resumed, with a reason, optionally still in the app. A badge on the source shows the end and the reason; runs and checks go on as usual. A pause ends on its own; when it ends while a check still fails, one **Still failing after the pause** message per check says so, so nothing is lost silently. Monitor outputs keep their pause in the monitor's definition. Audited as `schedule.paused` / `schedule.resumed` and `trigger.paused` / `trigger.resumed` (with the reason; an ended pause by `system`). API: `POST /api/schedules/{id}/pause` with `{ until, reason, inApp }`, `POST /api/schedules/{id}/resume`, the same for `/api/triggers/{id}`; `notify` is part of schedules and triggers in the API (`/api/v1` too) and of monitor process outputs.
 
 **Example – the Gatus overview every 10 minutes:** _On change_, _Only the start and end of failing_, reminder every 24 hours, _Passes again_ on, channels as configured. The team gets one message when endpoints start failing, one reminder a day and one when all are healthy again; for a planned maintenance of the Gatus host, pause the messages until the end of the window.
 

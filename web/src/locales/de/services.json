@@ -109,7 +109,9 @@
     "generated": "Stand {{when}}",
     "linkInvalid": "Dieser Link zur Statusseite ist nicht (mehr) gültig. Fragen Sie die Person, die ihn Ihnen geschickt hat.",
     "noneForViewer": "Noch keine Statusseiten.",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "deleteConfirm": "Statusseite „{{title}}“ löschen? Ihr Link ohne Anmeldung funktioniert dann nicht mehr.",
+    "revokeConfirm": "Link von „{{title}}“ widerrufen? Wandbildschirme und Lesezeichen, die ihn nutzen, zeigen die Seite nicht mehr."
   },
   "hub": {
     "tabsLabel": "Bereiche von {{name}}",

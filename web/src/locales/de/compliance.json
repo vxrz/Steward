@@ -425,6 +425,7 @@
     "permissionsNote": "Das Paket enthält nur, was Sie sehen dürfen. Erstellen und Herunterladen werden im Audit-Log festgehalten.",
     "includeAssurance": "Absicherungsbericht beilegen",
     "includeAssuranceHint": "Die im Zeitraum geltende Absicherungsrichtlinie, ihre Änderungen, wie jedes Ereignis bestätigt wurde, und die Ausnahmen (PDF und JSON).",
-    "assuranceReport": "Absicherungsbericht (PDF)"
+    "assuranceReport": "Absicherungsbericht (PDF)",
+    "deleteConfirm": "Nachweispaket „{{title}}“ mit seiner Datei löschen?"
   }
 }

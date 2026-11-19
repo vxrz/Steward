@@ -90,3 +90,25 @@ test('duplicate ids, required fields, problem summary, duplicate, check now and 
   await expect(form.getByLabel('Check id')).toBeDisabled();
   await api.delete(`/api/monitors/${id}`);
 });
+
+test('an output says what "on change" sends: people are told a problem once until it is over', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const created = await json<{ monitor: { id: string } }>(
+    await api.post('/api/monitors', {
+      data: {
+        definition: { name: uniq('E2E outputs'), checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
+      },
+    }),
+  );
+  await page.goto(`/monitors/${created.monitor.id}/edit`);
+  await settle(page);
+  await page.getByRole('tab', { name: 'Outputs' }).click();
+  await page.getByRole('button', { name: 'Add output' }).click();
+  await page.getByRole('menuitem', { name: 'Notification (in-app, e-mail, Teams)' }).click();
+  const hint = page.getByTestId('output-send-hint');
+  await expect(hint).toContainText('A problem is told once until it is over');
+  await page.getByRole('radiogroup', { name: 'Send' }).getByText('Every evaluation').click();
+  await expect(hint).toHaveText('At every evaluation, also when nothing changed – at most as often as set beside.');
+  await expectAccessible(page, 'monitor outputs');
+  await api.delete(`/api/monitors/${created.monitor.id}`);
+});

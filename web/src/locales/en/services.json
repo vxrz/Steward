@@ -109,7 +109,9 @@
     "generated": "As of {{when}}",
     "linkInvalid": "This status page link is not valid (any more). Ask the person who sent it to you.",
     "noneForViewer": "No status pages yet.",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "deleteConfirm": "Delete the status page \"{{title}}\"? Its link without sign-in stops working.",
+    "revokeConfirm": "Revoke the link of \"{{title}}\"? Wall screens and bookmarks that use it no longer show the page."
   },
   "hub": {
     "tabsLabel": "Sections of {{name}}",

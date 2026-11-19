@@ -246,3 +246,34 @@ test('importing a monitor asks which platform a name stands for when it is not u
   await admin.delete(`/api/monitors/${m.id}`);
   await admin.delete(`/api/platforms/${second.id}`);
 });
+
+test('a problem is acknowledged from the page header, and the focus follows the note', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const name = uniq('E2E acknowledge');
+  const created = await json<{ monitor: { id: string }; secrets: { secret: string; path: string }[] }>(
+    await api.post('/api/monitors', {
+      data: {
+        definition: { name, failuresBeforeDown: 1, checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
+      },
+    }),
+  );
+  const { secret, path } = created.secrets[0]!;
+  await report(path, secret, { status: 'down', message: 'Line stopped' });
+  await page.goto(`/monitors/${created.monitor.id}`);
+  // what the person came for is beside "Check now", not in the "More actions" menu
+  const ack = page.getByTestId('monitor-acknowledge');
+  await expect(ack).toHaveText('Acknowledge problem', { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Check now' })).toBeVisible();
+  await ack.click();
+  const dialog = page.getByRole('dialog', { name: `Acknowledge – ${name}` });
+  await dialog.getByLabel('Comment').fill('On it');
+  await dialog.getByRole('button', { name: 'Acknowledge', exact: true }).click();
+  const note = page.getByTestId('monitor-acknowledged');
+  await expect(note).toContainText('On it');
+  await expect(note).toBeFocused();
+  await expect(ack).toHaveCount(0);
+  // removing it brings the button back, with the focus
+  await note.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByTestId('monitor-acknowledge')).toBeFocused();
+  await api.delete(`/api/monitors/${created.monitor.id}`);
+});

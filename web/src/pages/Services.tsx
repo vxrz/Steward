@@ -14,7 +14,7 @@ import { fmtDate, fmtRelative } from '../format';
 import { NeedBadges } from '../components/catalogue/cia';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
-import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
 import { ServiceTabs } from '../components/page/LinkTabs';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { ContactPicker, fromLinks, toLinkInputs, useContactRoleLabel, type ContactPickerValue } from '../components/contacts';
@@ -240,6 +240,7 @@ export function ServicesPage() {
       )}
       {list.length > 0 && (
         <DataTable
+          pageSize={LIST_PAGE}
           rows={list}
           columns={columns}
           rowKey={(s) => s.id}
