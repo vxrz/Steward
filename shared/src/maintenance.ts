@@ -180,8 +180,9 @@ export function occurrencesBetween(
   const until = w.recurrence?.until ? Date.parse(w.recurrence.until) : Infinity;
   const out: { start: number; end: number }[] = [];
   if (!w.recurrence) return s0 < to && s0 + dur > from ? [{ start: s0, end: s0 + dur }] : [];
-  // skip ahead roughly, then walk
-  const period = (w.recurrence.freq === 'weekly' ? 7 : 28) * 86400000 * w.recurrence.interval;
+  // skip ahead roughly, then walk: the estimate must never pass `from` – a month counts as its longest (31 days), or a
+  // monthly window started more than about two years ago would skip its next occurrences (0.27.0)
+  const period = (w.recurrence.freq === 'weekly' ? 7 : 31) * 86400000 * w.recurrence.interval;
   let n = Math.max(0, Math.floor((from - dur - s0) / period) - 2);
   for (let guard = 0; guard < 100000 && out.length < max; guard++, n++) {
     const start = nthStart(s0, w.recurrence, n, w.timeZone);

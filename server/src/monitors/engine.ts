@@ -273,9 +273,11 @@ export function tick(now = clock()): number {
   if (!vault().unlocked) return 0;
   if (!loaded) loadAll();
   const start: [LoadedMonitor, CheckDef][] = [];
+  // the monitors' own windows of earlier versions in one statement per tick, not one per monitor every second (0.27.0)
+  const maintenanceOf = activeMaintenanceOf(now);
   for (const m of monitors.values()) {
     if (!m.enabled) continue;
-    const inMaint = !!activeMaintenance(m.id, now);
+    const inMaint = !!maintenanceOf(m.id);
     if (maintenanceSeen.get(m.id) !== inMaint) {
       if (maintenanceSeen.has(m.id)) scheduleRecompute(m.id);
       maintenanceSeen.set(m.id, inMaint);

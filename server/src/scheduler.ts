@@ -353,7 +353,26 @@ function arm(id: string) {
   jobs.set(id, job);
 }
 
+/**
+ * Fires of a schedule being handled (0.27.0): the next one of the same schedule waits for it. The overlap check reads
+ * the schedule's last run, which is only written once the run has started – without the wait, "Run now" at the moment
+ * of a cron fire (or the catch-up run at start) started two runs of a schedule that does not allow overlapping runs.
+ */
+const firing = new Map<string, Promise<unknown>>();
+
 export async function fire(id: string, manual = false, opts: { catchUp?: boolean } = {}): Promise<string | null> {
+  const before = firing.get(id);
+  // the earlier fire's failure is its caller's (logged there): this one only waits for it to be done
+  const mine = (before ? before.catch(() => undefined) : Promise.resolve()).then(() => fireNow(id, manual, opts));
+  firing.set(id, mine);
+  try {
+    return await mine;
+  } finally {
+    if (firing.get(id) === mine) firing.delete(id);
+  }
+}
+
+async function fireNow(id: string, manual: boolean, opts: { catchUp?: boolean }): Promise<string | null> {
   const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
   if (!r) return null;
   if (!r.allow_overlap && r.last_run_id) {

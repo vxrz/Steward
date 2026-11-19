@@ -26,7 +26,7 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   body?: unknown;
   bodyType?: 'json' | 'form' | 'text' | 'binary';
-  /** Fail when the response body is larger (bytes); default: no limit */
+  /** Fail when the response body is larger (bytes); default: DEFAULT_MAX_RESPONSE_BYTES */
   maxResponseBytes?: number;
   /** Stop reading the response body after this many bytes instead (the result is marked `truncated`). */
   truncateResponseBytes?: number;
@@ -109,6 +109,51 @@ async function identityRestricts(p: Platform): Promise<boolean> {
 
 /** Token and AWS role caches are per identity (0.9.0, ADR 0009): `platformId:identityId`. */
 const tokenCache = new Map<string, CachedToken>();
+
+/**
+ * Sign-ins in flight per identity (0.27.0): requests that find the token missing or expired at the same time share one
+ * sign-in instead of each asking the identity provider (which may answer a burst with 429), and a sign-in started before
+ * the platform's credentials changed does not put its token into the cache. The sign-in runs without the signal of the
+ * request that started it – a cancelled request stops waiting, the others still get the token.
+ */
+interface SignIn<T> {
+  done: Promise<T>;
+}
+const signInsInFlight = new Map<string, SignIn<unknown>>();
+
+function sharedSignIn<T>(key: string, signal: AbortSignal | undefined, signIn: (stillCurrent: () => boolean) => Promise<T>): Promise<T> {
+  let entry = signInsInFlight.get(key) as SignIn<T> | undefined;
+  if (!entry) {
+    const e = {} as SignIn<T>;
+    const current = () => signInsInFlight.get(key) === e;
+    signInsInFlight.set(key, e);
+    e.done = signIn(current).finally(() => {
+      if (current()) signInsInFlight.delete(key);
+    });
+    entry = e;
+  }
+  return untilAborted(entry.done, signal);
+}
+
+/** A shared promise as one waiter sees it: rejected as cancelled once its own signal aborts. */
+function untilAborted<T>(p: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return p;
+  if (signal.aborted) return Promise.reject(cancelledError());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(cancelledError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(v);
+      },
+      (e: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(e as Error);
+      },
+    );
+  });
+}
 const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher }>();
 
 /** A platform object as getConnection gives it (with its identity), or as getPlatform does (the default identity). */
@@ -160,6 +205,9 @@ export async function renewToken(p: Platform, secrets: Record<string, string>, s
   if (!usesCachedToken(p)) throw new Error('This platform does not log in for a token');
   tokenCache.delete(identityKey(p));
   awsCache.delete(identityKey(p));
+  // a sign-in in flight may carry the old roles: this one starts afresh
+  signInsInFlight.delete(identityKey(p));
+  signInsInFlight.delete(`${identityKey(p)}|aws`);
   if (p.config.auth?.type === 'aws_sigv4') await awsCredentials(p, secrets, signal);
   else await obtainAuthHeader(p, secrets, signal);
   const info = tokenInfo(p);
@@ -185,6 +233,7 @@ export function invalidatePlatformCaches(platformId: string): void {
   for (const fn of invalidationListeners) fn(platformId);
   dropKeys(tokenCache, platformId);
   dropKeys(awsCache, platformId);
+  dropKeys(signInsInFlight, platformId);
   for (const [key, d] of [...dispatcherCache]) {
     // the platform's plain dispatcher and the client-certificate dispatchers of its identities (`${id}:${identity}|mtls`)
     if (key !== platformId && !key.startsWith(`${platformId}:`)) continue;
@@ -199,6 +248,7 @@ export function invalidateIdentityCaches(platformId: string, identityId: string)
   const key = identityKey({ id: platformId, identityId });
   tokenCache.delete(key);
   awsCache.delete(key);
+  for (const k of [...signInsInFlight.keys()]) if (k === key || k.startsWith(`${key}|`)) signInsInFlight.delete(k);
   const d = dispatcherCache.get(`${key}|mtls`);
   if (d) {
     dispatcherCache.delete(`${key}|mtls`);
@@ -340,6 +390,34 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal, a
   );
 }
 
+/**
+ * The largest answer read into memory when the caller sets no limit of its own (0.27.0): an endpoint that answers far
+ * more than expected – a wrong path, a misbehaving platform – fails the call instead of filling the server's memory.
+ * Callers that read large answers set `maxResponseBytes` (the HTTP step: `maxResponseMb`) or stream to a file.
+ */
+export const DEFAULT_MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * A failed connection, or a body that could not be read to its end, as the error platformRequest retries: a timeout or
+ * a network error code is retryable, a cancelled request is not. The message names origin and path only – the query
+ * may carry an API key (auth.apiKeyIn "query"), and the message reaches run logs, monitor results and notifications.
+ * An error that already says whether it is retryable (a body over the size limit) is passed on as it is.
+ */
+function transportError(e: unknown, req: Pick<HttpRequest, 'method' | 'url'>, signal: AbortSignal | undefined, timeout: AbortSignal): Error {
+  const err = e as Error & { cause?: Error & { code?: string }; retryable?: boolean };
+  if (typeof err?.retryable === 'boolean') return err;
+  const cause = err.cause?.message ? ` (${err.cause.message})` : '';
+  const cancelled = !!signal?.aborted;
+  const timedOut = !cancelled && (timeout.aborted || err.name === 'TimeoutError');
+  const code = err.cause?.code ?? (err as { code?: string }).code;
+  const retryable = !cancelled && (timedOut || (!!code && RETRYABLE_CODES.has(code)));
+  return Object.assign(new Error(`${req.method} ${originAndPath(req.url)} failed: ${timedOut ? 'timeout' : err.message}${cause}`), {
+    retryable,
+    cancelled,
+    code: timedOut ? 'ETIMEDOUT' : code,
+  });
+}
+
 async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
   const headers: Record<string, string> = { accept: 'application/json, */*;q=0.5', ...(req.headers ?? {}) };
   injectTraceHeaders(headers);
@@ -380,17 +458,7 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       redirect: 'manual',
     });
   } catch (e) {
-    const err = e as Error & { cause?: Error & { code?: string } };
-    const cause = err.cause?.message ? ` (${err.cause.message})` : '';
-    const cancelled = !!signal?.aborted;
-    const timedOut = !cancelled && (timeout.aborted || err.name === 'TimeoutError');
-    const code = err.cause?.code ?? (err as { code?: string }).code;
-    const retryable = !cancelled && (timedOut || (!!code && RETRYABLE_CODES.has(code)));
-    throw Object.assign(new Error(`${req.method} ${req.url} failed: ${timedOut ? 'timeout' : err.message}${cause}`), {
-      retryable,
-      cancelled,
-      code: timedOut ? 'ETIMEDOUT' : code,
-    });
+    throw transportError(e, req, signal, timeout);
   }
   const resHeaders: Record<string, string> = {};
   res.headers.forEach((v, k) => (resHeaders[k] = v));
@@ -399,12 +467,19 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   let parsed: unknown = null;
   let truncated = false;
   if (req.responseFile && res.ok && req.method !== 'HEAD') {
-    parsed = await saveBody(res, req.responseFile);
+    parsed = await saveBody(res, req.responseFile).catch((e: unknown) => {
+      throw transportError(e, req, signal, timeout);
+    });
   } else if (req.method !== 'HEAD') {
     let text: string;
-    if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
-    else if (req.maxResponseBytes) text = await readBounded(res, req.maxResponseBytes, req.url);
-    else text = await res.text();
+    try {
+      if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
+      // without a limit of the caller's (a monitor check, an output, the request explorer): the default ceiling (0.27.0)
+      else text = await readBounded(res, req.maxResponseBytes || DEFAULT_MAX_RESPONSE_BYTES, req.url);
+    } catch (e) {
+      // the connection dropped or the time ran out while the body was read (0.27.0): retried like a failed connection
+      throw transportError(e, req, signal, timeout);
+    }
     const ct = resHeaders['content-type'] ?? '';
     if (req.rawText) parsed = text;
     else if (text && (ct.includes('json') || /^[\s]*[{[]/.test(text))) {
@@ -522,96 +597,100 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
     case 'token_request': {
       const cached = tokenCache.get(identityKey(p));
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
-      let token: string;
-      let expiresIn = 1800;
-      let refreshToken: string | undefined;
-      if (auth.type === 'oauth2_client_credentials') {
-        if (!auth.tokenUrl) throw new Error('OAuth2 token URL is not configured');
-        // a signed client assertion instead of the secret (certificate credentials, v0.5.0): chosen, or no secret but a private key
-        // '' when not set
-        const clientSecret = secrets.clientSecret ?? '';
-        const assertion = auth.clientAuth === 'assertion' || (!clientSecret && !!secrets.privateKey?.trim());
-        if (!secrets.clientId || (!assertion && !clientSecret))
-          throw new Error('Secrets "clientId" and "clientSecret" (or "privateKey" with "certificate" for a client assertion) are required');
-        const url = await renderString(auth.tokenUrl, scope);
-        const form: Record<string, string> = { grant_type: 'client_credentials' };
-        // the scope may name the base URL or a variable (Microsoft Graph: {{ baseUrl }}/.default, national clouds)
-        if (auth.scope) form.scope = await renderString(auth.scope, scope);
-        for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
-        const headers: Record<string, string> = {};
-        if (assertion) {
-          const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
-          const thumbprints = certificateThumbprints(secrets.certificate, String(p.config.variables?.certificateThumbprint ?? ''));
-          form.client_id = secrets.clientId;
-          form.client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
-          form.client_assertion = clientAssertion(key, { clientId: secrets.clientId, tokenUrl: url, thumbprints });
-        } else if ((auth.clientAuth ?? 'basic') === 'basic') {
-          headers.authorization = 'Basic ' + Buffer.from(`${secrets.clientId}:${clientSecret}`).toString('base64');
-        } else {
-          form.client_id = secrets.clientId;
-          form.client_secret = clientSecret;
-        }
-        const r = await rawRequest(p, { method: 'POST', url, headers, body: form, bodyType: 'form' }, signal);
-        const b = r.body as { access_token?: string; expires_in?: number } | null;
-        if (!r.ok || !b?.access_token) throw new Error(`Token request POST ${where(url)} failed with HTTP ${r.status}: ${short(r.body)}`);
-        token = b.access_token;
-        if (b.expires_in) expiresIn = Number(b.expires_in);
-      } else {
-        const rq = auth.request;
-        if (!rq?.url) throw new Error('Login request URL is not configured');
-        let got: Awaited<ReturnType<typeof tokenCall>> | null = null;
-        // an expired token with a refresh token (v0.5.0): renew it first, sign in again only when that fails
-        if (auth.refresh?.request?.url && cached?.refreshToken) {
-          try {
-            got = await tokenCall(p, secrets, auth, auth.refresh.request, { ...scope, refreshToken: cached.refreshToken }, 'Token refresh', signal);
-            got.refreshToken ??= cached.refreshToken;
-          } catch (e) {
-            logger.debug({ platform: p.name, error: (e as Error).message.slice(0, 300) }, 'token refresh failed – signing in again');
+      return sharedSignIn(identityKey(p), signal, async (current) => {
+        let token: string;
+        let expiresIn = 1800;
+        let refreshToken: string | undefined;
+        if (auth.type === 'oauth2_client_credentials') {
+          if (!auth.tokenUrl) throw new Error('OAuth2 token URL is not configured');
+          // a signed client assertion instead of the secret (certificate credentials, v0.5.0): chosen, or no secret but a private key
+          // '' when not set
+          const clientSecret = secrets.clientSecret ?? '';
+          const assertion = auth.clientAuth === 'assertion' || (!clientSecret && !!secrets.privateKey?.trim());
+          if (!secrets.clientId || (!assertion && !clientSecret))
+            throw new Error('Secrets "clientId" and "clientSecret" (or "privateKey" with "certificate" for a client assertion) are required');
+          const url = await renderString(auth.tokenUrl, scope);
+          const form: Record<string, string> = { grant_type: 'client_credentials' };
+          // the scope may name the base URL or a variable (Microsoft Graph: {{ baseUrl }}/.default, national clouds)
+          if (auth.scope) form.scope = await renderString(auth.scope, scope);
+          for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
+          const headers: Record<string, string> = {};
+          if (assertion) {
+            const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
+            const thumbprints = certificateThumbprints(secrets.certificate, String(p.config.variables?.certificateThumbprint ?? ''));
+            form.client_id = secrets.clientId;
+            form.client_assertion_type = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
+            form.client_assertion = clientAssertion(key, { clientId: secrets.clientId, tokenUrl: url, thumbprints });
+          } else if ((auth.clientAuth ?? 'basic') === 'basic') {
+            headers.authorization = 'Basic ' + Buffer.from(`${secrets.clientId}:${clientSecret}`).toString('base64');
+          } else {
+            form.client_id = secrets.clientId;
+            form.client_secret = clientSecret;
           }
+          const r = await rawRequest(p, { method: 'POST', url, headers, body: form, bodyType: 'form' });
+          const b = r.body as { access_token?: string; expires_in?: number } | null;
+          if (!r.ok || !b?.access_token) throw new Error(`Token request POST ${where(url)} failed with HTTP ${r.status}: ${short(r.body)}`);
+          token = b.access_token;
+          if (b.expires_in) expiresIn = Number(b.expires_in);
+        } else {
+          const rq = auth.request;
+          if (!rq?.url) throw new Error('Login request URL is not configured');
+          let got: Awaited<ReturnType<typeof tokenCall>> | null = null;
+          // an expired token with a refresh token (v0.5.0): renew it first, sign in again only when that fails
+          if (auth.refresh?.request?.url && cached?.refreshToken) {
+            try {
+              got = await tokenCall(p, secrets, auth, auth.refresh.request, { ...scope, refreshToken: cached.refreshToken }, 'Token refresh');
+              got.refreshToken ??= cached.refreshToken;
+            } catch (e) {
+              logger.debug({ platform: p.name, error: (e as Error).message.slice(0, 300) }, 'token refresh failed – signing in again');
+            }
+          }
+          got ??= await tokenCall(p, secrets, auth, rq, scope, 'Login request');
+          token = got.token;
+          if (got.expiresIn) expiresIn = got.expiresIn;
+          refreshToken = got.refreshToken;
         }
-        got ??= await tokenCall(p, secrets, auth, rq, scope, 'Login request', signal);
-        token = got.token;
-        if (got.expiresIn) expiresIn = got.expiresIn;
-        refreshToken = got.refreshToken;
-      }
-      const headerName = (auth.headerName || 'Authorization').toLowerCase();
-      const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
-      const header: [string, string] = [headerName, headerValue];
-      const now = Date.now();
-      tokenCache.set(identityKey(p), { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
-      return header;
+        const headerName = (auth.headerName || 'Authorization').toLowerCase();
+        const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
+        const header: [string, string] = [headerName, headerValue];
+        const now = Date.now();
+        if (current()) tokenCache.set(identityKey(p), { header, fetchedAt: now, expiresAt: now + expiresIn * 1000, ...(refreshToken ? { refreshToken } : {}) });
+        return header;
+      });
     }
     case 'jwt': {
       const cached = tokenCache.get(identityKey(p));
       if (cached && cached.expiresAt > Date.now() + 30000) return cached.header;
-      const cfg = auth.jwt ?? {};
-      const alg = cfg.alg ?? 'RS256';
-      if (!(JWT_ALGS as readonly string[]).includes(alg)) throw new Error(`Unsupported JWT algorithm ${alg}`);
-      const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
-      const jwtScope = { ...scope, publicKeyFingerprint: publicKeyFingerprint(key) };
-      const claims: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(cfg.claims ?? {})) if (!['iat', 'exp', 'jti'].includes(k)) claims[k] = await renderString(String(v), jwtScope);
-      const { jwt, exp } = signJwt(key, { alg, claims, lifetimeSeconds: cfg.lifetimeSeconds, kid: cfg.kid });
-      let token = jwt;
-      let expiresAt = exp * 1000;
-      if (cfg.mode === 'exchange') {
-        if (!auth.tokenUrl) throw new Error('The token URL for the JWT exchange is not configured');
-        const url = await renderString(auth.tokenUrl, scope);
-        const form: Record<string, string> = { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt };
-        if (auth.scope) form.scope = auth.scope;
-        for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
-        const r = await rawRequest(p, { method: 'POST', url, headers: {}, body: form, bodyType: 'form' }, signal);
-        const b = r.body as { access_token?: string; expires_in?: number } | null;
-        if (!r.ok || !b?.access_token) throw new Error(`JWT exchange POST ${where(url)} failed with HTTP ${r.status}: ${short(r.body)}`);
-        token = b.access_token;
-        expiresAt = Date.now() + Number(b.expires_in ?? 1800) * 1000;
-      }
-      const header: [string, string] = [
-        (auth.headerName || 'Authorization').toLowerCase(),
-        await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token }),
-      ];
-      tokenCache.set(identityKey(p), { header, fetchedAt: Date.now(), expiresAt });
-      return header;
+      return sharedSignIn(identityKey(p), signal, async (current) => {
+        const cfg = auth.jwt ?? {};
+        const alg = cfg.alg ?? 'RS256';
+        if (!(JWT_ALGS as readonly string[]).includes(alg)) throw new Error(`Unsupported JWT algorithm ${alg}`);
+        const key = privateKeyOf(secrets.privateKey, secrets.privateKeyPassphrase);
+        const jwtScope = { ...scope, publicKeyFingerprint: publicKeyFingerprint(key) };
+        const claims: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(cfg.claims ?? {})) if (!['iat', 'exp', 'jti'].includes(k)) claims[k] = await renderString(String(v), jwtScope);
+        const { jwt, exp } = signJwt(key, { alg, claims, lifetimeSeconds: cfg.lifetimeSeconds, kid: cfg.kid });
+        let token = jwt;
+        let expiresAt = exp * 1000;
+        if (cfg.mode === 'exchange') {
+          if (!auth.tokenUrl) throw new Error('The token URL for the JWT exchange is not configured');
+          const url = await renderString(auth.tokenUrl, scope);
+          const form: Record<string, string> = { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt };
+          if (auth.scope) form.scope = auth.scope;
+          for (const [k, v] of Object.entries(auth.extraParams ?? {})) form[k] = await renderString(v, scope);
+          const r = await rawRequest(p, { method: 'POST', url, headers: {}, body: form, bodyType: 'form' });
+          const b = r.body as { access_token?: string; expires_in?: number } | null;
+          if (!r.ok || !b?.access_token) throw new Error(`JWT exchange POST ${where(url)} failed with HTTP ${r.status}: ${short(r.body)}`);
+          token = b.access_token;
+          expiresAt = Date.now() + Number(b.expires_in ?? 1800) * 1000;
+        }
+        const header: [string, string] = [
+          (auth.headerName || 'Authorization').toLowerCase(),
+          await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token }),
+        ];
+        if (current()) tokenCache.set(identityKey(p), { header, fetchedAt: Date.now(), expiresAt });
+        return header;
+      });
     }
     case 'aws_sigv4':
       // signed per request (signerFor)
@@ -681,19 +760,20 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
   if (cached && cached.expiration > Date.now() + 5 * 60_000) return cached;
   if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/.test(aws.roleArn))
     throw new Error('The role ARN is not an IAM role (arn:aws:iam::123456789012:role/name)');
-  const url = aws.stsEndpoint?.trim() || `https://sts.${aws.region}.amazonaws.com/`;
-  if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(url)) throw new Error('The STS endpoint must be an https:// URL');
-  const form = new URLSearchParams({
-    Action: 'AssumeRole',
-    Version: '2011-06-15',
-    RoleArn: aws.roleArn,
-    RoleSessionName: (aws.sessionName || 'steward').replace(/[^\w+=,.@-]/g, '-').slice(0, 64),
-    DurationSeconds: '3600',
-    ...(aws.externalId ? { ExternalId: aws.externalId } : {}),
-  }).toString();
-  const r = await rawRequest(
-    p,
-    {
+  const roleArn = aws.roleArn;
+  // requests that find the role's credentials expired at the same time assume the role once (0.27.0)
+  return sharedSignIn(`${identityKey(p)}|aws`, signal, async (current) => {
+    const url = aws.stsEndpoint?.trim() || `https://sts.${aws.region}.amazonaws.com/`;
+    if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(url)) throw new Error('The STS endpoint must be an https:// URL');
+    const form = new URLSearchParams({
+      Action: 'AssumeRole',
+      Version: '2011-06-15',
+      RoleArn: roleArn,
+      RoleSessionName: (aws.sessionName || 'steward').replace(/[^\w+=,.@-]/g, '-').slice(0, 64),
+      DurationSeconds: '3600',
+      ...(aws.externalId ? { ExternalId: aws.externalId } : {}),
+    }).toString();
+    const r = await rawRequest(p, {
       method: 'POST',
       url,
       headers: { 'content-type': 'application/x-www-form-urlencoded; charset=utf-8' },
@@ -701,13 +781,12 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
       bodyType: 'text',
       rawText: true,
       sign: async (req) => signRequest(req, { region: aws.region, service: 'sts', credentials: base }),
-    },
-    signal,
-  );
-  const creds = typeof r.body === 'string' ? parseAssumeRole(r.body) : null;
-  if (!r.ok || !creds) throw new Error(`AssumeRole of ${aws.roleArn} failed with HTTP ${r.status}: ${short(r.body)}`);
-  awsCache.set(identityKey(p), { ...creds, fetchedAt: Date.now() });
-  return creds;
+    });
+    const creds = typeof r.body === 'string' ? parseAssumeRole(r.body) : null;
+    if (!r.ok || !creds) throw new Error(`AssumeRole of ${roleArn} failed with HTTP ${r.status}: ${short(r.body)}`);
+    if (current()) awsCache.set(identityKey(p), { ...creds, fetchedAt: Date.now() });
+    return creds;
+  });
 }
 
 /** The signer for requests to the platform's own origins (AWS SigV4); undefined for other auth types. */
@@ -881,6 +960,7 @@ async function followRedirects(
   initialQuery: Record<string, unknown>,
   signal: AbortSignal | undefined,
   attempt: number,
+  used: { auth?: string } = {},
 ): Promise<HttpResult> {
   let method = req.method;
   let url = req.url;
@@ -929,10 +1009,13 @@ async function followRedirects(
     }
     if (hopTrusted) {
       if (/^http:/i.test(url) && sawHttps) {
-        throw Object.assign(new Error(`Refusing to send credentials over an insecure redirect to ${url} (https → http downgrade)`), { retryable: false });
+        throw Object.assign(new Error(`Refusing to send credentials over an insecure redirect to ${originAndPath(url)} (https → http downgrade)`), {
+          retryable: false,
+        });
       }
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+      if (auth && hop === 0) used.auth = auth[1];
       if (auth) obtained.push(auth[1], auth[1].replace(/^(Bearer|Basic|Token)\s+/i, ''));
       sign = await signerFor(p, secrets, signal, req.aws);
       clientTls = clientTlsOf(secrets);
@@ -962,7 +1045,7 @@ async function followRedirects(
     if (req.noRedirects) return res;
     if (!REDIRECT_CODES.has(res.status) || !location || hop >= MAX_REDIRECTS) {
       if (REDIRECT_CODES.has(res.status) && location && hop >= MAX_REDIRECTS) {
-        throw Object.assign(new Error(`Too many redirects (more than ${MAX_REDIRECTS}) starting at ${req.url}`), { retryable: false });
+        throw Object.assign(new Error(`Too many redirects (more than ${MAX_REDIRECTS}) starting at ${originAndPath(req.url)}`), { retryable: false });
       }
       return res;
     }
@@ -1030,7 +1113,7 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     }
     logger.warn({ platform: p.name, host }, 'request to a host outside the platform – sent without credentials (see http.trustedOrigins)');
   }
-  const send = (attempt: number) => followRedirects(p, secrets, { ...req, url }, query, signal, attempt);
+  const send = (attempt: number, used?: { auth?: string }) => followRedirects(p, secrets, { ...req, url }, query, signal, attempt, used);
   const policy = retryPolicy(p);
   const method = req.method.toUpperCase();
   const mayRetry = policy.maxRetries > 0 && (!NON_IDEMPOTENT.has(method) || policy.retryNonIdempotent);
@@ -1046,9 +1129,13 @@ export async function platformRequest(p: Platform, secrets: Record<string, strin
     let error: (Error & { retryable?: boolean }) | undefined;
     const release = await sem.acquire(signal);
     try {
-      res = await send(attempt);
-      if (res.status === 401 && tokenCache.has(identityKey(p))) {
-        tokenCache.delete(identityKey(p));
+      const used: { auth?: string } = {};
+      res = await send(attempt, used);
+      if (res.status === 401 && used.auth && usesCachedToken(p)) {
+        // the token was refused: drop it and sign in again – only when it is still the cached one (0.27.0): requests
+        // refused at the same time sign in once, and a token another request has just obtained is kept
+        const key = identityKey(p);
+        if (tokenCache.get(key)?.header[1] === used.auth) tokenCache.delete(key);
         res = await send(attempt);
       }
     } catch (e) {
