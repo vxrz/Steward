@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **The monitor scheduler reads maintenance windows once per tick**: every second it asked the database for each monitor's own maintenance window of earlier versions, one statement per monitor – on PostgreSQL a round trip each, which blocks the event loop. It now reads them in one statement per tick, as the monitor list already did.
+
 ### Fixed
 
 - **Monthly maintenance windows that started more than about two years ago skipped occurrences**: finding the occurrences of a repeating window jumped ahead by 28-day months and could land past the ones it was asked for, so such a window was not active when it should have been – monitors in it alerted, the calendar left months out. The jump now counts a month as 31 days and walks forward from there.

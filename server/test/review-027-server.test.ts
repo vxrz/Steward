@@ -183,3 +183,25 @@ describe('schedules', () => {
     expect(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'schedule.skipped' AND entity_id = ?", sch.id)!.n).toBe(1);
   });
 });
+
+describe('monitors', () => {
+  it('the scheduler tick reads maintenance windows in one statement, not one per monitor', async () => {
+    const { tick, loadAll } = await import('../src/monitors/engine.js');
+    const { requestDbStats } = await import('../src/database/timing.js');
+    const statementsOfTick = () => {
+      const stats = { statements: 0, ms: 0 };
+      requestDbStats.run(stats, () => tick());
+      return stats.statements;
+    };
+    const create = async (n: number) => {
+      for (let i = 0; i < n; i++) await s.api('POST', '/monitors', { definition: { name: `Invented tick monitor ${Math.random()}`, checks: [] } });
+      loadAll();
+    };
+    await create(2);
+    tick();
+    const few = statementsOfTick();
+    await create(10);
+    tick();
+    expect(statementsOfTick()).toBe(few);
+  });
+});
