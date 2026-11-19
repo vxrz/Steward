@@ -2,7 +2,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
- * The Insights Hub user examples (0.27.0) end to end against the simulated tenant: offboarding (#13) – deleting a user
+ * The Insights Hub user examples (0.27.0) end to end against the simulated tenant: offboarding (#13) and access review 2
+ * (#11, its removal of memberships) – deleting a user
  * without touching its memberships, removing memberships without the internal OIDC scope groups, failures reported per
  * group –, adding users to several groups (#17) and deactivating and reactivating accounts (#18). The simulated tenant
  * is seeded again before each test (POST /mock/reset), so the tests do not depend on each other.
@@ -163,6 +164,59 @@ describe('Insights Hub – offboarding (#13)', () => {
   });
 });
 
+describe('Insights Hub – access review 2 (#11), removeFromAllGroups', () => {
+  /** Karla Lang flagged for review: a member of the review group */
+  const flagKarla = async () => {
+    const karla = await user('karla.lang@example.com');
+    const review = (await idm('GET', '/Groups')).body.resources.find((g: any) => g.displayName === 'mdsp_usergroup:AccessReview');
+    expect((await idm('POST', `/Groups/${review.id}/members`, { type: 'USER', value: karla.id })).status).toBe(201);
+    return { karla, review };
+  };
+
+  it('removes the direct memberships per group and never the OIDC scope groups', async () => {
+    const { karla, review } = await flagKarla();
+    // nobody is ticked: Karla loses her access after the four-eyes confirmation
+    const r = await run('ih-access-review-2-decide', {});
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(step(r, 'failuresCheck').status).toBe('succeeded');
+    const groupId = (name: string) => karla.groups.find((g: any) => g.display === name)?.value ?? review.id;
+    expect((await writes(r.id)).sort()).toEqual(
+      ['mdsp:core:StandardUser', 'mdsp_usergroup:Engineers', 'mdsp_usergroup:AccessReview']
+        .map((g) => `DELETE /api/identitymanagement/v3/Groups/${groupId(g)}/members/${karla.id} → HTTP 200`)
+        .sort(),
+    );
+    expect((await user('karla.lang@example.com')).groups.map((g: any) => g.display).sort()).toEqual(['email', 'openid', 'profile']);
+    expect(
+      report(r)
+        .rows.map((x: any) => `${x.Group}: ${x.Result}`)
+        .sort(),
+    ).toEqual([
+      'email: kept (internal scope group)',
+      'mdsp:core:StandardUser: removed',
+      'mdsp_usergroup:AccessReview: removed',
+      'mdsp_usergroup:Engineers: removed',
+      'openid: kept (internal scope group)',
+      'profile: kept (internal scope group)',
+    ]);
+    const [entry] = await changes(r.id, 'karla.lang@example.com');
+    expect(entry).toMatchObject({ kind: 'offboarding', subjectId: karla.id });
+    expect([...entry.rightsAfter].sort()).toEqual(['email', 'openid', 'profile']);
+  });
+
+  it('a refused removal is reported per group; the other removals go on', async () => {
+    await flagKarla();
+    const r = await run('ih-access-review-2-decide', { neverTouch: [] });
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    const check = step(r, 'failuresCheck');
+    expect(check.status).toBe('failed');
+    expect(check.summary).toContain('karla.lang@example.com / openid: HTTP 400 – Member ');
+    const rows = Object.fromEntries(report(r).rows.map((x: any) => [x.Group, x]));
+    for (const g of ['mdsp:core:StandardUser', 'mdsp_usergroup:Engineers', 'mdsp_usergroup:AccessReview']) expect(rows[g]).toMatchObject({ Result: 'removed' });
+    for (const g of ['openid', 'profile', 'email']) expect(rows[g]).toMatchObject({ Result: 'failed', HTTP: '400' });
+    expect((await user('karla.lang@example.com')).groups.map((g: any) => g.display).sort()).toEqual(['email', 'openid', 'profile']);
+  });
+});
+
 describe('Insights Hub – add users to several groups (#17)', () => {
   it('resolves the groups with the building block, skips existing memberships, adds the rest per user × group and documents them', async () => {
     const noah = await user('noah.otto@example.com');
@@ -239,7 +293,14 @@ describe('Insights Hub – deactivate and reactivate (#18)', () => {
     expect([r.status, r.error]).toEqual(['succeeded', null]);
     expect(step(r, 'failuresCheck').status).toBe('succeeded');
     expect(await writes(r.id)).toEqual([`PUT /api/identitymanagement/v3/Users/${before.id} → HTTP 200`]);
-    // the tenant takes a PUT only with userName, name and emails (the mock refuses one without them or with another userName)
+    // the tenant takes a PUT only with userName, name and an e-mail address equal to the user name (specification 3.3)
+    const wrongMail = await idm('PUT', `/Users/${before.id}`, {
+      userName: before.userName,
+      name: before.name,
+      emails: [{ value: 'other@example.com' }],
+      active: false,
+    });
+    expect(wrongMail.status).toBe(400);
     const after = await user('karla.lang@example.com');
     expect(after).toMatchObject({ active: false, userName: before.userName, name: before.name, emails: before.emails });
     expect(after.groups).toEqual(before.groups);
