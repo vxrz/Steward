@@ -9,6 +9,14 @@ import { setup, startTestServer, type TestServer } from './helpers.js';
  * maintenance windows and datasets. Each test failed before its fix.
  */
 
+let s: TestServer;
+beforeAll(async () => {
+  s = await startTestServer();
+  await setup(s);
+  // fires and runs start only where a test starts them
+  (await import('../src/scheduler.js')).stopScheduler();
+});
+
 describe('maintenance windows', () => {
   it('a monthly window started years ago keeps all its occurrences (the skip-ahead estimate never passes them)', async () => {
     const { occurrencesBetween } = await import('../../shared/src/maintenance.js');
@@ -40,10 +48,7 @@ describe('platform calls', () => {
   let issued = 0;
   /** Tokens the API accepts (a revoked one is taken out) */
   const accepted = new Set<string>();
-  let s: TestServer;
   beforeAll(async () => {
-    s = await startTestServer();
-    await setup(s);
     server = http.createServer((req, res) => {
       const path = (req.url ?? '').split('?')[0]!;
       calls[path] = (calls[path] ?? 0) + 1;
@@ -160,5 +165,21 @@ describe('platform calls', () => {
     expect(err?.message).toMatch(new RegExp(`^GET http://127\\.0\\.0\\.1:${closedPort}/items failed`));
     expect(err?.message).not.toContain('invented-query-key-123');
     expect(err?.message).not.toContain('page=2');
+  });
+});
+
+describe('schedules', () => {
+  it('two fires at the same moment start one run of a schedule that does not allow overlapping runs', async () => {
+    await s.api('POST', '/processes', {
+      definition: { name: 'Overlap target', steps: [{ id: 'ok', type: 'userTask', mode: 'approve', title: 'Approve the overlap test', x: 1, y: 0 }] },
+    });
+    const sch = await s.api<{ id: string }>('POST', '/schedules', { name: 'No overlap', processId: 'overlap-target', cron: '0 3 * * *', enabled: false });
+    // a cron fire and the catch-up run at start (both as the owner) at the same moment
+    const { fire } = await import('../src/scheduler.js');
+    const started = await Promise.all([fire(sch.id), fire(sch.id, false, { catchUp: true })]);
+    expect(started.filter(Boolean)).toHaveLength(1);
+    const { db } = await import('../src/db.js');
+    expect(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM runs WHERE schedule_id = ?', sch.id)!.n).toBe(1);
+    expect(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'schedule.skipped' AND entity_id = ?", sch.id)!.n).toBe(1);
   });
 });
