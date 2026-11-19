@@ -35,14 +35,14 @@ import {
 } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
-import { EmptyState, Hint, QueryState, useFieldErrors } from '../components/common';
+import { EmptyState, Hint, QueryState, RelTime, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
 import { CheckSettlingBadge, settlingCheckIds, stateProblemText } from '../components/monitors/StatePanel';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
-import { DataTable, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, type DataColumn } from '../components/DataTable';
 import { appUrl } from '../basePath';
 import { ListPage } from '../components/page/ListPage';
 import { monitorKeys } from '../queryKeys';
@@ -276,6 +276,7 @@ function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: 
   ];
   return (
     <DataTable
+      pageSize={LIST_PAGE}
       rows={monitors}
       columns={columns}
       rowKey={(m) => m.id}
@@ -441,7 +442,9 @@ function GatewaysTab() {
                     </Text>
                   </Table.Td>
                   <Table.Td className="mono">{g.allowedKeys.join(', ') || t('gateways.noKeys')}</Table.Td>
-                  <Table.Td>{fmtRelative(g.lastSeenAt)}</Table.Td>
+                  <Table.Td>
+                    <RelTime at={g.lastSeenAt} />
+                  </Table.Td>
                   <Table.Td>
                     {fmtNumber(g.acceptedCount)}
                     {g.rejectedCount > 0 && (

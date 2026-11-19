@@ -150,6 +150,19 @@ test.describe('accessibility (axe, WCAG 2.2 AA)', () => {
     expect(await page.evaluate(() => !!document.activeElement?.closest('main'))).toBe(true);
   });
 
+  test('every page names itself in the browser tab (WCAG 2.4.2)', async ({ page }) => {
+    await page.goto('/schedules');
+    await settle(page);
+    await expect(page).toHaveTitle('Schedules – Steward');
+    await page.goto('/monitors');
+    await expect(page).toHaveTitle('Monitors – Steward');
+    // a detail page reached in the app, once its item has loaded
+    await page.getByRole('table', { name: 'Monitors' }).getByRole('link', { name: 'Machine 17 – PowerMeter' }).click();
+    await expect(page).toHaveTitle('Machine 17 – PowerMeter – Steward');
+    await page.goto('/');
+    await expect(page).toHaveTitle('Home – Steward');
+  });
+
   test('run detail and My tasks with an open task', async ({ page, apiAs }) => {
     const api = await apiAs('admin');
     const runId = await startRunApi(api, PROCESS.accessReview1, { dryRun: true });

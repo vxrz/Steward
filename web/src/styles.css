@@ -296,6 +296,10 @@ p .mantine-Anchor-root,
   --cb-size-xs: 24px;
   --cb-size-sm: 28px;
 }
+/* Small text buttons ("Mark read", "Remove", "Show the window") are 24 px high as well (Mantine: 22 px). */
+:root .mantine-Button-root {
+  --button-height-compact-xs: 24px;
+}
 
 /*
  * Links that stand on their own in a table cell (a service's name, a badge that links) are targets of at least 24 px

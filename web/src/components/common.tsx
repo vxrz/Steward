@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { errorText } from '../i18n/errors';
 import { NAV_PATHS, type NavKey } from './AppNav';
+import { fmtDate, fmtRelative } from '../format';
 
 /**
  * One colour vocabulary for every status badge (runs, tasks, monitors, credentials, check severities):
@@ -91,6 +92,19 @@ export function subjectLabel(subject: string): string {
 /** Check severity (error / warning / info) for display. */
 export function severityLabel(severity: string): string {
   return i18n.t(`common:severity.${severity}` as 'common:severity.error', { defaultValue: severity });
+}
+
+/**
+ * A time as "5 minutes ago", with the date and time on hover and for assistive technology (`<time datetime>`): the
+ * same everywhere a list shows a relative time. "–" without one.
+ */
+export function RelTime({ at }: { at?: string | null }) {
+  if (!at) return <>–</>;
+  return (
+    <time dateTime={at} title={fmtDate(at)}>
+      {fmtRelative(at)}
+    </time>
+  );
 }
 
 export function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'xs' | 'sm' | 'md' }) {
