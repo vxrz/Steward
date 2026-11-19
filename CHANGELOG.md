@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Monthly maintenance windows that started more than about two years ago skipped occurrences**: finding the occurrences of a repeating window jumped ahead by 28-day months and could land past the ones it was asked for, so such a window was not active when it should have been – monitors in it alerted, the calendar left months out. The jump now counts a month as 31 days and walks forward from there.
+
 ## [0.26.2] - 2026-11-16
 
 Steward 0.26.2 reads private keys again that were pasted into a password field – the browser drops their line breaks; key fields now take several lines – and adds two Snowflake examples for teams that have only roles on their project database, without `ACCOUNT_USAGE`. The Snowflake demo uses generic names, and the upgrade fixture of 0.26.1 is added.
