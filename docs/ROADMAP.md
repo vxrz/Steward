@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.26.2 (November 2026)._
+_Last reviewed for 0.27.0 (November 2026)._
 
 ## What Steward is for
 
@@ -89,10 +89,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.26.0:** contacts and support ([ADR 0039](adr/0039-contact-roles-and-support.md)) – a role catalogue with own roles, business contacts of applications and systems, contacts inherited along the domains, deputy and until; support channels with a purpose, support levels instead of a tier, guides and the supporting service of a data product.
 - **0.26.1:** Kubernetes without cert-manager – namespaces, the monitor check and the example process work when the cluster has no cert-manager or the service account may not read certificates.
 - **0.26.2:** private keys pasted into a password field are read again (and key fields are multi-line); two Snowflake examples for project roles without `ACCOUNT_USAGE`; generic Snowflake demo names.
+- **0.27.0:** fewer and clearer notifications – a failing check is news when what fails changes, monitors tell a problem once until it is over, a one-sentence summary and one-click pause; a review of the server (sign-in under load, maintenance windows, scheduler overlap, stale datasets) and of the UI; Snowflake examples for data volume and the newest data point, Insights Hub examples to add users to several groups and to deactivate accounts, and a fixed offboarding.
 
 ## Next
 
-- **After 0.26.2:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
+- **After 0.27.0:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
 
 ## Later
 

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-19
+
+Steward 0.27.0 makes notifications quieter and clearer: a failing check is news when **what** fails changes – a deployment, a severity –, not when its wording or counts change, and monitors tell a problem once until it is over; each message says why it was sent, a schedule's notification settings start with a one-sentence summary, and messages can be paused for a few hours in one click, also from the dialog a message links to. A review of the server fixes sign-ins under load, long-running maintenance windows, overlapping runs of one schedule and weekday datasets that turned stale every weekend; a review of the UI adds page titles, dates on hover, confirmations before deleting and paged long lists. New examples read data volume and the newest data point from Snowflake with project roles, add Insights Hub users to several groups and deactivate or reactivate accounts; offboarding no longer fails on Insights Hub's internal groups. The upgrade fixture of 0.26.2 is added.
+
 ### Added
 
 - **Snowflake – Data volume over time (project)**, example 625 ([docs/SNOWFLAKE.md](docs/SNOWFLAKE.md#without-account_usage-project-roles)): rows, bytes and last change of every base table of the project databases (optionally only some schemas) from the database's own `INFORMATION_SCHEMA.TABLES`, totals per schema, and the change since the previous run – tables that grew or shrank by more than a percentage (and a number of rows), empty tables, tables not altered for N days, each a check (`snowflake.data-volume`). Scheduled daily, the dashboard shows the growth. USAGE on the database and schemas, REFERENCES on the tables (metadata only) and a warehouse are enough; database and schema names must be plain identifiers.
@@ -1704,7 +1708,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.26.2...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/vxrz/steward/compare/v0.26.2...v0.27.0
 [0.26.2]: https://github.com/vxrz/steward/compare/v0.26.1...v0.26.2
 [0.26.1]: https://github.com/vxrz/steward/compare/v0.26.0...v0.26.1
 [0.26.0]: https://github.com/vxrz/steward/compare/v0.25.1...v0.26.0
