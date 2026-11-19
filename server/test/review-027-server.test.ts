@@ -37,6 +37,9 @@ describe('platform calls', () => {
   let server: http.Server;
   let port = 0;
   let calls: Record<string, number> = {};
+  let issued = 0;
+  /** Tokens the API accepts (a revoked one is taken out) */
+  const accepted = new Set<string>();
   let s: TestServer;
   beforeAll(async () => {
     s = await startTestServer();
@@ -44,6 +47,19 @@ describe('platform calls', () => {
     server = http.createServer((req, res) => {
       const path = (req.url ?? '').split('?')[0]!;
       calls[path] = (calls[path] ?? 0) + 1;
+      if (path === '/oauth/token') {
+        // a slow identity provider: requests that need a token at the same time must share one sign-in
+        const token = `token-${++issued}`;
+        setTimeout(() => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ access_token: token, expires_in: 1800 })), 80);
+        return;
+      }
+      if (path === '/data') {
+        const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+        if (!accepted.has(token)) return void res.writeHead(401, { 'content-type': 'application/json' }).end('{"error":"invalid_token"}');
+        // a little later, so that the refused requests overlap
+        setTimeout(() => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ token })), 20);
+        return;
+      }
       if (path === '/dropped' && calls[path] === 1) {
         // the headers arrive, then the connection drops in the middle of the body
         res.writeHead(200, { 'content-type': 'application/json', 'content-length': '1000' });
@@ -75,6 +91,48 @@ describe('platform calls', () => {
       createdAt: '',
       updatedAt: '',
     }) as unknown as Platform;
+
+  const oauth = () =>
+    platform({
+      auth: { type: 'oauth2_client_credentials', tokenUrl: `http://127.0.0.1:${port}/oauth/token`, clientAuth: 'body' },
+      http: { proxy: 'none', retry: { maxRetries: 0 } },
+    } as Partial<Platform['config']>);
+  const secrets = { clientId: 'invented-client', clientSecret: 'invented-client-secret' };
+
+  it('signs in once for requests that need a token at the same time', async () => {
+    const { platformRequest } = await import('../src/platforms/http.js');
+    const p = oauth();
+    issued = 0;
+    accepted.clear();
+    accepted.add('token-1');
+    const answers = await Promise.all(Array.from({ length: 6 }, () => platformRequest(p, secrets, { method: 'GET', url: '/data' })));
+    expect(answers.map((a) => a.status)).toEqual([200, 200, 200, 200, 200, 200]);
+    expect(issued).toBe(1);
+    // a request that stops waiting does not fail the sign-in of the others
+    const { renewToken } = await import('../src/platforms/http.js');
+    accepted.add('token-2');
+    const ctl = new AbortController();
+    const [cancelled, renewed] = await Promise.allSettled([renewToken(p, secrets, ctl.signal), (ctl.abort(), platformRequest(p, secrets, { method: 'GET', url: '/data' }))]);
+    expect(cancelled.status).toBe('rejected');
+    expect(renewed).toMatchObject({ status: 'fulfilled', value: { status: 200, body: { token: 'token-2' } } });
+    expect(issued).toBe(2);
+  });
+
+  it('a refused token is replaced once for all requests it was refused for, and every one of them gets through', async () => {
+    const { platformRequest } = await import('../src/platforms/http.js');
+    const p = oauth();
+    issued = 0;
+    accepted.clear();
+    accepted.add('token-1');
+    expect((await platformRequest(p, secrets, { method: 'GET', url: '/data' })).status).toBe(200);
+    // the platform revokes the token before it expires: every request with it is refused
+    accepted.clear();
+    accepted.add('token-2');
+    const answers = await Promise.all(Array.from({ length: 6 }, () => platformRequest(p, secrets, { method: 'GET', url: '/data' })));
+    expect(answers.map((a) => a.status)).toEqual([200, 200, 200, 200, 200, 200]);
+    expect(answers.map((a) => (a.body as { token: string }).token)).toEqual(Array(6).fill('token-2'));
+    expect(issued).toBe(2);
+  });
 
   it('retries a GET whose connection dropped while the body was read', async () => {
     const { platformRequest } = await import('../src/platforms/http.js');
