@@ -1,6 +1,7 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { confirmDialog, uniq, waitForRun } from './support/helpers';
+import { expectAccessible } from './support/axe';
+import { confirmDialog, json, platformId, uniq, waitForRun } from './support/helpers';
 
 test.use({ storageState: authFile('olivia') });
 
@@ -158,4 +159,74 @@ test('the time zone is picked from a list, the next runs are shown in it, and a 
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await discard.getByRole('button', { name: 'Discard' }).click();
   await expect(dialog).toBeHidden();
+});
+
+test('the notification policy reads as one sentence, and the messages are paused from the dialog the message links to', async ({ page, apiAs }) => {
+  const api = await apiAs('olivia');
+  const processes = await json<{ id: string; name: string }[]>(await api.get('/api/processes'));
+  const proc = processes.find((p) => p.name === 'Industrial Edge – Device status check')!;
+  const iem = await platformId(api, 'industrial-edge-management');
+  const name = uniq('E2E policy summary');
+  // disabled: it never fires during the other tests
+  const s = await json<{ id: string }>(
+    await api.post('/api/schedules', { data: { name, processId: proc.id, cron: '0 3 * * *', bindings: { iem }, enabled: false } }),
+  );
+
+  // "Message settings for this schedule" in an e-mail or Teams message opens it (?edit=)
+  await page.goto(`/schedules?edit=${s.id}`);
+  const dialog = page.getByRole('dialog', { name: 'Edit schedule' });
+  const notify = dialog.getByTestId('notify-policy');
+  const summary = notify.getByTestId('notify-summary');
+  await expect(summary).toHaveText('Messages are sent when a check starts failing, when what fails changes and every 4 h while it keeps failing.');
+  await expect(summary).toHaveAttribute('aria-live', 'polite');
+  await notify.getByLabel('Send a message when a check passes again').click();
+  await expect(summary).toContainText('every 4 h while it keeps failing and when the check passes again.');
+  await notify.getByRole('textbox', { name: 'Reminder while still failing' }).fill('0');
+  await expect(summary).toHaveText('Messages are sent when a check starts failing, when what fails changes and when the check passes again.');
+  await notify.getByText('Only these channels:').click();
+  await notify.getByText('E-mail', { exact: true }).click();
+  await expect(summary).toContainText('Only to: In the app and E-mail.');
+  await notify.getByRole('combobox', { name: 'Failed checks notify' }).click();
+  await page.getByRole('option', { name: 'Never' }).click();
+  await expect(summary).toHaveText('Failed checks send no messages; they are shown in the runs only. Failed runs still notify.');
+  await expectAccessible(page, 'schedule dialog with the policy summary');
+
+  // pause right here: stored at once (and audited), not with Save
+  const control = notify.getByTestId('pause-control');
+  await expect(control).toHaveText('Pause messages');
+  await control.click();
+  const pause = page.getByRole('dialog', { name: 'Pause messages' });
+  // an end in the past is refused at the field
+  const end = pause.getByLabel('Ends at');
+  await end.fill('2020-01-01T08:00');
+  await expect(pause.getByText('Choose a time in the future')).toBeVisible();
+  await expect(pause.getByRole('button', { name: 'Pause', exact: true })).toBeDisabled();
+  // the usual lengths are one click
+  await pause.getByTestId('pause-presets').getByRole('button', { name: '4 hours' }).click();
+  await expect(pause.getByText('Choose a time in the future')).toHaveCount(0);
+  await expectAccessible(page, 'pause dialog');
+  await pause.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(pause).toBeHidden();
+  // the focus is back on the control, which now resumes
+  await expect(control).toBeFocused();
+  await expect(control).toHaveText('Resume messages');
+  const stored = await json<{ id: string; notify: { pause: { until: string } | null } }[]>(await api.get('/api/schedules'));
+  const until = Date.parse(stored.find((x) => x.id === s.id)!.notify.pause!.until);
+  expect(Math.abs(until - (Date.now() + 4 * 3_600_000))).toBeLessThan(5 * 60_000);
+  // mode back to "on change": the summary says it is paused
+  await notify.getByRole('combobox', { name: 'Failed checks notify' }).click();
+  await page.getByRole('option', { name: 'On change (recommended)' }).click();
+  await expect(summary).toContainText('Paused until');
+  await control.click();
+  await expect(control).toHaveText('Pause messages');
+  await expect(summary).not.toContainText('Paused');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await confirmDialog(page, 'Discard');
+
+  // in the list: the row's actions are icon buttons named after the schedule
+  const row = page.getByRole('row').filter({ hasText: name });
+  await expect(row.getByRole('button', { name: `Pause messages: ${name}` })).toBeVisible();
+  await expect(row.getByRole('button', { name: `Edit ${name}` })).toBeVisible();
+  await expect(row.getByRole('button', { name: `Run now: ${name}` })).toBeVisible();
+  await api.delete(`/api/schedules/${s.id}`);
 });

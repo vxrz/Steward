@@ -55,7 +55,7 @@ import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
-import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys } from '../queryKeys';
 import { TableScroll } from '../components/TableScroll';
 import { FormModal, FormModalCancel } from '../components/FormModal';
@@ -256,6 +256,7 @@ export function TriggersPage() {
           </Tooltip>
           <PauseControl
             pause={tr.notify?.pause}
+            name={tr.name}
             onPause={async (p) => {
               try {
                 await post(`/triggers/${tr.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
@@ -273,21 +274,25 @@ export function TriggersPage() {
               }
             }}
           />
-          <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(tr))} aria-label={t('editFor', { name: tr.name })}>
-            <IconEdit size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="red"
-            aria-label={t('deleteFor', { name: tr.name })}
-            onClick={async () => {
-              if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: tr.name }) }))) return;
-              await del(`/triggers/${tr.id}`).catch(notifyError);
-              refresh();
-            }}
-          >
-            <IconTrash size={16} />
-          </ActionIcon>
+          <Tooltip label={t('common:edit')}>
+            <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(tr))} aria-label={t('editFor', { name: tr.name })}>
+              <IconEdit size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label={t('common:delete')}>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              aria-label={t('deleteFor', { name: tr.name })}
+              onClick={async () => {
+                if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: tr.name }) }))) return;
+                await del(`/triggers/${tr.id}`).catch(notifyError);
+                refresh();
+              }}
+            >
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Tooltip>
         </>
       )}
     </Group>
@@ -420,6 +425,7 @@ export function TriggersPage() {
       )}
       {list.length > 0 && (
         <DataTable
+          pageSize={LIST_PAGE}
           rows={list}
           columns={columns}
           rowKey={(tr) => tr.id}
@@ -476,6 +482,7 @@ function parseJson(text: string): { value?: unknown; error?: string } {
 
 function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () => void; onSave: (d: Draft) => void }) {
   const { t } = useTranslation(['triggers', 'common']);
+  const qc = useQueryClient();
   const [d, setD] = useState<Draft>(draft);
   const [sample, setSample] = useState(JSON.stringify(GATUS_SAMPLE, null, 2));
   const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
@@ -694,7 +701,38 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Divider label={t('form.messages')} labelPosition="left" />
         {d.notify?.mode === 'every' && <Hint>{t('form.messagesHint')}</Hint>}
-        <NotifyPolicyFields value={d.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }} onChange={(notify) => setD({ ...d, notify })} />
+        <NotifyPolicyFields
+          value={d.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }}
+          onChange={(notify) => setD({ ...d, notify })}
+          // reached from "Message settings" in a message: pause right here (stored at once, not with Save)
+          pauseControl={
+            draft.id ? (
+              <PauseControl
+                pause={d.notify?.pause}
+                name={draft.name}
+                withLabel
+                onPause={async (p) => {
+                  try {
+                    const saved = await post<WebhookTrigger>(`/triggers/${draft.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
+                    setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_TRIGGER_NOTIFY), pause: saved.notify?.pause ?? null } }));
+                    await qc.invalidateQueries({ queryKey: ['triggers'] });
+                  } catch (e) {
+                    notifyError(e);
+                  }
+                }}
+                onResume={async () => {
+                  try {
+                    await post(`/triggers/${draft.id}/resume`, {});
+                    setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_TRIGGER_NOTIFY), pause: null } }));
+                    await qc.invalidateQueries({ queryKey: ['triggers'] });
+                  } catch (e) {
+                    notifyError(e);
+                  }
+                }}
+              />
+            ) : undefined
+          }
+        />
         <Hint>{draft.owner ? <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsOfYou')}</Hint>
         <Group justify="flex-end">
           <FormModalCancel />

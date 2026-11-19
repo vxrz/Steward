@@ -4,10 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { DEFAULT_SCHEDULE_NOTIFY, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
+import { DEFAULT_SCHEDULE_NOTIFY, type NotifyPause, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { CopyId } from '../components/CopyId';
-import { QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
+import { QueryState, RelTime, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
 import { AutomateTabs } from '../components/page/LinkTabs';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
@@ -20,7 +20,7 @@ import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/noti
 import { CronWarnings, fmtRun, timeZoneOptions, useCronPreview } from '../components/CronPreview';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
-import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
+import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
 import { processKeys, scheduleKeys } from '../queryKeys';
 import { DuplicateActionIcon, useDuplicate } from '../components/duplicate/DuplicateButton';
 import { FormModal, FormModalCancel } from '../components/FormModal';
@@ -79,6 +79,7 @@ export function SchedulesPage() {
   const navigate = useNavigate();
   const schedules = useQuery({ queryKey: scheduleKeys.all, queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
   const duplicate = useDuplicate();
   // ?new=1 opens a new schedule; &processId=… preselects the process (the template gallery's next steps)
   useCreateParam(true, () => setDraft({ ...emptyDraft(), processId: new URLSearchParams(window.location.search).get('processId') ?? '' }));
@@ -152,7 +153,9 @@ export function SchedulesPage() {
       <Anchor size="sm" component={Link} to={`/runs/${s.lastRunId}`} underline="never" c="var(--mantine-color-text)">
         <Group gap={4} wrap="nowrap">
           {s.lastRunStatus && <StatusBadge status={s.lastRunStatus} size="xs" />}
-          <Text size="xs">{fmtRelative(s.lastRunAt)}</Text>
+          <Text size="xs">
+            <RelTime at={s.lastRunAt} />
+          </Text>
         </Group>
       </Anchor>
     ) : (
@@ -163,59 +166,54 @@ export function SchedulesPage() {
       <Tooltip label={t('table.runNow')}>
         <ActionIcon
           variant="subtle"
+          // one run per click: the button waits for the start (a double click started two runs)
+          loading={starting === s.id}
+          disabled={!!starting}
           onClick={async () => {
+            setStarting(s.id);
             try {
               const r = await post<{ id: string }>(`/schedules/${s.id}/run`);
               navigate(`/runs/${r.id}`);
             } catch (e) {
               notifyError(e);
+            } finally {
+              setStarting(null);
             }
           }}
-          aria-label={t('table.runNow')}
+          aria-label={t('table.runNowFor', { name: s.name })}
         >
           <IconPlayerPlay size={16} />
         </ActionIcon>
       </Tooltip>
       <DuplicateActionIcon name={s.name} onClick={() => duplicate.open('schedule', s.id)} />
+      {s.canEdit && <SchedulePauseControl schedule={s} />}
       {s.canEdit && (
-        <PauseControl
-          pause={s.notify?.pause}
-          onPause={async (p) => {
-            try {
-              await post(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
-              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
-            } catch (e) {
-              notifyError(e);
-            }
-          }}
-          onResume={async () => {
-            try {
-              await post(`/schedules/${s.id}/resume`, {});
-              await qc.invalidateQueries({ queryKey: scheduleKeys.all });
-            } catch (e) {
-              notifyError(e);
-            }
-          }}
-        />
+        <Tooltip label={t('common:edit')}>
+          <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('editFor', { name: s.name })}>
+            <IconEdit size={16} />
+          </ActionIcon>
+        </Tooltip>
       )}
       {s.canEdit && (
-        <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('common:edit')}>
-          <IconEdit size={16} />
-        </ActionIcon>
-      )}
-      {s.canEdit && (
-        <ActionIcon
-          variant="subtle"
-          color="red"
-          aria-label={t('common:delete')}
-          onClick={async () => {
-            if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
-            await del(`/schedules/${s.id}`).catch(notifyError);
-            qc.invalidateQueries({ queryKey: scheduleKeys.all });
-          }}
-        >
-          <IconTrash size={16} />
-        </ActionIcon>
+        <Tooltip label={t('common:delete')}>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            aria-label={t('deleteFor', { name: s.name })}
+            onClick={async () => {
+              if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
+              try {
+                await del(`/schedules/${s.id}`);
+                notifyOk(t('deleted', { name: s.name }));
+              } catch (e) {
+                notifyError(e);
+              }
+              qc.invalidateQueries({ queryKey: scheduleKeys.all });
+            }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Tooltip>
       )}
     </Group>
   );
@@ -227,7 +225,7 @@ export function SchedulesPage() {
       header: t('table.when'),
       cell: (s) => (
         <>
-          <span className="mono">{s.cron}</span>
+          <span className="mono nowrap">{s.cron}</span>
           <Text size="xs" c="dimmed">
             {presetLabel(s.cron)} {s.timezone}
           </Text>
@@ -307,6 +305,7 @@ export function SchedulesPage() {
       )}
       {list.length > 0 && (
         <DataTable
+          pageSize={LIST_PAGE}
           rows={list}
           columns={columns}
           rowKey={(s) => s.id}
@@ -350,6 +349,37 @@ export function SchedulesPage() {
       )}
       {duplicate.dialog}
     </ListPage>
+  );
+}
+
+/** Pause or resume the messages of a schedule (its own actions: stored and audited at once, not with Save). */
+function SchedulePauseControl({
+  schedule: s,
+  withLabel,
+  onChanged,
+}: {
+  schedule: Pick<Schedule, 'id' | 'name' | 'notify'>;
+  withLabel?: boolean;
+  onChanged?: (pause: NotifyPause | null) => void;
+}) {
+  const qc = useQueryClient();
+  const call = async (path: string, body: object) => {
+    try {
+      const saved = await post<Schedule>(path, body);
+      onChanged?.(saved.notify?.pause ?? null);
+      await qc.invalidateQueries({ queryKey: scheduleKeys.all });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  return (
+    <PauseControl
+      pause={s.notify?.pause}
+      name={s.name}
+      withLabel={withLabel}
+      onPause={(p) => call(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp })}
+      onResume={() => call(`/schedules/${s.id}/resume`, {})}
+    />
   );
 }
 
@@ -472,7 +502,20 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           checked={d.catchUp === 'once'}
           onChange={(e) => setD({ ...d, catchUp: e.currentTarget.checked ? 'once' : 'none' })}
         />
-        <NotifyPolicyFields value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY} onChange={(notify) => setD({ ...d, notify })} />
+        <NotifyPolicyFields
+          value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY}
+          onChange={(notify) => setD({ ...d, notify })}
+          // reached from "Message settings" in a message: pause right here, without looking for the row
+          pauseControl={
+            draft.id && draft.canEdit ? (
+              <SchedulePauseControl
+                schedule={{ id: draft.id, name: draft.name, notify: d.notify }}
+                withLabel
+                onChanged={(pause) => setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_SCHEDULE_NOTIFY), pause } }))}
+              />
+            ) : undefined
+          }
+        />
         <Group justify="flex-end">
           <FormModalCancel />
           <Button onClick={() => v.validate() && onSave(d)}>{t('common:save')}</Button>

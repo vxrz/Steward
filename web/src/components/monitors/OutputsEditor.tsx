@@ -393,11 +393,20 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   disabled={disabled}
                   value={o.on}
                   onChange={(v) => update(i, { on: v as 'change' })}
+                  aria-label={t('outputs.send')}
                   data={[
                     { value: 'change', label: t('outputs.onChange') },
                     { value: 'every', label: t('outputs.onEvery') },
                   ]}
                 />
+                {/* what "on change" means for the output (0.27.0: a problem is told to people once until it is over) */}
+                <Text size="xs" c="dimmed" mt={4} data-testid="output-send-hint">
+                  {o.on === 'every'
+                    ? t('outputs.onEveryHint')
+                    : o.type === 'notification' || o.type === 'process' || (o.type === 'webhook' && o.format === 'teams')
+                      ? t('outputs.onChangeHintPeople')
+                      : t('outputs.onChangeHint')}
+                </Text>
               </div>
               {o.on === 'every' && (
                 <NumberInput
