@@ -205,3 +205,20 @@ describe('monitors', () => {
     expect(statementsOfTick()).toBe(few);
   });
 });
+
+describe('datasets', () => {
+  it("a weekday schedule's Friday data is not stale over the weekend; a regular schedule keeps 2.5 × its interval", async () => {
+    const { freshnessOf } = await import('../src/dashboards/datasets.js');
+    const part = (updated: string) => ({ schedule_id: 'sch_x', stale_after_minutes: null, stale_fixed: 0, expected_minutes: null, updated_at: updated });
+    const facts = (cron: string, minutes: number) => ({ name: 'x', processId: 'p', processName: 'p', minutes, nextRunAt: null, cron, timezone: 'UTC' });
+    // read on a weekend: the next two runs are Monday's and Tuesday's, one day apart
+    const weekdays = freshnessOf(part('2026-11-13T06:05:00.000Z'), facts('0 6 * * 1-5', 1440));
+    // stale once Monday's and Tuesday's runs are missed (Tuesday 18:00), not on Sunday evening
+    expect(Date.parse('2026-11-13T06:05:00.000Z') + weekdays.staleAfterMinutes * 60000).toBe(Date.parse('2026-11-17T18:00:00.000Z'));
+    expect(weekdays).toMatchObject({ staleReason: 'schedule', expectedMinutes: 1440 });
+    // hourly: 2.5 hours as before
+    expect(freshnessOf(part('2026-11-13T10:00:30.000Z'), facts('0 * * * *', 60))).toMatchObject({ staleAfterMinutes: 150, staleReason: 'schedule' });
+    // the schedule is gone: the stored interval
+    expect(freshnessOf({ ...part('2026-11-13T06:05:00.000Z'), expected_minutes: 1440 }, null)).toMatchObject({ staleAfterMinutes: 3600 });
+  });
+});

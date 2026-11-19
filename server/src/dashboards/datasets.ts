@@ -124,6 +124,9 @@ interface ScheduleFacts {
   minutes: number | null;
   /** Next run; null when disabled */
   nextRunAt: string | null;
+  /** The cron expression and its time zone: when a partition's next runs were due (freshnessOf) */
+  cron?: string;
+  timezone?: string | null;
 }
 
 /**
@@ -163,7 +166,14 @@ function loadSchedules(ids: (string | null)[], cache: Schedules = new Map()): Sc
        FROM schedules s LEFT JOIN processes p ON p.id = s.process_id WHERE s.id IN (${missing.map(() => '?').join(',')})`,
     ...missing,
   ))
-    cache.set(r.id, { name: r.name, processId: r.process_id, processName: r.process_name ?? r.process_id, ...cronFacts(r.cron, r.timezone, !!r.enabled) });
+    cache.set(r.id, {
+      name: r.name,
+      processId: r.process_id,
+      processName: r.process_name ?? r.process_id,
+      cron: r.cron,
+      timezone: r.timezone,
+      ...cronFacts(r.cron, r.timezone, !!r.enabled),
+    });
   for (const id of missing) if (!cache.has(id)) cache.set(id, null);
   return cache;
 }
@@ -206,17 +216,41 @@ export function sourceOfRun(runId: string, slot?: string): { id: string; platfor
 }
 
 /**
+ * Minutes from a partition's update until two of its schedule's runs after it were missed, and half the time between
+ * them (0.27.0). On a regular schedule that is at most 2.5 × the interval; on one whose gaps differ – weekdays only, a
+ * few times a day – it is longer after a long gap: a weekday schedule's Friday data is not stale on Sunday because the
+ * interval between Monday's and Tuesday's runs is a day. null: the cron expression no longer parses.
+ */
+function minutesUntilMissed(schedule: ScheduleFacts, updatedAt: string | undefined): number | null {
+  const from = updatedAt ? Date.parse(updatedAt) : NaN;
+  if (!schedule.cron || Number.isNaN(from)) return null;
+  try {
+    const c = new Cron(schedule.cron, { paused: true, timezone: schedule.timezone || undefined });
+    const [a, b] = c.nextRuns(2, new Date(from));
+    c.stop();
+    if (!a || !b) return null;
+    return Math.ceil((b.getTime() + (b.getTime() - a.getTime()) / 2 - from) / 60000);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * When a partition is stale, and why: a scheduled run follows its schedule (2.5 × the current interval, at least 15
- * minutes; the stored interval when the schedule is gone), unless the step fixes its limit for scheduled runs too; a
- * run without a schedule the step's limit, else 24 hours.
+ * minutes, and never before two of the schedule's runs after the update were missed; the stored interval when the
+ * schedule is gone), unless the step fixes its limit for scheduled runs too; a run without a schedule the step's
+ * limit, else 24 hours.
  */
 export function freshnessOf(
-  p: Pick<PartDb, 'schedule_id' | 'stale_after_minutes' | 'stale_fixed' | 'expected_minutes'>,
+  p: Pick<PartDb, 'schedule_id' | 'stale_after_minutes' | 'stale_fixed' | 'expected_minutes'> & { updated_at?: string },
   schedule: ScheduleFacts | null | undefined,
 ): { staleAfterMinutes: number; staleReason: DatasetStaleReason; expectedMinutes: number | null } {
   const expectedMinutes = p.schedule_id ? (schedule?.minutes ?? p.expected_minutes ?? null) : null;
   if (p.stale_after_minutes && (!expectedMinutes || p.stale_fixed)) return { staleAfterMinutes: p.stale_after_minutes, staleReason: 'fixed', expectedMinutes };
-  if (expectedMinutes) return { staleAfterMinutes: Math.max(15, Math.ceil(expectedMinutes * 2.5)), staleReason: 'schedule', expectedMinutes };
+  if (expectedMinutes) {
+    const missed = schedule ? minutesUntilMissed(schedule, p.updated_at) : null;
+    return { staleAfterMinutes: Math.max(15, Math.ceil(expectedMinutes * 2.5), missed ?? 0), staleReason: 'schedule', expectedMinutes };
+  }
   return { staleAfterMinutes: DEFAULT_STALE_MINUTES, staleReason: 'default', expectedMinutes };
 }
 
