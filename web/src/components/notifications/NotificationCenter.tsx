@@ -223,7 +223,8 @@ function NotificationGroupView({ g, onItem, onMarkRead }: { g: Group; onItem: (n
   return (
     <Box component="section" aria-label={name} data-testid={`notification-group-${g.event}`} data-category={g.category}>
       <Group justify="space-between" gap="xs" mb={4} wrap="nowrap">
-        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+        {/* the count goes below a long event name on a phone, rather than cutting the name off */}
+        <Group gap={6} wrap="wrap" style={{ minWidth: 0 }}>
           <Badge size="sm" variant={g.category === 'decision' ? 'filled' : 'light'} color={EVENT_COLORS[g.event] ?? 'gray'} tt="none">
             {name}
           </Badge>
