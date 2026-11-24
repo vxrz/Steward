@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-11-24
+
+Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.
+
 ### Changed
 
 - **Docker logs are rotated** in `docker-compose.yml` and `docker-compose.postgres.yml` (`logging: driver: local`, 5 files of 10 MB, for Steward and PostgreSQL): Docker's default driver kept every log line for ever. A new section of [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean), _Keeping the deployment lean_, says where the space goes (old images, logs, copies before an update, run files, the audit log) and which retention settings keep it in check.
@@ -1720,7 +1724,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.27.1...HEAD
+[0.27.1]: https://github.com/vxrz/steward/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/vxrz/steward/compare/v0.26.2...v0.27.0
 [0.26.2]: https://github.com/vxrz/steward/compare/v0.26.1...v0.26.2
 [0.26.1]: https://github.com/vxrz/steward/compare/v0.26.0...v0.26.1
