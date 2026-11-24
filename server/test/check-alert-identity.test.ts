@@ -45,6 +45,23 @@ describe('the normaliser and the identity', () => {
     expect(k('Tank 3 bar')).toBe(k('Tank 4 bar'));
     expect(k('Pump 3 kW')).toBe(k('Pump 4 kW'));
     expect(k('usage 91')).toBe(k('usage 92'));
+    // a unit after a space, in any case, is still a unit
+    expect(k('Disk 91 %')).toBe(k('Disk 95 %'));
+    expect(k('Oven 85 °C')).toBe(k('Oven 90 °C'));
+    expect(k('Pump 3 kw')).toBe(k('Pump 4 kw'));
+    expect(k('Drive 3 kHz')).toBe(k('Drive 4 kHz'));
+    expect(k('Tank 3 Bar')).toBe(k('Tank 4 Bar'));
+    // single-letter units are not taken as units: these name a line or a shift
+    expect(k('Line 2 A')).not.toBe(k('Line 3 A'));
+    // a no-break space, a number at the end, a combining mark in the word
+    expect(k('Line\u00a01')).not.toBe(k('Line\u00a02'));
+    expect(k('A\u0308rmel 2')).not.toBe(k('A\u0308rmel 3'));
+    // not a plain integer, or not after a word: masked
+    expect(k('Line 2.5')).toBe(k('Line 3.5'));
+    expect(k('Line -2')).toBe(k('Line -3'));
+    expect(k('2 endpoints')).toBe(k('3 endpoints'));
+    // the parts masked before are not words
+    expect(k('Stop 2026-11-19 2')).toBe(k('Stop 2026-11-20 3'));
     expect(k('line 1')).toBe(k('line 2'));
     // messages keep masking every number
     expect(keyOf('message', 'Line 1 down')).toBe(keyOf('message', 'Line 2 down'));

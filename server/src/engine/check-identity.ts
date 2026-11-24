@@ -45,9 +45,12 @@ const ONE_DURATION = `\\d+(?:[.,]\\d+)?\\s?(?:${UNITS})\\b`;
 const DURATION = new RegExp(`(?<![\\w.-])${ONE_DURATION}(?:,?\\s*(?:and\\s+|und\\s+)?${ONE_DURATION})*`, 'gi');
 const NUMBER = /(?<![\w.\-/:+])[-+]?\d+(?:[.,:/]\d+)*(?![\w-])/g;
 const IPV4 = /^[-+]?\d{1,3}(?:\.\d{1,3}){3}$/;
-// A unit right after a number makes it a quantity, not a name (Disk 91%, Tank 3 bar)
-const QUANTITY_UNIT = /(?:[%‰°]|[ \u00a0]?(?:mbar|bar|Pa|kPa|MPa|mV|kV|V|mA|A|kWh|Wh|kW|MW|W|Hz|rpm|kB|KB|MB|GB|TB|KiB|MiB|GiB|TiB|B)\b)/y;
-const LETTER = /\p{L}/u;
+// A unit right after a number, with or without a space, makes it a quantity, not a name (Disk 91 %, Tank 3 bar, 85 °C).
+// Units of one letter (A, V, W, B) are left out: "Line 2 A" or "Shift 2 B" name things more often than they measure.
+const QUANTITY_UNIT =
+  /[ \u00a0]?(?:[%‰°]|(?:mbar|bar|kPa|MPa|GPa|Pa|mV|kV|MV|mA|kA|Wh|kWh|MWh|GWh|kW|MW|GW|Hz|kHz|MHz|GHz|rpm|ppm|mm|cm|km|kg|kB|MB|GB|TB|KiB|MiB|GiB|TiB|kbit|Mbit|Gbit)\b)/iy;
+// a letter, or a combining mark of one (Ä written as A + ◌̈)
+const LETTER = /[\p{L}\p{M}]/u;
 const UPPER = /\p{Lu}/u;
 const PLURAL = /# ([A-Za-z]{2,})s\b/g;
 
