@@ -6,6 +6,19 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-11-24
+
+Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. `SM_SQLITE_VACUUM_AT_START` no longer runs out of memory in the container. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.
+
+### Changed
+
+- **Docker logs are rotated** in `docker-compose.yml` and `docker-compose.postgres.yml` (`logging: driver: local`, 5 files of 10 MB, for Steward and PostgreSQL): Docker's default driver kept every log line for ever. A new section of [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean), _Keeping the deployment lean_, says where the space goes (old images, logs, copies before an update, run files, the audit log) and which retention settings keep it in check.
+
+### Fixed
+
+- **`SM_SQLITE_VACUUM_AT_START=1` was killed in the container** (exit code 137) for a database larger than the container's memory limit: a `VACUUM` builds a complete copy of the database in SQLite's temporary folder, which was `/tmp` – a tmpfs in the container, so memory. SQLite's temporary files now go to `.sqlite-tmp` next to the database, unless `SQLITE_TMPDIR` is set; backups leave the folder out. Large sorts that spill out of memory go there too. The rewrite needs free disk space of about twice the database in the data folder ([docs/INSTALL.md](docs/INSTALL.md#disk-space-after-a-clean-up)).
+- **A second line or machine failing is news again** ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#what-fails-how-steward-tells-a-change-from-a-new-wording)): since 0.27.0 the normaliser masked every number that stands alone, so the items `Line 1` and `Line 2` or `Machine 17` and `Machine 18` were one key, and when Line 1 was told and Line 2 started failing, nobody was told. In items, a whole number after a capitalised word (`Line 2`, `Machine 17 – PowerMeter`, `Linie 3`) now stays part of the name, unless a unit follows (`Disk 91%`, `Tank 3 bar`); counts, ratios, restarts in parentheses, durations and dates stay masked, and messages are unchanged. Nothing is migrated: told items are stored as shown. **Upgrade note:** checks whose items carry a number after a capitalised word that is really a quantity (`Temperature 85`) now notify when it changes; give them a `changeKey`. Lowercase names (`line 2`) are still one key without a `changeKey`.
+
 ## [0.27.0] - 2026-11-19
 
 Steward 0.27.0 makes notifications quieter and clearer: a failing check is news when **what** fails changes – a deployment, a severity –, not when its wording or counts change, and monitors tell a problem once until it is over; each message says why it was sent, a schedule's notification settings start with a one-sentence summary, and messages can be paused for a few hours in one click, also from the dialog a message links to. A review of the server fixes sign-ins under load, long-running maintenance windows, overlapping runs of one schedule and weekday datasets that turned stale every weekend; a review of the UI adds page titles, dates on hover, confirmations before deleting and paged long lists. New examples read data volume and the newest data point from Snowflake with project roles, add Insights Hub users to several groups and deactivate or reactivate accounts; offboarding no longer fails on Insights Hub's internal groups. The upgrade fixture of 0.26.2 is added.
@@ -1712,7 +1725,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.27.1...HEAD
+[0.27.1]: https://github.com/vxrz/steward/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/vxrz/steward/compare/v0.26.2...v0.27.0
 [0.26.2]: https://github.com/vxrz/steward/compare/v0.26.1...v0.26.2
 [0.26.1]: https://github.com/vxrz/steward/compare/v0.26.0...v0.26.1

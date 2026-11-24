@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite';
 import { PgBridge, type PgBridgeOptions } from './pg-bridge.js';
 import { describeTarget, toPgPlaceholders, type DatabaseTarget } from './sql.js';
@@ -30,6 +31,32 @@ function fileSize(f: string): number {
   }
 }
 
+/** The folder for SQLite's temporary files, next to the database (0.27.1); not in backups (backup/archive.ts). */
+export const SQLITE_TEMP_DIR = '.sqlite-tmp';
+
+/**
+ * Where SQLite should write its temporary files: `<folder of the database>/.sqlite-tmp`, unless SQLITE_TMPDIR is set.
+ * SQLite's own default is /tmp, which in the container is a tmpfs – memory that counts against the container's limit –
+ * and a VACUUM writes a whole copy of the database there (SM_SQLITE_VACUUM_AT_START was killed, exit code 137, for a
+ * database larger than the limit). Large sorts and temporary indexes spill there too.
+ */
+export function sqliteTempDir(file: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.SQLITE_TMPDIR || !file || file === ':memory:' || file.startsWith('file:')) return null;
+  return path.join(path.dirname(path.resolve(file)), SQLITE_TEMP_DIR);
+}
+
+/** Sets SQLITE_TMPDIR before SQLite is loaded (it reads the variable when it starts); a folder it cannot create is left out. */
+function useSqliteTempDir(file: string): void {
+  const dir = sqliteTempDir(file);
+  if (!dir) return;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    process.env.SQLITE_TMPDIR = dir;
+  } catch {
+    // SQLite falls back to its own default (/var/tmp, /tmp, the working folder)
+  }
+}
+
 export class SqliteDriver implements Driver {
   readonly dialect = 'sqlite' as const;
   readonly label: string;
@@ -39,6 +66,7 @@ export class SqliteDriver implements Driver {
     readonly file: string,
     opts: { autoVacuum?: boolean } = {},
   ) {
+    useSqliteTempDir(file);
     // Loaded lazily so the ExperimentalWarning filter in warnings.ts is active first.
     const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
     const isNew = file === ':memory:' || fileSize(file) === 0;

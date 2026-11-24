@@ -16,6 +16,10 @@
  *   - durations, also several in a row (5 min, 3 days, 1 h 20 min, 90s) → <duration>
  *   - numbers that stand alone, with their sign (12, -2.5, 99.5, 1/3, 10:15) → #; a number that is part of a name
  *     (plc-01, node7, v2) stays, and so do IPv4 addresses
+ *   - exception for items (not messages): a plain integer that names something – right after a capitalised word and a
+ *     single space, and not followed by a unit (Line 2, Machine 17 – PowerMeter, Linie 3 steht) – stays, so another
+ *     line or machine is another item; Disk 91%, Tank 3 bar, usage 91, 3 endpoints, (14 restarts), 1/3 are still masked.
+ *     A lowercase name ("line 2") is masked: use `changeKey` for those
  *   - a word right after a masked number loses a plural "s" (1 endpoint, 2 endpoints → # endpoint)
  *   - runs of spaces → one space
  */
@@ -41,10 +45,29 @@ const ONE_DURATION = `\\d+(?:[.,]\\d+)?\\s?(?:${UNITS})\\b`;
 const DURATION = new RegExp(`(?<![\\w.-])${ONE_DURATION}(?:,?\\s*(?:and\\s+|und\\s+)?${ONE_DURATION})*`, 'gi');
 const NUMBER = /(?<![\w.\-/:+])[-+]?\d+(?:[.,:/]\d+)*(?![\w-])/g;
 const IPV4 = /^[-+]?\d{1,3}(?:\.\d{1,3}){3}$/;
+// A unit right after a number, with or without a space, makes it a quantity, not a name (Disk 91 %, Tank 3 bar, 85 °C).
+// Units of one letter (A, V, W, B) are left out: "Line 2 A" or "Shift 2 B" name things more often than they measure.
+const QUANTITY_UNIT =
+  /[ \u00a0]?(?:[%‰°]|(?:mbar|bar|kPa|MPa|GPa|Pa|mV|kV|MV|mA|kA|Wh|kWh|MWh|GWh|kW|MW|GW|Hz|kHz|MHz|GHz|rpm|ppm|mm|cm|km|kg|kB|MB|GB|TB|KiB|MiB|GiB|TiB|kbit|Mbit|Gbit)\b)/iy;
+// a letter, or a combining mark of one (Ä written as A + ◌̈)
+const LETTER = /[\p{L}\p{M}]/u;
+const UPPER = /\p{Lu}/u;
 const PLURAL = /# ([A-Za-z]{2,})s\b/g;
 
+/** Whether a number is part of a name: a plain integer after a capitalised word and one space, without a unit. Linear. */
+function namesSomething(n: string, offset: number, str: string): boolean {
+  if (!/^\d+$/.test(n)) return false;
+  const sep = str[offset - 1];
+  if (sep !== ' ' && sep !== '\u00a0') return false;
+  let start = offset - 1;
+  while (start > 0 && LETTER.test(str[start - 1]!)) start--;
+  if (start === offset - 1 || !UPPER.test(str[start]!)) return false;
+  QUANTITY_UNIT.lastIndex = offset + n.length;
+  return !QUANTITY_UNIT.test(str);
+}
+
 /** The text with its volatile parts masked (see above). Deterministic; the same input always gives the same key. */
-export function normalise(text: string): string {
+export function normalise(text: string, opts: { names?: boolean } = {}): string {
   return text
     .replace(UUID, '<id>')
     .replace(ISO_TIME, '<time>')
@@ -52,14 +75,17 @@ export function normalise(text: string): string {
     .replace(K8S_SUFFIX, '-<id>')
     .replace(HEX_ID, '<id>')
     .replace(DURATION, '<duration>')
-    .replace(NUMBER, (n) => (IPV4.test(n) ? n : '#'))
+    .replace(NUMBER, (n, offset: number, str: string) => {
+      if (IPV4.test(n)) return n;
+      return opts.names && namesSomething(n, offset, str) ? n : '#';
+    })
     .replace(PLURAL, '# $1')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /** The key of one entry of an identity: changeKey values as they are, items and messages normalised. */
-export const keyOf = (by: IdentityBasis, s: string): string => (by === 'key' ? s.trim() : normalise(s));
+export const keyOf = (by: IdentityBasis, s: string): string => (by === 'key' ? s.trim() : normalise(s, { names: by === 'items' }));
 
 /** The identity of a failing result. */
 export function identityOf(o: { changeKey?: string[]; items?: string[]; message: string }): CheckIdentity {

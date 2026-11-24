@@ -137,7 +137,9 @@ The **value** does not count on its own: it changes in nearly every run (minutes
 | numbers that stand alone, with their sign                             | `12`, `-2.5`, `99.5 %`, `1/3`, `10:15`             | `#`                      |
 | a plural "s" right after a masked number                              | `1 endpoint`, `12 endpoints`                       | `# endpoint`             |
 
-Numbers that are part of a name stay (`plc-01`, `node7`, `v2`), and so do IPv4 addresses: another device is another item. Two items that differ only in a number that stands alone (`Line 1`, `Line 2`) are one key – use `changeKey` when that matters.
+Numbers that are part of a name stay (`plc-01`, `node7`, `v2`), and so do IPv4 addresses: another device is another item.
+
+For **items** (not messages), a whole number that names something also stays: one that follows a capitalised word and a single space, and is not followed by a unit – `Line 1` and `Line 2`, `Machine 17 – PowerMeter`, `Linie 2 steht` are different items, so a second failing line or machine is news. Quantities stay masked: `3 endpoints`, `1/3 ready`, `web (14 restarts)`, `usage 91`, `Disk 91 %`, `Tank 3 bar`, `Oven 85 °C` (units, with or without a space and in any case: `%`, `‰`, `°`, bar, Pa, V, A, W, Wh, Hz, B and bit with their usual prefixes, rpm, ppm, mm, cm, km, kg; a unit of one letter alone – `Line 2 A` – is taken as part of the name). The rule only sees the words: a name in lowercase (`line 2`) is masked, so `line 1` and `line 2` are one item, and a quantity after a capitalised word without a unit (`Temperature 85`) is kept, so every new value is news. Give such checks a `changeKey`. In messages, numbers that stand alone are always masked.
 
 **Why a message was sent** is its first line: _Started failing_, _Now also failing: …_, _No longer failing: …_, _Severity changed: Warning → Error_, _Changed_ (another message, for checks without items), _Still failing (reminder) · since …_, _Still failing after the pause_ and _Passes again_. The webhook data carries `phase` (`new`, `changed`, `reminder`, `every`, `pauseEnded`) and, for `changed`, `added`, `removed` and `previousSeverity`.
 

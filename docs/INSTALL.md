@@ -226,7 +226,9 @@ The scheduler and the run engine keep state in memory, so two instances on the s
 
 SQLite keeps the space of deleted rows inside the database file and reuses it for new data; the file only shrinks with a `VACUUM`. Databases created by 0.11.0 or later use incremental auto-vacuum: after the daily retention clean-up, Steward gives the free space back to the file system in small steps (8 MB at a time, so requests do not wait). `SM_SQLITE_AUTO_VACUUM=0` creates new databases without it.
 
-A database created by an earlier version keeps its size after a clean-up. `sm_db_free_bytes` ([METRICS.md](METRICS.md#database)) shows how much is free inside it, and the clean-up logs a hint when it is more than a quarter. To give it back once, start Steward with `SM_SQLITE_VACUUM_AT_START=1`: before the server listens, it rewrites the file (`VACUUM`) and turns incremental auto-vacuum on. That takes some seconds per GB, and nothing answers meanwhile – raise the `startupProbe` on Kubernetes, and expect the container health check to wait. Remove the variable afterwards; the log says so. The rewrite needs free disk space of about the size of the database.
+A database created by an earlier version keeps its size after a clean-up. `sm_db_free_bytes` ([METRICS.md](METRICS.md#database)) shows how much is free inside it, and the clean-up logs a hint when it is more than a quarter. To give it back once, start Steward with `SM_SQLITE_VACUUM_AT_START=1`: before the server listens, it rewrites the file (`VACUUM`) and turns incremental auto-vacuum on. That takes some seconds per GB, and nothing answers meanwhile – raise the `startupProbe` on Kubernetes, and expect the container health check to wait. Remove the variable afterwards; the log says so. The rewrite builds a complete copy of the database and then writes it back, so it needs free disk space of about twice the size of the database in the data folder.
+
+SQLite writes such temporary files to `.sqlite-tmp` next to the database (since 0.27.1; `SQLITE_TMPDIR` chooses another folder). Before, it used `/tmp`, which in the container is a tmpfs – memory that counts against `mem_limit` – so the rewrite of a database larger than the limit was killed (exit code 137). On an earlier version, set `SQLITE_TMPDIR=/data` for the start with `SM_SQLITE_VACUUM_AT_START=1`.
 
 ## 6. Updating
 
@@ -291,6 +293,51 @@ The automatic dump is a safety net for the update itself, not a backup: it lives
 **Moving from a local to a deployed instance.** To move the desktop app to a server with PostgreSQL and single sign-on, use a **migration package**: export it on the laptop (_Settings → Migration_ or `steward migrate export`), set up the server with its own master passphrase, administrator and single sign-on, then import the package there with a mapping of every local user to an account on the server (for example their single sign-on account). Everything important moves, credentials are re-encrypted for the server's vault, the audit log stays verifiable, and the mapping is recorded in the audit log. Step by step: [MIGRATION.md](MIGRATION.md).
 
 To move an instance 1:1 instead – the same accounts, the same master passphrase – copy the data folder to the server, start the same or a newer version there, and for PostgreSQL move the database with `npm run db:copy` (see above). `db:copy` upgrades the source first and keeps a copy of an older SQLite source in `backups/` next to it.
+
+## Keeping the deployment lean
+
+An installation in use for a few months can take several GB. Most of it is usually not Steward's database: measure first.
+
+```bash
+docker system df -v                        # images, containers and volumes
+docker compose exec steward du -sh /data/* # Steward's data folder, by part
+```
+
+_Settings → Data & retention_ shows the size of the database and of the run files, and the date of the oldest run.
+
+**Old images.** Every update pulls a new image of about 170 MB compressed (the `-browser` variant: about 600 MB, roughly 1.5 GB unpacked), and the old ones stay. Keep the running version and the one before (to go back), and remove the rest of Steward's images – this removes only `ghcr.io/vxrz/steward` images, and Docker refuses to remove one a container still uses:
+
+```bash
+KEEP='0.27.1|0.27.0'   # the running version and the one before
+docker images ghcr.io/vxrz/steward --format '{{.Repository}}:{{.Tag}}' | grep -Ev ":(${KEEP})(-browser)?$" | xargs -r docker rmi
+docker image prune   # layers no image uses any more (dangling only)
+```
+
+`docker image prune -a` would also remove the unused images of every other application on the host. Without browser steps, the default image is enough.
+
+**Docker's log files.** Steward writes its log as JSON lines to stdout; Docker's default driver keeps them without limit. The compose files rotate them (`logging: driver: local`, 5 files of 10 MB). In a compose file of your own, or with `docker run` (`--log-driver local --log-opt max-size=10m --log-opt max-file=5`), add the same; Kubernetes rotates container logs itself.
+
+**Copies before an update.** Before an update migrates the database, Steward copies it to `<data>/backups` and keeps the last `SM_UPGRADE_BACKUPS` (3). With regular [backups](BACKUPS.md), `1` is enough.
+
+**Retention.** What grows with use, and where it is set:
+
+| What                                   | Setting                                            | Default        | Note                                                                                               |
+| -------------------------------------- | -------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| Runs, with their files and PDF reports | _Settings → Data & retention_                      | 400 days       | Run files (screenshots, downloads) are usually the largest part; 90 days suits most installations. |
+| Debug runs                             | _Settings → Data & retention_                      | 7 days         |                                                                                                    |
+| Monitor history                        | _Settings → Data & retention_                      | 30 days        | Availability objectives use it: keep at least their longest window.                                |
+| Read notifications                     | _Settings → Data & retention_                      | 30 days        |                                                                                                    |
+| Dashboard metric history               | `SM_METRIC_RETENTION_DAYS`                         | 400 days       | Shorter when nobody compares with last year.                                                       |
+| AI usage log                           | `SM_AI_USAGE_RETENTION_DAYS`                       | 400 days       | Budgets need the current month.                                                                    |
+| Gatus samples / hourly figures         | the Gatus source's metrics settings                | 90 / 90 days   | Single samples are the large part; hourly figures are small.                                       |
+| Evidence packs                         | `SM_EVIDENCE_RETENTION_DAYS`, `SM_EVIDENCE_MAX_MB` | 7 days, 512 MB |                                                                                                    |
+| Audit log                              | _Audit log → Epochs, archives and retention_       | kept for ever  | See below.                                                                                         |
+
+The clean-up runs daily and with _Clean up now_ (administrators): it deletes finished runs, read notifications and monitor history older than these periods, prunes the Gatus samples and, when it is on, archives the audit log. Deleted data cannot be brought back, so make a backup first when you shorten a period a lot – the next clean-up deletes everything that is older at once.
+
+**Audit log.** Every entry is signed and chained, with signed checkpoints every hour, so it is not shortened by deleting rows. Turn on monthly archives instead: each closed month becomes a signed ZIP in `<data>/audit-archives` that `steward audit verify-archive` checks offline, optionally uploaded to the backups' S3 target. Then a retention period (at least 30 days) deletes archived entries from the database; the chain still verifies, and entries that other evidence relies on stay. How long to keep the archives is your organisation's decision – twelve months searchable in Steward and the archives for longer is common.
+
+**Giving the space back.** A shorter period frees space inside the database; see [Disk space after a clean-up](#disk-space-after-a-clean-up) for getting it back on SQLite. PostgreSQL's autovacuum reuses it.
 
 ## Resetting a demo and recovering access
 
