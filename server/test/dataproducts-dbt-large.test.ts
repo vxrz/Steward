@@ -5,7 +5,7 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * Large dbt files do not hold up the server (0.25.0, a carry-over of the 0.24.0 release review): a 40 MB
  * `manifest.json` and a large `run_results.json` are parsed in a worker thread (dataproducts/lineage/dbt-parse.ts) and
  * handed over in parts, the main thread validates and writes them in batches with a turn of the event loop between –
- * the main thread spends no more than about 60 ms of CPU in one turn of the event loop (DBT_CPU_TURN_MS and DBT_GAP_MS
+ * the main thread spends no more than about 60 ms of CPU in one turn of the event loop (DBT_CPU_TURN_MS and DBT_P99_MS
  * below, with room for a busy shared runner). The
  * result is the same as the parse on the main thread (the fallback when no worker starts), and the six dbt files a
  * minute per source stay.
@@ -17,17 +17,16 @@ process.env.SM_MONITOR_DEMO_SIMULATOR = '0';
 
 const PW = 'Demo-password-1';
 /**
- * The longest turn of the event loop a dbt import may take. Measured on a quiet machine: about 50 ms (0.24.0: 1,150 ms
- * for the manifest, 280 ms for the run results) – the bound leaves room for a shared runner whose other work deschedules
- * the test. The 99th percentile of the main thread's own CPU time per turn (not the wall-clock gap, which a busy runner
- * inflates by descheduling the process) must stay within DBT_P99_MS.
+ * The 99th percentile of the main thread's own CPU time per turn. Measured on a quiet machine: about 25 ms (0.24.0, with
+ * the parse on the main thread: 1,150 ms for the manifest, 280 ms for the run results). The wall-clock gaps are logged
+ * but not checked (0.27.1): a busy shared runner deschedules the process, and a gap of 417 ms was measured on one while
+ * the main thread used 14 ms of CPU in that turn – the gap said how busy the runner was, not what our code did.
  */
-const DBT_GAP_MS = Number(process.env.SM_DBT_GAP_MS ?? 400);
 const DBT_P99_MS = 100;
 /**
  * The most CPU time the main thread may spend in one turn. With the worker a turn takes about 60 ms; a parse on the main
- * thread (the fallback) takes one turn of several hundred milliseconds of CPU. The wall-clock gap can hide it (on a fast
- * machine it stays under DBT_GAP_MS) and the 99th percentile cannot see one long turn among thousands, so this is the
+ * thread (the fallback) takes one turn of several hundred milliseconds of CPU. The wall-clock gap cannot tell it from a
+ * busy runner (on a fast machine the fallback's gap stayed under 400 ms) and the 99th percentile cannot see one long turn among thousands, so this is the
  * check that a large dbt file is parsed off the main thread. Being descheduled adds no CPU time, but shared cores and
  * caches on a busy runner can still make a turn slower, so the bound is about three times what the worker takes.
  */
@@ -298,8 +297,6 @@ describe('large dbt files', () => {
         },
       }),
     );
-    expect(manifest.maxGapMs, `the longest turn of the event loop during the manifest: ${manifest.maxGapMs} ms`).toBeLessThan(DBT_GAP_MS);
-    expect(runs.maxGapMs, `the longest turn of the event loop during the run results: ${runs.maxGapMs} ms`).toBeLessThan(DBT_GAP_MS);
     // the main thread's own CPU time per turn, not the wall-clock gap: a busy runner deschedules the process
     expect(manifest.maxCpuMs, `the most CPU time of the main thread in one turn during the manifest: ${manifest.maxCpuMs} ms`).toBeLessThan(DBT_CPU_TURN_MS);
     expect(runs.maxCpuMs, `the most CPU time of the main thread in one turn during the run results: ${runs.maxCpuMs} ms`).toBeLessThan(DBT_CPU_TURN_MS);
