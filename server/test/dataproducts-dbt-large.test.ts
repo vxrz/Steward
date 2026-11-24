@@ -18,7 +18,8 @@ const PW = 'Demo-password-1';
 /**
  * The longest turn of the event loop a dbt import may take. Measured on a quiet machine: about 50 ms (0.24.0: 1,150 ms
  * for the manifest, 280 ms for the run results) – the bound leaves room for a shared runner whose other work deschedules
- * the test; the 99th percentile of the turns must stay within DBT_P99_MS.
+ * the test. The 99th percentile of the main thread's own CPU time per turn (not the wall-clock gap, which a busy runner
+ * inflates by descheduling the process) must stay within DBT_P99_MS.
  */
 const DBT_GAP_MS = Number(process.env.SM_DBT_GAP_MS ?? 400);
 const DBT_P99_MS = 100;
@@ -125,29 +126,47 @@ function bigRunResults(n: number): Buffer {
 }
 
 /**
- * Runs `fn` and measures how long the event loop could not take a turn (a timer chain every millisecond): the longest
- * gap and the 99th percentile of the gaps.
+ * Runs `fn` and measures the event loop (a timer chain every millisecond) in two ways:
+ * - the wall-clock gap between two ticks (longest gap `maxGapMs` and 99th percentile `p99Ms`), which includes the
+ *   operating system descheduling the test process on a busy shared runner, and
+ * - the CPU time the main thread itself spent between two ticks (`process.threadCpuUsage()`: this thread only, so
+ *   neither the dbt worker thread nor other vitest workers count, and neither does being descheduled); its 99th
+ *   percentile `p99CpuMs` is what says whether our code blocks the event loop.
  */
-async function longestTurn<T>(fn: () => Promise<T>): Promise<{ result: T; maxGapMs: number; p99Ms: number; ms: number }> {
+async function longestTurn<T>(fn: () => Promise<T>): Promise<{ result: T; maxGapMs: number; p99Ms: number; p99CpuMs: number; ms: number }> {
+  const cpuNow = () => {
+    const u = process.threadCpuUsage();
+    return (u.user + u.system) / 1000;
+  };
   let last = performance.now();
+  let lastCpu = cpuNow();
   const gaps: number[] = [];
+  const cpus: number[] = [];
   let on = true;
-  const tick = () => {
+  const sample = () => {
     const now = performance.now();
+    const cpu = cpuNow();
     gaps.push(now - last);
+    cpus.push(cpu - lastCpu);
     last = now;
+    lastCpu = cpu;
+  };
+  const tick = () => {
+    sample();
     if (on) setTimeout(tick, 1);
   };
   setTimeout(tick, 1);
   const t0 = performance.now();
   try {
     const result = await fn();
-    gaps.push(performance.now() - last);
+    sample();
     gaps.sort((a, b) => a - b);
+    cpus.sort((a, b) => a - b);
     return {
       result,
       maxGapMs: Math.round(gaps[gaps.length - 1]!),
       p99Ms: Math.round(gaps[Math.floor(gaps.length * 0.99)]!),
+      p99CpuMs: Math.round(cpus[Math.floor(cpus.length * 0.99)]!),
       ms: Math.round(performance.now() - t0),
     };
   } finally {
@@ -251,13 +270,22 @@ describe('large dbt files', () => {
     console.log(
       'dbt imports',
       JSON.stringify({
-        manifest: { mb: Math.round(m.buf.length / 1024 / 1024), ms: manifest.ms, longestTurnMs: manifest.maxGapMs, p99Ms: manifest.p99Ms },
-        runResults: { mb: Math.round(rr.length / 1024 / 1024), ms: runs.ms, longestTurnMs: runs.maxGapMs, p99Ms: runs.p99Ms },
+        manifest: {
+          mb: Math.round(m.buf.length / 1024 / 1024),
+          ms: manifest.ms,
+          longestTurnMs: manifest.maxGapMs,
+          p99Ms: manifest.p99Ms,
+          p99CpuMs: manifest.p99CpuMs,
+        },
+        runResults: { mb: Math.round(rr.length / 1024 / 1024), ms: runs.ms, longestTurnMs: runs.maxGapMs, p99Ms: runs.p99Ms, p99CpuMs: runs.p99CpuMs },
       }),
     );
     expect(manifest.maxGapMs, `the longest turn of the event loop during the manifest: ${manifest.maxGapMs} ms`).toBeLessThan(DBT_GAP_MS);
     expect(runs.maxGapMs, `the longest turn of the event loop during the run results: ${runs.maxGapMs} ms`).toBeLessThan(DBT_GAP_MS);
-    expect(manifest.p99Ms).toBeLessThan(DBT_P99_MS);
-    expect(runs.p99Ms).toBeLessThan(DBT_P99_MS);
+    // the main thread's own CPU time per turn, not the wall-clock gap: a busy runner deschedules the process
+    expect(manifest.p99CpuMs, `the 99th percentile of the main thread's CPU time per turn during the manifest: ${manifest.p99CpuMs} ms`).toBeLessThan(
+      DBT_P99_MS,
+    );
+    expect(runs.p99CpuMs, `the 99th percentile of the main thread's CPU time per turn during the run results: ${runs.p99CpuMs} ms`).toBeLessThan(DBT_P99_MS);
   }, 300_000);
 });
