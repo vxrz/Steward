@@ -242,7 +242,10 @@ jobs:
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
+        # --shm-size: Docker gives a service container 64 MB of /dev/shm; pg_dump's parallel catalog queries (backup
+        # tests) run out of it ("could not resize shared memory segment")
         options: >-
+          --shm-size 256m
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
