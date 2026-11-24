@@ -8,7 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.27.1] - 2026-11-24
 
-Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.
+Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. `SM_SQLITE_VACUUM_AT_START` no longer runs out of memory in the container. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.
 
 ### Changed
 
@@ -16,6 +16,7 @@ Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalise
 
 ### Fixed
 
+- **`SM_SQLITE_VACUUM_AT_START=1` was killed in the container** (exit code 137) for a database larger than the container's memory limit: a `VACUUM` builds a complete copy of the database in SQLite's temporary folder, which was `/tmp` – a tmpfs in the container, so memory. SQLite's temporary files now go to `.sqlite-tmp` next to the database, unless `SQLITE_TMPDIR` is set; backups leave the folder out. Large sorts that spill out of memory go there too. The rewrite needs free disk space of about twice the database in the data folder ([docs/INSTALL.md](docs/INSTALL.md#disk-space-after-a-clean-up)).
 - **A second line or machine failing is news again** ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#what-fails-how-steward-tells-a-change-from-a-new-wording)): since 0.27.0 the normaliser masked every number that stands alone, so the items `Line 1` and `Line 2` or `Machine 17` and `Machine 18` were one key, and when Line 1 was told and Line 2 started failing, nobody was told. In items, a whole number after a capitalised word (`Line 2`, `Machine 17 – PowerMeter`, `Linie 3`) now stays part of the name, unless a unit follows (`Disk 91%`, `Tank 3 bar`); counts, ratios, restarts in parentheses, durations and dates stay masked, and messages are unchanged. Nothing is migrated: told items are stored as shown. **Upgrade note:** checks whose items carry a number after a capitalised word that is really a quantity (`Temperature 85`) now notify when it changes; give them a `changeKey`. Lowercase names (`line 2`) are still one key without a `changeKey`.
 
 ## [0.27.0] - 2026-11-19

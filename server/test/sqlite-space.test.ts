@@ -7,6 +7,7 @@ import { Db } from '../src/db.js';
 import { overrideConfig, reloadConfig } from '../src/config.js';
 import { reclaimFreePages, sqliteSpace, vacuumAtStart } from '../src/database/sqlite-space.js';
 import { snapshotSqlite } from '../src/database/sqlite-snapshot.js';
+import { sqliteTempDir } from '../src/database/drivers.js';
 
 /** SQLite: the nightly snapshot off the event loop, and deleted space given back (O8 of the 0.10 review). */
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-sqlite-space-'));
@@ -83,6 +84,32 @@ describe('incremental auto-vacuum', () => {
     vacuumAtStart(d);
     expect(sqliteSpace(d)).toMatchObject({ autoVacuum: 'incremental', freePages: 0 });
     expect(fs.statSync(f).size).toBeLessThan(full / 4);
+  });
+});
+
+describe('temporary files (0.27.1)', () => {
+  // SQLite's default is /tmp – a tmpfs in the container, memory that counts against its limit: a VACUUM of a database
+  // larger than the limit was killed (exit code 137)
+  it('go next to the database unless SQLITE_TMPDIR is set', () => {
+    expect(sqliteTempDir('/data/steward.db', {})).toBe(path.resolve('/data/.sqlite-tmp'));
+    expect(sqliteTempDir('relative/steward.db', {})).toBe(path.resolve('relative/.sqlite-tmp'));
+    expect(sqliteTempDir('/data/steward.db', { SQLITE_TMPDIR: '/scratch' })).toBeNull();
+    expect(sqliteTempDir(':memory:', {})).toBeNull();
+    expect(sqliteTempDir('', {})).toBeNull();
+  });
+
+  it('have their folder created when a database is opened, and SQLITE_TMPDIR set to it', () => {
+    const before = process.env.SQLITE_TMPDIR;
+    delete process.env.SQLITE_TMPDIR;
+    try {
+      const sub = fs.mkdtempSync(path.join(dir, 'tmpdir-'));
+      db(path.join(sub, 'steward.db'));
+      expect(process.env.SQLITE_TMPDIR).toBe(path.join(sub, '.sqlite-tmp'));
+      expect(fs.statSync(path.join(sub, '.sqlite-tmp')).isDirectory()).toBe(true);
+    } finally {
+      if (before === undefined) delete process.env.SQLITE_TMPDIR;
+      else process.env.SQLITE_TMPDIR = before;
+    }
   });
 });
 

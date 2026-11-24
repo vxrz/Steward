@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { Db, db } from '../db.js';
 import { flushPendingAudit, verifyAuditAsync } from '../audit.js';
 import { ZipReader, ZipWriter, type WrittenEntry } from '../compliance/zip.js';
+import { SQLITE_TEMP_DIR } from '../database/drivers.js';
 import { openSqliteFile } from '../database/sqlite-file.js';
 import { explainPgToolError, pgConnection, pgDumpArgs } from '../database/pg-dump.js';
 import { parseDatabaseTarget, quoteIdent } from '../database/sql.js';
@@ -129,8 +130,8 @@ async function snapshotDatabase(dir: string): Promise<{ file: string; entry: str
 function skipper(exclude: readonly BackupOptionalPart[]): (rel: string, name: string, abs: string) => boolean {
   const dbFile = config.database.kind === 'sqlite' ? path.resolve(config.database.file) : null;
   // the map's tile cache is rebuilt from its source, and its PMTiles files are placed by whoever runs Steward (#234)
-  // .export-work: files of a scheduled export on their way to S3 (export/jobs.ts)
-  const skipTop = new Set(['backups', WORK_DIR, '.export-work', 'instance.json', 'cache', 'maps', ...exclude.map((p) => PART_FOLDER[p])]);
+  // .export-work: files of a scheduled export on their way to S3 (export/jobs.ts); .sqlite-tmp: SQLite's temporary files
+  const skipTop = new Set(['backups', WORK_DIR, '.export-work', SQLITE_TEMP_DIR, 'instance.json', 'cache', 'maps', ...exclude.map((p) => PART_FOLDER[p])]);
   const dbFiles = dbFile ? [dbFile, `${dbFile}-wal`, `${dbFile}-shm`, `${dbFile}-journal`, `${dbFile}.lock`, `${dbFile}.lock.json`] : [];
   // the database goes in as a snapshot; its instance lock (database/sqlite-lock.ts) belongs to the running process
   return (rel, name, abs) => (!rel && skipTop.has(name)) || dbFiles.includes(path.resolve(abs));
