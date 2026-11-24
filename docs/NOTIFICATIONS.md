@@ -137,7 +137,9 @@ The **value** does not count on its own: it changes in nearly every run (minutes
 | numbers that stand alone, with their sign                             | `12`, `-2.5`, `99.5 %`, `1/3`, `10:15`             | `#`                      |
 | a plural "s" right after a masked number                              | `1 endpoint`, `12 endpoints`                       | `# endpoint`             |
 
-Numbers that are part of a name stay (`plc-01`, `node7`, `v2`), and so do IPv4 addresses: another device is another item. Two items that differ only in a number that stands alone (`Line 1`, `Line 2`) are one key – use `changeKey` when that matters.
+Numbers that are part of a name stay (`plc-01`, `node7`, `v2`), and so do IPv4 addresses: another device is another item.
+
+For **items** (not messages), a whole number that names something also stays: one that follows a capitalised word and a single space, and is not followed by a unit – `Line 1` and `Line 2`, `Machine 17 – PowerMeter`, `Linie 2 steht` are different items, so a second failing line or machine is news. Quantities stay masked: `3 endpoints`, `1/3 ready`, `web (14 restarts)`, `usage 91`, `Disk 91%`, `Tank 3 bar` (units: `%`, `°`, bar, Pa, V, A, W, Wh, Hz, rpm, B and their prefixed forms). A name in lowercase (`line 2`), or a quantity after a capitalised word (`Temperature 85`) is judged by this rule too; use `changeKey` when it matters. In messages, numbers that stand alone are always masked.
 
 **Why a message was sent** is its first line: _Started failing_, _Now also failing: …_, _No longer failing: …_, _Severity changed: Warning → Error_, _Changed_ (another message, for checks without items), _Still failing (reminder) · since …_, _Still failing after the pause_ and _Passes again_. The webhook data carries `phase` (`new`, `changed`, `reminder`, `every`, `pauseEnded`) and, for `changed`, `added`, `removed` and `previousSeverity`.
 

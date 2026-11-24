@@ -1,7 +1,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { compareIdentity, identityOf, normalise, toldAfter } from '../src/engine/check-identity.js';
+import { compareIdentity, identityOf, keyOf, normalise, toldAfter } from '../src/engine/check-identity.js';
 import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
@@ -30,6 +30,24 @@ describe('the normaliser and the identity', () => {
     expect(normalise('node7 and v2')).toBe('node7 and v2');
     // one or more: the same words
     expect(normalise('1 endpoint down')).toBe(normalise('12 endpoints down'));
+  });
+
+  it('keeps a number that names an item, and masks quantities', () => {
+    const k = (x: string) => keyOf('items', x);
+    expect(k('Line 1')).not.toBe(k('Line 2'));
+    expect(k('Machine 17 – PowerMeter')).not.toBe(k('Machine 18 – PowerMeter'));
+    expect(k('Linie 2 steht')).not.toBe(k('Linie 3 steht'));
+    expect(k('Ärmel 2')).not.toBe(k('Ärmel 3'));
+    expect(k('3 endpoints down')).toBe(k('4 endpoints down'));
+    expect(k('shop-prod/api 1/3 ready')).toBe(k('shop-prod/api 2/3 ready'));
+    expect(k('web (14 restarts)')).toBe(k('web (15 restarts)'));
+    expect(k('Disk 91%')).toBe(k('Disk 95%'));
+    expect(k('Tank 3 bar')).toBe(k('Tank 4 bar'));
+    expect(k('Pump 3 kW')).toBe(k('Pump 4 kW'));
+    expect(k('usage 91')).toBe(k('usage 92'));
+    expect(k('line 1')).toBe(k('line 2'));
+    // messages keep masking every number
+    expect(keyOf('message', 'Line 1 down')).toBe(keyOf('message', 'Line 2 down'));
   });
 
   it('takes the change key, else the items, else the message', () => {
@@ -317,5 +335,42 @@ describe('a 15-minute schedule on change with a 4-hour reminder (the reported ca
     // from now on, it is known
     const r3 = await fire(sch, { bad: [dep('shop-prod/web', 3)] });
     expect(lead((await forRuns([r3], 'deployments not fully ready'))[0])).toMatch(/^No longer failing: shop-prod\/api/);
+  });
+
+  it('another line failing is news; a changed ratio is not', async () => {
+    const sch = await schedule(k8sId, { mode: 'change', reminderHours: 4, resolved: false });
+    // the items of the first check read "<name>: <ready> – <pod>"; use names that differ in a number only
+    const r1 = await fire(sch, { bad: [{ name: 'Line 1', ready: '1/3', pod: 'plc' }] });
+    const r2 = await fire(sch, {
+      bad: [
+        { name: 'Line 1', ready: '1/3', pod: 'plc' },
+        { name: 'Line 2', ready: '1/3', pod: 'plc' },
+      ],
+    });
+    expect(lead((await forRuns([r2], 'deployments not fully ready'))[0])).toMatch(/^Now also failing: Line 2: /);
+    expect(await forRuns([r1], 'deployments not fully ready')).toHaveLength(1);
+    // "1/3 ready" becoming "2/3 ready" is no news
+    const r3 = await fire(sch, {
+      bad: [
+        { name: 'Line 1', ready: '2/3', pod: 'plc' },
+        { name: 'Line 2', ready: '2/3', pod: 'plc' },
+      ],
+    });
+    expect(await forRuns([r3], 'deployments not fully ready')).toEqual([]);
+  });
+
+  it('after the update, items told while they collapsed ("Line 1", "Line 2") are not news by themselves', async () => {
+    const sch = await schedule(k8sId, { mode: 'change', reminderHours: 4, resolved: true });
+    const bad = [
+      { name: 'Line 1', ready: '1/3', pod: 'plc' },
+      { name: 'Line 2', ready: '1/3', pod: 'plc' },
+    ];
+    await fire(sch, { bad });
+    // what 0.27.0 stored: the raw items as shown, keys are computed on the fly
+    const { db } = await import('../src/db.js');
+    const row = db().get('SELECT told FROM notify_alerts WHERE source = ?', `schedule:${sch.id}`) as { told: string } | undefined;
+    expect(JSON.stringify(row)).toContain('Line 2: 1/3 – plc');
+    const r2 = await fire(sch, { bad });
+    expect(await forRuns([r2])).toEqual([]);
   });
 });

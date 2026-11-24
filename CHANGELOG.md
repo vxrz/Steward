@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **A second line or machine failing is news again** ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#what-fails-how-steward-tells-a-change-from-a-new-wording)): since 0.27.0 the normaliser masked every number that stands alone, so the items `Line 1` and `Line 2` or `Machine 17` and `Machine 18` were one key, and when Line 1 was told and Line 2 started failing, nobody was told. In items, a whole number after a capitalised word (`Line 2`, `Machine 17 – PowerMeter`, `Linie 3`) now stays part of the name, unless a unit follows (`Disk 91%`, `Tank 3 bar`); counts, ratios, restarts in parentheses, durations and dates stay masked, and messages are unchanged. Nothing is migrated: told items are stored as shown. **Upgrade note:** checks whose items carry a number after a capitalised word that is really a quantity (`Temperature 85`) now notify when it changes; give them a `changeKey`. Lowercase names (`line 2`) are still one key without a `changeKey`.
+
 ## [0.27.0] - 2026-11-19
 
 Steward 0.27.0 makes notifications quieter and clearer: a failing check is news when **what** fails changes – a deployment, a severity –, not when its wording or counts change, and monitors tell a problem once until it is over; each message says why it was sent, a schedule's notification settings start with a one-sentence summary, and messages can be paused for a few hours in one click, also from the dialog a message links to. A review of the server fixes sign-ins under load, long-running maintenance windows, overlapping runs of one schedule and weekday datasets that turned stale every weekend; a review of the UI adds page titles, dates on hover, confirmations before deleting and paged long lists. New examples read data volume and the newest data point from Snowflake with project roles, add Insights Hub users to several groups and deactivate or reactivate accounts; offboarding no longer fails on Insights Hub's internal groups. The upgrade fixture of 0.26.2 is added.
