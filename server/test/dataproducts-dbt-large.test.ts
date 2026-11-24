@@ -5,7 +5,8 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * Large dbt files do not hold up the server (0.25.0, a carry-over of the 0.24.0 release review): a 40 MB
  * `manifest.json` and a large `run_results.json` are parsed in a worker thread (dataproducts/lineage/dbt-parse.ts) and
  * handed over in parts, the main thread validates and writes them in batches with a turn of the event loop between –
- * no turn of the event loop takes more than about 50 ms (DBT_GAP_MS below, with room for a busy shared runner). The
+ * the main thread spends no more than about 60 ms of CPU in one turn of the event loop (DBT_CPU_TURN_MS and DBT_GAP_MS
+ * below, with room for a busy shared runner). The
  * result is the same as the parse on the main thread (the fallback when no worker starts), and the six dbt files a
  * minute per source stay.
  */
@@ -24,11 +25,11 @@ const PW = 'Demo-password-1';
 const DBT_GAP_MS = Number(process.env.SM_DBT_GAP_MS ?? 400);
 const DBT_P99_MS = 100;
 /**
- * The most CPU time the main thread may spend in one turn. With the worker a turn takes about 50 ms; a parse on the main
+ * The most CPU time the main thread may spend in one turn. With the worker a turn takes about 60 ms; a parse on the main
  * thread (the fallback) takes one turn of several hundred milliseconds of CPU. The wall-clock gap can hide it (on a fast
  * machine it stays under DBT_GAP_MS) and the 99th percentile cannot see one long turn among thousands, so this is the
- * check that a large dbt file is parsed off the main thread. CPU time does not grow when a busy runner deschedules the
- * test, so the bound can be tight.
+ * check that a large dbt file is parsed off the main thread. Being descheduled adds no CPU time, but shared cores and
+ * caches on a busy runner can still make a turn slower, so the bound is about three times what the worker takes.
  */
 const DBT_CPU_TURN_MS = 200;
 
@@ -244,7 +245,7 @@ describe('large dbt files', () => {
     for (const r of again) r.close();
   }, 60_000);
 
-  it('a 40 MB manifest and its run results are parsed off the main thread: no turn of the event loop over about 50 ms', async () => {
+  it('a 40 MB manifest and its run results are parsed off the main thread: no turn of the main thread over 200 ms of CPU', async () => {
     const src = (await dana('POST', '/data-products/lineage-sources', { name: 'dbt big (invented)', kind: 'dbt', platformId: snowflake })).id as string;
     // elements for a part of the models, so the import matches (and writes) as on a real platform
     const { db } = await import('../src/db.js');
