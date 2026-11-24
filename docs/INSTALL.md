@@ -303,7 +303,15 @@ docker compose exec steward du -sh /data/* # Steward's data folder, by part
 
 _Settings → Data & retention_ shows the size of the database and of the run files, and the date of the oldest run.
 
-**Old images.** Every update pulls a new image of about 170 MB compressed (the `-browser` variant: about 600 MB, roughly 1.5 GB unpacked), and the old ones stay. Keep the running version and the one before (to go back), and remove the rest, e.g. `docker image prune -a --filter "until=336h"`. Without browser steps, the default image is enough.
+**Old images.** Every update pulls a new image of about 170 MB compressed (the `-browser` variant: about 600 MB, roughly 1.5 GB unpacked), and the old ones stay. Keep the running version and the one before (to go back), and remove the rest of Steward's images – this removes only `ghcr.io/vxrz/steward` images, and Docker refuses to remove one a container still uses:
+
+```bash
+KEEP='0.27.1|0.27.0'   # the running version and the one before
+docker images ghcr.io/vxrz/steward --format '{{.Repository}}:{{.Tag}}' | grep -Ev ":(${KEEP})(-browser)?$" | xargs -r docker rmi
+docker image prune   # layers no image uses any more (dangling only)
+```
+
+`docker image prune -a` would also remove the unused images of every other application on the host. Without browser steps, the default image is enough.
 
 **Docker's log files.** Steward writes its log as JSON lines to stdout; Docker's default driver keeps them without limit. The compose files rotate them (`logging: driver: local`, 5 files of 10 MB). In a compose file of your own, or with `docker run` (`--log-driver local --log-opt max-size=10m --log-opt max-file=5`), add the same; Kubernetes rotates container logs itself.
 
