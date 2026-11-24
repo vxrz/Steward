@@ -30,6 +30,12 @@ services:
       - no-new-privileges:true
     pids_limit: 512
     mem_limit: 2g
+    # Docker's default log driver keeps every line forever: rotate (Steward logs JSON lines to stdout)
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "5"
     # secrets: [steward_passphrase]
     environment:
       SM_DATABASE_URL: postgres://steward:${STEWARD_DB_PASSWORD:?set STEWARD_DB_PASSWORD in .env}@postgres:5432/steward
@@ -55,6 +61,11 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "5"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U steward -d steward"]
       interval: 5s

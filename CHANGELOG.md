@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Docker logs are rotated** in `docker-compose.yml` and `docker-compose.postgres.yml` (`logging: driver: local`, 5 files of 10 MB, for Steward and PostgreSQL): Docker's default driver kept every log line for ever. A new section of [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean), _Keeping the deployment lean_, says where the space goes (old images, logs, copies before an update, run files, the audit log) and which retention settings keep it in check.
+
 ### Fixed
 
 - **A second line or machine failing is news again** ([docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#what-fails-how-steward-tells-a-change-from-a-new-wording)): since 0.27.0 the normaliser masked every number that stands alone, so the items `Line 1` and `Line 2` or `Machine 17` and `Machine 18` were one key, and when Line 1 was told and Line 2 started failing, nobody was told. In items, a whole number after a capitalised word (`Line 2`, `Machine 17 – PowerMeter`, `Linie 3`) now stays part of the name, unless a unit follows (`Disk 91%`, `Tank 3 bar`); counts, ratios, restarts in parentheses, durations and dates stay masked, and messages are unchanged. Nothing is migrated: told items are stored as shown. **Upgrade note:** checks whose items carry a number after a capitalised word that is really a quantity (`Temperature 85`) now notify when it changes; give them a `changeKey`. Lowercase names (`line 2`) are still one key without a `changeKey`.
