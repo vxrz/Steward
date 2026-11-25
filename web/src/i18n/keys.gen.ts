@@ -1945,6 +1945,7 @@ export interface Resources {
     'accessChanges.documentNowHelp': string;
     'accessChanges.createDocumented': string;
     'accessChanges.createDraft': string;
+    'reconciliation.moreDetails': string;
     'reconciliation.title': string;
     'reconciliation.description': string;
     'reconciliation.new': string;
@@ -17044,6 +17045,7 @@ export interface Resources {
     'form.cron': string;
     'form.periodDays': string;
     'form.timezone': string;
+    'form.moreDetails': string;
     'form.lang': string;
     'form.classification': string;
     'form.sections': string;

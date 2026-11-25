@@ -199,6 +199,7 @@
     "createDraft": "Create draft"
   },
   "reconciliation": {
+    "moreDetails": "More details",
     "title": "Access reconciliation",
     "description": "Compares who actually has which access on a platform with the documented access changes. Changes without an entry show up here.",
     "new": "New check",

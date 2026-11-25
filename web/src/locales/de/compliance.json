@@ -199,6 +199,7 @@
     "createDraft": "Entwurf anlegen"
   },
   "reconciliation": {
+    "moreDetails": "Weitere Angaben",
     "title": "Zugriffsabgleich",
     "description": "Vergleicht, wer auf einer Plattform tatsächlich welchen Zugriff hat, mit den dokumentierten Zugriffsänderungen. Änderungen ohne Eintrag erscheinen hier.",
     "new": "Neuer Abgleich",
