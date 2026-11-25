@@ -6,6 +6,9 @@ import { setup, startTestServer, type Client, type TestServer } from './helpers.
  * the manual form's API, the process step and the reconciliation, which never matches groups against accounts.
  */
 
+// the server reads its configuration when its modules load: demo mode first, the modules of the server afterwards
+process.env.SM_DEMO = '1';
+
 let s: TestServer;
 let olivia: Client;
 let hub: string;
@@ -158,4 +161,58 @@ describe('the step "Document access change"', () => {
   it('rejects an unknown subject type in the definition', async () => {
     expect(await errorCode(s.api('POST', '/processes', { definition: proc({ subjectType: 'team' }) }))).toBeTruthy();
   });
+
+  const linkedOf = async (runId: string) => {
+    const [e] = await entriesOf(runId);
+    const rec = await s.api('GET', `/records/${e.recordId}`);
+    return rec.links.filter((l: any) => l.note === 'for').map((l: any) => `${l.kind}:${l.targetId}`);
+  };
+  const runAsClient = async (c: Client, definition: unknown) => {
+    const p = await s.api('POST', '/processes', { definition });
+    const r = await c('POST', '/runs', { processId: p.id, bindings: { hub } });
+    return s.waitRun(r.id, ['succeeded', 'failed']);
+  };
+
+  it('links nothing of a team’s system when the person who started the run is no member (warning logged)', async () => {
+    const r = await runAsClient(olivia, proc({ systems: [sys, hiddenSys] }));
+    expect(r.status).toBe('succeeded');
+    expect(JSON.stringify(r.logs)).toContain(hiddenSys);
+    const linked = await linkedOf(r.id);
+    expect(linked).toContain(`system:${sys}`);
+    expect(linked).not.toContain(`system:${hiddenSys}`);
+  });
+
+  it('links it when an administrator started the run', async () => {
+    const r = await run(proc({ systems: [sys, hiddenSys] }));
+    expect(await linkedOf(r.id)).toEqual(expect.arrayContaining([`system:${sys}`, `system:${hiddenSys}`]));
+  });
+
+  it('an unattended run follows the author of its process version; without any person nothing is linked', async () => {
+    const p = await s.api('POST', '/processes', { definition: proc({}) });
+    const r = await s.api('POST', '/runs', { processId: p.id, bindings: { hub } });
+    await s.waitRun(r.id, ['succeeded', 'failed']);
+    expect((await import('../src/compliance/run-entries.js')).linkActor(r.id)?.username).toBe('admin');
+    (await import('../src/db.js')).db().run("UPDATE runs SET actor = 'system' WHERE id = ?", r.id);
+    expect((await import('../src/compliance/run-entries.js')).linkActor(r.id)?.username).toBe('admin');
+    (await import('../src/db.js')).db().run("UPDATE process_versions SET author = 'nobody-here' WHERE process_id = ?", p.id);
+    expect((await import('../src/compliance/run-entries.js')).linkActor(r.id)).toBeNull();
+    (await import('../src/db.js')).db().run("UPDATE process_versions SET author = 'olivia' WHERE process_id = ?", p.id);
+    expect((await import('../src/compliance/run-entries.js')).linkActor(r.id)?.username).toBe('olivia');
+  });
+
+  it('drops links above the limit of an entry and says so in the run log', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 199; i++) ids.push((await s.api('POST', '/systems', { name: `Invented cap system ${i}`, kind: 'server', owners: [] })).id);
+    const chunk = (n: number) => ids.slice(n * 50, n * 50 + 50);
+    const step = (n: number) => ({ ...proc({ systems: chunk(n) }).steps[1], id: `doc${n}` });
+    const def = { ...proc({}), steps: [0, 1, 2, 3].map(step) };
+    const r = await run(def);
+    expect(r.status).toBe('succeeded');
+    const [e] = await entriesOf(r.id);
+    expect(e).toBeTruthy();
+    const linked = await linkedOf(r.id);
+    expect(linked).toHaveLength(198);
+    const log = (await s.api('GET', `/runs/${r.id}`)).logs.map((l: any) => l.message).join('\n');
+    expect(log).toMatch(/1 link\(s\) of the access change .* were dropped/);
+  }, 120_000);
 });

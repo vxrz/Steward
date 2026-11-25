@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import type { AccessChangeKind, AccessChangeLinkKind, AccessSubjectType } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
-import { runRow } from '../engine/store.js';
+import { addLog, runRow } from '../engine/store.js';
 import { getReport, generateRunReport, listRunReports } from '../reports/service.js';
 import { getProcess } from '../processes/service.js';
 import { newId, nowIso, parseJson } from '../util.js';
-import { targetVisible } from '../records/links.js';
+import { MAX_LINKS_PER_ITEM, targetVisible } from '../records/links.js';
+import { runAs, type AuthUser } from '../auth/context.js';
+import { findUserByName, toAuthUser } from '../auth/users.js';
 import { asSystem, createAccessChange, minus, uniqueRights } from './access-changes.js';
 
 /**
@@ -36,11 +38,31 @@ export interface AccessChangeInput {
   performedAt: string;
 }
 
-/** The ids of one kind the current user may see, and those that are unknown or invisible (for the step's warning). */
-export function visibleLinkIds(kind: AccessChangeLinkKind, ids: string[]): { visible: string[]; skipped: string[] } {
+/** A reader without roles and teams: sees no catalogue item at all. */
+const NOBODY: AuthUser = { id: '', username: '', displayName: '', roles: [], teams: [] };
+
+/**
+ * Whose rights decide what a run may link: the person behind the run (its actor; schedules and webhook triggers run as
+ * their owner), or, when the actor is no active user (system, deactivated), the author of the run's pinned process version.
+ * Null: nobody is left – then no item is linked.
+ */
+export function linkActor(runId: string): AuthUser | null {
+  const run = runRow(runId);
+  const active = (name: string | null | undefined) => {
+    const u = name ? findUserByName(name) : undefined;
+    return u?.active ? toAuthUser(u) : null;
+  };
+  const author = db().get<{ author: string }>('SELECT author FROM process_versions WHERE process_id = ? AND version = ?', run.process_id, run.process_version);
+  return active(run.actor) ?? active(author?.author);
+}
+
+/** The ids of one kind the run's actor (see linkActor) may see, and those that are unknown or invisible (for the step's warning). */
+export function visibleLinkIds(kind: AccessChangeLinkKind, ids: string[], actor: AuthUser | null): { visible: string[]; skipped: string[] } {
   const visible: string[] = [];
   const skipped: string[] = [];
-  for (const id of ids) (targetVisible(kind, id) ? visible : skipped).push(id);
+  // without any person nothing is linked: an unattended run never widens what a team limits
+  const seen = (id: string) => (actor ? runAs(actor, () => targetVisible(kind, id)) : runAs(NOBODY, () => targetVisible(kind, id)));
+  for (const id of ids) (seen(id) ? visible : skipped).push(id);
   return { visible, skipped };
 }
 
@@ -177,6 +199,15 @@ export async function createRunEntries(runId: string, reportId: string | null = 
     const after = uniqueRights([...minus(m.before, m.revoked), ...m.granted]);
     const kind: AccessChangeKind = m.kinds.size === 1 ? [...m.kinds][0]! : 'modify';
     const statusNote = run.status === 'succeeded' ? '' : ` The run ended with status ${run.status}; check its protocol.`;
+    // run and platform come first; links of several steps may exceed the limit of an item: the rest is dropped and logged
+    const itemLinks = (['service', 'application', 'system'] as const).flatMap((kind) => [...m.items[kind]].map((id) => ({ kind, id, note: 'for' })));
+    const room = Math.max(0, MAX_LINKS_PER_ITEM - 2);
+    if (itemLinks.length > room)
+      addLog(
+        runId,
+        'warn',
+        `${itemLinks.length - room} link(s) of the access change for "${m.subjectId}" were dropped: an entry has at most ${MAX_LINKS_PER_ITEM} links`,
+      );
     const entry = asSystem(() =>
       createAccessChange(
         {
@@ -205,7 +236,7 @@ export async function createRunEntries(runId: string, reportId: string | null = 
             { kind: 'run', id: runId, note: 'performed by this run' },
             { kind: 'platform', id: m.platformId, note: 'platform' },
             // the entry is created as the system user: a link to an item that is gone since is left out by createAccessChange
-            ...(['service', 'application', 'system'] as const).flatMap((kind) => [...m.items[kind]].map((id) => ({ kind, id, note: 'for' }))),
+            ...itemLinks.slice(0, room),
           ],
           attachments: [{ filename: report!.filename, data: pdf }],
         },

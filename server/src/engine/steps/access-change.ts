@@ -33,15 +33,17 @@ async function execAccessChange(step: NodeOf<'accessChange'>, ctx: StepContext, 
   const reason = ((await ctx.str(step.reason)) || '').slice(0, 2000);
   const requestRef = ((await ctx.str(step.requestRef)) || '').slice(0, 500);
   const approvedBy = ((await ctx.str(step.approvedBy)) || '').slice(0, 200);
-  // services, applications and systems the change is for: unknown or invisible ids are left out with a warning (the run goes on)
-  const { visibleLinkIds } = await import('../../compliance/run-entries.js');
+  // services, applications and systems the change is for: unknown ids and ids the run's actor may not see (compliance/run-entries.ts linkActor) are left out with a warning (the run goes on)
+  // loaded lazily: compliance (and the reports behind it) builds on the engine, not the other way round (ADR 0011, check:imports)
+  const { linkActor, visibleLinkIds } = await import('../../compliance/run-entries.js');
+  const actor = linkActor(ctx.runId);
   const links: Partial<Record<AccessChangeLinkKind, string[]>> = {};
   for (const [kind, list] of [
     ['service', step.services],
     ['application', step.applications],
     ['system', step.systems],
   ] as const) {
-    const { visible, skipped } = visibleLinkIds(kind, await linkIds(list, ctx));
+    const { visible, skipped } = visibleLinkIds(kind, await linkIds(list, ctx), actor);
     if (visible.length) links[kind] = visible;
     for (const id of skipped) ctx.log('warn', `The ${kind} "${id}" is unknown or not visible – it is not linked to the access change`, key);
   }
@@ -77,7 +79,6 @@ async function execAccessChange(step: NodeOf<'accessChange'>, ctx: StepContext, 
   if (ctx.dryRun) {
     return { status: 'dryrun', output: { ...output, dryRun: true }, summary: `DRY RUN – would document ${entries.length} access change(s) (${step.kind})` };
   }
-  // loaded when needed: compliance (and through it the reports) is not part of the engine's own imports (ADR 0011)
   const { recordStepAccessChanges } = await import('../../compliance/run-entries.js');
   recordStepAccessChanges(ctx.runId, key, b.platform.id, output.entries);
   return { output, summary: `${entries.length} access change(s) (${step.kind}) on ${b.platform.name} – documented when the run ends` };
