@@ -267,6 +267,26 @@ describe('price books', () => {
     });
     expect(ex.problems).toEqual([]);
     expect(ex.entries).toBe(12);
+    // the contract example: the same factors with invented money prices, one credit item per warehouse
+    const contract = fs.readFileSync(path.resolve(import.meta.dirname, '../../examples/costs/price-books/snowflake-contract-prices.csv'), 'utf8');
+    const cx = await dana('POST', `/costs/price-books/${b.id}/import/preview`, {
+      csv: contract,
+      mapping: {
+        sku: 'sku',
+        name: 'name',
+        service: 'service',
+        driver: 'driver',
+        unit: 'unit',
+        charge: 'charge',
+        price: 'price',
+        block: 'block',
+        currency: 'currency',
+        creditSku: 'credit_item',
+        sourceNote: 'source_note',
+      },
+    });
+    expect(cx.problems).toEqual([]);
+    expect(cx.entries).toBe(12);
   });
 
   it('who reads and who maintains a book: list books for everyone, a platform’s contracted book for who sees its amounts', async () => {
