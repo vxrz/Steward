@@ -818,6 +818,7 @@
     }
   },
   "prices": {
+    "moreDetails": "Weitere Angaben",
     "title": "Preisbücher",
     "description": "Artikelpreise je Einheit eines Mengentreibers, in Versionen: Listenpreise, die alle lesen dürfen, und die vertraglichen Preise eines Vertrags oder einer Plattform für alle, die sie sehen dürfen. Schätzungen bepreisen ihre Mengen damit.",
     "search": "Preisbücher durchsuchen",
@@ -1124,6 +1125,7 @@
     },
     "inputs": {
       "title": "Eingaben",
+      "moreDetails": "Weitere Angaben",
       "name": "Titel",
       "appliesFrom": "Gilt ab",
       "appliesFromHint": "JJJJ-MM",

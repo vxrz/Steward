@@ -3506,6 +3506,7 @@ export interface Resources {
     'attribution.entries_other': string;
     'attribution.empty.application': string;
     'attribution.empty.system': string;
+    'prices.moreDetails': string;
     'prices.title': string;
     'prices.description': string;
     'prices.search': string;
@@ -3765,6 +3766,7 @@ export interface Resources {
     'estimates.new.note': string;
     'estimates.new.create': string;
     'estimates.inputs.title': string;
+    'estimates.inputs.moreDetails': string;
     'estimates.inputs.name': string;
     'estimates.inputs.appliesFrom': string;
     'estimates.inputs.appliesFromHint': string;

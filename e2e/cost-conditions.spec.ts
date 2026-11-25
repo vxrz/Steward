@@ -157,6 +157,7 @@ async function flow(page: Page, api: APIRequestContext, f: Fixture, mobile: bool
     await page.goto(`/costs/price-books/${f.list}`);
     await page.getByTestId('entry-add').click();
     const entry = page.getByRole('dialog');
+    await entry.getByTestId('section-entry-more-details-toggle').click();
     await expect(entry.getByLabel('Valid from')).toHaveAttribute('type', 'date');
     await expect(entry.getByLabel('Valid to')).toHaveAttribute('type', 'date');
     await entry.getByRole('button', { name: 'Cancel' }).click();
