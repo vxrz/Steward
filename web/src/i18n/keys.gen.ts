@@ -1950,6 +1950,7 @@ export interface Resources {
     'accessChanges.approvedBy': string;
     'accessChanges.performedBy': string;
     'accessChanges.documentNow': string;
+    'accessChanges.moreDetails': string;
     'accessChanges.documentNowHelp': string;
     'accessChanges.createDocumented': string;
     'accessChanges.createDraft': string;
