@@ -172,7 +172,8 @@ steps:
                 'status': $a.dryRun ? 'dry run' : $string($a.status),
                 'hasRole': $has,
                 'result': $a.dryRun ? 'dry run – not changed'
-                  : ($ok and $has = vars.adding ? (vars.adding ? 'added' : 'removed')
+                  : ($ok and $has = null ? 'request accepted, not verified (reading the members back answered HTTP ' & ($exists(vars.after.status) ? $string(vars.after.status) : 'nothing') & ')'
+                  : $ok and $has = vars.adding ? (vars.adding ? 'added' : 'removed')
                   : ($ok ? 'request accepted, but the group ' & ($has ? 'has' : 'does not have') & ' the role'
                   : ($a.status = 409 ? 'assigned already' : ($a.status = 404 and $not(vars.adding) ? 'not assigned (any more)' : 'failed')))),
                 'message': $a.dryRun or $ok ? ''
