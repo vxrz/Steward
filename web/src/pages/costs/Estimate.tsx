@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -41,6 +41,7 @@ import {
 import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { QueryState } from '../../components/common';
 import { DetailPage } from '../../components/page/DetailPage';
+import { CollapsibleSection, SectionGroup } from '../../components/page/CollapsibleSection';
 import { DataTable, type DataColumn } from '../../components/DataTable';
 import { confirmDialog } from '../../components/confirm';
 import { fmtMoney, fmtMoneySigned, fmtMonth, planPath } from '../../components/costs/common';
@@ -264,10 +265,12 @@ export function EstimatePage() {
               </Text>
             )}
             <InputsForm defs={defs} values={draft.inputs} disabled={!e.canEdit} onChange={(inputs) => setDraft({ ...draft, inputs })} />
-            <HandLines lines={draft.lines} disabled={!e.canEdit} onChange={(lines) => setDraft({ ...draft, lines })} />
-            <BookChoices draft={draft} result={r} books={books.data ?? []} disabled={!e.canEdit} onChange={(b) => setDraft({ ...draft, books: b })} />
-            <ContractChoices draft={draft} result={r} disabled={!e.canEdit} onChange={(c) => setDraft({ ...draft, contracts: c })} />
-            <Adjustments draft={draft} result={r} disabled={!e.canEdit} onChange={(adjustments) => setDraft({ ...draft, adjustments })} />
+            <MoreDetails hasValues={draft.lines.length > 0 || draft.books.length > 0 || draft.contracts.length > 0 || draft.adjustments.length > 0}>
+              <HandLines lines={draft.lines} disabled={!e.canEdit} onChange={(lines) => setDraft({ ...draft, lines })} />
+              <BookChoices draft={draft} result={r} books={books.data ?? []} disabled={!e.canEdit} onChange={(b) => setDraft({ ...draft, books: b })} />
+              <ContractChoices draft={draft} result={r} disabled={!e.canEdit} onChange={(c) => setDraft({ ...draft, contracts: c })} />
+              <Adjustments draft={draft} result={r} disabled={!e.canEdit} onChange={(adjustments) => setDraft({ ...draft, adjustments })} />
+            </MoreDetails>
             {e.canEdit && (
               <Group justify="flex-end">
                 <Button onClick={() => void save()} loading={busy} data-testid="estimate-save">
@@ -278,28 +281,44 @@ export function EstimatePage() {
           </Stack>
         </Paper>
         {r && <ResultView r={r} />}
-        {r && r.months && <MonthsChart r={r} />}
-        {r && <Compare e={e} draft={draft} defs={defs} />}
-        {r && <PlanLines e={e} onChanged={() => void qc.invalidateQueries({ queryKey: estimateKeys.one(id) })} />}
-        {e.history.length > 0 && (
-          <Stack gap="xs">
-            <Title order={3} size="h5">
-              {t('estimates.history.title')}
-            </Title>
-            {e.history.map((h) => (
-              <Text key={`${h.at}${h.by}`} size="sm">
-                {t('estimates.history.line', {
-                  at: h.at.slice(0, 16).replace('T', ' '),
-                  by: h.by,
-                  monthly: fmtMoney(h.monthly, e.currency),
-                  oneOff: fmtMoney(h.oneOff, e.currency),
-                })}
-              </Text>
-            ))}
-          </Stack>
-        )}
+        <SectionGroup min={2}>
+          {r && r.months && <MonthsChart r={r} />}
+          {r && <Compare e={e} draft={draft} defs={defs} />}
+          {r && <PlanLines e={e} onChanged={() => void qc.invalidateQueries({ queryKey: estimateKeys.one(id) })} />}
+          {e.history.length > 0 && (
+            <CollapsibleSection
+              id="estimate-history"
+              title={t('estimates.history.title')}
+              count={e.history.length}
+              defaultOpen={false}
+              testId="estimate-history"
+            >
+              {e.history.map((h) => (
+                <Text key={`${h.at}${h.by}`} size="sm">
+                  {t('estimates.history.line', {
+                    at: h.at.slice(0, 16).replace('T', ' '),
+                    by: h.by,
+                    monthly: fmtMoney(h.monthly, e.currency),
+                    oneOff: fmtMoney(h.oneOff, e.currency),
+                  })}
+                </Text>
+              ))}
+            </CollapsibleSection>
+          )}
+        </SectionGroup>
       </Stack>
     </DetailPage>
+  );
+}
+
+/** The less used assumptions (lines by hand, books, contracts, adjustments): folded unless the estimate has some. */
+function MoreDetails({ hasValues, children }: { hasValues: boolean; children: ReactNode }) {
+  const { t } = useTranslation('costs');
+  const [initial] = useState(hasValues);
+  return (
+    <CollapsibleSection id="estimate-more-details" order={4} size="h6" title={t('estimates.inputs.moreDetails')} defaultOpen={initial} remember={false}>
+      <Stack gap="sm">{children}</Stack>
+    </CollapsibleSection>
   );
 }
 
@@ -984,57 +1003,59 @@ function MonthsChart({ r }: { r: CostEstimateResult }) {
       .map((m, i) => `${x(months.length - 1 - i)},${y(m.monthly.low)}`)
       .join(' ');
   return (
-    <Stack gap="xs" data-testid="estimate-months">
-      <Group justify="space-between">
-        <Title order={3} size="h5">
-          {t('estimates.months.title')}
-        </Title>
-        <Switch size="xs" label={t('estimates.months.asTable')} checked={table} onChange={(e) => setTable(e.currentTarget.checked)} />
-      </Group>
-      <Text size="xs" c="dimmed">
-        {t('estimates.months.help')}
-      </Text>
-      {table ? (
-        <Table.ScrollContainer minWidth={480}>
-          <Table striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('estimates.months.month')}</Table.Th>
-                <Table.Th>{t('estimates.inputs.low')}</Table.Th>
-                <Table.Th>{t('estimates.inputs.expected')}</Table.Th>
-                <Table.Th>{t('estimates.inputs.high')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {months.map((m) => (
-                <Table.Tr key={m.month}>
-                  <Table.Td>{fmtMonth(m.month)}</Table.Td>
-                  <Table.Td className="viz-num">{fmtMoney(m.monthly.low, r.currency)}</Table.Td>
-                  <Table.Td className="viz-num">{fmtMoney(m.monthly.expected, r.currency)}</Table.Td>
-                  <Table.Td className="viz-num">{fmtMoney(m.monthly.high, r.currency)}</Table.Td>
+    <CollapsibleSection
+      id="estimate-months"
+      title={t('estimates.months.title')}
+      defaultOpen={false}
+      testId="estimate-months"
+      actions={<Switch size="xs" label={t('estimates.months.asTable')} checked={table} onChange={(e) => setTable(e.currentTarget.checked)} />}
+    >
+      <Stack gap="xs">
+        <Text size="xs" c="dimmed">
+          {t('estimates.months.help')}
+        </Text>
+        {table ? (
+          <Table.ScrollContainer minWidth={480}>
+            <Table striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t('estimates.months.month')}</Table.Th>
+                  <Table.Th>{t('estimates.inputs.low')}</Table.Th>
+                  <Table.Th>{t('estimates.inputs.expected')}</Table.Th>
+                  <Table.Th>{t('estimates.inputs.high')}</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      ) : (
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          width="100%"
-          role="img"
-          aria-label={t('estimates.months.aria', { first: fmtMonth(months[0]!.month), last: fmtMonth(months[months.length - 1]!.month) })}
-        >
-          <polygon points={band} fill="var(--mantine-color-blue-filled)" opacity={0.15} />
-          <polyline
-            points={months.map((m, i) => `${x(i)},${y(m.monthly.expected)}`).join(' ')}
-            fill="none"
-            stroke="var(--mantine-color-blue-filled)"
-            strokeWidth={2}
-          />
-          <line x1={10} x2={W - 10} y1={H - 10} y2={H - 10} stroke="var(--mantine-color-default-border)" />
-        </svg>
-      )}
-    </Stack>
+              </Table.Thead>
+              <Table.Tbody>
+                {months.map((m) => (
+                  <Table.Tr key={m.month}>
+                    <Table.Td>{fmtMonth(m.month)}</Table.Td>
+                    <Table.Td className="viz-num">{fmtMoney(m.monthly.low, r.currency)}</Table.Td>
+                    <Table.Td className="viz-num">{fmtMoney(m.monthly.expected, r.currency)}</Table.Td>
+                    <Table.Td className="viz-num">{fmtMoney(m.monthly.high, r.currency)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        ) : (
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            width="100%"
+            role="img"
+            aria-label={t('estimates.months.aria', { first: fmtMonth(months[0]!.month), last: fmtMonth(months[months.length - 1]!.month) })}
+          >
+            <polygon points={band} fill="var(--mantine-color-blue-filled)" opacity={0.15} />
+            <polyline
+              points={months.map((m, i) => `${x(i)},${y(m.monthly.expected)}`).join(' ')}
+              fill="none"
+              stroke="var(--mantine-color-blue-filled)"
+              strokeWidth={2}
+            />
+            <line x1={10} x2={W - 10} y1={H - 10} y2={H - 10} stroke="var(--mantine-color-default-border)" />
+          </svg>
+        )}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 
@@ -1084,12 +1105,13 @@ function Compare({ e, draft, defs }: { e: CostEstimate; draft: Draft; defs: Cost
   };
   const max = result ? Math.max(1, ...result.variants.map((v) => Number(v.result.totals.monthly.high))) : 1;
   return (
-    <Stack gap="sm" data-testid="estimate-compare">
-      <Group justify="space-between" wrap="wrap">
-        <Title order={3} size="h5">
-          {t('estimates.compare.title')}
-        </Title>
-        <Group gap="xs">
+    <CollapsibleSection
+      id="estimate-compare"
+      title={t('estimates.compare.title')}
+      defaultOpen={false}
+      testId="estimate-compare"
+      actions={
+        <>
           {defs.length > 0 && variants.length < 4 && (
             <Button
               size="xs"
@@ -1104,115 +1126,118 @@ function Compare({ e, draft, defs }: { e: CostEstimate; draft: Draft; defs: Cost
           <Button size="xs" leftSection={<IconArrowsDiff size={14} />} loading={busy} onClick={() => void run()} data-testid="compare-run">
             {t('estimates.compare.run')}
           </Button>
-        </Group>
-      </Group>
-      <Text size="xs" c="dimmed">
-        {t('estimates.compare.help')}
-      </Text>
-      {variants.map((v, i) => (
-        <Paper key={i} withBorder p="sm">
-          <Stack gap="xs">
-            <Group justify="space-between">
-              <TextInput
-                value={v.name}
-                aria-label={t('estimates.compare.name')}
-                onChange={(ev) => {
-                  const name = ev.currentTarget.value;
-                  setVariants(variants.map((x, j) => (j === i ? { ...x, name } : x)));
-                }}
-                w={220}
+        </>
+      }
+    >
+      <Stack gap="sm">
+        <Text size="xs" c="dimmed">
+          {t('estimates.compare.help')}
+        </Text>
+        {variants.map((v, i) => (
+          <Paper key={i} withBorder p="sm">
+            <Stack gap="xs">
+              <Group justify="space-between">
+                <TextInput
+                  value={v.name}
+                  aria-label={t('estimates.compare.name')}
+                  onChange={(ev) => {
+                    const name = ev.currentTarget.value;
+                    setVariants(variants.map((x, j) => (j === i ? { ...x, name } : x)));
+                  }}
+                  w={220}
+                />
+                <ActionIcon variant="subtle" color="red" aria-label={t('estimates.removeRow')} onClick={() => setVariants(variants.filter((_, j) => j !== i))}>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+              <InputsForm
+                defs={defs}
+                values={v.inputs}
+                disabled={false}
+                onChange={(inputs) => setVariants(variants.map((x, j) => (j === i ? { ...x, inputs } : x)))}
               />
-              <ActionIcon variant="subtle" color="red" aria-label={t('estimates.removeRow')} onClick={() => setVariants(variants.filter((_, j) => j !== i))}>
-                <IconTrash size={14} />
-              </ActionIcon>
-            </Group>
-            <InputsForm
-              defs={defs}
-              values={v.inputs}
-              disabled={false}
-              onChange={(inputs) => setVariants(variants.map((x, j) => (j === i ? { ...x, inputs } : x)))}
-            />
+            </Stack>
+          </Paper>
+        ))}
+        {result && (
+          <Stack gap="xs" data-testid="compare-result">
+            <svg viewBox={`0 0 600 ${result.variants.length * 34 + 10}`} width="100%" role="img" aria-label={t('estimates.compare.aria')}>
+              {result.variants.map((v, i) => {
+                const m = v.result.totals.monthly;
+                const sx = (s: string) => 170 + (Number(s) / max) * 400;
+                const yy = i * 34 + 8;
+                return (
+                  <g key={i}>
+                    <text x={0} y={yy + 14} fontSize={12} fill="currentColor">
+                      {v.name.slice(0, 24)}
+                    </text>
+                    <rect
+                      x={170}
+                      y={yy + 4}
+                      width={Math.max(1, sx(m.expected) - 170)}
+                      height={14}
+                      rx={2}
+                      fill={i === result.cheapest.expected ? 'var(--mantine-color-teal-filled)' : 'var(--mantine-color-blue-filled)'}
+                      opacity={0.7}
+                    />
+                    <line x1={sx(m.low)} x2={sx(m.high)} y1={yy + 11} y2={yy + 11} stroke="currentColor" strokeWidth={1.5} />
+                    <line x1={sx(m.low)} x2={sx(m.low)} y1={yy + 6} y2={yy + 16} stroke="currentColor" />
+                    <line x1={sx(m.high)} x2={sx(m.high)} y1={yy + 6} y2={yy + 16} stroke="currentColor" />
+                  </g>
+                );
+              })}
+            </svg>
+            <Table.ScrollContainer minWidth={480}>
+              <Table striped>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>{t('estimates.compare.variantCol')}</Table.Th>
+                    <Table.Th>{t('estimates.result.monthly')}</Table.Th>
+                    <Table.Th>{t('estimates.compare.difference')}</Table.Th>
+                    <Table.Th>{t('estimates.result.oneOff')}</Table.Th>
+                    <Table.Th>{t('estimates.compare.lines')}</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {result.variants.map((v, i) => {
+                    const c = result.comparison[i]!;
+                    return (
+                      <Table.Tr key={i}>
+                        <Table.Td>
+                          {v.name}{' '}
+                          {i === result.cheapest.expected && (
+                            <Badge size="xs" color="teal" variant="light">
+                              {t('estimates.compare.cheapest')}
+                            </Badge>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          <RangeText range={v.result.totals.monthly} currency={v.result.currency} />
+                        </Table.Td>
+                        <Table.Td className="viz-num">{i === 0 ? '–' : fmtMoney(c.monthly.expected, v.result.currency)}</Table.Td>
+                        <Table.Td>
+                          <RangeText range={v.result.totals.oneOff} currency={v.result.currency} />
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs">
+                            {i === 0
+                              ? '–'
+                              : c.lines
+                                  .slice(0, 3)
+                                  .map((l) => `${l.sku}: ${fmtMoney(l.difference, v.result.currency)}`)
+                                  .join(', ')}
+                          </Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
           </Stack>
-        </Paper>
-      ))}
-      {result && (
-        <Stack gap="xs" data-testid="compare-result">
-          <svg viewBox={`0 0 600 ${result.variants.length * 34 + 10}`} width="100%" role="img" aria-label={t('estimates.compare.aria')}>
-            {result.variants.map((v, i) => {
-              const m = v.result.totals.monthly;
-              const sx = (s: string) => 170 + (Number(s) / max) * 400;
-              const yy = i * 34 + 8;
-              return (
-                <g key={i}>
-                  <text x={0} y={yy + 14} fontSize={12} fill="currentColor">
-                    {v.name.slice(0, 24)}
-                  </text>
-                  <rect
-                    x={170}
-                    y={yy + 4}
-                    width={Math.max(1, sx(m.expected) - 170)}
-                    height={14}
-                    rx={2}
-                    fill={i === result.cheapest.expected ? 'var(--mantine-color-teal-filled)' : 'var(--mantine-color-blue-filled)'}
-                    opacity={0.7}
-                  />
-                  <line x1={sx(m.low)} x2={sx(m.high)} y1={yy + 11} y2={yy + 11} stroke="currentColor" strokeWidth={1.5} />
-                  <line x1={sx(m.low)} x2={sx(m.low)} y1={yy + 6} y2={yy + 16} stroke="currentColor" />
-                  <line x1={sx(m.high)} x2={sx(m.high)} y1={yy + 6} y2={yy + 16} stroke="currentColor" />
-                </g>
-              );
-            })}
-          </svg>
-          <Table.ScrollContainer minWidth={480}>
-            <Table striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('estimates.compare.variantCol')}</Table.Th>
-                  <Table.Th>{t('estimates.result.monthly')}</Table.Th>
-                  <Table.Th>{t('estimates.compare.difference')}</Table.Th>
-                  <Table.Th>{t('estimates.result.oneOff')}</Table.Th>
-                  <Table.Th>{t('estimates.compare.lines')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {result.variants.map((v, i) => {
-                  const c = result.comparison[i]!;
-                  return (
-                    <Table.Tr key={i}>
-                      <Table.Td>
-                        {v.name}{' '}
-                        {i === result.cheapest.expected && (
-                          <Badge size="xs" color="teal" variant="light">
-                            {t('estimates.compare.cheapest')}
-                          </Badge>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <RangeText range={v.result.totals.monthly} currency={v.result.currency} />
-                      </Table.Td>
-                      <Table.Td className="viz-num">{i === 0 ? '–' : fmtMoney(c.monthly.expected, v.result.currency)}</Table.Td>
-                      <Table.Td>
-                        <RangeText range={v.result.totals.oneOff} currency={v.result.currency} />
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="xs">
-                          {i === 0
-                            ? '–'
-                            : c.lines
-                                .slice(0, 3)
-                                .map((l) => `${l.sku}: ${fmtMoney(l.difference, v.result.currency)}`)
-                                .join(', ')}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        </Stack>
-      )}
-    </Stack>
+        )}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 
@@ -1261,11 +1286,13 @@ function PlanLines({ e, onChanged }: { e: CostEstimate; onChanged: () => void })
   };
   const changed = e.planLines.some((l) => l.changed);
   return (
-    <Stack gap="sm" data-testid="estimate-plan">
-      <Group justify="space-between" wrap="wrap">
-        <Title order={3} size="h5">
-          {t('estimates.plan.title')}
-        </Title>
+    <CollapsibleSection
+      id="estimate-plan"
+      title={t('estimates.plan.title')}
+      count={e.planLines.length || undefined}
+      defaultOpen={changed || e.planLines.length > 0}
+      testId="estimate-plan"
+      actions={
         <Select
           size="xs"
           w={110}
@@ -1274,79 +1301,82 @@ function PlanLines({ e, onChanged }: { e: CostEstimate; onChanged: () => void })
           value={String(p?.fiscalYear ?? '')}
           onChange={(v) => v && setFy(Number(v))}
         />
-      </Group>
-      {e.planLines.length > 0 && (
-        <Stack gap={4}>
-          {e.planLines.map((l) => (
-            <Group key={l.id} gap="xs">
-              <Anchor
-                component={Link}
-                to={`${planPath(e.owner)}${e.owner.kind === 'service' ? `?fiscalYear=${l.fiscalYear}` : `&fiscalYear=${l.fiscalYear}`}`}
-                size="sm"
-              >
-                {l.title}
-              </Anchor>
-              {l.changed && (
-                <Badge size="xs" color="orange" variant="light">
-                  {t('estimates.changed')}
-                </Badge>
-              )}
-            </Group>
-          ))}
-          {changed && e.canEdit && (
-            <Group>
-              <Button size="xs" color="orange" onClick={() => void update()} data-testid="estimate-update-lines">
-                {t('estimates.plan.update')}
-              </Button>
-            </Group>
-          )}
-        </Stack>
-      )}
-      {p && p.lines.length > 0 && (
-        <Stack gap={4}>
-          <Text size="xs" c="dimmed">
-            {t('estimates.plan.help', { year: p.label })}
-          </Text>
-          {p.adjusted && (
-            <Text size="xs" c="grape">
-              {t('estimates.plan.adjusted')}
+      }
+    >
+      <Stack gap="sm">
+        {e.planLines.length > 0 && (
+          <Stack gap={4}>
+            {e.planLines.map((l) => (
+              <Group key={l.id} gap="xs">
+                <Anchor
+                  component={Link}
+                  to={`${planPath(e.owner)}${e.owner.kind === 'service' ? `?fiscalYear=${l.fiscalYear}` : `&fiscalYear=${l.fiscalYear}`}`}
+                  size="sm"
+                >
+                  {l.title}
+                </Anchor>
+                {l.changed && (
+                  <Badge size="xs" color="orange" variant="light">
+                    {t('estimates.changed')}
+                  </Badge>
+                )}
+              </Group>
+            ))}
+            {changed && e.canEdit && (
+              <Group>
+                <Button size="xs" color="orange" onClick={() => void update()} data-testid="estimate-update-lines">
+                  {t('estimates.plan.update')}
+                </Button>
+              </Group>
+            )}
+          </Stack>
+        )}
+        {p && p.lines.length > 0 && (
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed">
+              {t('estimates.plan.help', { year: p.label })}
             </Text>
-          )}
-          {p.lines.map((l) => (
-            <Checkbox
-              key={l.key}
-              disabled={!e.canEdit}
-              checked={chosen.has(l.key)}
-              onChange={(ev) => {
-                const next = new Set(chosen);
-                if (ev.currentTarget.checked) next.add(l.key);
-                else next.delete(l.key);
-                setChosen(next);
-              }}
-              label={t(l.cadence === 'once' ? 'estimates.plan.once' : 'estimates.plan.monthly', {
-                title: l.title,
-                amount: fmtMoney(l.amount, p.currency),
-                from: fmtMonth(l.fromMonth),
-                to: fmtMonth(l.toMonth),
-              })}
-              data-testid={`proposal-${l.key}`}
-            />
-          ))}
-          {e.canEdit && (
-            <Group>
-              <Button size="xs" disabled={!chosen.size} onClick={() => void add()} data-testid="estimate-add-to-plan">
-                {t('estimates.plan.add')}
-              </Button>
-            </Group>
-          )}
-        </Stack>
-      )}
-      {p && !p.lines.length && (
-        <Text size="sm" c="dimmed">
-          {t('estimates.plan.none', { year: p.label })}
-        </Text>
-      )}
-    </Stack>
+            {p.adjusted && (
+              <Text size="xs" c="grape">
+                {t('estimates.plan.adjusted')}
+              </Text>
+            )}
+            {p.lines.map((l) => (
+              <Checkbox
+                key={l.key}
+                disabled={!e.canEdit}
+                checked={chosen.has(l.key)}
+                onChange={(ev) => {
+                  const next = new Set(chosen);
+                  if (ev.currentTarget.checked) next.add(l.key);
+                  else next.delete(l.key);
+                  setChosen(next);
+                }}
+                label={t(l.cadence === 'once' ? 'estimates.plan.once' : 'estimates.plan.monthly', {
+                  title: l.title,
+                  amount: fmtMoney(l.amount, p.currency),
+                  from: fmtMonth(l.fromMonth),
+                  to: fmtMonth(l.toMonth),
+                })}
+                data-testid={`proposal-${l.key}`}
+              />
+            ))}
+            {e.canEdit && (
+              <Group>
+                <Button size="xs" disabled={!chosen.size} onClick={() => void add()} data-testid="estimate-add-to-plan">
+                  {t('estimates.plan.add')}
+                </Button>
+              </Group>
+            )}
+          </Stack>
+        )}
+        {p && !p.lines.length && (
+          <Text size="sm" c="dimmed">
+            {t('estimates.plan.none', { year: p.label })}
+          </Text>
+        )}
+      </Stack>
+    </CollapsibleSection>
   );
 }
 

@@ -61,7 +61,11 @@ By default, the access change document type and the demo reconciliation check ar
 
 An access change entry is a document of the built-in type **Access change** (key `AC`, numbers like `AC-2026-0001`). Like all documents it has versions, a content hash when it is frozen, a PDF, links and attachments (see [RECORDS.md](RECORDS.md)).
 
-Fields: platform, subject (user name, user id or technical user id, and a display name), change (grant, revoke, change, onboarding, offboarding), rights before and after (one role, group or scope per line), reason, requested by, request reference (e.g. a ServiceNow ticket), approved by, performed by, performed at, origin (manual, run, after the fact). Steward computes the granted and removed rights from _before_ and _after_.
+Fields: platform, subject (user name, user id, technical user id or group name, a display name and the subject type), change (grant, revoke, modify, onboarding, offboarding), rights before and after (one role, group or scope per line), reason, requested by, request reference (e.g. a ServiceNow ticket), approved by, performed by, performed at, origin (manual, run, after the fact). Steward computes the granted and removed rights from _before_ and _after_.
+
+**Subject type.** _User_ and _Technical user_ are accounts of the platform. _User group_ (`group`) documents a change of a group's rights: _rights before_ and _after_ are the group's roles or permissions, and the subject id is the group name or id. The access reconciliation never matches entries of a group against accounts – such an entry neither explains nor hides a finding, because it would never match an account. Without a subject type, an entry is read as a user.
+
+**What the change is for.** An entry can name the **services**, **applications** and **systems** the change is for (optional; the platform stays required). They are ordinary links of the document (note _for_), so they show in the _Links_ section of the entry, in backlinks of the service, application or system. The form offers only the items you may see; the API (`POST /compliance/access-changes` with `services`, `applications`, `systems`: lists of ids, at most 50 each) refuses the whole entry with `LINK_TARGET_NOT_FOUND` when one of them does not exist or you may not see it.
 
 Only Steward sets the origin (other than _manual_), the run and the finding of an entry: entries a person writes – on the _Access changes_ page or through the records API – are manual entries, and these fields never change afterwards. Every entry also shows who documented it (_documented by_, `system` for automatic entries) and who wrote its newest version (_last edited by_).
 
@@ -97,12 +101,14 @@ A process documents the access changes it makes with the step **Document access 
   items: vars.attestation.unselected # optional: one entry per item
   subjectId: id # expression (per item)
   subjectName: userName
+  subjectType: user # optional: user (default) | technical | group
   rights: '[role]' # the changed rights
   reason: 'Privileged access review: assignment not attested'
   approvedBy: '{{ vars.removal.decidedBy }}'
+  services: ['{{ vars.serviceId }}'] # optional: what the change is for (also applications, systems)
 ```
 
-Optional: `rightsBefore` and `rightsAfter` (all rights of the subject) and `requestRef`. Without `items`, the expressions are evaluated once in the run scope (for example inside a loop).
+Optional: `rightsBefore` and `rightsAfter` (all rights of the subject) and `requestRef`. `subjectType: group` documents the change of a user group (the rights are the group's roles or permissions). `services`, `applications` and `systems` are lists of ids; an entry can be an expression in double braces that gives an id or a list of ids. They become links of the entry, like in the manual form. An id that does not exist or that the person who runs the process may not see (team scope) is skipped with a warning in the run log – the run goes on. "The person who runs the process" is the run's actor (schedules and webhook triggers run as their owner); when the actor is no active user, the rights of the user who saved the run's process version count, and when there is none, nothing is linked. At most 200 links fit on an entry; further ones are dropped with a warning. Without `items`, the expressions are evaluated once in the run scope (for example inside a loop).
 
 When the run has ended, Steward creates **one documented entry per platform and subject** (changes of the same subject within one run are merged), links it to the run and the platform, and attaches the run's PDF protocol (the automatic report, or one generated for the purpose). The entry is created by `system` on behalf of the person who started the run: _performed by_ is that person's user name, the run is in the field _Run_. _Approved by_ defaults to whoever approved the run's approval tasks. Dry runs document nothing. Nobody can change or revise these entries.
 

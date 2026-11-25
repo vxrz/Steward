@@ -1211,7 +1211,7 @@ describe('template metadata for the gallery', () => {
       dashboards: [{ id: '64-snowflake-project-pipelines', name: 'Snowflake project pipelines' }],
     });
     // the Insights Hub user examples run on demand
-    for (const id of ['13-ih-offboard-users', '17-ih-add-to-groups', '18-ih-deactivate-users'])
+    for (const id of ['13-ih-offboard-users', '17-ih-add-to-groups', '18-ih-deactivate-users', '19-ih-group-roles'])
       expect(by[id], id).toMatchObject({ connectionKinds: ['insights-hub'], recommendedSchedule: { cron: null, text: expect.stringMatching(/^on demand/) } });
     // a slot that takes several kinds
     expect(by['82-github-repository-health']).toMatchObject({

@@ -8516,7 +8516,7 @@
           },
           "subjectType": {
             "type": "string",
-            "description": "user, technical or empty"
+            "description": "user, technical, group (a user group) or empty"
           },
           "kind": {
             "type": "string",

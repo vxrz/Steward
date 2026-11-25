@@ -1,9 +1,16 @@
+import type { Locator } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { uniq } from './support/helpers';
 import { selfSignedCertificate } from './support/selfsigned';
 
 test.use({ storageState: authFile('dana') });
+
+/** Opens a folded section of the detail drawer (it stays as it is when it is open already). */
+async function openSection(drawer: Locator, id: string): Promise<void> {
+  const toggle = drawer.getByTestId(`section-${id}-toggle`);
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+}
 
 test('a designer documents an agent certificate by uploading it and sees it as due soon', async ({ page }) => {
   const name = uniq('E2E IoT2050 agent');
@@ -49,6 +56,7 @@ test('a designer documents an agent certificate by uploading it and sees it as d
   await drawer.getByRole('textbox', { name: 'Comment' }).fill('Still used by the hall 3 gateway');
   await drawer.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Review recorded')).toBeVisible();
+  await openSection(drawer, 'credential-history');
   await expect(drawer.getByText('Still used by the hall 3 gateway')).toBeVisible();
   await page.keyboard.press('Escape');
 
@@ -122,8 +130,10 @@ test('roles and permissions of a credential, linked to an application', async ({
     await dialog.getByRole('button', { name: 'Save' }).click();
 
     const drawer = page.getByRole('dialog', { name });
+    await openSection(drawer, 'credential-roles-section');
     await expect(drawer.getByTestId('credential-roles')).toContainText('mdsp:core:TenantAdmin');
     await expect(drawer.getByRole('link', { name: 'Swagger' })).toHaveAttribute('href', 'https://gateway.example.com/swagger');
+    await openSection(drawer, 'credential-history');
     await expect(drawer.getByText('Roles changed')).toBeVisible();
     await page.keyboard.press('Escape');
     // the overview shows the role and filters by it

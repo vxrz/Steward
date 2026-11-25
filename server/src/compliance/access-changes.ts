@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { ACCESS_CHANGE_KINDS, ACCESS_TYPE_ID, type AccessChange, type AccessChangeKind, type AccessChangeOrigin } from '@sm/shared';
+import {
+  ACCESS_CHANGE_KINDS,
+  ACCESS_SUBJECT_TYPES,
+  ACCESS_TYPE_ID,
+  type AccessChange,
+  type AccessChangeKind,
+  type AccessChangeLinkKind,
+  type AccessChangeOrigin,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { HttpError, parseJson } from '../util.js';
@@ -8,7 +16,7 @@ import { requireType } from '../records/types.js';
 import { createRecord, currentContentHash, frozenIntact, transition } from '../records/service.js';
 import { canReadRecordRow } from '../records/access.js';
 import { addAttachment } from '../records/attachments.js';
-import { addLink } from '../records/links.js';
+import { addLink, targetVisible } from '../records/links.js';
 import type { RecordRow } from '../records/model.js';
 import { isSubjectOf, me, SYSTEM_USER, visiblePlatformName } from './access.js';
 
@@ -177,7 +185,8 @@ export function documentedEntries(platformId: string, fromMs: number, toMs: numb
     .filter((r) => {
       const f = parseJson<Record<string, string>>(r.fields, {});
       const t = Date.parse(f.performedAt ?? '');
-      return f.platform === platformId && Number.isFinite(t) && t > fromMs && t <= toMs;
+      // entries of a user group document the group's rights: they never match an account, so they neither explain nor hide a finding
+      return f.platform === platformId && f.subjectType !== 'group' && Number.isFinite(t) && t > fromMs && t <= toMs;
     })
     .map((r) => toAccessChange(r, null))
     .filter(entryCounts);
@@ -196,7 +205,7 @@ export const accessChangeInput = z
     platformId: z.string().min(1).max(100),
     subjectId: z.string().trim().min(1).max(300),
     subjectName: z.string().trim().max(300).optional(),
-    subjectType: z.enum(['user', 'technical']).optional(),
+    subjectType: z.enum(ACCESS_SUBJECT_TYPES).optional(),
     kind: z.enum(ACCESS_CHANGE_KINDS),
     rightsBefore: z.array(z.string().max(300)).max(500).default([]),
     rightsAfter: z.array(z.string().max(300)).max(500).default([]),
@@ -225,6 +234,18 @@ function rightsText(list: string[]): string {
     text = next;
   }
   return text;
+}
+
+/**
+ * Refuses a service, application or system the current user may not see (or that does not exist) – the same answer for both,
+ * so nobody can probe for hidden items. Returns the ids without duplicates.
+ */
+export function assertLinkTargets(kind: AccessChangeLinkKind, ids: string[] | undefined): string[] {
+  const unique = [...new Set((ids ?? []).map((x) => x.trim()).filter(Boolean))];
+  for (const id of unique) {
+    if (!targetVisible(kind, id)) throw new HttpError(404, `${kind} ${id} not found`, 'LINK_TARGET_NOT_FOUND', { kind, id });
+  }
+  return unique;
 }
 
 export function entryFields(i: AccessChangeCreate): Record<string, string> {
@@ -257,7 +278,7 @@ export function createAccessChange(
   o: {
     document?: boolean;
     comment?: string;
-    links?: ({ kind: 'run' | 'platform' | 'record'; id: string; note: string } | { url: string; label: string; note: string })[];
+    links?: ({ kind: 'run' | 'platform' | 'record' | AccessChangeLinkKind; id: string; note: string } | { url: string; label: string; note: string })[];
     attachments?: { filename: string; data: Buffer }[];
   } = {},
 ): AccessChange {

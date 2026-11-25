@@ -6,6 +6,19 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-25
+
+Steward 0.28.0 documents more kinds of access changes and makes busy pages calmer. An access change can now be about a **user group** – its roles before and after – and name the **services, applications and systems** it is for; processes record the same, linking only what the person behind the run may see. A new example changes the roles of an Insights Hub user group with a four-eyes approval. The busiest pages and forms show their summary first and fold the rest: sections that remember what you opened, side drawers for details, and _More details_ in long forms. The upgrade fixture of 0.27.1 is added. No database migrations.
+
+### Added
+
+- **Access changes for user groups, and what a change is for** ([docs/COMPLIANCE.md](docs/COMPLIANCE.md#access-change-entries)): besides _User_ and _Technical user_, the subject type can be _User group_ – the rights before and after are the group's roles or permissions, and the access reconciliation does not match such entries against accounts. An access change can also name the **services, applications and systems** it is for (pickers show only what the reader may see; stored as ordinary links, so they appear in the entry's links and in backlinks). The step **Document access change** has the new fields `subjectType`, `services`, `applications` and `systems`; ids that are unknown or not visible are skipped with a warning in the run log. Visibility is judged for the person who started the run (for unattended runs: the author of the process version, see the compliance guide); at most 200 links per entry are kept, the rest is dropped with a warning. Several changes of one run are merged per platform, subject type and subject, so a technical user and a user with the same id stay separate entries. No database migrations.
+- **Insights Hub – Change the roles of a user group**, example 19 ([docs/INSIGHTS-HUB-USERS.md](docs/INSIGHTS-HUB-USERS.md)): adds roles (core roles `mdsp:core:…` or custom roles) to a user group or takes them away. A user group has a role when it is a member (`type` `GROUP`) of the role's group, so the process sends one `POST /Groups/{roleId}/members` or `DELETE /Groups/{roleId}/members/{userGroupId}` per role, after an approval (four-eyes) that says every member of the group is affected; roles that are assigned already (or not assigned) are skipped, an unknown role or group stops the run, each role's members are read again and the report shows the API's answer per role. The change is documented as an access change with the user group as its subject. The simulated tenant accepts groups as members of groups.
+
+### Changed
+
+- **Less cluttered pages**: Credentials show roles, vault and history in sections, and Archive and Delete sit in "More actions"; webhook triggers fold security and messages; report schedules, access checks, price books and the access change dialog fold rarely used fields under "More details"; the cost estimate keeps its assumptions under "More details" and shows the monthly projection, comparison, plan lines and history in sections; the price book version diff and import, and the collections of plant assets, open in a side drawer. Sections remember the reader's choice and open by themselves when they hold values or need attention.
+
 ## [0.27.1] - 2026-11-24
 
 Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. `SM_SQLITE_VACUUM_AT_START` no longer runs out of memory in the container. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.
@@ -1725,7 +1738,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.27.1...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/vxrz/steward/compare/v0.27.1...v0.28.0
 [0.27.1]: https://github.com/vxrz/steward/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/vxrz/steward/compare/v0.26.2...v0.27.0
 [0.26.2]: https://github.com/vxrz/steward/compare/v0.26.1...v0.26.2

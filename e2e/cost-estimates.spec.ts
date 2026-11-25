@@ -124,6 +124,7 @@ async function flow(page: Page, f: Fixture, mobile: boolean) {
   await expect(est.getByTestId('estimate-result')).toContainText('API requests');
   await expect(est.getByTestId('line-adjustment')).toContainText('Negotiation target');
   await expect(est.getByTestId('estimate-result')).toContainText('a span, not a probability');
+  await est.getByTestId('estimate-compare-toggle').click();
   await est.getByTestId('compare-add').click();
   await est.getByTestId('compare-run').click();
   await expect(est.getByTestId('compare-result')).toContainText('Cheapest');

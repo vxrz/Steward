@@ -1,0 +1,254 @@
+name: "Insights Hub – Change the roles of a user group"
+description: |
+  Adds roles to an Insights Hub user group or takes them away – the roles
+  can be core roles (mdsp:core:…) or custom roles (mdsp_customrole:…). In
+  Insights Hub a user group has a role when the group is a member of the
+  role's group, so every member of the user group has the role: this is
+  a wider change than one user's membership, and the approval says so.
+
+  The process looks up the user group and the roles by name (one list of
+  all groups and roles), shows the roles the user group has now and what
+  will change – roles that are assigned already (adding) or not assigned
+  (removing) are skipped, an unknown role stops the run before anything
+  changes –, asks for confirmation (four-eyes) and then sends one request
+  per role: POST /Groups/{roleId}/members with { "type": "GROUP", "value":
+  <user group id> } to add, DELETE /Groups/{roleId}/members/{user group id}
+  to remove. Afterwards each role's members are read again; the report
+  shows the answer of the API per role and whether the user group now has
+  the role. The change is documented as an access change whose subject is
+  the user group (roles before, roles added or removed).
+
+  Insights Hub Settings does the same under User management → User groups
+  → Assign roles. See docs/INSIGHTS-HUB-USERS.md for what this relies on.
+
+  Recommended schedule: on demand.
+  Required rights: read groups (im.g.r) and change group membership
+  (im.g.u) – e.g. the role mdsp:core:im.userIamAdmin or a tenant
+  administrator.
+tags: [roles, groups, insights-hub, access]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: userGroup
+    label: User group (display name)
+    type: string
+    required: true
+    default: mdsp_usergroup:Operators
+  - name: action
+    label: What to do
+    type: select
+    options: [add, remove]
+    default: add
+  - name: roles
+    label: Roles (display names, one per line)
+    type: list
+    required: true
+    default: |
+      mdsp:core:TenantAdmin
+steps:
+  - id: setup
+    type: set
+    name: Prepare
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      adding: "{{ inputs.action = 'add' }}"
+      roleNames: "{{ [$distinct(inputs.roles.$trim($)[$ != ''])] }}"
+      results: "{{ [] }}"
+  - id: enough
+    type: check
+    name: Roles given
+    condition: "$count(vars.roleNames) > 0 and $count(vars.roleNames) <= 50 and $not($exists(vars.roleNames[$substring($, 0, 15) = 'mdsp_usergroup:']))"
+    message: "{{ $count(vars.roleNames) = 0 ? 'No roles given' : ($count(vars.roleNames) > 50 ? 'At most 50 roles at once' : ($exists(vars.roleNames[$substring($, 0, 15) = 'mdsp_usergroup:']) ? 'These are user groups, not roles: ' & $join(vars.roleNames[$substring($, 0, 15) = 'mdsp_usergroup:'], ', ') : $count(vars.roleNames) & ' role(s)')) }}"
+    failRun: true
+  - id: listGroups
+    type: http
+    name: List groups and roles
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: groups
+  - id: plan
+    type: set
+    name: Plan per role
+    values:
+      group: "{{ vars.groups.body[displayName = $inputs.userGroup][0] }}"
+      # the roles the user group has: the groups it is a member of (type GROUP)
+      rolesBefore: "{{ [vars.groups.body[$exists(members[type = 'GROUP' and value = $vars.group.id]) and $not($substring(displayName, 0, 15) = 'mdsp_usergroup:')].displayName] }}"
+      unknown: "{{ [vars.roleNames[$not($ in $vars.groups.body.displayName)]] }}"
+      plan: >-
+        {{ [vars.roleNames[$ in $vars.groups.body.displayName].(
+          $n := $;
+          $r := $vars.groups.body[displayName = $n][0];
+          {
+            'role': $n,
+            'roleId': $r.id,
+            'assigned': $exists($r.members[type = 'GROUP' and value = $vars.group.id])
+          }
+        )] }}
+      toChange: "{{ [$vars.plan[assigned != $vars.adding]] }}"
+      skipped: "{{ [$vars.plan[assigned = $vars.adding]] }}"
+  - id: groupFound
+    type: check
+    name: The user group exists
+    condition: "$exists(vars.group.id) and $substring(inputs.userGroup, 0, 15) = 'mdsp_usergroup:'"
+    message: "{{ $exists(vars.group.id) and $substring(inputs.userGroup, 0, 15) = 'mdsp_usergroup:' ? inputs.userGroup & ' (' & $count(vars.group.members[type = 'USER']) & ' user(s), ' & $count(vars.rolesBefore) & ' role(s))' : 'No user group named ' & inputs.userGroup & ' (user groups are named mdsp_usergroup:…)' }}"
+    failRun: true
+  - id: rolesFound
+    type: check
+    name: Every role exists
+    condition: "$count(vars.unknown) = 0"
+    message: "{{ $count(vars.unknown) = 0 ? 'Roles: ' & $join(vars.roleNames, ', ') : 'Unknown role(s): ' & $join(vars.unknown, ', ') }}"
+    failRun: true
+  - id: approve
+    type: userTask
+    name: Approve the role change
+    when: "$count(vars.toChange) > 0"
+    mode: approve
+    title: "{{ vars.adding ? 'Give' : 'Take away' }} {{ $count(vars.toChange) }} role(s) {{ vars.adding ? 'to' : 'from' }} {{ inputs.userGroup }}?"
+    instructions: |
+      Requested by {{ run.actor }}. A different person has to confirm.
+
+      Every one of the group's {{ $count(vars.group.members[type = 'USER']) }} user(s) {{ vars.adding ? 'gets' : 'loses' }} {{ vars.adding ? 'these roles' : 'these roles (unless another group or direct assignment gives them)' }}.
+
+      {{ vars.adding ? 'Add' : 'Remove' }}: {{ $join(vars.toChange.role, ', ') }}
+      {{ $count(vars.skipped) > 0 ? 'Skipped (' & (vars.adding ? 'assigned already' : 'not assigned') & '): ' & $join(vars.skipped.role, ', ') : '' }}
+      Roles of {{ inputs.userGroup }} now: {{ $count(vars.rolesBefore) > 0 ? $join(vars.rolesBefore, ', ') : 'none' }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    # a rejection ends the run without a change; the report says so
+    onReject: continue
+    saveAs: approval
+  - id: change
+    type: forEach
+    name: Change each role
+    when: "vars.approval.approved = true"
+    items: vars.toChange
+    as: p
+    steps:
+      - id: addRole
+        type: http
+        name: Add the user group to the role (POST)
+        when: "vars.adding"
+        connection: hub
+        method: POST
+        path: "{{ vars.idm }}/Groups/{{ vars.p.roleId }}/members"
+        body:
+          type: GROUP
+          value: "{{ vars.group.id }}"
+        # every answer is kept and reported per role; 409: assigned already
+        expectStatus: [200, 201, 400, 403, 404, 409, 500, 503]
+        saveAs: added
+      - id: removeRole
+        type: http
+        name: Remove the user group from the role (DELETE)
+        when: "$not(vars.adding)"
+        connection: hub
+        method: DELETE
+        path: "{{ vars.idm }}/Groups/{{ vars.p.roleId }}/members/{{ vars.group.id }}"
+        expectStatus: [200, 204, 400, 403, 404, 500, 503]
+        saveAs: removed
+      - id: readBack
+        type: http
+        name: Read the role's members again
+        when: "$not(vars.added.dryRun = true or vars.removed.dryRun = true)"
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Groups/{{ vars.p.roleId }}/members"
+        expectStatus: [200, 404]
+        saveAs: after
+      - id: result
+        type: set
+        name: Result
+        values:
+          results: >-
+            {{ $append(vars.results, [(
+              $a := vars.adding ? vars.added : vars.removed;
+              $ok := $a.status in [200, 201, 204];
+              $has := vars.after.status = 200 ? $exists(vars.after.body[type = 'GROUP' and value = $vars.group.id]) : null;
+              {
+                'role': vars.p.role,
+                'status': $a.dryRun ? 'dry run' : $string($a.status),
+                'hasRole': $has,
+                'result': $a.dryRun ? 'dry run – not changed'
+                  : ($ok and $has = null ? 'request accepted, not verified (reading the members back answered HTTP ' & ($exists(vars.after.status) ? $string(vars.after.status) : 'nothing') & ')'
+                  : $ok and $has = vars.adding ? (vars.adding ? 'added' : 'removed')
+                  : ($ok ? 'request accepted, but the group ' & ($has ? 'has' : 'does not have') & ' the role'
+                  : ($a.status = 409 ? 'assigned already' : ($a.status = 404 and $not(vars.adding) ? 'not assigned (any more)' : 'failed')))),
+                'message': $a.dryRun or $ok ? ''
+                  : $substring($string($a.body.errors[0].message ? $a.body.errors[0].message
+                    : ($a.body.error_description ? $a.body.error_description : ($a.body.message ? $a.body.message : $a.body))), 0, 300)
+              }
+            )]) }}
+  - id: outcome
+    type: set
+    name: What was done
+    values:
+      done: "{{ [vars.results[result in ['added', 'removed']].role] }}"
+      failures: "{{ [vars.results[$not(result in ['added', 'removed', 'assigned already', 'not assigned (any more)', 'dry run – not changed'])]] }}"
+      changedGroup: "{{ [$count(vars.done) > 0 ? { 'id': vars.group.id, 'name': vars.group.displayName, 'before': vars.rolesBefore, 'roles': vars.done } : undefined] }}"
+  - id: failuresCheck
+    type: check
+    name: Every role was changed
+    severity: warning
+    when: "vars.approval.approved = true"
+    condition: "$count(vars.failures) = 0"
+    message: "{{ $count(vars.failures) = 0 ? 'Nothing failed' : $join(vars.failures.(role & ': HTTP ' & status & ' – ' & result & (message ? ' – ' & message : '')), '; ') }}"
+    headline: "{{ $count(vars.failures) & ' role(s) of an Insights Hub user group could not be changed' }}"
+    value: "$count(vars.failures)"
+    items: "vars.failures.(role & ': ' & result & (message ? ' – ' & message : ''))"
+  # the subject is the user group, not a user: every member of the group is affected
+  - id: documentGrant
+    type: accessChange
+    name: Document the new roles
+    when: "vars.adding and $count(vars.changedGroup) > 0"
+    connection: hub
+    kind: grant
+    subjectType: group
+    items: vars.changedGroup
+    subjectId: id
+    subjectName: name
+    rights: "[roles]"
+    rightsBefore: "[before]"
+    reason: "Roles added to the user group (all its members get them)"
+    approvedBy: "{{ vars.approval.decidedBy }}"
+  - id: documentRevoke
+    type: accessChange
+    name: Document the removed roles
+    when: "$not(vars.adding) and $count(vars.changedGroup) > 0"
+    connection: hub
+    kind: revoke
+    subjectType: group
+    items: vars.changedGroup
+    subjectId: id
+    subjectName: name
+    rights: "[roles]"
+    rightsBefore: "[before]"
+    reason: "Roles removed from the user group (all its members lose them)"
+    approvedBy: "{{ vars.approval.decidedBy }}"
+  - id: report
+    type: report
+    name: Report
+    title: "Roles of {{ inputs.userGroup }}"
+    text: |
+      - User group: **{{ inputs.userGroup }}**, roles before: **{{ $count(vars.rolesBefore) }}**, requested: **{{ $count(vars.roleNames) }}** ({{ vars.adding ? 'add' : 'remove' }})
+      - Changed: **{{ $count(vars.done) }}**, skipped: **{{ $count(vars.skipped) }}**, failed: **{{ $count(vars.failures) }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}{{ $count(vars.toChange) > 0 and vars.approval.approved != true ? ' – not confirmed, nothing changed' : '' }}
+    rows: >-
+      [vars.plan.(
+        $p := $;
+        $r := $vars.results[role = $p.role][0];
+        {
+          'role': $p.role,
+          'before': $p.assigned ? 'assigned' : 'not assigned',
+          'result': $r ? $r.result : ($p.assigned = $vars.adding ? ($vars.adding ? 'assigned already (skipped)' : 'not assigned (skipped)') : ($vars.approval.approved = true ? 'not changed' : 'not confirmed')),
+          'status': $r ? $r.status : '',
+          'message': $r ? $r.message : ''
+        }
+      )]
+    columns:
+      - { label: Role, value: role }
+      - { label: Before, value: before }
+      - { label: Result, value: result }
+      - { label: HTTP, value: status }
+      - { label: Message, value: message }

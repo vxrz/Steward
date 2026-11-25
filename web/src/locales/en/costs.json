@@ -818,6 +818,7 @@
     }
   },
   "prices": {
+    "moreDetails": "More details",
     "title": "Price books",
     "description": "Item prices per unit of a driver, in versions: list prices everyone may read, and the contracted prices of a contract or platform for who may see them. Estimates price their quantities with them.",
     "search": "Search price books",
@@ -1124,6 +1125,7 @@
     },
     "inputs": {
       "title": "Inputs",
+      "moreDetails": "More details",
       "name": "Title",
       "appliesFrom": "Applies from",
       "appliesFromHint": "YYYY-MM",

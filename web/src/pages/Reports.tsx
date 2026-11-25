@@ -48,6 +48,7 @@ import type {
   Subject,
 } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
+import { CollapsibleSection } from '../components/page/CollapsibleSection';
 import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
@@ -514,6 +515,8 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     enabled: sections.includes('isms'),
   });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services'), enabled: sections.includes('isms') });
+  // folded details open at once when they hold something other than the defaults (decided when the form opens)
+  const [moreOpen] = useState(() => !!(draft.classification || draft.team || draft.attachPdf));
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const sec = (id: string) => d.sections[id] as SectionConfig | undefined;
   const setSec = (id: string, v: SectionConfig | undefined) => {
@@ -584,6 +587,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           </Text>
         </div>
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
+          <TextInput label={t('form.timezone')} value={d.timezone} onChange={(e) => set({ timezone: e.currentTarget.value })} />
           {d.preset === 'custom' && (
             <TextInput label={t('form.cron')} classNames={{ input: 'mono' }} value={d.cron} onChange={(e) => set({ cron: e.currentTarget.value })} />
           )}
@@ -596,15 +600,6 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
               onChange={(v) => set({ periodDays: typeof v === 'number' ? v : 7 })}
             />
           )}
-          <TextInput label={t('form.timezone')} value={d.timezone} onChange={(e) => set({ timezone: e.currentTarget.value })} />
-          <Select
-            label={t('form.lang')}
-            allowDeselect={false}
-            data={REPORT_LANGS.map((l) => ({ value: l, label: reportLangName(l) }))}
-            value={d.lang}
-            onChange={(v) => set({ lang: (v as 'en' | 'de') ?? 'en' })}
-          />
-          <TextInput label={t('form.classification')} value={d.classification} onChange={(e) => set({ classification: e.currentTarget.value })} />
         </SimpleGrid>
         {d.preset === 'custom' && <CronPreview cron={d.cron} timezone={d.timezone} onUse={(c) => set({ cron: c })} />}
 
@@ -813,22 +808,45 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           recipients={d.recipients}
           userLabel={(n) => users.find((x) => x.value === n)?.label ?? n}
         />
-        <Select
-          label={t('form.team')}
-          description={t('form.teamHint')}
-          clearable
-          placeholder={t('form.teamNone')}
-          data={brandingTeams}
-          value={d.team}
-          onChange={(v) => set({ team: v })}
-          data-testid="schedule-team"
-        />
-        <Switch
-          label={t('form.attachPdf')}
-          description={t('form.attachPdfHint')}
-          checked={d.attachPdf}
-          onChange={(e) => set({ attachPdf: e.currentTarget.checked })}
-        />
+        <CollapsibleSection
+          id="schedule-more"
+          order={3}
+          size="h6"
+          title={t('form.moreDetails')}
+          defaultOpen={moreOpen}
+          remember={false}
+          inGroup={false}
+          testId="schedule-more"
+        >
+          <Stack>
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <Select
+                label={t('form.lang')}
+                allowDeselect={false}
+                data={REPORT_LANGS.map((l) => ({ value: l, label: reportLangName(l) }))}
+                value={d.lang}
+                onChange={(v) => set({ lang: (v as 'en' | 'de') ?? 'en' })}
+              />
+              <TextInput label={t('form.classification')} value={d.classification} onChange={(e) => set({ classification: e.currentTarget.value })} />
+            </SimpleGrid>
+            <Select
+              label={t('form.team')}
+              description={t('form.teamHint')}
+              clearable
+              placeholder={t('form.teamNone')}
+              data={brandingTeams}
+              value={d.team}
+              onChange={(v) => set({ team: v })}
+              data-testid="schedule-team"
+            />
+            <Switch
+              label={t('form.attachPdf')}
+              description={t('form.attachPdfHint')}
+              checked={d.attachPdf}
+              onChange={(e) => set({ attachPdf: e.currentTarget.checked })}
+            />
+          </Stack>
+        </CollapsibleSection>
         <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => set({ enabled: e.currentTarget.checked })} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

@@ -36,7 +36,8 @@
   },
   "subjectTypes": {
     "user": "User",
-    "technical": "Technical user"
+    "technical": "Technical user",
+    "group": "User group"
   },
   "sources": {
     "insights-hub": "Insights Hub identity management",
@@ -181,11 +182,18 @@
     "platformHidden": "not visible",
     "subjectId": "Subject id",
     "subjectIdHelp": "User name, user id or technical user id on the platform",
+    "subjectIdHelpGroup": "Group name or id on the platform",
     "subjectName": "Display name",
     "subjectType": "Subject type",
     "rightsBefore": "Rights before",
     "rightsAfter": "Rights after",
     "rightsHelp": "Roles, groups or scopes – press Enter after each one",
+    "rightsHelpGroup": "The group's roles or permissions – press Enter after each one",
+    "linksHelp": "Optional: the services, applications and systems this change is for. Only items you may see are offered.",
+    "services": "Services",
+    "applications": "Applications",
+    "systems": "Systems",
+    "linksNothing": "Nothing found",
     "reason": "Reason",
     "requestedBy": "Requested by",
     "requestRef": "Request reference",
@@ -194,11 +202,13 @@
     "approvedBy": "Approved by",
     "performedBy": "Performed by",
     "documentNow": "Document now",
+    "moreDetails": "More details",
     "documentNowHelp": "Freezes the entry (content hash). Leave it off to add attachments, e.g. screenshots or e-mails, before documenting.",
     "createDocumented": "Document",
     "createDraft": "Create draft"
   },
   "reconciliation": {
+    "moreDetails": "More details",
     "title": "Access reconciliation",
     "description": "Compares who actually has which access on a platform with the documented access changes. Changes without an entry show up here.",
     "new": "New check",

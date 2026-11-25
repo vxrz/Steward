@@ -10,6 +10,7 @@ import {
   Drawer,
   Group,
   Loader,
+  Menu,
   MultiSelect,
   NumberInput,
   Paper,
@@ -30,6 +31,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   IconArchive,
   IconCheck,
+  IconChevronDown,
   IconCopy,
   IconDownload,
   IconEdit,
@@ -53,6 +55,7 @@ import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components
 import { fmtDate, fmtDay, fmtRelative, localToday } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { AccessTab } from '../components/access/AccessTab';
+import { CollapsibleSection } from '../components/page/CollapsibleSection';
 import { ListPage } from '../components/page/ListPage';
 import { CopiedFromNote, DuplicateButton } from '../components/duplicate/DuplicateButton';
 import { EntraImportButton } from '../components/credentials/EntraImport';
@@ -557,36 +560,41 @@ function CredentialDrawer({
             </Group>
           )}
           {isAdmin && (
-            <Group gap="xs">
-              {c.archived ? (
-                <Button size="xs" variant="default" leftSection={<IconRestore size={14} />} onClick={() => simple('restore', t('detail.restored'))}>
-                  {t('detail.restore')}
+            <Menu position="bottom-start" withinPortal>
+              <Menu.Target>
+                <Button size="xs" variant="default" rightSection={<IconChevronDown size={14} />} data-testid="credential-more-actions">
+                  {t('common:detailPage.moreActions')}
                 </Button>
-              ) : (
-                <Button size="xs" variant="default" leftSection={<IconArchive size={14} />} onClick={() => simple('archive', t('detail.archivedOk'))}>
-                  {t('detail.archive')}
-                </Button>
-              )}
-              <Button
-                size="xs"
-                variant="subtle"
-                color="red"
-                leftSection={<IconTrash size={14} />}
-                onClick={async () => {
-                  if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: c.name }) }))) return;
-                  try {
-                    await del(`/credentials/${id}`);
-                    notifyOk(t('detail.deleted'));
-                    onChanged();
-                    onClose();
-                  } catch (e) {
-                    notifyError(e);
-                  }
-                }}
-              >
-                {t('common:delete')}
-              </Button>
-            </Group>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {c.archived ? (
+                  <Menu.Item leftSection={<IconRestore size={14} />} onClick={() => simple('restore', t('detail.restored'))}>
+                    {t('detail.restore')}
+                  </Menu.Item>
+                ) : (
+                  <Menu.Item leftSection={<IconArchive size={14} />} onClick={() => simple('archive', t('detail.archivedOk'))}>
+                    {t('detail.archive')}
+                  </Menu.Item>
+                )}
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={async () => {
+                    if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: c.name }) }))) return;
+                    try {
+                      await del(`/credentials/${id}`);
+                      notifyOk(t('detail.deleted'));
+                      onChanged();
+                      onClose();
+                    } catch (e) {
+                      notifyError(e);
+                    }
+                  }}
+                >
+                  {t('common:delete')}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           )}
           {action && (
             <ActionForm
@@ -680,7 +688,15 @@ function CredentialDrawer({
           <Field label={t('fields.usedBy')}>
             <UsedBy usedBy={c.usedBy} />
           </Field>
-          <Field label={t('fields.roles')}>
+          <CollapsibleSection
+            id="credential-roles-section"
+            order={3}
+            size="h6"
+            title={t('fields.roles')}
+            count={c.roles.length}
+            defaultOpen={false}
+            remember="section.credential.roles"
+          >
             {c.roles.length ? (
               <TableScroll>
                 <Table fz="sm" data-testid="credential-roles">
@@ -711,7 +727,7 @@ function CredentialDrawer({
                 {t('roles.none')}
               </Text>
             )}
-          </Field>
+          </CollapsibleSection>
           <Field label={t('detail.linkedFrom')}>
             <Stack gap={2}>
               {(backlinks.data ?? []).map((b) => (
@@ -763,18 +779,27 @@ function CredentialDrawer({
               </Text>
             </Field>
           )}
-          <Title order={6}>{t('detail.history')}</Title>
-          <Timeline bulletSize={14} lineWidth={2}>
-            {(history.data ?? []).map((e) => (
-              <Timeline.Item key={e.id} title={t(`events.${e.kind}`, { defaultValue: e.kind })}>
-                <Text size="xs" c="dimmed">
-                  {fmtDate(e.ts)} · {e.actor}
-                </Text>
-                {e.kind === 'rolesChanged' && <RolesChange details={e.details} />}
-                {e.comment && <Text size="sm">{e.comment}</Text>}
-              </Timeline.Item>
-            ))}
-          </Timeline>
+          <CollapsibleSection
+            id="credential-history"
+            order={3}
+            size="h6"
+            title={t('detail.history')}
+            count={history.data?.length}
+            defaultOpen={false}
+            remember="section.credential.history"
+          >
+            <Timeline bulletSize={14} lineWidth={2}>
+              {(history.data ?? []).map((e) => (
+                <Timeline.Item key={e.id} title={t(`events.${e.kind}`, { defaultValue: e.kind })}>
+                  <Text size="xs" c="dimmed">
+                    {fmtDate(e.ts)} · {e.actor}
+                  </Text>
+                  {e.kind === 'rolesChanged' && <RolesChange details={e.details} />}
+                  {e.comment && <Text size="sm">{e.comment}</Text>}
+                </Timeline.Item>
+              ))}
+            </Timeline>
+          </CollapsibleSection>
           <AccessTab kind="credential" id={c.id} />
           <Text size="xs" c="dimmed">
             {t('detail.updated', { user: c.updatedBy, date: fmtDate(c.updatedAt) })}
@@ -988,41 +1013,50 @@ function VaultPanel({ c, onRead }: { c: Credential; onRead: () => Promise<void> 
   };
   return (
     <Paper withBorder p="sm" data-testid="credential-vault">
-      <Group justify="space-between" mb="xs" wrap="nowrap">
-        <Title order={6}>{t('vault.title')}</Title>
-        {c.permissions.includes('edit') && (
-          <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} loading={busy} onClick={read}>
-            {t('vault.readNow')}
-          </Button>
+      <CollapsibleSection
+        id="credential-vault-section"
+        order={3}
+        size="h6"
+        title={t('vault.title')}
+        defaultOpen={!!r?.error || !r}
+        forceOpen={!!r?.error}
+        remember="section.credential.vault"
+        actions={
+          c.permissions.includes('edit') && (
+            <Button size="xs" variant="subtle" leftSection={<IconRefresh size={14} />} loading={busy} onClick={read}>
+              {t('vault.readNow')}
+            </Button>
+          )
+        }
+      >
+        {r?.error && (
+          <Alert color="orange" mb="xs" p="xs">
+            <Text size="sm">{t('vault.readFailed', { error: r.error })}</Text>
+          </Alert>
         )}
-      </Group>
-      {r?.error && (
-        <Alert color="orange" mb="xs" p="xs">
-          <Text size="sm">{t('vault.readFailed', { error: r.error })}</Text>
-        </Alert>
-      )}
-      {!r && (
-        <Text size="sm" c="dimmed">
-          {t('vault.notRead', { id: v.secretId })}
+        {!r && (
+          <Text size="sm" c="dimmed">
+            {t('vault.notRead', { id: v.secretId })}
+          </Text>
+        )}
+        {sec && (
+          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
+            <Field label={t('vault.secret')}>
+              {sec.name} (#{sec.id})
+            </Field>
+            <Field label={t('vault.template')}>{sec.template || '–'}</Field>
+            <Field label={t('vault.folder')}>{sec.folder || '–'}</Field>
+            <Field label={t('vault.lastChange')}>{sec.lastChangeAt ? fmtDay(sec.lastChangeAt) : t('vault.never')}</Field>
+            <Field label={t('vault.expires')}>{sec.expiresAt ? fmtDay(sec.expiresAt) : '–'}</Field>
+            <Field label={t('vault.autoChange')}>{sec.autoChangeEnabled ? t('vault.on') : t('vault.off')}</Field>
+            <Field label={t('vault.heartbeat')}>{sec.heartbeat ?? '–'}</Field>
+            <Field label={t('vault.readAt')}>{fmtRelative(r!.readAt)}</Field>
+          </SimpleGrid>
+        )}
+        <Text size="xs" c="dimmed" mt="xs">
+          {t('vault.hint')}
         </Text>
-      )}
-      {sec && (
-        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
-          <Field label={t('vault.secret')}>
-            {sec.name} (#{sec.id})
-          </Field>
-          <Field label={t('vault.template')}>{sec.template || '–'}</Field>
-          <Field label={t('vault.folder')}>{sec.folder || '–'}</Field>
-          <Field label={t('vault.lastChange')}>{sec.lastChangeAt ? fmtDay(sec.lastChangeAt) : t('vault.never')}</Field>
-          <Field label={t('vault.expires')}>{sec.expiresAt ? fmtDay(sec.expiresAt) : '–'}</Field>
-          <Field label={t('vault.autoChange')}>{sec.autoChangeEnabled ? t('vault.on') : t('vault.off')}</Field>
-          <Field label={t('vault.heartbeat')}>{sec.heartbeat ?? '–'}</Field>
-          <Field label={t('vault.readAt')}>{fmtRelative(r!.readAt)}</Field>
-        </SimpleGrid>
-      )}
-      <Text size="xs" c="dimmed" mt="xs">
-        {t('vault.hint')}
-      </Text>
+      </CollapsibleSection>
     </Paper>
   );
 }

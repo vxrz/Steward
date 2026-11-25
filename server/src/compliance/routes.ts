@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { fetch } from 'undici';
 import { z } from 'zod';
 import {
+  ACCESS_CHANGE_MAX_LINKS_PER_KIND,
   ACCESS_CHECK_SOURCES,
   ACCESS_FINDING_STATUSES,
   CONTROL_TAG_KINDS,
@@ -24,7 +25,7 @@ import { contentDisposition } from '../records/attachments.js';
 import { canReadRecordRow } from '../records/access.js';
 import * as pr from './person-reviews.js';
 import { canCreateChecks, canManageCatalogues, canReadCheck, canTagControls, me, readsEverything, same } from './access.js';
-import { accessChangeInput, createAccessChange, getAccessChange, listAccessChanges } from './access-changes.js';
+import { accessChangeInput, assertLinkTargets, createAccessChange, getAccessChange, listAccessChanges } from './access-changes.js';
 import { createRunEntries } from './run-entries.js';
 import * as rec from './reconciliation.js';
 import * as ctl from './controls.js';
@@ -74,6 +75,8 @@ const reviewStepUp = (right: 'canDecide' | 'canApprove') => ({
   who: (req: FastifyRequest) => pr.getReview((req.params as { reviewId: string }).reviewId)[right],
 });
 
+const linkIds = z.array(z.string().trim().min(1).max(200)).max(ACCESS_CHANGE_MAX_LINKS_PER_KIND).optional();
+
 export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   initCompliance();
 
@@ -95,11 +98,25 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   app.get('/compliance/access-changes/:accessChangeId', async (req) => getAccessChange(params(req).accessChangeId!));
   app.post('/compliance/access-changes', async (req) => {
     const b = accessChangeInput
-      .extend({ document: z.boolean().default(false), requestUrl: z.string().url().max(2000).optional() })
+      .extend({
+        document: z.boolean().default(false),
+        requestUrl: z.string().url().max(2000).optional(),
+        // what the change is for: ordinary links of the entry
+        services: linkIds,
+        applications: linkIds,
+        systems: linkIds,
+      })
       .strict()
       .parse(req.body);
-    const { document, requestUrl, ...input } = b;
+    const { document, requestUrl, services, applications, systems, ...input } = b;
     const links: NonNullable<NonNullable<Parameters<typeof createAccessChange>[1]>['links']> = [{ kind: 'platform', id: input.platformId, note: 'platform' }];
+    // refused as a whole when the creator may not see one of them (nothing is created)
+    for (const [kind, ids] of [
+      ['service', services],
+      ['application', applications],
+      ['system', systems],
+    ] as const)
+      for (const id of assertLinkTargets(kind, ids)) links.push({ kind, id, note: 'for' });
     if (requestUrl && /^https?:\/\//i.test(requestUrl)) links.push({ url: requestUrl, label: input.requestRef || 'Request', note: 'request' });
     return createAccessChange({ ...input, origin: 'manual' }, { document, links });
   });

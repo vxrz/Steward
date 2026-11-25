@@ -395,6 +395,12 @@ export interface AccessChangeConfig {
   /** Expression (per item when `items` is set) → user name, user id or technical user id */
   subjectId: string;
   subjectName?: string;
+  /** user (default), technical, or group: for a group, the rights are the group's roles or permissions */
+  subjectType?: 'user' | 'technical' | 'group';
+  /** Ids of the services, applications and systems the change is for, or `{{ expressions }}` resolving to an id or a list of ids; unknown or invisible ids are skipped with a warning */
+  services?: string[];
+  applications?: string[];
+  systems?: string[];
   /** Expression → the changed rights (granted for grant/onboarding, removed for revoke/offboarding) */
   rights?: string;
   /** Expressions → all rights before / after the change (instead of or in addition to `rights`) */
@@ -670,6 +676,10 @@ const shapes = {
     items: z.string().optional(),
     subjectId: z.string().min(1),
     subjectName: z.string().optional(),
+    subjectType: z.enum(['user', 'technical', 'group']).optional(),
+    services: z.array(z.string().max(300)).max(50).optional(),
+    applications: z.array(z.string().max(300)).max(50).optional(),
+    systems: z.array(z.string().max(300)).max(50).optional(),
     rights: z.string().optional(),
     rightsBefore: z.string().optional(),
     rightsAfter: z.string().optional(),

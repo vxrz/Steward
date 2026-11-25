@@ -23,6 +23,7 @@ import {
   VisuallyHidden,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CollapsibleSection } from '../components/page/CollapsibleSection';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -663,6 +664,8 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
     notify: check?.notify ?? [],
     ignoreRights: check?.ignoreRights ?? [],
   });
+  // folded details open at once when they hold values (decided when the form opens)
+  const [moreOpen] = useState(() => f.notify.length > 0 || f.ignoreRights.length > 0);
   const [busy, setBusy] = useState(false);
   const up = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const usable = (platforms.data ?? []).filter((p) => p.permissions.includes('use'));
@@ -819,23 +822,36 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           <TextInput label={t('reconciliation.timezone')} required value={f.timezone} onChange={(e) => up('timezone', e.currentTarget.value)} maxLength={64} />
         </Group>
         <CronPreview cron={f.cron} timezone={f.timezone} onUse={(c) => up('cron', c)} />
-        <MultiSelect
-          label={t('reconciliation.notify')}
-          description={t('reconciliation.notifyHelp')}
-          searchable
-          data={(subjects.data ?? []).filter((s) => s.kind !== 'role').map((s) => ({ value: s.value, label: subjectLabel(s.value) }))}
-          value={f.notify}
-          onChange={(v) => up('notify', v)}
-          maxValues={20}
-        />
-        <TagsInput
-          label={t('reconciliation.ignoreRights')}
-          description={t(isAdmin ? 'reconciliation.ignoreRightsHelp' : 'reconciliation.ignoreRightsAdminOnly')}
-          disabled={!isAdmin}
-          value={f.ignoreRights}
-          onChange={(v) => up('ignoreRights', v)}
-          maxTags={100}
-        />
+        <CollapsibleSection
+          id="check-more"
+          order={3}
+          size="h6"
+          title={t('reconciliation.moreDetails')}
+          defaultOpen={moreOpen}
+          remember={false}
+          inGroup={false}
+          testId="check-more"
+        >
+          <Stack gap="sm">
+            <MultiSelect
+              label={t('reconciliation.notify')}
+              description={t('reconciliation.notifyHelp')}
+              searchable
+              data={(subjects.data ?? []).filter((s) => s.kind !== 'role').map((s) => ({ value: s.value, label: subjectLabel(s.value) }))}
+              value={f.notify}
+              onChange={(v) => up('notify', v)}
+              maxValues={20}
+            />
+            <TagsInput
+              label={t('reconciliation.ignoreRights')}
+              description={t(isAdmin ? 'reconciliation.ignoreRightsHelp' : 'reconciliation.ignoreRightsAdminOnly')}
+              disabled={!isAdmin}
+              value={f.ignoreRights}
+              onChange={(v) => up('ignoreRights', v)}
+              maxTags={100}
+            />
+          </Stack>
+        </CollapsibleSection>
         <Switch label={t('reconciliation.enabled')} checked={f.enabled} onChange={(e) => up('enabled', e.currentTarget.checked)} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

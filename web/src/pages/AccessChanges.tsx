@@ -1,15 +1,41 @@
-import { useState } from 'react';
-import { Anchor, Badge, Box, Button, Checkbox, Group, Modal, Paper, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import {
+  Anchor,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Collapse,
+  Group,
+  Modal,
+  MultiSelect,
+  Paper,
+  Select,
+  Stack,
+  TagsInput,
+  Text,
+  TextInput,
+  Textarea,
+} from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconPlus, IconSearch, IconUserShield } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronRight, IconPlus, IconSearch, IconUserShield } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { ACCESS_CHANGE_KINDS, type AccessChange, type Platform, type RecordsMeta } from '@sm/shared';
+import {
+  ACCESS_CHANGE_KINDS,
+  ACCESS_CHANGE_MAX_LINKS_PER_KIND,
+  type AccessChange,
+  type AccessChangeLinkKind,
+  type LinkTarget,
+  type Platform,
+  type RecordsMeta,
+} from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { useRemoteSelect } from '../components/remoteSelect';
 import { RecordStatusBadge } from '../components/records/common';
 import { KindBadge, RightsDiff } from '../components/compliance/common';
 import { fmtDate } from '../format';
@@ -226,6 +252,35 @@ export function localNow(d = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** Services, applications or systems the reader may see (the link picker's search), several at once. */
+function LinkTargetsSelect({ kind, label, value, onChange }: { kind: AccessChangeLinkKind; label: string; value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation('compliance');
+  const pick = useRemoteSelect({ value });
+  const targets = useQuery({
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    placeholderData: (prev) => prev,
+  });
+  const options = pick.options(
+    (targets.data ?? []).filter((x) => x.kind === kind).map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })),
+  );
+  return (
+    <MultiSelect
+      label={label}
+      searchable
+      clearable
+      data={options}
+      value={value}
+      onChange={onChange}
+      searchValue={pick.search}
+      onSearchChange={pick.setSearch}
+      filter={({ options: o }) => o}
+      maxValues={ACCESS_CHANGE_MAX_LINKS_PER_KIND}
+      nothingFoundMessage={targets.isFetching ? '…' : t('accessChanges.linksNothing')}
+    />
+  );
+}
+
 function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onClose: () => void }) {
   const { t } = useTranslation(['compliance', 'common']);
   const { username } = useMe();
@@ -243,6 +298,9 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
     requestedBy: '',
     requestRef: '',
     requestUrl: '',
+    services: [] as string[],
+    applications: [] as string[],
+    systems: [] as string[],
     approvedBy: '',
     performedBy: username,
     performedAt: localNow(),
@@ -257,6 +315,33 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
     performedBy: !f.performedBy.trim() && t('common:validation.required'),
     performedAt: !f.performedAt && t('common:validation.required'),
   });
+  const [more, setMore] = useState(false);
+  const rightsBeforeShown = f.kind === 'revoke' || f.kind === 'modify' || f.kind === 'offboarding';
+  // the folded fields open by themselves while one of them has a value (or an error)
+  const moreHasValue = Boolean(
+    f.subjectName ||
+    f.requestedBy ||
+    f.requestRef ||
+    f.requestUrl ||
+    f.approvedBy ||
+    f.services.length ||
+    f.applications.length ||
+    f.systems.length ||
+    (!rightsBeforeShown && f.rightsBefore.length),
+  );
+  useEffect(() => {
+    if (moreHasValue) setMore(true);
+  }, [moreHasValue]);
+  const moreOpen = more;
+  const rightsBeforeField = (
+    <TagsInput
+      label={t('accessChanges.rightsBefore')}
+      description={f.subjectType === 'group' ? t('accessChanges.rightsHelpGroup') : t('accessChanges.rightsHelp')}
+      value={f.rightsBefore}
+      onChange={(v) => up('rightsBefore', v)}
+      maxTags={500}
+    />
+  );
   const submit = async () => {
     if (!v.validate()) return;
     setBusy(true);
@@ -273,6 +358,9 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
         requestedBy: f.requestedBy.trim() || undefined,
         requestRef: f.requestRef.trim() || undefined,
         requestUrl: f.requestUrl.trim() || undefined,
+        services: f.services.length ? f.services : undefined,
+        applications: f.applications.length ? f.applications : undefined,
+        systems: f.systems.length ? f.systems : undefined,
         approvedBy: f.approvedBy.trim() || undefined,
         performedBy: f.performedBy.trim(),
         performedAt: new Date(f.performedAt).toISOString(),
@@ -301,14 +389,13 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
         <Group grow wrap="wrap" align="flex-start">
           <TextInput
             label={t('accessChanges.subjectId')}
-            description={t('accessChanges.subjectIdHelp')}
+            description={f.subjectType === 'group' ? t('accessChanges.subjectIdHelpGroup') : t('accessChanges.subjectIdHelp')}
             required
             value={f.subjectId}
             onChange={(e) => up('subjectId', e.currentTarget.value)}
             maxLength={300}
             error={v.error('subjectId')}
           />
-          <TextInput label={t('accessChanges.subjectName')} value={f.subjectName} onChange={(e) => up('subjectName', e.currentTarget.value)} maxLength={300} />
         </Group>
         <Group grow wrap="wrap">
           <Select
@@ -317,6 +404,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             data={[
               { value: 'user', label: t('subjectTypes.user') },
               { value: 'technical', label: t('subjectTypes.technical') },
+              { value: 'group', label: t('subjectTypes.group') },
             ]}
             value={f.subjectType}
             onChange={(v) => up('subjectType', v ?? 'user')}
@@ -330,13 +418,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             onChange={(v) => up('kind', v ?? 'grant')}
           />
         </Group>
-        <TagsInput
-          label={t('accessChanges.rightsBefore')}
-          description={t('accessChanges.rightsHelp')}
-          value={f.rightsBefore}
-          onChange={(v) => up('rightsBefore', v)}
-          maxTags={500}
-        />
+        {rightsBeforeShown && rightsBeforeField}
         <TagsInput label={t('accessChanges.rightsAfter')} value={f.rightsAfter} onChange={(v) => up('rightsAfter', v)} maxTags={500} />
         <Textarea
           label={t('accessChanges.reason')}
@@ -349,24 +431,6 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           error={v.error('reason')}
         />
         <Group grow wrap="wrap">
-          <TextInput label={t('accessChanges.requestedBy')} value={f.requestedBy} onChange={(e) => up('requestedBy', e.currentTarget.value)} maxLength={200} />
-          <TextInput
-            label={t('accessChanges.requestRef')}
-            description={t('accessChanges.requestRefHelp')}
-            value={f.requestRef}
-            onChange={(e) => up('requestRef', e.currentTarget.value)}
-            maxLength={500}
-          />
-        </Group>
-        <TextInput
-          label={t('accessChanges.requestUrl')}
-          type="url"
-          value={f.requestUrl}
-          onChange={(e) => up('requestUrl', e.currentTarget.value)}
-          maxLength={2000}
-        />
-        <Group grow wrap="wrap">
-          <TextInput label={t('accessChanges.approvedBy')} value={f.approvedBy} onChange={(e) => up('approvedBy', e.currentTarget.value)} maxLength={200} />
           <TextInput
             label={t('accessChanges.performedBy')}
             required
@@ -384,6 +448,59 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           onChange={(e) => up('performedAt', e.currentTarget.value)}
           error={v.error('performedAt')}
         />
+        <Stack gap="sm">
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            style={{ alignSelf: 'flex-start' }}
+            leftSection={moreOpen ? <IconChevronDown size={16} aria-hidden /> : <IconChevronRight size={16} aria-hidden />}
+            aria-expanded={moreOpen}
+            aria-controls="access-change-more"
+            onClick={() => setMore((x) => !x)}
+          >
+            {t('accessChanges.moreDetails')}
+          </Button>
+          <Collapse expanded={moreOpen} id="access-change-more">
+            <Stack gap="sm">
+              <TextInput
+                label={t('accessChanges.subjectName')}
+                value={f.subjectName}
+                onChange={(e) => up('subjectName', e.currentTarget.value)}
+                maxLength={300}
+              />
+              {!rightsBeforeShown && rightsBeforeField}
+              <Text size="xs" c="dimmed">
+                {t('accessChanges.linksHelp')}
+              </Text>
+              <LinkTargetsSelect kind="service" label={t('accessChanges.services')} value={f.services} onChange={(x) => up('services', x)} />
+              <LinkTargetsSelect kind="application" label={t('accessChanges.applications')} value={f.applications} onChange={(x) => up('applications', x)} />
+              <LinkTargetsSelect kind="system" label={t('accessChanges.systems')} value={f.systems} onChange={(x) => up('systems', x)} />
+              <Group grow wrap="wrap">
+                <TextInput
+                  label={t('accessChanges.requestedBy')}
+                  value={f.requestedBy}
+                  onChange={(e) => up('requestedBy', e.currentTarget.value)}
+                  maxLength={200}
+                />
+                <TextInput
+                  label={t('accessChanges.requestRef')}
+                  description={t('accessChanges.requestRefHelp')}
+                  value={f.requestRef}
+                  onChange={(e) => up('requestRef', e.currentTarget.value)}
+                  maxLength={500}
+                />
+              </Group>
+              <TextInput
+                label={t('accessChanges.requestUrl')}
+                type="url"
+                value={f.requestUrl}
+                onChange={(e) => up('requestUrl', e.currentTarget.value)}
+                maxLength={2000}
+              />
+              <TextInput label={t('accessChanges.approvedBy')} value={f.approvedBy} onChange={(e) => up('approvedBy', e.currentTarget.value)} maxLength={200} />
+            </Stack>
+          </Collapse>
+        </Stack>
         <Checkbox
           label={t('accessChanges.documentNow')}
           description={t('accessChanges.documentNowHelp')}

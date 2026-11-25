@@ -112,6 +112,7 @@
     "cron": "Cron expression",
     "periodDays": "Period (days before the run)",
     "timezone": "Time zone",
+    "moreDetails": "More details",
     "lang": "Report language",
     "classification": "Classification",
     "sections": "Sections",

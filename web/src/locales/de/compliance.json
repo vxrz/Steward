@@ -36,7 +36,8 @@
   },
   "subjectTypes": {
     "user": "Benutzer",
-    "technical": "Technischer Benutzer"
+    "technical": "Technischer Benutzer",
+    "group": "Benutzergruppe"
   },
   "sources": {
     "insights-hub": "Insights-Hub-Identity-Management",
@@ -181,11 +182,18 @@
     "platformHidden": "nicht sichtbar",
     "subjectId": "Subjekt-ID",
     "subjectIdHelp": "Benutzername, Benutzer-ID oder ID des technischen Benutzers auf der Plattform",
+    "subjectIdHelpGroup": "Gruppenname oder -ID auf der Plattform",
     "subjectName": "Anzeigename",
     "subjectType": "Art des Subjekts",
     "rightsBefore": "Rechte vorher",
     "rightsAfter": "Rechte nachher",
     "rightsHelp": "Rollen, Gruppen oder Scopes – nach jedem Eintrag Enter drücken",
+    "rightsHelpGroup": "Rollen oder Berechtigungen der Gruppe – nach jeder Eingabe die Eingabetaste drücken",
+    "linksHelp": "Optional: die Services, Anwendungen und Systeme, für die diese Änderung gilt. Angeboten werden nur Einträge, die Sie sehen dürfen.",
+    "services": "Services",
+    "applications": "Anwendungen",
+    "systems": "Systeme",
+    "linksNothing": "Nichts gefunden",
     "reason": "Begründung",
     "requestedBy": "Angefordert von",
     "requestRef": "Antragsreferenz",
@@ -194,11 +202,13 @@
     "approvedBy": "Freigegeben von",
     "performedBy": "Durchgeführt von",
     "documentNow": "Sofort dokumentieren",
+    "moreDetails": "Weitere Angaben",
     "documentNowHelp": "Friert den Eintrag ein (Inhalts-Hash). Lassen Sie es aus, um vorher Anhänge wie Screenshots oder E-Mails hinzuzufügen.",
     "createDocumented": "Dokumentieren",
     "createDraft": "Entwurf anlegen"
   },
   "reconciliation": {
+    "moreDetails": "Weitere Angaben",
     "title": "Zugriffsabgleich",
     "description": "Vergleicht, wer auf einer Plattform tatsächlich welchen Zugriff hat, mit den dokumentierten Zugriffsänderungen. Änderungen ohne Eintrag erscheinen hier.",
     "new": "Neuer Abgleich",
