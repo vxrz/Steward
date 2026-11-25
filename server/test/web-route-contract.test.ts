@@ -78,6 +78,9 @@ const API_ONLY: Record<string, string> = {
   'DELETE /api/mcp': 'MCP endpoint: answers 405',
   'GET /.well-known/*': 'OAuth metadata for MCP clients',
   'POST /oauth/*': 'OAuth for MCP clients',
+  // one-click unsubscribe of external e-mail recipients (RFC 8058): pages served by the server, outside the web app
+  'GET /unsubscribe/:token': 'unsubscribe page for external e-mail recipients',
+  'POST /unsubscribe/:token': 'one-click unsubscribe for external e-mail recipients',
   // inbound webhooks, authenticated by their own secret
   'POST /api/hooks/*': 'inbound webhooks',
   // sign-in, single sign-on and emergency access
