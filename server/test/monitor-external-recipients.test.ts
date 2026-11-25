@@ -133,7 +133,9 @@ describe('monitor notification output to addresses outside Steward', () => {
     expect((await unsubscribe(tokenOf(mail), { method: 'POST' })).status).toBe(200);
     const after = await s.api('GET', `/monitors/${id}`);
     expect(after.version).toBe(before + 1);
-    await expect(s.api('PUT', `/monitors/${id}`, { definition: def(port, ['ext.v@partner.example', 'ext.w@partner.example']), version: before })).rejects.toMatchObject({
+    await expect(
+      s.api('PUT', `/monitors/${id}`, { definition: def(port, ['ext.v@partner.example', 'ext.w@partner.example']), version: before }),
+    ).rejects.toMatchObject({
       status: 409,
       body: { code: 'VERSION_CONFLICT' },
     });
