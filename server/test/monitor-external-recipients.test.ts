@@ -120,6 +120,25 @@ describe('monitor notification output to addresses outside Steward', () => {
     expect(JSON.stringify(entries)).not.toContain('ext.one');
   });
 
+  it('an unsubscribe is a version of the monitor: an editor holding the older version gets VERSION_CONFLICT', async () => {
+    const port = await closedPort();
+    const r = await s.api('POST', '/monitors', { definition: def(port, ['ext.v@partner.example', 'ext.w@partner.example']) });
+    const id = r.monitor.id;
+    const before = (await s.api('GET', `/monitors/${id}`)).version;
+    mails.length = 0;
+    await eng.evaluateMonitorNow(id);
+    const { flushEmails } = await import('../src/notifications/email.js');
+    await flushEmails();
+    const mail = mails.find((m) => m.to === 'ext.v@partner.example')!;
+    expect((await unsubscribe(tokenOf(mail), { method: 'POST' })).status).toBe(200);
+    const after = await s.api('GET', `/monitors/${id}`);
+    expect(after.version).toBe(before + 1);
+    await expect(s.api('PUT', `/monitors/${id}`, { definition: def(port, ['ext.v@partner.example', 'ext.w@partner.example']), version: before })).rejects.toMatchObject({
+      status: 409,
+      body: { code: 'VERSION_CONFLICT' },
+    });
+  });
+
   it('counts added addresses in the audit entry of an update, never naming them', async () => {
     const port = await closedPort();
     const r = await s.api('POST', '/monitors', { definition: def(port) });
