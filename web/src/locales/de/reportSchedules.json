@@ -112,6 +112,7 @@
     "cron": "Cron-Ausdruck",
     "periodDays": "Zeitraum (Tage vor der Ausführung)",
     "timezone": "Zeitzone",
+    "moreDetails": "Weitere Angaben",
     "lang": "Berichtssprache",
     "classification": "Einstufung",
     "sections": "Abschnitte",

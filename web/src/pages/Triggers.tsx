@@ -53,6 +53,7 @@ import { confirmDanger } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { RunModeField } from '../components/RunModeField';
 import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
+import { CollapsibleSection } from '../components/page/CollapsibleSection';
 import { ListPage } from '../components/page/ListPage';
 import { useListParams } from '../components/page/params';
 import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components/DataTable';
@@ -518,6 +519,18 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
     setD({ ...d, inputMapping: next });
   };
 
+  // folded blocks open at once when they hold something other than the defaults (decided when the form opens)
+  const blank = emptyDraft();
+  const [securityOpen] = useState(
+    () =>
+      draft.authMode !== blank.authMode ||
+      draft.allowedCidrs.length > 0 ||
+      draft.allowedHeaders.length > 0 ||
+      draft.rateLimitPerMinute !== blank.rateLimitPerMinute ||
+      draft.dedupeSeconds !== blank.dedupeSeconds ||
+      draft.skipIfRunning !== blank.skipIfRunning,
+  );
+  const [messagesOpen] = useState(() => JSON.stringify(draft.notify ?? DEFAULT_TRIGGER_NOTIFY) !== JSON.stringify(DEFAULT_TRIGGER_NOTIFY));
   return (
     <FormModal onClose={onClose} title={draft.id ? t('form.editTitle') : t('new')} size="xl">
       <Stack>
@@ -642,97 +655,103 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             />
           </>
         )}
-        <Divider label={t('form.security')} labelPosition="left" />
-        <div>
-          <Text size="sm" fw={500} mb={4}>
-            {t('form.authentication')}
-          </Text>
-          <SegmentedControl
-            size="xs"
-            value={d.authMode}
-            onChange={(v) => setD({ ...d, authMode: v as WebhookAuthMode })}
-            data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.mode.${m}`) }))}
-          />
-          <Text size="xs" c="dimmed" mt={4}>
-            <Trans
-              t={t}
-              i18nKey="form.authHint"
-              components={{
-                bearer: <Code>{'Authorization: Bearer <secret>'}</Code>,
-                token: <Code>X-Steward-Token</Code>,
-                sig: <Code>{t('form.sigHeader')}</Code>,
-              }}
-            />
-          </Text>
-        </div>
-        <TagsInput
-          label={t('form.cidrs')}
-          description={t('form.cidrsHint')}
-          value={d.allowedCidrs}
-          onChange={(v) => setD({ ...d, allowedCidrs: v })}
-          clearable
-        />
-        <TagsInput
-          label={t('form.headers')}
-          description={t('form.headersHint')}
-          value={d.allowedHeaders}
-          onChange={(v) => setD({ ...d, allowedHeaders: v.map((h) => h.toLowerCase()) })}
-          clearable
-        />
-        <Group grow align="flex-start">
-          <NumberInput
-            label={t('form.rateLimit')}
-            min={1}
-            max={600}
-            value={d.rateLimitPerMinute}
-            onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })}
-          />
-          <NumberInput
-            label={t('form.dedupe')}
-            description={t('form.dedupeHint')}
-            min={0}
-            max={86400}
-            value={d.dedupeSeconds}
-            onChange={(v) => setD({ ...d, dedupeSeconds: Number(v) || 0 })}
-          />
-        </Group>
-        <Switch label={t('form.skipIfRunning')} checked={d.skipIfRunning} onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })} />
-        <RunModeField modes={['dry', 'real']} value={d.dryRun ? 'dry' : 'real'} onChange={(m) => setD({ ...d, dryRun: m === 'dry' })} />
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
-        <Divider label={t('form.messages')} labelPosition="left" />
-        {d.notify?.mode === 'every' && <Hint>{t('form.messagesHint')}</Hint>}
-        <NotifyPolicyFields
-          value={d.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }}
-          onChange={(notify) => setD({ ...d, notify })}
-          // reached from "Message settings" in a message: pause right here (stored at once, not with Save)
-          pauseControl={
-            draft.id ? (
-              <PauseControl
-                pause={d.notify?.pause}
-                name={draft.name}
-                withLabel
-                onPause={async (p) => {
-                  try {
-                    const saved = await post<WebhookTrigger>(`/triggers/${draft.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
-                    setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_TRIGGER_NOTIFY), pause: saved.notify?.pause ?? null } }));
-                    await qc.invalidateQueries({ queryKey: ['triggers'] });
-                  } catch (e) {
-                    notifyError(e);
-                  }
-                }}
-                onResume={async () => {
-                  try {
-                    await post(`/triggers/${draft.id}/resume`, {});
-                    setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_TRIGGER_NOTIFY), pause: null } }));
-                    await qc.invalidateQueries({ queryKey: ['triggers'] });
-                  } catch (e) {
-                    notifyError(e);
-                  }
-                }}
+        <RunModeField modes={['dry', 'real']} value={d.dryRun ? 'dry' : 'real'} onChange={(m) => setD({ ...d, dryRun: m === 'dry' })} />
+        <CollapsibleSection id="trigger-security" order={3} size="h6" title={t('form.security')} defaultOpen={securityOpen} remember={false} inGroup={false}>
+          <Stack>
+            <div>
+              <Text size="sm" fw={500} mb={4}>
+                {t('form.authentication')}
+              </Text>
+              <SegmentedControl
+                size="xs"
+                value={d.authMode}
+                onChange={(v) => setD({ ...d, authMode: v as WebhookAuthMode })}
+                data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.mode.${m}`) }))}
               />
-            ) : undefined
-          }
-        />
+              <Text size="xs" c="dimmed" mt={4}>
+                <Trans
+                  t={t}
+                  i18nKey="form.authHint"
+                  components={{
+                    bearer: <Code>{'Authorization: Bearer <secret>'}</Code>,
+                    token: <Code>X-Steward-Token</Code>,
+                    sig: <Code>{t('form.sigHeader')}</Code>,
+                  }}
+                />
+              </Text>
+            </div>
+            <TagsInput
+              label={t('form.cidrs')}
+              description={t('form.cidrsHint')}
+              value={d.allowedCidrs}
+              onChange={(v) => setD({ ...d, allowedCidrs: v })}
+              clearable
+            />
+            <TagsInput
+              label={t('form.headers')}
+              description={t('form.headersHint')}
+              value={d.allowedHeaders}
+              onChange={(v) => setD({ ...d, allowedHeaders: v.map((h) => h.toLowerCase()) })}
+              clearable
+            />
+            <Group grow align="flex-start">
+              <NumberInput
+                label={t('form.rateLimit')}
+                min={1}
+                max={600}
+                value={d.rateLimitPerMinute}
+                onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })}
+              />
+              <NumberInput
+                label={t('form.dedupe')}
+                description={t('form.dedupeHint')}
+                min={0}
+                max={86400}
+                value={d.dedupeSeconds}
+                onChange={(v) => setD({ ...d, dedupeSeconds: Number(v) || 0 })}
+              />
+            </Group>
+            <Switch label={t('form.skipIfRunning')} checked={d.skipIfRunning} onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })} />
+          </Stack>
+        </CollapsibleSection>
+        <CollapsibleSection id="trigger-messages" order={3} size="h6" title={t('form.messages')} defaultOpen={messagesOpen} remember={false} inGroup={false}>
+          <Stack>
+            {d.notify?.mode === 'every' && <Hint>{t('form.messagesHint')}</Hint>}
+            <NotifyPolicyFields
+              value={d.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }}
+              onChange={(notify) => setD({ ...d, notify })}
+              // reached from "Message settings" in a message: pause right here (stored at once, not with Save)
+              pauseControl={
+                draft.id ? (
+                  <PauseControl
+                    pause={d.notify?.pause}
+                    name={draft.name}
+                    withLabel
+                    onPause={async (p) => {
+                      try {
+                        const saved = await post<WebhookTrigger>(`/triggers/${draft.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
+                        setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_TRIGGER_NOTIFY), pause: saved.notify?.pause ?? null } }));
+                        await qc.invalidateQueries({ queryKey: ['triggers'] });
+                      } catch (e) {
+                        notifyError(e);
+                      }
+                    }}
+                    onResume={async () => {
+                      try {
+                        await post(`/triggers/${draft.id}/resume`, {});
+                        setD((x) => ({ ...x, notify: { ...(x.notify ?? DEFAULT_TRIGGER_NOTIFY), pause: null } }));
+                        await qc.invalidateQueries({ queryKey: ['triggers'] });
+                      } catch (e) {
+                        notifyError(e);
+                      }
+                    }}
+                  />
+                ) : undefined
+              }
+            />
+          </Stack>
+        </CollapsibleSection>
         <Hint>{draft.owner ? <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsOfYou')}</Hint>
         <Group justify="flex-end">
           <FormModalCancel />
