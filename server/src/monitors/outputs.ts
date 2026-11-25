@@ -331,6 +331,12 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
   const everyone: MonitorVisibility = (id) => to.length > 0 && to.every((u) => views.get(u.id)!(id));
   // a check of a module a recipient does not use (ADR 0034): its status, not what it found
   const moduleHidden = new Map(to.map((u) => [u.id, moduleCheckHidden(toAuthUser(u))]));
+  // an address outside Steward (no user) reads as the most restricted recipient: a module any internal recipient does not
+  // use is redacted for it too; with no internal recipient at all, every module that is not open to everyone is
+  const externalHidden: (type: string) => boolean =
+    to.length > 0
+      ? (type) => to.some((u) => moduleHidden.get(u.id)!(type))
+      : moduleCheckHidden({ id: '', username: '', roles: [], teams: [] } as unknown as Parameters<typeof moduleCheckHidden>[0]);
   for (const e of events) {
     const where = e.level === 'monitor' ? m.name : `${m.name} › ${e.check?.name}`;
     notify({
@@ -339,7 +345,7 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       text: (locale, u) => {
         const v = eventFor(m, e, (u && views.get(u.id)) || everyone);
         const causes = v.causedBy.map((c) => (c.hidden ? t(locale, 'monitor.hiddenMonitor') : c.monitorId === m.id ? c.checkName : causeText(c))).join(', ');
-        const message = u && moduleCheckOf(m, e, moduleHidden.get(u.id)) ? MODULE_CHECK_TEXT : v.message;
+        const message = moduleCheckOf(m, e, u ? moduleHidden.get(u.id) : externalHidden) ? MODULE_CHECK_TEXT : v.message;
         return {
           title: t(locale, `monitor.${e.status}` as MessageKey, { where }),
           body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${message}`.slice(0, 800),

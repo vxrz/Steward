@@ -128,4 +128,58 @@ describe('monitor notification output to addresses outside Steward', () => {
     expect(entries[0].details.externalRecipientsAdded).toBe(1);
     expect(JSON.stringify(entries)).not.toContain('ext.three');
   });
+
+  it('redacts the finding text of a check of a module an internal recipient does not use for the external address too (ADR 0034)', async () => {
+    await s.api('POST', '/demo/setup', {});
+    const svc = (await s.api('POST', '/services', { name: 'Invented external redaction service' })).id as string;
+    await s.api('PUT', `/owning-teams/service/${svc}`, { teamIds: [] });
+    const r = await s.api('POST', '/monitors', {
+      definition: {
+        name: 'Invented costs alerts (external)',
+        checks: [{ id: 'cost', name: 'Costs not rising', type: 'cost', scope: 'service', target: svc, period: 'month', maxIncreasePct: 20 }],
+        outputs: [{ id: 'notify', type: 'notification', subscribers: ['user:vera'], emails: ['ext.red@partner.example'], holdSeconds: 0, include: 'checks' }],
+      },
+    });
+    const id = (r.monitor ?? r).id as string;
+    await s.api('PUT', `/owning-teams/monitor/${id}`, { teamIds: [] });
+    const { db } = await import('../src/db.js');
+    const { loadMonitor } = await import('../src/monitors/model.js');
+    const { dispatchOutputs } = await import('../src/monitors/outputs.js');
+    const { flushEmails } = await import('../src/notifications/email.js');
+    const monitor = loadMonitor(db().get('SELECT * FROM monitors WHERE id = ?', id)!);
+    const secret = 'Service "Invented secret service" rose by 40 %';
+    await s.api('PUT', '/settings/modules/costs/access', { mode: 'selected', grants: [{ subject: 'user:dana' }] });
+    try {
+      mails.length = 0;
+      await dispatchOutputs({
+        monitor,
+        subjects: [
+          {
+            dependent: false,
+            event: {
+              subject: 'cost',
+              level: 'check',
+              status: 'down',
+              since: new Date().toISOString(),
+              message: secret,
+              causedBy: [],
+              ts: new Date().toISOString(),
+              monitor: { id, key: monitor.key, name: monitor.name, status: 'down' },
+              check: { id: 'cost', key: 'cost', name: 'Costs not rising', type: 'cost' },
+            },
+          },
+        ],
+        maintenance: false,
+        acknowledged: false,
+        now: Date.now(),
+      });
+      await flushEmails();
+      const ext = mails.filter((m) => m.to === 'ext.red@partner.example');
+      expect(ext.length).toBeGreaterThan(0);
+      expect(ext.map((m) => m.text + m.html).join(' ')).not.toContain('Invented secret service');
+      expect(ext.map((m) => m.text).join(' ')).toContain('A check of a module you do not use');
+    } finally {
+      await s.api('PUT', '/settings/modules/costs/access', { mode: 'everyone', grants: [] });
+    }
+  });
 });
