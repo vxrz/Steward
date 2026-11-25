@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Snowflake costs estimated without access to Snowflake** ([docs/PRICE-BOOKS.md](docs/PRICE-BOOKS.md#calculators)): the _Snowflake pipeline_ calculator takes the assumptions – warehouse size, runtime per run, runs per day, days a month, data ingested per month with credits per gigabyte, serverless credits, data kept and data transferred out – and the example `examples/costs/price-books/snowflake-contract-prices.csv` prices them with invented money prices to replace with the contract's. Existing estimate inputs keep their meaning and defaults. No database migrations.
+
 ## [0.28.0] - 2026-11-25
 
 Steward 0.28.0 documents more kinds of access changes and makes busy pages calmer. An access change can now be about a **user group** – its roles before and after – and name the **services, applications and systems** it is for; processes record the same, linking only what the person behind the run may see. A new example changes the roles of an Insights Hub user group with a four-eyes approval. The busiest pages and forms show their summary first and fold the rest: sections that remember what you opened, side drawers for details, and _More details_ in long forms. The upgrade fixture of 0.27.1 is added. No database migrations.
