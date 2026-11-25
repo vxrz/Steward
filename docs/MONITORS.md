@@ -456,6 +456,19 @@ While a monitor with states is **off**, people-facing outputs stay quiet and the
 
 Event `monitor.status` (in-app, and e-mail/Teams/webhook as routed under _Settings → Notifications_). Recipients: the **owner** and the **subscribers** (`user:…`, `team:…`, `role:…`) who may view the monitor. People are told about _confirmed problems and their recovery_: a check folded into its parent's failure (`suppressDependents`, default on) and an acknowledged monitor stay quiet; `unknown` is only sent when selected in `statuses`. **A problem is told once until it is over** (0.27.0): after _down_, a change to _degraded_ (milder, not over) is not sent, nor is a spell of `unknown` or `blocked` (the check could not tell); the told status stays, so a deployment flapping between none and some ready replicas sends one _Down_ and one _Recovered_. A change from _degraded_ to _down_ is sent, and a new problem after _up_ or _off_ is. The same holds for process outputs (a flap back to _down_ starts no new run) and for Teams cards (down → degraded). For a reminder while a monitor stays down, set the notification output to `on: every` with `minIntervalSeconds: 14400`: it sends a change at once and repeats a problem every 4 hours (nothing while up). `holdSeconds` waits before alerting, so a parent that fails a little later can still explain the failure.
 
+**People outside Steward** (0.29.0). A notification output can also write to people who are not Steward users: list their addresses under `emails` (_Edit → Outputs → External e-mail addresses_; at most 50 per output). It is a list of its own, not a subscriber form like `email:<address>`: subscribers are accounts, resolved to people with their own settings, rights and quiet hours, and renamed when accounts are merged; an address has none of that, and a separate list keeps it easy to find, count, export and remove.
+
+```yaml
+outputs:
+  - { id: notify, type: notification, subscribers: ['team:ops'], emails: ['duty@partner.example'] }
+```
+
+- Saving checks the form of each address and that its **domain is allowed** (_Settings → Notifications → Allowed e-mail domains for addresses outside Steward_, [NOTIFICATIONS.md](NOTIFICATIONS.md#e-mail)); otherwise it is refused (`EMAIL_DOMAIN_NOT_ALLOWED`, which names the setting; `OUTPUT_EMAIL_INVALID` for a malformed address). Addresses already stored stay when the rule changes, but nothing is sent to them until their domain is allowed again.
+- They get the same e-mail as the others (e-mail must be routed for the event and set up), only e-mail, and only what every recipient of the output may see: they have no account, so no one's rights apply to them.
+- **Unsubscribe.** Every message to such an address ends with a link and carries the `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers (RFC 8058). The link `/unsubscribe/<token>` needs no sign-in: it asks to confirm (in English or German by the browser's language) and then removes the address from that output. The token is a keyed signature (HMAC-SHA-256 with a key of the installation) over the monitor, the output and the address: it contains no address, cannot be made without the key and does not expire; every address has its own. A wrong or used token answers the same "not valid" page and says nothing about the monitor. The route is rate-limited like other public actions.
+- **Audit.** Adding or removing addresses is part of the monitor's change: `monitor.updated` (and `monitor.created`) list the count (`externalRecipientsAdded`, `externalRecipientsRemoved`), never the addresses. An unsubscribe writes `monitor.recipient_unsubscribed` (actor `system`; the monitor and the output, not the address) and raises the monitor's version.
+- The addresses are personal data: see [PRIVACY.md](PRIVACY.md).
+
 ### Webhook
 
 `POST` to `url` (no credentials in the URL) – or to `platform` + `path`, using that platform's authentication.

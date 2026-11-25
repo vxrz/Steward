@@ -1446,6 +1446,8 @@ const EXPECT: Record<string, Access> = {
   'GET /.well-known/openid-configuration': PUBLIC,
   'POST /oauth/register': PUBLIC,
   'POST /oauth/token': PUBLIC,
+  'GET /unsubscribe/:token': PUBLIC,
+  'POST /unsubscribe/:token': PUBLIC,
   'POST /oauth/revoke': PUBLIC,
   // the consent page: every person who may use MCP (checked in mcp-oauth.test.ts)
   'GET /api/oauth/authorize': ALL,

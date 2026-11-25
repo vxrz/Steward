@@ -4,7 +4,15 @@
     "minutes_one": "{{count}} Minute",
     "minutes_other": "{{count}} Minuten",
     "moreItems_one": "{{count}} weiterer",
+    "unsubscribe": "Diese E-Mails abbestellen",
     "moreItems_other": "{{count}} weitere"
+  },
+  "unsubscribePage": {
+    "title": "Abbestellen",
+    "question": "Diese E-Mails nicht mehr erhalten?",
+    "button": "Abbestellen",
+    "done": "Sie erhalten diese E-Mails nicht mehr.",
+    "invalid": "Dieser Link ist ungültig, oder Sie haben bereits abbestellt."
   },
   "severity": {
     "error": "Fehler",

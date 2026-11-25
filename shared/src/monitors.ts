@@ -793,6 +793,11 @@ export const outputSchema = z.discriminatedUnion('type', [
     type: z.literal('notification'),
     /** user:<name>, team:<name> or role:<role>; the monitor owner is always notified */
     subscribers: z.array(z.string().max(200)).max(100).default([]),
+    /**
+     * E-mail addresses of people who are not Steward users (0.29.0): they get the e-mail of this output, with a link to
+     * unsubscribe. At most 50; the domain must be allowed (Settings → Notifications). Personal data.
+     */
+    emails: z.array(z.string().max(254)).max(50).optional(),
     /** Wait this long before alerting, so a parent failing a little later still explains the failure (default 0) */
     holdSeconds: seconds(0, 3600).optional(),
     /** Urgent – a change to down interrupts quiet hours (0.10.0, ADR 0012) */

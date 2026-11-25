@@ -8192,6 +8192,7 @@ export interface Resources {
     'codes.OUTPUT_TEAMS_PLATFORM': string;
     'codes.OUTPUT_PROCESS_FORBIDDEN': string;
     'codes.OUTPUT_PROCESS_INPUT': string;
+    'codes.OUTPUT_EMAIL_INVALID': string;
     'codes.OUTPUT_SUBSCRIBER_INVALID': string;
     'codes.MAINTENANCE_NOT_FOUND': string;
     'codes.MAINTENANCE_TOO_LONG': string;
@@ -11066,6 +11067,8 @@ export interface Resources {
     'outputs.remove': string;
     'outputs.subscribers': string;
     'outputs.subscribersHint': string;
+    'outputs.emails': string;
+    'outputs.emailsHint': string;
     'outputs.hold': string;
     'outputs.holdHint': string;
     'outputs.urlHint': string;

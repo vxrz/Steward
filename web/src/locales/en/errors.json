@@ -301,6 +301,7 @@
     "OUTPUT_TEAMS_PLATFORM": "Output “{{output}}”: a Teams card goes to a “Microsoft Teams channel” platform (it keeps the Workflows URL encrypted), not to a URL or path.",
     "OUTPUT_PROCESS_FORBIDDEN": "Output “{{output}}”: you are not allowed to run process {{process}}.",
     "OUTPUT_PROCESS_INPUT": "Output “{{output}}”: the process has no input “{{input}}”.",
+    "OUTPUT_EMAIL_INVALID": "Output “{{output}}”: “{{address}}” is not an e-mail address.",
     "OUTPUT_SUBSCRIBER_INVALID": "Output “{{output}}”: subscriber “{{subscriber}}” – use user:<name>, team:<name> or role:<role>.",
     "MAINTENANCE_NOT_FOUND": "This maintenance window does not exist (any more).",
     "MAINTENANCE_TOO_LONG": "A maintenance window lasts at most {{days}} days.",

@@ -32,6 +32,7 @@ import { installHttpObservability, requestDbTotals } from './http-observability.
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 import { themeRoutes } from './theme/routes.js';
+import { unsubscribeRoutes } from './routes/unsubscribe.js';
 import { systemRoutes } from './system/routes.js';
 import { mcpRoutes } from './mcp/http.js';
 import { oauthApiRoutes, oauthRoutes } from './mcp/oauth.js';
@@ -525,6 +526,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(registerRoutes, { prefix: '/api' });
   // theme (/api/theme, /api/settings/theme, /manifest.webmanifest), about and system status
   await app.register(themeRoutes);
+  // unsubscribing for e-mail addresses outside Steward, without sign-in (outside /api like the OAuth pages)
+  await app.register(unsubscribeRoutes);
   await app.register(systemRoutes);
 
   if (fs.existsSync(config.webDist)) {

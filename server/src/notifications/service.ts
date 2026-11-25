@@ -80,6 +80,8 @@ export interface Notice {
    * enabled). Addresses whose domain is not allowed (see domains.ts) are left out.
    */
   emails?: string[];
+  /** The link to unsubscribe for one of `emails` (monitor outputs): the message carries it and the List-Unsubscribe headers */
+  unsubscribeUrl?: (address: string) => string;
   /** E-mail attachments */
   attachments?: OutgoingMessage['attachments'];
   /**
@@ -363,8 +365,16 @@ export function notify(input: Notice): void {
         queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets }); // logs the refusal
         continue;
       }
-      if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS))
-        queueEmail({ event: n.event, to: { address: addr }, message: message(fallback), rules, secrets });
+      if (!claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS)) continue;
+      const msg = message(fallback);
+      const url = n.unsubscribeUrl?.(addr);
+      queueEmail({
+        event: n.event,
+        to: { address: addr },
+        message: url ? { ...msg, unsubscribeUrl: url, parts: { ...msg.parts, settings: { label: t(fallback, 'common.unsubscribe'), href: url } } } : msg,
+        rules,
+        secrets,
+      });
     }
   }
   // Teams (personal): the person's quiet hours and digests, the text of their e-mail; e-mail once when the chat fails

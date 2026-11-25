@@ -5,6 +5,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import {
   HIDDEN_MONITOR_REF,
+  isEmailAddress,
   type MonitorPlatformReference,
   MONITOR_KEY_RE,
   RESERVED_MONITOR_KEYS,
@@ -37,6 +38,7 @@ import { aclOf, aliasWidens, writeAlias, heldByAuthor } from '../auth/acl-shares
 import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
 import { MONITOR_SHARE_KIND } from './shares.js';
 import { audit } from '../audit.js';
+import { assertEmailsAllowed } from '../notifications/domains.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
 import { errorParam, HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
@@ -749,6 +751,20 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
             subscriber: s,
           });
       o.subscribers = o.subscribers.map((s) => s.trim().toLowerCase());
+      // addresses outside Steward (0.29.0): well-formed, no duplicates, and an allowed domain for the ones added now
+      if (o.emails) {
+        o.emails = [...new Set(o.emails.map((e) => e.trim().toLowerCase()))];
+        for (const e of o.emails)
+          if (!isEmailAddress(e))
+            throw new HttpError(400, `Output "${o.id}": "${e.slice(0, 100)}" is not an e-mail address`, 'OUTPUT_EMAIL_INVALID', {
+              output: o.id,
+              address: e.slice(0, 100),
+            });
+        const was = before?.outputs.find((x) => x.id === o.id);
+        const stored = new Set(was?.type === 'notification' ? (was.emails ?? []) : []);
+        assertEmailsAllowed(o.emails.filter((e) => !stored.has(e)));
+        if (!o.emails.length) delete o.emails;
+      }
     }
   }
   // states (ADR 0021): the monitor whose state this one follows – an id or key, like a sub-monitor
@@ -931,7 +947,14 @@ function changeSummary(before: MonitorDefinition | null, after: MonitorDefinitio
       'states',
     ] as const
   ).filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  // addresses outside Steward (0.29.0): how many were added or removed, never the addresses (personal data in a log kept for good)
+  const mails = (d: MonitorDefinition) => new Set(d.outputs.flatMap((o) => (o.type === 'notification' ? (o.emails ?? []).map((e) => `${o.id}\n${e}`) : [])));
+  const mb = mails(before);
+  const ma = mails(after);
+  const externalAdded = [...ma].filter((x) => !mb.has(x)).length;
+  const externalRemoved = [...mb].filter((x) => !ma.has(x)).length;
   return {
+    ...(externalAdded || externalRemoved ? { externalRecipientsAdded: externalAdded, externalRecipientsRemoved: externalRemoved } : {}),
     checksAdded: added,
     checksRemoved: removed,
     checksChanged: changed.map((c) => c.id),

@@ -680,6 +680,8 @@
     "remove": "Remove output {{id}}",
     "subscribers": "Subscribers",
     "subscribersHint": "{{examples}}; the owner is always notified",
+    "emails": "External e-mail addresses",
+    "emailsHint": "People who are not Steward users get the e-mail of this output, with a link to unsubscribe. The domain must be allowed under Settings → Notifications. Addresses are personal data.",
     "hold": "Hold dependent alerts (s)",
     "holdHint": "Wait this long so a parent failing a little later still explains the failure (default 0)",
     "urlHint": "Without credentials; for authenticated targets choose a platform instead",
