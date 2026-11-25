@@ -202,6 +202,7 @@
     "approvedBy": "Freigegeben von",
     "performedBy": "Durchgeführt von",
     "documentNow": "Sofort dokumentieren",
+    "moreDetails": "Weitere Angaben",
     "documentNowHelp": "Friert den Eintrag ein (Inhalts-Hash). Lassen Sie es aus, um vorher Anhänge wie Screenshots oder E-Mails hinzuzufügen.",
     "createDocumented": "Dokumentieren",
     "createDraft": "Entwurf anlegen"

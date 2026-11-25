@@ -1,9 +1,26 @@
 import { useState } from 'react';
-import { Anchor, Badge, Box, Button, Checkbox, Group, Modal, MultiSelect, Paper, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import {
+  Anchor,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Collapse,
+  Group,
+  Modal,
+  MultiSelect,
+  Paper,
+  Select,
+  Stack,
+  TagsInput,
+  Text,
+  TextInput,
+  Textarea,
+} from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconPlus, IconSearch, IconUserShield } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronRight, IconPlus, IconSearch, IconUserShield } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ACCESS_CHANGE_KINDS,
@@ -298,6 +315,30 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
     performedBy: !f.performedBy.trim() && t('common:validation.required'),
     performedAt: !f.performedAt && t('common:validation.required'),
   });
+  const [more, setMore] = useState(false);
+  const rightsBeforeShown = f.kind === 'revoke' || f.kind === 'modify' || f.kind === 'offboarding';
+  // the folded fields open by themselves while one of them has a value (or an error)
+  const moreHasValue = Boolean(
+    f.subjectName ||
+    f.requestedBy ||
+    f.requestRef ||
+    f.requestUrl ||
+    f.approvedBy ||
+    f.services.length ||
+    f.applications.length ||
+    f.systems.length ||
+    (!rightsBeforeShown && f.rightsBefore.length),
+  );
+  const moreOpen = more || moreHasValue;
+  const rightsBeforeField = (
+    <TagsInput
+      label={t('accessChanges.rightsBefore')}
+      description={f.subjectType === 'group' ? t('accessChanges.rightsHelpGroup') : t('accessChanges.rightsHelp')}
+      value={f.rightsBefore}
+      onChange={(v) => up('rightsBefore', v)}
+      maxTags={500}
+    />
+  );
   const submit = async () => {
     if (!v.validate()) return;
     setBusy(true);
@@ -352,7 +393,6 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             maxLength={300}
             error={v.error('subjectId')}
           />
-          <TextInput label={t('accessChanges.subjectName')} value={f.subjectName} onChange={(e) => up('subjectName', e.currentTarget.value)} maxLength={300} />
         </Group>
         <Group grow wrap="wrap">
           <Select
@@ -375,20 +415,8 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             onChange={(v) => up('kind', v ?? 'grant')}
           />
         </Group>
-        <TagsInput
-          label={t('accessChanges.rightsBefore')}
-          description={f.subjectType === 'group' ? t('accessChanges.rightsHelpGroup') : t('accessChanges.rightsHelp')}
-          value={f.rightsBefore}
-          onChange={(v) => up('rightsBefore', v)}
-          maxTags={500}
-        />
+        {rightsBeforeShown && rightsBeforeField}
         <TagsInput label={t('accessChanges.rightsAfter')} value={f.rightsAfter} onChange={(v) => up('rightsAfter', v)} maxTags={500} />
-        <Text size="xs" c="dimmed">
-          {t('accessChanges.linksHelp')}
-        </Text>
-        <LinkTargetsSelect kind="service" label={t('accessChanges.services')} value={f.services} onChange={(x) => up('services', x)} />
-        <LinkTargetsSelect kind="application" label={t('accessChanges.applications')} value={f.applications} onChange={(x) => up('applications', x)} />
-        <LinkTargetsSelect kind="system" label={t('accessChanges.systems')} value={f.systems} onChange={(x) => up('systems', x)} />
         <Textarea
           label={t('accessChanges.reason')}
           required
@@ -400,24 +428,6 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           error={v.error('reason')}
         />
         <Group grow wrap="wrap">
-          <TextInput label={t('accessChanges.requestedBy')} value={f.requestedBy} onChange={(e) => up('requestedBy', e.currentTarget.value)} maxLength={200} />
-          <TextInput
-            label={t('accessChanges.requestRef')}
-            description={t('accessChanges.requestRefHelp')}
-            value={f.requestRef}
-            onChange={(e) => up('requestRef', e.currentTarget.value)}
-            maxLength={500}
-          />
-        </Group>
-        <TextInput
-          label={t('accessChanges.requestUrl')}
-          type="url"
-          value={f.requestUrl}
-          onChange={(e) => up('requestUrl', e.currentTarget.value)}
-          maxLength={2000}
-        />
-        <Group grow wrap="wrap">
-          <TextInput label={t('accessChanges.approvedBy')} value={f.approvedBy} onChange={(e) => up('approvedBy', e.currentTarget.value)} maxLength={200} />
           <TextInput
             label={t('accessChanges.performedBy')}
             required
@@ -435,6 +445,60 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
           onChange={(e) => up('performedAt', e.currentTarget.value)}
           error={v.error('performedAt')}
         />
+        <Stack gap="sm">
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            style={{ alignSelf: 'flex-start' }}
+            leftSection={moreOpen ? <IconChevronDown size={16} aria-hidden /> : <IconChevronRight size={16} aria-hidden />}
+            aria-expanded={moreOpen}
+            aria-controls="access-change-more"
+            disabled={moreHasValue}
+            onClick={() => setMore((x) => !x)}
+          >
+            {t('accessChanges.moreDetails')}
+          </Button>
+          <Collapse expanded={moreOpen} id="access-change-more">
+            <Stack gap="sm">
+              <TextInput
+                label={t('accessChanges.subjectName')}
+                value={f.subjectName}
+                onChange={(e) => up('subjectName', e.currentTarget.value)}
+                maxLength={300}
+              />
+              {!rightsBeforeShown && rightsBeforeField}
+              <Text size="xs" c="dimmed">
+                {t('accessChanges.linksHelp')}
+              </Text>
+              <LinkTargetsSelect kind="service" label={t('accessChanges.services')} value={f.services} onChange={(x) => up('services', x)} />
+              <LinkTargetsSelect kind="application" label={t('accessChanges.applications')} value={f.applications} onChange={(x) => up('applications', x)} />
+              <LinkTargetsSelect kind="system" label={t('accessChanges.systems')} value={f.systems} onChange={(x) => up('systems', x)} />
+              <Group grow wrap="wrap">
+                <TextInput
+                  label={t('accessChanges.requestedBy')}
+                  value={f.requestedBy}
+                  onChange={(e) => up('requestedBy', e.currentTarget.value)}
+                  maxLength={200}
+                />
+                <TextInput
+                  label={t('accessChanges.requestRef')}
+                  description={t('accessChanges.requestRefHelp')}
+                  value={f.requestRef}
+                  onChange={(e) => up('requestRef', e.currentTarget.value)}
+                  maxLength={500}
+                />
+              </Group>
+              <TextInput
+                label={t('accessChanges.requestUrl')}
+                type="url"
+                value={f.requestUrl}
+                onChange={(e) => up('requestUrl', e.currentTarget.value)}
+                maxLength={2000}
+              />
+              <TextInput label={t('accessChanges.approvedBy')} value={f.approvedBy} onChange={(e) => up('approvedBy', e.currentTarget.value)} maxLength={200} />
+            </Stack>
+          </Collapse>
+        </Stack>
         <Checkbox
           label={t('accessChanges.documentNow')}
           description={t('accessChanges.documentNowHelp')}

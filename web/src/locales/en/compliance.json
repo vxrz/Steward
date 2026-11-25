@@ -202,6 +202,7 @@
     "approvedBy": "Approved by",
     "performedBy": "Performed by",
     "documentNow": "Document now",
+    "moreDetails": "More details",
     "documentNowHelp": "Freezes the entry (content hash). Leave it off to add attachments, e.g. screenshots or e-mails, before documenting.",
     "createDocumented": "Document",
     "createDraft": "Create draft"
