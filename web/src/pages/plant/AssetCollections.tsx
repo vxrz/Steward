@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  Drawer,
   FileButton,
   Group,
   Modal,
@@ -371,9 +372,9 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   };
   if (!c)
     return (
-      <Modal opened onClose={onClose} title={t('collections.detailTitle')} size="xl">
+      <Drawer opened onClose={onClose} position="right" size={narrow ? '100%' : '50%'} title={t('collections.detailTitle')}>
         <QueryState query={q} rows={4} />
-      </Modal>
+      </Drawer>
     );
   const save = async (items: PlantCollectionView['items'], description = c.description, sinks: PlantCollectionView['sinks'] = c.sinks) => {
     const {
@@ -430,7 +431,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
   const options = data.points.map((p) => ({ value: p.id, label: `${p.name} (${p.id})` }));
   const access = (['write', 'create', 'delete'] as const).filter((k) => c.access[k].length);
   return (
-    <Modal opened onClose={onClose} closeOnEscape={!childOpen} title={c.name} size="xl" data-testid="collection-detail">
+    <Drawer opened onClose={onClose} closeOnEscape={!childOpen} position="right" size={narrow ? '100%' : '50%'} title={c.name} data-testid="collection-detail">
       <ChildDialogsProvider value={registerChild}>
         {/* what the collection is: above the tabs, it holds for all of them */}
         <Stack gap="xs" mb="sm">
@@ -695,7 +696,7 @@ function CollectionDetail({ assetId, id, data, onClose }: { assetId: string; id:
           />
         )}
       </ChildDialogsProvider>
-    </Modal>
+    </Drawer>
   );
 }
 
