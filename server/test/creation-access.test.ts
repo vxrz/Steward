@@ -135,6 +135,22 @@ for (const kind of ['process', 'dashboard', 'monitor'] as const) {
       expect(await count(kind)).toBe(before);
     });
 
+    it('a non-administrator gets the same refusal for an unknown team and for another team (no probing)', async () => {
+      const unknownRefusal = await KINDS[kind].create(desi, { owningTeams: ['missing'] }).then(
+        () => null,
+        (e: any) => ({ status: e.status, code: e.body?.code, body: JSON.stringify(e.body) }),
+      );
+      const otherRefusal = await KINDS[kind].create(desi, { owningTeams: [other] }).then(
+        () => null,
+        (e: any) => ({ status: e.status, code: e.body?.code, body: JSON.stringify(e.body) }),
+      );
+      expect(unknownRefusal).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+      expect(otherRefusal).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+      expect(JSON.parse(unknownRefusal!.body).context).toBe(JSON.parse(otherRefusal!.body).context);
+      expect(unknownRefusal!.body).not.toContain('missing');
+      expect(otherRefusal!.body).not.toContain(other);
+    });
+
     it('narrowing the defaults (Restricted only) needs nothing', async () => {
       await desi('DELETE', '/auth/step-up');
       const id = await KINDS[kind].create(desi, { restricted: true });

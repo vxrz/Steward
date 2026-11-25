@@ -25,6 +25,11 @@ export function applyCreationAccess(kind: OwnedKind, id: string, label: string, 
   const defaults = newResourceTeams(u).teams;
   if (access.owningTeams) {
     const ids = [...new Set(access.owningTeams)];
+    // owning teams outside one's own are an administrator's choice (PUT /owning-teams is administrators only); anyone else
+    // gets the same refusal for an unknown team and for a team they are not in, so ids cannot be probed
+    const mine = u && !isAdmin(u) ? memberships(u) : null;
+    const foreign = mine ? ids.find((t) => !mine.has(t)) : undefined;
+    if (foreign) throw new HttpError(403, 'You can only name teams you are a member of', 'FORBIDDEN', { context: 'owningTeams' });
     const known = new Map(
       db()
         .all<{ id: string; name: string }>('SELECT id, name FROM teams')
@@ -32,10 +37,6 @@ export function applyCreationAccess(kind: OwnedKind, id: string, label: string, 
     );
     const unknown = ids.find((t) => !known.has(t));
     if (unknown) throw new HttpError(400, `Unknown team "${unknown}"`, 'TEAM_NOT_FOUND', { id: unknown });
-    // owning teams outside one's own are an administrator's choice (PUT /owning-teams is administrators only)
-    const mine = u && !isAdmin(u) ? memberships(u) : null;
-    const foreign = mine ? ids.find((t) => !mine.has(t)) : undefined;
-    if (foreign) throw new HttpError(403, 'You can only name teams you are a member of', 'FORBIDDEN', { context: 'owningTeams', id: foreign });
     const had = defaults.map((t) => t.id);
     const same = ids.length === had.length && ids.every((t) => had.includes(t));
     if (!same) {
