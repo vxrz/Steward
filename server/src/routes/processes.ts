@@ -10,6 +10,7 @@ import {
   notifyPauseSchema,
   notifyPolicySchema,
   SCHEDULE_CATCH_UP,
+  creationAccessSchema,
 } from '@sm/shared';
 import { allAuditAscending } from '../audit.js';
 import { HttpError, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
@@ -99,11 +100,17 @@ export async function processRoutes(app: FastifyInstance): Promise<void> {
           .trim()
           .regex(/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/, 'Lower-case letters, digits and dashes, at most 48')
           .optional(),
+        /** Owning teams, Restricted and shares, applied with the creation (ADR 0040 part 1) */
+        access: creationAccessSchema.optional(),
       })
       .parse(req.body);
-    if (b.templateId) return processes.createFromTemplate(b.templateId);
+    if (b.templateId) return processes.createFromTemplate(b.templateId, b.access);
     const def = b.text ? processes.parseDefinitionText(b.text) : b.definition;
-    return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created'), ...(b.id ? { id: b.id, exactId: true } : {}) });
+    return processes.createProcess(def, {
+      comment: b.comment ?? (b.text ? 'Imported' : 'Created'),
+      ...(b.id ? { id: b.id, exactId: true } : {}),
+      ...(b.access ? { access: b.access } : {}),
+    });
   });
   app.post('/processes/validate', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);

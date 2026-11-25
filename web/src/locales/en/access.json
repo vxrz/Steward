@@ -213,5 +213,21 @@
   "ownerSave": "Save owner",
   "ownerSaved": "Owner saved",
   "ownerNotSaved": "The owner could not be saved",
-  "ownerNotYours": "Who manages this item changes its owner."
+  "ownerNotYours": "Who manages this item changes its owner.",
+  "create": {
+    "show": "Access: who can see and change it",
+    "hide": "Hide access",
+    "summaryTeams": "Owning teams: {{teams}}",
+    "summaryInstance": "No owning team: the whole instance",
+    "summaryRestricted": "Restricted",
+    "summaryShares_one": "{{count}} share",
+    "summaryShares_other": "{{count}} shares",
+    "teams": "Owning teams",
+    "teamsHint": "Members of these teams have their roles on it; empty: it belongs to the whole instance. Teams beyond your defaults ask you to confirm.",
+    "wholeInstance": "None – the whole instance",
+    "restricted": "Restricted: only owning teams and shares",
+    "restrictedHint": "Nobody else sees it through their instance role.",
+    "shares": "Share with (view)",
+    "sharesHint": "Gives these users and teams View. Levels and end dates can be changed in the Access tab. Sharing asks you to confirm."
+  }
 }

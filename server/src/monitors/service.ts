@@ -22,6 +22,7 @@ import {
   type MaintenanceWindow,
   type MonitorDefinition,
   type MonitorDetail,
+  type CreationAccess,
   type MonitorHistoryEntry,
   type MonitorPermission,
   type MonitorSaveResult,
@@ -88,6 +89,7 @@ import {
 } from './redact.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { privilegedSlots } from '../platforms/privileged.js';
 
 /**
@@ -941,7 +943,7 @@ function changeSummary(before: MonitorDefinition | null, after: MonitorDefinitio
 
 export async function createMonitor(
   input: MonitorInput,
-  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
+  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown>; access?: CreationAccess } = {},
 ): Promise<MonitorSaveResult> {
   requireCreate();
   const template = input.isTemplate ? (await validateTemplate(input.definition)).def : undefined;
@@ -957,7 +959,7 @@ export async function createMonitor(
  */
 export function createMonitorNow(
   input: MonitorInput,
-  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
+  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown>; access?: CreationAccess } = {},
   template?: Record<string, unknown>,
 ): MonitorSaveResult {
   const u = me();
@@ -1002,6 +1004,7 @@ export function createMonitorNow(
     );
     if (def) secrets = syncCheckRows(id, key, def, null);
     assignCreatorTeams('monitor', id, currentUser());
+    applyCreationAccess('monitor', id, name, extra.access);
     audit({
       action: input.isTemplate ? 'monitor.template_created' : 'monitor.created',
       entityType: 'monitor',

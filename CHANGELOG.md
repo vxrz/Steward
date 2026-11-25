@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Access when creating a process, monitor or dashboard** ([docs/TEAMS.md](docs/TEAMS.md#access-at-creation), [ADR 0040](docs/adr/0040-drafts-and-access-at-creation.md) part 1): the _New process_ and _New dashboard_ dialogs and the new monitor form have an _Access_ section with the owning teams, _Restricted_ and shares, pre-filled from your team defaults. The create routes take an optional `access` object and apply it in the same transaction as the creation, so the item is never visible wider than chosen and a refusal creates nothing; widening asks for the step-up as in the _Access_ tab. The dialog no longer sends the owning teams in a second request. No database migrations.
+
 ## [0.28.0] - 2026-11-25
 
 Steward 0.28.0 documents more kinds of access changes and makes busy pages calmer. An access change can now be about a **user group** – its roles before and after – and name the **services, applications and systems** it is for; processes record the same, linking only what the person behind the run may see. A new example changes the roles of an Insights Hub user group with a four-eyes approval. The busiest pages and forms show their summary first and fold the rest: sections that remember what you opened, side drawers for details, and _More details_ in long forms. The upgrade fixture of 0.27.1 is added. No database migrations.

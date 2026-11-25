@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { BUNDLE_FORMATS, type DatasetMeta, type ExportBundle } from '@sm/shared';
+import { BUNDLE_FORMATS, creationAccessSchema, type DatasetMeta, type ExportBundle } from '@sm/shared';
 import { HttpError, nowIso, sha256, MAX_DEFINITION_TEXT } from '../util.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -99,14 +99,19 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/dashboards/:id', async (req) => dashboards.getDashboard(params(req).id!));
   app.post('/dashboards', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z
-      .object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional(), templateId: z.string().optional() })
+      .object({
+        definition: z.any().optional(),
+        text: z.string().max(MAX_DEFINITION_TEXT).optional(),
+        templateId: z.string().optional(),
+        access: creationAccessSchema.optional(),
+      })
       .parse(req.body);
     if (b.templateId) {
       const t = dashboards.listDashboardTemplates().find((x) => x.id === b.templateId);
       if (!t) throw new HttpError(404, 'Dashboard template not found');
-      return dashboards.createDashboard(t.definition, { id: t.id.replace(/^\d+-/, '') });
+      return dashboards.createDashboard(t.definition, { id: t.id.replace(/^\d+-/, ''), ...(b.access ? { access: b.access } : {}) });
     }
-    return dashboards.createDashboard(b.text ? dashboards.parseDashboardText(b.text) : b.definition);
+    return dashboards.createDashboard(b.text ? dashboards.parseDashboardText(b.text) : b.definition, b.access ? { access: b.access } : {});
   });
   app.put('/dashboards/:id', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);

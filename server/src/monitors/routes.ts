@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { boundedRecord, HEARTBEAT_MAX_BODY_BYTES, MONITOR_PERMISSIONS } from '@sm/shared';
+import { boundedRecord, creationAccessSchema, HEARTBEAT_MAX_BODY_BYTES, MONITOR_PERMISSIONS } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { vault } from '../vault.js';
 import { currentUser } from '../auth/context.js';
@@ -29,6 +29,7 @@ const saveBody = z.object({
   version: z.number().int().optional(),
   definition: z.unknown(),
 });
+const createBody = saveBody.extend({ access: creationAccessSchema.optional() });
 
 /**
  * Monitors: management API for the web UI (signed in) and the heartbeat
@@ -105,8 +106,8 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     return validateMonitorFile({ ...(b.definition as object), kind: b.isTemplate ? 'monitorTemplate' : 'monitor' });
   });
   app.post('/monitors', async (req) => {
-    const b = saveBody.parse(req.body);
-    return svc.createMonitor({ key: b.key, enabled: b.enabled, isTemplate: b.isTemplate, definition: b.definition });
+    const b = createBody.parse(req.body);
+    return svc.createMonitor({ key: b.key, enabled: b.enabled, isTemplate: b.isTemplate, definition: b.definition }, b.access ? { access: b.access } : {});
   });
   app.get('/monitors/:id', async (req) => svc.getMonitor(params(req).id!));
   app.put('/monitors/:id', async (req) => {

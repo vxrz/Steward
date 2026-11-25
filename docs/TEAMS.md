@@ -43,6 +43,12 @@ Each team can change that in its settings (_Users → Teams_ → settings → _N
 
 A member of several teams can choose **one** of them for their new resources in their profile (_Owning team of new resources_); the profile shows which teams new resources get now and whether that is their choice, their teams' default or the whole instance. A team set to _Never_ cannot be chosen, and a choice ends when the member leaves the team. Administrators can choose a team the same way; without a choice their new resources stay the whole instance's.
 
+### Access at creation
+
+The _New process_ and _New dashboard_ dialogs and the new monitor form have an **Access** section (collapsed, with a one-line summary), pre-filled from the rules above: the owning teams, _Restricted: only owning teams and shares_, and users and teams to share with (View; levels and end dates follow in the _Access_ tab). The choices are applied **with the creation, in one transaction** (`POST /api/processes`, `/api/monitors` and `/api/dashboards` take an optional `access` object: `owningTeams` (team ids), `restricted` and `shares`, in the shapes of the _Access_ tab; [ADR 0040](adr/0040-drafts-and-access-at-creation.md)), so the item is never visible wider than requested, and a refusal creates nothing.
+
+The rules are the _Access_ tab's. Fewer teams than your defaults, _Restricted_ and a team where the defaults have none **narrow** and need no confirmation. A team beside the defaults, no team where the defaults have one, and any share **widen** and ask for the step-up (`STEP_UP_REQUIRED`, as for granting access). Administrators may name any team, everyone else only their own (`FORBIDDEN`); an unknown team is `TEAM_NOT_FOUND`. The audit log has `access.owning_teams_changed`, `access.scope_changed` and `access.share_added` for what differs from the defaults. Without `access` nothing changes.
+
 ### Duplicating
 
 _Duplicate_ on monitors, processes, dashboards, credentials register entries, applications, services, schedules, report schedules, maintenance windows, access checks and status pages makes a copy with the same rules everywhere (`POST /api/<kind>/:id/duplicate`):

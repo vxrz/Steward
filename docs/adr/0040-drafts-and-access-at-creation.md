@@ -1,6 +1,6 @@
 # 0040. Drafts and access at creation
 
-- **Status:** Proposed (part 1 decided, part 2 for review)
+- **Status:** Proposed (part 1 decided and implemented in 0.29.0, part 2 for review)
 - **Date:** 2026-11-25
 - **Since:** 0.29.0 (part 1); part 2 not scheduled
 - **Builds on:** [0034](0034-module-access.md) (who may use a module)
@@ -16,7 +16,9 @@ Duplicating an item already copies its access (`server/src/duplicate/common.ts`)
 
 ## Decision
 
-### 1. Access at creation (decided, built first)
+### 1. Access at creation (decided, implemented in 0.29.0)
+
+_Status note:_ implemented in 0.29.0 as `applyCreationAccess` (`server/src/auth/creation-access.ts`), called inside the creation transaction of processes, monitors and dashboards; see [TEAMS.md](../TEAMS.md#access-at-creation). Non-administrators may name only teams they are members of. The monitor form (a page, not a dialog) carries the _Access_ section.
 
 The create routes for processes, monitors and dashboards accept an optional `access` object: `owningTeams`, `restricted` and `shares`, in the shapes the existing routes use. The service applies it **in the same transaction** as the creation, so an item is never visible wider than requested, not even briefly, and a failure rolls the creation back instead of leaving an open item and a notice.
 

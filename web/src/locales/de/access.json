@@ -213,5 +213,21 @@
   "ownerSave": "Eigentümer speichern",
   "ownerSaved": "Eigentümer gespeichert",
   "ownerNotSaved": "Der Eigentümer konnte nicht gespeichert werden",
-  "ownerNotYours": "Wer diesen Eintrag verwaltet, ändert seinen Eigentümer."
+  "ownerNotYours": "Wer diesen Eintrag verwaltet, ändert seinen Eigentümer.",
+  "create": {
+    "show": "Zugriff: wer es sehen und ändern darf",
+    "hide": "Zugriff ausblenden",
+    "summaryTeams": "Zuständige Teams: {{teams}}",
+    "summaryInstance": "Kein zuständiges Team: die ganze Instanz",
+    "summaryRestricted": "Eingeschränkt",
+    "summaryShares_one": "{{count}} Freigabe",
+    "summaryShares_other": "{{count}} Freigaben",
+    "teams": "Zuständige Teams",
+    "teamsHint": "Mitglieder dieser Teams haben darauf ihre Rollen; leer: gehört der ganzen Instanz. Weitere Teams als Ihre Standardteams müssen Sie bestätigen.",
+    "wholeInstance": "Keines – die ganze Instanz",
+    "restricted": "Eingeschränkt: nur zuständige Teams und Freigaben",
+    "restrictedHint": "Niemand sonst sieht es über seine Instanzrolle.",
+    "shares": "Freigeben für (Ansehen)",
+    "sharesHint": "Gibt diesen Benutzern und Teams das Recht Ansehen. Stufen und Enddaten ändern Sie im Tab Zugriff. Eine Freigabe müssen Sie bestätigen."
+  }
 }

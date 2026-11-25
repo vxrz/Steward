@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { Button, Group, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Button, Group, SegmentedControl, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconPlus } from '@tabler/icons-react';
-import type { NewResourceTeams, ProcessDefinition, ProcessDetail, ProcessTemplate, Team } from '@sm/shared';
-import { ApiError, get, notifyError, post, put } from '../../api';
+import type { ProcessDefinition, ProcessDetail, ProcessTemplate } from '@sm/shared';
+import { ApiError, get, notifyError, post } from '../../api';
 import { useFieldErrors } from '../common';
 import { errorText } from '../../i18n/errors';
-import { useMe } from '../../auth';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 import { processKeys } from '../../queryKeys';
 import { FormModal, FormModalCancel } from '../FormModal';
 
@@ -26,21 +26,20 @@ export const processIdOf = (name: string): string =>
 const ID_RE = /^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/;
 
 /**
- * "New process" (U7 of the 0.10 review): name, id, description, how to start and the owning teams – nothing is saved
+ * "New process" (U7 of the 0.10 review): name, id, description, how to start and the access – nothing is saved
  * until the person confirms. Starts blank, as a manual procedure or as a copy of a template.
  */
 export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { opened: boolean; onClose: () => void; initialStart?: NewProcessStart }) {
   const { t } = useTranslation(['processes', 'common']);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { isAdmin } = useMe();
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [idTouched, setIdTouched] = useState(false);
   const [description, setDescription] = useState('');
   const [start, setStart] = useState<NewProcessStart>(initialStart);
   const [templateId, setTemplateId] = useState<string | null>(null);
-  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const access = useCreationAccess(opened);
   const [busy, setBusy] = useState(false);
   const [lastStart, setLastStart] = useState(initialStart);
   // opened again from another menu entry: start where that entry points
@@ -54,8 +53,6 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
     queryFn: () => get<ProcessTemplate[]>('/templates'),
     enabled: opened && start === 'template',
   });
-  const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: opened && isAdmin });
-  const mine = useQuery({ queryKey: ['new-resource-teams'], queryFn: () => get<NewResourceTeams>('/me/new-resource-teams'), enabled: opened && !isAdmin });
   const tpl = templates.data?.find((x) => x.id === templateId);
   const effectiveId = idTouched ? id : processIdOf(name);
 
@@ -76,7 +73,7 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
     setDescription('');
     setStart(initialStart);
     setTemplateId(null);
-    setTeamIds([]);
+    access.reset();
     setTakenId(null);
     check.reset();
     onClose();
@@ -107,7 +104,12 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
     if (!check.validate()) return;
     setBusy(true);
     try {
-      const body = { definition: definitionFor(), comment: start === 'template' && tpl ? `Created from template ${tpl.id}` : 'Created' };
+      const accessBody = access.body();
+      const body = {
+        definition: definitionFor(),
+        ...(accessBody ? { access: accessBody } : {}),
+        comment: start === 'template' && tpl ? `Created from template ${tpl.id}` : 'Created',
+      };
       let p: ProcessDetail;
       try {
         p = await post<ProcessDetail>('/processes', { ...body, id: effectiveId });
@@ -120,7 +122,6 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
         }
         p = await post<ProcessDetail>('/processes', body);
       }
-      if (isAdmin && teamIds.length) await put(`/owning-teams/process/${p.id}`, { teamIds }).catch(notifyError);
       void qc.invalidateQueries({ queryKey: processKeys.all });
       close();
       navigate(`/processes/${p.id}`);
@@ -211,27 +212,7 @@ export function NewProcessModal({ opened, onClose, initialStart = 'blank' }: { o
               nothingFoundMessage={t('templates.noMatch')}
             />
           )}
-          {isAdmin ? (
-            <MultiSelect
-              label={t('create.teams')}
-              description={t('create.teamsHint')}
-              placeholder={teamIds.length ? undefined : t('create.wholeInstance')}
-              data={(teams.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
-              value={teamIds}
-              onChange={setTeamIds}
-              searchable
-              clearable
-            />
-          ) : (
-            <div>
-              <Text size="sm" fw={500}>
-                {t('create.teams')}
-              </Text>
-              <Text size="sm" c="dimmed">
-                {mine.data?.teams.length ? t('create.yourTeams', { teams: mine.data.teams.map((x) => x.name).join(', ') }) : t('create.wholeInstanceText')}
-              </Text>
-            </div>
-          )}
+          <CreationAccessFields state={access} />
           <Group justify="flex-end">
             <FormModalCancel />
             <Button type="submit" loading={busy} leftSection={<IconPlus size={14} />}>
