@@ -73,6 +73,8 @@ interface Group {
   displayName: string;
   description: string;
   members: Set<string>;
+  /** Groups that are members of this group (type GROUP): a user group is a member of the role groups it has. */
+  groupMembers: Set<string>;
 }
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
@@ -138,7 +140,7 @@ function seed() {
   const groups = new Map<string, Group>();
   const mk = (displayName: string, description: string, memberIdx: number[]) => {
     const all = [...users.values()];
-    const g: Group = { id: uid(`group:${displayName}`), displayName, description, members: new Set(memberIdx.map((i) => all[i]!.id)) };
+    const g: Group = { id: uid(`group:${displayName}`), displayName, description, members: new Set(memberIdx.map((i) => all[i]!.id)), groupMembers: new Set() };
     groups.set(g.id, g);
   };
   mk('mdsp:core:StandardUser', 'Standard user role', [...Array(people.length).keys()]);
@@ -428,7 +430,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     id: g.id,
     displayName: g.displayName,
     description: g.description,
-    members: [...g.members].map((m) => ({ type: 'USER', value: m })),
+    members: [...g.members].map((m) => ({ type: 'USER', value: m })).concat([...g.groupMembers].map((m) => ({ type: 'GROUP', value: m }))),
   });
 
   const page = <T>(all: T[], q: Record<string, string>) => {
@@ -504,12 +506,19 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   });
   app.get(`${IDM}/Groups/:id/members`, { preHandler: ihAuth }, async (req, reply) => {
     const g = state.groups.get((req.params as { id: string }).id);
-    return g ? [...g.members].map((m) => ({ type: 'USER', value: m })) : reply.code(404).send({ error: 'not found' });
+    return g ? groupView(g).members : reply.code(404).send({ error: 'not found' });
   });
   app.post(`${IDM}/Groups/:id/members`, { preHandler: ihAuth }, async (req, reply) => {
     const g = state.groups.get((req.params as { id: string }).id);
     const b = req.body as { type?: string; value?: string };
     if (!g) return reply.code(404).send({ error: 'group not found' });
+    // a group as a member (type GROUP): a user group gets a role by becoming a member of the role's group
+    if (b?.type === 'GROUP') {
+      if (!b.value || b.value === g.id || !state.groups.has(b.value)) return reply.code(400).send({ error: 'unknown member' });
+      if (g.groupMembers.has(b.value)) return reply.code(409).send({ error: 'already member' });
+      g.groupMembers.add(b.value);
+      return reply.code(201).send({ type: 'GROUP', value: b.value });
+    }
     if (!b?.value || !state.users.has(b.value)) return reply.code(400).send({ error: 'unknown member' });
     if (g.members.has(b.value)) return reply.code(409).send({ error: 'already member' });
     g.members.add(b.value);
@@ -521,6 +530,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     if (scope && state.users.get(mid)?.scopeGroups)
       return reply.code(400).send(ihError(`Member ${mid} cannot be removed from the group ${scope}: it is a default group of the identity zone`));
     const g = state.groups.get(id);
+    if (g?.groupMembers.delete(mid)) return reply.code(200).send({ type: 'GROUP', value: mid });
     if (!g || !g.members.delete(mid)) return reply.code(404).send({ error: 'not a member' });
     return reply.code(200).send({ type: 'USER', value: mid });
   });
