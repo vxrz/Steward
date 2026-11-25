@@ -334,6 +334,23 @@ function usedBy(id: string): { id: string; key: string; name: string }[] {
     .map((m) => ({ id: m.id, key: m.key, name: m.name }));
 }
 
+/**
+ * Addresses of people outside Steward are personal data: readers who may not edit the monitor see how many there are
+ * (`emailCount`), not who (`count: false` leaves even the count out, for the import format).
+ */
+function withoutAddresses<T>(def: T, count = true): T {
+  const outputs = (def as { outputs?: unknown }).outputs;
+  if (!Array.isArray(outputs) || !outputs.some((o) => Array.isArray(o?.emails))) return def;
+  return {
+    ...def,
+    outputs: outputs.map((o) => {
+      if (!Array.isArray(o?.emails)) return o;
+      const { emails, ...rest } = o as { emails: unknown[] };
+      return count ? { ...rest, emailCount: emails.length } : rest;
+    }),
+  } as T;
+}
+
 export function getMonitor(idOrKey: string): MonitorDetail {
   const base = requireMonitor(idOrKey);
   const r = db().get<Joined>(`${SELECT} WHERE m.id = ?`, base.id)!;
@@ -346,7 +363,7 @@ export function getMonitor(idOrKey: string): MonitorDetail {
   for (const c of checks) counts[c.status] = (counts[c.status] ?? 0) + 1;
   return {
     ...summary(r, counts, canView),
-    definition: r.is_template ? def : redactDefinition(def, canView),
+    definition: r.is_template ? def : permissionsOfRow(r).includes('edit') ? redactDefinition(def, canView) : withoutAddresses(redactDefinition(def, canView)),
     // deprecated (0.23.0): the shares as the former access list, for who may change them
     acl: permissionsOfRow(r).includes('manage') ? aclOf<MonitorPermission>('monitor', r.id) : [],
     templateParams: parseJson(r.template_params, null),
@@ -1410,7 +1427,9 @@ export function exportMonitor(idOrKey: string): string {
 /** A monitor in its import format, as an object (exportMonitor writes it as YAML). */
 export function exportMonitorDocument(idOrKey: string): Record<string, unknown> {
   const r = requireMonitor(idOrKey);
-  const def = parseJson<Record<string, unknown>>(r.definition, {});
+  const stored = parseJson<Record<string, unknown>>(r.definition, {});
+  // addresses outside Steward are personal data: not for those who may not edit the monitor
+  const def = permissionsOfRow(r).includes('edit') ? stored : withoutAddresses(stored, false);
   const platformNames = new Map(
     db()
       .all<{ id: string; name: string }>('SELECT id, name FROM platforms')

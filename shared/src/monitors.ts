@@ -798,6 +798,8 @@ export const outputSchema = z.discriminatedUnion('type', [
      * unsubscribe. At most 50; the domain must be allowed (Settings → Notifications). Personal data.
      */
     emails: z.array(z.string().max(254)).max(50).optional(),
+    /** Read only: how many addresses there are, shown instead of `emails` to readers who may not edit the monitor */
+    emailCount: z.number().int().min(0).optional(),
     /** Wait this long before alerting, so a parent failing a little later still explains the failure (default 0) */
     holdSeconds: seconds(0, 3600).optional(),
     /** Urgent – a change to down interrupts quiet hours (0.10.0, ADR 0012) */

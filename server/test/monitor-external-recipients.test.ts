@@ -139,6 +139,30 @@ describe('monitor notification output to addresses outside Steward', () => {
     });
   });
 
+  it('shows the addresses only to those who may edit the monitor: a viewer gets a count', async () => {
+    const port = await closedPort();
+    const r = await s.api('POST', '/monitors', { definition: def(port, ['ext.hide@partner.example', 'ext.hide2@partner.example']) });
+    const id = r.monitor.id;
+    await s.api('PUT', `/owning-teams/monitor/${id}`, { teamIds: [] });
+    const vera = await s.as('vera', 'Demo-password-1');
+    const seen = await vera('GET', `/monitors/${id}`);
+    expect(seen.definition.outputs[0].emails).toBeUndefined();
+    expect(seen.definition.outputs[0].emailCount).toBe(2);
+    expect(JSON.stringify(seen)).not.toContain('ext.hide');
+    const login = await fetch(`${s.base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
+      body: JSON.stringify({ username: 'vera', password: 'Demo-password-1' }),
+    });
+    const exported = await fetch(`${s.base}/api/monitors/${id}/export`, {
+      headers: { 'x-sm-client': '1', cookie: login.headers.get('set-cookie')!.split(';')[0]!, 'x-sm-session': login.headers.get('x-sm-session-key') ?? '' },
+    });
+    expect(exported.status).toBe(200);
+    expect(await exported.text()).not.toContain('ext.hide');
+    // the owner still sees them
+    expect((await s.api('GET', `/monitors/${id}`)).definition.outputs[0].emails).toHaveLength(2);
+  });
+
   it('counts added addresses in the audit entry of an update, never naming them', async () => {
     const port = await closedPort();
     const r = await s.api('POST', '/monitors', { definition: def(port) });
