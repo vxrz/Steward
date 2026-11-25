@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-25
+
+Steward 0.29.0 lets you set an item's access when you create it, and reaches people outside Steward. The New dialogs of processes, monitors and dashboards take owning teams, the restricted scope and shares, applied together with the creation – a new item is never visible more widely than you chose, not even for a moment ([ADR 0040](docs/adr/0040-drafts-and-access-at-creation.md), part 1; part 2, drafts, is proposed). A monitor's notification output can e-mail plain addresses of allowed domains; each recipient can unsubscribe with one click. Snowflake costs can be estimated from your own assumptions with a calculator and a price book of invented prices to replace with your contract's, without any connection to Snowflake. The upgrade fixture of 0.28.0 is added. No database migrations.
+
 ### Added
 
 - **Access when creating a process, monitor or dashboard** ([docs/TEAMS.md](docs/TEAMS.md#access-at-creation), [ADR 0040](docs/adr/0040-drafts-and-access-at-creation.md) part 1): the _New process_ and _New dashboard_ dialogs and the new monitor form have an _Access_ section with the owning teams, _Restricted_ and shares, pre-filled from your team defaults. The create routes take an optional `access` object and apply it in the same transaction as the creation, so the item is never visible wider than chosen and a refusal creates nothing; widening asks for the step-up as in the _Access_ tab. The dialog no longer sends the owning teams in a second request. No database migrations.
@@ -1744,7 +1748,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/vxrz/steward/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/vxrz/steward/compare/v0.27.1...v0.28.0
 [0.27.1]: https://github.com/vxrz/steward/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/vxrz/steward/compare/v0.26.2...v0.27.0

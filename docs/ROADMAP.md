@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.28.0 (November 2026)._
+_Last reviewed for 0.29.0 (November 2026)._
 
 ## What Steward is for
 
@@ -92,10 +92,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.27.0:** fewer and clearer notifications – a failing check is news when what fails changes, monitors tell a problem once until it is over, a one-sentence summary and one-click pause; a review of the server (sign-in under load, maintenance windows, scheduler overlap, stale datasets) and of the UI; Snowflake examples for data volume and the newest data point, Insights Hub examples to add users to several groups and to deactivate accounts, and a fixed offboarding.
 - **0.27.1:** a second line or machine failing is news again (numbers that name an item stay part of it), Docker logs are rotated, and the documentation says how to keep a deployment lean; the upgrade fixture of 0.27.0.
 - **0.28.0:** access changes for user groups and for the services, applications and systems they concern; an Insights Hub example that changes the roles of a user group; calmer pages – sections, side drawers and "More details" on the busiest pages and forms; the upgrade fixture of 0.27.1.
+- **0.29.0:** access settings when creating processes, monitors and dashboards ([ADR 0040](adr/0040-drafts-and-access-at-creation.md), part 1); monitor e-mails to people outside Steward, with one-click unsubscribe; Snowflake cost estimates from your own assumptions, without a connection; the upgrade fixture of 0.28.0.
 
 ## Next
 
-- **After 0.28.0:** no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
+- **After 0.29.0:** part 2 of [ADR 0040](adr/0040-drafts-and-access-at-creation.md) – drafts, then publish – once it is decided; no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
 
 ## Later
 
