@@ -1,5 +1,5 @@
 sku,name,service,driver,unit,charge,price,block,currency,credit_item,source_note
-compute-credit,Compute credit,Compute,credits,{credit},usage,3.00,1,USD,,Invented example price per credit – replace it with your contract's price per credit
+compute-credit,Compute credit,Compute,credits,{credit},usage,2.50,1,USD,,Invented example price per credit – replace it with your contract's price per credit
 serverless-credit,Serverless credit,Serverless,credits,{credit},usage,1,1,,compute-credit,One serverless credit counted as a compute credit – check your contract
 warehouse-XS,Standard warehouse XS,Warehouse,runtime,h,usage,1,1,,compute-credit,Credits per hour of a standard warehouse (technical factor checked 2026-11-12)
 warehouse-S,Standard warehouse S,Warehouse,runtime,h,usage,2,1,,compute-credit,Credits per hour of a standard warehouse (technical factor checked 2026-11-12)
@@ -9,5 +9,5 @@ warehouse-XL,Standard warehouse XL,Warehouse,runtime,h,usage,16,1,,compute-credi
 warehouse-2XL,Standard warehouse 2XL,Warehouse,runtime,h,usage,32,1,,compute-credit,Credits per hour of a standard warehouse (technical factor checked 2026-11-12)
 warehouse-3XL,Standard warehouse 3XL,Warehouse,runtime,h,usage,64,1,,compute-credit,Credits per hour of a standard warehouse (technical factor checked 2026-11-12)
 warehouse-4XL,Standard warehouse 4XL,Warehouse,runtime,h,usage,128,1,,compute-credit,Credits per hour of a standard warehouse (technical factor checked 2026-11-12)
-storage,Storage,Storage,storage,TBy.mo,usage,23.00,1,USD,,Invented example price per terabyte-month – replace it with your contract's price
-data-transfer,Data transfer out,Transfer,data transfer,TBy,usage,90.00,1,USD,,Invented example price per terabyte – replace it with your contract's price
+storage,Storage,Storage,storage,TBy.mo,usage,20.00,1,USD,,Invented example price per terabyte-month – replace it with your contract's price
+data-transfer,Data transfer out,Transfer,data transfer,TBy,usage,80.00,1,USD,,Invented example price per terabyte – replace it with your contract's price
