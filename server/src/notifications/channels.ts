@@ -36,6 +36,8 @@ export interface OutgoingMessage {
   data?: Record<string, unknown>;
   /** E-mail only (e.g. the PDF of a scheduled report) */
   attachments?: { filename: string; content: Buffer; contentType: string }[];
+  /** E-mail only: where this recipient unsubscribes (addresses outside Steward): the List-Unsubscribe headers (RFC 8058) */
+  unsubscribeUrl?: string;
   /**
    * E-mail only: own content instead of the message body (the daily summary). `html` is the content inside the
    * standard layout (already escaped), `note` small print above the footer, `button` replaces "Open in …".
@@ -276,7 +278,15 @@ export async function sendEmail(cfg: NotificationSettings['email'], secrets: Cha
     ...(m.attachments ?? []).map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
   ];
   try {
-    await transport.sendMail({ from: cfg.from, to, subject, text, html, ...(attachments.length ? { attachments } : {}) });
+    await transport.sendMail({
+      from: cfg.from,
+      to,
+      subject,
+      text,
+      html,
+      ...(m.unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${m.unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
+      ...(attachments.length ? { attachments } : {}),
+    });
   } finally {
     transport.close();
   }

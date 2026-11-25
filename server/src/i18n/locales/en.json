@@ -4,7 +4,15 @@
     "minutes_one": "{{count}} minute",
     "minutes_other": "{{count}} minutes",
     "moreItems_one": "{{count}} more",
+    "unsubscribe": "Unsubscribe from these e-mails",
     "moreItems_other": "{{count}} more"
+  },
+  "unsubscribePage": {
+    "title": "Unsubscribe",
+    "question": "Stop these e-mails?",
+    "button": "Unsubscribe",
+    "done": "You will not receive these e-mails any more.",
+    "invalid": "This link is not valid, or you have unsubscribed already."
   },
   "severity": {
     "error": "Error",

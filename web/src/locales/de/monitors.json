@@ -680,6 +680,8 @@
     "remove": "Ausgabe {{id}} entfernen",
     "subscribers": "Abonnenten",
     "subscribersHint": "{{examples}}; der Eigentümer wird immer benachrichtigt",
+    "emails": "Externe E-Mail-Adressen",
+    "emailsHint": "Personen, die keine Steward-Benutzer sind, erhalten die E-Mail dieser Ausgabe mit einem Link zum Abbestellen. Die Domain muss unter Einstellungen → Benachrichtigungen erlaubt sein. Adressen sind personenbezogene Daten.",
     "hold": "Abhängige Alarme zurückhalten (s)",
     "holdHint": "So lange warten, damit eine etwas später ausfallende Vorgängerin den Ausfall noch erklärt (Standard 0)",
     "urlHint": "Ohne Zugangsdaten; für Ziele mit Authentifizierung stattdessen eine Plattform wählen",

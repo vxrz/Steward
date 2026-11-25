@@ -301,6 +301,7 @@
     "OUTPUT_TEAMS_PLATFORM": "Ausgabe „{{output}}“: Eine Teams-Karte geht an eine Plattform „Microsoft-Teams-Kanal“ (sie speichert die Workflows-URL verschlüsselt), nicht an eine URL oder einen Pfad.",
     "OUTPUT_PROCESS_FORBIDDEN": "Ausgabe „{{output}}“: Sie dürfen den Prozess {{process}} nicht ausführen.",
     "OUTPUT_PROCESS_INPUT": "Ausgabe „{{output}}“: Der Prozess hat keine Eingabe „{{input}}“.",
+    "OUTPUT_EMAIL_INVALID": "Ausgabe „{{output}}“: „{{address}}“ ist keine E-Mail-Adresse.",
     "OUTPUT_SUBSCRIBER_INVALID": "Ausgabe „{{output}}“: Abonnent „{{subscriber}}“ – verwenden Sie user:<name>, team:<name> oder role:<role>.",
     "MAINTENANCE_NOT_FOUND": "Dieses Wartungsfenster gibt es nicht (mehr).",
     "MAINTENANCE_TOO_LONG": "Ein Wartungsfenster dauert höchstens {{days}} Tage.",

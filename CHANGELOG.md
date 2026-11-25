@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **E-mail to people outside Steward from a monitor's notification output** ([docs/MONITORS.md](docs/MONITORS.md#notifications)): a notification output has a list `emails` (at most 50) for people who are not Steward users; their domain must be allowed under _Settings → Notifications_. Every message to them has a link to unsubscribe (no sign-in; English or German) and the `List-Unsubscribe` and one-click headers (RFC 8058); the link removes the address from the output and is audited as `monitor.recipient_unsubscribed`. Adding addresses is part of the monitor's change (counted in the audit entry, never named); the addresses are personal data ([docs/PRIVACY.md](docs/PRIVACY.md)). No database migrations.
+
 ## [0.28.0] - 2026-11-25
 
 Steward 0.28.0 documents more kinds of access changes and makes busy pages calmer. An access change can now be about a **user group** – its roles before and after – and name the **services, applications and systems** it is for; processes record the same, linking only what the person behind the run may see. A new example changes the roles of an Insights Hub user group with a four-eyes approval. The busiest pages and forms show their summary first and fold the rest: sections that remember what you opened, side drawers for details, and _More details_ in long forms. The upgrade fixture of 0.27.1 is added. No database migrations.

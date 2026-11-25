@@ -181,7 +181,7 @@ Use a **monitor** ([MONITORS.md](MONITORS.md)) for the state of something that s
 
 ## E-mail addresses outside Steward
 
-Plain addresses (credential owners, report recipients) only get e-mail when their domain is allowed: _Settings → Notifications → Allowed e-mail domains for addresses outside Steward_. An empty list means the domains of the Steward users' own addresses.
+Plain addresses (credential owners, report recipients, the external addresses of a [monitor's notification output](MONITORS.md#notifications), which also get an unsubscribe link) only get e-mail when their domain is allowed: _Settings → Notifications → Allowed e-mail domains for addresses outside Steward_. An empty list means the domains of the Steward users' own addresses.
 
 ## Look of e-mails and Teams messages
 

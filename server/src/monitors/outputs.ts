@@ -25,6 +25,7 @@ import { evalExpr } from '../engine/expr.js';
 import { platformFor } from './platforms.js';
 import { storedKindProblem } from './kinds.js';
 import { zabbixSend } from './zabbix.js';
+import { unsubscribeUrl } from './unsubscribe.js';
 import { loadMonitor, monitorPermissions, monitorRow, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { MODULE_CHECK_TEXT, checkMessage, moduleCheckHidden, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
@@ -346,6 +347,9 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       },
       link: `/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`,
       recipients: to,
+      // people outside Steward (0.29.0): e-mail only, each with their own link to unsubscribe
+      emails: o.emails,
+      unsubscribeUrl: (address) => unsubscribeUrl(m.id, o.id, address),
       about: { kind: 'monitor', id: m.id },
       // urgent output (ADR 0012): a change to down interrupts quiet hours; one held item per subject
       urgent: !!o.urgent && e.status === 'down',
