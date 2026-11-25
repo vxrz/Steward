@@ -48,6 +48,7 @@ Each folder holds a Steward data folder written by a released version, used by
 | `v0.26.1/` | v0.26.1 (`34ba0a2`) with the generic Snowflake demo names of 0.26.2 | 2026-11-16, demo data plus the content below |
 | `v0.26.2/` | v0.26.2 (`8e3298a`)                                                 | 2026-11-19, demo data plus the content below |
 | `v0.27.0/` | v0.27.0 (`781b438`)                                                 | 2026-11-24, demo data plus the content below |
+| `v0.27.1/` | v0.27.1 (`dc17788`)                                                 | 2026-11-25, demo data plus the content below |
 
 **Nothing here is secret.** The vault (`datadir/vault.json`), the installation's Ed25519 signing
 key and HMAC audit key wrapped in it, and the encrypted platform credentials in the database are
