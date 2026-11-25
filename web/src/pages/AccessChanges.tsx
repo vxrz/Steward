@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Anchor,
   Badge,
@@ -329,7 +329,10 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
     f.systems.length ||
     (!rightsBeforeShown && f.rightsBefore.length),
   );
-  const moreOpen = more || moreHasValue;
+  useEffect(() => {
+    if (moreHasValue) setMore(true);
+  }, [moreHasValue]);
+  const moreOpen = more;
   const rightsBeforeField = (
     <TagsInput
       label={t('accessChanges.rightsBefore')}
@@ -453,7 +456,6 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             leftSection={moreOpen ? <IconChevronDown size={16} aria-hidden /> : <IconChevronRight size={16} aria-hidden />}
             aria-expanded={moreOpen}
             aria-controls="access-change-more"
-            disabled={moreHasValue}
             onClick={() => setMore((x) => !x)}
           >
             {t('accessChanges.moreDetails')}

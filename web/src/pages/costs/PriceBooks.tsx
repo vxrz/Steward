@@ -180,11 +180,20 @@ function CheckedText({ book }: { book: CostPriceBook }) {
 }
 
 /** The less used fields of a form: folded, and open from the start when one of them has a value. */
-function MoreDetails({ id, hasValues, children }: { id: string; hasValues: boolean; children: ReactNode }) {
+function MoreDetails({ id, hasValues, forceOpen = false, children }: { id: string; hasValues: boolean; forceOpen?: boolean; children: ReactNode }) {
   const { t } = useTranslation('costs');
   const [initial] = useState(hasValues);
   return (
-    <CollapsibleSection id={id} order={3} size="h6" title={t('prices.moreDetails')} defaultOpen={initial} remember={false} inGroup={false}>
+    <CollapsibleSection
+      id={id}
+      order={3}
+      size="h6"
+      title={t('prices.moreDetails')}
+      defaultOpen={initial}
+      forceOpen={forceOpen}
+      remember={false}
+      inGroup={false}
+    >
       <Stack gap="sm">{children}</Stack>
     </CollapsibleSection>
   );
@@ -926,6 +935,8 @@ function EntryDialog({ book, entry, onClose, onSaved }: { book: CostPriceBookDet
   );
   const [tiers, setTiers] = useState((entry?.tiers ?? []).map((x) => `${x.from}:${x.price}`).join(';'));
   const [busy, setBusy] = useState(false);
+  // a failed save opens "More details" when one of its fields holds a value, so the cause is in view
+  const [saveFailed, setSaveFailed] = useState(false);
   const set = (p: Partial<CostPriceEntry>) => setE({ ...e, ...p });
   const save = async () => {
     setBusy(true);
@@ -956,6 +967,7 @@ function EntryDialog({ book, entry, onClose, onSaved }: { book: CostPriceBookDet
       onSaved();
       onClose();
     } catch (err) {
+      setSaveFailed(true);
       notifyError(err);
     } finally {
       setBusy(false);
@@ -1034,6 +1046,7 @@ function EntryDialog({ book, entry, onClose, onSaved }: { book: CostPriceBookDet
           </SimpleGrid>
           <MoreDetails
             id="entry-more-details"
+            forceOpen={saveFailed && !!(tiers || e.included || e.minimum || e.validFrom || e.validTo || e.sourceNote)}
             hasValues={!!entry && (!!tiers || !!e.included || !!e.minimum || !!e.validFrom || !!e.validTo || !!e.sourceNote)}
           >
             <SimpleGrid cols={{ base: 1, sm: 2 }}>

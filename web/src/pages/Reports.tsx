@@ -516,9 +516,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services'), enabled: sections.includes('isms') });
   // folded details open at once when they hold something other than the defaults (decided when the form opens)
-  const [moreOpen] = useState(
-    () => !!(draft.classification || draft.team || draft.attachPdf || draft.timezone !== Intl.DateTimeFormat().resolvedOptions().timeZone),
-  );
+  const [moreOpen] = useState(() => !!(draft.classification || draft.team || draft.attachPdf));
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const sec = (id: string) => d.sections[id] as SectionConfig | undefined;
   const setSec = (id: string, v: SectionConfig | undefined) => {
@@ -589,6 +587,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           </Text>
         </div>
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
+          <TextInput label={t('form.timezone')} value={d.timezone} onChange={(e) => set({ timezone: e.currentTarget.value })} />
           {d.preset === 'custom' && (
             <TextInput label={t('form.cron')} classNames={{ input: 'mono' }} value={d.cron} onChange={(e) => set({ cron: e.currentTarget.value })} />
           )}
@@ -820,8 +819,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           testId="schedule-more"
         >
           <Stack>
-            <SimpleGrid cols={{ base: 1, sm: 3 }}>
-              <TextInput label={t('form.timezone')} value={d.timezone} onChange={(e) => set({ timezone: e.currentTarget.value })} />
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <Select
                 label={t('form.lang')}
                 allowDeselect={false}
