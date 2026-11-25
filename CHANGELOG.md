@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Insights Hub – Change the roles of a user group**, example 19 ([docs/INSIGHTS-HUB-USERS.md](docs/INSIGHTS-HUB-USERS.md)): adds roles (core roles `mdsp:core:…` or custom roles) to a user group or takes them away. A user group has a role when it is a member (`type` `GROUP`) of the role's group, so the process sends one `POST /Groups/{roleId}/members` or `DELETE /Groups/{roleId}/members/{userGroupId}` per role, after an approval (four-eyes) that says every member of the group is affected; roles that are assigned already (or not assigned) are skipped, an unknown role or group stops the run, each role's members are read again and the report shows the API's answer per role. The change is documented as an access change with the user group as its subject. The simulated tenant accepts groups as members of groups.
+
 ## [0.27.1] - 2026-11-24
 
 Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. `SM_SQLITE_VACUUM_AT_START` no longer runs out of memory in the container. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.

@@ -342,3 +342,83 @@ describe('Insights Hub – deactivate and reactivate (#18)', () => {
     expect(await changes(r.id, 'mia.neumann@example.com', 3)).toEqual([]);
   });
 });
+
+describe('Insights Hub – change the roles of a user group (#19)', () => {
+  const groupId = async (name: string) => (await idm('GET', '/Groups')).body.resources.find((g: any) => g.displayName === name).id;
+  /** The user groups that are members (type GROUP) of a role's group */
+  const roleGroups = async (role: string) =>
+    (await idm('GET', `/Groups/${await groupId(role)}/members`)).body.filter((m: any) => m.type === 'GROUP').map((m: any) => m.value);
+  const assign = async (role: string, group: string) =>
+    expect((await idm('POST', `/Groups/${await groupId(role)}/members`, { type: 'GROUP', value: await groupId(group) })).status).toBe(201);
+
+  it('the simulated tenant takes a group as a member of a group and reads it back', async () => {
+    const ops = await groupId('mdsp_usergroup:Operators');
+    expect(await roleGroups('mdsp:core:TenantAdmin')).toEqual([]);
+    await assign('mdsp:core:TenantAdmin', 'mdsp_usergroup:Operators');
+    expect(await roleGroups('mdsp:core:TenantAdmin')).toEqual([ops]);
+    const again = await idm('POST', `/Groups/${await groupId('mdsp:core:TenantAdmin')}/members`, { type: 'GROUP', value: ops });
+    expect(again.status).toBe(409);
+    expect((await idm('DELETE', `/Groups/${await groupId('mdsp:core:TenantAdmin')}/members/${ops}`)).status).toBe(200);
+    expect(await roleGroups('mdsp:core:TenantAdmin')).toEqual([]);
+  });
+
+  it('adds the roles, one request per role, skips an assigned one, reports per role and documents it for the user group', async () => {
+    await assign('mdsp:core:StandardUser', 'mdsp_usergroup:Operators');
+    const ops = await groupId('mdsp_usergroup:Operators');
+    const r = await run('ih-group-roles', {
+      userGroup: 'mdsp_usergroup:Operators',
+      action: 'add',
+      roles: 'mdsp:core:StandardUser\nmdsp:core:TenantAdmin',
+    });
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(step(r, 'failuresCheck').status).toBe('succeeded');
+    const admin = await groupId('mdsp:core:TenantAdmin');
+    // StandardUser is assigned already: one POST only
+    expect(await writes(r.id)).toEqual([`POST /api/identitymanagement/v3/Groups/${admin}/members → HTTP 201`]);
+    expect(await roleGroups('mdsp:core:TenantAdmin')).toEqual([ops]);
+    expect(task0(r).instructions).toContain('Add: mdsp:core:TenantAdmin');
+    expect(task0(r).instructions).toContain('Skipped (assigned already): mdsp:core:StandardUser');
+    expect(report(r).rows).toEqual([
+      { Role: 'mdsp:core:StandardUser', Before: 'assigned', Result: 'assigned already (skipped)', HTTP: '', Message: '' },
+      { Role: 'mdsp:core:TenantAdmin', Before: 'not assigned', Result: 'added', HTTP: '201', Message: '' },
+    ]);
+    const [entry] = await changes(r.id, 'mdsp_usergroup:Operators');
+    expect(entry).toMatchObject({ kind: 'grant', subjectId: ops, rightsBefore: ['mdsp:core:StandardUser'], granted: ['mdsp:core:TenantAdmin'] });
+    expect([...entry.rightsAfter].sort()).toEqual(['mdsp:core:StandardUser', 'mdsp:core:TenantAdmin']);
+  });
+
+  it('removes a role and skips one that is not assigned', async () => {
+    await assign('mdsp:core:TenantAdmin', 'mdsp_usergroup:Viewers');
+    const viewers = await groupId('mdsp_usergroup:Viewers');
+    const r = await run('ih-group-roles', { userGroup: 'mdsp_usergroup:Viewers', action: 'remove', roles: 'mdsp:core:TenantAdmin\nmdsp:core:StandardUser' });
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    expect(await writes(r.id)).toEqual([`DELETE /api/identitymanagement/v3/Groups/${await groupId('mdsp:core:TenantAdmin')}/members/${viewers} → HTTP 200`]);
+    expect(await roleGroups('mdsp:core:TenantAdmin')).toEqual([]);
+    expect(report(r).rows.map((x: any) => `${x.Role}: ${x.Result}`)).toEqual([
+      'mdsp:core:TenantAdmin: removed',
+      'mdsp:core:StandardUser: not assigned (skipped)',
+    ]);
+    const [entry] = await changes(r.id, 'mdsp_usergroup:Viewers');
+    expect(entry).toMatchObject({ kind: 'revoke', subjectId: viewers, rightsBefore: ['mdsp:core:TenantAdmin'], revoked: ['mdsp:core:TenantAdmin'] });
+    expect(entry.rightsAfter).toEqual([]);
+  });
+
+  it('nothing changes when the approval is rejected', async () => {
+    const r = await run('ih-group-roles', { userGroup: 'mdsp_usergroup:Operators', action: 'add', roles: 'mdsp:core:TenantAdmin' }, false);
+    expect(r.status).toBe('succeeded');
+    expect(await writes(r.id)).toEqual([]);
+    expect(await roleGroups('mdsp:core:TenantAdmin')).toEqual([]);
+    expect(report(r).rows.map((x: any) => x.Result)).toEqual(['not confirmed']);
+    expect(await changes(r.id, 'mdsp_usergroup:Operators', 3)).toEqual([]);
+  });
+
+  it('an unknown role or user group stops the run before anything changes', async () => {
+    const a = await run('ih-group-roles', { userGroup: 'mdsp_usergroup:Operators', action: 'add', roles: 'mdsp:core:TenantAdmin\nmdsp:core:NoSuchRole' });
+    expect(a.status).toBe('failed');
+    expect(step(a, 'rolesFound').error).toBe('Unknown role(s): mdsp:core:NoSuchRole');
+    expect(await writes(a.id)).toEqual([]);
+    const b = await run('ih-group-roles', { userGroup: 'mdsp_usergroup:Nobody', action: 'add', roles: 'mdsp:core:TenantAdmin' });
+    expect(b.status).toBe('failed');
+    expect(step(b, 'groupFound').error).toContain('No user group named mdsp_usergroup:Nobody');
+  });
+});
