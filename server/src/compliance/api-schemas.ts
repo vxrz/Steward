@@ -15,7 +15,7 @@ export const AccessChange = z.object({
   platformName: z.string().nullable().describe('null when the token owner may not see the platform'),
   subjectId: z.string().describe('User name, user id or technical user id on the platform'),
   subjectName: z.string(),
-  subjectType: z.string().describe('user, technical or empty'),
+  subjectType: z.string().describe('user, technical, group (a user group) or empty'),
   kind: z.string().describe(`Change: ${ACCESS_CHANGE_KINDS.join(', ')}`),
   rightsBefore: rights('Roles, groups or scopes before the change'),
   rightsAfter: rights('Roles, groups or scopes after the change'),

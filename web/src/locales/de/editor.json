@@ -383,6 +383,10 @@
         "subjectName": {
           "label": "Subjektname (Ausdruck)"
         },
+        "subjectType": {
+          "label": "Subjekttyp",
+          "help": "Standard: Benutzer. Bei einer Gruppe sind die Rechte die Rollen oder Berechtigungen der Gruppe; der Abgleich ordnet Gruppen nicht Konten zu"
+        },
         "rights": {
           "label": "Geänderte Rechte (Ausdruck → Liste)",
           "help": "Erteilt bei Erteilung/Onboarding, entzogen bei Entzug/Offboarding"
@@ -401,6 +405,18 @@
         },
         "approvedBy": {
           "label": "Freigegeben von"
+        },
+        "services": {
+          "label": "Betroffene Services",
+          "help": "Eine Liste von Service-IDs; ein Eintrag kann ein Ausdruck in doppelten geschweiften Klammern sein, der eine ID oder eine Liste von IDs ergibt. Unbekannte oder nicht sichtbare IDs werden mit einer Warnung übersprungen"
+        },
+        "applications": {
+          "label": "Betroffene Anwendungen",
+          "help": "Wie bei den Services"
+        },
+        "systems": {
+          "label": "Betroffene Systeme",
+          "help": "Wie bei den Services"
         }
       }
     },

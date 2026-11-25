@@ -1803,6 +1803,7 @@ export interface Resources {
     'origins.reconciliation': string;
     'subjectTypes.user': string;
     'subjectTypes.technical': string;
+    'subjectTypes.group': string;
     'sources.insights-hub': string;
     'sources.dataset': string;
     'sources.git': string;
@@ -1929,11 +1930,18 @@ export interface Resources {
     'accessChanges.platformHidden': string;
     'accessChanges.subjectId': string;
     'accessChanges.subjectIdHelp': string;
+    'accessChanges.subjectIdHelpGroup': string;
     'accessChanges.subjectName': string;
     'accessChanges.subjectType': string;
     'accessChanges.rightsBefore': string;
     'accessChanges.rightsAfter': string;
     'accessChanges.rightsHelp': string;
+    'accessChanges.rightsHelpGroup': string;
+    'accessChanges.linksHelp': string;
+    'accessChanges.services': string;
+    'accessChanges.applications': string;
+    'accessChanges.systems': string;
+    'accessChanges.linksNothing': string;
     'accessChanges.reason': string;
     'accessChanges.requestedBy': string;
     'accessChanges.requestRef': string;
@@ -7206,6 +7214,8 @@ export interface Resources {
     'steps.accessChange.fields.items.help': string;
     'steps.accessChange.fields.subjectId.label': string;
     'steps.accessChange.fields.subjectName.label': string;
+    'steps.accessChange.fields.subjectType.label': string;
+    'steps.accessChange.fields.subjectType.help': string;
     'steps.accessChange.fields.rights.label': string;
     'steps.accessChange.fields.rights.help': string;
     'steps.accessChange.fields.rightsBefore.label': string;
@@ -7213,6 +7223,12 @@ export interface Resources {
     'steps.accessChange.fields.reason.label': string;
     'steps.accessChange.fields.requestRef.label': string;
     'steps.accessChange.fields.approvedBy.label': string;
+    'steps.accessChange.fields.services.label': string;
+    'steps.accessChange.fields.services.help': string;
+    'steps.accessChange.fields.applications.label': string;
+    'steps.accessChange.fields.applications.help': string;
+    'steps.accessChange.fields.systems.label': string;
+    'steps.accessChange.fields.systems.help': string;
     'steps.ai.label': string;
     'steps.ai.description': string;
     'steps.ai.fields.connection.label': string;

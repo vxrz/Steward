@@ -1,15 +1,24 @@
 import { useState } from 'react';
-import { Anchor, Badge, Box, Button, Checkbox, Group, Modal, Paper, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Box, Button, Checkbox, Group, Modal, MultiSelect, Paper, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconPlus, IconSearch, IconUserShield } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { ACCESS_CHANGE_KINDS, type AccessChange, type Platform, type RecordsMeta } from '@sm/shared';
+import {
+  ACCESS_CHANGE_KINDS,
+  ACCESS_CHANGE_MAX_LINKS_PER_KIND,
+  type AccessChange,
+  type AccessChangeLinkKind,
+  type LinkTarget,
+  type Platform,
+  type RecordsMeta,
+} from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
+import { useRemoteSelect } from '../components/remoteSelect';
 import { RecordStatusBadge } from '../components/records/common';
 import { KindBadge, RightsDiff } from '../components/compliance/common';
 import { fmtDate } from '../format';
@@ -226,6 +235,35 @@ export function localNow(d = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** Services, applications or systems the reader may see (the link picker's search), several at once. */
+function LinkTargetsSelect({ kind, label, value, onChange }: { kind: AccessChangeLinkKind; label: string; value: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useTranslation('compliance');
+  const pick = useRemoteSelect({ value });
+  const targets = useQuery({
+    queryKey: ['link-targets', kind, pick.term],
+    queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(pick.term)}`),
+    placeholderData: (prev) => prev,
+  });
+  const options = pick.options(
+    (targets.data ?? []).filter((x) => x.kind === kind).map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label })),
+  );
+  return (
+    <MultiSelect
+      label={label}
+      searchable
+      clearable
+      data={options}
+      value={value}
+      onChange={onChange}
+      searchValue={pick.search}
+      onSearchChange={pick.setSearch}
+      filter={({ options: o }) => o}
+      maxValues={ACCESS_CHANGE_MAX_LINKS_PER_KIND}
+      nothingFoundMessage={targets.isFetching ? '…' : t('accessChanges.linksNothing')}
+    />
+  );
+}
+
 function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onClose: () => void }) {
   const { t } = useTranslation(['compliance', 'common']);
   const { username } = useMe();
@@ -243,6 +281,9 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
     requestedBy: '',
     requestRef: '',
     requestUrl: '',
+    services: [] as string[],
+    applications: [] as string[],
+    systems: [] as string[],
     approvedBy: '',
     performedBy: username,
     performedAt: localNow(),
@@ -273,6 +314,9 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
         requestedBy: f.requestedBy.trim() || undefined,
         requestRef: f.requestRef.trim() || undefined,
         requestUrl: f.requestUrl.trim() || undefined,
+        services: f.services.length ? f.services : undefined,
+        applications: f.applications.length ? f.applications : undefined,
+        systems: f.systems.length ? f.systems : undefined,
         approvedBy: f.approvedBy.trim() || undefined,
         performedBy: f.performedBy.trim(),
         performedAt: new Date(f.performedAt).toISOString(),
@@ -301,7 +345,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
         <Group grow wrap="wrap" align="flex-start">
           <TextInput
             label={t('accessChanges.subjectId')}
-            description={t('accessChanges.subjectIdHelp')}
+            description={f.subjectType === 'group' ? t('accessChanges.subjectIdHelpGroup') : t('accessChanges.subjectIdHelp')}
             required
             value={f.subjectId}
             onChange={(e) => up('subjectId', e.currentTarget.value)}
@@ -317,6 +361,7 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
             data={[
               { value: 'user', label: t('subjectTypes.user') },
               { value: 'technical', label: t('subjectTypes.technical') },
+              { value: 'group', label: t('subjectTypes.group') },
             ]}
             value={f.subjectType}
             onChange={(v) => up('subjectType', v ?? 'user')}
@@ -332,12 +377,18 @@ function AccessChangeModal({ platforms, onClose }: { platforms: Platform[]; onCl
         </Group>
         <TagsInput
           label={t('accessChanges.rightsBefore')}
-          description={t('accessChanges.rightsHelp')}
+          description={f.subjectType === 'group' ? t('accessChanges.rightsHelpGroup') : t('accessChanges.rightsHelp')}
           value={f.rightsBefore}
           onChange={(v) => up('rightsBefore', v)}
           maxTags={500}
         />
         <TagsInput label={t('accessChanges.rightsAfter')} value={f.rightsAfter} onChange={(v) => up('rightsAfter', v)} maxTags={500} />
+        <Text size="xs" c="dimmed">
+          {t('accessChanges.linksHelp')}
+        </Text>
+        <LinkTargetsSelect kind="service" label={t('accessChanges.services')} value={f.services} onChange={(x) => up('services', x)} />
+        <LinkTargetsSelect kind="application" label={t('accessChanges.applications')} value={f.applications} onChange={(x) => up('applications', x)} />
+        <LinkTargetsSelect kind="system" label={t('accessChanges.systems')} value={f.systems} onChange={(x) => up('systems', x)} />
         <Textarea
           label={t('accessChanges.reason')}
           required

@@ -1,4 +1,4 @@
-import type { NodeOf } from '@sm/shared';
+import type { AccessChangeLinkKind, NodeOf } from '@sm/shared';
 import type { AccessChangeInput } from '../../compliance/run-entries.js';
 import { stringify } from '../expr.js';
 import type { LeafResult, StepContext, StepExecutor } from './context.js';
@@ -10,6 +10,14 @@ export const accessChangeStep: StepExecutor<'accessChange'> = { type: 'accessCha
 function rightsList(v: unknown): string[] {
   const raw = Array.isArray(v) ? v : v === undefined || v === null || v === '' ? [] : typeof v === 'string' ? v.split(/[\n,]/) : [v];
   return [...new Set(raw.map((x) => stringify(x).trim()).filter(Boolean))].slice(0, 500);
+}
+
+/** Ids of one link list of the step: ids, or expressions giving an id or a list of ids (at most 50 per kind). */
+async function linkIds(list: string[] | undefined, ctx: StepContext): Promise<string[]> {
+  if (!list?.length) return [];
+  const rendered = await ctx.render(list);
+  const flat = (Array.isArray(rendered) ? rendered : [rendered]).flat(2);
+  return [...new Set(flat.map((x) => stringify(x).trim()).filter(Boolean))].slice(0, 50);
 }
 
 /** accessChange: collects the access changes of this run; the entries are created when the run ends (compliance/access-changes.ts). */
@@ -25,6 +33,18 @@ async function execAccessChange(step: NodeOf<'accessChange'>, ctx: StepContext, 
   const reason = ((await ctx.str(step.reason)) || '').slice(0, 2000);
   const requestRef = ((await ctx.str(step.requestRef)) || '').slice(0, 500);
   const approvedBy = ((await ctx.str(step.approvedBy)) || '').slice(0, 200);
+  // services, applications and systems the change is for: unknown or invisible ids are left out with a warning (the run goes on)
+  const { visibleLinkIds } = await import('../../compliance/run-entries.js');
+  const links: Partial<Record<AccessChangeLinkKind, string[]>> = {};
+  for (const [kind, list] of [
+    ['service', step.services],
+    ['application', step.applications],
+    ['system', step.systems],
+  ] as const) {
+    const { visible, skipped } = visibleLinkIds(kind, await linkIds(list, ctx));
+    if (visible.length) links[kind] = visible;
+    for (const id of skipped) ctx.log('warn', `The ${kind} "${id}" is unknown or not visible – it is not linked to the access change`, key);
+  }
   const entries: AccessChangeInput[] = [];
   for (const item of items) {
     const subjectId = stringify(await at(step.subjectId, item)).trim();
@@ -40,6 +60,10 @@ async function execAccessChange(step: NodeOf<'accessChange'>, ctx: StepContext, 
       subjectId: subjectId.slice(0, 300),
       subjectName: stringify((await at(step.subjectName, item)) ?? '').slice(0, 300),
       kind: step.kind,
+      ...(step.subjectType ? { subjectType: step.subjectType } : {}),
+      ...(links.service ? { services: links.service } : {}),
+      ...(links.application ? { applications: links.application } : {}),
+      ...(links.system ? { systems: links.system } : {}),
       rights,
       rightsBefore: before,
       rightsAfter: after,

@@ -383,6 +383,10 @@
         "subjectName": {
           "label": "Subject name (expression)"
         },
+        "subjectType": {
+          "label": "Subject type",
+          "help": "Default: user. For a group, the rights are the group's roles or permissions; the reconciliation does not match groups against accounts"
+        },
         "rights": {
           "label": "Changed rights (expression → list)",
           "help": "Granted for grant/onboarding, removed for revoke/offboarding"
@@ -401,6 +405,18 @@
         },
         "approvedBy": {
           "label": "Approved by"
+        },
+        "services": {
+          "label": "Services the change is for",
+          "help": "A list of service ids; an entry may be an expression in double braces that gives an id or a list of ids. Unknown or invisible ids are skipped with a warning"
+        },
+        "applications": {
+          "label": "Applications the change is for",
+          "help": "Same as services"
+        },
+        "systems": {
+          "label": "Systems the change is for",
+          "help": "Same as services"
         }
       }
     },

@@ -16,7 +16,19 @@ export type AccessChangeKind = (typeof ACCESS_CHANGE_KINDS)[number];
 export const ACCESS_CHANGE_ORIGINS = ['manual', 'run', 'reconciliation'] as const;
 export type AccessChangeOrigin = (typeof ACCESS_CHANGE_ORIGINS)[number];
 
-export const ACCESS_SUBJECT_TYPES = ['user', 'technical'] as const;
+/**
+ * user and technical are accounts of the platform; group is a user group (roles or permissions assigned to a group):
+ * its entries document changes of the group's rights and are never matched against accounts by the reconciliation.
+ */
+export const ACCESS_SUBJECT_TYPES = ['user', 'technical', 'group'] as const;
+export type AccessSubjectType = (typeof ACCESS_SUBJECT_TYPES)[number];
+
+/** Kinds of items an access change can name as "what the change is for" (ordinary record links). */
+export const ACCESS_CHANGE_LINK_KINDS = ['service', 'application', 'system'] as const;
+export type AccessChangeLinkKind = (typeof ACCESS_CHANGE_LINK_KINDS)[number];
+
+/** At most this many items of one kind are linked to an access change. */
+export const ACCESS_CHANGE_MAX_LINKS_PER_KIND = 50;
 
 /** The id of the built-in record type for access change entries (its key is AC unless that key was taken). */
 export const ACCESS_TYPE_ID = 'rty_ac';
@@ -28,12 +40,22 @@ export const ACCESS_TYPE_KEY = 'AC';
  */
 export const ACCESS_CHANGE_FIELDS: RecordFieldDef[] = [
   { key: 'platform', label: 'Platform', kind: 'text', required: true, help: 'ID of the Steward platform whose access changed' },
-  { key: 'subjectId', label: 'Subject id', kind: 'text', required: true, help: 'User name, user id or technical user id on the platform' },
+  { key: 'subjectId', label: 'Subject id', kind: 'text', required: true, help: 'User name, user id, technical user id or group name on the platform' },
   { key: 'subjectName', label: 'Subject name', kind: 'text', help: 'Display name' },
   { key: 'subjectType', label: 'Subject type', kind: 'select', options: [...ACCESS_SUBJECT_TYPES] },
   { key: 'changeKind', label: 'Change', kind: 'select', options: [...ACCESS_CHANGE_KINDS], required: true },
-  { key: 'rightsBefore', label: 'Rights before', kind: 'textarea', help: 'Roles, groups or scopes before the change, one per line' },
-  { key: 'rightsAfter', label: 'Rights after', kind: 'textarea', help: 'Roles, groups or scopes after the change, one per line' },
+  {
+    key: 'rightsBefore',
+    label: 'Rights before',
+    kind: 'textarea',
+    help: "Roles, groups or scopes before the change, one per line (for a user group: the group's roles or permissions)",
+  },
+  {
+    key: 'rightsAfter',
+    label: 'Rights after',
+    kind: 'textarea',
+    help: "Roles, groups or scopes after the change, one per line (for a user group: the group's roles or permissions)",
+  },
   { key: 'reason', label: 'Reason', kind: 'textarea', required: true },
   { key: 'requestedBy', label: 'Requested by', kind: 'text' },
   { key: 'requestRef', label: 'Request reference', kind: 'text', help: 'Ticket number or link, e.g. a ServiceNow request' },

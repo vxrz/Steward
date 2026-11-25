@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Access changes for user groups, and what a change is for** ([docs/COMPLIANCE.md](docs/COMPLIANCE.md#access-change-entries)): besides _User_ and _Technical user_, the subject type can be _User group_ – the rights before and after are the group's roles or permissions, and the access reconciliation does not match such entries against accounts. An access change can also name the **services, applications and systems** it is for (pickers show only what the reader may see; stored as ordinary links, so they appear in the entry's links and in backlinks). The step **Document access change** has the new fields `subjectType`, `services`, `applications` and `systems`; ids that are unknown or not visible are skipped with a warning in the run log. No database migrations.
+
 ## [0.27.1] - 2026-11-24
 
 Steward 0.27.1 fixes what 0.27.0 judged as one item: a number after a capitalised word – _Line 2_, _Machine 17_ – names the item again, so a second failing line or machine is news, while counts, ratios and values with units stay masked. `SM_SQLITE_VACUUM_AT_START` no longer runs out of memory in the container. The compose files rotate Docker's log files, and [docs/INSTALL.md](docs/INSTALL.md#keeping-the-deployment-lean) has a new section on keeping a deployment lean: old images, logs, copies before an update, retention settings and the audit log. The upgrade fixture of 0.27.0 is added. No database migrations.

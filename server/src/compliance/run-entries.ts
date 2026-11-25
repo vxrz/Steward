@@ -1,11 +1,12 @@
 import fs from 'node:fs';
-import type { AccessChangeKind } from '@sm/shared';
+import type { AccessChangeKind, AccessChangeLinkKind, AccessSubjectType } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { runRow } from '../engine/store.js';
 import { getReport, generateRunReport, listRunReports } from '../reports/service.js';
 import { getProcess } from '../processes/service.js';
 import { newId, nowIso, parseJson } from '../util.js';
+import { targetVisible } from '../records/links.js';
 import { asSystem, createAccessChange, minus, uniqueRights } from './access-changes.js';
 
 /**
@@ -19,6 +20,12 @@ export interface AccessChangeInput {
   subjectId: string;
   subjectName: string;
   kind: AccessChangeKind;
+  /** Missing: a user (as before groups existed) */
+  subjectType?: AccessSubjectType;
+  /** Ids of the items the change is for (checked when the step ran) */
+  services?: string[];
+  applications?: string[];
+  systems?: string[];
   /** The changed rights (granted or removed, by kind) */
   rights: string[];
   rightsBefore: string[] | null;
@@ -27,6 +34,14 @@ export interface AccessChangeInput {
   requestRef: string;
   approvedBy: string;
   performedAt: string;
+}
+
+/** The ids of one kind the current user may see, and those that are unknown or invisible (for the step's warning). */
+export function visibleLinkIds(kind: AccessChangeLinkKind, ids: string[]): { visible: string[]; skipped: string[] } {
+  const visible: string[] = [];
+  const skipped: string[] = [];
+  for (const id of ids) (targetVisible(kind, id) ? visible : skipped).push(id);
+  return { visible, skipped };
 }
 
 /** Upper limit of entries one run creates (more subjects are merged into the log only). */
@@ -63,6 +78,8 @@ interface Merged {
   platformId: string;
   subjectId: string;
   subjectName: string;
+  subjectType: AccessSubjectType | undefined;
+  items: Record<AccessChangeLinkKind, Set<string>>;
   kinds: Set<AccessChangeKind>;
   before: string[];
   granted: string[];
@@ -81,13 +98,16 @@ function merge(rows: { id: string; data: string }[]): Merged[] {
     const e = parseJson<AccessChangeInput | null>(row.data, null);
     if (!e?.subjectId) continue;
     const { before, after } = beforeAfter(e);
-    const key = `${e.platformId}|${e.subjectId.toLowerCase()}`;
+    const subjectType = e.subjectType;
+    const key = `${e.platformId}|${subjectType ?? 'user'}|${e.subjectId.toLowerCase()}`;
     let m = out.get(key);
     if (!m) {
       m = {
         platformId: e.platformId,
         subjectId: e.subjectId,
         subjectName: e.subjectName,
+        subjectType,
+        items: { service: new Set(), application: new Set(), system: new Set() },
         kinds: new Set(),
         before,
         granted: [],
@@ -101,6 +121,9 @@ function merge(rows: { id: string; data: string }[]): Merged[] {
       out.set(key, m);
     } else m.before = uniqueRights([...m.before, ...minus(before, m.granted)]);
     m.kinds.add(e.kind);
+    for (const id of e.services ?? []) m.items.service.add(id);
+    for (const id of e.applications ?? []) m.items.application.add(id);
+    for (const id of e.systems ?? []) m.items.system.add(id);
     m.granted = uniqueRights([...minus(m.granted, minus(before, after)), ...minus(after, before)]);
     m.revoked = uniqueRights([...minus(m.revoked, minus(after, before)), ...minus(before, after)]);
     if (e.reason) m.reasons.add(e.reason);
@@ -160,6 +183,7 @@ export async function createRunEntries(runId: string, reportId: string | null = 
           platformId: m.platformId,
           subjectId: m.subjectId,
           subjectName: m.subjectName || undefined,
+          subjectType: m.subjectType,
           kind,
           rightsBefore: m.before,
           rightsAfter: after,
@@ -180,6 +204,8 @@ export async function createRunEntries(runId: string, reportId: string | null = 
           links: [
             { kind: 'run', id: runId, note: 'performed by this run' },
             { kind: 'platform', id: m.platformId, note: 'platform' },
+            // the entry is created as the system user: a link to an item that is gone since is left out by createAccessChange
+            ...(['service', 'application', 'system'] as const).flatMap((kind) => [...m.items[kind]].map((id) => ({ kind, id, note: 'for' }))),
           ],
           attachments: [{ filename: report!.filename, data: pdf }],
         },
