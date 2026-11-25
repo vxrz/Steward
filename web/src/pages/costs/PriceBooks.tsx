@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   FileButton,
+  Drawer,
   Group,
   Modal,
   NumberInput,
@@ -21,6 +22,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMediaQuery } from '@mantine/hooks';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconArrowLeft, IconBook, IconCheck, IconFileImport, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -47,6 +49,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { EmptyState, QueryState } from '../../components/common';
 import { ListPage } from '../../components/page/ListPage';
 import { DetailPage } from '../../components/page/DetailPage';
+import { CollapsibleSection } from '../../components/page/CollapsibleSection';
 import { ServiceTabs } from '../../components/page/LinkTabs';
 import { DataTable, type DataColumn } from '../../components/DataTable';
 import { OwningTeams } from '../../components/OwningTeams';
@@ -173,6 +176,17 @@ function CheckedText({ book }: { book: CostPriceBook }) {
         </Badge>
       )}
     </Group>
+  );
+}
+
+/** The less used fields of a form: folded, and open from the start when one of them has a value. */
+function MoreDetails({ id, hasValues, children }: { id: string; hasValues: boolean; children: ReactNode }) {
+  const { t } = useTranslation('costs');
+  const [initial] = useState(hasValues);
+  return (
+    <CollapsibleSection id={id} order={3} size="h6" title={t('prices.moreDetails')} defaultOpen={initial} remember={false} inGroup={false}>
+      <Stack gap="sm">{children}</Stack>
+    </CollapsibleSection>
   );
 }
 
@@ -305,19 +319,21 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
               />
             </SimpleGrid>
           )}
-          {kind !== 'list' && (
-            <Select
-              label={t('prices.platform')}
-              description={t('prices.platformHint')}
-              clearable
-              disabled={!!book}
-              data={(platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
-              value={platformId}
-              onChange={setPlatformId}
-            />
-          )}
-          <NumberInput label={t('prices.reviewDays')} min={1} max={3650} value={reviewDays} onChange={(v) => setReviewDays(Number(v) || 90)} />
-          <Textarea label={t('prices.descriptionLabel')} value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
+          <MoreDetails id="book-more-details" hasValues={!!book && (reviewDays !== 90 || !!description || !!platformId)}>
+            {kind !== 'list' && (
+              <Select
+                label={t('prices.platform')}
+                description={t('prices.platformHint')}
+                clearable
+                disabled={!!book}
+                data={(platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                value={platformId}
+                onChange={setPlatformId}
+              />
+            )}
+            <NumberInput label={t('prices.reviewDays')} min={1} max={3650} value={reviewDays} onChange={(v) => setReviewDays(Number(v) || 90)} />
+            <Textarea label={t('prices.descriptionLabel')} value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
+          </MoreDetails>
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('estimates.cancel')}
@@ -797,6 +813,7 @@ function DiffCounts({ diff }: { diff: CostPriceDiff | null }) {
 
 /** What changed in a version: per item before, after and the change in percent (a bar either side of zero), added and removed items. */
 function VersionDiff({ bookId, n, onClose }: { bookId: string; n: number; onClose: () => void }) {
+  const narrow = useMediaQuery('(max-width: 48em)');
   const { t } = useTranslation('costs');
   const q = useQuery({
     queryKey: ['costs', 'price-book', bookId, 'version', n],
@@ -850,7 +867,7 @@ function VersionDiff({ bookId, n, onClose }: { bookId: string; n: number; onClos
     </Table.Tr>
   );
   return (
-    <Modal opened onClose={onClose} title={t('prices.versions.diffTitle', { n })} size="xl" centered>
+    <Drawer opened onClose={onClose} position="right" size={narrow ? '100%' : '50%'} title={t('prices.versions.diffTitle', { n })}>
       <QueryState query={q} />
       {q.data && (
         <Stack gap="sm" data-testid="version-diff">
@@ -877,7 +894,7 @@ function VersionDiff({ bookId, n, onClose }: { bookId: string; n: number; onClos
           )}
         </Stack>
       )}
-    </Modal>
+    </Drawer>
   );
 }
 
@@ -1014,23 +1031,35 @@ function EntryDialog({ book, entry, onClose, onSaved }: { book: CostPriceBookDet
             {!e.currency && (
               <TextInput label={t('prices.item.creditSku')} value={e.creditSku ?? ''} onChange={(x) => set({ creditSku: x.currentTarget.value || null })} />
             )}
-            <TextInput
-              label={t('prices.item.tiers')}
-              description={t('prices.item.tiersHint')}
-              value={tiers}
-              onChange={(x) => setTiers(x.currentTarget.value)}
-            />
-            <TextInput label={t('prices.item.included')} value={e.included ?? ''} onChange={(x) => set({ included: x.currentTarget.value || null })} />
-            <TextInput label={t('prices.item.minimum')} value={e.minimum ?? ''} onChange={(x) => set({ minimum: x.currentTarget.value || null })} />
-            <TextInput
-              type="date"
-              label={t('prices.item.validFrom')}
-              value={e.validFrom ?? ''}
-              onChange={(x) => set({ validFrom: x.currentTarget.value || null })}
-            />
-            <TextInput type="date" label={t('prices.item.validTo')} value={e.validTo ?? ''} onChange={(x) => set({ validTo: x.currentTarget.value || null })} />
           </SimpleGrid>
-          <TextInput label={t('prices.item.sourceNote')} value={e.sourceNote} onChange={(x) => set({ sourceNote: x.currentTarget.value })} />
+          <MoreDetails
+            id="entry-more-details"
+            hasValues={!!entry && (!!tiers || !!e.included || !!e.minimum || !!e.validFrom || !!e.validTo || !!e.sourceNote)}
+          >
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <TextInput
+                label={t('prices.item.tiers')}
+                description={t('prices.item.tiersHint')}
+                value={tiers}
+                onChange={(x) => setTiers(x.currentTarget.value)}
+              />
+              <TextInput label={t('prices.item.included')} value={e.included ?? ''} onChange={(x) => set({ included: x.currentTarget.value || null })} />
+              <TextInput label={t('prices.item.minimum')} value={e.minimum ?? ''} onChange={(x) => set({ minimum: x.currentTarget.value || null })} />
+              <TextInput
+                type="date"
+                label={t('prices.item.validFrom')}
+                value={e.validFrom ?? ''}
+                onChange={(x) => set({ validFrom: x.currentTarget.value || null })}
+              />
+              <TextInput
+                type="date"
+                label={t('prices.item.validTo')}
+                value={e.validTo ?? ''}
+                onChange={(x) => set({ validTo: x.currentTarget.value || null })}
+              />
+            </SimpleGrid>
+            <TextInput label={t('prices.item.sourceNote')} value={e.sourceNote} onChange={(x) => set({ sourceNote: x.currentTarget.value })} />
+          </MoreDetails>
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('estimates.cancel')}
@@ -1075,6 +1104,7 @@ const GUESS: Record<CostPriceCsvField, string[]> = {
 };
 
 function ImportDialog({ book, onClose, onSaved }: { book: CostPriceBookDetail; onClose: () => void; onSaved: () => void }) {
+  const narrow = useMediaQuery('(max-width: 48em)');
   const { t } = useTranslation('costs');
   const [csv, setCsv] = useState('');
   const [fileName, setFileName] = useState('');
@@ -1120,7 +1150,7 @@ function ImportDialog({ book, onClose, onSaved }: { book: CostPriceBookDetail; o
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('prices.import.title')} size="xl" centered>
+    <Drawer opened onClose={onClose} position="right" size={narrow ? '100%' : '50%'} title={t('prices.import.title')}>
       <Stack gap="sm" data-testid="price-import">
         <Text size="sm">{t('prices.import.help')}</Text>
         <Group>
@@ -1208,7 +1238,7 @@ function ImportDialog({ book, onClose, onSaved }: { book: CostPriceBookDetail; o
           </Paper>
         )}
       </Stack>
-    </Modal>
+    </Drawer>
   );
 }
 
