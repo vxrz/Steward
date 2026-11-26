@@ -131,6 +131,8 @@ export const plantKeys = {
   /** 0.30.0 (ADR 0041): machine blueprints and the coverage of a profile or an asset */
   blueprints: ['plant', 'blueprints'] as const,
   blueprint: (id: string | null | undefined) => ['plant', 'blueprint', id] as const,
+  blueprintMatrix: (filter: string) => ['plant', 'views', 'blueprints', filter] as const,
+  kpiBlueprints: (kpiId: string | null | undefined) => ['plant', 'kpiBlueprints', kpiId] as const,
   blueprintCoverage: (kind: 'profile' | 'asset', id: string | null | undefined) => ['plant', 'blueprintCoverage', kind, id] as const,
   kpis: ['plant', 'kpis'] as const,
   kpi: (id: string | null | undefined) => ['plant', 'kpi', id] as const,

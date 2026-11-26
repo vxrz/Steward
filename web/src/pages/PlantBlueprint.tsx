@@ -16,7 +16,7 @@ import { fmtDate } from '../format';
 import { plantKeys } from '../queryKeys';
 import { NotInSourceBadge, PreviewBadge } from '../components/plant/common';
 import { AssetBriefLink, RowMenu } from '../components/plant/data';
-import { BlueprintFormModal, ImportanceBadge, SignalFormModal, WhyBadges } from '../components/plant/blueprints';
+import { BlueprintFormModal, ImportanceBadge, KpiLinks, SignalFormModal, WhyBadges } from '../components/plant/blueprints';
 import { SourceLine } from './PlantSite';
 
 type Dialog = { kind: 'blueprint' } | { kind: 'signal'; signal?: PlantBlueprintSignal };
@@ -169,6 +169,7 @@ export function PlantBlueprintPage() {
                                 {t('signals.aliases')}: {s.aliases.join(', ')}
                               </Text>
                             )}
+                            <KpiLinks kpis={s.kpis} />
                           </Table.Td>
                           <Table.Td>
                             <ImportanceBadge importance={s.importance} />

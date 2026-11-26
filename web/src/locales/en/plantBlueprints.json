@@ -59,6 +59,8 @@
     "importance": "Importance",
     "aliases": "Known as",
     "aliasesHelp": "Other names and keywords. They are used only to suggest data points.",
+    "kpis": "Feeds KPIs",
+    "kpisHelp": "The KPI definitions this signal feeds: where it is missing, they are shown as more likely not computable. Advice only.",
     "actions": "Actions for {{name}}",
     "removeConfirm": "Remove the signal {{name}}? Mappings and marks that name it are removed.",
     "importances": {
@@ -150,5 +152,30 @@
     "pointsCell": "Data points",
     "actionsCell": "Actions",
     "unmapPoint": "Remove {{name}} from the mapping"
+  },
+  "matrix": {
+    "title": "Machine blueprint matrix",
+    "help": "Which machine blueprints each of the {{type}} has – directly or through its device profile – and how many of the signals are covered. Advice only.",
+    "allBlueprints": "All machine blueprints",
+    "emptyTitle": "No {{type}} with a machine blueprint",
+    "emptyText": "Assign machine blueprints to device profiles or {{type}} to see their coverage here.",
+    "noMatch": "No match for these filters.",
+    "total": "{{covered}} of {{applicable}} covered · {{notCollected}} not collected · {{missing}} missing",
+    "cell": "{{covered}} of {{applicable}} covered",
+    "cellNone": "Nothing applicable",
+    "hasNot": "Does not have this machine blueprint",
+    "assetsOf": "{{count}} with it",
+    "more": "Show {{count}} more",
+    "shown": "{{shown}} of {{total}} shown",
+    "truncated": "The first {{shown}} of {{total}} are shown – narrow the filters",
+    "link": "Machine blueprint matrix",
+    "kpi": {
+      "title": "Machine blueprint signals",
+      "help": "Signals of machine blueprints that feed this KPI. Where one is missing, the KPI is less likely to be computable. Advice only: it changes no state.",
+      "none": "No machine blueprint signal is linked to this KPI definition.",
+      "counts": "{{covered}} covered · {{notCollected}} not collected · {{missing}} missing",
+      "gap": "Missing signal: {{signal}} ({{blueprint}})",
+      "gapNotCollected": "Signal not collected: {{signal}} ({{blueprint}})"
+    }
   }
 }

@@ -13077,6 +13077,8 @@ export interface Resources {
     'signals.importance': string;
     'signals.aliases': string;
     'signals.aliasesHelp': string;
+    'signals.kpis': string;
+    'signals.kpisHelp': string;
     'signals.actions': string;
     'signals.removeConfirm': string;
     'signals.importances.must': string;
@@ -13152,6 +13154,27 @@ export interface Resources {
     'coverage.pointsCell': string;
     'coverage.actionsCell': string;
     'coverage.unmapPoint': string;
+    'matrix.title': string;
+    'matrix.help': string;
+    'matrix.allBlueprints': string;
+    'matrix.emptyTitle': string;
+    'matrix.emptyText': string;
+    'matrix.noMatch': string;
+    'matrix.total': string;
+    'matrix.cell': string;
+    'matrix.cellNone': string;
+    'matrix.hasNot': string;
+    'matrix.assetsOf': string;
+    'matrix.more': string;
+    'matrix.shown': string;
+    'matrix.truncated': string;
+    'matrix.link': string;
+    'matrix.kpi.title': string;
+    'matrix.kpi.help': string;
+    'matrix.kpi.none': string;
+    'matrix.kpi.counts': string;
+    'matrix.kpi.gap': string;
+    'matrix.kpi.gapNotCollected': string;
   };
   plantChanges: {
     title: string;

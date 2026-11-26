@@ -72,6 +72,7 @@ const shownTotals = (totals: PlantCoverage['totals'], potential: PlantKpiPotenti
 /** A cell in words: the state and, for "cannot" and "problem", what is missing or fails. */
 function useCellText() {
   const { t } = useTranslation('plantViews');
+  const { t: tb } = useTranslation('plantBlueprints');
   const checkText = useCheckText();
   return (c: PlantCoverageCell, kpi: string) => {
     const fake = (g: { code: PlantCheck['code']; params: PlantCheck['params'] }): PlantCheck => ({
@@ -89,7 +90,11 @@ function useCellText() {
     ];
     // 0.14: every input also goes to Insights Hub through a sink whose mapping was checked against the tenant
     const ih = c.ihVerified ? [t('coverage.ihVerified')] : [];
-    const details = [...rollUp, ...ih, ...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units];
+    // 0.30.0: the signals of the asset's machine blueprints that feed this KPI and are missing – additional information
+    const blueprint = (c.blueprintGaps ?? []).map((g) =>
+      tb(g.state === 'missing' ? 'matrix.kpi.gap' : 'matrix.kpi.gapNotCollected', { signal: g.signal.name, blueprint: g.blueprint.name }),
+    );
+    const details = [...rollUp, ...ih, ...(c.gaps ?? []).map((g) => checkText(fake(g))), ...(c.checks ?? []).map((x) => checkText(x)), ...units, ...blueprint];
     const shown = shownOf(c);
     return { state: t(`coverage.states.${shown}`), explain: t(`coverage.legend.${shown}`), details, jobs: c.jobs ?? [] };
   };

@@ -59,6 +59,8 @@
     "importance": "Wichtigkeit",
     "aliases": "Auch bekannt als",
     "aliasesHelp": "Andere Namen und Stichwörter. Sie dienen nur dazu, Datenpunkte vorzuschlagen.",
+    "kpis": "Speist KPIs",
+    "kpisHelp": "Die KPI-Definitionen, die dieses Signal speist: Wo es fehlt, wird dort auf eine nicht berechenbare KPI hingewiesen. Nur ein Hinweis.",
     "actions": "Aktionen für {{name}}",
     "removeConfirm": "Das Signal {{name}} entfernen? Zuordnungen und Markierungen, die es nennen, werden entfernt.",
     "importances": {
@@ -150,5 +152,30 @@
     "pointsCell": "Datenpunkte",
     "actionsCell": "Aktionen",
     "unmapPoint": "{{name}} aus der Zuordnung entfernen"
+  },
+  "matrix": {
+    "title": "Matrix der Maschinen-Blueprints",
+    "help": "Welche Maschinen-Blueprints jede der {{type}} hat – direkt oder über ihr Geräteprofil – und wie viele der Signale abgedeckt sind. Nur ein Hinweis.",
+    "allBlueprints": "Alle Maschinen-Blueprints",
+    "emptyTitle": "Keine {{type}} mit Maschinen-Blueprint",
+    "emptyText": "Weisen Sie Geräteprofilen oder {{type}} Maschinen-Blueprints zu, um hier die Abdeckung zu sehen.",
+    "noMatch": "Keine Treffer für diese Filter.",
+    "total": "{{covered}} von {{applicable}} abgedeckt · {{notCollected}} nicht erfasst · {{missing}} fehlen",
+    "cell": "{{covered}} von {{applicable}} abgedeckt",
+    "cellNone": "Nichts anwendbar",
+    "hasNot": "Hat diesen Maschinen-Blueprint nicht",
+    "assetsOf": "{{count}} damit",
+    "more": "{{count}} weitere anzeigen",
+    "shown": "{{shown}} von {{total}} angezeigt",
+    "truncated": "Die ersten {{shown}} von {{total}} werden angezeigt – schränken Sie die Filter ein",
+    "link": "Matrix der Maschinen-Blueprints",
+    "kpi": {
+      "title": "Signale von Maschinen-Blueprints",
+      "help": "Signale von Maschinen-Blueprints, die diese KPI speisen. Fehlt eines, ist die KPI wahrscheinlich nicht berechenbar. Nur ein Hinweis: Er ändert keinen Status.",
+      "none": "Mit dieser KPI-Definition ist kein Signal eines Maschinen-Blueprints verknüpft.",
+      "counts": "{{covered}} abgedeckt · {{notCollected}} nicht erfasst · {{missing}} fehlen",
+      "gap": "Fehlendes Signal: {{signal}} ({{blueprint}})",
+      "gapNotCollected": "Signal nicht erfasst: {{signal}} ({{blueprint}})"
+    }
   }
 }

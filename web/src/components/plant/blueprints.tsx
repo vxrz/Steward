@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Badge, Group, MultiSelect, Select, Stack, TagsInput, TextInput, Textarea } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import { Anchor, Badge, Group, MultiSelect, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   BLUEPRINT_LIMITS,
@@ -11,8 +13,10 @@ import {
   type BlueprintWhy,
   type PlantBlueprintSignal,
   type PlantBlueprintValues,
+  type PlantKpiSummary,
 } from '@sm/shared';
-import { notifyError } from '../../api';
+import { get, notifyError } from '../../api';
+import { plantKeys } from '../../queryKeys';
 import { TONE, useFieldErrors } from '../common';
 import { FormModal } from '../FormModal';
 import { FormButtons, IdInput, useIdField } from './forms';
@@ -179,6 +183,9 @@ export function SignalFormModal({
   const [why, setWhy] = useState<string[]>(signal?.why ?? []);
   const [importance, setImportance] = useState<BlueprintImportance>(signal?.importance ?? 'should');
   const [aliases, setAliases] = useState<string[]>(signal?.aliases ?? []);
+  const [kpis, setKpis] = useState<string[]>(signal?.kpis ?? []);
+  // the KPI definitions the reader may see; a link to one that is not in the list (gone, or not theirs) stays as it is
+  const defs = useQuery({ queryKey: plantKeys.kpis, queryFn: () => get<PlantKpiSummary[]>('/plant/kpis') });
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     id: (!PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid')) || (taken.includes(id.id) && t('plant:data.idTaken')),
@@ -189,7 +196,15 @@ export function SignalFormModal({
       onClose={onClose}
       onSubmit={async () => {
         if (!v.validate()) return false;
-        await onSave({ id: id.id, name: name.trim(), meaning, why: why as BlueprintWhy[], importance, aliases: aliases.map((a) => a.trim()).filter(Boolean) });
+        await onSave({
+          id: id.id,
+          name: name.trim(),
+          meaning,
+          why: why as BlueprintWhy[],
+          importance,
+          aliases: aliases.map((a) => a.trim()).filter(Boolean),
+          kpis,
+        });
       }}
     >
       <TextInput
@@ -240,6 +255,35 @@ export function SignalFormModal({
         onChange={setAliases}
         data-testid="signal-aliases"
       />
+      <MultiSelect
+        label={t('signals.kpis')}
+        description={t('signals.kpisHelp')}
+        searchable
+        data={(defs.data ?? []).map((k) => ({ value: k.id, label: k.name }))}
+        value={kpis.filter((k) => (defs.data ?? []).some((d) => d.id === k))}
+        onChange={(next) => setKpis([...kpis.filter((k) => !(defs.data ?? []).some((d) => d.id === k)), ...next])}
+        data-testid="signal-kpis"
+      />
     </Form>
+  );
+}
+
+/** The KPI definitions a signal feeds, as links (the names come from the KPI list the reader may see). */
+export function KpiLinks({ kpis }: { kpis: string[] }) {
+  const { t } = useTranslation('plantBlueprints');
+  const defs = useQuery({ queryKey: plantKeys.kpis, queryFn: () => get<PlantKpiSummary[]>('/plant/kpis'), enabled: kpis.length > 0 });
+  if (!kpis.length) return null;
+  const name = (id: string) => defs.data?.find((d) => d.id === id)?.name ?? id;
+  return (
+    <Group gap={6} data-testid="signal-kpi-links">
+      <Text size="xs" c="dimmed">
+        {t('signals.kpis')}:
+      </Text>
+      {kpis.map((k) => (
+        <Anchor key={k} component={Link} to={`/plant/kpis/${encodeURIComponent(k)}`} size="xs">
+          {name(k)}
+        </Anchor>
+      ))}
+    </Group>
   );
 }

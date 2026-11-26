@@ -11,6 +11,7 @@ import {
   type KpiColumn,
   type KpiInput,
   type KpiParameter,
+  type PlantKpiBlueprints,
   type PlantKpiDetail,
   type PlantKpiValues,
   type PlantProfileSummary,
@@ -29,6 +30,7 @@ import { AssetBriefLink, Breakable, ChecksList, RowMenu, UnitText } from '../com
 import { ComputationModal, KpiColumnModal, KpiFormModal, KpiInputModal, KpiParameterModal } from '../components/plant/dataForms';
 import { SourceLine } from './PlantSite';
 import { KpiCoverageCard } from './plant/views/CoverageMatrix';
+import { ImportanceBadge } from '../components/plant/blueprints';
 import { CollectedBadge, UnitsBadge } from '../components/plant/potential';
 import { OpenChangesChip, ProposeEditButton, saveOrDraft } from '../components/plant/changes/common';
 import { CatalogueTabPage, CatalogueTabs } from './plant/views/tabs';
@@ -171,7 +173,7 @@ function KpiInputView({ input, profileNames }: { input: KpiInput; profileNames: 
  * an instance and those that could have one.
  */
 export function PlantKpiPage() {
-  const { t } = useTranslation(['plant', 'common', 'plantModel', 'plantViews']);
+  const { t } = useTranslation(['plant', 'common', 'plantModel', 'plantViews', 'plantBlueprints']);
   const label = usePlantLabel();
   const nameOf = useNameOf();
   const { kpiId, tab } = useParams();
@@ -180,6 +182,11 @@ export function PlantKpiPage() {
   const [search, setSearch] = useSearchParams();
   const q = useQuery({ queryKey: plantKeys.kpi(kpiId), queryFn: () => get<PlantKpiDetail>(`/plant/kpis/${encodeURIComponent(kpiId!)}`) });
   const profiles = useQuery({ queryKey: plantKeys.profiles, queryFn: () => get<PlantProfileSummary[]>('/plant/profiles') });
+  // 0.30.0 (ADR 0041): the signals of machine blueprints that feed this KPI, and where they are missing (additional information)
+  const blueprints = useQuery({
+    queryKey: plantKeys.kpiBlueprints(kpiId),
+    queryFn: () => get<PlantKpiBlueprints>(`/plant/kpis/${encodeURIComponent(kpiId!)}/blueprints`),
+  });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const k = q.data;
   useEffect(() => {
@@ -657,9 +664,55 @@ export function PlantKpiPage() {
                           )}
                           {info && <CollectedBadge collected={info.collected} />}
                           {info && <UnitsBadge units={info.units} />}
+                          {(blueprints.data?.gaps[a.id] ?? []).map((g) => (
+                            <Text key={`${g.blueprint.id}/${g.signal.id}`} size="xs" c="dimmed" data-testid="candidate-blueprint-gap">
+                              {t(g.state === 'missing' ? 'plantBlueprints:matrix.kpi.gap' : 'plantBlueprints:matrix.kpi.gapNotCollected', {
+                                signal: g.signal.name,
+                                blueprint: g.blueprint.name,
+                              })}
+                            </Text>
+                          ))}
                         </Group>
                       );
                     })}
+                  </Stack>
+                )}
+              </Stack>
+            </Paper>
+            <Paper withBorder p="md" data-testid="kpi-blueprint-signals">
+              <Stack gap="xs">
+                <Title order={2} fz="h5">
+                  {t('plantBlueprints:matrix.kpi.title')}
+                </Title>
+                <Text size="xs" c="dimmed">
+                  {t('plantBlueprints:matrix.kpi.help')}
+                </Text>
+                {!blueprints.data?.signals.length ? (
+                  <Text size="sm" c="dimmed">
+                    {t('plantBlueprints:matrix.kpi.none')}
+                  </Text>
+                ) : (
+                  <Stack gap={6}>
+                    {blueprints.data.signals.map((x) => (
+                      <Stack key={`${x.blueprint.id}/${x.signal.id}`} gap={0} data-testid={`kpi-signal-${x.blueprint.id}-${x.signal.id}`}>
+                        <Group gap={6} wrap="nowrap">
+                          <Text size="sm" fw={500}>
+                            {x.signal.name}
+                          </Text>
+                          <ImportanceBadge importance={x.signal.importance} />
+                        </Group>
+                        <Anchor component={Link} to={`/plant/blueprints/${encodeURIComponent(x.blueprint.id)}`} size="xs">
+                          {x.blueprint.name}
+                        </Anchor>
+                        <Text size="xs" c="dimmed">
+                          {t('plantBlueprints:matrix.kpi.counts', {
+                            covered: x.assets.covered,
+                            notCollected: x.assets.notCollected,
+                            missing: x.assets.missing,
+                          })}
+                        </Text>
+                      </Stack>
+                    ))}
                   </Stack>
                 )}
               </Stack>
