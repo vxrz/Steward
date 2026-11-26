@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { LOCALE_CODES, API_DOCS_MODES, PASSWORD_LOGIN_MODES, OUTBOUND_POLICIES, DEBUG_LIMITS, allowListEntryProblem } from '@sm/shared';
+import { LOCALE_CODES, API_DOCS_MODES, PASSWORD_LOGIN_MODES, OUTBOUND_POLICIES, NEW_ITEM_VISIBILITIES, DEBUG_LIMITS, allowListEntryProblem } from '@sm/shared';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { getSettings, passwordLoginFromEnv, passwordLoginMode, updateSettings } from '../settings.js';
@@ -57,6 +57,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
           .max(200)
           .optional(),
         findingDismissFourEyes: z.boolean().optional(),
+        newItemVisibility: z.enum(NEW_ITEM_VISIBILITIES).optional(),
       })
       .parse(req.body);
     const before = passwordLoginMode();

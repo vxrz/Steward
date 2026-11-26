@@ -19,6 +19,8 @@ const DEFAULTS = (): Settings => ({
   outboundPolicy: env.SM_OUTBOUND_POLICY ?? 'platforms',
   outboundAllowList: [],
   findingDismissFourEyes: false,
+  // 0.31.0 (ADR 0042): new installations; installations from before keep 'everyone' (migration access-002)
+  newItemVisibility: 'owningTeams',
 });
 
 /** Keys used by feature modules (see readSetting); never part of the public Settings. */
@@ -140,6 +142,7 @@ export function updateSettings(patch: Partial<Settings>): Settings {
     'outboundPolicy',
     'outboundAllowList',
     'findingDismissFourEyes',
+    'newItemVisibility',
   ];
   db().tx(() => {
     for (const k of allowed) {

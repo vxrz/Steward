@@ -585,6 +585,7 @@ export const SETTINGS_MOVED = [
   'retentionMonitorDays',
   'defaultLocale',
   'findingDismissFourEyes',
+  'newItemVisibility',
   'theme.settings',
   'theme.logo',
   'reports.branding',

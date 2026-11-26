@@ -11,7 +11,7 @@ import type { Locale } from './locales.js';
 import type { DailySummaryPrefs } from './dailySummary.js';
 import type { PlantChange, PlantImportProblem } from './plant.js';
 import type { DigestPrefs, QuietHours } from './quietHours.js';
-import type { ShareAction, ShareLevel } from './access.js';
+import type { CreationAccess, ShareAction, ShareLevel } from './access.js';
 import type {
   SsoConfigWarning,
   SsoGroupValues,
@@ -2001,7 +2001,16 @@ export interface Settings {
   outboundAllowList: string[];
   /** Access reconciliation: dismissing a finding needs a second person who confirms it (four-eyes) */
   findingDismissFourEyes: boolean;
+  /**
+   * Who sees a new item of a kind with access control (0.31.0, ADR 0042): 'everyone' – the role defaults apply, as before;
+   * 'owningTeams' – a new item with owning teams starts Restricted (only those teams and its shares). New installations
+   * default to 'owningTeams'; an upgraded installation keeps 'everyone' (migration access-002)
+   */
+  newItemVisibility: NewItemVisibility;
 }
+
+export const NEW_ITEM_VISIBILITIES = ['everyone', 'owningTeams'] as const;
+export type NewItemVisibility = (typeof NEW_ITEM_VISIBILITIES)[number];
 
 export const OUTBOUND_POLICIES = ['platforms', 'allowList', 'open'] as const;
 export type OutboundPolicy = (typeof OUTBOUND_POLICIES)[number];
@@ -2314,6 +2323,11 @@ export interface McpProposalSelection {
   plant?: { fingerprint: string };
   /** Data products (0.24.0): the fingerprint of the preview the reviewer saw – needed when it changed since the proposal */
   dataProducts?: { fingerprint: string };
+  /**
+   * 0.31.0 (ADR 0042): the access the items a proposal creates start with – chosen by the person accepting, never by the
+   * assistant (its proposal carries none). Left out: the instance default for new items.
+   */
+  access?: CreationAccess;
 }
 
 export interface McpRequest {
