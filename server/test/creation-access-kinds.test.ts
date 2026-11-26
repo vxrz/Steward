@@ -37,8 +37,6 @@ interface KindCase {
   defaultTeams: boolean;
   /** whether the kind has the Restricted scope (a registered share kind) */
   restrictable: boolean;
-  /** the owning-teams route hides a restricted item from outsiders (a price book's list stays readable to the Costs module) */
-  hidden?: false;
 }
 
 const body = (access?: CreationAccess) => (access ? { access } : {});
@@ -152,7 +150,6 @@ const CASES: Record<OwnedKind, KindCase> = {
   cost_price_book: {
     defaultTeams: true,
     restrictable: true,
-    hidden: false,
     create: async (access) => (await post('/costs/price-books', { name: inv('rates'), kind: 'list', provider: 'Invented', currency: 'EUR' }, access)).id,
   },
   cost_calculator: {
@@ -245,7 +242,7 @@ describe('a table over every kind of OWNED_KINDS', () => {
       expect(await teamsOf(kind, id)).toEqual(c.defaultTeams ? [team] : []);
       expect(await restricted(kind, id)).toBe(c.restrictable && c.defaultTeams);
       // team scope: a reader outside the team is told nothing about a restricted item
-      if (c.restrictable && c.defaultTeams && c.hidden !== false) expect(await code(vic('GET', `/owning-teams/${kind}/${id}`))).toMatch(/NOT_FOUND/);
+      if (c.restrictable && c.defaultTeams) expect(await code(vic('GET', `/owning-teams/${kind}/${id}`))).toMatch(/NOT_FOUND/);
     });
 
     it('"everyone": a new item stays open, as before', async () => {
@@ -270,7 +267,7 @@ describe('a table over every kind of OWNED_KINDS', () => {
       const id = await c.create(access);
       expect(await teamsOf(kind, id)).toEqual([other]);
       expect(await restricted(kind, id)).toBe(true);
-      if (c.hidden !== false) expect(await code(vic('GET', `/owning-teams/${kind}/${id}`))).toMatch(/NOT_FOUND/);
+      expect(await code(vic('GET', `/owning-teams/${kind}/${id}`))).toMatch(/NOT_FOUND/);
     });
 
     it('an unknown team is refused', async () => {
