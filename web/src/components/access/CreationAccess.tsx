@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Anchor, Collapse, MultiSelect, Stack, Switch, Text } from '@mantine/core';
+import { Alert, Anchor, Collapse, Loader, MultiSelect, Stack, Switch, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { CreationAccess, NewResourceTeamsView, Team } from '@sm/shared';
@@ -43,6 +43,9 @@ export function useCreationAccess(opened: boolean, opts: { restrictable?: boolea
     restricted,
     restrictable,
     teamRequired,
+    /** The defaults are still loading, or could not be read: the owning-team rule is not known yet */
+    loading: opened && mine.isPending,
+    failed: opened && mine.isError,
     setRestricted,
     shares,
     setShares,
@@ -82,6 +85,13 @@ export function CreationAccessFields({ state }: { state: CreationAccessState }) 
     ...(state.restrictable && state.shares.length ? [t('create.summaryShares', { count: state.shares.length })] : []),
   ].join(' · ');
   const list = (subjects.data ?? []).filter((s) => (state.restricted || s.kind !== 'role') && s.value !== 'role:admin' && s.value !== 'role:status');
+  if (state.loading) return <Loader size="xs" aria-label={t('common:loading')} data-testid="creation-access-loading" />;
+  if (state.failed)
+    return (
+      <Alert color="red" variant="light" data-testid="creation-access-error">
+        {t('create.loadFailed')}
+      </Alert>
+    );
   return (
     <div>
       <Anchor component="button" type="button" size="sm" fw={500} onClick={() => setToggled(!open)} aria-expanded={open} data-testid="creation-access-toggle">

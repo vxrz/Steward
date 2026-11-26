@@ -228,6 +228,7 @@
     "teams": "Zuständige Teams",
     "teamsHint": "Mitglieder dieser Teams haben darauf ihre Rollen; leer: gehört der ganzen Instanz. Weitere Teams als Ihre Standardteams müssen Sie bestätigen.",
     "teamsRequiredHint": "Neue Einträge gehören einem Team: Nennen Sie mindestens eines. Mitglieder dieser Teams haben ihre Rollen darauf. Teams über Ihre Voreinstellung hinaus verlangen eine Bestätigung.",
+    "loadFailed": "Die Zugriffsvorgaben konnten nicht geladen werden, daher lässt sich das verantwortliche Team nicht prüfen. Schließen Sie den Dialog und versuchen Sie es erneut.",
     "wholeInstance": "Keines – die ganze Instanz",
     "restricted": "Eingeschränkt: nur zuständige Teams und Freigaben",
     "restrictedHint": "Niemand sonst sieht es über seine Instanzrolle.",

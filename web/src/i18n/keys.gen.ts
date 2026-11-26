@@ -203,6 +203,7 @@ export interface Resources {
     'create.teams': string;
     'create.teamsHint': string;
     'create.teamsRequiredHint': string;
+    'create.loadFailed': string;
     'create.wholeInstance': string;
     'create.restricted': string;
     'create.restrictedHint': string;
