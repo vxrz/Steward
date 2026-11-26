@@ -38,6 +38,7 @@ import { useFieldErrors } from '../common';
 import { useRemoteSelect } from '../remoteSelect';
 import { SupplierPicker, useSupplierChoice } from '../suppliers/SupplierPicker';
 import { NamedOutsideHint } from '../NamedOutsideHint';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 type Affected = { kind: TicketLinkKind; id: string; label: string };
 
@@ -114,6 +115,7 @@ export function TicketForm({
   const { username, hasRole } = useMe();
   const [d, setD] = useState<Draft>(() => draftOf(ticket, preset, username));
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(!ticket);
   const supplier = useSupplierChoice(ticket?.supplier);
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const settings = useTicketSettings();
@@ -152,7 +154,10 @@ export function TicketForm({
         comment: d.comment.trim(),
         ...(ticket ? { version: ticket.version } : {}),
       };
-      const saved = ticket ? await put<TicketDetail>(`/ticket-references/${ticket.id}`, body) : await post<TicketDetail>('/ticket-references', body);
+      const accessBody = ticket ? undefined : access.body();
+      const saved = ticket
+        ? await put<TicketDetail>(`/ticket-references/${ticket.id}`, body)
+        : await post<TicketDetail>('/ticket-references', { ...body, ...(accessBody ? { access: accessBody } : {}) });
       onSaved(saved);
     } catch (e) {
       notifyError(e);
@@ -317,6 +322,7 @@ export function TicketForm({
               />
             )}
           </Stack>
+          {!ticket && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

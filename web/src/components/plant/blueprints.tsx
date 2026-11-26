@@ -11,6 +11,7 @@ import {
   type BlueprintImportance,
   type BlueprintState,
   type BlueprintWhy,
+  type CreationAccess,
   type PlantBlueprintSignal,
   type PlantBlueprintValues,
   type PlantKpiSummary,
@@ -20,6 +21,7 @@ import { plantKeys } from '../../queryKeys';
 import { TONE, useFieldErrors } from '../common';
 import { FormModal } from '../FormModal';
 import { FormButtons, IdInput, useIdField } from './forms';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /** The colour of a signal's state (the label says it as well). */
 export const STATE_COLOR: Record<BlueprintState, string> = {
@@ -64,7 +66,7 @@ export function WhyBadges({ why }: { why: BlueprintWhy[] }) {
   );
 }
 
-type Save<T> = (v: T) => Promise<void>;
+type Save<T> = (v: T, access?: CreationAccess) => Promise<void>;
 
 /** The modal of the blueprint editors: Enter saves, errors are shown, the dialog stays open on failure. */
 function Form({
@@ -116,6 +118,7 @@ export function BlueprintFormModal({ blueprint, onClose, onSave }: { blueprint?:
   const [description, setDescription] = useState(blueprint?.description ?? '');
   const [reference, setReference] = useState(blueprint?.reference ?? '');
   const [version, setVersion] = useState(blueprint?.version ?? '');
+  const access = useCreationAccess(!blueprint);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid') });
   return (
     <Form
@@ -123,7 +126,10 @@ export function BlueprintFormModal({ blueprint, onClose, onSave }: { blueprint?:
       onClose={onClose}
       onSubmit={async () => {
         if (!v.validate()) return false;
-        await onSave({ id: id.id, name: name.trim(), description, reference: reference.trim(), version: version.trim() });
+        await onSave(
+          { id: id.id, name: name.trim(), description, reference: reference.trim(), version: version.trim() },
+          blueprint ? undefined : access.body(),
+        );
       }}
     >
       <TextInput
@@ -159,6 +165,7 @@ export function BlueprintFormModal({ blueprint, onClose, onSave }: { blueprint?:
         />
         <TextInput label={t('form.version')} maxLength={60} value={version} onChange={(e) => setVersion(e.currentTarget.value)} />
       </Group>
+      {!blueprint && <CreationAccessFields state={access} />}
     </Form>
   );
 }

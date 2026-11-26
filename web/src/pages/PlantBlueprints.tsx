@@ -147,8 +147,8 @@ export function PlantBlueprintsPage() {
       {creating && (
         <BlueprintFormModal
           onClose={() => setCreating(false)}
-          onSave={async (v) => {
-            const made = await post<PlantBlueprintDetail>('/plant/blueprints', { ...v, signals: [] });
+          onSave={async (v, access) => {
+            const made = await post<PlantBlueprintDetail>('/plant/blueprints', { ...v, signals: [], ...(access ? { access } : {}) });
             void qc.invalidateQueries({ queryKey: plantKeys.all });
             navigate(`/plant/blueprints/${encodeURIComponent(made.id)}`);
           }}

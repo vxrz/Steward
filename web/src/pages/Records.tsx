@@ -19,6 +19,7 @@ import { ListPage } from '../components/page/ListPage';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { TableScroll } from '../components/TableScroll';
 import { useSubjectLabel } from '../components/SubjectsInput';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -314,6 +315,7 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [type, setType] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(true);
   const selected = types.data?.find((x) => x.key === type);
   const v = useFieldErrors({ type: !type && t('common:validation.required'), title: !title.trim() && t('common:validation.required') });
   const submit = async () => {
@@ -322,7 +324,13 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
     try {
       // a built-in type starts with its template in the UI language (the server would use the stored, English one)
       const body = selected && typeTemplate(selected) !== selected.template ? typeTemplate(selected) : undefined;
-      const r = await post<RecordDetail>('/records', { type, title: title.trim(), ...(body !== undefined ? { body } : {}) });
+      const accessBody = access.body();
+      const r = await post<RecordDetail>('/records', {
+        type,
+        title: title.trim(),
+        ...(body !== undefined ? { body } : {}),
+        ...(accessBody ? { access: accessBody } : {}),
+      });
       qc.invalidateQueries({ queryKey: ['records'] });
       onCreated(r);
     } catch (e) {
@@ -362,6 +370,7 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
             maxLength={300}
             error={v.error('title')}
           />
+          <CreationAccessFields state={access} />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

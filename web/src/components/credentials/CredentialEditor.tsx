@@ -52,6 +52,7 @@ import { fmtDay } from '../../format';
 import { useFieldErrors } from '../common';
 import { searchTermOf } from '../remoteSelect';
 import { monitorKeys, platformKeys, processKeys } from '../../queryKeys';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 const CERT_MAX = 256 * 1024;
 const LINK_KINDS = ['process', 'monitor', 'platform', 'service', 'application'] as const;
@@ -207,6 +208,7 @@ export function CredentialEditor({
   const [removeCert, setRemoveCert] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const access = useCreationAccess(!initial);
   const { hasRole } = useMe();
   // owners who are not editors by role may not change who gets the reminders by e-mail (the server refuses it)
   const ownersLocked = !!initial && !hasRole('admin') && !hasRole('designer') && !hasRole('operator');
@@ -289,7 +291,10 @@ export function CredentialEditor({
         // the certificate decides the expiry unless one is entered with it
         ...(certDecides ? { expiresAt: null } : {}),
       };
-      const saved = initial ? await api<Credential>('PUT', `/credentials/${initial.id}`, body) : await post<Credential>('/credentials', body);
+      const accessBody = initial ? undefined : access.body();
+      const saved = initial
+        ? await api<Credential>('PUT', `/credentials/${initial.id}`, body)
+        : await post<Credential>('/credentials', { ...body, ...(accessBody ? { access: accessBody } : {}) });
       onSaved(saved);
     } catch (e) {
       notifyError(e, t('editor.notSaved'));
@@ -784,6 +789,7 @@ export function CredentialEditor({
           value={d.notes}
           onChange={(e) => set({ notes: e.currentTarget.value })}
         />
+        {!initial && <CreationAccessFields state={access} />}
         {error && <Alert color="red">{error}</Alert>}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

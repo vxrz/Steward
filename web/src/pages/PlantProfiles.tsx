@@ -267,8 +267,8 @@ export function PlantProfilesPage() {
         <ProfileFormModal
           bases={all.map((x) => ({ value: x.id, label: `${x.name} (${x.id})` }))}
           onClose={() => setCreating(false)}
-          onSave={async (v) => {
-            const made = await post<PlantProfileDetail>('/plant/profiles', v);
+          onSave={async (v, access) => {
+            const made = await post<PlantProfileDetail>('/plant/profiles', { ...v, ...(access ? { access } : {}) });
             void qc.invalidateQueries({ queryKey: plantKeys.all });
             navigate(`/plant/profiles/${encodeURIComponent(made.id)}`);
           }}

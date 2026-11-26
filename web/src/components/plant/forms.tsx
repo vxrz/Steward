@@ -35,6 +35,7 @@ import { cleanRefs, FieldInputs, RefsEditor, refsValid, slugId, TranslationsInpu
 import { draftSave } from './changes/common';
 import { FormModal, useFormModalCloseIfAny } from '../FormModal';
 import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from '../contacts';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /** A picked contact as a site gave it before 0.25.1 (name, role, e-mail, phone, URL). */
 const siteContactOf = (v: ContactPickerValue): SiteContact => {
@@ -136,6 +137,7 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
   const [fields, setFields] = useState<FieldValues>(site?.fields ?? {});
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
+  const access = useCreationAccess(!site);
   const webgl = useMemo(() => hasWebGl2(), []);
   const geoPartial = (lat === '') !== (lon === '');
   const v = useFieldErrors({
@@ -160,13 +162,14 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
       refs: cleanRefs(refs),
       fields: cleanFieldValues(fields),
     };
+    const accessBody = site ? undefined : access.body();
     try {
       onSaved(
         site
           ? // 0.13.0: the revision it loaded (409 PLANT_ENTRY_CHANGED when someone else changed it since); who may only
             // propose saves into their draft
             await draftSave(site.canManage, () => put<PlantSiteDetail>(`/plant/sites/${encodeURIComponent(site.id)}`, { ...body, revision: site.revision }))
-          : await post<PlantSiteDetail>('/plant/sites', { id: id.id, ...body }),
+          : await post<PlantSiteDetail>('/plant/sites', { id: id.id, ...body, ...(accessBody ? { access: accessBody } : {}) }),
       );
       onClose();
     } catch (e) {
@@ -274,6 +277,7 @@ export function SiteFormModal({ site, onClose, onSaved }: { site?: PlantSiteDeta
             </Text>
           )}
           <FieldInputs type="site" values={fields} onChange={setFields} errors={shown} />
+          {!site && <CreationAccessFields state={access} />}
           <FormButtons busy={busy} onClose={onClose} />
         </Stack>
       </form>

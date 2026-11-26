@@ -48,6 +48,7 @@ import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from 
 import { useFieldErrors } from '../common';
 import { domainOptions } from './ProductForm';
 import { ExternalRefsInput, FormButtons, isHttpUrl, keyFromName, refsToSend, useBusy, validKey } from './form';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /**
  * Suggested values in the UI language, typed ones kept as they are: a TagsInput whose suggestions are fixed keys
@@ -127,6 +128,7 @@ export function ObjectForm({
   const [custodians, setCustodians] = useState<string[]>(o?.custodians ?? []);
   const [refs, setRefs] = useState<DataExternalRef[]>(o?.externalRefs ?? []);
   const [busy, run] = useBusy();
+  const access = useCreationAccess(!o);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     key: !validKey(key) && t('form.keyInvalid'),
@@ -157,7 +159,12 @@ export function ObjectForm({
         custodians,
         externalRefs: refsToSend(refs),
       };
-      onSaved(o ? await put<DataObject>(`/data-objects/${encodeURIComponent(o.id)}`, body) : await post<DataObject>('/data-objects', body));
+      const accessBody = o ? undefined : access.body();
+      onSaved(
+        o
+          ? await put<DataObject>(`/data-objects/${encodeURIComponent(o.id)}`, body)
+          : await post<DataObject>('/data-objects', { ...body, ...(accessBody ? { access: accessBody } : {}) }),
+      );
     }, t('form.notSaved'));
   const setAttr = (i: number, patch: Partial<DataObjectAttribute>) => setAttributes(attributes.map((a, j) => (j === i ? { ...a, ...patch } : a)));
   return (
@@ -398,6 +405,7 @@ export function ObjectForm({
             )}
           </Stack>
           <ExternalRefsInput value={refs} onChange={setRefs} error={!!v.error('refs')} />
+          {!o && <CreationAccessFields state={access} />}
           <FormButtons busy={busy} submit={o ? undefined : t('objects.create')} testId="object-save" />
         </Stack>
       </form>
@@ -417,13 +425,17 @@ export function DomainForm({ domain, domains, onClose, onSaved }: { domain?: Dat
   const [colour, setColour] = useState<CiaColor | null>(d?.colour ?? null);
   const [contacts, setContacts] = useState<ContactPickerValue[]>(fromLinks(d?.contacts ?? []));
   const [busy, run] = useBusy();
+  const access = useCreationAccess(!d);
   const hasChildren = !!d && domains.some((x) => x.parentId === d.id);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), key: !validKey(key) && t('form.keyInvalid') });
   const save = () =>
     run(async () => {
       const body = { key: key.trim(), name: name.trim(), description, parentId, colour, contacts: toLinkInputs(contacts) };
       if (d) await put(`/data-domains/${encodeURIComponent(d.id)}`, body);
-      else await post('/data-domains', body);
+      else {
+        const accessBody = access.body();
+        await post('/data-domains', { ...body, ...(accessBody ? { access: accessBody } : {}) });
+      }
       onSaved();
     }, t('form.notSaved'));
   return (
@@ -504,6 +516,7 @@ export function DomainForm({ domain, domains, onClose, onSaved }: { domain?: Dat
             onChange={setContacts}
             testId="domain-contacts"
           />
+          {!d && <CreationAccessFields state={access} />}
           <FormButtons busy={busy} testId="domain-save" />
         </Stack>
       </form>

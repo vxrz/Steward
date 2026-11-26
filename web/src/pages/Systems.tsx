@@ -20,6 +20,7 @@ import { NetworkFields, emptyNetwork, networkErrors } from '../components/catalo
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { SupplierPicker, useSupplierChoice } from '../components/suppliers/SupplierPicker';
 import { EdgeSuggestionsSection } from '../components/catalogue/EdgeSuggestions';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 
 /** Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on. */
 export function SystemsPage() {
@@ -274,6 +275,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
   const [network, setNetwork] = useState(emptyNetwork(system?.kind === 'network' ? system.attributes : undefined));
   const [networkShown, setNetworkShown] = useState(false);
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(!system);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     cmdbUrl: !!cmdbUrl.trim() && !/^https?:\/\/\S+$/i.test(cmdbUrl.trim()) && t('common:validation.invalid'),
@@ -299,7 +301,12 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
       iemDeviceId: iemDeviceId.trim() || null,
     };
     try {
-      onSaved(system ? await put<SystemDetail>(`/systems/${system.id}`, body) : await post<SystemDetail>('/systems', body));
+      const accessBody = system ? undefined : access.body();
+      onSaved(
+        system
+          ? await put<SystemDetail>(`/systems/${system.id}`, body)
+          : await post<SystemDetail>('/systems', { ...body, ...(accessBody ? { access: accessBody } : {}) }),
+      );
       onClose();
     } catch (e) {
       notifyError(e);
@@ -391,6 +398,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
             onChange={(e) => setNote(e.currentTarget.value)}
           />
           <StackFields stack={stack} onChange={setStack} />
+          {!system && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

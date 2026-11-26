@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 import { Anchor, Badge, Box, Button, Group, Modal, MultiSelect, Paper, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -292,6 +293,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
   const [tags, setTags] = useState<string[]>(service?.tags ?? []);
   const known = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(!service);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const save = async () => {
     if (!v.validate()) return;
@@ -307,7 +309,10 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
         cmdb: cmdbSystem.trim() || cmdbId.trim() || cmdbUrl.trim() ? { system: cmdbSystem.trim(), id: cmdbId.trim(), url: cmdbUrl.trim() } : null,
         tags,
       };
-      const s = service ? await put<ServiceDetail>(`/services/${service.id}`, body) : await post<ServiceDetail>('/services', body);
+      const accessBody = service ? undefined : access.body();
+      const s = service
+        ? await put<ServiceDetail>(`/services/${service.id}`, body)
+        : await post<ServiceDetail>('/services', { ...body, ...(accessBody ? { access: accessBody } : {}) });
       void qc.invalidateQueries({ queryKey: ['services'] });
       qc.setQueryData(['service', s.id], s);
       onSaved(s);
@@ -387,6 +392,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
             maxLength={2000}
           />
           <TagInput label={t('tags')} value={tags} onChange={setTags} max={30} lower suggestions={(known.data ?? []).flatMap((s) => s.tags)} />
+          {!service && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

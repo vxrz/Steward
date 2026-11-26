@@ -51,6 +51,7 @@ import { platformKeys } from '../queryKeys';
 import { AddPlatformWizard } from '../components/platform/AddPlatformWizard';
 import { SecretInput } from '../components/platform/SecretInput';
 import { TableScroll } from '../components/TableScroll';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -515,16 +516,19 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
   // until it is chosen by hand (entered credentials were silently never sent before, v0.3.1)
   const [authChoice, setAuthChoice] = useState<AuthType | null>(null);
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(opened);
+  const resetAccess = access.reset;
 
   useEffect(() => {
     if (!opened) {
+      resetAccess();
       setPreset(null);
       setName('');
       setEnvironment('');
       setSecrets({});
       setAuthChoice(null);
     }
-  }, [opened]);
+  }, [opened, resetAccess]);
 
   const choose = (p: PlatformPreset) => {
     setPreset(p);
@@ -544,6 +548,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
     try {
       const vars = Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]));
       const filtered = Object.fromEntries(Object.entries(secrets).filter(([, v]) => v));
+      const accessBody = access.body();
       const p = await post<Platform>('/platforms', {
         name,
         kind: preset.kind,
@@ -553,6 +558,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
         config: { ...preset.config, auth: { ...preset.config.auth, type: authType }, variables: vars },
         secrets: filtered,
         typeKind: preset.custom ? preset.kind : undefined,
+        ...(accessBody ? { access: accessBody } : {}),
       });
       await qc.invalidateQueries({ queryKey: platformKeys.all });
       notifyOk(t('addModal.created', { name: p.name }));
@@ -670,6 +676,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
               )}
             </>
           )}
+          <CreationAccessFields state={access} />
           <Group justify="space-between">
             <Button variant="subtle" onClick={() => setPreset(null)}>
               {t('common:back')}
