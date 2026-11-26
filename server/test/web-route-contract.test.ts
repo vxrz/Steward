@@ -44,37 +44,6 @@ const BASE_HELPERS = new Set(['withBase', 'appUrl']);
  * clients. A key ending in "/*" covers everything below it.
  */
 const API_ONLY: Record<string, string> = {
-  // machine blueprints (0.30.0, ADR 0041): the server side comes first, the web UI follows in the next task (it removes these)
-  ...Object.fromEntries(
-    [
-      'GET /api/plant/blueprints',
-      'POST /api/plant/blueprints',
-      'GET /api/plant/blueprints/:blueprintId',
-      'PUT /api/plant/blueprints/:blueprintId',
-      'DELETE /api/plant/blueprints/:blueprintId',
-      'POST /api/plant/blueprints/:blueprintId/signals',
-      'PUT /api/plant/blueprints/:blueprintId/signals/:signalId',
-      'DELETE /api/plant/blueprints/:blueprintId/signals/:signalId',
-      'GET /api/plant/profiles/:profileId/blueprints',
-      'PUT /api/plant/profiles/:profileId/blueprints/:blueprintId',
-      'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId',
-      'PUT /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping',
-      'POST /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping',
-      'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping',
-      'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping/:dataPointId',
-      'PUT /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/not-applicable',
-      'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/not-applicable',
-      'GET /api/plant/assets/:assetId/blueprints',
-      'PUT /api/plant/assets/:assetId/blueprints/:blueprintId',
-      'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId',
-      'PUT /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping',
-      'POST /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping',
-      'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping',
-      'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping/:dataPointId',
-      'PUT /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/not-applicable',
-      'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/not-applicable',
-    ].map((r) => [r, 'machine blueprints (ADR 0041): the web UI follows']),
-  ),
   // the web UI itself and its files
   'GET /': 'the web UI (hint page without a build)',
   'GET /*': 'the web UI (static files)',

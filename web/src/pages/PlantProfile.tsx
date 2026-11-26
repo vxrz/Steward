@@ -48,6 +48,7 @@ import {
 } from '../components/plant/profileEdit';
 import { DataPointFormModal, InterfaceFormModal, ProfileFormModal } from '../components/plant/dataForms';
 import { PlantDocumentsPanel } from '../components/plant/DocumentsPanel';
+import { BlueprintCoverageSection, pointsOf } from '../components/plant/BlueprintCoverage';
 import { SourceLine } from './PlantSite';
 import { CollapsibleSection, SectionGroup, SectionGroupControls } from '../components/page/CollapsibleSection';
 import { DescribedText, DescriptionModal } from '../components/plant/describe';
@@ -611,6 +612,7 @@ export function PlantProfilePage() {
                 ))}
               </Stack>
             </SectionGroup>
+            <BlueprintCoverageSection kind="profile" id={p.id} points={pointsOf(p.interfaces)} />
             <PlantDocumentsPanel kind="device-profile" id={p.id} />
           </Stack>
         </Grid.Col>
