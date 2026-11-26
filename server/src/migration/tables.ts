@@ -574,7 +574,10 @@ export const PAUSED_ON_IMPORT: { table: string; column: string; label: string }[
   { table: 'gatus_sources', column: 'enabled', label: 'Gatus sources' },
 ];
 
-/** Settings that move (everything else is instance-specific and shown as "not applied"). */
+/**
+ * Settings that move (everything else is instance-specific and shown as "not applied"). `newItemVisibility` (ADR 0042)
+ * is instance-specific on purpose: the target keeps its own value, a package never widens who sees new items.
+ */
 export const SETTINGS_MOVED = [
   'browserHeadless',
   'browserTimeoutMs',
@@ -585,7 +588,6 @@ export const SETTINGS_MOVED = [
   'retentionMonitorDays',
   'defaultLocale',
   'findingDismissFourEyes',
-  'newItemVisibility',
   'theme.settings',
   'theme.logo',
   'reports.branding',

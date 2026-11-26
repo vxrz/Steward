@@ -7,7 +7,6 @@ import { z } from 'zod';
 import {
   BRAND,
   DEBUG_LIMITS,
-  NEW_ITEM_VISIBILITIES,
   LOCALE_CODES,
   ROLES,
   boundedRecord,
@@ -1104,7 +1103,6 @@ export function checkedSettings(settings: Record<string, unknown>, dataDir: stri
     else if (k === 'retentionDebugRunDays') ok = int(v, DEBUG_LIMITS.retentionDays.min, DEBUG_LIMITS.retentionDays.max) ? v : undefined;
     else if (k === 'debugPauseMinutes') ok = int(v, DEBUG_LIMITS.pauseMinutes.min, DEBUG_LIMITS.pauseMinutes.max) ? v : undefined;
     else if (k === 'retentionNotificationDays' || k === 'retentionMonitorDays') ok = int(v, 1, 3650) ? v : undefined;
-    else if (k === 'newItemVisibility') ok = typeof v === 'string' && (NEW_ITEM_VISIBILITIES as readonly string[]).includes(v) ? v : undefined;
     else if (k === 'defaultLocale') ok = typeof v === 'string' && (LOCALE_CODES as readonly string[]).includes(v) ? v : undefined;
     else if (k === 'support.examplesSeeded') ok = typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : undefined;
     else if (k === 'theme.settings') ok = checkedThemeSettings(v) ?? undefined;
