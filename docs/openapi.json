@@ -1840,8 +1840,8 @@
                         },
                         "checked": {
                           "type": [
-                            "boolean",
-                            "null"
+                            "null",
+                            "boolean"
                           ],
                           "description": "null while not completed"
                         }
@@ -1882,15 +1882,15 @@
                         },
                         "value": {
                           "type": [
+                            "null",
                             "string",
-                            "number",
-                            "null"
+                            "number"
                           ]
                         },
                         "ticketId": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Ticket reference in Steward with this number (ticket fields)"
                         }
@@ -2017,8 +2017,8 @@
                   },
                   "doneAtReason": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "verificationRequired": {
@@ -2053,8 +2053,8 @@
                           },
                           "comment": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "by": {
@@ -2313,8 +2313,8 @@
                     "properties": {
                       "until": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "null: until resumed"
                       },
@@ -2926,8 +2926,8 @@
                     "properties": {
                       "until": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "null: until resumed"
                       },
@@ -3272,8 +3272,8 @@
                   },
                   "changePct": {
                     "type": [
-                      "number",
-                      "null"
+                      "null",
+                      "number"
                     ],
                     "description": "Change in percent of the start; null when the start is 0"
                   },
@@ -3337,8 +3337,8 @@
                   },
                   "days": {
                     "type": [
-                      "number",
-                      "null"
+                      "null",
+                      "number"
                     ],
                     "description": "Days until the trend reaches the limit (approaching); 0 when reached"
                   },
@@ -3937,15 +3937,15 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The selected state; null: no state matches (evaluated as without states)"
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "since": {
@@ -4257,15 +4257,15 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The selected state; null: no state matches (evaluated as without states)"
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "since": {
@@ -4467,15 +4467,15 @@
           },
           "message": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Message of the latest result"
           },
           "durationMs": {
             "type": [
-              "number",
-              "null"
+              "null",
+              "number"
             ]
           },
           "causedBy": {
@@ -4516,8 +4516,8 @@
           },
           "note": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "uptime": {
@@ -4525,20 +4525,20 @@
             "properties": {
               "h24": {
                 "type": [
-                  "number",
-                  "null"
+                  "null",
+                  "number"
                 ]
               },
               "d7": {
                 "type": [
-                  "number",
-                  "null"
+                  "null",
+                  "number"
                 ]
               },
               "d30": {
                 "type": [
-                  "number",
-                  "null"
+                  "null",
+                  "number"
                 ]
               }
             },
@@ -4781,14 +4781,14 @@
                                 },
                                 "from": {
                                   "type": [
-                                    "number",
-                                    "null"
+                                    "null",
+                                    "number"
                                   ]
                                 },
                                 "to": {
                                   "type": [
-                                    "number",
-                                    "null"
+                                    "null",
+                                    "number"
                                   ]
                                 }
                               },
@@ -5088,15 +5088,15 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The selected state; null: no state matches (evaluated as without states)"
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "since": {
@@ -5583,14 +5583,14 @@
                                       },
                                       "from": {
                                         "type": [
-                                          "number",
-                                          "null"
+                                          "null",
+                                          "number"
                                         ]
                                       },
                                       "to": {
                                         "type": [
-                                          "number",
-                                          "null"
+                                          "null",
+                                          "number"
                                         ]
                                       }
                                     },
@@ -5865,22 +5865,22 @@
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "null: it no longer exists"
                   },
                   "applicationId": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "A component: its application"
                   },
                   "applicationName": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   }
                 },
@@ -6904,20 +6904,20 @@
                   },
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "number": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "title": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   }
                 },
@@ -7147,8 +7147,8 @@
                 "properties": {
                   "currentEdition": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "pending": {
@@ -7218,8 +7218,8 @@
                       },
                       "lastReviewedBy": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ]
                       },
                       "nextReviewAt": {
@@ -7384,36 +7384,36 @@
         "properties": {
           "kind": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
           },
           "targetId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
           },
           "url": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "External http(s) URL"
           },
           "linkType": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
           },
           "linkTypeName": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Name of the link type (built-in types in English); null when the link has no type"
           },
@@ -7456,21 +7456,21 @@
           },
           "action": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Workflow action of a transition, e.g. submit, approve, reject"
           },
           "fromStatus": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "toStatus": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "actor": {
@@ -7481,8 +7481,8 @@
           },
           "contentHash": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Content hash at the time of the event"
           },
@@ -7874,8 +7874,8 @@
         "properties": {
           "currentEdition": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "pending": {
@@ -7945,8 +7945,8 @@
               },
               "lastReviewedBy": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ]
               },
               "nextReviewAt": {
@@ -8937,8 +8937,8 @@
           },
           "targetId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "Id of the item – null when the token owner may not see it"
           },
@@ -9462,8 +9462,8 @@
                   },
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "label": {
@@ -10611,20 +10611,20 @@
                         },
                         "termEnd": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "noticeBy": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "slaAvailability": {
                           "type": [
-                            "number",
-                            "null"
+                            "null",
+                            "number"
                           ]
                         },
                         "slaSupportHours": {
@@ -10635,14 +10635,14 @@
                         },
                         "rtoHours": {
                           "type": [
-                            "number",
-                            "null"
+                            "null",
+                            "number"
                           ]
                         },
                         "rpoHours": {
                           "type": [
-                            "number",
-                            "null"
+                            "null",
+                            "number"
                           ]
                         }
                       },
@@ -11062,8 +11062,8 @@
                           },
                           "previousLabel": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         },
@@ -11183,8 +11183,8 @@
                           },
                           "previousLabel": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         },
@@ -11304,8 +11304,8 @@
                           },
                           "previousLabel": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         },
@@ -11689,8 +11689,8 @@
                           },
                           "previousLabel": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         },
@@ -11810,8 +11810,8 @@
                           },
                           "previousLabel": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         },
@@ -11931,8 +11931,8 @@
                           },
                           "previousLabel": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         },
@@ -12399,8 +12399,8 @@
                       },
                       "previousLabel": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "Set by a scale change: the label the level had before (mapped or flagged)"
                       }
@@ -12451,8 +12451,8 @@
                       },
                       "previousLabel": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "Set by a scale change: the label the level had before (mapped or flagged)"
                       }
@@ -12503,8 +12503,8 @@
                       },
                       "previousLabel": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "Set by a scale change: the label the level had before (mapped or flagged)"
                       }
@@ -12882,8 +12882,8 @@
                       },
                       "previousLabel": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "Set by a scale change: the label the level had before (mapped or flagged)"
                       }
@@ -12934,8 +12934,8 @@
                       },
                       "previousLabel": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "Set by a scale change: the label the level had before (mapped or flagged)"
                       }
@@ -12986,8 +12986,8 @@
                       },
                       "previousLabel": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "Set by a scale change: the label the level had before (mapped or flagged)"
                       }
@@ -13395,22 +13395,22 @@
                               },
                               "cycle": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "The release cycle of the version, e.g. 24 for 24.11.0"
                               },
                               "eolFrom": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "End of life, YYYY-MM-DD"
                               },
                               "eoasFrom": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "End of active support, YYYY-MM-DD"
                               },
@@ -13419,8 +13419,8 @@
                               },
                               "latest": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "Latest version of the cycle"
                               },
@@ -13486,15 +13486,15 @@
                               },
                               "newest": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "The newest version, as the source names it (a tag keeps its suffix)"
                               },
                               "newestAt": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "When it was published, if the source says"
                               },
@@ -13550,14 +13550,14 @@
                               },
                               "checkedAt": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ]
                               },
                               "error": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "Why no source answered"
                               },
@@ -13710,22 +13710,22 @@
                         },
                         "cycle": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "The release cycle of the version, e.g. 24 for 24.11.0"
                         },
                         "eolFrom": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "End of life, YYYY-MM-DD"
                         },
                         "eoasFrom": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "End of active support, YYYY-MM-DD"
                         },
@@ -13734,8 +13734,8 @@
                         },
                         "latest": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Latest version of the cycle"
                         },
@@ -13946,22 +13946,22 @@
                               },
                               "cycle": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "The release cycle of the version, e.g. 24 for 24.11.0"
                               },
                               "eolFrom": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "End of life, YYYY-MM-DD"
                               },
                               "eoasFrom": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "End of active support, YYYY-MM-DD"
                               },
@@ -13970,8 +13970,8 @@
                               },
                               "latest": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "Latest version of the cycle"
                               },
@@ -14037,15 +14037,15 @@
                               },
                               "newest": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "The newest version, as the source names it (a tag keeps its suffix)"
                               },
                               "newestAt": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "When it was published, if the source says"
                               },
@@ -14101,14 +14101,14 @@
                               },
                               "checkedAt": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ]
                               },
                               "error": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ],
                                 "description": "Why no source answered"
                               },
@@ -14747,22 +14747,22 @@
                         },
                         "cycle": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "The release cycle of the version, e.g. 24 for 24.11.0"
                         },
                         "eolFrom": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "End of life, YYYY-MM-DD"
                         },
                         "eoasFrom": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "End of active support, YYYY-MM-DD"
                         },
@@ -14771,8 +14771,8 @@
                         },
                         "latest": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Latest version of the cycle"
                         },
@@ -14838,15 +14838,15 @@
                         },
                         "newest": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "The newest version, as the source names it (a tag keeps its suffix)"
                         },
                         "newestAt": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "When it was published, if the source says"
                         },
@@ -14902,14 +14902,14 @@
                         },
                         "checkedAt": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "error": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Why no source answered"
                         },
@@ -15287,8 +15287,8 @@
                 },
                 "name": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ],
                   "description": "Null for a platform or monitor the token owner may not see, or something deleted"
                 }
@@ -15356,8 +15356,8 @@
           },
           "cancelledBy": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "current": {
@@ -15989,8 +15989,8 @@
                   },
                   "closeNote": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
                   },
@@ -16013,8 +16013,8 @@
                           },
                           "finishedAt": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "processVersion": {
@@ -16030,8 +16030,8 @@
                           },
                           "definitionHash": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "SHA-256 of that process definition"
                           }
@@ -16092,8 +16092,8 @@
                           },
                           "decidedBy": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "The second person who approved or rejected it (never the one who asked)"
                           },
@@ -16261,8 +16261,8 @@
                   },
                   "closeNote": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
                   },
@@ -16285,8 +16285,8 @@
                           },
                           "finishedAt": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "processVersion": {
@@ -16302,8 +16302,8 @@
                           },
                           "definitionHash": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "SHA-256 of that process definition"
                           }
@@ -16364,8 +16364,8 @@
                           },
                           "decidedBy": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "The second person who approved or rejected it (never the one who asked)"
                           },
@@ -16612,8 +16612,8 @@
                   },
                   "finishedAt": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "processVersion": {
@@ -16629,8 +16629,8 @@
                   },
                   "definitionHash": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "SHA-256 of that process definition"
                   }
@@ -16691,8 +16691,8 @@
                   },
                   "decidedBy": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The second person who approved or rejected it (never the one who asked)"
                   },
@@ -17256,8 +17256,8 @@
           },
           "criticality": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "attention": {
@@ -17373,8 +17373,8 @@
                     },
                     "applicationName": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ]
                     },
                     "archivedAt": {
@@ -17539,14 +17539,14 @@
                     },
                     "applicationName": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ]
                     },
                     "source": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ],
                       "description": "\"platform · endpoint\", or the monitor's name; null when the token owner may not see the source"
                     },
@@ -17798,8 +17798,8 @@
                     },
                     "effective": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ]
                     },
                     "ok": {
@@ -17904,14 +17904,14 @@
                     },
                     "cycle": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ]
                     },
                     "eolFrom": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ],
                       "description": "YYYY-MM-DD"
                     },
@@ -18017,8 +18017,8 @@
                     },
                     "error": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ],
                       "description": "The last read failed"
                     },
@@ -18033,8 +18033,8 @@
                     },
                     "url": {
                       "type": [
-                        "string",
-                        "null"
+                        "null",
+                        "string"
                       ],
                       "description": "The project in Dependency-Track’s own UI, when its frontend URL is set"
                     }
@@ -18236,35 +18236,35 @@
               },
               "budgetPct": {
                 "type": [
-                  "number",
-                  "null"
+                  "null",
+                  "number"
                 ],
                 "description": "This month so far in percent of the budget"
               },
               "forecastPct": {
                 "type": [
-                  "number",
-                  "null"
+                  "null",
+                  "number"
                 ],
                 "description": "The month’s forecast in percent of the budget"
               },
               "currency": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ]
               },
               "thisMonth": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ],
                 "description": "Decimal; null when the token owner may not see the service’s costs"
               },
               "budget": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ],
                 "description": "Decimal; null when the token owner may not see the service’s costs"
               },
@@ -23534,8 +23534,8 @@
           },
           "parentId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ]
           },
           "name": {
@@ -23557,15 +23557,15 @@
           },
           "buildingId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "The building the node names"
           },
           "effectiveBuildingId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "The building that applies: the innermost one of the node and its parents"
           },
@@ -23576,10 +23576,10 @@
             "type": "object",
             "additionalProperties": {
               "type": [
+                "null",
                 "string",
                 "number",
-                "boolean",
-                "null"
+                "boolean"
               ]
             },
             "description": "Own fields (Settings → Modules → Plant registry)"
@@ -23590,8 +23590,8 @@
           },
           "importId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "The last import that wrote the record (null: entered in Steward)"
           },
@@ -23623,8 +23623,8 @@
                 },
                 "parentId": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ]
                 },
                 "name": {
@@ -23646,15 +23646,15 @@
                 },
                 "buildingId": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ],
                   "description": "The building the node names"
                 },
                 "effectiveBuildingId": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ],
                   "description": "The building that applies: the innermost one of the node and its parents"
                 },
@@ -23665,10 +23665,10 @@
                   "type": "object",
                   "additionalProperties": {
                     "type": [
+                      "null",
                       "string",
                       "number",
-                      "boolean",
-                      "null"
+                      "boolean"
                     ]
                   },
                   "description": "Own fields (Settings → Modules → Plant registry)"
@@ -23679,8 +23679,8 @@
                 },
                 "importId": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ],
                   "description": "The last import that wrote the record (null: entered in Steward)"
                 },
@@ -23712,8 +23712,8 @@
                       },
                       "parentId": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ]
                       },
                       "name": {
@@ -23735,15 +23735,15 @@
                       },
                       "buildingId": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "The building the node names"
                       },
                       "effectiveBuildingId": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "The building that applies: the innermost one of the node and its parents"
                       },
@@ -23754,10 +23754,10 @@
                         "type": "object",
                         "additionalProperties": {
                           "type": [
+                            "null",
                             "string",
                             "number",
-                            "boolean",
-                            "null"
+                            "boolean"
                           ]
                         },
                         "description": "Own fields (Settings → Modules → Plant registry)"
@@ -23768,8 +23768,8 @@
                       },
                       "importId": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ],
                         "description": "The last import that wrote the record (null: entered in Steward)"
                       },
@@ -23883,8 +23883,8 @@
           },
           "parentId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "A building part names the building it is in"
           },
@@ -23895,10 +23895,10 @@
             "type": "object",
             "additionalProperties": {
               "type": [
+                "null",
                 "string",
                 "number",
-                "boolean",
-                "null"
+                "boolean"
               ]
             },
             "description": "Own fields (Settings → Modules → Plant registry)"
@@ -23912,8 +23912,8 @@
           },
           "importId": {
             "type": [
-              "string",
-              "null"
+              "null",
+              "string"
             ],
             "description": "The last import that wrote the record (null: entered in Steward)"
           },
@@ -27251,8 +27251,8 @@
                 "properties": {
                   "profileId": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "firmware": {
@@ -27298,20 +27298,20 @@
                         },
                         "address": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "unit": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "dataType": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "updateRateMs": {
@@ -29032,8 +29032,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -29517,8 +29517,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -29906,8 +29906,8 @@
                         },
                         "host": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         }
                       },
@@ -30062,8 +30062,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -30109,8 +30109,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -30158,8 +30158,8 @@
                           },
                           "path": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "visible": {
@@ -30208,8 +30208,8 @@
                           },
                           "path": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "visible": {
@@ -30892,8 +30892,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -31281,8 +31281,8 @@
                         },
                         "host": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         }
                       },
@@ -31437,8 +31437,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -31484,8 +31484,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -31533,8 +31533,8 @@
                           },
                           "path": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "visible": {
@@ -31583,8 +31583,8 @@
                           },
                           "path": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "visible": {
@@ -32266,8 +32266,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -32313,8 +32313,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -32360,8 +32360,8 @@
                         },
                         "path": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "visible": {
@@ -32409,8 +32409,8 @@
                           },
                           "path": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           },
                           "visible": {
@@ -32930,8 +32930,8 @@
                   },
                   "path": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   }
                 },
@@ -33833,8 +33833,8 @@
               },
               "until": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ],
                 "description": "An accepted risk: until this day"
               },
@@ -33844,28 +33844,28 @@
               },
               "windowId": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ],
                 "description": "Planned: the maintenance window"
               },
               "changeSetId": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ],
                 "description": "Planned: the plant change set"
               },
               "by": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ]
               },
               "at": {
                 "type": [
-                  "string",
-                  "null"
+                  "null",
+                  "string"
                 ]
               }
             },
@@ -35097,8 +35097,8 @@
                           "properties": {
                             "name": {
                               "type": [
-                                "string",
-                                "null"
+                                "null",
+                                "string"
                               ]
                             },
                             "columns": {
@@ -35312,14 +35312,14 @@
                         },
                         "before": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "after": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "breaking": {
@@ -35510,8 +35510,8 @@
                       "properties": {
                         "name": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "columns": {
@@ -35700,14 +35700,14 @@
                 },
                 "before": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ]
                 },
                 "after": {
                   "type": [
-                    "string",
-                    "null"
+                    "null",
+                    "string"
                   ]
                 },
                 "breaking": {
@@ -36292,15 +36292,15 @@
                       "properties": {
                         "perMonth": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Change per month of the trend line – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
                         },
                         "changePctPerMonth": {
                           "type": [
-                            "number",
-                            "null"
+                            "null",
+                            "number"
                           ]
                         },
                         "confidence": {
@@ -36534,8 +36534,8 @@
                   },
                   "amount": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The monthly budget – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
                   },
@@ -36544,22 +36544,22 @@
                   },
                   "used": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "This month so far – a decimal (e.g. \"1840.00\"), in the row's currency; null when the token owner may not see amounts"
                   },
                   "pct": {
                     "type": [
-                      "number",
-                      "null"
+                      "null",
+                      "number"
                     ],
                     "description": "This month so far in percent of the budget; null with stateOnly"
                   },
                   "forecastPct": {
                     "type": [
-                      "number",
-                      "null"
+                      "null",
+                      "number"
                     ],
                     "description": "The forecast of the month in percent of the budget; null with stateOnly"
                   },
@@ -36999,8 +36999,8 @@
                       "type": "array",
                       "items": {
                         "type": [
-                          "string",
-                          "null"
+                          "null",
+                          "string"
                         ]
                       }
                     },
@@ -37031,8 +37031,8 @@
                         },
                         "suggested": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Book: the average use per month so far – a decimal in the currency; null when the token owner may not see amounts"
                         }
@@ -37526,15 +37526,15 @@
                       "properties": {
                         "incurredToDate": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Read so far – a decimal in the currency; null when the token owner may not see amounts"
                         },
                         "expected": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Expected for the year – a decimal in the currency; null when the token owner may not see amounts"
                         },
@@ -37542,8 +37542,8 @@
                           "type": "array",
                           "items": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         }
@@ -37596,8 +37596,8 @@
                       "properties": {
                         "toDate": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "Drawn so far – a decimal in the currency; null when the token owner may not see amounts"
                         },
@@ -37605,8 +37605,8 @@
                           "type": "array",
                           "items": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ]
                           }
                         }
@@ -38199,8 +38199,8 @@
                   },
                   "amount": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The next payment – a decimal in the schedule's currency; null when the token owner may not see the paying service's amounts"
                   }
@@ -38396,56 +38396,56 @@
                   },
                   "amount": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The volume of the period – a decimal in the currency; null when the token owner may not see amounts"
                   },
                   "minimum": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "What is committed of it (full: the volume; none: 0) – a decimal in the currency; null when the token owner may not see amounts"
                   },
                   "used": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "Used from the period’s first day up to today – a decimal in the currency; null when the token owner may not see amounts"
                   },
                   "left": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The volume minus what is used – a decimal in the currency; null when the token owner may not see amounts"
                   },
                   "sharePct": {
                     "type": [
-                      "number",
-                      "null"
+                      "null",
+                      "number"
                     ]
                   },
                   "expectedAtEnd": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "An estimate: the use at the period’s end at the rate of the recent months (null: too early) – a decimal in the currency; null when the token owner may not see amounts"
                   },
                   "runsOutOn": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "An estimate: the day the volume is used up at that rate, when inside the period"
                   },
                   "ratePerDay": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "Use per day of the estimate’s window – a decimal in the currency; null when the token owner may not see amounts"
                   },
@@ -40038,8 +40038,8 @@
                         },
                         "creditSku": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "book": {
@@ -40080,8 +40080,8 @@
                         },
                         "unitPrice": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "block": {
@@ -40089,8 +40089,8 @@
                         },
                         "priceCurrency": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "tiered": {
@@ -40177,8 +40177,8 @@
                                 },
                                 "currency": {
                                   "type": [
-                                    "string",
-                                    "null"
+                                    "null",
+                                    "string"
                                   ]
                                 },
                                 "block": {
@@ -40277,8 +40277,8 @@
                                 },
                                 "percent": {
                                   "type": [
-                                    "string",
-                                    "null"
+                                    "null",
+                                    "string"
                                   ],
                                   "description": "The percentage off the list price (percentOff, commitment)"
                                 },
@@ -40970,8 +40970,8 @@
                         },
                         "creditSku": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "book": {
@@ -41012,8 +41012,8 @@
                         },
                         "unitPrice": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "block": {
@@ -41021,8 +41021,8 @@
                         },
                         "priceCurrency": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "tiered": {
@@ -41109,8 +41109,8 @@
                                 },
                                 "currency": {
                                   "type": [
-                                    "string",
-                                    "null"
+                                    "null",
+                                    "string"
                                   ]
                                 },
                                 "block": {
@@ -41209,8 +41209,8 @@
                                 },
                                 "percent": {
                                   "type": [
-                                    "string",
-                                    "null"
+                                    "null",
+                                    "string"
                                   ],
                                   "description": "The percentage off the list price (percentOff, commitment)"
                                 },
@@ -41724,8 +41724,8 @@
                   },
                   "changePct": {
                     "type": [
-                      "number",
-                      "null"
+                      "null",
+                      "number"
                     ]
                   }
                 },
@@ -43764,8 +43764,8 @@
                         },
                         "approvedOn": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ],
                           "description": "0.25.1: the day it was approved"
                         }
@@ -43830,8 +43830,8 @@
                   },
                   "ossieVersion": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ],
                     "description": "The Ossie revision the document names, when Steward knows it"
                   },
@@ -43903,8 +43903,8 @@
                           },
                           "approvedOn": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "0.25.1: the day it was approved"
                           }
@@ -43981,8 +43981,8 @@
                           },
                           "ossieVersion": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "The Ossie revision the document names, when Steward knows it"
                           },
@@ -44054,8 +44054,8 @@
                                   },
                                   "approvedOn": {
                                     "type": [
-                                      "string",
-                                      "null"
+                                      "null",
+                                      "string"
                                     ],
                                     "description": "0.25.1: the day it was approved"
                                   }
@@ -44123,8 +44123,8 @@
                           },
                           "ossieVersion": {
                             "type": [
-                              "string",
-                              "null"
+                              "null",
+                              "string"
                             ],
                             "description": "The Ossie revision the document names, when Steward knows it"
                           },
@@ -44196,8 +44196,8 @@
                                   },
                                   "approvedOn": {
                                     "type": [
-                                      "string",
-                                      "null"
+                                      "null",
+                                      "string"
                                     ],
                                     "description": "0.25.1: the day it was approved"
                                   }
@@ -44299,20 +44299,20 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "key": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "hidden": {
@@ -44770,20 +44770,20 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "key": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "hidden": {
@@ -45431,20 +45431,20 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "key": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "hidden": {
@@ -45649,20 +45649,20 @@
                           "properties": {
                             "id": {
                               "type": [
-                                "string",
-                                "null"
+                                "null",
+                                "string"
                               ]
                             },
                             "key": {
                               "type": [
-                                "string",
-                                "null"
+                                "null",
+                                "string"
                               ]
                             },
                             "name": {
                               "type": [
-                                "string",
-                                "null"
+                                "null",
+                                "string"
                               ]
                             },
                             "hidden": {
@@ -45681,14 +45681,14 @@
                         },
                         "portName": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "version": {
                           "type": [
-                            "string",
-                            "null"
+                            "null",
+                            "string"
                           ]
                         },
                         "elementId": {
@@ -45824,20 +45824,20 @@
                             "properties": {
                               "id": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ]
                               },
                               "key": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ]
                               },
                               "name": {
                                 "type": [
-                                  "string",
-                                  "null"
+                                  "null",
+                                  "string"
                                 ]
                               },
                               "hidden": {
@@ -46660,10 +46660,10 @@
                 "type": "object",
                 "additionalProperties": {
                   "type": [
+                    "null",
                     "string",
                     "number",
-                    "boolean",
-                    "null"
+                    "boolean"
                   ]
                 }
               },
@@ -46765,20 +46765,20 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "key": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "hidden": {
@@ -47037,20 +47037,20 @@
                 "properties": {
                   "id": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "key": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "name": {
                     "type": [
-                      "string",
-                      "null"
+                      "null",
+                      "string"
                     ]
                   },
                   "hidden": {

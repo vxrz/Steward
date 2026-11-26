@@ -40,7 +40,7 @@ When relevant, also: `npm run test:pg` (SQL or migrations; needs `SM_TEST_DATABA
 - **Dependencies:** only releases at least 14 days old; no new dependency without a reason in the pull request.
 - Do not change files under `.claude/`, `AGENTS.md` or `CLAUDE.md` unless the issue asks for it.
 
-## Code review
+## Review guidelines
 
 For any reviewer, human or agent. The rules are the ones above and in [CONTRIBUTING.md](CONTRIBUTING.md); this section says what to look for, in priority order, and how to report. Security reviews also follow the guidelines in [SECURITY.md](SECURITY.md#security-review-guidelines).
 

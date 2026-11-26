@@ -156,7 +156,23 @@ function finalizeDocument(doc: Doc): Doc {
       for (const s of [...errors, 503]) op.responses[String(s)] = { $ref: `#/components/responses/${RESPONSES[s]![0]}` };
     }
   }
+  nullTypeFirst(doc);
   return doc;
+}
+
+/**
+ * A nullable type is written `["null", "string"]` whatever order the schema compiler produced: fast-json-stringify 7.3
+ * puts "null" last, earlier versions first, and the committed docs/openapi.json must not depend on that.
+ */
+export function nullTypeFirst(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const x of node) nullTypeFirst(x);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  const o = node as Record<string, unknown>;
+  if (Array.isArray(o.type) && o.type.includes('null')) o.type = ['null', ...o.type.filter((t) => t !== 'null')];
+  for (const v of Object.values(o)) nullTypeFirst(v);
 }
 
 /** `basePath`: the server's path prefix (SM_BASE_PATH) – the committed docs/openapi.json is the root variant. */
