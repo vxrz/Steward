@@ -22,7 +22,6 @@ export function blueprintSource(assetIds: Set<string>, scope: CatalogueScope, on
     .allBlueprints()
     .filter((b) => scope.blueprint(b.row.id) && (!only || b.row.id === only))
     .map((b) => ({ ...b.values, signals: signalsForReader(b.values.signals, scope) }));
-  const byId = new Map(blueprints.map((b) => [b.id, b]));
   const assigned = store.allAssignments();
   const mappings = store.allMappings();
   const marks = store.allMarks();

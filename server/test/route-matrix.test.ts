@@ -1646,6 +1646,8 @@ const EXPECT: Record<string, Access> = {
   // visualizations (#230): read-only, the rights of the pages they picture (only what the caller may see)
   'GET /api/plant/views/overview': PLANT,
   'GET /api/plant/views/coverage': PLANT,
+  'GET /api/plant/views/blueprints': PLANT,
+  'GET /api/plant/kpis/:kpiId/blueprints': PLANT,
   'GET /api/plant/sites/:siteId/structure': PLANT,
   'GET /api/plant/sites/:siteId/network/placement': PLANT,
   'GET /api/plant/assets/:assetId/flow': PLANT,

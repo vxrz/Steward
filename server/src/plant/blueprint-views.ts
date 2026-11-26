@@ -9,6 +9,7 @@ import {
   type PlantBlueprintMatrix,
   type PlantBlueprintMatrixRow,
   type PlantBlueprintTotals,
+  type PlantCoverage,
 } from '@sm/shared';
 import { requirePlant } from './settings.js';
 import { loadAllIndexes } from './model.js';
@@ -176,4 +177,24 @@ export function kpiBlueprints(kpiId: string, scope: CatalogueScope = catalogueSc
       a.signal.name.localeCompare(b.signal.name),
   );
   return out;
+}
+
+/**
+ * Beside the KPI coverage (0.30.0, ADR 0041): where a KPI cannot be computed – or could be, but its data is not collected –
+ * the signals of the asset's machine blueprints that feed it and are missing there (`blueprintGaps`). Additional
+ * information: no state changes. Read only while a signal links a KPI definition; hidden blueprints and KPI definitions
+ * are not named.
+ */
+export function withBlueprintGaps(c: PlantCoverage, scope: CatalogueScope = catalogueScope()): PlantCoverage {
+  const links = kpiLinks(scope);
+  if (!links.size || !c.rows.length) return c;
+  const source = blueprintSource(new Set(c.rows.map((r) => r.asset.id)), scope);
+  for (const row of c.rows)
+    row.cells.forEach((cell, i) => {
+      const kpi = c.kpis[i]!.id;
+      if (!links.has(kpi) || !(cell.state === 'cannot' || (cell.state === 'could' && cell.collected === false))) return;
+      const gaps = kpiGaps(links, kpi, source.of(row.asset.id));
+      if (gaps.length) cell.blueprintGaps = gaps;
+    });
+  return c;
 }

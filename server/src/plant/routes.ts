@@ -1,6 +1,6 @@
 import { hiddenCatalogue } from './catalogue-access.js';
 import { blueprintRoutes } from './blueprint-routes.js';
-import { blueprintMatrix, kpiBlueprints } from './blueprint-views.js';
+import { blueprintMatrix, kpiBlueprints, withBlueprintGaps } from './blueprint-views.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ASSET_STATUSES, PLANT_LIMITS } from '@sm/shared';
@@ -981,15 +981,17 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());
   app.get('/plant/views/coverage', async (req) =>
-    coverage(
-      z
-        .object({
-          site: z.string().max(100).optional(),
-          area: z.string().max(100).optional(),
-          profile: z.string().max(100).optional(),
-          kpi: z.string().max(100).optional(),
-        })
-        .parse(req.query),
+    withBlueprintGaps(
+      coverage(
+        z
+          .object({
+            site: z.string().max(100).optional(),
+            area: z.string().max(100).optional(),
+            profile: z.string().max(100).optional(),
+            kpi: z.string().max(100).optional(),
+          })
+          .parse(req.query),
+      ),
     ),
   );
   // 0.30.0 step 2 (ADR 0041): assets by machine blueprints, and the blueprint signals that feed a KPI definition

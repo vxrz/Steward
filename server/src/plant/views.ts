@@ -42,7 +42,6 @@ import { briefOf, kpiNotFound, pointNotFound, profileNotFound } from './catalogu
 import { allAssignments, allKpis, allProfiles, assignmentRowOf, assignmentValuesOf, pointsOf, profileRowOf, resolvedProfile } from './data-model.js';
 import { assetInputPoints, assignmentChecks, deliveries, inputGaps, matchedProfile, namedInputPoints, unitMismatches } from './checks.js';
 import { collectedPoints, isCollected } from './potential.js';
-import { blueprintSource, kpiGaps, kpiLinks, type BlueprintSource } from './blueprint-source.js';
 import { ihVerifiedPoints } from './ih-core.js';
 import { assetModel, isOrExtends } from './resolve.js';
 import { HiddenRefs, catalogueScope, presentKpis, presentProfiles, requireEntry, type CatalogueScope } from './catalogue-access.js';
@@ -463,25 +462,16 @@ export function coverage(f: CoverageFilter, scope: CatalogueScope = catalogueSco
   const shown = new Set(assets.slice(0, maxRows).map((a) => a.id));
   const withDetails = new Set([...shown, ...assets.filter((a) => a.parent_id && shown.has(a.parent_id)).map((a) => a.id)]);
   const cellsOf = new Map<string, PlantCoverageCell[]>();
-  // 0.30.0 (ADR 0041): where a KPI cannot be computed (or its data is not collected), the signals of the asset's machine
-  // blueprints that feed it and are missing – additional information; read only while a signal links a KPI definition
-  const links = kpiLinks(scope);
-  let blueprints: BlueprintSource | undefined;
   for (const asset of assets) {
     const a = assignments.get(asset.id);
     const profile = a?.profileId ? profiles.get(a.profileId) : undefined;
     const checks = a ? assignmentChecks({ kind: 'asset', id: asset.id, name: asset.name, siteId: asset.site_id }, a, profiles, kpiMap) : [];
-    const cells = plans.map((p) =>
-      cellOf(p, a, profile, checks, withDetails.has(asset.id), { profiles, collected: collected.get(asset.id), ihVerified: ihVerified.get(asset.id) }),
+    cellsOf.set(
+      asset.id,
+      plans.map((p) =>
+        cellOf(p, a, profile, checks, withDetails.has(asset.id), { profiles, collected: collected.get(asset.id), ihVerified: ihVerified.get(asset.id) }),
+      ),
     );
-    if (links.size && withDetails.has(asset.id))
-      cells.forEach((c, i) => {
-        if (!(c.state === 'cannot' || (c.state === 'could' && c.collected === false)) || !links.has(plans[i]!.def.id)) return;
-        blueprints ??= blueprintSource(new Set(assets.map((x) => x.id)), scope);
-        const gaps = kpiGaps(links, plans[i]!.def.id, blueprints.of(asset.id));
-        if (gaps.length) c.blueprintGaps = gaps;
-      });
-    cellsOf.set(asset.id, cells);
   }
   rollUpParts(plans, cellsOf, assets);
   for (const asset of assets) {
