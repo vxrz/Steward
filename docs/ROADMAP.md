@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.31.0 (November 2026)._
+_Last reviewed for 0.32.0 (November 2026)._
 
 ## What Steward is for
 
@@ -95,10 +95,11 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.29.0:** access settings when creating processes, monitors and dashboards ([ADR 0040](adr/0040-drafts-and-access-at-creation.md), part 1); monitor e-mails to people outside Steward, with one-click unsubscribe; Snowflake cost estimates from your own assumptions, without a connection; the upgrade fixture of 0.28.0.
 - **0.30.0:** machine blueprints ([ADR 0041](adr/0041-machine-blueprints.md)) – what a kind of machine is expected to deliver, compared per device profile, per asset and across a site, with "not applicable" and a reason, links to KPI definitions, assistant proposals and five generic examples; review guidelines for code and security reviews; the upgrade fixture of 0.29.0.
 - **0.31.0:** access settings at creation for every item with access control ([ADR 0042](adr/0042-uniform-access-at-creation.md)), and an instance setting for who sees new items (owning teams only on new installations; upgraded ones keep showing new items to everyone until changed); a restricted price book hidden from readers outside its teams; the upgrade fixture of 0.30.0.
+- **0.32.0:** maintenance – an OpenAPI document independent of the schema compiler version, OpenTelemetry API 1.10 held back until the SDK 3 migration, the review section of AGENTS.md renamed for automatic reviewers, a fixed upgrade fixture script; the upgrade fixture of 0.31.0.
 
 ## Next
 
-- **After 0.31.0:** part 2 of [ADR 0040](adr/0040-drafts-and-access-at-creation.md) – drafts, then publish – once it is decided; no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
+- **After 0.32.0:** part 2 of [ADR 0040](adr/0040-drafts-and-access-at-creation.md) – drafts, then publish – once it is decided; no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
 
 ## Later
 
