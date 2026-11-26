@@ -22,6 +22,13 @@ updates:
     ignore:
       - dependency-name: '@types/node'
         update-types: [version-update:semver-major]
+      # OpenTelemetry: the SDK 2.x packages (sdk-trace-base, sdk-trace-node, resources) accept @opentelemetry/api
+      # below 1.10 only, and exporter-trace-otlp-http 0.300+ needs 1.10 – with both, npm installs two copies of the
+      # API and no spans are recorded. They move together with the SDK 3 migration (see docs/ROADMAP.md, Later).
+      - dependency-name: '@opentelemetry/api'
+        versions: ['>=1.10.0']
+      - dependency-name: '@opentelemetry/exporter-trace-otlp-http'
+        versions: ['>=0.300.0']
     groups:
       # a package goes into the first group it matches: packages that must move
       # together come first, as one PR each (including major versions)

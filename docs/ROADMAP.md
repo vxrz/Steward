@@ -102,6 +102,7 @@ Themes of this release (details in the CHANGELOG once released):
 
 ## Later
 
+- **OpenTelemetry SDK 3**: move tracing (`server/src/telemetry.ts`) from `sdk-trace-base`/`sdk-trace-node` 2.x to `@opentelemetry/sdk-trace` 3.x, together with `@opentelemetry/api` 1.10 and the OTLP exporter 0.300+; until then Dependabot holds those two back, because the SDK 2.x packages accept the API below 1.10 only.
 - **Insights Hub mapping on a real tenant** ([#8](https://github.com/vxrz/Steward/issues/8)): verify the API assumptions of the Insights Hub sink check and the freshness checks against a real tenant.
 - **Accepted decision records, not built yet** – a PAM checkout for privileged identities ([ADR 0022](adr/0022-privileged-access-checkout.md)), a Steward edge runner inside an OT segment ([ADR 0023](adr/0023-edge-runner.md)) and signed releases with provenance and an update notice ([ADR 0024](adr/0024-signed-releases.md)): their open questions were decided in November 2026 (each recommended answer); built next.
 - **Postman import** (rest of [#204](https://github.com/vxrz/Steward/issues/204)): requests and sign-in from a collection.
