@@ -6,6 +6,15 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Access at creation for every kind with access control** ([docs/TEAMS.md](docs/TEAMS.md#access-at-creation), [ADR 0042](docs/adr/0042-uniform-access-at-creation.md)): the create routes of platforms, platform identities, services, applications, systems, records, credentials, tickets, contracts, suppliers, price books, calculators, data products, data objects, data domains, data elements, plant sites, device profiles, KPI definitions and blueprints take the same optional `access` object as processes, monitors and dashboards (owning teams, `restricted`, shares), applied in the creation's transaction with the same step-up and audit entries. Asking for `restricted` or shares on a kind that has no Restricted scope (cost calculators, data elements) is refused with `ACCESS_NOT_RESTRICTABLE`. The person accepting an assistant's plant or data product proposal can send `selection.access` with the decision; the assistant itself cannot. YAML and file imports carry no access fields, so the default below applies.
+- **Setting _Who sees new items_** (`newItemVisibility`, `GET`/`PUT /api/settings/instance`; [docs/SETTINGS.md](docs/SETTINGS.md)): `owningTeams` – a new item that has owning teams starts Restricted, seen by those teams and its shares only – or `everyone` – open to everyone who may see the kind, as before. Items without owning teams stay open either way. New installations start with `owningTeams`.
+
+### Changed
+
+- **Upgraded installations keep today's behaviour**: the upgrade stores `newItemVisibility: everyone` for a database that already has users (migration `access-002-new-item-visibility`), so nothing a person sees changes until an administrator chooses _owning teams only_. The setting affects new items only.
+
 ## [0.30.0] - 2026-11-26
 
 Steward 0.30.0 adds machine blueprints: write down once what you expect of a kind of machine – the signals, what they mean, why they matter and how important they are – and see per device profile, per asset and across a site what is covered, what is missing, what the profile has but an asset does not collect, and what was decided not to apply, with a reason ([ADR 0041](docs/adr/0041-machine-blueprints.md)). Signals can name the KPI definitions they feed, assistants can propose blueprints and mappings for a person to accept, and five generic example blueprints are a starting point. The release also adds review guidelines for code and security reviewers to AGENTS.md and SECURITY.md, and the upgrade fixture of 0.29.0.

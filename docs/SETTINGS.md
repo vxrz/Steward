@@ -16,7 +16,7 @@ Each area has a stable address. On a phone the list of areas folds behind _Area:
 
 | Area                   | Address                   | Settings                                                                                                                                                                             |
 | ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| General                | `/settings/general`       | default language; browser automation (headless, timeout); unattended operation                                                                                                       |
+| General                | `/settings/general`       | default language; browser automation (headless, timeout); unattended operation; who sees new items (0.31.0)                                                                          |
 | Security & sign-in     | `/settings/security`      | sign-in (password sign-in, single sign-on only); outbound access (platforms only, allow-list, open); public API documentation; MCP server; vault passphrase; API tokens of all users |
 | Assurance policy       | `/settings/assurance`     | where four-eyes and step-up are required per control point, the baseline, overrides, a pending loosening and the assurance report ([ASSURANCE.md](ASSURANCE.md))                     |
 | Integrations           | `/settings/integrations`  | ticket sources; Git sync (sources at `/settings/git-sync`); migration to another instance (`/settings/migration`); end of life (endoflife.date)                                      |
@@ -75,6 +75,7 @@ Where a personal value has a default, the profile says where it comes from:
 | Daily summaries allowed (for everyone), credential reminders                       | instance        | administrators                                  | _Settings → Notifications_                   |
 | Colours, name and logo of the app; report branding                                 | instance        | administrators                                  | _Settings → Appearance & branding_           |
 | Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_          |
+| Who sees new items: everyone or owning teams only (0.31.0)                         | instance        | administrators                                  | _Settings → General_                         |
 | Support levels (0.26.0)                                                            | instance        | administrators                                  | _Settings → Support levels_                  |
 | Modules: on/off (step-up)                                                          | instance        | administrators                                  | _Settings → Modules_                         |
 | Plant registry: on/off, enterprise, display names, own fields                      | instance        | administrators                                  | _Settings → Modules_                         |
