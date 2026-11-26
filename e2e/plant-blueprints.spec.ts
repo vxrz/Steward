@@ -135,4 +135,75 @@ test.describe('machine blueprints', () => {
       await api.post('/api/plant/bulk', { data: { kind: 'profile', action: 'remove', items: [{ id: profile }], cascade: true } });
     }
   });
+  test('the site matrix shows each asset with how its blueprint signals stand', async ({ page, apiAs }, info) => {
+    const api = await apiAs('admin');
+    const tag = `${info.project.name}-${Date.now()}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const profile = `e2e-mx-profile-${tag}`;
+    const blueprint = `e2e-mx-${tag}`;
+    const site = `e2e-mx-site-${tag}`;
+    const asset = `e2e-mx-asset-${tag}`;
+    const ok = async (r: { ok(): boolean; text(): Promise<string> }) => expect(r.ok(), await r.text()).toBe(true);
+    await ok(await api.put('/api/settings/plant', { data: { enabled: true, enterprise: 'Brightwater Components', labels: {}, fields: {} } }));
+    await ok(
+      await api.post('/api/plant/profiles', {
+        data: {
+          id: profile,
+          name: `E2E matrix controller ${tag}`,
+          interfaces: [
+            {
+              id: 'opc',
+              name: 'OPC UA server',
+              protocol: 'opc_ua',
+              groups: [{ name: 'Process', dataPoints: [{ id: 'weld_current', name: 'Weld current', address: 'ns=2;s=Weld.Current' }] }],
+            },
+          ],
+        },
+      }),
+    );
+    try {
+      await ok(
+        await api.post('/api/plant/blueprints', {
+          data: {
+            id: blueprint,
+            name: `E2E matrix blueprint ${tag}`,
+            signals: [
+              { id: 'current', name: 'Welding current', importance: 'must' },
+              { id: 'gas', name: 'Gas flow', importance: 'should' },
+            ],
+          },
+        }),
+      );
+      await ok(await api.put(`/api/plant/profiles/${profile}/blueprints/${blueprint}`));
+      await ok(await api.put(`/api/plant/profiles/${profile}/blueprints/${blueprint}/signals/current/mapping`, { data: { dataPoints: ['weld_current'] } }));
+      await ok(await api.post('/api/plant/sites', { data: { id: site, name: `Invented matrix site ${tag}` } }));
+      await ok(await api.post('/api/plant/assets', { data: { id: asset, siteId: site, name: `Matrix welder ${tag}` } }));
+      await ok(
+        await api.put(`/api/plant/assets/${asset}/assignment`, {
+          data: { profileId: profile, interfaces: [{ interface: 'opc', active: true, endpoint: 'opc.tcp://welder.example:4840' }] },
+        }),
+      );
+
+      await page.goto(`/plant/explore?view=blueprints&site=${site}`);
+      const matrix = page.getByTestId('blueprint-matrix');
+      await expect(matrix.getByRole('heading', { name: 'Machine blueprint matrix' })).toBeVisible();
+      const row = page.getByTestId(`matrix-row-${asset}`);
+      await expect(row).toBeVisible();
+      // the profile maps the must signal, but no data collection of the asset reads it: not covered yet; the should signal is missing
+      const cell = page.getByTestId(`matrix-cell-${asset}-${blueprint}`);
+      await expect(cell).toContainText('0 of 1 covered');
+      await expect(page.getByTestId('matrix-total-must')).toContainText('1 not collected');
+      await expect(page.getByTestId('matrix-total-should')).toContainText('1 missing');
+      await expectAccessible(page, 'machine blueprint matrix');
+      await expectNoHorizontalScroll(page);
+      // the filter narrows by blueprint; the site tile links here
+      await page.goto(`/plant/explore?view=blueprints&blueprint=${blueprint}`);
+      await expect(page.getByTestId(`matrix-row-${asset}`)).toBeVisible();
+    } finally {
+      await api.delete(`/api/plant/assets/${asset}`);
+      await api.delete(`/api/plant/sites/${site}`);
+      await api.delete(`/api/plant/profiles/${profile}/blueprints/${blueprint}`);
+      await api.delete(`/api/plant/blueprints/${blueprint}`);
+      await api.post('/api/plant/bulk', { data: { kind: 'profile', action: 'remove', items: [{ id: profile }], cascade: true } });
+    }
+  });
 });
