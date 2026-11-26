@@ -6,6 +6,16 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **OpenAPI document**: a nullable type is always written with `"null"` first (`["null", "string"]`), whatever order the schema compiler produces, so `docs/openapi.json` stays the same across compiler versions. Only the order within type lists changed.
+- **AGENTS.md**: the review section is called _Review guidelines_, the heading automatic reviewers look for.
+- **Dependabot** holds back `@opentelemetry/api` 1.10+ and `@opentelemetry/exporter-trace-otlp-http` 0.300+ until the move to the OpenTelemetry SDK 3: with the SDK 2.x packages they install a second copy of the API and no traces are recorded.
+
+### Fixed
+
+- **Upgrade fixture script** (`scripts/fixtures/make-upgrade-fixture.mjs`) works with 0.31 and later: it shows new items to everyone, as an upgraded installation does, so its administrator can create content without an owning team.
+
 ## [0.31.0] - 2026-11-26
 
 Steward 0.31.0 lets you set access when you create anything that has access control – services, applications, systems, platforms, records, credentials, tickets, sites, data contracts, price books, data products and the plant catalogue – so nothing becomes visible instance-wide by accident. A new instance setting decides who sees new items: _owning teams only_ on new installations, _everyone_ on upgraded ones until an administrator changes it (showing new items to everyone again asks for the step-up and is audited). With _owning teams only_, every creator – administrators included – names an owning team; catalogue items stay open ([ADR 0042](docs/adr/0042-uniform-access-at-creation.md)). A restricted price book is no longer visible to readers outside its teams. The release also adds the upgrade fixture of 0.30.0.
