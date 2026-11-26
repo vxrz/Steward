@@ -270,6 +270,23 @@ describe('a table over every kind of OWNED_KINDS', () => {
       expect(await code(vic('GET', `/owning-teams/${kind}/${id}`))).toMatch(/NOT_FOUND/);
     });
 
+    it('a kind without the Restricted scope refuses restricted and shares with ACCESS_NOT_RESTRICTABLE, whatever else is asked', async () => {
+      if (c.restrictable) return;
+      for (const access of [{ restricted: true }, { shares: [{ subject: 'role:viewer', level: 'view' as const }] }, { owningTeams: [other], restricted: true }])
+        expect(await code(c.create(access as CreationAccess))).toBe('ACCESS_NOT_RESTRICTABLE');
+    });
+
+    it('shares naming a person, team or role that cannot be given the item are refused at creation', async () => {
+      if (!c.restrictable) return;
+      const subjects: [string, string][] = [
+        ['user:nobody-invented', 'USER_UNKNOWN'],
+        ['team:Invented nonexistent', 'TEAM_UNKNOWN'],
+        ['role:admin', 'SHARE_SUBJECT_UNSUITABLE'],
+      ];
+      for (const [subject, expected] of subjects)
+        expect(await code(c.create({ shares: [{ subject, level: 'view', actions: [], expiresAt: null }] } as CreationAccess))).toBe(expected);
+    });
+
     it('an unknown team is refused', async () => {
       expect(await code(c.create({ owningTeams: ['missing'] }))).toBe('TEAM_NOT_FOUND');
     });

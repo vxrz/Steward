@@ -2,13 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Who sees a new item (0.31.0, ADR 0042) after an upgrade: the newest upgrade fixture is a database that existed before
  * the setting, so migration `access-002-new-item-visibility` stores "everyone" – the new items of an upgraded
  * installation stay open as before, until an administrator chooses "owningTeams". A new installation gets the default
- * "owningTeams" (creation-access-kinds.test.ts). SQLite only (the fixture's database).
+ * "owningTeams" (creation-default-setting.test.ts). The fixture is a SQLite database; on PostgreSQL (SM_TEST_DATABASE_URL) the
+ * migration runs against a database that has users and no setting, which is the same condition.
  */
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -26,7 +27,20 @@ let s: TestServer;
 let admin: Client;
 
 beforeAll(async () => {
-  if (PG) return;
+  if (PG) {
+    // no fixture on PostgreSQL: an installation with a user, and the setting and the migration's record taken away
+    s = await startTestServer();
+    admin = s.api;
+    await setup(s);
+    const { db } = await import('../src/db.js');
+    db().run("DELETE FROM settings WHERE key = 'newItemVisibility'");
+    db().run("DELETE FROM schema_migrations WHERE name = 'access-002-new-item-visibility'");
+    const { ACCESS_MIGRATIONS } = await import('../src/migrations/access.js');
+    const m = ACCESS_MIGRATIONS.find((x) => x.name === 'access-002-new-item-visibility')!;
+    db().exec(m.pg ?? m.sql);
+    db().run('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)', m.name, new Date().toISOString());
+    return;
+  }
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-visibility-upg-'));
   fs.cpSync(path.join(FIXTURE, 'datadir'), dataDir, { recursive: true });
   s = await startTestServer({ dataDir });
@@ -40,7 +54,7 @@ const restricted = async (id: string) => {
   return !!db().get("SELECT 1 FROM resource_restrictions WHERE kind = 'service' AND resource_id = ?", id);
 };
 
-describe.skipIf(PG)('the upgrade to uniform access at creation', () => {
+describe('the upgrade to uniform access at creation', () => {
   it('keeps "everyone" for a database that existed before, and stores it', async () => {
     expect(((await admin('GET', '/settings/instance')) as { newItemVisibility: string }).newItemVisibility).toBe('everyone');
     const { db } = await import('../src/db.js');
