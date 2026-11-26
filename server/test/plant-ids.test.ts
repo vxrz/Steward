@@ -102,6 +102,13 @@ describe('the registry of reference columns', () => {
       'roll_up',
     ],
     plant_assignments: ['firmware', 'notes'],
+    // 0.30.0 (ADR 0041): blueprints are not renamable in step 1; their rows name profiles and assets (REFERENCES, as pairs of
+    // target_kind and target_id) and data points (REFERENCES)
+    plant_blueprints: ['id', 'name', 'description', 'reference', 'version'],
+    plant_blueprint_signals: ['blueprint_id', 'id', 'position', 'name', 'meaning', 'why', 'importance', 'aliases'],
+    plant_blueprint_assignments: ['blueprint_id', 'target_kind'],
+    plant_blueprint_mappings: ['blueprint_id', 'target_kind', 'signal_id'],
+    plant_blueprint_not_applicable: ['blueprint_id', 'target_kind', 'signal_id', 'reason', 'marked_at', 'marked_by'],
     plant_vlans: [
       'name',
       'vid',

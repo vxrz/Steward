@@ -1,4 +1,5 @@
 import { hiddenCatalogue } from './catalogue-access.js';
+import { blueprintRoutes } from './blueprint-routes.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ASSET_STATUSES, PLANT_LIMITS } from '@sm/shared';
@@ -260,6 +261,8 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   await changeSetRoutes(app);
   // 0.14: security advisories (CSAF 2.0) matched to assets (docs/ADVISORIES.md)
   await advisoryRoutes(app);
+  // 0.30.0: machine blueprints (ADR 0041)
+  await blueprintRoutes(app);
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
   // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules

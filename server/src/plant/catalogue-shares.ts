@@ -31,6 +31,13 @@ export const PLANT_CATALOGUE_SHARE_KINDS: readonly ShareKindDef<PlantCataloguePe
     link: (id) => `/plant/kpis/${encodeURIComponent(id)}`,
     rights: (u, id) => catalogueEntryAccess(u, 'kpi_definition', id).permissions,
   },
+  {
+    kind: 'blueprint',
+    model: PLANT_CATALOGUE_SHARES,
+    name: named('plant_blueprints'),
+    link: (id) => `/plant/blueprints/${encodeURIComponent(id)}`,
+    rights: (u, id) => catalogueEntryAccess(u, 'blueprint', id).permissions,
+  },
 ];
 
 // ---------- copies ----------

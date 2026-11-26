@@ -40,6 +40,7 @@ export const SHARE_ACTIONS: Record<OwnedKind, readonly ShareAction[]> = {
   // 0.21.0 (#293): the plant catalogues – proposing changes beside the level, as on sites
   device_profile: ['propose'],
   kpi_definition: ['propose'],
+  blueprint: ['propose'],
   // the data products module (0.22.0, ADR 0036): no action rights of their own yet
   data_product: [],
   data_object: [],
@@ -62,7 +63,7 @@ export const SHARE_KIND_LEVELS: Partial<Record<OwnedKind, readonly ShareLevel[]>
 export const shareLevelsOf = (kind: OwnedKind): readonly ShareLevel[] => SHARE_KIND_LEVELS[kind] ?? SHARE_LEVELS;
 
 /** Kinds of the plant registry: the only ones a plant viewer (role `plant`) may be given a share on (ADR 0033 security notes). */
-export const PLANT_SHARE_KINDS: readonly OwnedKind[] = ['site', 'device_profile', 'kpi_definition'];
+export const PLANT_SHARE_KINDS: readonly OwnedKind[] = ['site', 'device_profile', 'kpi_definition', 'blueprint'];
 
 /** At most this many shares per resource. */
 export const SHARE_LIMIT = 100;

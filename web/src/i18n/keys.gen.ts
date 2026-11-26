@@ -30,6 +30,7 @@ export interface Resources {
     'owning.hintNone.cost_calculator': string;
     'owning.hintNone.device_profile': string;
     'owning.hintNone.kpi_definition': string;
+    'owning.hintNone.blueprint': string;
     'owning.hintNone.data_product': string;
     'owning.hintNone.data_object': string;
     'owning.hintNone.data_element': string;
@@ -52,6 +53,7 @@ export interface Resources {
     'owning.hintOwned.cost_calculator': string;
     'owning.hintOwned.device_profile': string;
     'owning.hintOwned.kpi_definition': string;
+    'owning.hintOwned.blueprint': string;
     'owning.hintOwned.data_product': string;
     'owning.hintOwned.data_object': string;
     'owning.hintOwned.data_element': string;
@@ -120,6 +122,7 @@ export interface Resources {
     'owning.bulk.kinds.cost_calculator': string;
     'owning.bulk.kinds.device_profile': string;
     'owning.bulk.kinds.kpi_definition': string;
+    'owning.bulk.kinds.blueprint': string;
     'owning.bulk.kinds.data_product': string;
     'owning.bulk.kinds.data_object': string;
     'owning.bulk.kinds.data_element': string;
@@ -8873,6 +8876,13 @@ export interface Resources {
     'codes.PLANT_KPI_INVALID': string;
     'codes.PLANT_ASSIGNMENT_INVALID': string;
     'codes.PLANT_PROFILE_IN_USE': string;
+    'codes.PLANT_BLUEPRINT_NOT_FOUND': string;
+    'codes.PLANT_BLUEPRINT_INVALID': string;
+    'codes.PLANT_BLUEPRINT_IN_USE': string;
+    'codes.PLANT_BLUEPRINT_IN_USE_HIDDEN': string;
+    'codes.PLANT_BLUEPRINT_SIGNAL_NOT_FOUND': string;
+    'codes.PLANT_BLUEPRINT_NOT_ASSIGNED': string;
+    'codes.PLANT_BLUEPRINT_POINT_NOT_FOUND': string;
     'codes.PLANT_PROFILE_IN_USE_HIDDEN': string;
     'codes.PLANT_PROFILE_TEMPLATE': string;
     'codes.PLANT_PROFILE_TEMPLATE_IN_USE': string;

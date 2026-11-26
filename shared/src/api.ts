@@ -435,6 +435,8 @@ export const OWNED_KINDS = [
   'device_profile',
   /** A KPI definition of the plant registry (0.21.0, #293) */
   'kpi_definition',
+  /** A machine blueprint of the plant registry (0.30.0, ADR 0041): like a device profile */
+  'blueprint',
   /** The data products module (0.22.0, ADR 0036): products, data objects, elements of the catalogue, domains */
   'data_product',
   'data_object',

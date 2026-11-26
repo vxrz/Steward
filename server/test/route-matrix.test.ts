@@ -1277,6 +1277,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/plant/profiles/:profileId': PLANT,
   'GET /api/v1/plant/kpis': PLANT,
   'GET /api/v1/plant/kpis/:kpiId': PLANT,
+  'GET /api/v1/plant/blueprints': PLANT,
+  'GET /api/v1/plant/blueprints/:blueprintId': PLANT,
+  'GET /api/v1/plant/profiles/:profileId/blueprints': PLANT,
+  'GET /api/v1/plant/assets/:assetId/blueprints': PLANT,
   // the checks of the assets the token owner may see, the export of what they may see (#219)
   'GET /api/v1/plant/checks': PLANT,
   'GET /api/v1/plant/export': PLANT,
@@ -1594,6 +1598,33 @@ const EXPECT: Record<string, Access> = {
   // part 2 (#219): device profiles and KPI definitions (catalogues of the installation), an asset's assignment
   'GET /api/plant/profiles': PLANT,
   'GET /api/plant/catalogue/hidden': PLANT,
+  // 0.30.0 (ADR 0041): machine blueprints – readers read, designers (and administrators) write; the service decides per entry
+  'GET /api/plant/blueprints': PLANT,
+  'POST /api/plant/blueprints': DESIGN,
+  'GET /api/plant/blueprints/:blueprintId': PLANT,
+  'PUT /api/plant/blueprints/:blueprintId': DESIGN,
+  'DELETE /api/plant/blueprints/:blueprintId': DESIGN,
+  'POST /api/plant/blueprints/:blueprintId/signals': DESIGN,
+  'PUT /api/plant/blueprints/:blueprintId/signals/:signalId': DESIGN,
+  'DELETE /api/plant/blueprints/:blueprintId/signals/:signalId': DESIGN,
+  'GET /api/plant/profiles/:profileId/blueprints': PLANT,
+  'PUT /api/plant/profiles/:profileId/blueprints/:blueprintId': DESIGN,
+  'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId': DESIGN,
+  'PUT /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping': DESIGN,
+  'POST /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping': DESIGN,
+  'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping': DESIGN,
+  'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/mapping/:dataPointId': DESIGN,
+  'PUT /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/not-applicable': DESIGN,
+  'DELETE /api/plant/profiles/:profileId/blueprints/:blueprintId/signals/:signalId/not-applicable': DESIGN,
+  'GET /api/plant/assets/:assetId/blueprints': PLANT,
+  'PUT /api/plant/assets/:assetId/blueprints/:blueprintId': DESIGN,
+  'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId': DESIGN,
+  'PUT /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping': DESIGN,
+  'POST /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping': DESIGN,
+  'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping': DESIGN,
+  'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/mapping/:dataPointId': DESIGN,
+  'PUT /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/not-applicable': DESIGN,
+  'DELETE /api/plant/assets/:assetId/blueprints/:blueprintId/signals/:signalId/not-applicable': DESIGN,
   'POST /api/plant/profiles': DESIGN,
   // 0.12.0: extract a base profile (the candidates and the preview change nothing)
   'POST /api/plant/profiles/extract-base/candidates': DESIGN,
@@ -2578,6 +2609,9 @@ function fill(url: string): string {
       .replace(/:sinkId/g, 'matrix-sink')
       .replace(/:sourceId/g, 'pcs_matrix')
       .replace(/:kpiId/g, 'matrix-kpi')
+      .replace(/:blueprintId/g, 'matrix-blueprint')
+      .replace(/:signalId/g, 'matrix_signal')
+      .replace(/:dataPointId/g, 'matrix_point')
       .replace(
         /:linkId/g,
         url.startsWith('/api/services')
@@ -3028,6 +3062,9 @@ beforeAll(async () => {
   });
   await a('POST', '/plant/kpis', { id: 'matrix-kpi', name: 'Matrix KPI', inputs: [{ profile: 'matrix-profile', dataPoints: ['matrix_point'] }] });
   await a('PUT', '/plant/assets/matrix-asset/assignment', { profileId: 'matrix-profile', interfaces: [{ interface: 'opc' }] });
+  // 0.30.0: a machine blueprint, assigned to the profile (the asset has it through it)
+  await a('POST', '/plant/blueprints', { id: 'matrix-blueprint', name: 'Matrix blueprint', signals: [{ id: 'matrix_signal', name: 'Matrix signal' }] });
+  await a('PUT', '/plant/profiles/matrix-profile/blueprints/matrix-blueprint');
   // 0.11.0: a data collection of the asset
   await a('POST', '/plant/assets/matrix-asset/collections', {
     id: 'matrix-collection',
