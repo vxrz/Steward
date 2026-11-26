@@ -1,7 +1,7 @@
 import { Badge, Card, Group, Select, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import type { NewResourceTeams } from '@sm/shared';
+import type { NewResourceTeamsView } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../../api';
 
 const DEFAULT = '__default';
@@ -13,12 +13,12 @@ const DEFAULT = '__default';
 export function NewResourceTeamsCard() {
   const { t } = useTranslation('profile');
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['new-resource-teams'], queryFn: () => get<NewResourceTeams>('/me/new-resource-teams') });
+  const q = useQuery({ queryKey: ['new-resource-teams'], queryFn: () => get<NewResourceTeamsView>('/me/new-resource-teams') });
   const s = q.data;
   if (!s || !s.choices.length) return null;
   const choose = async (v: string | null) => {
     try {
-      const next = await put<NewResourceTeams>('/me/new-resource-teams', { teamId: !v || v === DEFAULT ? null : v });
+      const next = await put<NewResourceTeamsView>('/me/new-resource-teams', { teamId: !v || v === DEFAULT ? null : v });
       qc.setQueryData(['new-resource-teams'], next);
       notifyOk(t('newResources.saved'));
     } catch (e) {

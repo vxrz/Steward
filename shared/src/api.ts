@@ -405,6 +405,11 @@ export interface NewResourceTeams {
   chosen: string | null;
 }
 
+/** `GET /me/new-resource-teams`: the teams, and the instance setting the create dialogs' access fields start from (ADR 0042). */
+export interface NewResourceTeamsView extends NewResourceTeams {
+  newItemVisibility: NewItemVisibility;
+}
+
 /** Roles a member can have in a team (#131): administrator is instance-wide, a status viewer sees only status pages. */
 export const TEAM_ROLES = ['designer', 'operator', 'approver', 'auditor', 'viewer'] as const satisfies readonly Role[];
 export type TeamRole = (typeof TEAM_ROLES)[number];
