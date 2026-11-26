@@ -52,7 +52,7 @@ test.describe('machine blueprints', () => {
       await form.getByLabel('ID', { exact: false }).fill(blueprint);
       await form.getByLabel('Reference').fill('Own experience');
       await form.getByRole('button', { name: 'Save' }).click();
-      await expect(page).toHaveURL(new RegExp(`/plant/blueprints/${blueprint}$`));
+      await expect(page).toHaveURL((url) => url.pathname.endsWith(`/plant/blueprints/${blueprint}`));
       await expect(page.getByRole('heading', { name: name, level: 1 })).toBeVisible();
 
       // its signals: one the profile has under another name's keyword, one it does not
