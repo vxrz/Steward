@@ -1,4 +1,5 @@
-import type { PlantImportProblem } from '@sm/shared';
+import type { PlantChange, PlantImportProblem } from '@sm/shared';
+import { db } from '../db.js';
 import { HttpError } from '../util.js';
 import type { BlueprintFile, PlantFile } from './format.js';
 import { applyTargetBlueprints, importBlueprint, type TargetBlueprints } from './blueprints.js';
@@ -58,6 +59,10 @@ export interface BlueprintCounts {
   unchanged: number;
   /** Profiles and assets whose blueprints, mappings or marks the files changed */
   targets: number;
+  /** 0.30.0 step 2: the entries as the preview lists them (kind `blueprint`, and `blueprint_use` for a profile or asset) */
+  changes: PlantChange[];
+  /** Not-applicable marks the files set or cleared (a person's decision: an assistant's proposal may not) */
+  marks: number;
 }
 
 const refuse = (e: unknown, o: Origin, problems: PlantImportProblem[]): void => {
@@ -67,34 +72,44 @@ const refuse = (e: unknown, o: Origin, problems: PlantImportProblem[]): void => 
 
 /** Writes the plan (inside the import's transaction; a preview rolls it back). */
 export function applyBlueprintPlan(p: BlueprintPlan, importId: string, problems: PlantImportProblem[], warnings: PlantImportProblem[]): BlueprintCounts {
-  const n: BlueprintCounts = { added: 0, changed: 0, unchanged: 0, targets: 0 };
+  const n: BlueprintCounts = { added: 0, changed: 0, unchanged: 0, targets: 0, changes: [], marks: 0 };
   for (const d of p.docs.values())
     try {
       const v = d.value;
-      n[
-        importBlueprint(
-          {
-            id: v.id,
-            name: v.name,
-            ...(v.description != null ? { description: v.description } : {}),
-            ...(v.reference != null ? { reference: v.reference } : {}),
-            ...(v.version != null ? { version: v.version } : {}),
-            ...(v.signals
-              ? {
-                  signals: v.signals.map((s) => ({
-                    id: s.id,
-                    name: s.name,
-                    meaning: s.meaning ?? '',
-                    why: [...new Set(s.why ?? [])],
-                    importance: s.importance ?? 'should',
-                    aliases: [...new Set(s.aliases ?? [])],
-                  })),
-                }
-              : {}),
-          },
-          importId,
-        )
-      ]++;
+      const r = importBlueprint(
+        {
+          id: v.id,
+          name: v.name,
+          ...(v.description != null ? { description: v.description } : {}),
+          ...(v.reference != null ? { reference: v.reference } : {}),
+          ...(v.version != null ? { version: v.version } : {}),
+          ...(v.signals
+            ? {
+                signals: v.signals.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  meaning: s.meaning ?? '',
+                  why: [...new Set(s.why ?? [])],
+                  importance: s.importance ?? 'should',
+                  aliases: [...new Set(s.aliases ?? [])],
+                  kpis: [...new Set(s.kpis ?? [])],
+                })),
+              }
+            : {}),
+        },
+        importId,
+      );
+      n[r.result]++;
+      for (const message of r.warnings) warnings.push({ ...d, message });
+      n.changes.push({
+        kind: 'blueprint',
+        action: r.result === 'added' ? 'add' : r.result === 'changed' ? 'change' : 'unchanged',
+        siteId: '',
+        id: v.id,
+        name: r.name,
+        ...(r.fields.length ? { fields: r.fields } : {}),
+        ...(r.drops.length ? { drops: r.drops } : {}),
+      });
     } catch (e) {
       refuse(e, d, problems);
     }
@@ -102,7 +117,19 @@ export function applyBlueprintPlan(p: BlueprintPlan, importId: string, problems:
     try {
       const r = applyTargetBlueprints(t.kind, t.id, t.keys, importId);
       for (const message of r.messages) warnings.push({ file: t.file, path: t.path, message });
-      if (r.changed) n.targets++;
+      if (r.changed) {
+        n.targets++;
+        n.marks += r.marks;
+        n.changes.push({
+          kind: 'blueprint_use',
+          action: 'change',
+          siteId: t.kind === 'asset' ? (db().get<{ site_id: string }>('SELECT site_id FROM plant_assets WHERE id = ?', t.id)?.site_id ?? '') : '',
+          id: t.id,
+          name: r.name,
+          fields: r.fields,
+          ...(r.drops.length ? { drops: r.drops } : {}),
+        });
+      }
     } catch (e) {
       // a profile or an asset that is not there (yet) is the import's own business: say so, name nothing else
       refuse(e, t, problems);

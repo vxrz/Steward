@@ -541,6 +541,8 @@ const REFERENCES_ALL: RefSpec[] = [
   // ---- KPI definitions
   col('plant_kpis', 'id', 'kpi', 'kpi'),
   json<{ kpi: string }[]>('plant_assignments', 'kpis', 'kpi', 'kpi', 'assignment', ['asset_id'], inObjects('kpi')),
+  // 0.30.0 step 2 (ADR 0041): the KPI definitions a blueprint signal feeds
+  json<string[]>('plant_blueprint_signals', 'kpis', 'kpi', 'kpi', 'blueprint', ['blueprint_id', 'id'], (v, r) => inList(v, r)),
   pair('copied_from', 'kind', 'kpi-definition', 'id', 'kpi', 'copy'),
   pair('copied_from', 'kind', 'kpi-definition', 'source_id', 'kpi', 'copy'),
   pair('resource_teams', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'owning_team'),

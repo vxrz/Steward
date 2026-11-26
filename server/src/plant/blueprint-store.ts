@@ -33,6 +33,7 @@ interface SignalRow {
   why: string;
   importance: string;
   aliases: string;
+  kpis: string;
 }
 
 export interface BlueprintMeta {
@@ -72,6 +73,7 @@ const signalOf = (r: SignalRow): PlantBlueprintSignal => ({
   why: parseJson<PlantBlueprintSignal['why']>(r.why, []),
   importance: (r.importance as PlantBlueprintSignal['importance']) || 'should',
   aliases: parseJson<string[]>(r.aliases, []),
+  kpis: parseJson<string[]>(r.kpis, []),
 });
 
 export function signalsOf(blueprintId: string): PlantBlueprintSignal[] {
@@ -141,6 +143,53 @@ export function marksOf(t: TargetKey): StoredMark[] {
     .map((r) => ({ blueprint: r.blueprint_id, signal: r.signal_id, reason: r.reason, by: r.marked_by, at: r.marked_at }));
 }
 
+/** The key a target is grouped by in the bulk readers below. */
+export const targetKey = (t: TargetKey): string => `${t.kind}:${t.id}`;
+
+/** Every assignment, by target (the matrix reads them once instead of once per asset). */
+export function allAssignments(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const r of db().all<{ blueprint_id: string; target_kind: BlueprintTargetKind; target_id: string }>(
+    'SELECT blueprint_id, target_kind, target_id FROM plant_blueprint_assignments ORDER BY created_at, blueprint_id',
+  )) {
+    const k = targetKey({ kind: r.target_kind, id: r.target_id });
+    out.set(k, [...(out.get(k) ?? []), r.blueprint_id]);
+  }
+  return out;
+}
+
+/** Every mapping, by target. */
+export function allMappings(): Map<string, StoredMapping[]> {
+  const out = new Map<string, StoredMapping[]>();
+  for (const r of db().all<{ blueprint_id: string; target_kind: BlueprintTargetKind; target_id: string; signal_id: string; data_point_id: string }>(
+    'SELECT blueprint_id, target_kind, target_id, signal_id, data_point_id FROM plant_blueprint_mappings ORDER BY blueprint_id, signal_id, data_point_id',
+  )) {
+    const k = targetKey({ kind: r.target_kind, id: r.target_id });
+    out.set(k, [...(out.get(k) ?? []), { blueprint: r.blueprint_id, signal: r.signal_id, dataPoint: r.data_point_id }]);
+  }
+  return out;
+}
+
+/** Every not-applicable mark, by target. */
+export function allMarks(): Map<string, StoredMark[]> {
+  const out = new Map<string, StoredMark[]>();
+  for (const r of db().all<{
+    blueprint_id: string;
+    target_kind: BlueprintTargetKind;
+    target_id: string;
+    signal_id: string;
+    reason: string;
+    marked_by: string;
+    marked_at: string;
+  }>(
+    'SELECT blueprint_id, target_kind, target_id, signal_id, reason, marked_by, marked_at FROM plant_blueprint_not_applicable ORDER BY blueprint_id, signal_id',
+  )) {
+    const k = targetKey({ kind: r.target_kind, id: r.target_id });
+    out.set(k, [...(out.get(k) ?? []), { blueprint: r.blueprint_id, signal: r.signal_id, reason: r.reason, by: r.marked_by, at: r.marked_at }]);
+  }
+  return out;
+}
+
 // ---------- writing ----------
 
 /** A blueprint with its signals: the row, and the signals as listed (others are removed with their mappings and marks). */
@@ -167,9 +216,9 @@ export function writeBlueprint(v: PlantBlueprintValues, m: BlueprintMeta, opts: 
     if (!keep.has(r.id)) removeSignalRows(v.id, r.id);
   v.signals.forEach((s, position) =>
     db().run(
-      `INSERT INTO plant_blueprint_signals (blueprint_id, id, position, name, meaning, why, importance, aliases) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO plant_blueprint_signals (blueprint_id, id, position, name, meaning, why, importance, aliases, kpis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (blueprint_id, id) DO UPDATE SET position = excluded.position, name = excluded.name, meaning = excluded.meaning, why = excluded.why,
-         importance = excluded.importance, aliases = excluded.aliases`,
+         importance = excluded.importance, aliases = excluded.aliases, kpis = excluded.kpis`,
       v.id,
       s.id,
       position,
@@ -178,6 +227,7 @@ export function writeBlueprint(v: PlantBlueprintValues, m: BlueprintMeta, opts: 
       JSON.stringify(s.why),
       s.importance,
       JSON.stringify(s.aliases),
+      JSON.stringify(s.kpis ?? []),
     ),
   );
 }

@@ -890,4 +890,9 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX plant_blueprint_not_applicable_target ON plant_blueprint_not_applicable(target_kind, target_id);
     `,
   },
+  {
+    // 0.30.0 step 2 (ADR 0041): the KPI definitions a blueprint signal feeds (ids, as JSON like the other lists of a signal)
+    name: 'plant-034-blueprint-signal-kpis',
+    sql: `ALTER TABLE plant_blueprint_signals ADD COLUMN kpis TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];

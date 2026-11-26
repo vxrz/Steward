@@ -26578,6 +26578,13 @@
                     "type": "string"
                   },
                   "description": "Known-as names and keywords, used only for suggestions"
+                },
+                "kpis": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Ids of the KPI definitions this signal feeds (only those the reader may see)"
                 }
               },
               "required": [
@@ -26586,7 +26593,8 @@
                 "meaning",
                 "why",
                 "importance",
-                "aliases"
+                "aliases",
+                "kpis"
               ],
               "additionalProperties": false
             }
@@ -27005,6 +27013,13 @@
                               "type": "string"
                             },
                             "description": "Known-as names and keywords, used only for suggestions"
+                          },
+                          "kpis": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Ids of the KPI definitions this signal feeds (only those the reader may see)"
                           }
                         },
                         "required": [
@@ -27013,7 +27028,8 @@
                           "meaning",
                           "why",
                           "importance",
-                          "aliases"
+                          "aliases",
+                          "kpis"
                         ],
                         "additionalProperties": false
                       },

@@ -1120,12 +1120,14 @@ function compute(input: ImportInput, importId: string): Computed {
     counts[c.action]++;
     (byKind[c.kind] ??= emptyCounts())[c.action]++;
   }
-  const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data) && netPlanEmpty(p.net);
+  const empty =
+    !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data) && netPlanEmpty(p.net) && blueprintPlanEmpty(p.blueprints);
   if (empty && mode !== 'replace' && !problems.length && !ids.removals.length)
     problems.push({
       file: '(files)',
       path: '(document)',
-      message: 'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions, assignments or OT networks)',
+      message:
+        'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions, assignments, machine blueprints or OT networks)',
     });
   const preview: PlantImportPreview = {
     ok: problems.length === 0,
@@ -1186,7 +1188,16 @@ function run(input: ImportInput, importId: string): Ran {
     applyWrites(c.writes);
     // 0.30.0: machine blueprints, after the profiles and assets they refer to
     const bp = applyBlueprintPlan(c.plan.blueprints, importId, c.preview.problems, c.preview.warnings);
-    if (!blueprintPlanEmpty(c.plan.blueprints)) c.preview.blueprints = bp;
+    if (!blueprintPlanEmpty(c.plan.blueprints)) {
+      const { changes, ...counts } = bp;
+      c.preview.blueprints = counts;
+      // the preview lists them like every entry (a proposal shows, counts and fingerprints them)
+      for (const ch of changes) {
+        c.preview.changes.push(ch);
+        c.preview.counts[ch.action]++;
+        (c.preview.byKind[ch.kind] ??= emptyCounts())[ch.action]++;
+      }
+    }
     if (c.preview.problems.length) c.preview.ok = false;
     const targets: Target[] = [...c.removeTargets, ...(input.removeMissing ? missingEntries(c.files) : [])];
     if (targets.length) {

@@ -366,7 +366,11 @@ export type PlantChangeKind =
   /** 0.12: the sinks of an asset's data collection */
   | 'collection_sinks'
   /** 0.12: a data collection of an asset (in the file format since 0.12) */
-  | 'collection';
+  | 'collection'
+  /** 0.30.0: a machine blueprint (ADR 0041) */
+  | 'blueprint'
+  /** 0.30.0: what a device profile or an asset says about blueprints: which it has, their mappings and not-applicable marks */
+  | 'blueprint_use';
 export type PlantChangeAction = 'add' | 'change' | 'remove' | 'mark' | 'unchanged' | 'skip';
 
 /** 0.12.0: changes to the plant registry proposed by an AI assistant (docs/PLANT.md "Proposals from assistants"). */
@@ -468,7 +472,7 @@ export interface PlantImportPreview {
    */
   changedInSteward?: PlantStewardFlags;
   /** 0.30.0: machine blueprints the files hold (left out when they hold none) */
-  blueprints?: { added: number; changed: number; unchanged: number; targets: number };
+  blueprints?: { added: number; changed: number; unchanged: number; targets: number; marks: number };
 }
 
 export interface PlantImportSummary {

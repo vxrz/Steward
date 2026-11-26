@@ -1,4 +1,5 @@
 import type { PlantAssetBrief } from './plantData.js';
+import type { Translations } from './plant.js';
 
 /**
  * Machine blueprints (0.30.0, ADR 0041): a checklist per kind of machine – the signals one expects of it (names and
@@ -31,6 +32,8 @@ export const BLUEPRINT_LIMITS = {
   perTarget: 50,
   /** Data points one signal maps to (three phases …) */
   pointsPerSignal: 50,
+  /** KPI definitions one signal feeds */
+  kpisPerSignal: 20,
 } as const;
 
 /** One signal a blueprint expects: what it tells, not how it is delivered. */
@@ -44,6 +47,8 @@ export interface PlantBlueprintSignal {
   importance: BlueprintImportance;
   /** Known-as names and keywords: used only for suggestions */
   aliases: string[];
+  /** 0.30.0 step 2: ids of the KPI definitions this signal feeds ("this KPI needs this signal"); advice, never a condition */
+  kpis: string[];
 }
 
 export interface PlantBlueprintValues {
@@ -162,4 +167,63 @@ export interface PlantBlueprintCoverageView {
   /** The reader may assign, map and mark on this target */
   canEdit: boolean;
   blueprints: PlantBlueprintCoverage[];
+}
+
+// ---------- 0.30.0 step 2: the site matrix and the links to KPI definitions ----------
+
+/** A blueprint signal that is missing (or not collected) where a KPI definition needs it – additional information only. */
+export interface PlantBlueprintKpiGap {
+  blueprint: { id: string; name: string };
+  signal: { id: string; name: string };
+  state: 'missing' | 'notCollected';
+}
+
+/** One asset and one blueprint of the matrix: how the asset has it, and its signals by importance. */
+export interface PlantBlueprintMatrixCell {
+  via: PlantBlueprintCoverage['via'];
+  totals: PlantBlueprintTotals;
+  byImportance: Record<BlueprintImportance, PlantBlueprintTotals>;
+}
+
+export interface PlantBlueprintMatrixRow {
+  asset: PlantAssetBrief;
+  area: { id: string; name: string; names: Translations } | null;
+  /** A profile the reader may not see – `hidden: true`, a placeholder id and the name `~hidden` */
+  profile: { id: string; name: string; hidden?: boolean } | null;
+  /** In the order of `blueprints`; null: the asset does not have that blueprint */
+  cells: (PlantBlueprintMatrixCell | null)[];
+}
+
+/** Coverage totals per importance (the signals of every cell counted). */
+export type PlantBlueprintImportanceTotals = Record<BlueprintImportance, PlantBlueprintTotals>;
+
+/** GET /plant/views/blueprints?site=&area=&profile=&blueprint= */
+export interface PlantBlueprintMatrix {
+  /** The blueprints the reader may see that an asset of the rows has (columns), with their totals */
+  blueprints: { id: string; name: string; assets: number; byImportance: PlantBlueprintImportanceTotals }[];
+  rows: PlantBlueprintMatrixRow[];
+  /** Over every asset that matches (also those left out of `rows`) */
+  totals: PlantBlueprintImportanceTotals;
+  /** Totals per site and per area of a site (area null) */
+  groups: { siteId: string; areaId: string | null; assets: number; byImportance: PlantBlueprintImportanceTotals }[];
+  /** Assets that match and have at least one blueprint; `rows` holds at most PLANT_VIEW_LIMITS.coverageCells / blueprints */
+  total: number;
+  truncated: boolean;
+  options: {
+    sites: { id: string; code: string; name: string; names: Translations }[];
+    areas: { siteId: string; id: string; name: string; names: Translations }[];
+    profiles: { id: string; name: string }[];
+  };
+}
+
+/** GET /plant/kpis/:id/blueprints: the signals that feed a KPI definition and where they are missing. */
+export interface PlantKpiBlueprints {
+  signals: {
+    blueprint: { id: string; name: string };
+    signal: { id: string; name: string; importance: BlueprintImportance };
+    /** Assets the reader may see that have the blueprint, by the state of the signal */
+    assets: Record<BlueprintState, number>;
+  }[];
+  /** Per asset (that the reader may see): the linked signals that are missing or not collected */
+  gaps: Record<string, PlantBlueprintKpiGap[]>;
 }

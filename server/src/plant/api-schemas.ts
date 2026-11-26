@@ -1088,6 +1088,7 @@ const BlueprintSignal = z.object({
   why: z.array(z.enum(BLUEPRINT_WHY)),
   importance: z.enum(BLUEPRINT_IMPORTANCES),
   aliases: z.array(z.string()).describe('Known-as names and keywords, used only for suggestions'),
+  kpis: z.array(z.string()).describe('Ids of the KPI definitions this signal feeds (only those the reader may see)'),
 });
 const BlueprintCounts = z.object(
   Object.fromEntries(BLUEPRINT_IMPORTANCES.map((i) => [i, z.number().int()])) as Record<(typeof BLUEPRINT_IMPORTANCES)[number], z.ZodNumber>,

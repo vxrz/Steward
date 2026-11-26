@@ -153,10 +153,17 @@ function dropsOf(p: PlantImportPreview): { entry: string; path: string }[] {
 }
 const dropText = (d: { entry: string; path: string }) => `${d.entry} would lose ${d.path}`;
 
+/** A change to a catalogue: device profiles, KPI definitions, machine blueprints and what a profile says about them (a second person reviews it). */
+const isCatalogueChange = (c: PlantChange): boolean =>
+  c.kind === 'profile' || c.kind === 'kpi' || c.kind === 'blueprint' || (c.kind === 'blueprint_use' && !c.siteId);
+
 /** What a preview may not hold for a proposal (also when applied: the registry may have changed). */
 function refusedByPreview(p: PlantImportPreview): string | null {
   if (p.renames.length) return 'A proposal cannot change ids';
   if (p.counts.remove || p.counts.mark || p.removals?.items.length) return 'A proposal may only add and change entries';
+  // 0.30.0 (ADR 0041): "not applicable" is a person's decision with a reason – an assistant may propose blueprints and mappings, never marks
+  if (p.blueprints?.marks)
+    return 'A proposal cannot mark signals of a machine blueprint as not applicable (or take a mark away): that is a person’s decision in Steward';
   const drops = dropsOf(p);
   if (drops.length) return `A proposal may not drop items from an entry: ${drops.slice(0, 5).map(dropText).join('; ')}`;
   return null;
@@ -195,7 +202,15 @@ function forReader(s: Stored, u: AuthUser): { preview: McpPlantPreview; hidden: 
   const sees = seesFor(u);
   // 0.21.0 (#293): device profiles and KPI definitions the reader may not see are counted, not shown
   const scope = catalogueScope(u);
-  const seesEntry = (c: PlantChange) => (c.kind === 'profile' ? scope.profile(c.id) : c.kind === 'kpi' ? scope.kpi(c.id) : true);
+  // 0.30.0: nor machine blueprints, and what a device profile (no site) says about them
+  const seesEntry = (c: PlantChange) =>
+    c.kind === 'profile' || (c.kind === 'blueprint_use' && !c.siteId)
+      ? scope.profile(c.id)
+      : c.kind === 'kpi'
+        ? scope.kpi(c.id)
+        : c.kind === 'blueprint'
+          ? scope.blueprint(c.id)
+          : true;
   const changes = s.changes.filter((c) => sees(c.siteId) && seesEntry(c));
   return {
     preview: {
@@ -564,7 +579,7 @@ function finish(
     });
     // 0.13.0: a proposed change set (source assistant) on the request – AI requests and Plant → Changes show it
     const sites = [...new Set(preview.changes.map((c) => c.siteId).filter(Boolean))].sort();
-    const catalogue = preview.changes.some((c) => c.kind === 'profile' || c.kind === 'kpi');
+    const catalogue = preview.changes.some(isCatalogueChange);
     const req = db().get<{ expires_at: string }>('SELECT expires_at FROM mcp_requests WHERE id = ?', created.requestId);
     const csId = insertChangeSet({
       state: 'proposed',
@@ -635,7 +650,7 @@ export const plantProposalTools: ToolDef[] = [
     title: 'Propose changes to the plant registry',
     description: [
       `Proposes additions and changes to the plant registry as a document of the plant import format (JSON Schema ${SCHEMA_ID}; get_plant_import_format describes it). Steward checks it with the import's preview – nothing is written – and a person who may change the registry reviews it in Steward (AI requests) and applies or rejects it. Only adding and changing: \`remove\`, renaming ids, removing what the document leaves out and dropping an item from a list inside an entry are refused – a list given replaces the list, so send it with every item it has now.`,
-      'The document: { "version": 1, ... } with any of sites (each with areas → work_centers → work_units, buildings, assets), assets, device_profiles, kpi_definitions, assignments, ot_networks, asset_networks. Entries are matched by id; an existing entry is updated with the keys the document gives (keys left out keep their values; a list given replaces the list).',
+      'The document: { "version": 1, ... } with any of sites (each with areas → work_centers → work_units, buildings, assets), assets, device_profiles, kpi_definitions, assignments, ot_networks, asset_networks. Machine blueprints: "blueprint" / "blueprints" (signals with importance and the KPI definitions they feed in "kpis") and, on a device profile or an assignment, "blueprints" (ids), "blueprint_mappings" (signal → data_points) – send these lists complete. "blueprint_not_applicable" is refused: marking a signal not applicable is a person’s decision. Entries are matched by id; an existing entry is updated with the keys the document gives (keys left out keep their values; a list given replaces the list).',
       'Device profiles with inheritance: a profile names its base with "extends" and lists in "interfaces" only what it adds or changes – an entry with an inherited id changes that interface (only the keys it gives; inherited data points in its groups or data_points with the keys that change, e.g. { "id": "spindle_speed", "address": "ns=3;s=…" }); an entry with a new id is an own interface and needs "protocol". Descriptions are inherited too: give one only to describe an item anew.',
       'Sources: when you read a data point from a manual or data sheet, give it a "source": { "document": "<title with version, as the manual names itself – or the number of a record in Steward that keeps it>", "page": "112", "section": "6.3 OPC UA variables" }. The reviewer sees it next to each data point and is offered to keep the manual with the profile; you cannot upload the manual.',
       'Asset-specific implementations go in an assignment: { "asset": "<id>", "profile": "<profile id>", "interfaces": [{ "interface": "opc-ua", "endpoint": "opc.tcp://…" }], "overrides": [{ "data_point": "<id>", "address": "<this asset’s address>", "notes": "…" }], "additions": { "interfaces": [ … ], "data_points": [{ "interface": "<id>", "group": "…", "id": "…", "address": "…", "description": "…" }] } }.',
@@ -836,7 +851,7 @@ export function proposeViaApi(
   checkOpenLimits(u, 1, bytes);
   const snapshot = stored(preview);
   const sites = [...new Set(preview.changes.map((c) => c.siteId).filter(Boolean))].sort();
-  const catalogue = preview.changes.some((c) => c.kind === 'profile' || c.kind === 'kpi');
+  const catalogue = preview.changes.some(isCatalogueChange);
   const csId = db().tx(() => {
     const id = insertChangeSet({ state: 'proposed', source: 'api', title: body.title, by: u.username, sites, catalogue });
     insertOp(

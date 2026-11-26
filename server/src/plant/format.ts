@@ -379,6 +379,11 @@ const blueprintSignalSchema = z
       .describe('Why it matters: quality, energy, availability, maintenance, safety, traceability'),
     importance: z.enum(BLUEPRINT_IMPORTANCES).optional().describe('must, should (default) or nice'),
     aliases: z.array(z.string().min(1).max(BL.name)).max(BL.aliases).optional().describe('Known-as names and keywords: used only for suggestions'),
+    kpis: z
+      .array(id)
+      .max(BL.kpisPerSignal)
+      .optional()
+      .describe('0.30.0: ids of the KPI definitions this signal feeds ("this KPI needs this signal"); advice only'),
   })
   .strict()
   .meta({ id: 'BlueprintSignal', description: 'A signal a machine blueprint expects' });

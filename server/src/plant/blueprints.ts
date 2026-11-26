@@ -70,6 +70,12 @@ export const signalInput = z
       .max(L.aliases)
       .default([])
       .transform((v) => [...new Set(v)]),
+    kpis: z
+      .array(plantId)
+      .max(L.kpisPerSignal)
+      .default([])
+      .transform((v) => [...new Set(v)])
+      .describe('Ids of the KPI definitions this signal feeds'),
   })
   .strict();
 
@@ -182,6 +188,13 @@ function summaryOf(
   };
 }
 
+/** The signals as a reader sees them: links to KPI definitions that are gone or that they may not see are left out. */
+export function signalsForReader(signals: PlantBlueprintSignal[], scope: CatalogueScope): PlantBlueprintSignal[] {
+  const known = new Map<string, boolean>();
+  const ok = (k: string) => known.get(k) ?? (known.set(k, kpiKnown(k, scope)), known.get(k)!);
+  return signals.map((s) => (s.kpis?.length ? { ...s, kpis: s.kpis.filter(ok) } : { ...s, kpis: [] }));
+}
+
 /** The machine blueprints the caller may see. */
 export function listBlueprints(scope: CatalogueScope = catalogueScope()): PlantBlueprintSummary[] {
   requirePlant();
@@ -197,7 +210,7 @@ export function getBlueprint(id: string, scope: CatalogueScope = catalogueScope(
   const row = store.blueprintRowOf(id);
   const rights = requireEntry(scope, 'blueprint', id, notFound);
   if (!row) throw notFound(id);
-  const signals = store.signalsOf(id);
+  const signals = signalsForReader(store.signalsOf(id), scope);
   const users = usersOf(scope).get(id);
   return {
     ...summaryOf(row, signals, users),
@@ -213,10 +226,27 @@ export function getBlueprint(id: string, scope: CatalogueScope = catalogueScope(
 
 // ---------- writing blueprints ----------
 
-function checked(v: PlantBlueprintValues): PlantBlueprintValues {
+/** Whether a KPI definition exists and the caller may see it (a hidden one reads like an unknown one). */
+const kpiKnown = (id: string, scope: CatalogueScope): boolean => !!db().get('SELECT 1 FROM plant_kpis WHERE id = ?', id) && scope.kpi(id);
+
+/**
+ * The blueprint as it may be saved: signal ids once, and the KPI definitions its signals feed exist (and are visible).
+ * A link a signal had already may stay although its KPI definition is gone. An import gives `warnings`: such a name is
+ * dropped with a message instead of refused.
+ */
+function checked(v: PlantBlueprintValues, scope: CatalogueScope, before?: PlantBlueprintValues, warnings?: string[]): PlantBlueprintValues {
   const p = signalProblems(v.signals);
   if (p.length) throw invalid(p[0]!.path, p[0]!.message);
-  return v;
+  const had = new Map((before?.signals ?? []).map((s) => [s.id, new Set(s.kpis ?? [])]));
+  const signals = v.signals.map((s, i) => {
+    const bad = (s.kpis ?? []).filter((k) => !had.get(s.id)?.has(k) && !kpiKnown(k, scope));
+    if (bad.length && !warnings) throw invalid(`signals[${i}].kpis`, `KPI definition ${bad[0]} not found`);
+    for (const k of bad) warnings!.push(`KPI definition "${k}" not found – signal ${s.id} of machine blueprint "${v.id}" does not link to it`);
+    // the links to KPI definitions the caller may not see are not theirs to change: they stay
+    const hidden = [...(had.get(s.id) ?? [])].filter((k) => !scope.kpi(k) && !(s.kpis ?? []).includes(k));
+    return { ...s, kpis: [...(s.kpis ?? []).filter((k) => !bad.includes(k)), ...hidden] };
+  });
+  return { ...v, signals };
 }
 
 export function createBlueprint(input: z.infer<typeof blueprintInput>): PlantBlueprintDetail {
@@ -228,7 +258,7 @@ export function createBlueprint(input: z.infer<typeof blueprintInput>): PlantBlu
       : idUnavailable(input.id);
   if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_blueprints')!.n) >= L.blueprints)
     throw new HttpError(409, `At most ${L.blueprints} machine blueprints`, 'PLANT_LIMIT', { max: L.blueprints });
-  const v = checked(input);
+  const v = checked(input, scope);
   db().tx(() => {
     // like a new device profile: it belongs to no team, whoever adds it; teams restrict it deliberately
     store.writeBlueprint(v, { at: nowIso(), by });
@@ -299,7 +329,7 @@ export function updateBlueprint(id: string, input: z.infer<typeof blueprintUpdat
   const scope = catalogueScope();
   const { by } = requireBlueprint(scope, id, 'edit', 'change this machine blueprint');
   const before = valuesOfId(id);
-  const after = checked({ ...before, ...input, id });
+  const after = checked({ ...before, ...input, id }, scope, before);
   db().tx(() => saveBlueprint(before, after, by));
   return getBlueprint(id);
 }
@@ -311,7 +341,8 @@ export function addSignal(blueprintId: string, input: z.infer<typeof signalInput
   if (before.signals.length >= L.signals) throw new HttpError(409, `At most ${L.signals} signals in a blueprint`, 'PLANT_LIMIT', { max: L.signals });
   if (before.signals.some((s) => s.id === input.id))
     throw new HttpError(409, `A signal with the id ${input.id} exists already`, 'PLANT_ID_TAKEN', { id: input.id });
-  db().tx(() => saveBlueprint(before, { ...before, signals: [...before.signals, input] }, by));
+  const after = checked({ ...before, signals: [...before.signals, input] }, scope, before);
+  db().tx(() => saveBlueprint(before, after, by));
   return getBlueprint(blueprintId);
 }
 
@@ -320,7 +351,7 @@ export function updateSignal(blueprintId: string, signalId: string, input: z.inf
   const { by } = requireBlueprint(scope, blueprintId, 'edit', 'change this machine blueprint');
   const before = valuesOfId(blueprintId);
   if (!before.signals.some((s) => s.id === signalId)) throw signalNotFound(blueprintId, signalId);
-  const after = { ...before, signals: before.signals.map((s) => (s.id === signalId ? { ...s, ...input, id: signalId } : s)) };
+  const after = checked({ ...before, signals: before.signals.map((s) => (s.id === signalId ? { ...s, ...input, id: signalId } : s)) }, scope, before);
   db().tx(() => saveBlueprint(before, after, by));
   return getBlueprint(blueprintId);
 }
@@ -362,13 +393,13 @@ export function deleteBlueprint(id: string): void {
 
 // ---------- the data a target has ----------
 
-interface Point {
+export interface Point {
   id: string;
   name: string;
   aliases: string[];
 }
 
-const pointsOfInterfaces = (ifaces: PlantInterface[]): Map<string, Point> => {
+export const pointsOfInterfaces = (ifaces: PlantInterface[]): Map<string, Point> => {
   const out = new Map<string, Point>();
   for (const i of ifaces)
     for (const g of i.groups)
@@ -440,9 +471,9 @@ export function suggestionsFor(signal: PlantBlueprintSignal, points: Map<string,
 
 // ---------- coverage ----------
 
-const noTotals = (): PlantBlueprintTotals => ({ total: 0, applicable: 0, covered: 0, notCollected: 0, missing: 0, notApplicable: 0, suggested: 0 });
+export const noTotals = (): PlantBlueprintTotals => ({ total: 0, applicable: 0, covered: 0, notCollected: 0, missing: 0, notApplicable: 0, suggested: 0 });
 
-function tally(list: PlantBlueprintSignalCoverage[]): PlantBlueprintTotals {
+export function tally(list: PlantBlueprintSignalCoverage[]): PlantBlueprintTotals {
   const t = noTotals();
   for (const s of list) {
     t.total++;
@@ -456,7 +487,7 @@ function tally(list: PlantBlueprintSignalCoverage[]): PlantBlueprintTotals {
   return t;
 }
 
-interface Ctx {
+export interface Ctx {
   /** The data points of the target (a profile's, an asset's data) */
   points: Map<string, Point>;
   /** An asset: the data points its data collections read; a profile: null */
@@ -500,7 +531,7 @@ function signalCoverage(
   };
 }
 
-function coverageOf(
+export function coverageOf(
   bp: { id: string; name: string; reference: string; version: string; signals: PlantBlueprintSignal[] },
   via: PlantBlueprintCoverage['via'],
   mappings: { source: BlueprintTargetKind; list: store.StoredMapping[] }[],
@@ -531,7 +562,7 @@ function visibleBlueprints(ids: string[], scope: CatalogueScope) {
   return store
     .allBlueprints()
     .filter((b) => wanted.has(b.row.id) && scope.blueprint(b.row.id))
-    .map((b) => b.values);
+    .map((b) => ({ ...b.values, signals: signalsForReader(b.values.signals, scope) }));
 }
 
 /** Coverage of a device profile: per blueprint it has, each signal covered, missing or not applicable. */
@@ -764,14 +795,15 @@ export function unmarkNotApplicable(kind: BlueprintTargetKind, id: string, bluep
 export function importBlueprint(
   v: Partial<Omit<PlantBlueprintValues, 'id' | 'name'>> & Pick<PlantBlueprintValues, 'id' | 'name'>,
   importId: string,
-): 'added' | 'changed' | 'unchanged' {
+): { result: 'added' | 'changed' | 'unchanged'; name: string; fields: string[]; drops: string[]; warnings: string[] } {
   const scope = catalogueScope();
+  const warnings: string[] = [];
   const row = store.blueprintRowOf(v.id);
   if (!row) {
     const by = requireCatalogue('add machine blueprints');
     if (Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM plant_blueprints')!.n) >= L.blueprints)
       throw new HttpError(409, `At most ${L.blueprints} machine blueprints`, 'PLANT_LIMIT', { max: L.blueprints });
-    const made = checked({ description: '', reference: '', version: '', signals: [], ...v });
+    const made = checked({ description: '', reference: '', version: '', signals: [], ...v }, scope, undefined, warnings);
     store.writeBlueprint(made, { at: nowIso(), by, importId });
     audit({
       action: 'blueprint.created',
@@ -780,12 +812,36 @@ export function importBlueprint(
       summary: `Machine blueprint "${made.name}" (${made.id}) added by import with ${made.signals.length} signals`,
       details: { reference: made.reference, version: made.version, signals: made.signals.map((s) => s.id), import: importId },
     });
-    return 'added';
+    return { result: 'added', name: made.name, fields: [], drops: [], warnings };
   }
   const { by } = requireBlueprint(scope, v.id, 'edit', 'change this machine blueprint');
   const before = valuesOfId(v.id);
-  const after = checked({ ...before, ...Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined)), id: v.id } as PlantBlueprintValues);
-  return saveBlueprint(before, after, by, { importId, keepSource: false }) ? 'changed' : 'unchanged';
+  const after = checked(
+    { ...before, ...Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined)), id: v.id } as PlantBlueprintValues,
+    scope,
+    before,
+    warnings,
+  );
+  const c = blueprintChanges(before, after);
+  const saved = saveBlueprint(before, after, by, { importId, keepSource: false });
+  return {
+    result: saved ? 'changed' : 'unchanged',
+    name: after.name,
+    fields: [...c.keys, ...(c.signals.added.length + c.signals.removed.length + c.signals.changed.length || c.order ? ['signals'] : [])],
+    // a list given replaces the stored one: the signals it leaves out go with their mappings and marks
+    drops: [
+      ...c.signals.removed.map((id) => `signals[${id}]`),
+      // a list of a signal that a file gives replaces the stored one: what it leaves out is dropped
+      ...c.signals.changed.flatMap((sid) => {
+        const was = before.signals.find((x) => x.id === sid)!;
+        const now = after.signals.find((x) => x.id === sid)!;
+        return (['aliases', 'kpis', 'why'] as const).flatMap((k) =>
+          (was[k] ?? []).filter((x) => !(now[k] ?? []).includes(x as never)).map((x) => `signals[${sid}].${k}: ${x}`),
+        );
+      }),
+    ],
+    warnings,
+  };
 }
 
 /** What a file says about the blueprints of one profile or asset; a key left out leaves that part as it is. */
@@ -800,11 +856,20 @@ export interface TargetBlueprints {
  * caller may see – the others are left alone). Names that lead nowhere are skipped with a message. Throws when the caller
  * may not change the target. Returns the messages and whether anything changed.
  */
-export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: TargetBlueprints, importId: string): { messages: string[]; changed: boolean } {
+export function applyTargetBlueprints(
+  kind: BlueprintTargetKind,
+  id: string,
+  t: TargetBlueprints,
+  importId: string,
+): { messages: string[]; changed: boolean; name: string; fields: string[]; drops: string[]; marks: number } {
   const scope = catalogueScope();
   const w = writable(kind, id, scope);
   const messages: string[] = [];
   let changed = false;
+  // what changed (blueprints, mappings, marks), what a list given took away, and how many marks were set or cleared
+  const fields = new Set<string>();
+  const drops: string[] = [];
+  let marks = 0;
   const known = (b: string) => (store.blueprintRowOf(b) && scope.blueprint(b) ? store.blueprintRowOf(b)! : null);
   const label = labelOf(w.target, w.name);
   if (t.blueprints) {
@@ -817,6 +882,8 @@ export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: 
       const row = store.blueprintRowOf(b)!;
       store.removeAssignment(b, w.target);
       changed = true;
+      fields.add('blueprints');
+      drops.push(`blueprints: ${b}`);
       audit({
         action: 'blueprint.unassigned',
         entityType: 'blueprint',
@@ -828,6 +895,7 @@ export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: 
     for (const b of want)
       if (store.addAssignment(b, w.target, nowIso(), w.by)) {
         changed = true;
+        fields.add('blueprints');
         audit({
           action: 'blueprint.assigned',
           entityType: 'blueprint',
@@ -862,6 +930,8 @@ export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: 
         const after = want.get(`${b}\0${sg}`) ?? [];
         if (!store.setMapping(b, w.target, sg, after, nowIso(), w.by)) continue;
         changed = true;
+        fields.add('blueprint_mappings');
+        for (const x of before.filter((y) => !after.includes(y))) drops.push(`blueprint_mappings[${b}/${sg}]: ${x}`);
         audit({
           action: 'blueprint.mapping_changed',
           entityType: 'blueprint',
@@ -887,6 +957,9 @@ export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: 
         if (!m && before) {
           store.clearMark(b, w.target, sg);
           changed = true;
+          marks++;
+          fields.add('blueprint_not_applicable');
+          drops.push(`blueprint_not_applicable[${b}/${sg}]`);
           audit({
             action: 'blueprint.not_applicable_cleared',
             entityType: 'blueprint',
@@ -897,6 +970,8 @@ export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: 
         } else if (m && (!before || before.reason !== m.reason.trim())) {
           store.setMark(b, w.target, sg, m.reason.trim(), m.at ?? nowIso(), m.by ?? w.by);
           changed = true;
+          marks++;
+          fields.add('blueprint_not_applicable');
           audit({
             action: 'blueprint.not_applicable_set',
             entityType: 'blueprint',
@@ -907,7 +982,7 @@ export function applyTargetBlueprints(kind: BlueprintTargetKind, id: string, t: 
         }
       }
   }
-  return { messages, changed };
+  return { messages, changed, name: w.name, fields: [...fields], drops, marks };
 }
 
 /** The blueprint keys of a profile or an asset as a file holds them (only blueprints the reader may see). */
@@ -949,6 +1024,7 @@ export const blueprintOut = (v: PlantBlueprintValues): Record<string, unknown> =
           ...(s.why.length ? { why: s.why } : {}),
           importance: s.importance,
           ...(s.aliases.length ? { aliases: s.aliases } : {}),
+          ...(s.kpis?.length ? { kpis: s.kpis } : {}),
         })),
       }
     : {}),
@@ -959,5 +1035,5 @@ export function visibleBlueprintsOut(scope: CatalogueScope, only?: string): Reco
   return store
     .allBlueprints()
     .filter((b) => scope.blueprint(b.row.id) && (!only || b.row.id === only))
-    .map((b) => blueprintOut(b.values));
+    .map((b) => blueprintOut({ ...b.values, signals: signalsForReader(b.values.signals, scope) }));
 }
