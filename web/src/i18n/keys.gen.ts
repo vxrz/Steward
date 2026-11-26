@@ -7984,6 +7984,7 @@ export interface Resources {
     'codes.NOT_PDF': string;
     'codes.USER_NOT_FOUND': string;
     'codes.TEAM_NOT_FOUND': string;
+    'codes.ACCESS_NOT_RESTRICTABLE': string;
     'codes.TEAM_OWNS_RESOURCES': string;
     'codes.PLATFORM_NOT_FOUND': string;
     'codes.IDENTITY_NOT_FOUND': string;
@@ -18622,6 +18623,10 @@ export interface Resources {
     'areas.current': string;
     'endOfLife.title': string;
     'endOfLife.hint': string;
+    'newItemVisibility.label': string;
+    'newItemVisibility.hint': string;
+    'newItemVisibility.everyone': string;
+    'newItemVisibility.owningTeams': string;
   };
   soa: {
     title: string;

@@ -7,6 +7,7 @@ import * as svc from './service.js';
 import * as el from './elements.js';
 import * as ports from './ports.js';
 import * as steps from './steps.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * The data products module in the internal API (ADR 0036 part 19). Rights are checked in the services (a product, data
@@ -40,7 +41,7 @@ const editable = (req: FastifyRequest) => svc.editableProduct(idOf(req)).row;
 export async function dataProductRoutes(app: FastifyInstance): Promise<void> {
   // ---------- domains ----------
   app.get('/data-domains', async () => svc.listDomains());
-  app.post('/data-domains', async (req) => svc.createDomain(req.body));
+  app.post('/data-domains', async (req) => createWithAccess(req.body, svc.createDomain));
   app.get('/data-domains/:id', async (req) => svc.getDomain(idOf(req)));
   app.put('/data-domains/:id', async (req) => svc.updateDomain(idOf(req), req.body));
   app.delete('/data-domains/:id', async (req, reply) => {
@@ -50,7 +51,7 @@ export async function dataProductRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- data objects ----------
   app.get('/data-objects', async (req) => svc.listObjects(dataObjectListQuery.parse(req.query)));
-  app.post('/data-objects', async (req) => svc.createObject(req.body));
+  app.post('/data-objects', async (req) => createWithAccess(req.body, svc.createObject));
   app.get('/data-objects/:id', async (req) => svc.getObject(idOf(req)));
   app.put('/data-objects/:id', async (req) => svc.updateObject(idOf(req), req.body));
   app.delete('/data-objects/:id', async (req, reply) => {
@@ -88,7 +89,7 @@ export async function dataProductRoutes(app: FastifyInstance): Promise<void> {
       return keep;
     });
   });
-  app.post('/data-products', async (req) => svc.createProduct(req.body));
+  app.post('/data-products', async (req) => createWithAccess(req.body, svc.createProduct));
   app.get('/data-products/:id', async (req) => svc.getProduct(idOf(req)));
   app.put('/data-products/:id', async (req) => svc.updateProduct(idOf(req), req.body));
   app.delete('/data-products/:id', async (req, reply) => {
@@ -205,7 +206,7 @@ export async function dataProductRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- the element catalogue ----------
   app.get('/data-elements', async (req) => el.listElements(dataElementListQuery.parse(req.query)));
-  app.post('/data-elements', async (req) => el.createElement(req.body));
+  app.post('/data-elements', async (req) => createWithAccess(req.body, el.createElement));
   app.get('/data-elements/:id', async (req) => el.getElement(idOf(req)));
   app.put('/data-elements/:id', async (req) => el.updateElement(idOf(req), req.body));
   app.delete('/data-elements/:id', async (req, reply) => {

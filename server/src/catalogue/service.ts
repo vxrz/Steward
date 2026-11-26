@@ -26,6 +26,7 @@ import { assignCreatorTeams } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { serviceContactsOf, writeServiceContacts } from './contacts.js';
 import { channelsOf, levelOf, writeSupport } from '../support/items.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -364,6 +365,7 @@ export function createService(input: ServiceInput): ServiceDetail {
     // the contacts directory (0.25.1, ADR 0038)
     writeServiceContacts(id, { contacts: dedupe(input.contacts, (c) => `${c.role}:${c.email.toLowerCase()}`), contactLinks: input.contactLinks });
     assignCreatorTeams('service', id, currentUser());
+    applyCreationAccess('service', id, input.name, undefined);
     audit({
       action: 'service.created',
       entityType: 'service',

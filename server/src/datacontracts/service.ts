@@ -45,6 +45,7 @@ import { factsOf, parseContract, readContract, type OdcsDoc } from './odcs.js';
 import { assertSqlRules, contractDialects, sqlRules } from './sqlrules.js';
 import { moduleEnabled } from '../modules/registry.js';
 import { logger } from '../log.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md): ODCS v3 contracts, every saved version, the changes between
@@ -688,6 +689,7 @@ export function createContract(body: unknown): DataContractDetail {
     insertVersion(id, 1, input.yaml, facts, lint, null, { note: input.note, changeRecordId: null });
     for (const l of links) insertLink(id, l);
     assignCreatorTeams('contract', id, u);
+    applyCreationAccess('contract', id, facts.name, undefined);
     audit({
       action: 'contract.created',
       entityType: 'contract',

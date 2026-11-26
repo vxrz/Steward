@@ -44,6 +44,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { params } from '../routes/params.js';
 import { namedGrantRule } from '../auth/named-grants.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 const csv = (v: unknown): string[] | undefined =>
   typeof v === 'string' && v
@@ -187,7 +188,8 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
       limit: q.limit,
     });
   });
-  app.post('/records', async (req) => {
+  app.post('/records', async (req) => createWithAccess(req.body, (raw) => createRecordFrom(raw)));
+  const createRecordFrom = (raw: unknown) => {
     const b = z
       .object({
         type: z.string().min(1).max(64),
@@ -199,9 +201,9 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
         links: z.array(linkInput).max(20).optional(),
       })
       .strict()
-      .parse(req.body);
+      .parse(raw);
     return svc.createRecord(b);
-  });
+  };
   app.post('/records/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.recordsImport.bytes }, async (req) => {
     const b = z
       .object({
@@ -364,7 +366,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   app.get('/services', async (req) => catalogue.listServices({ archived: (req.query as { archived?: string }).archived === '1' }));
   // owners from outside the owning teams ask for the step-up like an access list (#195)
   app.post('/services', { config: { stepUp: namedGrantRule((req) => catalogue.serviceNamesOutsiders(null, req.body)) } }, async (req) =>
-    catalogue.createService(catalogue.serviceInput.parse(req.body)),
+    createWithAccess(req.body, (b) => catalogue.createService(catalogue.serviceInput.parse(b))),
   );
   app.get('/services/:id', async (req) => catalogue.getService(params(req).id!));
   // 0.26.0 (ADR 0039): support channels and level – with the service's edit right

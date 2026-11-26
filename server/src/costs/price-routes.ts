@@ -34,6 +34,7 @@ import {
 } from './estimates.js';
 import { dryRun } from './pricing.js';
 import { listRates, removeRate, setRate } from './fx.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Price books, calculators and estimates (0.21.0, ADR 0035, docs/PRICE-BOOKS.md, docs/PRICE-BOOKS.md#estimates) in the
@@ -73,7 +74,7 @@ const priceImport = { config: { access: ACCESS.session, rateLimit: ROUTE_LIMITS.
 export async function priceRoutes(app: FastifyInstance): Promise<void> {
   // ---------- price books ----------
   app.get('/costs/price-books', async () => listBooks());
-  app.post('/costs/price-books', session, async (req) => createBook(req.body));
+  app.post('/costs/price-books', session, async (req) => createWithAccess(req.body, createBook));
   app.get('/costs/price-books/:bookId', async (req) => getBook(bookId(req), bookQuery.parse(req.query ?? {})));
   app.put('/costs/price-books/:bookId', session, async (req) => updateBook(bookId(req), req.body));
   app.delete('/costs/price-books/:bookId', session, async (req, reply) => {
@@ -98,7 +99,7 @@ export async function priceRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- calculators ----------
   app.get('/costs/calculators', async () => listCalculators());
-  app.post('/costs/calculators', session, async (req) => createCalculator(req.body));
+  app.post('/costs/calculators', session, async (req) => createWithAccess(req.body, (b) => createCalculator(b)));
   app.get('/costs/calculators/:calculatorId', async (req) => getCalculator(calculatorId(req)));
   app.put('/costs/calculators/:calculatorId', session, async (req) => saveCalculator(calculatorId(req), req.body));
   app.delete('/costs/calculators/:calculatorId', session, async (req, reply) => {

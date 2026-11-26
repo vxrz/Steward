@@ -55,6 +55,7 @@ import { readCsv } from './csv.js';
 import { moduleRole } from '../modules/access.js';
 import { conditionsSight, onConditionsChanged, pricingContracts } from './contract-conditions.js';
 import type { PriceSight } from './estimate-model.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Price books (0.21.0, ADR 0035 parts 1, 2 and 8, docs/PRICE-BOOKS.md): books of item prices in immutable versions,
@@ -1061,6 +1062,7 @@ export function createBook(body: unknown): CostPriceBookDetail {
     );
     // a platform's book follows the platform's rights; any other gets its maker's teams
     if (!x.platformId) assignCreatorTeams('cost_price_book', id, u);
+    applyCreationAccess('cost_price_book', id, x.name, undefined);
     audit({
       action: 'cost.price_book_added',
       entityType: 'cost_price_book',

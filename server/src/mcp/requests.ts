@@ -20,6 +20,7 @@ import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { config } from '../config.js';
 import { runAs, type AuthUser } from '../auth/context.js';
+import { withCreationAccess } from '../auth/creation-access.js';
 import { isAdmin } from '../auth/permissions.js';
 import { noteFourEyes, samePerson } from '../auth/assurance.js';
 import { findUserByName, listUsers, toAuthUser } from '../auth/users.js';
@@ -724,7 +725,7 @@ function applyProposal(
   u: AuthUser,
 ): { status?: number; body?: unknown; runId?: string; error?: string } {
   try {
-    return runAs(u, () => review.apply(r, selection, u));
+    return runAs(u, () => withCreationAccess(selection?.access, () => review.apply(r, selection, u)));
   } catch (e) {
     return { error: (e as Error).message.slice(0, 1000) };
   }

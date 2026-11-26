@@ -66,6 +66,7 @@ import {
   type CatalogueScope,
 } from './catalogue-access.js';
 import { PLANT_HIDDEN } from '@sm/shared';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * The catalogues of part 2 (#219): device profiles and KPI definitions. They belong to the installation, not to a
@@ -335,6 +336,7 @@ export function createProfile(input: z.infer<typeof profileInput>, opts: { copyO
   db().tx(() => {
     // decision 9: a new profile belongs to no team, whoever adds it (like suppliers); teams restrict it deliberately
     upsertProfile(v, { at: nowIso(), by });
+    applyCreationAccess('device_profile', v.id, v.name, undefined);
     audit({
       action: 'device_profile.created',
       entityType: 'device_profile',
@@ -706,6 +708,7 @@ export function createKpi(input: z.infer<typeof kpiInput>, opts: { copyOf?: stri
   db().tx(() => {
     // decision 9: a new KPI definition belongs to no team, whoever adds it
     upsertKpi(v, { at: nowIso(), by });
+    applyCreationAccess('kpi_definition', v.id, v.name, undefined);
     audit({
       action: 'kpi_definition.created',
       entityType: 'kpi_definition',

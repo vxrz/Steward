@@ -35,6 +35,7 @@ import {
 } from '../platforms/destinationChange.js';
 import { db } from '../db.js';
 import { contentDisposition } from '../records/attachments.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 const platformBody = z.object({
   name: z.string().min(1).max(200),
@@ -120,7 +121,7 @@ export async function platformRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/platforms', { config: { access: ACCESS.admin } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'add platforms');
-    return connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(req.body));
+    return createWithAccess(req.body, (b) => connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(b)));
   });
   app.get('/platforms/:id', async (req) => visiblePlatform(params(req).id!));
   // a new address of the platform's stored credentials (security review 0.19.0 H1): a signed-in session with a step-up,

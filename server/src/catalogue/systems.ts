@@ -50,6 +50,7 @@ import { listBacklinks } from '../records/links.js';
 import { firewallOf } from '../records/firewall.js';
 import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
 import { attributesFor, attributesInput, attributesOf, changedAttributes, forgetSegments, memberCount, membersOf, segmentsOf } from './network.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -499,6 +500,7 @@ export function createSystem(input: SystemInput): SystemDetail {
     );
     const diff = input.stack ? writeStack(systemHolder(id), input.stack, u) : null;
     assignCreatorTeams('system', id, currentUser());
+    applyCreationAccess('system', id, input.name, undefined);
     audit({
       action: 'system.created',
       entityType: 'system',

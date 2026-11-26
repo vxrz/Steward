@@ -79,6 +79,7 @@ import {
   type SiteValues,
 } from './model.js';
 import { siteContactsOf, siteRoleKnown } from './contacts.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * YAML import of the plant registry (#218): parse and check the files (size, keys, depth, the schema, the model rules),
@@ -640,7 +641,10 @@ function compute(input: ImportInput, importId: string): Computed {
       cur,
       () => {
         upsertSite(after, meta);
-        if (!cur) assignCreatorTeams('site', after.id, u);
+        if (!cur) {
+          assignCreatorTeams('site', after.id, u);
+          applyCreationAccess('site', after.id, after.name, undefined);
+        }
       },
       () => db().run('UPDATE plant_sites SET import_id = ?, not_in_source = 0 WHERE id = ?', importId, after.id),
     );

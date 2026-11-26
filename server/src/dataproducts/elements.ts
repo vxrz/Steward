@@ -58,6 +58,7 @@ import {
 } from './store.js';
 import { technologyList } from './technologies.js';
 import { platformDataset } from './ol-addresses.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * The element catalogue (ADR 0036 part 5) and membership (part 6): elements are concrete things on a platform – a
@@ -491,8 +492,10 @@ export function insertElement(body: unknown, source: 'entered' | 'imported' = 'e
       u.username,
     );
     // elements are not in the request's index of owning teams (auth/policy.ts): the batch writes the rows directly
-    if (!batch) assignCreatorTeams('data_element', id, u);
-    else
+    if (!batch) {
+      assignCreatorTeams('data_element', id, u);
+      applyCreationAccess('data_element', id, input.qualifiedName, undefined);
+    } else
       for (const t of batch.teams)
         db().run('INSERT INTO resource_teams (kind, resource_id, team_id, created_at) VALUES (?, ?, ?, ?)', 'data_element', id, t, now);
     audit({

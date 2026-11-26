@@ -55,6 +55,7 @@ import { platformPermissions } from '../auth/permissions.js';
 import { type PlatformPermission } from '@sm/shared';
 import { assignCreatorTeams, forgetOwningTeams, identityAccess } from '../auth/policy.js';
 import { staleRefs } from './operationFilter.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 interface PlatformRow {
   id: string;
@@ -392,6 +393,7 @@ export function createPlatform(input: PlatformInput): Platform {
     );
     sealIdentity(identityId);
     assignCreatorTeams('platform', id, currentUser());
+    applyCreationAccess('platform', id, input.name, undefined);
     audit({
       action: 'platform.created',
       entityType: 'platform',

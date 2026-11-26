@@ -20,6 +20,7 @@ import { audit } from '../audit.js';
 import { currentActor, currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import { assignCreatorTeams, forgetOwningTeams, owningTeams, teamRoles } from '../auth/policy.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { evalExpr, renderString, type Bindings } from '../engine/expr.js';
 import { parseYaml } from '../yaml-safe.js';
 import { HttpError, newId, nowIso, sha256 } from '../util.js';
@@ -329,6 +330,7 @@ export function createCalculator(body: unknown, via: 'app' | 'git' = 'app'): Cos
       currentActor(),
     );
     assignCreatorTeams('cost_calculator', id, u);
+    applyCreationAccess('cost_calculator', id, def.name, undefined);
     audit({
       action: 'cost.calculator_added',
       entityType: 'cost_calculator',

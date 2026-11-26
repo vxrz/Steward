@@ -24,6 +24,7 @@ import * as status from './status-pages.js';
 import { ACCESS } from '../auth/access.js';
 import { params } from '../routes/params.js';
 import { namedGrantRule } from '../auth/named-grants.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Applications of the service catalogue, the applications of services, protection needs and the CIA scale, and the
@@ -54,7 +55,7 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.get('/applications', async (req) => apps.listApplications({ archived: (req.query as { archived?: string }).archived === '1' }));
   // owners from outside the owning teams ask for the step-up like an access list (#195)
   app.post('/applications', { config: { stepUp: namedGrantRule((req) => apps.applicationNamesOutsiders(null, req.body)) } }, async (req) =>
-    apps.createApplication(apps.applicationInput.parse(req.body)),
+    createWithAccess(req.body, (b) => apps.createApplication(apps.applicationInput.parse(b))),
   );
   app.get('/applications/:id', async (req) => apps.getApplication(params(req).id!));
   app.put('/applications/:id', { config: { stepUp: namedGrantRule((req) => apps.applicationNamesOutsiders(params(req).id!, req.body)) } }, async (req) =>
@@ -173,7 +174,7 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   // ---------- systems and "runs on" (#129) ----------
   app.get('/systems', async () => systems.listSystems());
   app.post('/systems', { config: { stepUp: namedGrantRule((req) => systems.systemNamesOutsiders(null, req.body)) } }, async (req) =>
-    systems.createSystem(systems.systemInput.parse(req.body)),
+    createWithAccess(req.body, (b) => systems.createSystem(systems.systemInput.parse(b))),
   );
   // 0.25.0 (ADR 0037 part 3): Industrial Edge – the suggestions of the installations readout (confirmed and dismissed by
   // a person in a signed-in session, never applied on their own) and the device status of a system

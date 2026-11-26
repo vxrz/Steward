@@ -75,6 +75,7 @@ import { checkItemLinkRoles, removeItemLinks, snapshotsOf, writeItemLinks, write
 import { forgetShares } from '../auth/shares.js';
 import { CaContext, canReadFinding, type FindingRow } from '../compliance/corrective.js';
 import { dropSchedules, type ScheduleRow } from '../costs/schedule-model.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Suppliers (0.17.0, ADR 0029 part 1, docs/SUPPLIERS.md): records with contacts, contracts and certificates, linked
@@ -1036,7 +1037,9 @@ export function createSupplier(input: Input): SupplierDetail {
       id,
     );
     // new suppliers are instance-wide (ADR 0031 decided 2): the company record is shared, the team setting "New
-    // resources" does not apply; an administrator can still restrict one on its "Owning teams" panel
+    // resources" does not apply; an administrator can still restrict one on its "Owning teams" panel – or the creator
+    // chooses access at creation (ADR 0042)
+    applyCreationAccess('supplier', id, input.name, undefined);
     audit({
       action: 'supplier.created',
       entityType: 'supplier',
