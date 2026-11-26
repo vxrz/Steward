@@ -82,7 +82,7 @@ beforeAll(async () => {
   for (const id of ['weld-1', 'weld-2'])
     await s.api('PUT', `/plant/assets/${id}/assignment`, {
       profileId: 'weld-ctl-1',
-      interfaces: [{ interface: 'opc', active: true, endpoint: 'opc.tcp://10.0.0.1:4840' }],
+      interfaces: [{ interface: 'opc', active: true, endpoint: 'opc.tcp://plc.example:4840' }],
     });
 });
 afterAll(async () => {

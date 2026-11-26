@@ -24,6 +24,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { me } from '../auth/access.js';
+import { isAdmin } from '../auth/permissions.js';
 import { HttpError, nowIso } from '../util.js';
 import { canManageCatalogue, requireManage } from './access.js';
 import { requirePlant } from './settings.js';
@@ -397,6 +398,8 @@ export interface Point {
   id: string;
   name: string;
   aliases: string[];
+  /** The normalised id, name and known-as names, worked out on first use */
+  normalised?: string[];
 }
 
 export const pointsOfInterfaces = (ifaces: PlantInterface[]): Map<string, Point> => {
@@ -442,7 +445,7 @@ export function suggestionsFor(signal: PlantBlueprintSignal, points: Map<string,
   const out: (PlantBlueprintSuggestion & { rank: number })[] = [];
   for (const p of points.values()) {
     if (taken.has(p.id)) continue;
-    const have = [p.id, p.name, ...p.aliases].map(norm).filter(Boolean);
+    const have = (p.normalised ??= [p.id, p.name, ...p.aliases].map(norm).filter(Boolean));
     let best: (PlantBlueprintSuggestion & { rank: number }) | null = null;
     for (const w of wanted)
       for (const h of have) {
@@ -500,6 +503,7 @@ function signalCoverage(
   mapped: { source: BlueprintTargetKind; dataPoint: string }[],
   mark: { reason: string; by: string; at: string; on: BlueprintTargetKind } | null,
   ctx: Ctx,
+  withSuggestions: boolean,
 ): PlantBlueprintSignalCoverage {
   const seen = new Set<string>();
   const points: PlantBlueprintMappedPoint[] = [];
@@ -527,27 +531,52 @@ function signalCoverage(
     points,
     notApplicable: mark,
     // suggestions only where nothing counts yet; a data point already mapped to the signal is not suggested again
-    suggestions: state === 'missing' ? suggestionsFor(signal, ctx.points, seen) : [],
+    suggestions: withSuggestions && state === 'missing' ? suggestionsFor(signal, ctx.points, seen) : [],
   };
+}
+
+/** Mappings or marks of one target by `blueprint\0signal`, read once instead of filtering the list per signal. */
+export type Indexed<T> = Map<string, T[]>;
+export function indexBySignal<T extends { blueprint: string; signal: string }>(list: T[]): Indexed<T> {
+  const out: Indexed<T> = new Map();
+  for (const x of list) {
+    const k = `${x.blueprint}\0${x.signal}`;
+    const l = out.get(k);
+    if (l) l.push(x);
+    else out.set(k, [x]);
+  }
+  return out;
+}
+
+export interface CoverageOptions {
+  /** Suggestions cost a scan of the target's data points per missing signal: aggregate views (matrix, KPI) leave them out. Default true. */
+  suggestions?: boolean;
 }
 
 export function coverageOf(
   bp: { id: string; name: string; reference: string; version: string; signals: PlantBlueprintSignal[] },
   via: PlantBlueprintCoverage['via'],
-  mappings: { source: BlueprintTargetKind; list: store.StoredMapping[] }[],
-  marks: { on: BlueprintTargetKind; list: store.StoredMark[] }[],
+  mappings: { source: BlueprintTargetKind; list: store.StoredMapping[]; by?: Indexed<store.StoredMapping> }[],
+  marks: { on: BlueprintTargetKind; list: store.StoredMark[]; by?: Indexed<store.StoredMark> }[],
   ctx: Ctx,
+  opts: CoverageOptions = {},
 ): PlantBlueprintCoverage {
+  const withSuggestions = opts.suggestions !== false;
+  const mapIndex = mappings.map((m) => ({ source: m.source, by: m.by ?? indexBySignal(m.list) }));
+  const markIndex = marks.map((m) => ({ on: m.on, by: m.by ?? indexBySignal(m.list) }));
   const signals = bp.signals.map((s) => {
-    const mapped = mappings.flatMap((m) =>
-      m.list.filter((x) => x.blueprint === bp.id && x.signal === s.id).map((x) => ({ source: m.source, dataPoint: x.dataPoint })),
-    );
+    const key = `${bp.id}\0${s.id}`;
+    const mapped = mapIndex.flatMap((m) => (m.by.get(key) ?? []).map((x) => ({ source: m.source, dataPoint: x.dataPoint })));
     // the profile's mark holds for its assets, an asset's own comes beside it; the profile's is shown first
-    const mark =
-      marks.flatMap((m) =>
-        m.list.filter((x) => x.blueprint === bp.id && x.signal === s.id).map((x) => ({ reason: x.reason, by: x.by, at: x.at, on: m.on })),
-      )[0] ?? null;
-    return signalCoverage(s, mapped, mark, ctx);
+    let mark: { reason: string; by: string; at: string; on: BlueprintTargetKind } | null = null;
+    for (const m of markIndex) {
+      const x = m.by.get(key)?.[0];
+      if (x) {
+        mark = { reason: x.reason, by: x.by, at: x.at, on: m.on };
+        break;
+      }
+    }
+    return signalCoverage(s, mapped, mark, ctx, withSuggestions);
   });
   const byImportance = Object.fromEntries(BLUEPRINT_IMPORTANCES.map((i) => [i, tally(signals.filter((s) => s.signal.importance === i))])) as Record<
     BlueprintImportance,
@@ -968,7 +997,8 @@ export function applyTargetBlueprints(
             details: { target: w.target, signal: sg, import: importId },
           });
         } else if (m && (!before || before.reason !== m.reason.trim())) {
-          store.setMark(b, w.target, sg, m.reason.trim(), m.at ?? nowIso(), m.by ?? w.by);
+          const who = markAuthor(m);
+          store.setMark(b, w.target, sg, m.reason.trim(), who.at, who.by);
           changed = true;
           marks++;
           fields.add('blueprint_not_applicable');
@@ -983,6 +1013,17 @@ export function applyTargetBlueprints(
       }
   }
   return { messages, changed, name: w.name, fields: [...fields], drops, marks };
+}
+
+/**
+ * Who set a mark an import brings: the importing user, now. Only an administrator restoring an export keeps `by` and `at`
+ * from the file – `at` only as an ISO timestamp, `by` capped – so nobody can forge another person's mark.
+ */
+function markAuthor(m: { by?: string; at?: string }): { by: string; at: string } {
+  const u = me();
+  if (!isAdmin(u)) return { by: u.username, at: nowIso() };
+  const t = m.at && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(m.at) ? Date.parse(m.at) : NaN;
+  return { by: m.by?.trim().slice(0, 100) || u.username, at: Number.isFinite(t) ? new Date(t).toISOString() : nowIso() };
 }
 
 /** The blueprint keys of a profile or an asset as a file holds them (only blueprints the reader may see). */
