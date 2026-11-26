@@ -152,6 +152,9 @@ async function create() {
     password: FIXTURE_ADMIN.password,
   });
   log('vault and first administrator set up');
+  // since 0.31 a new installation asks every creator for an owning team (ADR 0042); the fixture creates items as an
+  // administrator without one, so it shows new items to everyone, as an upgraded installation does
+  if ('newItemVisibility' in (await api('GET', '/settings/instance'))) await api('PUT', '/settings/instance', { newItemVisibility: 'everyone' });
   const demo = await api('POST', '/demo/setup', {});
   log(`demo data loaded (${demo.platforms} platforms, ${demo.processes} processes, ${demo.monitors} monitors)`);
   await idle(api);
