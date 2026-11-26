@@ -286,3 +286,7 @@ The monitors name their platform generically (`platform: Snowflake`, `platform: 
 | #   | Trigger                         | Process | Sender                                                                                                                |
 | --- | ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
 | 10  | changedetection.io notification | 76      | changedetection.io's `posts://` notification with a JSON body ([docs/CHANGEDETECTION.md](../docs/CHANGEDETECTION.md)) |
+
+## Machine blueprints
+
+`plant/blueprints.plant.yaml` (plant registry format 1, `blueprints:`) holds five generic machine blueprints – a welding machine, a CNC milling machine, an injection moulding machine, a robot cell and a compressor – with six to nine signals each, their meanings, importance and known-as names. They are generic starting points to adapt to your own machines, not a standard, and the signals carry no data types, units or addresses. Import the file into the plant registry (see [importing](../docs/PLANT.md#yaml-import-and-export)) and assign the blueprints to your device profiles; coverage then shows what each profile and asset is missing. See [machine blueprints](../docs/PLANT.md#machine-blueprints) and [ADR 0041](../docs/adr/0041-machine-blueprints.md).
