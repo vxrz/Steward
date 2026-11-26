@@ -1,8 +1,8 @@
 # 0041. Machine blueprints
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-26
-- **Since:** 0.30.0 (step 1); step 2 not scheduled
+- **Since:** 0.30.0 (both steps)
 - **Builds on:** [0034](0034-module-access.md) (who may use a module)
 
 ## Context
@@ -12,7 +12,7 @@ Device profiles describe what one device model delivers ([PLANT.md](../PLANT.md#
 What exists, and why it does not answer the question:
 
 - A device profile has only a free-text `category` (`shared/src/plantData.ts`; `docs/plant/plant-registry-1.schema.json`). Assets have free-text domain, process area, role and tags (`shared/src/plant.ts`); ISA-95 node types are free text. Nothing is a controlled "kind of machine".
-- **KPI potential and coverage** ([PLANT.md](../PLANT.md#kpi-coverage), `server/src/plant/potential.ts`) compare an asset with KPI definitions: _Has it_, _Problem_, _Could have it_, _Collected-ready_, _Device delivers, not collected_, _Cannot_, _Not checked_. They start from a KPI, not from a kind of machine, and know nothing of data points no KPI uses.
+- **KPI potential and coverage** ([PLANT.md](../PLANT.md#kpi-coverage); the states are computed in `server/src/plant/views.ts`, "is it collected" in `server/src/plant/potential.ts`: `collectedPoints`, `isCollected`) compare an asset with KPI definitions: _Has it_, _Problem_, _Could have it_, _Collected – ready_, _Device delivers, not collected_, _Cannot_, _Not checked_. They start from a KPI, not from a kind of machine, and know nothing of data points no KPI uses.
 - The **checks of KPI inputs** ([PLANT.md](../PLANT.md#checks), `server/src/plant/checks.ts`) and the site **Documentation** tab ([PLANT.md](../PLANT.md#documentation-health)) list gaps, but only gaps of documentation and wiring.
 - **Profile inheritance** and template profiles ([PLANT.md](../PLANT.md#profile-inheritance)) share data points between profiles. A base says what a profile _has_, not what it _should_ have; an inheritor gets every data point, wanted or not.
 
@@ -47,7 +47,7 @@ A profile or an asset can mark a signal **not applicable, with a reason** (free 
 
 ### Coverage
 
-The profile and asset pages show a coverage line per blueprint, for example "9 of 12 covered, 2 must missing", with the signals grouped by importance and state:
+The profile and asset pages (server: `GET /api/plant/profiles/:id/blueprints` and `…/assets/:id/blueprints`; web UI in a second task) show a coverage line per blueprint, for example "9 of 12 covered, 2 must missing", with the signals grouped by importance and state:
 
 | State                    | Meaning                                                                                                                             |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -57,11 +57,11 @@ The profile and asset pages show a coverage line per blueprint, for example "9 o
 | Not applicable           | marked with a reason                                                                                                                |
 | Suggested                | a match exists by name; not yet confirmed (not counted)                                                                             |
 
-The distinction between "the profile lacks it" and "the profile has it, but this asset does not collect it" is the same as in KPI potential and reuses its code. An asset without a profile shows only direct blueprints.
+The distinction between "the profile lacks it" and "the profile has it, but this asset does not collect it" is the same as in KPI potential and reuses its code (`collectedPoints` of `potential.ts`: the data points the asset's data collections map items to). A signal mapped to several data points is covered when every one of them is collected. An asset without a profile shows only direct blueprints.
 
 ### Exchange
 
-A new **`blueprint:` document kind** in the plant YAML format 1 ([PLANT.md](../PLANT.md#yaml-import-and-export)), next to `device_profile:`, with the signals, importance and keywords; profile documents gain `blueprints:` (ids) and `blueprint_mappings:`, `blueprint_not_applicable:`. The JSON schema (`docs/plant/plant-registry-1.schema.json`) and the Git sync follow profiles: a blueprint is exported, synced and imported like one. Unknown or missing ids give the usual import warnings.
+A new **`blueprint:` / `blueprints:` document kind** in the plant YAML format 1 ([PLANT.md](../PLANT.md#yaml-import-and-export)), next to `device_profile:`, with the signals, importance and keywords; profile documents and an asset's `assignment:` gain `blueprints:` (ids), `blueprint_mappings:` and `blueprint_not_applicable:` (reason, with author and time kept from an export). The JSON schema (`docs/plant/plant-registry-1.schema.json`) and the export follow profiles. The plant registry has **no Git sync of its own** (an earlier draft of this record said so): the Git route is the export – `GET /api/v1/plant/export` – kept in a repository by a job ([PLANT.md](../PLANT.md#fetching-the-registry-from-other-tools)); blueprints are part of that export and import back unchanged. Names that lead nowhere (an unknown or hidden blueprint, signal or data point) give import warnings, not errors. A list given in a file replaces the stored list among the blueprints the importer may see; the others stay.
 
 ### Access
 
@@ -69,22 +69,23 @@ Blueprints follow device profiles: plant designers and administrators edit them;
 
 ### Data model
 
-One additive migration (SQLite and PostgreSQL, appended to the end of the list; `server/src/migrations/`): `plant_blueprints`, `plant_blueprint_signals`, `plant_blueprint_assignments` (profile or asset), `plant_blueprint_mappings` (assignment, signal, data point id) and `plant_blueprint_not_applicable` (assignment, signal, reason, author, time). All are classified in `server/src/migration/tables.ts`. Mappings name data points by id and follow the [id rename](../PLANT.md#changing-ids) like KPI definitions do. Deleting a blueprint is refused while assigned, as a profile in use is.
+One additive migration (`plant-033-blueprints`, SQLite and PostgreSQL, appended to the plant list in `server/src/migrations/plant.ts`): `plant_blueprints`, `plant_blueprint_signals`, `plant_blueprint_assignments` (blueprint, target kind `profile` or `asset`, target id), `plant_blueprint_mappings` (blueprint, target, signal, data point id) and `plant_blueprint_not_applicable` (blueprint, target, signal, reason, author, time). A mapping or mark of an asset holds for a blueprint the asset has directly or through its profile; blueprints are not inherited by profiles that extend one. All are classified in `server/src/migration/tables.ts`. Mappings name data points by id and follow the [id rename](../PLANT.md#changing-ids) of data points, profiles and assets (`server/src/plant/rename.ts`); removing a profile or an asset forgets its blueprint rows. Blueprint ids are not renamable in step 1. Deleting a blueprint is refused while assigned, as a profile in use is.
 
 ### Surfaces
 
-- **API:** routes under `/api/plant/blueprints` and on profiles and assets; read-only in `/api/v1/plant`; `docs/openapi.json` regenerated.
-- **MCP:** read tools for blueprints and for the coverage of a profile or an asset; no write tools in step 1.
-- **Exports:** blueprints are part of the plant export and the Git sync.
+- **API:** routes under `/api/plant/blueprints` (and `…/signals`) and on profiles and assets (`/api/plant/profiles/:id/blueprints`, `/api/plant/assets/:id/blueprints`, with `…/:blueprintId/signals/:signalId/mapping` and `…/not-applicable`); read-only in `/api/v1/plant` (`/plant/blueprints[/:id]`, `/plant/profiles/:id/blueprints`, `/plant/assets/:id/blueprints`); `docs/openapi.json` regenerated.
+- **MCP:** read tools `list_machine_blueprints`, `get_machine_blueprint` and `get_blueprint_coverage` (a profile or an asset); no write tools in step 1.
+- **Exports:** blueprints are part of the plant export (and so of the Git backup built on it).
+- **Team scope:** a blueprint is a third catalogue kind (`blueprint`, like `device_profile` and `kpi_definition`) with owning teams, shares and Restricted scope through the shares core; widening it needs the same step-up and access-change entry. Unlike profiles and KPI definitions, hidden blueprints are not even counted (`GET /api/plant/catalogue/hidden` has no count for them).
 - **Texts:** English and German; new error codes get both.
-- **Audit:** `blueprint.created`, `.updated`, `.deleted`, `.assigned`, `.mapping_changed`, `.not_applicable_set`.
+- **Audit** (entity type `blueprint`): `blueprint.created`, `.updated`, `.deleted`, `.assigned`, `.unassigned`, `.mapping_changed`, `.not_applicable_set`, `.not_applicable_cleared`.
 - **Upgrade fixtures:** an instance of the previous release with sites, profiles, assets and a Git sync, upgraded and checked for unchanged plant pages, exports and coverage (no blueprints, no new lines), on SQLite and PostgreSQL (`test:pg`).
 
 ### Phasing
 
-**Step 1 (0.30.0):** blueprints and signals, assignment, mapping with suggestions, not applicable with a reason, coverage on the profile and asset pages, the YAML document kind and API, MCP read tools. Blueprints are written by hand or imported.
+**Step 1 (0.30.0, the server first, the web UI in a second task):** blueprints and signals, assignment, mapping with suggestions, not applicable with a reason, coverage on the profile and asset pages, the YAML document kind and API, MCP read tools. Blueprints are written by hand or imported.
 
-**Step 2 (later):** a **site-wide matrix** (assets by blueprint importance, in the style of the KPI coverage matrix); **links to KPI definitions** ("this KPI needs these signals"; KPI potential could then say which blueprint signal is missing); **assistant proposals** for mappings and blueprints; **shipped examples**: a few deliberately generic, high-level blueprints (welding machine, CNC milling machine, injection moulding machine, robot cell, compressor), described as generic starting points to adapt, not as a standard. Invented names only.
+**Step 2 (0.30.0 as well, per the maintainer):** a **site-wide matrix** (assets by blueprint importance, in the style of the KPI coverage matrix); **links to KPI definitions** ("this KPI needs these signals"; KPI potential could then say which blueprint signal is missing); **assistant proposals** for mappings and blueprints; **shipped examples**: a few deliberately generic, high-level blueprints (welding machine, CNC milling machine, injection moulding machine, robot cell, compressor), described as generic starting points to adapt, not as a standard. Invented names only.
 
 ## Alternatives considered
 
