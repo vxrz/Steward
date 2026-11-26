@@ -253,16 +253,14 @@ export function addAssignment(blueprintId: string, t: TargetKey, at: string, by:
 }
 
 /**
- * Takes a blueprint off a profile or an asset, with its mappings and marks there. Taken off a profile it also clears the
- * marks and mappings its assets made for it, unless an asset has the blueprint directly as well.
+ * Takes a blueprint off a profile or an asset, with that target's own mappings and marks. Taken off a profile, the
+ * mappings and marks its assets made for the blueprint stay (the caller may not manage those assets); they are not shown,
+ * counted or exported while the blueprint is not assigned to the asset, and they return when it is assigned again.
  */
 export function removeAssignment(blueprintId: string, t: TargetKey): boolean {
   const had = isAssigned(blueprintId, t);
   db().run('DELETE FROM plant_blueprint_assignments WHERE blueprint_id = ? AND target_kind = ? AND target_id = ?', blueprintId, t.kind, t.id);
   clearTarget(blueprintId, t);
-  if (t.kind === 'profile')
-    for (const a of db().all<{ asset_id: string }>('SELECT asset_id FROM plant_assignments WHERE profile_id = ?', t.id))
-      if (!isAssigned(blueprintId, { kind: 'asset', id: a.asset_id })) clearTarget(blueprintId, { kind: 'asset', id: a.asset_id });
   return had;
 }
 
