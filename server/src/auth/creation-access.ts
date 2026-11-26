@@ -30,6 +30,10 @@ export const parseCreationAccess = (v: unknown): CreationAccess | undefined => (
 const asked = new AsyncLocalStorage<{ access: CreationAccess | undefined }>();
 export const withCreationAccess = <T>(access: CreationAccess | undefined, fn: () => T): T => asked.run({ access }, fn);
 
+/** Loading the demo data creates sample items for the whole instance: the owning team rule does not apply to it. */
+const loadingDemo = new AsyncLocalStorage<true>();
+export const withDemoLoad = <T>(fn: () => T): T => loadingDemo.run(true, fn);
+
 /** Splits the optional `access` object off a create route's body (so a strict body schema never sees it) and checks it. */
 export function takeCreationAccess(body: unknown): { body: unknown; access: CreationAccess | undefined } {
   if (!body || typeof body !== 'object' || Array.isArray(body) || !('access' in body)) return { body, access: undefined };
@@ -42,6 +46,13 @@ export function createWithAccess<T>(raw: unknown, create: (body: unknown) => T):
   const { body, access } = takeCreationAccess(raw);
   return withCreationAccess(access, () => create(body));
 }
+
+/**
+ * Kinds that never get the creator's teams: the catalogue (device profiles, KPI definitions, machine blueprints,
+ * suppliers) belongs to nobody and stays open, and a platform identity follows its platform. With the instance setting
+ * `newItemVisibility: owningTeams` every other kind needs an owning team at creation.
+ */
+const OPEN_KINDS: ReadonlySet<OwnedKind> = new Set<OwnedKind>(['device_profile', 'kpi_definition', 'blueprint', 'supplier', 'platform_identity']);
 
 /** Applies `access` to the item just inserted (call it inside the creation's transaction, after the default teams). */
 export function applyCreationAccess(kind: OwnedKind, id: string, label: string, given: CreationAccess | undefined): void {
@@ -82,6 +93,10 @@ export function applyCreationAccess(kind: OwnedKind, id: string, label: string, 
       });
     }
   }
+  // "Owning teams only" (ADR 0042): a new item belongs to a team. A person without one – an administrator included – names
+  // one (administrators any), or the creation is refused and nothing is created. Jobs without a signed-in user are not asked.
+  if (u && !loadingDemo.getStore() && getSettings().newItemVisibility === 'owningTeams' && !OPEN_KINDS.has(kind) && owningTeams(kind, id).length === 0)
+    throw new HttpError(400, `A new ${kind.replace(/_/g, ' ')} needs an owning team`, 'ACCESS_OWNING_TEAM_REQUIRED', { kind });
   if (!def || !u) return;
   // The instance default (ADR 0042): with "owning teams only" a new item that has owning teams starts Restricted. An
   // item without owning team belongs to the whole instance – there is nobody to narrow it to. Asking for `restricted:

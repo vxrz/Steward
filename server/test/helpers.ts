@@ -17,8 +17,11 @@ export interface ClientOptions {
 export const ADMIN = { username: 'admin', password: 'Admin-password-1' };
 
 /** Set up vault + first admin (signed in on `api`). */
-export async function setup(s: TestServer): Promise<void> {
+export async function setup(s: TestServer, opts: { newItemVisibility?: 'everyone' | 'owningTeams' } = {}): Promise<void> {
   await s.api('POST', '/auth/setup', { passphrase: 'correct horse battery', username: ADMIN.username, displayName: 'Admin', password: ADMIN.password });
+  // a new installation starts with "owning teams only" (ADR 0042), which asks every creator for an owning team: most tests
+  // create items as an administrator without a team and run with "everyone"; the tests of that rule ask for the default
+  (await import('../src/settings.js')).updateSettings({ newItemVisibility: opts.newItemVisibility ?? 'everyone' });
 }
 
 /**

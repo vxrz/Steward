@@ -215,7 +215,7 @@ const setVisibility = (v: 'everyone' | 'owningTeams') => s.api('PUT', '/settings
 
 beforeAll(async () => {
   s = await startTestServer();
-  await setup(s);
+  await setup(s, { newItemVisibility: 'owningTeams' });
   admin = s.api;
   const users = await import('../src/auth/users.js');
   users.createUser({ username: 'vic', roles: ['viewer'], password: PW, mustChangePassword: false });
@@ -300,13 +300,19 @@ describe('team scope of a new item', () => {
     expect(await code(sam('GET', `/services/${made.id}`))).toMatch(/NOT_FOUND/);
   });
 
-  it('a person without a team creates open items: there is no team to narrow them to', async () => {
+  it('a person without a team has no team to narrow to: refused while only owning teams see new items, open otherwise', async () => {
     const users = await import('../src/auth/users.js');
     users.createUser({ username: 'solo', roles: ['designer'], password: PW, mustChangePassword: false });
     const solo = await s.as('solo', PW);
-    const made = (await solo('POST', '/services', { name: 'Invented solo service', owners: [] })) as { id: string };
-    expect(await teamsOf('service', made.id)).toEqual([]);
-    expect(await restricted('service', made.id)).toBe(false);
+    expect(await code(solo('POST', '/services', { name: 'Invented solo service', owners: [] }))).toBe('ACCESS_OWNING_TEAM_REQUIRED');
+    await setVisibility('everyone');
+    try {
+      const made = (await solo('POST', '/services', { name: 'Invented solo service', owners: [] })) as { id: string };
+      expect(await teamsOf('service', made.id)).toEqual([]);
+      expect(await restricted('service', made.id)).toBe(false);
+    } finally {
+      await setVisibility('owningTeams');
+    }
   });
 
   it('asking for access on a kind without the Restricted scope is refused, naming the kind', async () => {

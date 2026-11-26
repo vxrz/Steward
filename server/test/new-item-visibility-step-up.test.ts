@@ -20,7 +20,7 @@ const current = async () => ((await s.api('GET', '/settings/instance')) as { new
 
 beforeAll(async () => {
   s = await startTestServer();
-  await setup(s);
+  await setup(s, { newItemVisibility: 'owningTeams' });
   strict = await s.as(ADMIN.username, ADMIN.password, { autoStepUp: false });
 });
 

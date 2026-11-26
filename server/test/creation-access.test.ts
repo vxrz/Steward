@@ -63,7 +63,7 @@ const count = async (kind: keyof typeof KINDS) => ((await s.api('GET', KINDS[kin
 
 beforeAll(async () => {
   s = await startTestServer();
-  await setup(s);
+  await setup(s, { newItemVisibility: 'owningTeams' });
   const users = await import('../src/auth/users.js');
   for (const [username, roles] of [
     ['desi', ['designer']],
@@ -86,7 +86,11 @@ beforeAll(async () => {
 for (const kind of ['process', 'dashboard', 'monitor'] as const) {
   describe(`${kind}: access at creation`, () => {
     it('without access: unchanged – the creator defaults, open to the instance for an administrator', async () => {
+      // an administrator without a team creates open items only where new items are open (with "owning teams only" they name a team)
+      expect(await code(KINDS[kind].create(admin))).toBe('ACCESS_OWNING_TEAM_REQUIRED');
+      await s.api('PUT', '/settings/instance', { newItemVisibility: 'everyone' });
       const id = await KINDS[kind].create(admin);
+      await s.api('PUT', '/settings/instance', { newItemVisibility: 'owningTeams' });
       expect((await s.api('GET', `/owning-teams/${kind}/${id}`)).teams).toEqual([]);
       expect(await code(vic('GET', KINDS[kind].view(id)))).toBe('ok');
       const mine = await KINDS[kind].create(desi);
