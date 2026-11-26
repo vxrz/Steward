@@ -24,6 +24,7 @@ import {
   type PlantResolvedProfile,
   type PlantAssetPointAddition,
 } from '@sm/shared';
+import { blueprintOnly } from './blueprint-exchange.js';
 import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
 import { canManageCatalogue } from './access.js';
@@ -513,6 +514,8 @@ export function planData(p: DataPlan, f: PlantFile, file: string, problems: Plan
   }
   const assignments: [AssignmentFile, string][] = f.assignment ? [[f.assignment, 'assignment']] : (f.assignments ?? []).map((x, i) => [x, `assignments[${i}]`]);
   for (const [x, path] of assignments) {
+    // 0.30.0: an assignment with blueprint keys only writes no assignment of the asset (blueprint-exchange.ts)
+    if (blueprintOnly(x)) continue;
     const o = { file, path };
     const first = p.assignments.get(x.asset);
     if (first) twice(o, `The assignment of asset "${x.asset}"`, first);

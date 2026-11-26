@@ -19,7 +19,7 @@ export function useSiteTiles() {
 }
 
 export function SiteTileStats({ siteId, compact }: { siteId: string; compact?: boolean }) {
-  const { t } = useTranslation('plantViews');
+  const { t } = useTranslation(['plantViews', 'plantBlueprints']);
   const q = useSiteTiles();
   const tile = q.data?.find((x) => x.siteId === siteId);
   if (!tile) return null;
@@ -80,6 +80,9 @@ export function SiteTileStats({ siteId, compact }: { siteId: string; compact?: b
         </Anchor>
         <Anchor component={Link} to={`/plant/explore?view=coverage&site=${encodeURIComponent(siteId)}`} size="xs">
           {t('tiles.coverageLink')}
+        </Anchor>
+        <Anchor component={Link} to={`/plant/explore?view=blueprints&site=${encodeURIComponent(siteId)}`} size="xs" data-testid="tile-blueprints-link">
+          {t('plantBlueprints:matrix.link')}
         </Anchor>
       </Group>
     </Stack>

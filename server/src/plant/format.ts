@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import {
   ASSET_STATUSES,
+  BLUEPRINT_IMPORTANCES,
+  BLUEPRINT_LIMITS as BL,
+  BLUEPRINT_WHY,
   authKindOf,
   BUILDING_KINDS,
   boundedRecord,
@@ -362,10 +365,82 @@ export const interfaceSchema = z
   .strict()
   .meta({ id: 'Interface', description: 'An interface of a device: OPC UA, Modbus/TCP, MQTT, file transfer, web UI …' });
 
+// ---------- 0.30.0 (ADR 0041): machine blueprints ----------
+
+const blueprintSignalSchema = z
+  .object({
+    id: id.describe('Stable id in the blueprint (mappings and marks name it)'),
+    name,
+    meaning: text(BL.text).describe('What it tells – no data type, unit or address'),
+    why: z
+      .array(z.enum(BLUEPRINT_WHY))
+      .max(BLUEPRINT_WHY.length)
+      .optional()
+      .describe('Why it matters: quality, energy, availability, maintenance, safety, traceability'),
+    importance: z.enum(BLUEPRINT_IMPORTANCES).optional().describe('must, should (default) or nice'),
+    aliases: z.array(z.string().min(1).max(BL.name)).max(BL.aliases).optional().describe('Known-as names and keywords: used only for suggestions'),
+    kpis: z
+      .array(id)
+      .max(BL.kpisPerSignal)
+      .optional()
+      .describe('0.30.0: ids of the KPI definitions this signal feeds ("this KPI needs this signal"); advice only'),
+  })
+  .strict()
+  .meta({ id: 'BlueprintSignal', description: 'A signal a machine blueprint expects' });
+
+export const blueprintSchema = z
+  .object({
+    id,
+    name,
+    description: text(BL.text),
+    reference: text(BL.name).describe('A standard, or "own experience"'),
+    version: text(60),
+    signals: z.array(blueprintSignalSchema).max(BL.signals).optional(),
+  })
+  .strict()
+  .meta({
+    id: 'MachineBlueprint',
+    description: 'A checklist of the signals one expects of a kind of machine (advice: it never changes a profile or an asset)',
+  });
+
+/** What a device profile or an asset says about its blueprints (the keys of `device_profile:` and `assignment:`). */
+const blueprintKeys = {
+  blueprints: z.array(id).max(BL.perTarget).optional().describe('0.30.0: the machine blueprints it has (ids); a list given replaces the stored one'),
+  blueprint_mappings: z
+    .array(
+      z
+        .object({
+          blueprint: id,
+          signal: id,
+          data_points: z.array(pointId).max(BL.pointsPerSignal).describe('The data points of the profile (or the asset’s data) the signal is mapped to'),
+        })
+        .strict(),
+    )
+    .max(BL.signals * BL.perTarget)
+    .optional()
+    .describe('0.30.0: signal → data points; the list replaces the mappings of the blueprints it names'),
+  blueprint_not_applicable: z
+    .array(
+      z
+        .object({
+          blueprint: id,
+          signal: id,
+          reason: z.string().min(1).max(BL.reason).describe('Why the signal does not apply (required)'),
+          by: z.string().max(200).optional().describe('Who marked it (kept from an export; the importer otherwise)'),
+          at: z.string().max(40).optional().describe('When (kept from an export; now otherwise)'),
+        })
+        .strict(),
+    )
+    .max(BL.signals * BL.perTarget)
+    .optional()
+    .describe('0.30.0: signals that do not apply, each with its reason'),
+};
+
 export const profileSchema = z
   .object({
     id,
     name,
+    ...blueprintKeys,
     extends: catalogueRef
       .nullable()
       .optional()
@@ -506,6 +581,7 @@ export const kpiSchema = z
 export const assignmentSchema = z
   .object({
     asset: id.describe('The asset'),
+    ...blueprintKeys,
     site: id.optional().describe('The asset’s site (optional; checked when given)'),
     profile: catalogueRef.nullable().optional().describe('Its device profile'),
     firmware: versionText.describe('Controller firmware'),
@@ -995,6 +1071,8 @@ export const plantFileSchema = z
     device_profiles: z.array(profileSchema).max(L.profiles).optional().describe('Device profiles (a catalogue of the installation)'),
     kpi_definition: kpiSchema.optional().describe('One KPI definition'),
     kpi_definitions: z.array(kpiSchema).max(L.kpis).optional().describe('KPI definitions (a catalogue of the installation)'),
+    blueprint: blueprintSchema.optional().describe('0.30.0: one machine blueprint'),
+    blueprints: z.array(blueprintSchema).max(BL.blueprints).optional().describe('0.30.0: machine blueprints (a catalogue of the installation)'),
     assignment: assignmentSchema.optional().describe('The assignment of one asset'),
     assignments: z.array(assignmentSchema).max(PLANT_LIMITS.assets).optional().describe('Assignments of assets'),
     ot_network: otNetworkSchema.optional().describe('The OT network of one site (a file per site)'),
@@ -1007,6 +1085,7 @@ export const plantFileSchema = z
   .refine((f) => !(f.site && f.sites), { message: 'Use either site (one) or sites (several), not both', path: ['site'] })
   .refine((f) => !(f.device_profile && f.device_profiles), { message: 'Use either device_profile or device_profiles, not both', path: ['device_profile'] })
   .refine((f) => !(f.kpi_definition && f.kpi_definitions), { message: 'Use either kpi_definition or kpi_definitions, not both', path: ['kpi_definition'] })
+  .refine((f) => !(f.blueprint && f.blueprints), { message: 'Use either blueprint or blueprints, not both', path: ['blueprint'] })
   .refine((f) => !(f.assignment && f.assignments), { message: 'Use either assignment or assignments, not both', path: ['assignment'] })
   .refine((f) => !(f.ot_network && f.ot_networks), { message: 'Use either ot_network or ot_networks, not both', path: ['ot_network'] })
   .refine((f) => !(f.asset_network && f.asset_networks), { message: 'Use either asset_network or asset_networks, not both', path: ['asset_network'] });
@@ -1019,6 +1098,7 @@ export type ProfileFile = z.infer<typeof profileSchema>;
 export type InterfaceFile = z.infer<typeof interfaceSchema>;
 export type DataPointFile = z.infer<typeof dataPointSchema>;
 export type KpiFile = z.infer<typeof kpiSchema>;
+export type BlueprintFile = z.infer<typeof blueprintSchema>;
 export type AssignmentFile = z.infer<typeof assignmentSchema>;
 export type OtNetworkFile = z.infer<typeof otNetworkSchema>;
 export type AssetNetworkFile = z.infer<typeof assetNetworkSchema>;
@@ -1034,7 +1114,7 @@ export function plantJsonSchema(): Record<string, unknown> {
     $id: SCHEMA_ID,
     title: 'Steward plant registry, format 1',
     description:
-      'Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets; the OT network – IEEE 802.1Q VLANs, IEC 62443-3-2 zones and conduits, devices and data paths of assets. See docs/PLANT.md.',
+      'Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2), machine blueprints and the assignments of assets; the OT network – IEEE 802.1Q VLANs, IEC 62443-3-2 zones and conduits, devices and data paths of assets. See docs/PLANT.md.',
     ...rest,
   };
 }

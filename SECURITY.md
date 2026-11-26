@@ -101,6 +101,32 @@ backups of database _and_ `vault.json`, signed audit checkpoints shipped to a
 SIEM, and keeping Chromium current. Personal data and retention:
 [docs/PRIVACY.md](docs/PRIVACY.md).
 
+## Security review guidelines
+
+For reviewers of pull requests, human or agent. The application's security model is in [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md), the deployment side in [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md), the CI scans in [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md).
+
+**Where the security-relevant code is**
+
+- Access and policy: `server/src/auth/` – route access declarations (`access.ts`; `ACCESS.public` and `ACCESS.session` deserve a second look), rights on objects (`permissions.ts`, `policy.ts`), step-up (`step-up.ts`, `step-up-rules.ts`), access changes and their audit entries (`access-change.ts`), API tokens (`tokens.ts`), single sign-on (`sso.ts`). `server/test/route-matrix.test.ts` compares routes with their expected access.
+- Audit: `server/src/audit.ts` and the other `audit-*.ts` files.
+- Secrets: `server/src/vault.ts`, `vault-rotation.ts`, `server/src/credentials/`.
+- Outbound calls: `server/src/platforms/` (`destination.ts`, `http.ts`, `deniedPaths.ts`) and the outbound policy ([docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#outbound-connections)).
+- MCP: `server/src/mcp/` ([docs/MCP.md](docs/MCP.md)).
+- Public routes (`ACCESS.public`), web hooks and push endpoints in `server/src/routes/`.
+
+**Blocking findings**
+
+- Authentication or access bypass: a route without a declared access, a check done after the body is read or only in the web app, an API token doing what needs a signed-in session, access widened without step-up or access-change audit entry.
+- Team-scope leaks: a reader who can see, count or be told about items they may not see (list totals, error texts, search, exports, MCP).
+- Injection of any kind (SQL, command, template, expression, header, path traversal), and server-side request forgery through outbound calls that skip address safety or the outbound policy, including redirects.
+- Secrets in logs, errors, protocols, audit entries, exports or API answers.
+- Unsafe deserialisation or parsing of untrusted input (use the safe loaders, for example `yaml-safe.ts`), and regular expressions that can backtrack badly on untrusted input (ReDoS). CodeQL runs on the repository and finds some of these; a review does not rely on it.
+- Weakened or removed checks, tests or audit entries.
+
+**Reporting findings on a public repository**
+
+If a finding is an exploitable problem in released code or on `main`, do not describe it in a public pull request comment, issue or review. Report it through [private vulnerability reporting](#reporting-a-vulnerability) and note in the review only that a finding exists, without details. Hardening ideas without a concrete attack can be public.
+
 ## Library publisher key
 
 Shared procedure libraries ([docs/LIBRARIES.md](docs/LIBRARIES.md)) are signed

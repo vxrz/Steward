@@ -2,7 +2,7 @@
 
 Where Steward stands, what it deliberately does not do, and what comes next. Shipped changes are in the [CHANGELOG](../CHANGELOG.md); how it is built is in [ARCHITECTURE.md](ARCHITECTURE.md). Ideas and requests are collected as GitHub issues.
 
-_Last reviewed for 0.29.0 (November 2026)._
+_Last reviewed for 0.30.0 (November 2026)._
 
 ## What Steward is for
 
@@ -93,10 +93,12 @@ Themes of this release (details in the CHANGELOG once released):
 - **0.27.1:** a second line or machine failing is news again (numbers that name an item stay part of it), Docker logs are rotated, and the documentation says how to keep a deployment lean; the upgrade fixture of 0.27.0.
 - **0.28.0:** access changes for user groups and for the services, applications and systems they concern; an Insights Hub example that changes the roles of a user group; calmer pages – sections, side drawers and "More details" on the busiest pages and forms; the upgrade fixture of 0.27.1.
 - **0.29.0:** access settings when creating processes, monitors and dashboards ([ADR 0040](adr/0040-drafts-and-access-at-creation.md), part 1); monitor e-mails to people outside Steward, with one-click unsubscribe; Snowflake cost estimates from your own assumptions, without a connection; the upgrade fixture of 0.28.0.
+- **0.30.0:** machine blueprints ([ADR 0041](adr/0041-machine-blueprints.md)) – what a kind of machine is expected to deliver, compared per device profile, per asset and across a site, with "not applicable" and a reason, links to KPI definitions, assistant proposals and five generic examples; review guidelines for code and security reviews; the upgrade fixture of 0.29.0.
 
 ## Next
 
-- **After 0.29.0:** part 2 of [ADR 0040](adr/0040-drafts-and-access-at-creation.md) – drafts, then publish – once it is decided; no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
+- **0.31.0:** access settings at creation for every item with access control, and an instance setting for the visibility of new items (owning teams only on new installations; upgraded ones keep today's behaviour).
+- **After 0.31.0:** part 2 of [ADR 0040](adr/0040-drafts-and-access-at-creation.md) – drafts, then publish – once it is decided; no release is planned yet – the items under _Later_ and the GitHub issues are the candidates.
 
 ## Later
 

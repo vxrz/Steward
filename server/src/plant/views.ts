@@ -212,7 +212,7 @@ function datasetLive(key: string): PlantLive {
 
 type SlimAsset = Pick<AssetRow, 'id' | 'name' | 'status' | 'site_id' | 'area_id' | 'work_center_id' | 'work_unit_id' | 'parent_id'>;
 
-function visible(): { sites: Map<string, SiteRow>; assets: SlimAsset[] } {
+export function visible(): { sites: Map<string, SiteRow>; assets: SlimAsset[] } {
   const rows = db().all<SiteRow>('SELECT id, code, name, names, acl FROM plant_sites');
   const rights = siteRights(rows);
   const sites = new Map(rows.filter((s) => rights.get(s.id)!.includes('view')).map((s) => [s.id, s]));
@@ -224,7 +224,7 @@ function visible(): { sites: Map<string, SiteRow>; assets: SlimAsset[] } {
   return { sites, assets };
 }
 
-const names = (s: string): Translations => parseJson<Translations>(s, {});
+export const names = (s: string): Translations => parseJson<Translations>(s, {});
 
 // ---------- 1. site structure ----------
 

@@ -41,6 +41,7 @@
     "plantAssets": "Anlagen",
     "plantMap": "Karte",
     "plantProfiles": "Geräteprofile",
+    "plantBlueprints": "Maschinen-Blueprints",
     "plantKpis": "KPI-Definitionen",
     "plantExplore": "Daten erkunden",
     "plantChecks": "Prüfungen",
@@ -160,6 +161,7 @@
       "asset": "Anlage",
       "profile": "Geräteprofil",
       "kpi": "KPI-Definition",
+      "blueprint": "Maschinen-Blueprint",
       "contract": "Datenvertrag",
       "supplier": "Lieferant"
     }

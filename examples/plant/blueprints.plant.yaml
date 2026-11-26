@@ -1,0 +1,288 @@
+# yaml-language-server: $schema=https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json
+# Steward plant registry, format 1 (docs/PLANT.md, machine blueprints; ADR 0041).
+# Five generic machine blueprints. Each is a starting point to adapt to your own machines, not a standard:
+# the signals, meanings and importance are illustrative. The names are generic; nothing here is vendor-specific.
+version: 1
+blueprints:
+  - id: welding-machine
+    name: Welding machine
+    description: Generic starting point to adapt, not a standard. A checklist for an arc welding power source with a wire feeder.
+    reference: Generic note, not a standard
+    version: "1"
+    signals:
+      - id: welding-current
+        name: Welding current
+        meaning: Current set and delivered during the weld
+        why: [quality, traceability]
+        importance: must
+        aliases: [current, welding amperage, arc current]
+      - id: welding-voltage
+        name: Welding voltage
+        meaning: Arc voltage during the weld
+        why: [quality]
+        importance: should
+        aliases: [arc voltage, voltage]
+      - id: wire-feed-speed
+        name: Wire feed speed
+        meaning: Speed at which the filler wire is fed to the torch
+        why: [quality, maintenance]
+        importance: must
+        aliases: [wire speed, feed rate, WFS]
+      - id: shielding-gas-flow
+        name: Shielding gas flow
+        meaning: Flow of shielding gas to the torch
+        why: [quality]
+        importance: should
+        aliases: [gas flow, shielding gas, gas pressure]
+      - id: weld-cycle-time
+        name: Weld cycle time
+        meaning: Duration of one weld or weld seam
+        why: [availability]
+        importance: should
+        aliases: [cycle time, weld time]
+      - id: arc-on-time
+        name: Arc-on time
+        meaning: Time the arc is struck, compared with the time the machine is switched on
+        why: [energy, maintenance]
+        importance: should
+        aliases: [duty cycle, on-time]
+      - id: energy-consumption
+        name: Energy consumption
+        meaning: Electrical energy drawn by the power source
+        why: [energy]
+        importance: nice
+        aliases: [energy, power consumption]
+      - id: fault-code
+        name: Fault code
+        meaning: Code of the last fault or warning
+        why: [availability, maintenance]
+        importance: must
+        aliases: [error code, alarm, fault]
+  - id: cnc-milling-machine
+    name: CNC milling machine
+    description: Generic starting point to adapt, not a standard. A checklist for a three-axis CNC milling machine with a spindle and a tool changer.
+    reference: Generic note, not a standard
+    version: "1"
+    signals:
+      - id: spindle-speed
+        name: Spindle speed
+        meaning: Rotational speed of the spindle
+        why: [quality, safety]
+        importance: must
+        aliases: [spindle rpm, rpm, speed]
+      - id: spindle-load
+        name: Spindle load
+        meaning: Load on the spindle motor, as a share of its rating
+        why: [maintenance, availability]
+        importance: must
+        aliases: [spindle power, motor load, load]
+      - id: feed-rate
+        name: Feed rate
+        meaning: Feed speed of the axes during machining
+        why: [quality]
+        importance: should
+        aliases: [feedrate, axis feed]
+      - id: active-program
+        name: Active program
+        meaning: Name or number of the part programme running
+        why: [traceability]
+        importance: should
+        aliases: [NC program, part program, program]
+      - id: part-counter
+        name: Part counter
+        meaning: Number of parts produced
+        why: [traceability, availability]
+        importance: must
+        aliases: [piece count, parts, counter]
+      - id: cycle-time
+        name: Cycle time
+        meaning: Time taken per part
+        why: [availability]
+        importance: should
+        aliases: [machining time, cycle]
+      - id: active-tool
+        name: Active tool
+        meaning: Number of the tool in use and its wear state
+        why: [quality, maintenance]
+        importance: should
+        aliases: [tool number, tool wear, tool life]
+      - id: coolant-temperature
+        name: Coolant temperature
+        meaning: Temperature of the coolant at the tool
+        why: [quality, maintenance]
+        importance: nice
+        aliases: [coolant temp, fluid temperature]
+  - id: injection-moulding-machine
+    name: Injection moulding machine
+    description: Generic starting point to adapt, not a standard. A checklist for a hydraulic or hybrid injection moulding machine.
+    reference: Generic note, not a standard
+    version: "1"
+    signals:
+      - id: mould-temperature
+        name: Mould temperature
+        meaning: Temperature of the mould at the cavity
+        why: [quality]
+        importance: must
+        aliases: [tool temperature, mould temp]
+      - id: melt-temperature
+        name: Melt temperature
+        meaning: Temperature of the plastic melt before injection
+        why: [quality]
+        importance: must
+        aliases: [barrel temperature, melt temp, nozzle temperature]
+      - id: injection-pressure
+        name: Injection pressure
+        meaning: Pressure applied while the mould is filled and held
+        why: [quality, maintenance]
+        importance: must
+        aliases: [holding pressure, hold pressure]
+      - id: clamping-force
+        name: Clamping force
+        meaning: Force holding the mould closed during injection
+        why: [quality, safety]
+        importance: should
+        aliases: [clamp force, locking force]
+      - id: cycle-time
+        name: Cycle time
+        meaning: Time of one moulding cycle
+        why: [availability, energy]
+        importance: must
+        aliases: [shot time, cycle]
+      - id: shot-counter
+        name: Shot counter
+        meaning: Number of shots produced
+        why: [traceability, maintenance]
+        importance: must
+        aliases: [shot count, cycles]
+      - id: hydraulic-oil-temperature
+        name: Hydraulic oil temperature
+        meaning: Temperature of the hydraulic oil
+        why: [maintenance, availability]
+        importance: should
+        aliases: [oil temperature, hydraulic temp]
+      - id: energy-consumption
+        name: Energy consumption
+        meaning: Electrical energy drawn by the machine
+        why: [energy]
+        importance: should
+        aliases: [energy use, power consumption]
+  - id: robot-cell
+    name: Robot cell
+    description: Generic starting point to adapt, not a standard. A checklist for an industrial robot with its gripper, guarding and cell controller.
+    reference: Generic note, not a standard
+    version: "1"
+    signals:
+      - id: robot-program
+        name: Active robot program
+        meaning: Name or number of the program the robot runs
+        why: [traceability]
+        importance: must
+        aliases: [robot program, job, program]
+      - id: operating-mode
+        name: Operating mode
+        meaning: Automatic, manual or teach mode
+        why: [safety]
+        importance: must
+        aliases: [operation mode, auto mode]
+      - id: emergency-stop
+        name: Emergency stop state
+        meaning: Whether an emergency stop is active
+        why: [safety]
+        importance: must
+        aliases: [e-stop, emergency stop]
+      - id: safety-door
+        name: Safety door state
+        meaning: Whether the guarding of the cell is closed and locked
+        why: [safety]
+        importance: must
+        aliases: [guard door, fence, door]
+      - id: cycle-count
+        name: Cycle count
+        meaning: Number of cycles completed
+        why: [traceability, availability]
+        importance: must
+        aliases: [cycles, part count, counter]
+      - id: cycle-time
+        name: Cycle time
+        meaning: Time taken per cycle
+        why: [availability]
+        importance: should
+        aliases: [cycle, takt]
+      - id: gripper-state
+        name: Gripper state
+        meaning: Whether the gripper is open or closed and holds a part
+        why: [quality, safety]
+        importance: should
+        aliases: [gripper, grip]
+      - id: fault-code
+        name: Fault code
+        meaning: Code of the last robot or cell fault
+        why: [availability, maintenance]
+        importance: must
+        aliases: [error code, alarm, fault]
+      - id: joint-torque
+        name: Joint torque
+        meaning: Torque or motor load on each axis
+        why: [maintenance, safety]
+        importance: nice
+        aliases: [axis load, motor current, torque]
+  - id: compressor
+    name: Compressor
+    description: Generic starting point to adapt, not a standard. A checklist for a screw or piston air compressor with its controller.
+    reference: Generic note, not a standard
+    version: "1"
+    signals:
+      - id: outlet-pressure
+        name: Outlet pressure
+        meaning: Pressure at the compressor outlet
+        why: [quality, safety]
+        importance: must
+        aliases: [discharge pressure, pressure]
+      - id: outlet-temperature
+        name: Outlet temperature
+        meaning: Temperature of the compressed air at the outlet
+        why: [maintenance, safety]
+        importance: must
+        aliases: [discharge temperature, air temperature]
+      - id: power-draw
+        name: Power draw
+        meaning: Electrical power drawn by the drive motor
+        why: [energy]
+        importance: must
+        aliases: [power, energy use]
+      - id: run-hours
+        name: Run hours
+        meaning: Hours the compressor has run under load
+        why: [maintenance]
+        importance: should
+        aliases: [operating hours, load hours]
+      - id: load-state
+        name: Load state
+        meaning: Whether the compressor runs loaded, unloaded or stopped
+        why: [energy, availability]
+        importance: should
+        aliases: [load, unload, running state]
+      - id: air-flow
+        name: Air flow
+        meaning: Volume of compressed air delivered
+        why: [energy, quality]
+        importance: should
+        aliases: [volume flow, delivery]
+      - id: lubricant-level
+        name: Lubricant level
+        meaning: Level of the lubricant in the sump
+        why: [maintenance, availability]
+        importance: should
+        aliases: [oil level, sump level]
+      - id: filter-pressure-drop
+        name: Filter pressure drop
+        meaning: Pressure drop across the air filter
+        why: [maintenance, energy]
+        importance: nice
+        aliases: [differential pressure, filter]
+      - id: fault-code
+        name: Fault code
+        meaning: Code of the last fault or warning
+        why: [availability, maintenance]
+        importance: must
+        aliases: [error code, alarm, fault]

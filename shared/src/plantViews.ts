@@ -1,6 +1,7 @@
 import type { AssetStatus, PlantLevel, Translations } from './plant.js';
 import type { PlantAssetBrief, PlantAssetRef, PlantCheck, PlantCheckCode, PlantDirection, PlantProtocol, PlantUnitMismatch } from './plantData.js';
 import type { LiveState } from './plantNetwork.js';
+import type { PlantBlueprintKpiGap } from './plantBlueprints.js';
 
 /**
  * Visualizations of the plant registry (#230): the structure of a site, the data flow of an asset, the lineage of a
@@ -255,6 +256,11 @@ export interface PlantCoverageCell {
   gaps?: PlantGap[];
   /** problem: the checks that fail */
   checks?: PlantCheck[];
+  /**
+   * 0.30.0 (ADR 0041), cannot, or could and not collected: the signals of the asset's machine blueprints that feed this
+   * KPI and are missing there – additional information, the state does not depend on it
+   */
+  blueprintGaps?: PlantBlueprintKpiGap[];
   /**
    * 0.12.0, could: whether the data is collected already – a data collection of the asset (any collector) maps every
    * data point input ("Collected – ready"), or not ("Device delivers, not collected")

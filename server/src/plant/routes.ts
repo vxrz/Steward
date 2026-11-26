@@ -1,4 +1,6 @@
 import { hiddenCatalogue } from './catalogue-access.js';
+import { blueprintRoutes } from './blueprint-routes.js';
+import { blueprintMatrix, kpiBlueprints, withBlueprintGaps } from './blueprint-views.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ASSET_STATUSES, PLANT_LIMITS } from '@sm/shared';
@@ -242,7 +244,7 @@ const proposesOnly = (catalogue: boolean): boolean => {
 /** The sites and the catalogue an import's preview touches. */
 const touchedBy = (changes: { kind: string; siteId: string }[]) => ({
   sites: [...new Set(changes.map((c) => c.siteId).filter(Boolean))],
-  catalogue: changes.some((c) => c.kind === 'profile' || c.kind === 'kpi'),
+  catalogue: changes.some((c) => c.kind === 'profile' || c.kind === 'kpi' || c.kind === 'blueprint' || (c.kind === 'blueprint_use' && !c.siteId)),
 });
 
 /** The demo shows the module with its invented enterprise once it is turned on. */
@@ -260,6 +262,8 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   await changeSetRoutes(app);
   // 0.14: security advisories (CSAF 2.0) matched to assets (docs/ADVISORIES.md)
   await advisoryRoutes(app);
+  // 0.30.0: machine blueprints (ADR 0041)
+  await blueprintRoutes(app);
   // ---------- settings (the module switch works while the module is off) ----------
   app.get('/settings/plant', { config: { access: ACCESS.admin } }, async () => plantSettings());
   // turning the module on or off is a module switch (0.11.0, ADR 0016): the same step-up as Settings → Modules
@@ -977,17 +981,33 @@ export async function plantRoutes(app: FastifyInstance): Promise<void> {
   // ---------- visualizations (#230): read-only aggregates, the same rights as the pages they picture ----------
   app.get('/plant/views/overview', async () => overview());
   app.get('/plant/views/coverage', async (req) =>
-    coverage(
+    withBlueprintGaps(
+      coverage(
+        z
+          .object({
+            site: z.string().max(100).optional(),
+            area: z.string().max(100).optional(),
+            profile: z.string().max(100).optional(),
+            kpi: z.string().max(100).optional(),
+          })
+          .parse(req.query),
+      ),
+    ),
+  );
+  // 0.30.0 step 2 (ADR 0041): assets by machine blueprints, and the blueprint signals that feed a KPI definition
+  app.get('/plant/views/blueprints', async (req) =>
+    blueprintMatrix(
       z
         .object({
           site: z.string().max(100).optional(),
           area: z.string().max(100).optional(),
           profile: z.string().max(100).optional(),
-          kpi: z.string().max(100).optional(),
+          blueprint: z.string().max(100).optional(),
         })
         .parse(req.query),
     ),
   );
+  app.get('/plant/kpis/:kpiId/blueprints', async (req) => kpiBlueprints(p(req).kpiId!));
   app.get('/plant/sites/:siteId/structure', async (req) => siteStructure(p(req).siteId!));
   app.get('/plant/sites/:siteId/network/placement', async (req) => hostPlacement(p(req).siteId!));
   app.get('/plant/assets/:assetId/flow', async (req) => assetFlow(p(req).assetId!));

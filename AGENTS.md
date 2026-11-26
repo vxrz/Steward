@@ -40,6 +40,32 @@ When relevant, also: `npm run test:pg` (SQL or migrations; needs `SM_TEST_DATABA
 - **Dependencies:** only releases at least 14 days old; no new dependency without a reason in the pull request.
 - Do not change files under `.claude/`, `AGENTS.md` or `CLAUDE.md` unless the issue asks for it.
 
+## Code review
+
+For any reviewer, human or agent. The rules are the ones above and in [CONTRIBUTING.md](CONTRIBUTING.md); this section says what to look for, in priority order, and how to report. Security reviews also follow the guidelines in [SECURITY.md](SECURITY.md#security-review-guidelines).
+
+### What to look for
+
+1. **Correctness and regressions:** does the change do what the issue's acceptance criteria say, and does it break existing behaviour, error paths or callers? Check the import rules in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#import-rules).
+2. **Security and access:** every route declares its access; anything that widens access has a step-up and an access-change audit entry; team scope means a reader never sees, counts or is told about items they may not see; nothing is created or changed when a check fails.
+3. **Data:** migrations are additive, appended to the end of their list, work on SQLite and PostgreSQL, and new tables and columns are classified in `server/src/migration/tables.ts`. Existing migrations and upgrade fixtures stay untouched.
+4. **Texts:** English and German, German with the formal "Sie", British spelling, sentence case; every new error code has both texts.
+5. **Public repository:** no secrets, personal data, real company names, internal hostnames or IP addresses, also in tests, docs and examples.
+6. **Tests:** new behaviour has a test, and a fix has a test that failed before it. No test is deleted, skipped or weakened.
+7. **Dependencies:** releases at least 14 days old, with a reason in the pull request.
+
+### How to report
+
+- Give each finding a file and line, the impact and a concrete fix, and mark it **blocking** or **minor**.
+- Skip what lint and Prettier already check, and do not restate the diff.
+- Say what you did not check (for example, tests you could not run).
+- Generated files (`docs/openapi.json`, `docs/CONFIGURATION.md`, `web/src/i18n/keys.gen.ts`, upgrade fixtures) are not reviewed line by line; check that the command that generates them was run.
+- Do not review code the change does not touch.
+
+### Dependabot pull requests
+
+Keep the review short. Report only breaking and behaviour changes and security notes from the release notes, anomalies in the lockfile (unexpected packages, changed registries or integrity hashes), and whether CI failures come from the update. Look closer at major versions (migration notes).
+
 ## Task routing
 
 - Issues carry one label: `tier:frontier`, `tier:mid` or `tier:bulk`.

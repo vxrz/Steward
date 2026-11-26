@@ -126,6 +126,10 @@ function entryOf(kind: PlantChangeKind, siteId: string, id: string): { kind: Pla
       const k = split();
       return k ? { kind: 'collection', ...k } : null;
     }
+    // 0.30.0: machine blueprints are no entries of change sets (no revisions, no baselines): a proposal carries them
+    case 'blueprint':
+    case 'blueprint_use':
+      return null;
   }
 }
 

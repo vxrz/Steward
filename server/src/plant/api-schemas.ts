@@ -1,6 +1,10 @@
 import { z, type ZodTypeAny } from 'zod';
 import {
   ASSET_STATUSES,
+  BLUEPRINT_IMPORTANCES,
+  BLUEPRINT_STATES,
+  BLUEPRINT_TARGETS,
+  BLUEPRINT_WHY,
   BUILDING_KINDS,
   KPI_AUDIENCES,
   KPI_COLUMN_KINDS,
@@ -1075,6 +1079,84 @@ export const PlantChangeOperationListQuery = z.object({
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
 });
 
+// ---------- 0.30.0 (ADR 0041): machine blueprints ----------
+
+const BlueprintSignal = z.object({
+  id: z.string().describe('Stable id in the blueprint'),
+  name: z.string(),
+  meaning: z.string().describe('What it tells (no data type, unit or address)'),
+  why: z.array(z.enum(BLUEPRINT_WHY)),
+  importance: z.enum(BLUEPRINT_IMPORTANCES),
+  aliases: z.array(z.string()).describe('Known-as names and keywords, used only for suggestions'),
+  kpis: z.array(z.string()).describe('Ids of the KPI definitions this signal feeds (only those the reader may see)'),
+});
+const BlueprintCounts = z.object(
+  Object.fromEntries(BLUEPRINT_IMPORTANCES.map((i) => [i, z.number().int()])) as Record<(typeof BLUEPRINT_IMPORTANCES)[number], z.ZodNumber>,
+);
+
+export const PlantBlueprintEntry = z.object({
+  id: z.string().describe('Stable id'),
+  name: z.string(),
+  reference: z.string().describe('A standard, or "own experience"'),
+  version: z.string(),
+  signalCount: z.number().int(),
+  byImportance: BlueprintCounts.describe('Signals per importance'),
+  profileCount: z.number().int().describe('Device profiles the token owner may see that have it'),
+  assetCount: z.number().int().describe('Assets the token owner may see that have it directly'),
+  ...source,
+  updatedAt: ts(),
+});
+
+export const PlantBlueprintDetailEntry = PlantBlueprintEntry.extend({
+  description: z.string(),
+  signals: z.array(BlueprintSignal),
+  profiles: z.array(z.object({ id: z.string(), name: z.string() })),
+  assets: z.array(AssetBrief),
+  updatedBy: z.string(),
+});
+
+const BlueprintTotals = z.object({
+  total: z.number().int(),
+  applicable: z.number().int().describe('total less the signals marked not applicable'),
+  covered: z.number().int(),
+  notCollected: z.number().int().describe('Asset only: the profile has it, this asset does not collect it'),
+  missing: z.number().int().describe('Not mapped: the profile lacks it'),
+  notApplicable: z.number().int(),
+  suggested: z.number().int().describe('Missing signals with a suggestion (suggestions never count as covered)'),
+});
+
+export const PlantBlueprintCoverageEntry = z.object({
+  target: z.object({ kind: z.enum(BLUEPRINT_TARGETS), id: z.string(), name: z.string() }),
+  profile: z.object({ id: z.string(), name: z.string() }).nullable().describe('An asset: its profile (when the token owner may see it)'),
+  blueprints: z.array(
+    z.object({
+      blueprint: z.object({ id: z.string(), name: z.string(), reference: z.string(), version: z.string() }),
+      via: z.enum(['direct', 'profile', 'both']),
+      totals: BlueprintTotals,
+      byImportance: z.object(
+        Object.fromEntries(BLUEPRINT_IMPORTANCES.map((i) => [i, BlueprintTotals])) as Record<(typeof BLUEPRINT_IMPORTANCES)[number], typeof BlueprintTotals>,
+      ),
+      signals: z.array(
+        z.object({
+          signal: BlueprintSignal,
+          state: z.enum(BLUEPRINT_STATES),
+          points: z.array(
+            z.object({
+              id: z.string(),
+              name: z.string(),
+              source: z.enum(BLUEPRINT_TARGETS).describe('Where the mapping is made'),
+              missing: z.boolean().optional().describe('The data point is gone from the profile or the asset'),
+              collected: z.boolean().nullable().describe('Asset: a data collection reads it; profile: null'),
+            }),
+          ),
+          notApplicable: z.object({ reason: z.string(), by: z.string(), at: z.string(), on: z.enum(BLUEPRINT_TARGETS) }).nullable(),
+          suggestions: z.array(z.object({ dataPoint: z.string(), name: z.string(), matchedBy: z.enum(['name', 'alias', 'keyword']), matched: z.string() })),
+        }),
+      ),
+    }),
+  ),
+});
+
 export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantChangeSetEntry,
   PlantChangeSetDetailEntry,
@@ -1091,6 +1173,9 @@ export const PLANT_COMPONENTS: Record<string, ZodTypeAny> = {
   PlantProfileDetailEntry,
   PlantKpiEntry,
   PlantKpiDetailEntry,
+  PlantBlueprintEntry,
+  PlantBlueprintDetailEntry,
+  PlantBlueprintCoverageEntry,
   PlantAssignmentEntry,
   PlantSiteNetworkEntry,
   PlantAssetNetworkEntry,

@@ -19,6 +19,7 @@ export type RecentKind =
   | 'site'
   | 'asset'
   | 'profile'
+  | 'blueprint'
   | 'kpi'
   | 'contract'
   | 'supplier';

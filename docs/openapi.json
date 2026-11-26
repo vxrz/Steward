@@ -26373,6 +26373,812 @@
         ],
         "additionalProperties": false
       },
+      "PlantBlueprintEntry": {
+        "title": "PlantBlueprintEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string",
+            "description": "A standard, or \"own experience\""
+          },
+          "version": {
+            "type": "string"
+          },
+          "signalCount": {
+            "type": "integer"
+          },
+          "byImportance": {
+            "type": "object",
+            "properties": {
+              "must": {
+                "type": "integer"
+              },
+              "should": {
+                "type": "integer"
+              },
+              "nice": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "must",
+              "should",
+              "nice"
+            ],
+            "additionalProperties": false,
+            "description": "Signals per importance"
+          },
+          "profileCount": {
+            "type": "integer",
+            "description": "Device profiles the token owner may see that have it"
+          },
+          "assetCount": {
+            "type": "integer",
+            "description": "Assets the token owner may see that have it directly"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "reference",
+          "version",
+          "signalCount",
+          "byImportance",
+          "profileCount",
+          "assetCount",
+          "importId",
+          "notInSource",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PlantBlueprintDetailEntry": {
+        "title": "PlantBlueprintDetailEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string",
+            "description": "A standard, or \"own experience\""
+          },
+          "version": {
+            "type": "string"
+          },
+          "signalCount": {
+            "type": "integer"
+          },
+          "byImportance": {
+            "type": "object",
+            "properties": {
+              "must": {
+                "type": "integer"
+              },
+              "should": {
+                "type": "integer"
+              },
+              "nice": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "must",
+              "should",
+              "nice"
+            ],
+            "additionalProperties": false,
+            "description": "Signals per importance"
+          },
+          "profileCount": {
+            "type": "integer",
+            "description": "Device profiles the token owner may see that have it"
+          },
+          "assetCount": {
+            "type": "integer",
+            "description": "Assets the token owner may see that have it directly"
+          },
+          "importId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The last import that wrote the record (null: entered in Steward)"
+          },
+          "notInSource": {
+            "type": "boolean",
+            "description": "Kept although the import that replaced its earlier one no longer contained it"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "0.13.0: the entry’s revision – one more with every change (docs/PLANT.md \"Change sets\")"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Stable id in the blueprint"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "meaning": {
+                  "type": "string",
+                  "description": "What it tells (no data type, unit or address)"
+                },
+                "why": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "quality",
+                      "energy",
+                      "availability",
+                      "maintenance",
+                      "safety",
+                      "traceability"
+                    ]
+                  }
+                },
+                "importance": {
+                  "type": "string",
+                  "enum": [
+                    "must",
+                    "should",
+                    "nice"
+                  ]
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Known-as names and keywords, used only for suggestions"
+                },
+                "kpis": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Ids of the KPI definitions this signal feeds (only those the reader may see)"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "meaning",
+                "why",
+                "importance",
+                "aliases",
+                "kpis"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "planned",
+                    "commissioning",
+                    "operational",
+                    "maintenance",
+                    "out_of_service",
+                    "decommissioned"
+                  ]
+                },
+                "siteId": {
+                  "type": "string"
+                },
+                "site": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "names": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Translations of the name, keyed by language code"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "names",
+                    "code"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "siteId",
+                "site"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "reference",
+          "version",
+          "signalCount",
+          "byImportance",
+          "profileCount",
+          "assetCount",
+          "importId",
+          "notInSource",
+          "updatedAt",
+          "description",
+          "signals",
+          "profiles",
+          "assets",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "PlantBlueprintCoverageEntry": {
+        "title": "PlantBlueprintCoverageEntry",
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "profile",
+                  "asset"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An asset: its profile (when the token owner may see it)"
+          },
+          "blueprints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blueprint": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "reference",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                },
+                "via": {
+                  "type": "string",
+                  "enum": [
+                    "direct",
+                    "profile",
+                    "both"
+                  ]
+                },
+                "totals": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "applicable": {
+                      "type": "integer",
+                      "description": "total less the signals marked not applicable"
+                    },
+                    "covered": {
+                      "type": "integer"
+                    },
+                    "notCollected": {
+                      "type": "integer",
+                      "description": "Asset only: the profile has it, this asset does not collect it"
+                    },
+                    "missing": {
+                      "type": "integer",
+                      "description": "Not mapped: the profile lacks it"
+                    },
+                    "notApplicable": {
+                      "type": "integer"
+                    },
+                    "suggested": {
+                      "type": "integer",
+                      "description": "Missing signals with a suggestion (suggestions never count as covered)"
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "applicable",
+                    "covered",
+                    "notCollected",
+                    "missing",
+                    "notApplicable",
+                    "suggested"
+                  ],
+                  "additionalProperties": false
+                },
+                "byImportance": {
+                  "type": "object",
+                  "properties": {
+                    "must": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "applicable": {
+                          "type": "integer",
+                          "description": "total less the signals marked not applicable"
+                        },
+                        "covered": {
+                          "type": "integer"
+                        },
+                        "notCollected": {
+                          "type": "integer",
+                          "description": "Asset only: the profile has it, this asset does not collect it"
+                        },
+                        "missing": {
+                          "type": "integer",
+                          "description": "Not mapped: the profile lacks it"
+                        },
+                        "notApplicable": {
+                          "type": "integer"
+                        },
+                        "suggested": {
+                          "type": "integer",
+                          "description": "Missing signals with a suggestion (suggestions never count as covered)"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "applicable",
+                        "covered",
+                        "notCollected",
+                        "missing",
+                        "notApplicable",
+                        "suggested"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "should": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "applicable": {
+                          "type": "integer",
+                          "description": "total less the signals marked not applicable"
+                        },
+                        "covered": {
+                          "type": "integer"
+                        },
+                        "notCollected": {
+                          "type": "integer",
+                          "description": "Asset only: the profile has it, this asset does not collect it"
+                        },
+                        "missing": {
+                          "type": "integer",
+                          "description": "Not mapped: the profile lacks it"
+                        },
+                        "notApplicable": {
+                          "type": "integer"
+                        },
+                        "suggested": {
+                          "type": "integer",
+                          "description": "Missing signals with a suggestion (suggestions never count as covered)"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "applicable",
+                        "covered",
+                        "notCollected",
+                        "missing",
+                        "notApplicable",
+                        "suggested"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "nice": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "applicable": {
+                          "type": "integer",
+                          "description": "total less the signals marked not applicable"
+                        },
+                        "covered": {
+                          "type": "integer"
+                        },
+                        "notCollected": {
+                          "type": "integer",
+                          "description": "Asset only: the profile has it, this asset does not collect it"
+                        },
+                        "missing": {
+                          "type": "integer",
+                          "description": "Not mapped: the profile lacks it"
+                        },
+                        "notApplicable": {
+                          "type": "integer"
+                        },
+                        "suggested": {
+                          "type": "integer",
+                          "description": "Missing signals with a suggestion (suggestions never count as covered)"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "applicable",
+                        "covered",
+                        "notCollected",
+                        "missing",
+                        "notApplicable",
+                        "suggested"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "must",
+                    "should",
+                    "nice"
+                  ],
+                  "additionalProperties": false
+                },
+                "signals": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "signal": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Stable id in the blueprint"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "meaning": {
+                            "type": "string",
+                            "description": "What it tells (no data type, unit or address)"
+                          },
+                          "why": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "quality",
+                                "energy",
+                                "availability",
+                                "maintenance",
+                                "safety",
+                                "traceability"
+                              ]
+                            }
+                          },
+                          "importance": {
+                            "type": "string",
+                            "enum": [
+                              "must",
+                              "should",
+                              "nice"
+                            ]
+                          },
+                          "aliases": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Known-as names and keywords, used only for suggestions"
+                          },
+                          "kpis": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Ids of the KPI definitions this signal feeds (only those the reader may see)"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "meaning",
+                          "why",
+                          "importance",
+                          "aliases",
+                          "kpis"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "covered",
+                          "missing",
+                          "notCollected",
+                          "notApplicable"
+                        ]
+                      },
+                      "points": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "profile",
+                                "asset"
+                              ],
+                              "description": "Where the mapping is made"
+                            },
+                            "missing": {
+                              "type": "boolean",
+                              "description": "The data point is gone from the profile or the asset"
+                            },
+                            "collected": {
+                              "type": [
+                                "null",
+                                "boolean"
+                              ],
+                              "description": "Asset: a data collection reads it; profile: null"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "source",
+                            "collected"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "notApplicable": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "by": {
+                                "type": "string"
+                              },
+                              "at": {
+                                "type": "string"
+                              },
+                              "on": {
+                                "type": "string",
+                                "enum": [
+                                  "profile",
+                                  "asset"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "reason",
+                              "by",
+                              "at",
+                              "on"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "suggestions": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "dataPoint": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "matchedBy": {
+                              "type": "string",
+                              "enum": [
+                                "name",
+                                "alias",
+                                "keyword"
+                              ]
+                            },
+                            "matched": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "dataPoint",
+                            "name",
+                            "matchedBy",
+                            "matched"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "signal",
+                      "state",
+                      "points",
+                      "notApplicable",
+                      "suggestions"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "blueprint",
+                "via",
+                "totals",
+                "byImportance",
+                "signals"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "target",
+          "profile",
+          "blueprints"
+        ],
+        "additionalProperties": false
+      },
       "PlantAssignmentEntry": {
         "title": "PlantAssignmentEntry",
         "type": "object",
@@ -56010,6 +56816,296 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlantKpiDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/blueprints": {
+      "get": {
+        "operationId": "listPlantBlueprints",
+        "summary": "List machine blueprints",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The machine blueprints of the installation (a checklist of the signals one expects of a kind of machine), ordered by name, with their signal counts per importance and the device profiles and assets that have them. Blueprints the token owner may not see (owning teams) are left out and not counted. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of machine blueprints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of machine blueprints",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlantBlueprintEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/blueprints/{blueprintId}": {
+      "get": {
+        "operationId": "getPlantBlueprint",
+        "summary": "Get a machine blueprint with its signals",
+        "tags": [
+          "Plant"
+        ],
+        "description": "The signals (name, meaning, why it matters, importance must, should or nice, known-as names) and the device profiles and assets that have it. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "blueprintId",
+            "required": true,
+            "description": "Machine blueprint id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantBlueprintDetailEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/profiles/{profileId}/blueprints": {
+      "get": {
+        "operationId": "getPlantProfileBlueprints",
+        "summary": "Get the coverage of a device profile by its machine blueprints",
+        "tags": [
+          "Plant"
+        ],
+        "description": "Per blueprint of the profile: every signal covered (mapped to a data point the profile has), missing or not applicable (with its reason), the totals per importance (\"9 of 12 covered, 2 must missing\") and suggestions by name – which never count as covered. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "profileId",
+            "required": true,
+            "description": "Device profile id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantBlueprintCoverageEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/plant/assets/{assetId}/blueprints": {
+      "get": {
+        "operationId": "getPlantAssetBlueprints",
+        "summary": "Get the coverage of an asset by its machine blueprints",
+        "tags": [
+          "Plant"
+        ],
+        "description": "As for a device profile, for the blueprints of the asset's profile and those it has itself, and with one more state: **notCollected** – the profile has the data point, but no data collection of this asset reads it – against **missing** – the profile lacks it. Only while the plant registry module is on (Settings → Modules); otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "description": "Asset id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlantBlueprintCoverageEntry"
                 }
               }
             },

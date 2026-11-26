@@ -41,6 +41,7 @@ import { teamsChanged } from '../auth/policy.js';
 import { sharesChanged } from '../auth/share-store.js';
 import { plantId, plantRef, translations } from './model.js';
 import { assetModel, resolveAll, resolveChain } from './resolve.js';
+import { forgetTarget } from './blueprint-store.js';
 
 /**
  * Part 2 of the plant registry (#219), as stored and as values: device profiles (interfaces, groups, data points),
@@ -1004,6 +1005,8 @@ export const removeProfileRow = (id: string) => {
   // 0.12: the links of records to it (the removal core refuses them without "also remove what belongs to it")
   db().run("DELETE FROM item_links WHERE to_kind = 'device-profile' AND to_id = ?", id);
   db().run('DELETE FROM plant_profiles WHERE id = ?', id);
+  // 0.30.0: the machine blueprints assigned to it, with their mappings and marks
+  forgetTarget({ kind: 'profile', id });
   forgetAccess('device_profile', id);
 };
 export const removeKpiRow = (id: string) => {

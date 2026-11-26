@@ -507,9 +507,42 @@ const REFERENCES_ALL: RefSpec[] = [
     },
   },
   ofFamilyAssets('plant_collection_mappings', 'data_point', 'data_point', 'collection_mapping'),
+  // 0.30.0 (ADR 0041): the machine blueprints of a profile and of an asset, their mappings and not-applicable marks; a
+  // mapping names a data point of the profile (or of its assets' data)
+  ...(['profile', 'asset'] as const).flatMap((k) =>
+    ['plant_blueprint_assignments', 'plant_blueprint_mappings', 'plant_blueprint_not_applicable'].map((t) =>
+      pair(t, 'target_kind', k, 'target_id', k, 'blueprint'),
+    ),
+  ),
+  {
+    table: 'plant_blueprint_mappings',
+    column: 'data_point_id',
+    kind: 'data_point',
+    what: 'blueprint',
+    apply: (r) => {
+      const family = profileFamily(r.scope);
+      const assets = familyAssets(r);
+      let n = run(
+        `UPDATE plant_blueprint_mappings SET data_point_id = ? WHERE data_point_id = ? AND target_kind = 'profile' AND target_id IN (${marks(family.length)})`,
+        r.to,
+        r.from,
+        ...family,
+      );
+      if (assets.length)
+        n += run(
+          `UPDATE plant_blueprint_mappings SET data_point_id = ? WHERE data_point_id = ? AND target_kind = 'asset' AND target_id IN (${marks(assets.length)})`,
+          r.to,
+          r.from,
+          ...assets,
+        );
+      return n;
+    },
+  },
   // ---- KPI definitions
   col('plant_kpis', 'id', 'kpi', 'kpi'),
   json<{ kpi: string }[]>('plant_assignments', 'kpis', 'kpi', 'kpi', 'assignment', ['asset_id'], inObjects('kpi')),
+  // 0.30.0 step 2 (ADR 0041): the KPI definitions a blueprint signal feeds
+  json<string[]>('plant_blueprint_signals', 'kpis', 'kpi', 'kpi', 'blueprint', ['blueprint_id', 'id'], (v, r) => inList(v, r)),
   pair('copied_from', 'kind', 'kpi-definition', 'id', 'kpi', 'copy'),
   pair('copied_from', 'kind', 'kpi-definition', 'source_id', 'kpi', 'copy'),
   pair('resource_teams', 'kind', 'kpi_definition', 'resource_id', 'kpi', 'owning_team'),

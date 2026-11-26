@@ -53,6 +53,7 @@ export const NAMESPACES = [
   'plantDocs',
   'plantChanges',
   'plantAdvisories',
+  'plantBlueprints',
   'costs',
   'contracts',
   'libraries',

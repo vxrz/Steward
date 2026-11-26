@@ -1,3 +1,5 @@
+import { targetBlueprintsOut, visibleBlueprintsOut } from './blueprints.js';
+import { blueprintPlanEmpty, applyBlueprintPlan, emptyBlueprintPlan, planBlueprints, type BlueprintPlan } from './blueprint-exchange.js';
 import { z } from 'zod';
 import YAML from 'yaml';
 import {
@@ -200,6 +202,8 @@ const FILE_KINDS: Record<string, PlantEntryKind[]> = {
   kpi_definitions: ['kpi'],
   assignment: ['assignment'],
   assignments: ['assignment'],
+  blueprint: [],
+  blueprints: [],
 };
 /** Files up to this size are read twice for their kinds; a larger import costs more than reading the whole registry. */
 const KINDS_OF_BYTES = 1024 * 1024;
@@ -267,6 +271,8 @@ interface Plan {
   data: DataPlan;
   /** The OT network of sites and assets (#220, import-network.ts) */
   net: NetPlan;
+  /** 0.30.0: machine blueprints and what profiles and assets say about them (blueprint-exchange.ts) */
+  blueprints: BlueprintPlan;
 }
 
 const key = (siteId: string, id: string) => `${siteId}/${id}`;
@@ -328,6 +334,7 @@ function plan(parsed: Parsed[], problems: PlantImportProblem[]): Plan {
     assets: new Map(),
     data: emptyDataPlan(),
     net: emptyNetPlan(),
+    blueprints: emptyBlueprintPlan(),
   };
   const twice = (o: Origin, what: string, first: Origin) =>
     problems.push({ ...o, message: `${what} is defined twice (also in ${first.file} at ${first.path})` });
@@ -403,6 +410,7 @@ function plan(parsed: Parsed[], problems: PlantImportProblem[]): Plan {
     }
     (f.file.assets ?? []).forEach((a, i) => addAsset(a, null, { file: f.name, path: `assets[${i}]` }));
     planData(p.data, f.file, f.name, problems);
+    planBlueprints(p.blueprints, f.file, f.name, problems);
     planNetwork(p.net, f.file, f.name, problems);
   }
   return p;
@@ -1112,12 +1120,14 @@ function compute(input: ImportInput, importId: string): Computed {
     counts[c.action]++;
     (byKind[c.kind] ??= emptyCounts())[c.action]++;
   }
-  const empty = !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data) && netPlanEmpty(p.net);
+  const empty =
+    !p.sites.size && !p.nodes.size && !p.buildings.size && !p.assets.size && dataPlanEmpty(p.data) && netPlanEmpty(p.net) && blueprintPlanEmpty(p.blueprints);
   if (empty && mode !== 'replace' && !problems.length && !ids.removals.length)
     problems.push({
       file: '(files)',
       path: '(document)',
-      message: 'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions, assignments or OT networks)',
+      message:
+        'The files hold no records (sites, hierarchy, buildings, assets, device profiles, KPI definitions, assignments, machine blueprints or OT networks)',
     });
   const preview: PlantImportPreview = {
     ok: problems.length === 0,
@@ -1176,6 +1186,19 @@ function run(input: ImportInput, importId: string): Ran {
   let removal: Ran['removal'] = null;
   if (c.preview.ok) {
     applyWrites(c.writes);
+    // 0.30.0: machine blueprints, after the profiles and assets they refer to
+    const bp = applyBlueprintPlan(c.plan.blueprints, importId, c.preview.problems, c.preview.warnings);
+    if (!blueprintPlanEmpty(c.plan.blueprints)) {
+      const { changes, ...counts } = bp;
+      c.preview.blueprints = counts;
+      // the preview lists them like every entry (a proposal shows, counts and fingerprints them)
+      for (const ch of changes) {
+        c.preview.changes.push(ch);
+        c.preview.counts[ch.action]++;
+        (c.preview.byKind[ch.kind] ??= emptyCounts())[ch.action]++;
+      }
+    }
+    if (c.preview.problems.length) c.preview.ok = false;
     const targets: Target[] = [...c.removeTargets, ...(input.removeMissing ? missingEntries(c.files) : [])];
     if (targets.length) {
       removal = planRemoval(targets, { cascade: input.cascade });
@@ -1417,7 +1440,11 @@ function ownProfileOut(
 ): Record<string, unknown> {
   const p = own.get(id)!;
   const refs = new HiddenRefs(scope.profile, resolved.get(id)?.chain.slice(1) ?? []);
-  return profileOut({ ...p, extends: refs.ref(p.extends) }, p.extends ? (resolved.get(p.extends) ?? null) : null);
+  // 0.30.0: its machine blueprints, mappings and marks (the ones the reader may see)
+  return {
+    ...profileOut({ ...p, extends: refs.ref(p.extends) }, p.extends ? (resolved.get(p.extends) ?? null) : null),
+    ...targetBlueprintsOut('profile', id, scope),
+  };
 }
 
 /** A KPI definition as the file holds it, profiles the reader may not see by their placeholders. */
@@ -1459,8 +1486,10 @@ export function exportYaml(
       doc = { version: PLANT_FORMAT_VERSION, kpi_definition: shownKpiOut(k, scope) };
       filename = `${k.id}.kpi.plant.yaml`;
     } else {
+      const blueprints = visibleBlueprintsOut(scope);
       doc = {
         version: PLANT_FORMAT_VERSION,
+        ...(blueprints.length ? { blueprints } : {}),
         ...(profiles.size ? { device_profiles: [...profiles.keys()].map((id) => ownProfileOut(id, all, own, scope)) } : {}),
         ...(kpis.size ? { kpi_definitions: [...kpis.values()].map((k) => shownKpiOut(k, scope)) } : {}),
       };
@@ -1582,8 +1611,22 @@ export function exportYaml(
     .map((a) => {
       const x = assignments.get(a.id)!;
       const chain = x.profileId ? (resolvedProfiles.get(x.profileId)?.chain ?? []) : [];
-      return assignmentOut(a.id, presentAssignment(x, assignmentRefs(x, chain, scope)));
+      return { ...assignmentOut(a.id, presentAssignment(x, assignmentRefs(x, chain, scope))), ...targetBlueprintsOut('asset', a.id, scope) };
     });
+  // 0.30.0: assets with blueprints, mappings or marks and no assignment of their own: a document with those keys only
+  const withBlueprints = new Set(
+    db()
+      .all<{ id: string }>(
+        "SELECT target_id AS id FROM plant_blueprint_assignments WHERE target_kind = 'asset' UNION SELECT target_id FROM plant_blueprint_mappings WHERE target_kind = 'asset' UNION SELECT target_id FROM plant_blueprint_not_applicable WHERE target_kind = 'asset'",
+      )
+      .map((r) => r.id),
+  );
+  for (const a of assets)
+    if (withBlueprints.has(a.id) && !assignments.has(a.id)) {
+      const keys = targetBlueprintsOut('asset', a.id, scope);
+      if (Object.keys(keys).length) assigned.push({ asset: a.id, ...keys });
+    }
+  const blueprintDocs = siteId ? [] : visibleBlueprintsOut(scope);
   const profiles = siteId ? [] : [...resolvedProfiles.keys()].filter((id) => scope.profile(id));
   const kpis = siteId ? [] : [...allKpis().values()].filter((k) => scope.kpi(k.id));
   // part 3 (#220): the OT network of the sites and of their assets
@@ -1595,6 +1638,7 @@ export function exportYaml(
     ...(siteId ? { site: out[0] } : { sites: out }),
     ...(profiles.length ? { device_profiles: profiles.map((id) => ownProfileOut(id, resolvedProfiles, own, scope)) } : {}),
     ...(kpis.length ? { kpi_definitions: kpis.map((k) => shownKpiOut(k, scope)) } : {}),
+    ...(blueprintDocs.length ? { blueprints: blueprintDocs } : {}),
     ...(assigned.length ? { assignments: assigned } : {}),
     ...(networks.length ? (siteId ? { ot_network: networks[0] } : { ot_networks: networks }) : {}),
     ...(assetNetworks.length ? { asset_networks: assetNetworks } : {}),

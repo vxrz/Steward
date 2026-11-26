@@ -13,6 +13,7 @@ import { plantKeys } from '../queryKeys';
 import { PreviewBadge, useNameOf, usePlantLabel } from '../components/plant/common';
 import { Breakable, ChecksList, NoProblems, ProtocolBadge, UnitText } from '../components/plant/data';
 import { CoverageMatrix } from './plant/views/CoverageMatrix';
+import { BlueprintMatrix } from './plant/views/BlueprintMatrix';
 
 const pointPath = (h: PlantPointHit) => `/plant/profiles/${encodeURIComponent(h.profile.id)}/points/${encodeURIComponent(h.point.id)}`;
 const assetsPath = (h: PlantPointHit) => `/plant/assets?profile=${encodeURIComponent(h.profile.id)}&dataPoint=${encodeURIComponent(h.point.id)}`;
@@ -22,12 +23,12 @@ const assetsPath = (h: PlantPointHit) => `/plant/assets?profile=${encodeURICompo
  * address, description), and which KPIs an asset can have. Both are in the address, so a result can be shared.
  */
 export function PlantExplorePage() {
-  const { t } = useTranslation(['plant', 'common', 'plantViews']);
+  const { t } = useTranslation(['plant', 'common', 'plantViews', 'plantBlueprints']);
   const label = usePlantLabel();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const [params, setParams] = useSearchParams();
   const view = params.get('view');
-  const mode = view === 'asset' || view === 'coverage' ? view : 'points';
+  const mode = view === 'asset' || view === 'coverage' || view === 'blueprints' ? view : 'points';
   const [q, setQ] = useState(params.get('q') ?? '');
   const [needle] = useDebouncedValue(q.trim(), 250);
   const set = (k: string, v: string | null) => {
@@ -72,6 +73,7 @@ export function PlantExplorePage() {
           { value: 'points', label: t('explore.points', { type: label('asset', true, true) }) },
           { value: 'asset', label: t('explore.asset', { type: label('asset', false, true) }) },
           { value: 'coverage', label: t('plantViews:explore.coverage') },
+          { value: 'blueprints', label: t('plantBlueprints:matrix.link') },
         ]}
         data-testid="explore-mode"
       />
@@ -79,6 +81,8 @@ export function PlantExplorePage() {
         <PointSearch needle={needle} />
       ) : mode === 'coverage' ? (
         <CoverageMatrix />
+      ) : mode === 'blueprints' ? (
+        <BlueprintMatrix />
       ) : (
         <AssetKpis assetId={params.get('asset')} onAsset={(id) => set('asset', id)} />
       )}

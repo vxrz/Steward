@@ -324,12 +324,13 @@ export const MODULES: readonly ModuleDef[] = [
       // the role defaults of the plant registry before 0.23.0 (DEFAULT_PLANT, DEFAULT_PLANT_CATALOGUE), read through the
       // module: the instance role "plant" (Plant viewer) became a contributor grant (ADR 0034 part 5)
       roles: {
-        viewer: { site: ['view'], device_profile: ['view'], kpi_definition: ['view'] },
-        contributor: { site: ['view', 'propose'], device_profile: ['view', 'propose'], kpi_definition: ['view', 'propose'] },
+        viewer: { site: ['view'], device_profile: ['view'], kpi_definition: ['view'], blueprint: ['view'] },
+        contributor: { site: ['view', 'propose'], device_profile: ['view', 'propose'], kpi_definition: ['view', 'propose'], blueprint: ['view', 'propose'] },
         manager: {
           site: ['view', 'propose', 'manage'],
           device_profile: ['view', 'propose', 'edit', 'manage'],
           kpi_definition: ['view', 'propose', 'edit', 'manage'],
+          blueprint: ['view', 'propose', 'edit', 'manage'],
           // adding sites and catalogue entries, importing new sites (SITE_CREATORS before 0.23.0)
           registry: ['createSites', 'manageCatalogue'],
         },
@@ -357,6 +358,9 @@ export const MODULES: readonly ModuleDef[] = [
         'get_data_point',
         'list_kpi_definitions',
         'get_kpi_definition',
+        'list_machine_blueprints',
+        'get_machine_blueprint',
+        'get_blueprint_coverage',
         'list_data_collections',
         'get_data_collection',
         'get_insights_hub_mapping',
@@ -366,7 +370,7 @@ export const MODULES: readonly ModuleDef[] = [
         'get_plant_advisory',
       ],
       exportParts: ['plant'],
-      itemKinds: ['site', 'asset', 'conduit', 'device-profile', 'data-collection', 'data-sink', 'device_profile', 'kpi_definition'],
+      itemKinds: ['site', 'asset', 'conduit', 'device-profile', 'data-collection', 'data-sink', 'device_profile', 'kpi_definition', 'blueprint'],
     },
   },
   {

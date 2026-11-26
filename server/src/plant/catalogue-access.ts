@@ -140,9 +140,12 @@ export interface CatalogueScope {
   /** Whether the reader may see the profile (an id that names no profile counts as visible: it is "unknown", not hidden) */
   profile(id: string): boolean;
   kpi(id: string): boolean;
+  /** 0.30.0: whether the reader may see the machine blueprint (never counted or named where they may not: ADR 0041) */
+  blueprint(id: string): boolean;
   /** The existing entries the reader may not see */
   hiddenProfiles(): ReadonlySet<string>;
   hiddenKpis(): ReadonlySet<string>;
+  hiddenBlueprints(): ReadonlySet<string>;
   /** Nothing is hidden from the reader (no owning teams or restrictions on the catalogues, or an administrator) */
   open(): boolean;
 }
@@ -164,6 +167,7 @@ export function catalogueScope(u: AuthUser | null = currentUser()): CatalogueSco
     !u ? true : !reaches ? rights(kind, id).length > 0 : openEntry(kind, id) || rights(kind, id).length > 0;
   let hp: Set<string> | undefined;
   let hk: Set<string> | undefined;
+  let hb: Set<string> | undefined;
   const hiddenOf = (kind: PlantCatalogueKind, table: string): Set<string> => {
     if (!u) return new Set();
     return new Set(
@@ -178,8 +182,10 @@ export function catalogueScope(u: AuthUser | null = currentUser()): CatalogueSco
     rights,
     hiddenProfiles: () => (hp ??= hiddenOf('device_profile', 'plant_profiles')),
     hiddenKpis: () => (hk ??= hiddenOf('kpi_definition', 'plant_kpis')),
+    hiddenBlueprints: () => (hb ??= hiddenOf('blueprint', 'plant_blueprints')),
     profile: (id) => !scope.hiddenProfiles().has(id),
     kpi: (id) => !scope.hiddenKpis().has(id),
+    blueprint: (id) => !scope.hiddenBlueprints().has(id),
     open: () => !scope.hiddenProfiles().size && !scope.hiddenKpis().size,
   };
   return scope;

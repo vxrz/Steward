@@ -117,6 +117,7 @@ export function ownedResource(kind: OwnedKind, id: string): ResourceRow | undefi
   // the plant catalogues (0.21.0, #293): only while the module is on
   if (kind === 'device_profile') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_profiles WHERE id = ?', id) : undefined;
   if (kind === 'kpi_definition') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_kpis WHERE id = ?', id) : undefined;
+  if (kind === 'blueprint') return plantEnabled() ? db().get<ResourceRow>('SELECT id, name FROM plant_blueprints WHERE id = ?', id) : undefined;
   return db().get<ResourceRow>(`SELECT id, name, owners FROM ${CATALOGUE_TABLES[kind]} WHERE id = ?`, id);
 }
 const resource = ownedResource;
@@ -165,7 +166,7 @@ function access(kind: OwnedKind, r: ResourceRow, u: AuthUser | null): { permissi
     const c = calculatorRights({ id: r.id }, u);
     return { permissions: [...(c.view ? ['view'] : []), ...(c.edit ? ['edit'] : [])], reasons: [] };
   }
-  if (kind === 'device_profile' || kind === 'kpi_definition') return catalogueEntryAccess(u, kind, r.id);
+  if (kind === 'device_profile' || kind === 'kpi_definition' || kind === 'blueprint') return catalogueEntryAccess(u, kind, r.id);
   if (!isCatalogue(kind)) return { permissions: [], reasons: [] };
   const d = catalogueAccess(u, { kind, id: r.id, owners: parseJson<string[]>(r.owners, []) });
   // Manage (its shares, owners from outside) on the kinds switched to shares (ADR 0033)
@@ -198,6 +199,7 @@ const NOT_FOUND: Record<OwnedKind, [string, string]> = {
   cost_calculator: ['Calculator not found', 'COST_CALCULATOR_NOT_FOUND'],
   device_profile: ['Device profile not found', 'PLANT_PROFILE_NOT_FOUND'],
   kpi_definition: ['KPI definition not found', 'PLANT_KPI_NOT_FOUND'],
+  blueprint: ['Machine blueprint not found', 'PLANT_BLUEPRINT_NOT_FOUND'],
   data_product: ['Data product not found', 'DATA_PRODUCT_NOT_FOUND'],
   data_object: ['Data object not found', 'DATA_OBJECT_NOT_FOUND'],
   data_element: ['Data element not found', 'DATA_ELEMENT_NOT_FOUND'],

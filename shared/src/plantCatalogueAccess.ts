@@ -13,7 +13,7 @@ export const PLANT_CATALOGUE_PERMISSIONS = ['view', 'propose', 'edit', 'manage']
 export type PlantCataloguePermission = (typeof PLANT_CATALOGUE_PERMISSIONS)[number];
 
 /** The owned kinds of the plant catalogues (`OWNED_KINDS`). */
-export const PLANT_CATALOGUE_KINDS = ['device_profile', 'kpi_definition'] as const;
+export const PLANT_CATALOGUE_KINDS = ['device_profile', 'kpi_definition', 'blueprint'] as const;
 export type PlantCatalogueKind = (typeof PLANT_CATALOGUE_KINDS)[number];
 
 /** A name the reader may not see (check parameters, data flow labels …): the web app says "a device profile you may not see". */

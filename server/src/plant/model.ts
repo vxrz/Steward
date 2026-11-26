@@ -29,6 +29,7 @@ import { HttpError, parseJson } from '../util.js';
 import { fieldValuesInput, isDate, isHttpUrl } from './settings.js';
 import { writeSiteContacts } from './contacts.js';
 import { removeItemLinks } from '../contacts/service.js';
+import { forgetTarget } from './blueprint-store.js';
 
 /**
  * The plant registry's records as stored (rows), as values (what an edit or an import says) and the rules that hold
@@ -800,6 +801,8 @@ export function removeAssetRow(id: string): void {
   db().run("DELETE FROM copied_from WHERE kind = 'asset' AND id = ?", id);
   // 0.14: the last "still current" of its documentation as a whole
   db().run("DELETE FROM plant_doc_confirmations WHERE kind = 'asset' AND target_id = ?", id);
+  // 0.30.0: the machine blueprints assigned to it, with their mappings and marks
+  forgetTarget({ kind: 'asset', id });
   db().run('DELETE FROM plant_assets WHERE id = ?', id);
 }
 

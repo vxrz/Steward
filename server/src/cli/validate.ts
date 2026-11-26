@@ -168,6 +168,8 @@ export async function validateFile(file: string): Promise<FileResult> {
     'ot_network',
     'asset_networks',
     'asset_network',
+    'blueprints',
+    'blueprint',
   ];
   if (obj && typeof obj === 'object' && 'version' in obj && PLANT_KEYS.some((k) => k in obj)) {
     const r = plantFileSchema.safeParse(raw);
@@ -182,6 +184,7 @@ export async function validateFile(file: string): Promise<FileResult> {
       one(r.data.device_profiles, r.data.device_profile) +
       one(r.data.kpi_definitions, r.data.kpi_definition) +
       one(r.data.assignments, r.data.assignment) +
+      one(r.data.blueprints, r.data.blueprint) +
       [...(r.data.ot_networks ?? []), ...(r.data.ot_network ? [r.data.ot_network] : [])].reduce(
         (n, x) => n + (x.vlans?.length ?? 0) + (x.zones?.length ?? 0) + (x.conduits?.length ?? 0),
         0,

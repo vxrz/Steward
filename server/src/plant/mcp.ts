@@ -7,6 +7,7 @@ import { plantEnabled } from './settings.js';
 import { currentId } from './ids.js';
 import * as svc from './service.js';
 import * as cat from './catalogue.js';
+import * as bp from './blueprints.js';
 import { getAssignment } from './assignments.js';
 import { assetCollections, getCollection, pointCollections } from './collections.js';
 import { allAssignments, allProfiles, ownProfiles, pointsOf } from './data-model.js';
@@ -325,6 +326,46 @@ export const plantReadTools: ToolDef[] = [
           youMayChange: p.canManage,
           file: profileOut(own, base ? (resolved.get(base) ?? null) : null),
         };
+      }),
+  }),
+  defineTool({
+    name: 'list_machine_blueprints',
+    title: 'List machine blueprints',
+    description:
+      'Machine blueprints of the plant registry (0.30.0): a checklist of the signals one expects of a kind of machine – id, name, reference, version, signals per importance (must, should, nice) and how many device profiles and assets have it. Blueprints you may not see are left out and not counted.',
+    input: z.object({ query, cursor: cursorArg, limit: limitArg() }).strict(),
+    visible,
+    handler: (a) =>
+      read(() => {
+        const list = bp.listBlueprints().filter((b) => has(a.query, b.id, b.name, b.reference));
+        return pageArray(list, (b) => [b.name.toLowerCase(), b.id], a, { query: a.query });
+      }),
+  }),
+  defineTool({
+    name: 'get_machine_blueprint',
+    title: 'Get a machine blueprint',
+    description:
+      'One machine blueprint with its signals (name, meaning, why it matters, importance, known-as names) and the device profiles and assets that have it. A blueprint is advice: it never changes a profile or an asset.',
+    input: z.object({ blueprintId: plantId('Machine blueprint id (from list_machine_blueprints)') }).strict(),
+    visible,
+    handler: (a) =>
+      read(() => {
+        const { canEdit, canManage: _m, ...b } = bp.getBlueprint(a.blueprintId);
+        return { ...b, youMayChange: canEdit };
+      }),
+  }),
+  defineTool({
+    name: 'get_blueprint_coverage',
+    title: 'Get the coverage of a profile or an asset by its machine blueprints',
+    description:
+      'Per machine blueprint of a device profile or an asset: each signal covered (mapped to a data point), missing, not applicable (with its reason, author and time) or – for an asset – notCollected (the profile has the data point, this asset does not collect it), with totals per importance. `suggestions` match by name and never count as covered. Read-only: mappings are confirmed by a person in Steward.',
+    input: z.object({ kind: z.enum(['profile', 'asset']), id: plantId('Device profile id or asset id') }).strict(),
+    visible,
+    handler: (a) =>
+      read(() => {
+        const id = currentId(a.kind, '', a.id);
+        const { canEdit, ...v } = a.kind === 'profile' ? bp.profileCoverage(id) : bp.assetCoverage(id);
+        return { ...v, youMayChange: canEdit };
       }),
   }),
   defineTool({

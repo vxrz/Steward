@@ -826,4 +826,73 @@ export const PLANT_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX plant_devices_system ON plant_devices(system_id);
     `,
   },
+  {
+    // 0.30.0 (ADR 0041): machine blueprints – a checklist of expected signals per kind of machine, assigned to device
+    // profiles and assets, mapped to data points and marked not applicable with a reason. Advice only: a blueprint never
+    // changes a profile or an asset. Signals, assignments, mappings and marks name their blueprint by id; the target of an
+    // assignment, mapping or mark is a device profile or an asset (target_kind), by id.
+    name: 'plant-033-blueprints',
+    sql: `
+      CREATE TABLE plant_blueprints (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        reference TEXT NOT NULL DEFAULT '',
+        version TEXT NOT NULL DEFAULT '',
+        import_id TEXT,
+        not_in_source INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE TABLE plant_blueprint_signals (
+        blueprint_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        name TEXT NOT NULL,
+        meaning TEXT NOT NULL DEFAULT '',
+        why TEXT NOT NULL DEFAULT '[]',
+        importance TEXT NOT NULL DEFAULT 'should',
+        aliases TEXT NOT NULL DEFAULT '[]',
+        PRIMARY KEY (blueprint_id, id)
+      );
+      CREATE TABLE plant_blueprint_assignments (
+        blueprint_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        PRIMARY KEY (blueprint_id, target_kind, target_id)
+      );
+      CREATE INDEX plant_blueprint_assignments_target ON plant_blueprint_assignments(target_kind, target_id);
+      CREATE TABLE plant_blueprint_mappings (
+        blueprint_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        signal_id TEXT NOT NULL,
+        data_point_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        PRIMARY KEY (blueprint_id, target_kind, target_id, signal_id, data_point_id)
+      );
+      CREATE INDEX plant_blueprint_mappings_target ON plant_blueprint_mappings(target_kind, target_id);
+      CREATE TABLE plant_blueprint_not_applicable (
+        blueprint_id TEXT NOT NULL,
+        target_kind TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        signal_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        marked_by TEXT NOT NULL,
+        marked_at TEXT NOT NULL,
+        PRIMARY KEY (blueprint_id, target_kind, target_id, signal_id)
+      );
+      CREATE INDEX plant_blueprint_not_applicable_target ON plant_blueprint_not_applicable(target_kind, target_id);
+    `,
+  },
+  {
+    // 0.30.0 step 2 (ADR 0041): the KPI definitions a blueprint signal feeds (ids, as JSON like the other lists of a signal)
+    name: 'plant-034-blueprint-signal-kpis',
+    sql: `ALTER TABLE plant_blueprint_signals ADD COLUMN kpis TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];
