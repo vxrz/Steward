@@ -24,6 +24,7 @@ import {
   type PlantResolvedProfile,
   type PlantAssetPointAddition,
 } from '@sm/shared';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { blueprintOnly } from './blueprint-exchange.js';
 import { db } from '../db.js';
 import type { AuthUser } from '../auth/context.js';
@@ -776,7 +777,10 @@ export function computeData(c: DataContext): PlantCheck[] {
       before,
       after,
       cur,
-      () => upsertProfile(after, c.meta),
+      () => {
+        upsertProfile(after, c.meta);
+        if (!cur) applyCreationAccess('device_profile', after.id, after.name, undefined);
+      },
       () => db().run('UPDATE plant_profiles SET import_id = ?, not_in_source = 0 WHERE id = ?', c.importId, after.id),
     );
   }
@@ -831,7 +835,10 @@ export function computeData(c: DataContext): PlantCheck[] {
       before,
       after,
       cur,
-      () => upsertKpi(after, c.meta),
+      () => {
+        upsertKpi(after, c.meta);
+        if (!cur) applyCreationAccess('kpi_definition', after.id, after.name, undefined);
+      },
       () => db().run('UPDATE plant_kpis SET import_id = ?, not_in_source = 0 WHERE id = ?', c.importId, after.id),
       (v) => ({ ...v, inputs: presentInputs(v, krefs) }),
     );

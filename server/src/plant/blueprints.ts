@@ -836,6 +836,7 @@ export function importBlueprint(
       throw new HttpError(409, `At most ${L.blueprints} machine blueprints`, 'PLANT_LIMIT', { max: L.blueprints });
     const made = checked({ description: '', reference: '', version: '', signals: [], ...v }, scope, undefined, warnings);
     store.writeBlueprint(made, { at: nowIso(), by, importId });
+    applyCreationAccess('blueprint', made.id, made.name, undefined);
     audit({
       action: 'blueprint.created',
       entityType: 'blueprint',
