@@ -45,5 +45,6 @@ Short records of decisions that shape Steward's design: the context, what was de
 | [0039](0039-contact-roles-and-support.md)              | Contact roles, inherited contacts, support channels and levels            | Accepted, built in 0.26.0                                              |
 | [0040](0040-drafts-and-access-at-creation.md)          | Drafts and access at creation                                             | Proposed                                                               |
 | [0041](0041-machine-blueprints.md)                     | Machine blueprints: expected signals per kind of machine                  | Accepted                                                               |
+| [0042](0042-uniform-access-at-creation.md)             | Uniform access at creation for every kind with access control             | Accepted                                                               |
 
 New record: copy [template.md](template.md) to `NNNN-short-title.md`, fill it in, add it to the table, and link it from [ARCHITECTURE.md](../ARCHITECTURE.md) where it applies.

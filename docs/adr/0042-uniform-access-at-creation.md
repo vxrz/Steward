@@ -1,0 +1,46 @@
+# 0042. Uniform access at creation
+
+- **Status:** Accepted
+- **Date:** 2026-11-26
+- **Since:** 0.31.0
+- **Builds on:** [0040](0040-drafts-and-access-at-creation.md) part 1 (access at creation of processes, monitors and dashboards), [0033](0033-one-access-model.md) (one access model)
+
+## Context
+
+0.29.0 let the create routes of processes, monitors and dashboards take an `access` object (owning teams, Restricted, shares) and apply it in the creation's transaction (`applyCreationAccess`, `server/src/auth/creation-access.ts`). Every other kind in `OWNED_KINDS` (`shared/src/api.ts`) still gets its owning teams from `assignCreatorTeams` and nothing more. Its creator has no access step, and the item is readable by every role that may read the kind until someone switches it to Restricted afterwards. Some kinds get no owning team at all (device profiles, KPI definitions, blueprints, suppliers, and whatever an administrator creates).
+
+That leaves two gaps: the same decision is possible for three kinds and impossible for the rest, and the safe choice (only my team sees it) has to be made after the item is already visible.
+
+## Decision
+
+1. **One mechanism for every kind.** `applyCreationAccess(kind, id, label, access)` is called in the creation transaction of every kind in `OWNED_KINDS`, after the creator's default teams, whether or not anybody chose. A kind that has no creation path calling it fails the table-driven test (`server/test/creation-access-kinds.test.ts`), so a new kind in `OWNED_KINDS` cannot ship without it.
+2. **Every create path.** The web/API create routes take an optional `access` object (`creationAccessSchema`, `shared/src/access.ts`): owning teams, `restricted`, shares. The route splits it off the body (`createWithAccess`) and the services read it where they call `applyCreationAccess` (a request-scoped context, `withCreationAccess`); processes, monitors and dashboards keep their explicit parameter. Other paths:
+   - **Public API v1** has no create endpoint for an owned kind (it is read-only; `POST /plant/proposals` only proposes). Nothing to add.
+   - **YAML and file imports** (plant sites, data products, records, git sync, libraries, bundles, duplicates) create items without an `access` of their own: none of the formats carries owning teams or a restricted flag, so the instance default applies. A format that gets such fields later passes them to the same function.
+   - **Proposals** (plant registry, data products): the person accepting may send `selection.access` with the decision; it applies to every item the proposal creates, checked with the accepting person's rights. The assistant's proposal carries no access; it is at most a suggestion the reviewer sees and may take over.
+3. **Instance setting `newItemVisibility`** (`Settings`, `PUT /api/settings/instance`): `everyone` – a new item is open to the roles that may read the kind, as before – or `owningTeams` – a new item that has owning teams starts Restricted (only those teams and its shares). An item without owning team belongs to the whole instance, so there is nobody to narrow it to and it stays open; this also means a person without a team never creates something they cannot see. A request `restricted: false` against the default `owningTeams` is a widening and asks for the step-up. `access.restricted` overrides the default in the other direction (`true`) without a step-up.
+4. **Upgrade.** New installations default to `owningTeams`. Migration `access-002-new-item-visibility` stores `everyone` when the database already has users (the same test as `ops-005-run-retention-default`), so an upgrade changes nothing for existing installations. Moving an instance with a migration package carries the setting.
+5. **Same rules as the Access tab.** Narrowing needs nothing, widening needs the step-up and writes the `access.` audit entries; non-administrators name only their own teams; `shares` follow `setShares`. The restricted scope applies only to kinds with a registered share kind. Asking for `restricted` or `shares` on a kind without one is refused (`ACCESS_NOT_RESTRICTABLE`); owning teams are accepted for every kind.
+
+### The kinds
+
+| Kind                                                                         | Default teams                         | Restricted scope                                             | Paths that take `access`                     |
+| ---------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
+| process, monitor, dashboard                                                  | creator's                             | yes                                                          | route (0.29.0), template, accepted proposals |
+| platform, service, application, system, record, credential, ticket, contract | creator's                             | yes                                                          | route                                        |
+| platform identity                                                            | none                                  | yes (not by default: its instance roles give nothing anyway) | route                                        |
+| cost price book                                                              | creator's, none for a platform's book | yes                                                          | route                                        |
+| data product, data object, data domain                                       | creator's                             | yes                                                          | route, accepted proposals                    |
+| site                                                                         | creator's                             | yes                                                          | route, change sets, accepted proposals       |
+| supplier, device profile, KPI definition, blueprint                          | none                                  | yes                                                          | route, change sets, accepted proposals       |
+| cost calculator, data element                                                | creator's                             | **no** (no share kind: the model does not support it)        | route (owning teams only)                    |
+
+Cost calculators and data elements have owning teams but no Restricted scope or shares today; this record does not invent one. Data elements created in bulk by an import or discovery take the batch's teams and are not touched by the default.
+
+## Consequences
+
+- A new installation's items are team-private from the first save; an administrator's items and those of people without a team stay open, as the team rules always said.
+- Upgraded installations see no change until an administrator switches the setting. The setting changes new items only; existing items keep their scope.
+- Restricted items created by default add an `access.scope_changed` audit entry each. Elements are exempt (no Restricted scope).
+- Instance move: a package from an older version has no value, so the target keeps its own setting.
+- Alternatives rejected: (a) restrict every new item including those without owning teams – an administrator's or a team-less designer's items would be invisible to everyone else or to themselves, and tests of every install would change; (b) a per-team default – teams already have the "new resources" setting and a second switch would contradict it; (c) default on for everyone including upgrades – silently narrows what people see after an update; (d) a separate access dialog after creation – the item is visible in between, which is what 0.29.0 removed.
