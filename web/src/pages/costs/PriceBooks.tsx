@@ -218,7 +218,9 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
   const [reviewDays, setReviewDays] = useState<number>(book?.reviewDays ?? 90);
   const [description, setDescription] = useState(book?.description ?? '');
   const [busy, setBusy] = useState(false);
-  const access = useCreationAccess(!book);
+  // a platform's book follows the platform's rights (ADR 0042): no owning teams or access of its own
+  const followsPlatform = kind !== 'list' && !!platformId;
+  const access = useCreationAccess(!book, { open: followsPlatform });
   const bases = (books.data ?? []).filter((b) => b.id !== book?.id);
   const contracts = (suppliers.data ?? []).find((x) => x.id === supplierId)?.contracts ?? [];
   const save = async () => {
@@ -238,7 +240,7 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
         reviewDays,
         description,
       };
-      const accessBody = book ? undefined : access.body();
+      const accessBody = book || followsPlatform ? undefined : access.body();
       const b = book
         ? await put<CostPriceBookDetail>(`/costs/price-books/${encodeURIComponent(book.id)}`, body)
         : await post<CostPriceBookDetail>('/costs/price-books', { ...body, ...(accessBody ? { access: accessBody } : {}) });
@@ -346,7 +348,7 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
             <NumberInput label={t('prices.reviewDays')} min={1} max={3650} value={reviewDays} onChange={(v) => setReviewDays(Number(v) || 90)} />
             <Textarea label={t('prices.descriptionLabel')} value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
           </MoreDetails>
-          {!book && <CreationAccessFields state={access} />}
+          {!book && !followsPlatform && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('estimates.cancel')}

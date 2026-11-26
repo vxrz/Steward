@@ -1063,7 +1063,7 @@ export function createBook(body: unknown): CostPriceBookDetail {
     );
     // a platform's book follows the platform's rights; any other gets its maker's teams
     if (!x.platformId) assignCreatorTeams('cost_price_book', id, u);
-    applyCreationAccess('cost_price_book', id, x.name, undefined);
+    applyCreationAccess('cost_price_book', id, x.name, undefined, !!x.platformId);
     audit({
       action: 'cost.price_book_added',
       entityType: 'cost_price_book',
