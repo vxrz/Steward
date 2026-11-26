@@ -18627,6 +18627,7 @@ export interface Resources {
     'newItemVisibility.hint': string;
     'newItemVisibility.everyone': string;
     'newItemVisibility.owningTeams': string;
+    'newItemVisibility.stepUp': string;
   };
   soa: {
     title: string;
