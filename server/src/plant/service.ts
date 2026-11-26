@@ -71,6 +71,7 @@ import {
   type SiteValues,
 } from './model.js';
 import { siteContactLinks, siteContactsOf } from './contacts.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * The plant registry's services (#218): sites with their hierarchy and buildings, assets, their images, external
@@ -253,6 +254,7 @@ export function createSite(input: z.infer<typeof siteInput>): PlantSiteDetail {
   db().tx(() => {
     upsertSite(v, { at: nowIso(), by: u.username }, { contactLinks: input.contactLinks });
     assignCreatorTeams('site', v.id, u);
+    applyCreationAccess('site', v.id, v.name, undefined);
     audit({ action: 'site.created', entityType: 'site', entityId: v.id, summary: `Site "${v.name}" (${v.id}) added`, details: { code: v.code } });
   });
   return getSite(v.id);

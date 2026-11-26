@@ -7,6 +7,7 @@ import { contentDisposition } from '../records/attachments.js';
 import * as svc from './service.js';
 import { draftContract } from './draft.js';
 import { lintWithService, runContractTest } from './testing.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Data contracts (0.9.0, #221, docs/DATA-CONTRACTS.md) in the internal API. Rights are checked in the service (view,
@@ -39,7 +40,7 @@ const yamlHeavy = { ...yaml, ...heavy };
 
 export async function dataContractRoutes(app: FastifyInstance): Promise<void> {
   app.get('/data-contracts', async () => svc.listContracts());
-  app.post('/data-contracts', yamlHeavy, async (req) => svc.createContract(req.body));
+  app.post('/data-contracts', yamlHeavy, async (req) => createWithAccess(req.body, svc.createContract));
   app.post('/data-contracts/check', yamlHeavy, async (req) => svc.previewVersion(null, dataContractYamlInput.parse(req.body).yaml));
   app.post('/data-contracts/draft', heavy, async (req) => draftContract(req.body));
   app.post('/data-contracts/import', yamlHeavy, async (req) => svc.importContract(req.body));

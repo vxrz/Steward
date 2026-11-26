@@ -1,4 +1,4 @@
-import { isPlantHidden } from '@sm/shared';
+import { isPlantHidden, type CreationAccess } from '@sm/shared';
 import { useState } from 'react';
 import {
   Autocomplete,
@@ -71,6 +71,7 @@ import { FormButtons, IdInput, useIdField } from './forms';
 import { RowsEditor } from './data';
 import { TableScroll } from '../TableScroll';
 import { FormModal as GuardedModal } from '../FormModal';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /**
  * The forms of part 2 of the plant registry (#219). Each form edits one part – a profile's own fields, an interface,
@@ -78,7 +79,7 @@ import { FormModal as GuardedModal } from '../FormModal';
  * (a profile or a KPI definition is one record) and shows the server's answer.
  */
 
-type Save<T> = (v: T) => Promise<void>;
+type Save<T> = (v: T, access?: CreationAccess) => Promise<void>;
 
 /** The modal and form of every part-2 editor: Enter saves, errors are shown, the dialog stays open on failure. */
 function FormModal({
@@ -184,6 +185,7 @@ export function ProfileFormModal({
   const [description, setDescription] = useState(profile?.description ?? '');
   const [notes, setNotes] = useState(profile?.notes ?? '');
   const [template, setTemplate] = useState(profile?.template ?? false);
+  const access = useCreationAccess(!profile, { open: true });
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), id: !PLANT_ID_RE.test(id.id) && t('form.idInvalid') });
   return (
     <FormModal
@@ -191,22 +193,25 @@ export function ProfileFormModal({
       onClose={onClose}
       onSubmit={async () => {
         if (!v.validate()) return false;
-        await onSave({
-          id: id.id,
-          name: name.trim(),
-          manufacturer: manufacturer.trim(),
-          model: model.trim(),
-          version: version.trim(),
-          category: category.trim(),
-          description,
-          notes,
-          interfaces: profile?.interfaces ?? [],
-          extends: base,
-          template,
-          // another base has other interfaces and data points: what changed the old one's goes
-          interfaceOverrides: base && base === profile?.extends ? profile.interfaceOverrides : [],
-          pointOverrides: base && base === profile?.extends ? profile.pointOverrides : [],
-        });
+        await onSave(
+          {
+            id: id.id,
+            name: name.trim(),
+            manufacturer: manufacturer.trim(),
+            model: model.trim(),
+            version: version.trim(),
+            category: category.trim(),
+            description,
+            notes,
+            interfaces: profile?.interfaces ?? [],
+            extends: base,
+            template,
+            // another base has other interfaces and data points: what changed the old one's goes
+            interfaceOverrides: base && base === profile?.extends ? profile.interfaceOverrides : [],
+            pointOverrides: base && base === profile?.extends ? profile.pointOverrides : [],
+          },
+          profile ? undefined : access.body(),
+        );
       }}
     >
       <TextInput
@@ -267,6 +272,7 @@ export function ProfileFormModal({
         onChange={(e) => setDescription(e.currentTarget.value)}
       />
       <Textarea label={t('data.notes')} autosize minRows={2} maxRows={6} maxLength={8000} value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      {!profile && <CreationAccessFields state={access} />}
     </FormModal>
   );
 }
@@ -632,6 +638,7 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
   const [dynamicColumns, setDynamicColumns] = useState(kpi?.dynamicColumns ?? false);
   const [rollUp, setRollUp] = useState(kpi?.rollUp === 'parts');
   const [notes, setNotes] = useState(kpi?.notes ?? '');
+  const access = useCreationAccess(!kpi, { open: true });
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     id: !PLANT_ID_RE.test(id.id) && t('form.idInvalid'),
@@ -643,31 +650,34 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
       onClose={onClose}
       onSubmit={async () => {
         if (!v.validate()) return false;
-        await onSave({
-          id: id.id,
-          name: name.trim(),
-          names,
-          category: category.trim(),
-          type: type.trim(),
-          description,
-          formula: formula.trim(),
-          unit: unitCode(unit),
-          rangeMin: num(rangeMin),
-          rangeMax: num(rangeMax),
-          trend: (trend as PlantKpiValues['trend']) ?? null,
-          timing: (timing as PlantKpiValues['timing']) ?? null,
-          audience: audience as PlantKpiValues['audience'],
-          methodology: (methodology as PlantKpiValues['methodology']) ?? null,
-          strategy: strategy.trim(),
-          implementation: implementation.trim(),
-          dynamicColumns,
-          rollUp: rollUp ? 'parts' : 'none',
-          notes,
-          inputs: kpi?.inputs ?? [],
-          parameters: kpi?.parameters ?? [],
-          columns: kpi?.columns ?? [],
-          computation: kpi?.computation ?? { summary: '', diagram: '', steps: [], identities: [], limits: [] },
-        });
+        await onSave(
+          {
+            id: id.id,
+            name: name.trim(),
+            names,
+            category: category.trim(),
+            type: type.trim(),
+            description,
+            formula: formula.trim(),
+            unit: unitCode(unit),
+            rangeMin: num(rangeMin),
+            rangeMax: num(rangeMax),
+            trend: (trend as PlantKpiValues['trend']) ?? null,
+            timing: (timing as PlantKpiValues['timing']) ?? null,
+            audience: audience as PlantKpiValues['audience'],
+            methodology: (methodology as PlantKpiValues['methodology']) ?? null,
+            strategy: strategy.trim(),
+            implementation: implementation.trim(),
+            dynamicColumns,
+            rollUp: rollUp ? 'parts' : 'none',
+            notes,
+            inputs: kpi?.inputs ?? [],
+            parameters: kpi?.parameters ?? [],
+            columns: kpi?.columns ?? [],
+            computation: kpi?.computation ?? { summary: '', diagram: '', steps: [], identities: [], limits: [] },
+          },
+          kpi ? undefined : access.body(),
+        );
       }}
     >
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -777,6 +787,7 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
         data-testid="kpi-roll-up"
       />
       <Textarea label={t('data.notes')} autosize minRows={1} maxRows={5} maxLength={8000} value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      {!kpi && <CreationAccessFields state={access} />}
     </FormModal>
   );
 }

@@ -33,6 +33,7 @@ import { authUrls, fillUrl } from './destination.js';
 import { fixedVariables, identityRow, identityRows, parseMcp, type IdentityRow } from './identities.js';
 import { getConnection, getPlatform, listOperations, storedConfig } from './service.js';
 import { cleanFilter, filterWidens, resolveOperationRef, specPathOf } from './operationFilter.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 export const IDENTITY_LIMITS = { name: 100, description: 2000, variables: 100, perPlatform: 50 } as const;
 
@@ -265,6 +266,7 @@ export function createIdentity(platformId: string, input: PlatformIdentityInput)
       actor(),
     );
     sealIdentity(id);
+    applyCreationAccess('platform_identity', id, name, undefined);
     audited(p, { id, name }, 'platform.identity_created', `identity created${input.privileged ? ' (privileged)' : ''}`, {
       readOnly: !!input.readOnly,
       privileged: !!input.privileged,

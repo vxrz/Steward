@@ -55,6 +55,7 @@ import { readCsv } from './csv.js';
 import { moduleRole } from '../modules/access.js';
 import { conditionsSight, onConditionsChanged, pricingContracts } from './contract-conditions.js';
 import type { PriceSight } from './estimate-model.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Price books (0.21.0, ADR 0035 parts 1, 2 and 8, docs/PRICE-BOOKS.md): books of item prices in immutable versions,
@@ -207,8 +208,9 @@ export function bookRights(r: BookRow, u: AuthUser | null = currentUser()): Book
   const byRole = isAdmin(u) || (teams.length ? teamRoles(u, teams).some((m) => m.roles.includes('designer')) : isCostsManager(u));
   const edit = byRole || share.has('edit');
   const manage = shared && (byRole || share.has('manage'));
-  // Restricted (ADR 0033): a book without owning teams that only its shares reach
-  const restricted = shared && !teams.length && isRestricted('cost_price_book', r.id);
+  // Restricted (ADR 0033): only its owning teams and its shares reach the book – a list book is not open to every reader
+  // of the Costs module then, and one outside both is told nothing about it (team scope)
+  const restricted = shared && isRestricted('cost_price_book', r.id);
   if ((r.kind === 'list' && !restricted) || edit || u.roles.includes('auditor') || share.has('view')) return { view: true, edit, manage };
   const member = teams.length > 0 && teamRoles(u, teams).length > 0;
   // the readers of the contract it names who see that contract's amounts: its prices are those amounts (with "Hide
@@ -1061,6 +1063,7 @@ export function createBook(body: unknown): CostPriceBookDetail {
     );
     // a platform's book follows the platform's rights; any other gets its maker's teams
     if (!x.platformId) assignCreatorTeams('cost_price_book', id, u);
+    applyCreationAccess('cost_price_book', id, x.name, undefined, !!x.platformId);
     audit({
       action: 'cost.price_book_added',
       entityType: 'cost_price_book',

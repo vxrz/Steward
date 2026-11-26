@@ -761,5 +761,12 @@
   "endOfLife": {
     "title": "Supportende",
     "hint": "Woher die Release- und Supportdaten von Produkten kommen (endoflife.date) und wie früh gewarnt wird."
+  },
+  "newItemVisibility": {
+    "label": "Wer neue Einträge sieht",
+    "hint": "Womit ein neuer Eintrag einer Art mit Zugriffssteuerung beginnt. „Nur zuständige Teams“: Ein neuer Eintrag mit zuständigen Teams beginnt eingeschränkt – nur diese Teams und seine Freigaben sehen ihn. „Alle“: Er ist für alle sichtbar, die die Art sehen dürfen, bis ihn jemand einschränkt. Einträge ohne zuständige Teams bleiben in beiden Fällen offen. Bestehende Einträge ändern sich nicht.",
+    "everyone": "Alle, die die Art sehen dürfen",
+    "owningTeams": "Nur zuständige Teams",
+    "stepUp": "Die Umstellung auf „Alle, die die Art sehen dürfen“ öffnet neue Einträge weiter und verlangt, dass Sie sich bestätigen. Die Umstellung auf „Nur zuständige Teams“ verlangt das nicht. Beide Änderungen werden im Audit-Log festgehalten."
   }
 }

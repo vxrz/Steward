@@ -62,6 +62,7 @@ import { AccessTab } from '../../components/access/AccessTab';
 import { ConditionsDialog, conditionText } from '../../components/costs/ContractPrices';
 import { useSupplierOptions } from '../../components/suppliers/SupplierPicker';
 import '../../components/dashboard/viz.css';
+import { CreationAccessFields, useCreationAccess } from '../../components/access/CreationAccess';
 
 /**
  * Price books (0.21.0, ADR 0035 parts 1 and 2, docs/PRICE-BOOKS.md): the books the reader may see, one book's items with
@@ -217,6 +218,9 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
   const [reviewDays, setReviewDays] = useState<number>(book?.reviewDays ?? 90);
   const [description, setDescription] = useState(book?.description ?? '');
   const [busy, setBusy] = useState(false);
+  // a platform's book follows the platform's rights (ADR 0042): no owning teams or access of its own
+  const followsPlatform = kind !== 'list' && !!platformId;
+  const access = useCreationAccess(!book, { open: followsPlatform });
   const bases = (books.data ?? []).filter((b) => b.id !== book?.id);
   const contracts = (suppliers.data ?? []).find((x) => x.id === supplierId)?.contracts ?? [];
   const save = async () => {
@@ -236,9 +240,10 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
         reviewDays,
         description,
       };
+      const accessBody = book || followsPlatform ? undefined : access.body();
       const b = book
         ? await put<CostPriceBookDetail>(`/costs/price-books/${encodeURIComponent(book.id)}`, body)
-        : await post<CostPriceBookDetail>('/costs/price-books', body);
+        : await post<CostPriceBookDetail>('/costs/price-books', { ...body, ...(accessBody ? { access: accessBody } : {}) });
       void qc.invalidateQueries({ queryKey: ['costs'] });
       onClose();
       if (!book) navigate(bookPath(b.id));
@@ -343,6 +348,7 @@ function BookDialog({ book, onClose }: { book?: CostPriceBook; onClose: () => vo
             <NumberInput label={t('prices.reviewDays')} min={1} max={3650} value={reviewDays} onChange={(v) => setReviewDays(Number(v) || 90)} />
             <Textarea label={t('prices.descriptionLabel')} value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
           </MoreDetails>
+          {!book && !followsPlatform && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('estimates.cancel')}

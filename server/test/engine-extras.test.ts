@@ -595,6 +595,8 @@ describe('sub-process after a restart', () => {
   it('re-attaches to the existing child run instead of starting a new one', async () => {
     proc = await startServer();
     await api('POST', '/auth/setup', { passphrase: 'restart-test-pass', username: 'admin', password: 'Admin-password-1' });
+    // a new installation asks creators for an owning team (ADR 0042); these tests create items as an administrator without one
+    await api('PUT', '/settings/instance', { newItemVisibility: 'everyone' });
     const childId = (
       await api('POST', '/processes', {
         definition: {

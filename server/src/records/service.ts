@@ -74,6 +74,7 @@ import {
   type EditionRow,
 } from './document-model.js';
 import { assignCreatorTeams, owningTeams, recordAccess, setOwningTeams } from '../auth/policy.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { isRestricted } from '../auth/share-store.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, userSubject, type NamedGrant } from '../auth/named-grants.js';
 import { sameIdentity } from '../auth/aliases.js';
@@ -842,6 +843,7 @@ export function createRecord(input: CreateInput): RecordDetail {
       { kind: input.importMeta ? 'imported' : 'created', action: null, from_status: null, to_status: wf.initial, comment: '', content_hash: hash, version: 1 },
     );
     assignCreatorTeams('record', id, currentUser());
+    applyCreationAccess('record', id, title, undefined);
     audit({
       action: input.importMeta ? 'record.imported' : 'record.created',
       entityType: 'record',

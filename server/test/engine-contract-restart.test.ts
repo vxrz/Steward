@@ -99,6 +99,8 @@ describe('engine contract: resume after a crash', () => {
   it('waiting runs resume, running ones become interrupted, queued ones keep their place, debug runs are cancelled', async () => {
     proc = await startServer();
     await api('POST', '/auth/setup', { passphrase: 'contract-restart-pass', username: 'admin', password: 'Admin-password-1' });
+    // a new installation asks creators for an owning team (ADR 0042); these tests create items as an administrator without one
+    await api('PUT', '/settings/instance', { newItemVisibility: 'everyone' });
     const ask = await define(
       'Restart ask',
       [n('start', 'start'), n('ok', 'userTask', { mode: 'approve', title: 'Go?' }), n('after', 'log', { message: 'after' })],

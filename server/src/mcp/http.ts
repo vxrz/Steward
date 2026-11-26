@@ -10,7 +10,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { MCP_REQUEST_LIMITS, MCP_WRITE_MODES, type McpWriteMode, type UserInfo } from '@sm/shared';
+import { creationAccessSchema, MCP_REQUEST_LIMITS, MCP_WRITE_MODES, type McpWriteMode, type UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
@@ -421,6 +421,8 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
                 .object({ fingerprint: z.string().max(100) })
                 .strict()
                 .optional(),
+              // the access the items it creates start with (0.31.0, ADR 0042)
+              access: creationAccessSchema.optional(),
             })
             .strict()
             .optional(),

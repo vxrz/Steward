@@ -67,6 +67,7 @@ import { chainDomainIds, contactsOf, domainContactChains, inheritedFor, productA
 import { removeItemLinks } from '../contacts/service.js';
 import { forgetGovernance } from './governance-cleanup.js';
 import { forgetSupport, levelOf, levelSummary, supportOf, writeLegacySupport, writeSupport, type SupportChange } from '../support/items.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Domains, data objects and data products (ADR 0036 parts 1–4, 12, 17): reading with team scope (a reader never sees,
@@ -240,6 +241,7 @@ export function createDomain(body: unknown): DataDomain {
       u.username,
     );
     assignCreatorTeams('data_domain', id, u);
+    applyCreationAccess('data_domain', id, input.name, undefined);
     // its domain owners: contacts (0.25.1) – documentation, never a right
     const changed = writeContacts('data_domain', id, { contacts: input.contacts, legacy: [{ role: 'domainOwner', subjects: input.owners }] });
     audit({
@@ -496,6 +498,7 @@ export function createObject(body: unknown): DataObject {
       u.username,
     );
     assignCreatorTeams('data_object', id, u);
+    applyCreationAccess('data_object', id, input.name, undefined);
     const changed = writeContacts('data_object', id, objectContactsInput(input));
     audit({
       action: 'dataobject.created',
@@ -885,6 +888,7 @@ export function createProduct(body: unknown): DataProduct {
       u.username,
     );
     assignCreatorTeams('data_product', id, u);
+    applyCreationAccess('data_product', id, input.name, undefined);
     const changed = writeContacts('data_product', id, { contacts: input.contacts, legacy: [{ role: 'productOwner', subjects: input.owners }] });
     const support = writeLegacySupport(id, { levelId: null, serviceId: null }, { support: input.support, tier: input.tier });
     audit({

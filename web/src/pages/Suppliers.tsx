@@ -29,6 +29,7 @@ import { supplierKeys } from '../queryKeys';
 import { ContractScopeNotice, ProposedServices, SharedSuppliers } from '../components/suppliers/SharedSuppliers';
 import { FormModal, FormModalCancel } from '../components/FormModal';
 import { useSubjectLabel } from '../components/SubjectsInput';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 
 const usageTotal = (s: SupplierSummary) => Object.values(s.usage).reduce((a, b) => a + b, 0);
 const DOC_LINK = /^(https?:\/\/\S+|rec_[A-Za-z0-9_-]{4,40}|[A-Z][A-Z0-9]{0,9}-\d{4}-\d{4,6})$/i;
@@ -429,6 +430,7 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
   const [dpaSince, setDpaSince] = useState(supplier?.dpaSince ?? '');
   const [dpaLink, setDpaLink] = useState(supplier?.dpaLink ?? '');
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(!supplier, { open: true });
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     website: !!website.trim() && !/^https?:\/\/\S+$/i.test(website.trim()) && t('common:validation.invalid'),
@@ -450,7 +452,12 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
       dpaLink: inPlace ? dpaLink.trim() : '',
     };
     try {
-      onSaved(supplier ? await put<SupplierDetail>(`/suppliers/${supplier.id}`, body) : await post<SupplierDetail>('/suppliers', body));
+      const accessBody = supplier ? undefined : access.body();
+      onSaved(
+        supplier
+          ? await put<SupplierDetail>(`/suppliers/${supplier.id}`, body)
+          : await post<SupplierDetail>('/suppliers', { ...body, ...(accessBody ? { access: accessBody } : {}) }),
+      );
       onClose();
     } catch (e) {
       notifyError(e);
@@ -539,6 +546,7 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
               {t('detail.unconfirmedNote')}
             </Alert>
           )}
+          {!supplier && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <FormModalCancel />
             <Button type="submit" loading={busy}>

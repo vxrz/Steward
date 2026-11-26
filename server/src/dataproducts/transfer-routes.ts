@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ACCESS } from '../auth/access.js';
+import { createWithAccess } from '../auth/creation-access.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LINK_PARAM } from '../auth/cookies.js';
@@ -95,7 +96,8 @@ export async function dataProductTransferRoutes(app: FastifyInstance): Promise<v
     { ...imports, config: { ...imports.config, stepUp: { action: 'changeDataProductsInBulk', when: (req: FastifyRequest) => removalsOf(req) > 1 } } },
     // 0.25.0: a large import runs in the background – 202 with the job (import-jobs.ts)
     async (req, reply) => {
-      const r = startImport(req.body);
+      // 0.31.0 (ADR 0042): the optional `access` of the request applies to everything the import creates, elements included
+      const r = createWithAccess(req.body, (b) => startImport(b));
       if (r.status === 202) return reply.code(202).send({ job: r.job });
       return r.result;
     },

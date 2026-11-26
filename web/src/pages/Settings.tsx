@@ -44,7 +44,16 @@ import {
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 import { Trans, useTranslation } from 'react-i18next';
-import { DEBUG_LIMITS, allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
+import {
+  DEBUG_LIMITS,
+  NEW_ITEM_VISIBILITIES,
+  allowListEntryProblem,
+  allowListLines,
+  type ApiToken,
+  type AuthStatus,
+  type MaintenanceStatus,
+  type Settings,
+} from '@sm/shared';
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader } from '../components/common';
@@ -307,6 +316,7 @@ function Area({ area, d, browserAvailable }: { area: SettingsArea; d: Draft; bro
       return (
         <>
           <SignInCard d={d} />
+          <NewItemVisibilityCard d={d} />
           <OutboundCard d={d} />
           <PublicApiCard d={d} />
           <McpServerCard />
@@ -531,6 +541,32 @@ function OutboundCard({ d }: { d: Draft }) {
         {/* the map of sites (#234): its source's origins are allowed for the map's fetcher only, never for processes */}
         <MapTileOrigins />
       </Stack>
+    </Card>
+  );
+}
+
+/** Who sees new items (0.31.0, ADR 0042): the default of the Access section of every create dialog. */
+function NewItemVisibilityCard({ d }: { d: Draft }) {
+  const { t } = useTranslation(['settings', 'common']);
+  const { s, setS } = d;
+  return (
+    <Card withBorder data-testid="new-item-visibility-card">
+      <Title order={2} size="h5" mb="sm">
+        {t('newItemVisibility.label')}
+      </Title>
+      <Select
+        label={t('newItemVisibility.label')}
+        description={t('newItemVisibility.hint')}
+        data={NEW_ITEM_VISIBILITIES.map((v) => ({ value: v, label: t(`newItemVisibility.${v}`) }))}
+        value={s.newItemVisibility}
+        allowDeselect={false}
+        onChange={(v) => v && setS({ ...s, newItemVisibility: v as Settings['newItemVisibility'] })}
+        maw={420}
+        data-testid="new-item-visibility"
+      />
+      <Text size="xs" c="dimmed" mt="xs">
+        {t('newItemVisibility.stepUp')}
+      </Text>
     </Card>
   );
 }

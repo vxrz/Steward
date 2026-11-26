@@ -234,8 +234,8 @@ export function PlantKpisPage() {
       {creating && (
         <KpiFormModal
           onClose={() => setCreating(false)}
-          onSave={async (v) => {
-            const made = await post<PlantKpiDetail>('/plant/kpis', v);
+          onSave={async (v, access) => {
+            const made = await post<PlantKpiDetail>('/plant/kpis', { ...v, ...(access ? { access } : {}) });
             void qc.invalidateQueries({ queryKey: plantKeys.all });
             navigate(`/plant/kpis/${encodeURIComponent(made.id)}`);
           }}

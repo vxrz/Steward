@@ -50,6 +50,7 @@ import { useMe } from '../../auth';
 import { PrivilegedBadge } from './PrivilegedBadge';
 import { TableScroll } from '../TableScroll';
 import { SecretInput } from './SecretInput';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /**
  * The identities of a platform (ADR 0009; 0.13.0: editable). A row per identity; its managers add identities and change
@@ -330,6 +331,7 @@ function GeneralForm({
   const [auth, setAuth] = useState('');
   const [vars, setVars] = useState<{ key: string; value: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(!identity, { open: true });
   const database = platform.kind === DATABASE_KIND;
   useEffect(() => {
     if (!settings.data) return;
@@ -362,9 +364,10 @@ function GeneralForm({
             }
           : {}),
       };
+      const accessBody = identity ? undefined : access.body();
       const saved = identity
         ? await put<PlatformIdentity>(base(platform, identity), body)
-        : await post<PlatformIdentity>(`/platforms/${platform.id}/identities`, body);
+        : await post<PlatformIdentity>(`/platforms/${platform.id}/identities`, { ...body, ...(accessBody ? { access: accessBody } : {}) });
       await refresh();
       notifyOk(t('identities.saved', { name: saved.name }));
       onSaved(saved);
@@ -514,6 +517,7 @@ function GeneralForm({
             <VariablesEditor value={vars} onChange={setVars} fixed={fixed} />
           </>
         )}
+        {manage && !identity && <CreationAccessFields state={access} />}
         {manage && (
           <Group justify="space-between" wrap="wrap">
             <Group gap="xs" wrap="wrap">

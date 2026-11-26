@@ -107,6 +107,7 @@ import { asProposer, canManageCatalogue, plantManagesSome, plantProposesSome } f
 import { advisoryRoutes } from './advisories/routes.js';
 import { historyRetention, historyUsage, setHistoryRetention } from './changesets/retention.js';
 import { audit, withAuditDetails } from '../audit.js';
+import { takeCreationAccess, withCreationAccess } from '../auth/creation-access.js';
 
 /**
  * The plant registry's internal API (#218), mounted under /api. Every route answers 404 PLANT_MODULE_OFF while the
@@ -190,11 +191,14 @@ function write<T>(
   reread: (r: T, changes: EntryChange[]) => T,
   removeValue?: Record<string, unknown>,
 ) {
-  const { body, revision } = splitRevision(req.body);
+  // a new entry may carry the access it starts with (ADR 0042); an edit or a removal never does
+  const adding = req.method === 'POST';
+  const { body: withAccess, access } = adding ? takeCreationAccess(req.body) : { body: req.body, access: undefined };
+  const { body, revision } = splitRevision(withAccess);
   const parsed = schema ? schema.parse(body) : (removeValue ?? {});
   const q = req.query as { revision?: unknown } | undefined;
   const fromQuery = req.method === 'DELETE' && typeof q?.revision === 'string' && /^\d{1,9}$/.test(q.revision) ? Number(q.revision) : undefined;
-  return entryWrite(req, reply, target(parsed), parsed, revision ?? fromQuery, () => run(parsed), reread);
+  return entryWrite(req, reply, target(parsed), parsed, revision ?? fromQuery, () => withCreationAccess(access, () => run(parsed)), reread);
 }
 
 /** Device profiles and KPI definitions with their revision (0.13.0: what the edit form sends back). */

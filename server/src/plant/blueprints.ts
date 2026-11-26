@@ -37,6 +37,7 @@ import { catalogueScope, idUnavailable, requireEntry, requireRight, type Catalog
 import { visibleAsset } from './service.js';
 import * as store from './blueprint-store.js';
 import type { TargetKey } from './blueprint-store.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Machine blueprints (0.30.0, ADR 0041, docs/PLANT.md "Machine blueprints"): a checklist per kind of machine, compared
@@ -263,6 +264,7 @@ export function createBlueprint(input: z.infer<typeof blueprintInput>): PlantBlu
   db().tx(() => {
     // like a new device profile: it belongs to no team, whoever adds it; teams restrict it deliberately
     store.writeBlueprint(v, { at: nowIso(), by });
+    applyCreationAccess('blueprint', v.id, v.name, undefined);
     audit({
       action: 'blueprint.created',
       entityType: 'blueprint',
@@ -834,6 +836,7 @@ export function importBlueprint(
       throw new HttpError(409, `At most ${L.blueprints} machine blueprints`, 'PLANT_LIMIT', { max: L.blueprints });
     const made = checked({ description: '', reference: '', version: '', signals: [], ...v }, scope, undefined, warnings);
     store.writeBlueprint(made, { at: nowIso(), by, importId });
+    applyCreationAccess('blueprint', made.id, made.name, undefined);
     audit({
       action: 'blueprint.created',
       entityType: 'blueprint',

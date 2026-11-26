@@ -31,6 +31,7 @@ import { assignCreatorTeams, forgetOwningTeams, newResourceTeams, owningTeams, t
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 import { isRestricted } from '../auth/share-store.js';
 import { resolveSupplierLink, supplierRefOf } from '../suppliers/links.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Ticket references: Steward documents that a ticket exists in another system
@@ -638,6 +639,7 @@ export function createTicket(b: TicketInput): TicketDetail {
     );
     addTicketEvent(id, 'created', u.username, { to: b.status, comment: b.comment, details: { source: b.source, number: b.externalNumber } });
     assignCreatorTeams('ticket', id, currentUser());
+    applyCreationAccess('ticket', id, b.title, undefined);
     audit({
       action: 'ticket.created',
       entityType: 'ticket',

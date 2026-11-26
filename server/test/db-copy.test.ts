@@ -94,6 +94,8 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
   it('copies SQLite to PostgreSQL; the app continues on the copy with a valid audit chain', async () => {
     proc = await start({});
     await api('POST', '/auth/setup', { passphrase: 'copy-test-pass', username: 'admin', password: 'Admin-password-1' });
+    // a new installation asks creators for an owning team (ADR 0042); this test creates items as an administrator without one
+    await api('PUT', '/settings/instance', { newItemVisibility: 'everyone' });
     await api('POST', '/demo/setup', {});
     const hub = (await api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
     const { id } = await api('POST', '/runs', { processId: 'ih-access-review-1-flag', bindings: { hub } });

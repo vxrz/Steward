@@ -50,6 +50,7 @@ import { assignCreatorTeams, catalogueTeams } from '../auth/policy.js';
 import { auditNamedGrant, catalogueGrant, outsidersOf, requireNamedGrant } from '../auth/named-grants.js';
 import { resolveSupplierLink, supplierRefs } from '../suppliers/links.js';
 import { channelsOf, levelOf, writeSupport } from '../support/items.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -523,6 +524,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
       u.username,
     );
     assignCreatorTeams('application', id, currentUser());
+    applyCreationAccess('application', id, input.name, undefined);
     audit({
       action: 'application.created',
       entityType: 'application',

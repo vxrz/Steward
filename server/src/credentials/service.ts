@@ -44,6 +44,7 @@ import { assertKnownSubjects } from '../auth/subjects.js';
 import { me } from '../auth/access.js';
 import { isRestricted } from '../auth/share-store.js';
 import { assignCreatorTeams, forgetOwningTeams, memberships, newResourceTeams, owningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { auditNamedGrant, outsidersOf, requireNamedGrant, type NamedGrant } from '../auth/named-grants.js';
 
 /**
@@ -984,6 +985,7 @@ export function createCredential(b: CredentialInput): Credential {
     if (certificate)
       addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
     assignCreatorTeams('credential', id, currentUser());
+    applyCreationAccess('credential', id, b.name, undefined);
     audit({
       action: 'credential.created',
       entityType: 'credential',

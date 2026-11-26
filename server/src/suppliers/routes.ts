@@ -21,6 +21,7 @@ import { namedGrantRule } from '../auth/named-grants.js';
 import * as s from './service.js';
 import * as shared from './shared.js';
 import { contractScopeNotice, dismissContractScopeNotice } from './contract-scope.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Suppliers (0.17.0, ADR 0029), mounted under /api – the web app's API; /api/v1 and MCP only read:
@@ -64,7 +65,7 @@ const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: strin
 
 export async function supplierRoutes(app: FastifyInstance): Promise<void> {
   app.get('/suppliers', async (req) => s.listSuppliers({ status: listQuery.parse(req.query).status }));
-  app.post('/suppliers', session, async (req) => s.createSupplier(supplierInput.parse(req.body)));
+  app.post('/suppliers', session, async (req) => createWithAccess(req.body, (b) => s.createSupplier(supplierInput.parse(b))));
   app.get('/suppliers/options', async () => s.supplierOptions());
   // the contacts scoped to an application or system (its "Suppliers" panel, ADR 0031)
   app.get('/suppliers/scoped-contacts', async (req) => {

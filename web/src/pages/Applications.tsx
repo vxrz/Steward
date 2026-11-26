@@ -22,6 +22,7 @@ import { DataTable, LIST_PAGE, ListFooter, type DataColumn } from '../components
 import { IfModule } from '../components/modules/ModuleOff';
 import { RestrictedEmpty, useHiddenByPermissions } from '../components/modules/RestrictedEmpty';
 import { SupplierPicker, useSupplierChoice } from '../components/suppliers/SupplierPicker';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 
 const NOT_RATED = '__none';
 
@@ -265,6 +266,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
   const [tags, setTags] = useState<string[]>(app?.tags ?? []);
   const known = useQuery({ queryKey: ['applications', false], queryFn: () => get<ApplicationSummary[]>('/applications') });
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(!app);
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const save = async () => {
     if (!v.validate()) return;
@@ -282,7 +284,10 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
         cmdb: cmdbSystem.trim() || cmdbId.trim() || cmdbUrl.trim() ? { system: cmdbSystem.trim(), id: cmdbId.trim(), url: cmdbUrl.trim() } : null,
         tags,
       };
-      const a = app ? await put<ApplicationDetail>(`/applications/${app.id}`, body) : await post<ApplicationDetail>('/applications', body);
+      const accessBody = app ? undefined : access.body();
+      const a = app
+        ? await put<ApplicationDetail>(`/applications/${app.id}`, body)
+        : await post<ApplicationDetail>('/applications', { ...body, ...(accessBody ? { access: accessBody } : {}) });
       void qc.invalidateQueries({ queryKey: ['applications'] });
       qc.setQueryData(['application', a.id], a);
       onSaved(a);
@@ -368,6 +373,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
             maxLength={2000}
           />
           <TagInput label={t('tags')} value={tags} onChange={setTags} max={30} lower suggestions={(known.data ?? []).flatMap((a) => a.tags)} />
+          {!app && <CreationAccessFields state={access} />}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

@@ -6,6 +6,7 @@ import { HttpError } from '../util.js';
 import * as svc from './service.js';
 import { params } from '../routes/params.js';
 import { namedGrantRule, serves } from '../auth/named-grants.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Ticket references (mounted under /api). Every route checks permissions in the service.
@@ -80,7 +81,7 @@ export async function ticketRoutes(app: FastifyInstance): Promise<void> {
         ),
       },
     },
-    async (req) => svc.createTicket(svc.ticketInputSchema.parse(req.body ?? {})),
+    async (req) => createWithAccess(req.body ?? {}, (b) => svc.createTicket(svc.ticketInputSchema.parse(b))),
   );
   app.get('/ticket-references/:id', async (req) => svc.getTicket(params(req).id!));
   app.put(

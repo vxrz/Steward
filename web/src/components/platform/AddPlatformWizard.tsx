@@ -44,6 +44,7 @@ import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } fro
 import { GetStartedPanel, TestHints } from './onboarding';
 import { SecretInput } from './SecretInput';
 import { KindMaturityBadge } from '../modules/MaturityBadge';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /** Groups of the connector list: the kind's descriptor (shared/src/platformKinds.ts); own connector types: "Custom". */
 type GroupKey = PlatformKindGroup | 'custom';
@@ -94,6 +95,8 @@ export function AddPlatformWizard({
   const [created, setCreated] = useState<Platform | null>(null);
   const [busy, setBusy] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
+  const access = useCreationAccess(opened);
+  const resetAccess = access.reset;
 
   useEffect(() => {
     if (opened) return;
@@ -106,7 +109,8 @@ export function AddPlatformWizard({
     setAuthChoice(null);
     setCreated(null);
     setTest(null);
-  }, [opened]);
+    resetAccess();
+  }, [opened, resetAccess]);
 
   const choose = (p: PlatformPreset) => {
     setPreset(p);
@@ -141,6 +145,7 @@ export function AddPlatformWizard({
       const filled = Object.fromEntries(Object.entries(secrets).filter(([, v]) => v));
       const config = { ...preset.config, auth: { ...preset.config.auth, type: authType }, variables: vars, ...(dbConn ? { database: dbConn } : {}) };
       let p: Platform;
+      const accessBody = access.body();
       if (!created) {
         p = await post<Platform>('/platforms', {
           name,
@@ -151,6 +156,7 @@ export function AddPlatformWizard({
           config,
           secrets: filled,
           typeKind: preset.custom ? preset.kind : undefined,
+          ...(accessBody ? { access: accessBody } : {}),
         });
       } else {
         // a corrected address removes the credentials stored at creation: they are sent again below (the wizard still has them)
@@ -360,6 +366,7 @@ export function AddPlatformWizard({
               <Hint>{t('form.credentialsHint')}</Hint>
             </>
           )}
+          {!created && <CreationAccessFields state={access} />}
           <Group justify="space-between">
             <Group gap="xs">
               {!created && (

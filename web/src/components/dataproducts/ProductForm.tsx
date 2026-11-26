@@ -30,6 +30,7 @@ import { ContactPicker, fromLinks, toLinkInputs, type ContactPickerValue } from 
 import { useFieldErrors } from '../common';
 import { levelText, useCiaScale } from '../catalogue/cia';
 import { ExternalRefsInput, FormButtons, isHttpUrl, keyFromName, refsToSend, useBusy, validKey } from './form';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 /** The domains as options, sub-domains under their domain ("Sales → Orders"). */
 export function domainOptions(domains: DataDomain[] | undefined): { value: string; label: string }[] {
@@ -76,6 +77,7 @@ export function ProductForm({
   const [tags, setTags] = useState<string[]>(p?.tags ?? []);
   const [refs, setRefs] = useState<DataExternalRef[]>(p?.externalRefs ?? []);
   const [busy, run] = useBusy();
+  const access = useCreationAccess(!p);
   const amount = toMicros(valueAmount);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
@@ -104,7 +106,10 @@ export function ProductForm({
         tags,
         externalRefs: refsToSend(refs),
       };
-      const saved = p ? await put<DataProduct>(`/data-products/${encodeURIComponent(p.id)}`, body) : await post<DataProduct>('/data-products', body);
+      const accessBody = p ? undefined : access.body();
+      const saved = p
+        ? await put<DataProduct>(`/data-products/${encodeURIComponent(p.id)}`, body)
+        : await post<DataProduct>('/data-products', { ...body, ...(accessBody ? { access: accessBody } : {}) });
       onSaved(saved);
     }, t('form.notSaved'));
   return (
@@ -256,6 +261,7 @@ export function ProductForm({
           </Paper>
           <TagsInput label={t('form.tags')} value={tags} onChange={setTags} maxTags={L.tags} clearable />
           <ExternalRefsInput value={refs} onChange={setRefs} error={!!v.error('refs')} />
+          {!p && <CreationAccessFields state={access} />}
           <FormButtons busy={busy} submit={p ? undefined : t('product.create')} testId="product-save" />
         </Stack>
       </form>

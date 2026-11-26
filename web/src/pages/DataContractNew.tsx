@@ -26,6 +26,7 @@ import { dataContractKeys, platformKeys } from '../queryKeys';
 import { useMe } from '../auth';
 import { BLANK_CONTRACT, ContractYamlEditor } from '../components/contracts/parts';
 import { readText } from './DataContracts';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 
 type Source = 'blank' | 'table' | 'dataset' | 'openapi' | 'recording';
 const SOURCES: Source[] = ['blank', 'table', 'dataset', 'openapi', 'recording'];
@@ -197,6 +198,7 @@ export function DataContractNewPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [preview, setPreview] = useState<DataContractPreview | null>(null);
   const [busy, setBusy] = useState(false);
+  const access = useCreationAccess(true);
   const narrow = useMediaQuery('(max-width: 40em)') ?? false;
   if (!caps.createProcesses)
     return (
@@ -221,7 +223,8 @@ export function DataContractNewPage() {
   const create = async () => {
     setBusy(true);
     try {
-      const made = await post<DataContractDetail>('/data-contracts', { yaml, links });
+      const accessBody = access.body();
+      const made = await post<DataContractDetail>('/data-contracts', { yaml, links, ...(accessBody ? { access: accessBody } : {}) });
       void qc.invalidateQueries({ queryKey: dataContractKeys.all });
       navigate(`/data-contracts/${encodeURIComponent(made.id)}`);
     } catch (e) {
@@ -291,6 +294,7 @@ export function DataContractNewPage() {
           </Group>
         )}
         <ContractYamlEditor value={yaml} onChange={setYaml} onPreview={setPreview} />
+        <CreationAccessFields state={access} />
         <Group>
           <Button onClick={() => void create()} loading={busy} disabled={invalid} data-testid="contract-create">
             {t('new.create')}

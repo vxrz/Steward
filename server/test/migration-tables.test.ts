@@ -144,6 +144,11 @@ describe('content of a migration package that is served back', () => {
     }
   });
 
+  it('does not move newItemVisibility', async () => {
+    const { SETTINGS_MOVED } = await import('../src/migration/tables.js');
+    expect(SETTINGS_MOVED).not.toContain('newItemVisibility');
+  });
+
   it('applies only settings that are valid; logos get the type of their content', async () => {
     const { checkedSettings } = await import('../src/migration/import.js');
     const { tinyPng } = await import('./png.js');
@@ -165,6 +170,8 @@ describe('content of a migration package that is served back', () => {
     expect(out.browserTimeoutMs).toBeUndefined();
     expect(out.defaultLocale).toBeUndefined();
     expect(out.passwordLogin).toBeUndefined();
+    // ADR 0042: who sees new items is the target's decision; a package never sets it
+    expect(checkedSettings({ newItemVisibility: 'everyone' }, '/nonexistent').newItemVisibility).toBeUndefined();
     expect(
       checkedSettings({ 'theme.logo': { mime: 'image/png', data: Buffer.from('alert(1)').toString('base64') } }, '/nonexistent')['theme.logo'],
     ).toBeUndefined();

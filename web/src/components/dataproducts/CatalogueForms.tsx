@@ -48,6 +48,7 @@ import { ApplicationSelect } from '../catalogue/ApplicationSelect';
 import { EnvironmentInput, useEnvironmentList } from '../catalogue/environments';
 import { FormButtons, isHttpUrl, useBusy } from './form';
 import { GenericPartFields, cleanProperties } from './GenericParts';
+import { CreationAccessFields, useCreationAccess } from '../access/CreationAccess';
 
 const enc = encodeURIComponent;
 
@@ -81,6 +82,8 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
   const [namespace, setNamespace] = useState(e?.olNamespace ?? '');
   const [properties, setProperties] = useState(e?.properties ?? []);
   const [busy, run] = useBusy();
+  // a data element has owning teams but no Restricted scope (ADR 0042)
+  const access = useCreationAccess(!e, { restrictable: false });
   const def = DATA_ELEMENT_KIND_DEFS[kind];
   const fitting = (platforms.data ?? []).filter((p) => elementKindFits(kind, p.kind));
   const isApi = kind.startsWith('api.');
@@ -133,7 +136,8 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
           apiRef,
           ...genericBody,
         };
-        onSaved(await post<DataElement>('/data-elements', body));
+        const accessBody = access.body();
+        onSaved(await post<DataElement>('/data-elements', { ...body, ...(accessBody ? { access: accessBody } : {}) }));
       }
     }, t('form.notSaved'));
   return (
@@ -287,6 +291,7 @@ export function ElementForm({ element, onClose, onSaved }: { element?: DataEleme
             onChange={setApplicationId}
             by="id"
           />
+          {!e && <CreationAccessFields state={access} />}
           <FormButtons busy={busy} submit={e ? undefined : t('elements.create')} testId="element-save" />
         </Stack>
       </form>

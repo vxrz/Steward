@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { BlueprintTargetKind } from '@sm/shared';
 import { currentParams } from './ids.js';
 import * as bp from './blueprints.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Machine blueprints (0.30.0, ADR 0041): /api/plant/blueprints, and on device profiles and assets their blueprints, the
@@ -14,7 +15,7 @@ const read = (req: FastifyRequest) => currentParams(req.params as Record<string,
 
 export async function blueprintRoutes(app: FastifyInstance): Promise<void> {
   app.get('/plant/blueprints', async () => bp.listBlueprints());
-  app.post('/plant/blueprints', async (req, reply) => reply.code(201).send(bp.createBlueprint(bp.blueprintInput.parse(req.body))));
+  app.post('/plant/blueprints', async (req, reply) => reply.code(201).send(createWithAccess(req.body, (b) => bp.createBlueprint(bp.blueprintInput.parse(b)))));
   app.get('/plant/blueprints/:blueprintId', async (req) => bp.getBlueprint(p(req).blueprintId!));
   app.put('/plant/blueprints/:blueprintId', async (req) => bp.updateBlueprint(p(req).blueprintId!, bp.blueprintUpdate.parse(req.body)));
   app.delete('/plant/blueprints/:blueprintId', async (req) => {

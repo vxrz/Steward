@@ -147,4 +147,11 @@ export const ACCESS_MIGRATIONS: NamedMigration[] = [
     sql: aclShares('sqlite'),
     pg: aclShares('pg'),
   },
+  {
+    // 0.31.0 (ADR 0042): who sees a new item. An installation that existed before (it has users) keeps today's behaviour,
+    // new items open to the whole instance, stored explicitly; a new installation gets the default "owningTeams".
+    name: 'access-002-new-item-visibility',
+    sql: `INSERT INTO settings (key, value) SELECT 'newItemVisibility', '"everyone"'
+          WHERE EXISTS (SELECT 1 FROM users) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'newItemVisibility');`,
+  },
 ];

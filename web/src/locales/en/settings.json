@@ -761,5 +761,12 @@
   "endOfLife": {
     "title": "End of life",
     "hint": "Where release and support dates of products come from (endoflife.date), and how far ahead they warn."
+  },
+  "newItemVisibility": {
+    "label": "Who sees new items",
+    "hint": "What a new item of a kind with access control starts with. “Owning teams only”: a new item that has owning teams starts Restricted – only those teams and its shares see it. “Everyone”: it is open to everyone who may see the kind, until someone restricts it. Items without owning teams stay open either way. Existing items do not change.",
+    "everyone": "Everyone who may see the kind",
+    "owningTeams": "Owning teams only",
+    "stepUp": "Changing this to “Everyone who may see the kind” opens new items wider and asks you to confirm it is you. Changing it to “Owning teams only” does not. Both changes are recorded in the audit log."
   }
 }

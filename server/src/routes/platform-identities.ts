@@ -14,6 +14,7 @@ import { params } from './params.js';
 import { ACCESS, me } from '../auth/access.js';
 import { markDeprecated } from '../auth/acl-shares.js';
 import { requireCapability } from '../auth/permissions.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Platform identities (0.13.0, ADR 0009 step 2), mounted under /api with the platform routes:
@@ -80,7 +81,7 @@ export async function platformIdentityRoutes(app: FastifyInstance): Promise<void
   app.post('/platforms/:id/identities', async (req) => {
     const id = params(req).id!;
     requirePlatform(id, 'manage', 'add identities to this platform');
-    return identities.createIdentity(id, identityBody.parse(req.body));
+    return createWithAccess(req.body, (b) => identities.createIdentity(id, identityBody.parse(b)));
   });
   app.get('/platforms/:id/identities/:identityId/settings', async (req) => {
     const { id, identityId } = ids(req);

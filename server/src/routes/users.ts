@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { ROLES, TEAM_ROLES, type Subject, type UserInfo, boundedRecord } from '@sm/shared';
+import { ROLES, TEAM_ROLES, type NewResourceTeams, type NewResourceTeamsView, type Subject, type UserInfo, boundedRecord } from '@sm/shared';
 import { audit } from '../audit.js';
-import { passwordLoginMode } from '../settings.js';
+import { getSettings, passwordLoginMode } from '../settings.js';
 import { HttpError } from '../util.js';
 import { db } from '../db.js';
 import * as teamSettings from '../teams/settings.js';
@@ -234,7 +234,9 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   });
   app.delete('/teams/:id/settings/logo', { config: { access: ACCESS.adminSession } }, async (req) => teamSettings.removeTeamLogo(params(req).id!, me()));
   // the owning teams of the resources the signed-in user creates, and their own choice (#136)
-  app.get('/me/new-resource-teams', async () => newResourceTeams(me()));
+  // with the instance's default visibility of new items, which the create dialogs preselect (ADR 0042)
+  const withVisibility = (t: NewResourceTeams): NewResourceTeamsView => ({ ...t, newItemVisibility: getSettings().newItemVisibility });
+  app.get('/me/new-resource-teams', async () => withVisibility(newResourceTeams(me())));
   app.put('/me/new-resource-teams', async (req) => {
     const b = z
       .object({ teamId: z.string().max(100).nullable() })
@@ -252,7 +254,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
           : `${me().username}'s new resources get the teams' defaults again`,
         details: { from: before.chosen, to: after.chosen },
       });
-    return after;
+    return withVisibility(after);
   });
   app.post('/teams/:id/settings/test', { config: { access: ACCESS.adminSession } }, async (req) => {
     teamSettings.getTeamSettings(params(req).id!, me());

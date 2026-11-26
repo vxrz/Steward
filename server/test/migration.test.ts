@@ -629,6 +629,8 @@ describe('import into SQLite through the web API', () => {
     const typed = source.fingerprint.split(':').join(' : ').toUpperCase();
     const r = await max('POST', `/migration/imports/staged/${plan.id}/apply`, { mapping: { users, teams }, confirmFingerprint: typed });
     importId = r.importId;
+    // ADR 0042: the source stores "everyone"; the target keeps its own setting ("owningTeams", the default of a new installation)
+    expect((await max('GET', '/settings/instance')).newItemVisibility).toBe('owningTeams');
     expect(r.historyEntries).toBe(source.auditEntries);
     expect(r.files).toBe(source.files.size);
     expect(r.temporaryPasswords.map((t: any) => t.username)).toEqual(['olivia']);

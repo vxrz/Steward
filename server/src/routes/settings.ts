@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { LOCALE_CODES, API_DOCS_MODES, PASSWORD_LOGIN_MODES, OUTBOUND_POLICIES, DEBUG_LIMITS, allowListEntryProblem } from '@sm/shared';
+import { LOCALE_CODES, API_DOCS_MODES, PASSWORD_LOGIN_MODES, OUTBOUND_POLICIES, NEW_ITEM_VISIBILITIES, DEBUG_LIMITS, allowListEntryProblem } from '@sm/shared';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { getSettings, passwordLoginFromEnv, passwordLoginMode, updateSettings } from '../settings.js';
@@ -11,6 +11,7 @@ import { changesSignInOrOutbound } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { readCookie, SESSION_COOKIE } from '../auth/cookies.js';
 import { ACCESS, me } from '../auth/access.js';
+import { auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
 
 /** Instance settings (mounted under /api). */
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
@@ -57,6 +58,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
           .max(200)
           .optional(),
         findingDismissFourEyes: z.boolean().optional(),
+        newItemVisibility: z.enum(NEW_ITEM_VISIBILITIES).optional(),
       })
       .parse(req.body);
     const before = passwordLoginMode();
@@ -70,7 +72,20 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)
       throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in', 'SSO_PROVIDER_REQUIRED');
     if (b.passwordLogin === 'none' && before !== 'none') requireSsoOnlyPossible();
+    // Who sees new items (ADR 0042): "everyone" opens what "owning teams only" would have restricted – a widening, confirmed
+    // like every other (step-up grantAccess); "owning teams only" narrows and asks for nothing. Both are audited.
+    const visibilityBefore = getSettings().newItemVisibility;
+    const visibilityChanged = b.newItemVisibility !== undefined && b.newItemVisibility !== visibilityBefore;
+    if (visibilityChanged && b.newItemVisibility === 'everyone') requireAccessGrant();
     const s = updateSettings(b);
+    if (visibilityChanged)
+      auditAccessChange({
+        action: 'access.new_item_visibility_changed',
+        entityType: 'settings',
+        entityId: 'newItemVisibility',
+        summary: `Visibility of new items: ${visibilityBefore} → ${b.newItemVisibility}`,
+        details: { before: visibilityBefore, after: b.newItemVisibility },
+      });
     const ended =
       b.passwordLogin && b.passwordLogin !== before ? users.endPasswordSessions(b.passwordLogin, readCookie(req.headers.cookie, SESSION_COOKIE)) : 0;
     audit({

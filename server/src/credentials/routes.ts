@@ -11,6 +11,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { ACCESS, me } from '../auth/access.js';
 import { params } from '../routes/params.js';
 import { namedGrantRule, serves } from '../auth/named-grants.js';
+import { createWithAccess } from '../auth/creation-access.js';
 
 /**
  * Credentials register (mounted under /api). Documentation only: no route
@@ -129,7 +130,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
   // owners from outside the owning teams ask for the step-up like an access list (#195)
   const creates = () => svc.canCreateCredentials(me());
   app.post('/credentials', { config: { stepUp: namedGrantRule((req) => svc.credentialNamesOutsiders(null, req.body), creates) } }, async (req) =>
-    svc.createCredential(svc.credentialInputSchema.parse(req.body ?? {})),
+    createWithAccess(req.body ?? {}, (b) => svc.createCredential(svc.credentialInputSchema.parse(b))),
   );
 
   // Entra ID (v0.5.0): app registration secrets and certificates as entries, their expiry kept up to date

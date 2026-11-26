@@ -168,6 +168,9 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
     const adminCookie = setup.session!;
     // with the service half (services, documents, credential entries, duties …), as the Home page's "Load demo" does
     await must('POST', '/api/demo/setup', { services: true }, adminCookie);
+    // a new installation asks creators for an owning team (ADR 0042); the specs create items as an administrator without one.
+    // new-item-access.spec.ts, which tests that rule, runs on a server of its own.
+    await must('PUT', '/api/settings/instance', { newItemVisibility: 'everyone' }, adminCookie);
     // the company's domain: plain addresses there (credential owners, report recipients) get e-mails
     await must('PATCH', '/api/me', { email: 'admin@example.com' }, adminCookie);
     // (The demo allow-lists loopback itself, so its simulated plant-device monitor
