@@ -15,6 +15,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 - **Upgraded installations keep today's behaviour**: the upgrade stores `newItemVisibility: everyone` for a database that already has users (migration `access-002-new-item-visibility`), so nothing a person sees changes until an administrator chooses _owning teams only_. The setting affects new items only.
 
+### Fixed
+
+- **Owning team and the instance setting in more places** ([ADR 0042](docs/adr/0042-uniform-access-at-creation.md)): an import of data elements now asks for an owning team under "owning teams only" (and takes `access.owningTeams`); a platform's price book follows its platform and takes no `access`; a migration package no longer sets _Who sees new items_ on the target; the create dialogs show a loader or an error while the team defaults load.
+
 ## [0.30.0] - 2026-11-26
 
 Steward 0.30.0 adds machine blueprints: write down once what you expect of a kind of machine – the signals, what they mean, why they matter and how important they are – and see per device profile, per asset and across a site what is covered, what is missing, what the profile has but an asset does not collect, and what was decided not to apply, with a reason ([ADR 0041](docs/adr/0041-machine-blueprints.md)). Signals can name the KPI definitions they feed, assistants can propose blueprints and mappings for a person to accept, and five generic example blueprints are a starting point. The release also adds review guidelines for code and security reviewers to AGENTS.md and SECURITY.md, and the upgrade fixture of 0.29.0.
