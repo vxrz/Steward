@@ -16,7 +16,7 @@ import {
   type PlantInterface,
 } from '@sm/shared';
 import { del, get, notifyError, post, put } from '../../api';
-import { useFieldErrors } from '../common';
+import { QueryState, useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { FormModal } from '../FormModal';
 import { fmtDate } from '../../format';
@@ -63,7 +63,7 @@ export function BlueprintCoverageSection({ kind, id, points }: { kind: Blueprint
   const q = useQuery({ queryKey: key, queryFn: () => get<PlantBlueprintCoverageView>(base) });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const v = q.data;
-  if (!v) return null;
+  if (!v) return <QueryState query={q} rows={2} />;
   const canEdit = v.canEdit;
   /** Every write answers the coverage; the counts of the blueprint's page and list change too */
   const run = async (call: () => Promise<PlantBlueprintCoverageView>) => {
