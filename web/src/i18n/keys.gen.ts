@@ -202,6 +202,7 @@ export interface Resources {
     'create.summaryShares_other': string;
     'create.teams': string;
     'create.teamsHint': string;
+    'create.teamsRequiredHint': string;
     'create.wholeInstance': string;
     'create.restricted': string;
     'create.restrictedHint': string;
@@ -7984,6 +7985,7 @@ export interface Resources {
     'codes.NOT_PDF': string;
     'codes.USER_NOT_FOUND': string;
     'codes.TEAM_NOT_FOUND': string;
+    'codes.ACCESS_OWNING_TEAM_REQUIRED': string;
     'codes.ACCESS_NOT_RESTRICTABLE': string;
     'codes.TEAM_OWNS_RESOURCES': string;
     'codes.PLATFORM_NOT_FOUND': string;

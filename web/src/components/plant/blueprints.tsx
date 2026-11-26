@@ -118,7 +118,7 @@ export function BlueprintFormModal({ blueprint, onClose, onSave }: { blueprint?:
   const [description, setDescription] = useState(blueprint?.description ?? '');
   const [reference, setReference] = useState(blueprint?.reference ?? '');
   const [version, setVersion] = useState(blueprint?.version ?? '');
-  const access = useCreationAccess(!blueprint);
+  const access = useCreationAccess(!blueprint, { open: true });
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), id: !PLANT_ID_RE.test(id.id) && t('plant:form.idInvalid') });
   return (
     <Form

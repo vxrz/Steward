@@ -430,7 +430,7 @@ export function SupplierFormModal({ supplier, onClose, onSaved }: { supplier?: S
   const [dpaSince, setDpaSince] = useState(supplier?.dpaSince ?? '');
   const [dpaLink, setDpaLink] = useState(supplier?.dpaLink ?? '');
   const [busy, setBusy] = useState(false);
-  const access = useCreationAccess(!supplier);
+  const access = useCreationAccess(!supplier, { open: true });
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     website: !!website.trim() && !/^https?:\/\/\S+$/i.test(website.trim()) && t('common:validation.invalid'),

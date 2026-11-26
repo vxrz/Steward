@@ -90,6 +90,7 @@
     "NOT_PDF": "This is not a PDF file.",
     "USER_NOT_FOUND": "User “{{name}}” not found.",
     "TEAM_NOT_FOUND": "Team “{{name}}” not found.",
+    "ACCESS_OWNING_TEAM_REQUIRED": "New items need an owning team while new items are shown to owning teams only. Name one – you can name any team if you are an administrator – or join a team first.",
     "ACCESS_NOT_RESTRICTABLE": "Items of this kind have owning teams only – they cannot be restricted or shared.",
     "TEAM_OWNS_RESOURCES": "The team “{{name}}” is the only owning team of {{total}} item(s). Choose the team they move to, or give them other owning teams first – deleting it must not open them to everyone.",
     "PLATFORM_NOT_FOUND": "Platform {{id}} not found.",

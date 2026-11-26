@@ -185,7 +185,7 @@ export function ProfileFormModal({
   const [description, setDescription] = useState(profile?.description ?? '');
   const [notes, setNotes] = useState(profile?.notes ?? '');
   const [template, setTemplate] = useState(profile?.template ?? false);
-  const access = useCreationAccess(!profile);
+  const access = useCreationAccess(!profile, { open: true });
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required'), id: !PLANT_ID_RE.test(id.id) && t('form.idInvalid') });
   return (
     <FormModal
@@ -638,7 +638,7 @@ export function KpiFormModal({ kpi, onClose, onSave }: { kpi?: PlantKpiValues; o
   const [dynamicColumns, setDynamicColumns] = useState(kpi?.dynamicColumns ?? false);
   const [rollUp, setRollUp] = useState(kpi?.rollUp === 'parts');
   const [notes, setNotes] = useState(kpi?.notes ?? '');
-  const access = useCreationAccess(!kpi);
+  const access = useCreationAccess(!kpi, { open: true });
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     id: !PLANT_ID_RE.test(id.id) && t('form.idInvalid'),

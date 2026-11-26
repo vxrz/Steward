@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Anchor, Collapse, MultiSelect, Stack, Switch, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,7 @@ import { subjectOptionLabel, useSubjects } from '../SubjectsInput';
  * starts with, pre-filled from the creator's team defaults. `body()` is the `access` object of the create request – or
  * undefined while nothing differs from the defaults, so the server applies its own (`newResourceTeams`).
  */
-export function useCreationAccess(opened: boolean, opts: { restrictable?: boolean } = {}) {
+export function useCreationAccess(opened: boolean, opts: { restrictable?: boolean; open?: boolean } = {}) {
   const restrictable = opts.restrictable ?? true;
   const { isAdmin } = useMe();
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: opened && isAdmin });
@@ -34,12 +34,15 @@ export function useCreationAccess(opened: boolean, opts: { restrictable?: boolea
     setRestricted(null);
     setShares([]);
   }, []);
+  // "Owning teams only": a new item belongs to a team, except the catalogue kinds and identities (`open`), which stay open
+  const teamRequired = mine.data?.newItemVisibility === 'owningTeams' && !opts.open;
   const sameTeams = teamIds.length === defaults.length && teamIds.every((x) => defaults.includes(x));
   return {
     teamIds,
     setTeamIds: setPicked,
     restricted,
     restrictable,
+    teamRequired,
     setRestricted,
     shares,
     setShares,
@@ -63,7 +66,14 @@ export type CreationAccessState = ReturnType<typeof useCreationAccess>;
 /** The compact _Access_ section of a New dialog: collapsed, with the choices in one line. */
 export function CreationAccessFields({ state }: { state: CreationAccessState }) {
   const { t } = useTranslation(['access', 'common']);
-  const [open, setOpen] = useState(false);
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  // a required team that is still missing opens the section (and keeps it open once chosen): nobody should look for it
+  const [needed, setNeeded] = useState(false);
+  const missing = state.teamRequired && state.teamIds.length === 0;
+  useEffect(() => {
+    if (missing) setNeeded(true);
+  }, [missing]);
+  const open = toggled ?? needed;
   const subjects = useSubjects();
   const names = new Map(state.options.map((o) => [o.value, o.label]));
   const summary = [
@@ -74,7 +84,7 @@ export function CreationAccessFields({ state }: { state: CreationAccessState }) 
   const list = (subjects.data ?? []).filter((s) => (state.restricted || s.kind !== 'role') && s.value !== 'role:admin' && s.value !== 'role:status');
   return (
     <div>
-      <Anchor component="button" type="button" size="sm" fw={500} onClick={() => setOpen((o) => !o)} aria-expanded={open} data-testid="creation-access-toggle">
+      <Anchor component="button" type="button" size="sm" fw={500} onClick={() => setToggled(!open)} aria-expanded={open} data-testid="creation-access-toggle">
         {open ? t('create.hide') : t('create.show')}
       </Anchor>
       <Text size="xs" c="dimmed">
@@ -84,7 +94,9 @@ export function CreationAccessFields({ state }: { state: CreationAccessState }) 
         <Stack mt="xs" gap="sm">
           <MultiSelect
             label={t('create.teams')}
-            description={t('create.teamsHint')}
+            description={state.teamRequired ? t('create.teamsRequiredHint') : t('create.teamsHint')}
+            required={state.teamRequired}
+            data-testid="creation-access-teams"
             placeholder={state.teamIds.length ? undefined : t('create.wholeInstance')}
             data={state.options}
             value={state.teamIds}

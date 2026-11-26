@@ -331,7 +331,7 @@ function GeneralForm({
   const [auth, setAuth] = useState('');
   const [vars, setVars] = useState<{ key: string; value: string }[]>([]);
   const [busy, setBusy] = useState(false);
-  const access = useCreationAccess(!identity);
+  const access = useCreationAccess(!identity, { open: true });
   const database = platform.kind === DATABASE_KIND;
   useEffect(() => {
     if (!settings.data) return;

@@ -227,6 +227,7 @@
     "summaryShares_other": "{{count}} shares",
     "teams": "Owning teams",
     "teamsHint": "Members of these teams have their roles on it; empty: it belongs to the whole instance. Teams beyond your defaults ask you to confirm.",
+    "teamsRequiredHint": "New items belong to a team: name at least one. Members of these teams have their roles on it. Teams beyond your defaults ask you to confirm.",
     "wholeInstance": "None – the whole instance",
     "restricted": "Restricted: only owning teams and shares",
     "restrictedHint": "Nobody else sees it through their instance role.",

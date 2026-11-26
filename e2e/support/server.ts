@@ -40,7 +40,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const ISOLATED_SETUP_MS = 240_000;
 
 /** `demo`: SM_DEMO=1 (mock platforms and the mock identity provider under /mock). */
-export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promise<IsolatedServer> {
+export async function startIsolatedServer(opts: { demo?: boolean; newItemVisibility?: 'everyone' | 'owningTeams' } = {}): Promise<IsolatedServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-e2e-iso-'));
   // the first start binds port 0 (the system picks a free port, #22); a restart takes the same port again
   let port = 0;
@@ -145,6 +145,8 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
       if (!r.ok) throw new Error(`${method} ${url} → HTTP ${r.status}: ${text}`);
       return text ? JSON.parse(text) : null;
     };
+    // the default of a new installation asks every creator for an owning team (ADR 0042): specs create items as the admin
+    await api('PUT', '/settings/instance', { newItemVisibility: opts.newItemVisibility ?? 'everyone' });
     return { baseURL, adminCookie, sessionKey, linkKey, api, restart, stop, dataDir };
   } catch (e) {
     await stop();
