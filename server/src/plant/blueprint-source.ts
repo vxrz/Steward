@@ -3,7 +3,7 @@ import { allAssignments, allProfiles } from './data-model.js';
 import { assetModel } from './resolve.js';
 import { collectedPoints } from './potential.js';
 import type { CatalogueScope } from './catalogue-access.js';
-import { coverageOf, pointsOfInterfaces, signalsForReader } from './blueprints.js';
+import { coverageOf, indexBySignal, pointsOfInterfaces, signalsForReader, type Indexed } from './blueprints.js';
 import * as store from './blueprint-store.js';
 
 /**
@@ -29,6 +29,21 @@ export function blueprintSource(assetIds: Set<string>, scope: CatalogueScope, on
   const profiles = allProfiles();
   const collected = collectedPoints(assetIds);
   const memo = new Map<string, PlantBlueprintCoverage[]>();
+  // the mappings and marks of a target are indexed once (a profile's serve all its assets)
+  const mapIndex = new Map<string, Indexed<store.StoredMapping>>();
+  const markIndex = new Map<string, Indexed<store.StoredMark>>();
+  const mapsOf = (t: store.TargetKey) => {
+    const k = store.targetKey(t);
+    let by = mapIndex.get(k);
+    if (!by) mapIndex.set(k, (by = indexBySignal(mappings.get(k) ?? [])));
+    return { list: mappings.get(k) ?? [], by };
+  };
+  const marksOf = (t: store.TargetKey) => {
+    const k = store.targetKey(t);
+    let by = markIndex.get(k);
+    if (!by) markIndex.set(k, (by = indexBySignal(marks.get(k) ?? [])));
+    return { list: marks.get(k) ?? [], by };
+  };
   return {
     of(assetId) {
       const hit = memo.get(assetId);
@@ -42,17 +57,13 @@ export function blueprintSource(assetIds: Set<string>, scope: CatalogueScope, on
       const out: PlantBlueprintCoverage[] = [];
       if (direct.size || viaProfile.size) {
         const ctx = { points: pointsOfInterfaces(assetModel(a ?? null, profile ?? null).interfaces), collected: collected.get(assetId) ?? new Set<string>() };
-        const m = [
-          ...(prof ? [{ source: 'profile' as const, list: mappings.get(store.targetKey(prof)) ?? [] }] : []),
-          { source: 'asset' as const, list: mappings.get(store.targetKey(own)) ?? [] },
-        ];
-        const k = [
-          ...(prof ? [{ on: 'profile' as const, list: marks.get(store.targetKey(prof)) ?? [] }] : []),
-          { on: 'asset' as const, list: marks.get(store.targetKey(own)) ?? [] },
-        ];
+        const m = [...(prof ? [{ source: 'profile' as const, ...mapsOf(prof) }] : []), { source: 'asset' as const, ...mapsOf(own) }];
+        const k = [...(prof ? [{ on: 'profile' as const, ...marksOf(prof) }] : []), { on: 'asset' as const, ...marksOf(own) }];
         for (const b of blueprints) {
           if (!direct.has(b.id) && !viaProfile.has(b.id)) continue;
-          out.push(coverageOf(b, direct.has(b.id) && viaProfile.has(b.id) ? 'both' : direct.has(b.id) ? 'direct' : 'profile', m, k, ctx));
+          out.push(
+            coverageOf(b, direct.has(b.id) && viaProfile.has(b.id) ? 'both' : direct.has(b.id) ? 'direct' : 'profile', m, k, ctx, { suggestions: false }),
+          );
         }
       }
       memo.set(assetId, out);
@@ -69,8 +80,11 @@ export function kpiLinks(
   for (const b of store.allBlueprints()) {
     if (!scope.blueprint(b.row.id)) continue;
     for (const s of signalsForReader(b.values.signals, scope))
-      for (const k of s.kpis)
-        out.set(k, [...(out.get(k) ?? []), { blueprint: { id: b.row.id, name: b.row.name }, signal: { id: s.id, name: s.name, importance: s.importance } }]);
+      for (const k of s.kpis) {
+        const l = out.get(k) ?? [];
+        l.push({ blueprint: { id: b.row.id, name: b.row.name }, signal: { id: s.id, name: s.name, importance: s.importance } });
+        out.set(k, l);
+      }
   }
   return out;
 }
