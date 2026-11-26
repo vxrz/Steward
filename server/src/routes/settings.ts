@@ -11,6 +11,7 @@ import { changesSignInOrOutbound } from '../auth/step-up-rules.js';
 import { requireCapability } from '../auth/permissions.js';
 import { readCookie, SESSION_COOKIE } from '../auth/cookies.js';
 import { ACCESS, me } from '../auth/access.js';
+import { auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
 
 /** Instance settings (mounted under /api). */
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
@@ -71,7 +72,20 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)
       throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in', 'SSO_PROVIDER_REQUIRED');
     if (b.passwordLogin === 'none' && before !== 'none') requireSsoOnlyPossible();
+    // Who sees new items (ADR 0042): "everyone" opens what "owning teams only" would have restricted – a widening, confirmed
+    // like every other (step-up grantAccess); "owning teams only" narrows and asks for nothing. Both are audited.
+    const visibilityBefore = getSettings().newItemVisibility;
+    const visibilityChanged = b.newItemVisibility !== undefined && b.newItemVisibility !== visibilityBefore;
+    if (visibilityChanged && b.newItemVisibility === 'everyone') requireAccessGrant();
     const s = updateSettings(b);
+    if (visibilityChanged)
+      auditAccessChange({
+        action: 'access.new_item_visibility_changed',
+        entityType: 'settings',
+        entityId: 'newItemVisibility',
+        summary: `Visibility of new items: ${visibilityBefore} → ${b.newItemVisibility}`,
+        details: { before: visibilityBefore, after: b.newItemVisibility },
+      });
     const ended =
       b.passwordLogin && b.passwordLogin !== before ? users.endPasswordSessions(b.passwordLogin, readCookie(req.headers.cookie, SESSION_COOKIE)) : 0;
     audit({
