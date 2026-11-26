@@ -19,6 +19,7 @@ import {
   IconFileCertificate,
   IconFileImport,
   IconGauge,
+  IconListCheck,
   IconHeartRateMonitor,
   IconInbox,
   IconKey,
@@ -47,7 +48,6 @@ import {
   IconListSearch,
   IconClipboardCheck,
   IconUserSearch,
-  IconListCheck,
   IconClipboardText,
   IconUserShield,
   IconUsers,
@@ -118,6 +118,7 @@ export type NavKey =
   | 'plantSites'
   | 'plantAssets'
   | 'plantProfiles'
+  | 'plantBlueprints'
   | 'plantKpis'
   | 'plantExplore'
   | 'plantChecks'
@@ -247,6 +248,8 @@ export const NAV_GROUPS: { key: NavGroupKey; items: NavItemDef[] }[] = [
       { to: '/plant/map', key: 'plantMap', icon: IconMap, when: plant },
       // part 2 (#219): the catalogues of the installation, the search and the checks
       { to: '/plant/profiles', key: 'plantProfiles', icon: IconCpu, when: plant },
+      // 0.30.0 (ADR 0041): what one kind of machine should deliver
+      { to: '/plant/blueprints', key: 'plantBlueprints', icon: IconListCheck, when: plant },
       { to: '/plant/kpis', key: 'plantKpis', icon: IconGauge, when: plant },
       { to: '/plant/explore', key: 'plantExplore', icon: IconListSearch, when: plant },
       { to: '/plant/checks', key: 'plantChecks', icon: IconClipboardCheck, when: plant },

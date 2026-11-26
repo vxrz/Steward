@@ -148,6 +148,8 @@ const PlantImportPage = page(() => import('./pages/PlantImport'), 'PlantImportPa
 const PlantManagerSettingsPage = page(() => import('./pages/PlantManagerSettings'), 'PlantManagerSettingsPage');
 const PlantProfilesPage = page(() => import('./pages/PlantProfiles'), 'PlantProfilesPage');
 const PlantProfilePage = page(() => import('./pages/PlantProfile'), 'PlantProfilePage');
+const PlantBlueprintsPage = page(() => import('./pages/PlantBlueprints'), 'PlantBlueprintsPage');
+const PlantBlueprintPage = page(() => import('./pages/PlantBlueprint'), 'PlantBlueprintPage');
 const PlantDataPointPage = page(() => import('./pages/PlantDataPoint'), 'PlantDataPointPage');
 const PlantKpisPage = page(() => import('./pages/PlantKpis'), 'PlantKpisPage');
 const PlantKpiPage = page(() => import('./pages/PlantKpi'), 'PlantKpiPage');
@@ -410,6 +412,9 @@ function Shell({ status }: { status: AuthStatus }) {
                     {caps.plant && <Route path="/plant/profiles/:profileId" element={<PlantProfilePage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId/:tab" element={<PlantProfilePage />} />}
                     {caps.plant && <Route path="/plant/profiles/:profileId/points/:pointId" element={<PlantDataPointPage />} />}
+                    {caps.plant && <Route path="/plant/blueprints" element={<PlantBlueprintsPage />} />}
+                    {caps.plant && <Route path="/plant/blueprints/:blueprintId" element={<PlantBlueprintPage />} />}
+                    {caps.plant && <Route path="/plant/blueprints/:blueprintId/:tab" element={<PlantBlueprintPage />} />}
                     {caps.plant && <Route path="/plant/kpis" element={<PlantKpisPage />} />}
                     {caps.plant && <Route path="/plant/kpis/:kpiId" element={<PlantKpiPage />} />}
                     {caps.plant && <Route path="/plant/kpis/:kpiId/:tab" element={<PlantKpiPage />} />}
@@ -979,6 +984,30 @@ function Shell({ status }: { status: AuthStatus }) {
                       element={
                         <ModuleGate module="plant">
                           <PlantDataPointPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/blueprints"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantBlueprintsPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/blueprints/:blueprintId"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantBlueprintPage />
+                        </ModuleGate>
+                      }
+                    />
+                    <Route
+                      path="/plant/blueprints/:blueprintId/:tab"
+                      element={
+                        <ModuleGate module="plant">
+                          <PlantBlueprintPage />
                         </ModuleGate>
                       }
                     />

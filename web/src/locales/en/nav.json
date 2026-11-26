@@ -41,6 +41,7 @@
     "plantAssets": "Assets",
     "plantMap": "Map",
     "plantProfiles": "Device profiles",
+    "plantBlueprints": "Machine blueprints",
     "plantKpis": "KPI definitions",
     "plantExplore": "Explore data",
     "plantChecks": "Checks",
@@ -160,6 +161,7 @@
       "asset": "Asset",
       "profile": "Device profile",
       "kpi": "KPI definition",
+      "blueprint": "Machine blueprint",
       "contract": "Data contract",
       "supplier": "Supplier"
     }

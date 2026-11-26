@@ -41,6 +41,7 @@ import {
   IconEngine,
   IconCpu,
   IconGauge,
+  IconListCheck,
   IconContract,
   IconTruckDelivery,
 } from '@tabler/icons-react';
@@ -79,6 +80,7 @@ const RECENT_MODULES: Partial<Record<RecentKind, ModuleId>> = {
   asset: 'plant',
   profile: 'plant',
   kpi: 'plant',
+  blueprint: 'plant',
 };
 
 const RECENT_ICONS: Record<RecentKind, Icon> = {
@@ -100,6 +102,7 @@ const RECENT_ICONS: Record<RecentKind, Icon> = {
   asset: IconEngine,
   profile: IconCpu,
   kpi: IconGauge,
+  blueprint: IconListCheck,
   contract: IconContract,
   supplier: IconTruckDelivery,
 };
