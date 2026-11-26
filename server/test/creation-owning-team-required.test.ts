@@ -91,6 +91,52 @@ describe('owning teams only', () => {
   });
 });
 
+describe('bulk creation and platform price books', () => {
+  const file = (tag: string) =>
+    JSON.stringify({
+      version: 1,
+      elements: [{ kind: 'other', qualified_name: `INVENTED.${tag}.T1`, environment: 'prod', layer: 'raw', type_label: 'Invented extract' }],
+    });
+  const elementCount = async (tag: string) => {
+    const { db } = await import('../src/db.js');
+    return Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements WHERE name_norm LIKE ?', `invented.${tag.toLowerCase()}.%`)!.n);
+  };
+  const teamsOfElements = async (tag: string) => {
+    const { db } = await import('../src/db.js');
+    return db().all<{ team_id: string }>(
+      `SELECT r.team_id FROM resource_teams r JOIN dp_elements e ON e.id = r.resource_id WHERE r.kind = 'data_element' AND e.name_norm LIKE ?`,
+      `invented.${tag.toLowerCase()}.%`,
+    );
+  };
+
+  it('an import of data elements by a person without a team is refused and creates nothing', async () => {
+    const tag = uniq('NOTEAM');
+    const files = [{ name: 'e.json', content: file(tag) }];
+    expect(await code(admin('POST', '/data-products/import', { files, mode: 'update' }))).toBe('ACCESS_OWNING_TEAM_REQUIRED');
+    expect(await elementCount(tag)).toBe(0);
+  });
+
+  it('the team the request names becomes the owning team of the imported elements', async () => {
+    const tag = uniq('TEAM');
+    const files = [{ name: 'e.json', content: file(tag) }];
+    expect(await code(admin('POST', '/data-products/import', { files, mode: 'update', access: { owningTeams: [team] } }))).toBe('ok');
+    expect(await teamsOfElements(tag)).toEqual([{ team_id: team }]);
+    expect(await code(admin('POST', '/data-products/import', { files, mode: 'update', access: { owningTeams: ['missing'] } }))).toBe('TEAM_NOT_FOUND');
+  });
+
+  it('a platform price book follows its platform: no owning team is asked and no access is accepted', async () => {
+    const body = { name: 'Invented platform rates', kind: 'contracted', provider: 'Invented', currency: 'EUR', platformId: platform };
+    const made = await admin('POST', '/costs/price-books', body);
+    expect(await teamsOf('cost_price_book', made.id)).toEqual([]);
+    for (const access of [{ owningTeams: [team] }, { restricted: true }, { shares: [{ subject: 'role:viewer', level: 'view' }] }])
+      expect(await code(admin('POST', '/costs/price-books', { ...body, name: uniq('Invented rates'), access }))).toBe('ACCESS_NOT_RESTRICTABLE');
+    // a book without a platform still needs its team
+    expect(await code(admin('POST', '/costs/price-books', { name: uniq('Invented list'), kind: 'list', provider: 'Invented', currency: 'EUR' }))).toBe(
+      'ACCESS_OWNING_TEAM_REQUIRED',
+    );
+  });
+});
+
 describe('everyone', () => {
   it('nothing changes: a teamless creator creates open items', async () => {
     await setVisibility('everyone');

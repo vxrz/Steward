@@ -55,9 +55,15 @@ export function createWithAccess<T>(raw: unknown, create: (body: unknown) => T):
 const OPEN_KINDS: ReadonlySet<OwnedKind> = new Set<OwnedKind>(['device_profile', 'kpi_definition', 'blueprint', 'supplier', 'platform_identity']);
 
 /** Applies `access` to the item just inserted (call it inside the creation's transaction, after the default teams). */
-export function applyCreationAccess(kind: OwnedKind, id: string, label: string, given: CreationAccess | undefined): void {
+export function applyCreationAccess(kind: OwnedKind, id: string, label: string, given: CreationAccess | undefined, followsPlatform = false): void {
   const access = given ?? asked.getStore()?.access;
   const u = currentUser();
+  // a platform's price book follows the platform's rights (ADR 0042): it has no access of its own, so nothing is asked of it
+  if (followsPlatform) {
+    if (access && (access.owningTeams !== undefined || access.restricted !== undefined || access.shares?.length))
+      throw new HttpError(400, `A ${kind.replace(/_/g, ' ')} of a platform follows the platform's access`, 'ACCESS_NOT_RESTRICTABLE', { kind });
+    return;
+  }
   const def = shareKind(kind);
   if (access && !def && (access.restricted || access.shares?.length))
     throw new HttpError(400, `A ${kind.replace(/_/g, ' ')} cannot be restricted or shared`, 'ACCESS_NOT_RESTRICTABLE', { kind });
@@ -110,4 +116,43 @@ export function applyCreationAccess(kind: OwnedKind, id: string, label: string, 
     const held = isAdmin(u) ? 'all' : heldOn(def, u, id);
     setShares({ kind, id, held, shares: access.shares, label: `${kind} "${label}"` });
   }
+}
+
+/**
+ * The owning teams of a batch of new items of one kind that are written as rows (an import of data elements): the teams
+ * the request named (`access.owningTeams`, the same checks and step-up as `applyCreationAccess`), else `defaults`; with
+ * `newItemVisibility: owningTeams` a signed-in person who ends up with none is refused. Call it once, before anything is
+ * created. Jobs without a signed-in user (discovery) do not use it: they take the teams of their source or platform.
+ */
+export function batchCreationTeams(kind: OwnedKind, defaults: string[]): string[] {
+  const access = asked.getStore()?.access;
+  const u = currentUser();
+  let teams = [...new Set(defaults)];
+  if (access?.owningTeams) {
+    const ids = [...new Set(access.owningTeams)];
+    const mine = u && !isAdmin(u) ? memberships(u) : null;
+    if (mine && ids.some((t) => !mine.has(t))) throw new HttpError(403, 'You can only name teams you are a member of', 'FORBIDDEN', { context: 'owningTeams' });
+    const known = new Map(
+      db()
+        .all<{ id: string; name: string }>('SELECT id, name FROM teams')
+        .map((t) => [t.id, t.name]),
+    );
+    const unknown = ids.find((t) => !known.has(t));
+    if (unknown) throw new HttpError(400, `Unknown team "${unknown}"`, 'TEAM_NOT_FOUND', { id: unknown });
+    const same = ids.length === teams.length && ids.every((t) => teams.includes(t));
+    if (!same) {
+      if (teams.length > 0 && (ids.length === 0 || ids.some((t) => !teams.includes(t)))) requireAccessGrant(u);
+      audit({
+        action: 'access.owning_teams_changed',
+        entityType: kind,
+        entityId: '',
+        summary: `Owning teams of the new ${kind.replace(/_/g, ' ')} items of this import: ${ids.length ? ids.map((t) => known.get(t)!).join(', ') : 'none (the whole instance)'}`,
+        details: { before: teams, after: ids },
+      });
+      teams = ids;
+    }
+  }
+  if (u && !loadingDemo.getStore() && getSettings().newItemVisibility === 'owningTeams' && !OPEN_KINDS.has(kind) && teams.length === 0)
+    throw new HttpError(400, `A new ${kind.replace(/_/g, ' ')} needs an owning team`, 'ACCESS_OWNING_TEAM_REQUIRED', { kind });
+  return teams;
 }

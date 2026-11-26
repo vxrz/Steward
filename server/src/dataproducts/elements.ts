@@ -58,7 +58,7 @@ import {
 } from './store.js';
 import { technologyList } from './technologies.js';
 import { platformDataset } from './ol-addresses.js';
-import { applyCreationAccess } from '../auth/creation-access.js';
+import { applyCreationAccess, batchCreationTeams } from '../auth/creation-access.js';
 
 /**
  * The element catalogue (ADR 0036 part 5) and membership (part 6): elements are concrete things on a platform – a
@@ -423,7 +423,7 @@ export interface ElementBatch {
 export function elementBatch(): ElementBatch {
   return {
     room: L.elements - Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM dp_elements')!.n),
-    teams: [...new Set(creatorTeams(me()))],
+    teams: batchCreationTeams('data_element', creatorTeams(me())),
     platforms: new Map(),
   };
 }
