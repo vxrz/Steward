@@ -11,6 +11,7 @@ import { refsOf } from './model.js';
 import { currentParams, currentQuery } from './ids.js';
 import * as svc from './service.js';
 import * as cat from './catalogue.js';
+import * as bp from './blueprints.js';
 import { getAssignment } from './assignments.js';
 import { assetNetwork, siteNetwork } from './network.js';
 import { assetCollections } from './collections.js';
@@ -281,6 +282,83 @@ export function plantApiRoutes(getRoute: Get): void {
     async (req) => {
       const { canManage: _c, ...k } = found(() => cat.getKpi((req.params as { kpiId: string }).kpiId), 'KPI definition');
       return k;
+    },
+  );
+
+  // ---------- 0.30.0 (ADR 0041): machine blueprints ----------
+  get(
+    '/plant/blueprints',
+    {
+      operationId: 'listPlantBlueprints',
+      tag: 'Plant',
+      summary: 'List machine blueprints',
+      description: `The machine blueprints of the installation (a checklist of the signals one expects of a kind of machine), ordered by name, with their signal counts per importance and the device profiles and assets that have them. Blueprints the token owner may not see (owning teams) are left out and not counted. ${MODULE}`,
+      query: PlantCatalogueListQuery,
+      paginated: true,
+      response: {
+        ...page,
+        description: 'A page of machine blueprints',
+        properties: { items: { type: 'array', items: { $ref: 'PlantBlueprintEntry#' } }, nextCursor: { type: ['string', 'null'] } },
+      },
+    },
+    async (req, reply) => {
+      const q = req.query as z.infer<typeof PlantCatalogueListQuery>;
+      const p = pageArray(
+        found(() => bp.listBlueprints(), 'Plant registry'),
+        (x) => [x.name.toLowerCase(), x.id],
+        q,
+        {},
+      );
+      linkNext(req, reply, p.nextCursor);
+      return p;
+    },
+  );
+
+  get(
+    '/plant/blueprints/:blueprintId',
+    {
+      operationId: 'getPlantBlueprint',
+      tag: 'Plant',
+      summary: 'Get a machine blueprint with its signals',
+      description: `The signals (name, meaning, why it matters, importance must, should or nice, known-as names) and the device profiles and assets that have it. ${MODULE}`,
+      params: { blueprintId: 'Machine blueprint id' },
+      response: { $ref: 'PlantBlueprintDetailEntry#' },
+    },
+    async (req) => {
+      const { canEdit: _e, canManage: _m, ...b } = found(() => bp.getBlueprint((req.params as { blueprintId: string }).blueprintId), 'Machine blueprint');
+      return b;
+    },
+  );
+
+  get(
+    '/plant/profiles/:profileId/blueprints',
+    {
+      operationId: 'getPlantProfileBlueprints',
+      tag: 'Plant',
+      summary: 'Get the coverage of a device profile by its machine blueprints',
+      description: `Per blueprint of the profile: every signal covered (mapped to a data point the profile has), missing or not applicable (with its reason), the totals per importance ("9 of 12 covered, 2 must missing") and suggestions by name – which never count as covered. ${MODULE}`,
+      params: { profileId: 'Device profile id' },
+      response: { $ref: 'PlantBlueprintCoverageEntry#' },
+    },
+    async (req) => {
+      const { canEdit: _e, ...v } = found(() => bp.profileCoverage((req.params as { profileId: string }).profileId), 'Device profile');
+      return v;
+    },
+  );
+
+  get(
+    '/plant/assets/:assetId/blueprints',
+    {
+      operationId: 'getPlantAssetBlueprints',
+      tag: 'Plant',
+      summary: 'Get the coverage of an asset by its machine blueprints',
+      description: `As for a device profile, for the blueprints of the asset's profile and those it has itself, and with one more state: **notCollected** – the profile has the data point, but no data collection of this asset reads it – against **missing** – the profile lacks it. ${MODULE}`,
+      params: { assetId: 'Asset id' },
+      response: { $ref: 'PlantBlueprintCoverageEntry#' },
+    },
+    async (req) => {
+      const { canEdit: _e, ...v } = found(() => bp.assetCoverage((req.params as { assetId: string }).assetId), 'Asset');
+      return v;
     },
   );
 

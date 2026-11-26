@@ -15,6 +15,7 @@ The plant registry documents the factories of the enterprise an installation ser
 - [Device profiles, data points and KPIs](#device-profiles-data-points-and-kpis)
 - [Profile inheritance and asset additions](#profile-inheritance-and-asset-additions)
 - [Part 3: OT network](#part-3-ot-network)
+- [Machine blueprints](#machine-blueprints)
 - [Security advisories](#security-advisories)
 - [Data collections](#data-collections)
 - [Visualisations](#visualisations)
@@ -505,6 +506,93 @@ Linking a monitor or a dataset needs the right to see it – in the editor, the 
 ### Rights
 
 The OT network follows its site ([Permissions](#permissions)): who **sees the site** sees its VLANs, zones, conduits and the devices, data paths and live status of its assets – the role _Plant viewer_ included; who **manages the site** changes them. Status viewers never reach it, and nothing of it is shown on status pages. A site or asset someone may not see answers `404`, in the import too ("There is no site …", "You may not add or change asset …"); a VLAN's other sites (`sites` and `otherSites`, in the internal API, `/api/v1` and the export) and the conduit link targets leave out sites they may not see – a save or an import keeps those, as they cannot name or remove them. Linking a monitor or a dataset as a check, a segment, a collector or a host needs to see it (an item that was linked before may stay); a dataset as a data path's destination is documentation and may be one that is published later. Every change is audited on its site or asset: `site.vlan_added|vlan_changed|vlan_removed`, `site.zone_*`, `site.conduit_*`, `asset.device_added|device_changed|device_removed`, `asset.data_path_*`, `asset.checks_set`; creating a segment from a VLAN is also `system.created`.
+
+## Machine blueprints
+
+_Since 0.30.0 ([ADR 0041](adr/0041-machine-blueprints.md))._ A device profile says what one device model delivers. A **machine blueprint** says what one **kind of machine** should deliver – a welding machine, a CNC milling machine, a compressor – and is compared with profiles and assets: "Do we have everything advisable for a welding machine?" A blueprint is **advice**: it lists names and meanings (no data types, units or addresses), it never changes a profile or an asset, it never blocks a save, and it is not inheritance.
+
+- **A blueprint** has an id, a name, a description, a **reference** (a standard, or "own experience"), a **version** and its **signals**. A signal has an id (stable in the blueprint), a **name**, a **meaning** (what it tells), **why it matters** (any of _quality_, _energy_, _availability_, _maintenance_, _safety_, _traceability_), an **importance** (_must_, _should_ or _nice_ to have) and **known-as names and keywords** (aliases), used only for suggestions.
+- **Assigning.** A blueprint is assigned to **device profiles** and to **assets**. An asset has the blueprints of its profile and those assigned to it directly (a machine whose profile is generic). A profile that extends another does not inherit its base's blueprints (as `template` is not inherited). Assigning is advice and needs no step-up. It needs the right to change the profile (_Edit_) or the asset (_Manage_ on its site).
+- **Mapping.** A signal is **mapped** to the data points that deliver it – of the profile (inherited ones count) or, on an asset, of the asset's data (its profile's and what it adds itself). One signal may map to several data points (three phases), one data point may serve several signals. A mapping on a profile holds for its assets; an asset may add its own.
+- **Not applicable.** A profile or an asset can mark a signal **not applicable with a reason** (required). It then does not count as missing, is shown with its reason, author and time, and is audited. A mark on the profile holds for its assets; an asset may add its own.
+- **Suggestions.** Steward suggests data points whose id, name or known-as name equals the signal's name or one of its aliases, or contains one of them as whole words (four letters or more). A suggestion is shown and **never counted as covered**; only a mapping a person confirmed counts.
+
+### Coverage
+
+`GET /api/plant/profiles/{id}/blueprints` and `GET /api/plant/assets/{id}/blueprints` give, per blueprint, every signal in one of four states, and totals – overall and per importance (`total`, `applicable` = total less not applicable, `covered`, `notCollected`, `missing`, `notApplicable`, `suggested`; "9 of 12 covered, 2 must missing" is `byImportance.must.missing`):
+
+| State           | Meaning                                                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `covered`       | mapped to data points that exist. On an asset also: a data collection of the asset reads every one of them                                                                     |
+| `missing`       | not mapped (or the mapped data point is gone): the profile lacks it. Carries the `suggestions`                                                                                 |
+| `notCollected`  | asset only: mapped, so the profile (or the asset) has it, but no data collection of this asset reads it – as _Device delivers, not collected_ in [KPI coverage](#kpi-coverage) |
+| `notApplicable` | marked with a reason (`notApplicable`: reason, `by`, `at`, `on`: `profile` or `asset`)                                                                                         |
+
+The difference between `missing` and `notCollected` is the one of KPI potential and uses its code (`collectedPoints` in `server/src/plant/potential.ts`). An asset without a profile shows only the blueprints assigned to it. Each blueprint of an asset says `via`: `direct`, `profile` or `both`.
+
+### Rights and team scope
+
+Blueprints follow device profiles: whoever may add sites (plant designers, administrators) adds blueprints; owning teams, shares and the Restricted scope decide who sees and changes one (the access kind `blueprint`; the Access tab, step-up and access-change entries are those of profiles). Readers with plant access read. A reader **never sees, counts or is told about** a blueprint they may not see: lists, counts, coverage, exports and the API leave it out, and its id answers `404` like an unknown one – there is not even a count of hidden blueprints. The profiles and assets named on a blueprint are those the reader may see. A blueprint that is assigned cannot be deleted (`409`; with the count only when the reader sees everything that has it). Removing a profile or an asset forgets what blueprints say about it; a data point, profile or asset renamed with [Changing ids](#changing-ids) takes its mappings and marks along.
+
+Every change is audited on the blueprint (entity type `blueprint`): `blueprint.created`, `.updated`, `.deleted`, `.assigned`, `.unassigned`, `.mapping_changed`, `.not_applicable_set`, `.not_applicable_cleared`.
+
+### In the file format
+
+A blueprint is a document of its own (`blueprint:` for one, `blueprints:` for several), next to `device_profile:`. A profile and an asset's `assignment:` name their blueprints, mappings and marks. A list given replaces the stored list – among the blueprints the importer may see; the others stay. Names that lead nowhere (an unknown or hidden blueprint, signal or data point) give import warnings, not errors. Blueprints take no part in "Remove entries that are not in the files". Importing needs the same rights as the web app (adding a blueprint: the right to add catalogue entries).
+
+```yaml
+version: 1
+blueprints:
+  - id: compressor
+    name: Compressor
+    description: Generic checklist for an oil-free screw compressor
+    reference: Own experience
+    version: '2'
+    signals:
+      - id: pressure
+        name: Pressure
+        meaning: Outlet pressure
+        why: [quality, safety]
+        importance: must
+        aliases: [bar, outlet pressure]
+      - id: run_hours
+        name: Run hours
+        meaning: Hours under load
+        why: [maintenance]
+        importance: should
+device_profiles:
+  - id: example-comp-ctl
+    name: Example compressor controller
+    blueprints: [compressor]
+    blueprint_mappings:
+      - blueprint: compressor
+        signal: pressure
+        data_points: [p_out]
+    blueprint_not_applicable:
+      - blueprint: compressor
+        signal: run_hours
+        reason: The controller does not count hours
+    interfaces:
+      - id: mb
+        name: Modbus
+        protocol: modbus_tcp
+        groups:
+          - name: Process
+            data_points:
+              - { id: p_out, name: Outlet pressure, data_type: Float }
+assignments:
+  - asset: comp-1 # an asset's own marks and mappings – and blueprints assigned to it directly
+    blueprint_not_applicable:
+      - blueprint: compressor
+        signal: pressure
+        reason: Pressure is read by the plant PLC
+```
+
+An export writes `by` and `at` beside a mark; an import keeps them. An assignment with blueprint keys only writes no assignment of the asset. The JSON Schema ([plant-registry-1.schema.json](plant/plant-registry-1.schema.json)) describes all keys. There is no Git sync of the plant registry: the Git route is the [export](#fetching-the-registry-from-other-tools), which carries blueprints and imports back unchanged.
+
+### API
+
+`/api/plant/blueprints` – `GET` (list), `POST` (add: `id`, `name`, `description`, `reference`, `version`, `signals[]`), `GET|PUT|DELETE /api/plant/blueprints/{id}` (`PUT` takes the keys to change; `signals`, when given, is the whole ordered list); `POST /api/plant/blueprints/{id}/signals` and `PUT|DELETE …/signals/{signalId}`. On profiles and assets (`/api/plant/profiles/{id}/…`, `/api/plant/assets/{id}/…`): `GET …/blueprints` (coverage), `PUT|DELETE …/blueprints/{blueprintId}` (assign, take off), `PUT …/blueprints/{blueprintId}/signals/{signalId}/mapping` with `{ "dataPoints": [...] }` (replace; an empty list unmaps), `POST …/mapping` with `{ "dataPoint" }` (add one, for accepting a suggestion), `DELETE …/mapping[/{dataPointId}]` (unmap all, or one), `PUT …/signals/{signalId}/not-applicable` with `{ "reason" }` and `DELETE` (applicable again). Every write answers the coverage of the profile or asset. Read-only in the public API: `GET /api/v1/plant/blueprints[/{blueprintId}]`, `GET /api/v1/plant/profiles/{profileId}/blueprints`, `GET /api/v1/plant/assets/{assetId}/blueprints`; MCP read tools `list_machine_blueprints`, `get_machine_blueprint`, `get_blueprint_coverage`. Blueprints are not part of change sets or proposals from assistants in 0.30.0.
 
 ## Security advisories
 
@@ -1304,6 +1392,7 @@ The public, read-only API ([API.md](API.md), tag _Plant_):
 - `GET /api/v1/plant/assets/{assetId}/assignment` – its device profile, firmware, interfaces with endpoints, differences, publications, KPI instances, checks and the KPIs it can have;
 - `GET /api/v1/plant/profiles`, `GET /api/v1/plant/profiles/{profileId}` – device profiles with their effective interfaces and data points (inherited ones included, 0.11.0), their bases, assets and the KPI definitions that read them;
 - `GET /api/v1/plant/kpis`, `GET /api/v1/plant/kpis/{kpiId}` – KPI definitions with inputs, parameters, columns, computation, checks, instances and candidates;
+- `GET /api/v1/plant/blueprints`, `GET /api/v1/plant/blueprints/{blueprintId}`, `GET /api/v1/plant/profiles/{profileId}/blueprints`, `GET /api/v1/plant/assets/{assetId}/blueprints` – [machine blueprints](#machine-blueprints) and their coverage (0.30.0);
 - `GET /api/v1/plant/assets?profile=&dataPoint=` – the assets that have a profile (and deliver one of its data points);
 - `GET /api/v1/plant/checks?site=&asset=&kpi=&kind=` – the problems of [Checks](#checks) (paginated);
 - `GET /api/v1/plant/sites/{siteId}/network` – the OT network of a site: VLANs (with the linked segment and the hint), zones, conduits (with the records that link to them), the devices and data paths of its assets and every asset's live status;

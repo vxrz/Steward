@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Machine blueprints** ([docs/PLANT.md](docs/PLANT.md#machine-blueprints), [ADR 0041](docs/adr/0041-machine-blueprints.md)): a checklist per kind of machine – the signals one expects (name, meaning, why it matters, importance _must_, _should_ or _nice_, known-as names) – assigned to device profiles and assets, mapped to their data points and compared with them. Coverage per profile and asset shows each signal as covered, missing, not applicable (with a reason) or – for an asset – "the profile has it, this asset does not collect it", with totals per importance; suggestions by name never count as covered. Blueprints have owning teams and shares like device profiles, are part of the YAML import and export (`blueprint:` documents; `blueprints`, `blueprint_mappings` and `blueprint_not_applicable` on profiles and assignments), the public API (`/api/v1/plant/blueprints`) and the MCP read tools `list_machine_blueprints`, `get_machine_blueprint` and `get_blueprint_coverage`, and every change is audited.
+
 ## [0.29.0] - 2026-11-25
 
 Steward 0.29.0 lets you set an item's access when you create it, and reaches people outside Steward. The New dialogs of processes, monitors and dashboards take owning teams, the restricted scope and shares, applied together with the creation – a new item is never visible more widely than you chose, not even for a moment ([ADR 0040](docs/adr/0040-drafts-and-access-at-creation.md), part 1; part 2, drafts, is proposed). A monitor's notification output can e-mail plain addresses of allowed domains; each recipient can unsubscribe with one click. Snowflake costs can be estimated from your own assumptions with a calculator and a price book of invented prices to replace with your contract's, without any connection to Snowflake. The upgrade fixture of 0.28.0 is added. No database migrations.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/vxrz/Steward/blob/main/docs/plant/plant-registry-1.schema.json",
   "title": "Steward plant registry, format 1",
-  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2) and the assignments of assets; the OT network – IEEE 802.1Q VLANs, IEC 62443-3-2 zones and conduits, devices and data paths of assets. See docs/PLANT.md.",
+  "description": "Sites of an enterprise with their ISA-95 (IEC 62264) hierarchy – area, work center, work unit –, the buildings (IEC 81346 location aspect) and the assets in them; device profiles with their interfaces and data points (OPC UA IEC 62541, Modbus, IEC 61131-3, UCUM), KPI definitions (ISO 22400-2), machine blueprints and the assignments of assets; the OT network – IEEE 802.1Q VLANs, IEC 62443-3-2 zones and conduits, devices and data paths of assets. See docs/PLANT.md.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -69,6 +69,18 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/KpiDefinition"
+      }
+    },
+    "blueprint": {
+      "description": "0.30.0: one machine blueprint",
+      "$ref": "#/$defs/MachineBlueprint"
+    },
+    "blueprints": {
+      "description": "0.30.0: machine blueprints (a catalogue of the installation)",
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MachineBlueprint"
       }
     },
     "assignment": {
@@ -1120,6 +1132,94 @@
           "minLength": 1,
           "maxLength": 200,
           "description": "Name in the installation’s default language"
+        },
+        "blueprints": {
+          "description": "0.30.0: the machine blueprints it has (ids); a list given replaces the stored one",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+            "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+          }
+        },
+        "blueprint_mappings": {
+          "description": "0.30.0: signal → data points; the list replaces the mappings of the blueprints it names",
+          "maxItems": 10000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "blueprint": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "signal": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "data_points": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                  "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                },
+                "description": "The data points of the profile (or the asset’s data) the signal is mapped to"
+              }
+            },
+            "required": [
+              "blueprint",
+              "signal",
+              "data_points"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "blueprint_not_applicable": {
+          "description": "0.30.0: signals that do not apply, each with its reason",
+          "maxItems": 10000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "blueprint": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "signal": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "description": "Why the signal does not apply (required)"
+              },
+              "by": {
+                "description": "Who marked it (kept from an export; the importer otherwise)",
+                "type": "string",
+                "maxLength": 200
+              },
+              "at": {
+                "description": "When (kept from an export; now otherwise)",
+                "type": "string",
+                "maxLength": 40
+              }
+            },
+            "required": [
+              "blueprint",
+              "signal",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
         },
         "extends": {
           "description": "The base profile this one extends (0.11.0): its interfaces, data points and files are inherited; `interfaces` then lists only what this profile adds or changes",
@@ -2405,6 +2505,138 @@
       "additionalProperties": false,
       "description": "A KPI: its inputs, parameters, result columns and computation (ISO 22400-2 attributes)"
     },
+    "MachineBlueprint": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reference": {
+          "description": "A standard, or \"own experience\"",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 60
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "signals": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlueprintSignal"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A checklist of the signals one expects of a kind of machine (advice: it never changes a profile or an asset)"
+    },
+    "BlueprintSignal": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+          "description": "Stable id in the blueprint (mappings and marks name it)"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Name in the installation’s default language"
+        },
+        "meaning": {
+          "description": "What it tells – no data type, unit or address",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "why": {
+          "description": "Why it matters: quality, energy, availability, maintenance, safety, traceability",
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "quality",
+              "energy",
+              "availability",
+              "maintenance",
+              "safety",
+              "traceability"
+            ]
+          }
+        },
+        "importance": {
+          "description": "must, should (default) or nice",
+          "type": "string",
+          "enum": [
+            "must",
+            "should",
+            "nice"
+          ]
+        },
+        "aliases": {
+          "description": "Known-as names and keywords: used only for suggestions",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A signal a machine blueprint expects"
+    },
     "Assignment": {
       "type": "object",
       "properties": {
@@ -2412,6 +2644,94 @@
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
           "description": "The asset"
+        },
+        "blueprints": {
+          "description": "0.30.0: the machine blueprints it has (ids); a list given replaces the stored one",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+            "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+          }
+        },
+        "blueprint_mappings": {
+          "description": "0.30.0: signal → data points; the list replaces the mappings of the blueprints it names",
+          "maxItems": 10000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "blueprint": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "signal": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "data_points": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]{0,119}$",
+                  "description": "Id of a data point, interface, parameter or column: letters, digits, \".\", \"_\" and \"-\""
+                },
+                "description": "The data points of the profile (or the asset’s data) the signal is mapped to"
+              }
+            },
+            "required": [
+              "blueprint",
+              "signal",
+              "data_points"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "blueprint_not_applicable": {
+          "description": "0.30.0: signals that do not apply, each with its reason",
+          "maxItems": 10000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "blueprint": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "signal": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$",
+                "description": "Stable id: lower-case letters, digits, \".\", \"_\" and \"-\"; never changes"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "description": "Why the signal does not apply (required)"
+              },
+              "by": {
+                "description": "Who marked it (kept from an export; the importer otherwise)",
+                "type": "string",
+                "maxLength": 200
+              },
+              "at": {
+                "description": "When (kept from an export; now otherwise)",
+                "type": "string",
+                "maxLength": 40
+              }
+            },
+            "required": [
+              "blueprint",
+              "signal",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
         },
         "site": {
           "description": "The asset’s site (optional; checked when given)",

@@ -467,6 +467,8 @@ export interface PlantImportPreview {
    * value unless taken from the file (`changedInSteward` of the body); left out when there are none
    */
   changedInSteward?: PlantStewardFlags;
+  /** 0.30.0: machine blueprints the files hold (left out when they hold none) */
+  blueprints?: { added: number; changed: number; unchanged: number; targets: number };
 }
 
 export interface PlantImportSummary {
