@@ -75,7 +75,7 @@ Where a personal value has a default, the profile says where it comes from:
 | Daily summaries allowed (for everyone), credential reminders                       | instance        | administrators                                  | _Settings → Notifications_                   |
 | Colours, name and logo of the app; report branding                                 | instance        | administrators                                  | _Settings → Appearance & branding_           |
 | Four-eyes rule for access findings, CIA scale, expected documents, environments    | instance        | administrators                                  | _Settings → Catalogue & compliance_          |
-| Who sees new items: everyone or owning teams only (0.31.0)                         | instance        | administrators                                  | _Settings → General_                         |
+| Who sees new items: everyone or owning teams only (0.31.0)                         | instance        | administrators                                  | _Settings → Security_                        |
 | Support levels (0.26.0)                                                            | instance        | administrators                                  | _Settings → Support levels_                  |
 | Modules: on/off (step-up)                                                          | instance        | administrators                                  | _Settings → Modules_                         |
 | Plant registry: on/off, enterprise, display names, own fields                      | instance        | administrators                                  | _Settings → Modules_                         |
