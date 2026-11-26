@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { dashboardDefinitionSchema, type Dashboard, type DashboardDefinition } from '@sm/shared';
+import { dashboardDefinitionSchema, type CreationAccess, type Dashboard, type DashboardDefinition } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
@@ -10,6 +10,7 @@ import { parseYaml } from '../yaml-safe.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { assignCreatorTeams, forgetOwningTeams, teamScoped, ITEM_SHARE_MODEL } from '../auth/policy.js';
 import type { AuthUser } from '../auth/context.js';
 
@@ -97,7 +98,7 @@ export function getDashboard(id: string): Dashboard {
   return toDashboard(r);
 }
 
-export function createDashboard(def: unknown, opts: { id?: string } = {}): Dashboard {
+export function createDashboard(def: unknown, opts: { id?: string; access?: CreationAccess } = {}): Dashboard {
   if (!capabilities(currentUser()).createProcesses) throw new HttpError(403, 'You are not allowed to create dashboards');
   const d = checked(def);
   const base = slugify(opts.id ?? d.name);
@@ -115,6 +116,7 @@ export function createDashboard(def: unknown, opts: { id?: string } = {}): Dashb
       ts,
     );
     assignCreatorTeams('dashboard', id, currentUser());
+    applyCreationAccess('dashboard', id, d.name, opts.access);
     audit({ action: 'dashboard.created', entityType: 'dashboard', entityId: id, summary: `Dashboard "${d.name}" created (${d.widgets.length} widgets)` });
   });
   return getDashboard(id);

@@ -111,6 +111,17 @@ export type ShareInput = z.input<typeof shareInputSchema>;
 /** The whole list of a resource's shares (it replaces the stored one). */
 export const sharesInputSchema = z.object({ shares: z.array(shareInputSchema).max(SHARE_LIMIT) });
 
+/**
+ * The access a create route accepts (ADR 0040 part 1): owning teams, the Restricted scope and shares, in the shapes of
+ * the Access tab's routes. Left out: the creator's team defaults.
+ */
+export const creationAccessSchema = z.object({
+  owningTeams: z.array(z.string().max(64)).max(50).optional(),
+  restricted: z.boolean().optional(),
+  shares: z.array(shareInputSchema).max(SHARE_LIMIT).optional(),
+});
+export type CreationAccess = z.infer<typeof creationAccessSchema>;
+
 /** A resource's scope (ADR 0033 part 1): the whole instance, its owning teams, or only its shares (Restricted). */
 export const SHARE_SCOPES = ['instance', 'teams', 'restricted'] as const;
 export type ShareScope = (typeof SHARE_SCOPES)[number];

@@ -6,6 +6,16 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-25
+
+Steward 0.29.0 lets you set an item's access when you create it, and reaches people outside Steward. The New dialogs of processes, monitors and dashboards take owning teams, the restricted scope and shares, applied together with the creation – a new item is never visible more widely than you chose, not even for a moment ([ADR 0040](docs/adr/0040-drafts-and-access-at-creation.md), part 1; part 2, drafts, is proposed). A monitor's notification output can e-mail plain addresses of allowed domains; each recipient can unsubscribe with one click. Snowflake costs can be estimated from your own assumptions with a calculator and a price book of invented prices to replace with your contract's, without any connection to Snowflake. The upgrade fixture of 0.28.0 is added. No database migrations.
+
+### Added
+
+- **Access when creating a process, monitor or dashboard** ([docs/TEAMS.md](docs/TEAMS.md#access-at-creation), [ADR 0040](docs/adr/0040-drafts-and-access-at-creation.md) part 1): the _New process_ and _New dashboard_ dialogs and the new monitor form have an _Access_ section with the owning teams, _Restricted_ and shares, pre-filled from your team defaults. The create routes take an optional `access` object and apply it in the same transaction as the creation, so the item is never visible wider than chosen and a refusal creates nothing; widening asks for the step-up as in the _Access_ tab. The dialog no longer sends the owning teams in a second request. No database migrations.
+- **Snowflake costs estimated without access to Snowflake** ([docs/PRICE-BOOKS.md](docs/PRICE-BOOKS.md#calculators)): the _Snowflake pipeline_ calculator takes the assumptions – warehouse size, runtime per run, runs per day, days a month, data ingested per month with credits per gigabyte, serverless credits, data kept and data transferred out – and the example `examples/costs/price-books/snowflake-contract-prices.csv` prices them with invented money prices to replace with the contract's. Existing estimate inputs keep their meaning and defaults. No database migrations.
+- **E-mail to people outside Steward from a monitor's notification output** ([docs/MONITORS.md](docs/MONITORS.md#notifications)): a notification output has a list `emails` (at most 50) for people who are not Steward users; their domain must be allowed under _Settings → Notifications_. Every message to them has a link to unsubscribe (no sign-in; English or German) and the `List-Unsubscribe` and one-click headers (RFC 8058); the link removes the address from the output and is audited as `monitor.recipient_unsubscribed`. Adding addresses is part of the monitor's change (counted in the audit entry, never named); the addresses are personal data ([docs/PRIVACY.md](docs/PRIVACY.md)). No database migrations.
+
 ## [0.28.0] - 2026-11-25
 
 Steward 0.28.0 documents more kinds of access changes and makes busy pages calmer. An access change can now be about a **user group** – its roles before and after – and name the **services, applications and systems** it is for; processes record the same, linking only what the person behind the run may see. A new example changes the roles of an Insights Hub user group with a four-eyes approval. The busiest pages and forms show their summary first and fold the rest: sections that remember what you opened, side drawers for details, and _More details_ in long forms. The upgrade fixture of 0.27.1 is added. No database migrations.
@@ -1738,7 +1748,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/ci/SECURITY-PIPELINE.md](docs/ci/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/vxrz/steward/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/vxrz/steward/compare/v0.27.1...v0.28.0
 [0.27.1]: https://github.com/vxrz/steward/compare/v0.27.0...v0.27.1
 [0.27.0]: https://github.com/vxrz/steward/compare/v0.26.2...v0.27.0

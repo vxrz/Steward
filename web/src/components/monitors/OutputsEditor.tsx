@@ -154,6 +154,15 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   value={o.subscribers}
                   onChange={(v) => update(i, { subscribers: v })}
                 />
+                <TagsInput
+                  label={t('outputs.emails')}
+                  description={t('outputs.emailsHint')}
+                  placeholder="name@example.org"
+                  maxTags={50}
+                  disabled={disabled}
+                  value={o.emails ?? []}
+                  onChange={(v) => update(i, { emails: v.length ? v : undefined })}
+                />
                 <NumberInput
                   label={t('outputs.hold')}
                   description={t('outputs.holdHint')}

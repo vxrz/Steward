@@ -5,6 +5,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import {
   HIDDEN_MONITOR_REF,
+  isEmailAddress,
   type MonitorPlatformReference,
   MONITOR_KEY_RE,
   RESERVED_MONITOR_KEYS,
@@ -22,6 +23,7 @@ import {
   type MaintenanceWindow,
   type MonitorDefinition,
   type MonitorDetail,
+  type CreationAccess,
   type MonitorHistoryEntry,
   type MonitorPermission,
   type MonitorSaveResult,
@@ -36,6 +38,7 @@ import { aclOf, aliasWidens, writeAlias, heldByAuthor } from '../auth/acl-shares
 import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
 import { MONITOR_SHARE_KIND } from './shares.js';
 import { audit } from '../audit.js';
+import { assertEmailsAllowed } from '../notifications/domains.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
 import { errorParam, HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
@@ -88,6 +91,7 @@ import {
 } from './redact.js';
 import { me } from '../auth/access.js';
 import { assignCreatorTeams, forgetOwningTeams } from '../auth/policy.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { privilegedSlots } from '../platforms/privileged.js';
 
 /**
@@ -330,6 +334,23 @@ function usedBy(id: string): { id: string; key: string; name: string }[] {
     .map((m) => ({ id: m.id, key: m.key, name: m.name }));
 }
 
+/**
+ * Addresses of people outside Steward are personal data: readers who may not edit the monitor see how many there are
+ * (`emailCount`), not who (`count: false` leaves even the count out, for the import format).
+ */
+function withoutAddresses<T>(def: T, count = true): T {
+  const outputs = (def as { outputs?: unknown }).outputs;
+  if (!Array.isArray(outputs) || !outputs.some((o) => Array.isArray(o?.emails))) return def;
+  return {
+    ...def,
+    outputs: outputs.map((o) => {
+      if (!Array.isArray(o?.emails)) return o;
+      const { emails, ...rest } = o as { emails: unknown[] };
+      return count ? { ...rest, emailCount: emails.length } : rest;
+    }),
+  } as T;
+}
+
 export function getMonitor(idOrKey: string): MonitorDetail {
   const base = requireMonitor(idOrKey);
   const r = db().get<Joined>(`${SELECT} WHERE m.id = ?`, base.id)!;
@@ -342,7 +363,7 @@ export function getMonitor(idOrKey: string): MonitorDetail {
   for (const c of checks) counts[c.status] = (counts[c.status] ?? 0) + 1;
   return {
     ...summary(r, counts, canView),
-    definition: r.is_template ? def : redactDefinition(def, canView),
+    definition: r.is_template ? def : permissionsOfRow(r).includes('edit') ? redactDefinition(def, canView) : withoutAddresses(redactDefinition(def, canView)),
     // deprecated (0.23.0): the shares as the former access list, for who may change them
     acl: permissionsOfRow(r).includes('manage') ? aclOf<MonitorPermission>('monitor', r.id) : [],
     templateParams: parseJson(r.template_params, null),
@@ -747,6 +768,20 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
             subscriber: s,
           });
       o.subscribers = o.subscribers.map((s) => s.trim().toLowerCase());
+      // addresses outside Steward (0.29.0): well-formed, no duplicates, and an allowed domain for the ones added now
+      if (o.emails) {
+        o.emails = [...new Set(o.emails.map((e) => e.trim().toLowerCase()))];
+        for (const e of o.emails)
+          if (!isEmailAddress(e))
+            throw new HttpError(400, `Output "${o.id}": "${e.slice(0, 100)}" is not an e-mail address`, 'OUTPUT_EMAIL_INVALID', {
+              output: o.id,
+              address: e.slice(0, 100),
+            });
+        const was = before?.outputs.find((x) => x.id === o.id);
+        const stored = new Set(was?.type === 'notification' ? (was.emails ?? []) : []);
+        assertEmailsAllowed(o.emails.filter((e) => !stored.has(e)));
+        if (!o.emails.length) delete o.emails;
+      }
     }
   }
   // states (ADR 0021): the monitor whose state this one follows – an id or key, like a sub-monitor
@@ -929,7 +964,14 @@ function changeSummary(before: MonitorDefinition | null, after: MonitorDefinitio
       'states',
     ] as const
   ).filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  // addresses outside Steward (0.29.0): how many were added or removed, never the addresses (personal data in a log kept for good)
+  const mails = (d: MonitorDefinition) => new Set(d.outputs.flatMap((o) => (o.type === 'notification' ? (o.emails ?? []).map((e) => `${o.id}\n${e}`) : [])));
+  const mb = mails(before);
+  const ma = mails(after);
+  const externalAdded = [...ma].filter((x) => !mb.has(x)).length;
+  const externalRemoved = [...mb].filter((x) => !ma.has(x)).length;
   return {
+    ...(externalAdded || externalRemoved ? { externalRecipientsAdded: externalAdded, externalRecipientsRemoved: externalRemoved } : {}),
     checksAdded: added,
     checksRemoved: removed,
     checksChanged: changed.map((c) => c.id),
@@ -941,7 +983,7 @@ function changeSummary(before: MonitorDefinition | null, after: MonitorDefinitio
 
 export async function createMonitor(
   input: MonitorInput,
-  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
+  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown>; access?: CreationAccess } = {},
 ): Promise<MonitorSaveResult> {
   requireCreate();
   const template = input.isTemplate ? (await validateTemplate(input.definition)).def : undefined;
@@ -957,7 +999,7 @@ export async function createMonitor(
  */
 export function createMonitorNow(
   input: MonitorInput,
-  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
+  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown>; access?: CreationAccess } = {},
   template?: Record<string, unknown>,
 ): MonitorSaveResult {
   const u = me();
@@ -1002,6 +1044,7 @@ export function createMonitorNow(
     );
     if (def) secrets = syncCheckRows(id, key, def, null);
     assignCreatorTeams('monitor', id, currentUser());
+    applyCreationAccess('monitor', id, name, extra.access);
     audit({
       action: input.isTemplate ? 'monitor.template_created' : 'monitor.created',
       entityType: 'monitor',
@@ -1384,7 +1427,9 @@ export function exportMonitor(idOrKey: string): string {
 /** A monitor in its import format, as an object (exportMonitor writes it as YAML). */
 export function exportMonitorDocument(idOrKey: string): Record<string, unknown> {
   const r = requireMonitor(idOrKey);
-  const def = parseJson<Record<string, unknown>>(r.definition, {});
+  const stored = parseJson<Record<string, unknown>>(r.definition, {});
+  // addresses outside Steward are personal data: not for those who may not edit the monitor
+  const def = permissionsOfRow(r).includes('edit') ? stored : withoutAddresses(stored, false);
   const platformNames = new Map(
     db()
       .all<{ id: string; name: string }>('SELECT id, name FROM platforms')

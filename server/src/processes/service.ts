@@ -17,7 +17,7 @@ import { config } from '../config.js';
 import { currentActor, currentUser } from '../auth/context.js';
 import { logger } from '../log.js';
 import { processPermissions } from '../auth/permissions.js';
-import { runOutcome, type ProcessPermission } from '@sm/shared';
+import { runOutcome, type CreationAccess, type ProcessPermission } from '@sm/shared';
 import { aclOf, aliasWidens, writeAlias, heldByAuthor } from '../auth/acl-shares.js';
 import { isRestricted } from '../auth/shares.js';
 import { ACCESS_AUDIT, auditAccessChange, requireAccessGrant } from '../auth/access-change.js';
@@ -25,6 +25,7 @@ import { PROCESS_SHARE_KIND } from './shares.js';
 import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 import { assignCreatorTeams } from '../auth/policy.js';
+import { applyCreationAccess } from '../auth/creation-access.js';
 import { datasetsOf, listDashboardTemplates } from '../dashboards/service.js';
 
 interface ProcessRow {
@@ -169,7 +170,7 @@ function checked(def: unknown): ProcessDefinition {
   return res.definition;
 }
 
-export function createProcess(def: unknown, opts: { id?: string; comment?: string; exactId?: boolean } = {}): ProcessDetail {
+export function createProcess(def: unknown, opts: { id?: string; comment?: string; exactId?: boolean; access?: CreationAccess } = {}): ProcessDetail {
   const d = checked(def);
   let id = opts.id ? slugify(opts.id) : slugify(d.name);
   // an id the person chose is not changed behind their back (archived processes keep theirs too)
@@ -201,6 +202,7 @@ export function createProcess(def: unknown, opts: { id?: string; comment?: strin
       ts,
     );
     assignCreatorTeams('process', id, currentUser());
+    applyCreationAccess('process', id, d.name, opts.access);
     audit({
       action: 'process.created',
       entityType: 'process',
@@ -386,10 +388,10 @@ function templateMeta(
   };
 }
 
-export function createFromTemplate(templateId: string): ProcessDetail {
+export function createFromTemplate(templateId: string, access?: CreationAccess): ProcessDetail {
   // reads only this template's file: the gallery metadata of listTemplates() is not needed here
   const file = templateFiles().find((f) => f.replace(/\.ya?ml$/, '') === templateId);
   if (!file) throw new HttpError(404, 'Template not found');
   const { definition } = readTemplate(file);
-  return createProcess(definition, { id: templateId.replace(/^\d+-/, ''), comment: `Created from template ${templateId}` });
+  return createProcess(definition, { id: templateId.replace(/^\d+-/, ''), comment: `Created from template ${templateId}`, ...(access ? { access } : {}) });
 }

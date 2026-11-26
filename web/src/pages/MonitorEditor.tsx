@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 import {
   ActionIcon,
   Alert,
@@ -123,6 +124,8 @@ export function MonitorEditorPage() {
   const platforms = useQuery({ queryKey: platformKeys.all, queryFn: () => get<Platform[]>('/platforms') });
   const monitors = useQuery({ queryKey: monitorKeys.all, queryFn: () => get<MonitorSummary[]>('/monitors') });
   const processes = useQuery({ queryKey: processKeys.all, queryFn: () => get<ProcessSummary[]>('/processes') });
+  // who may see and change a new monitor, applied with its creation (ADR 0040 part 1)
+  const access = useCreationAccess(isNew);
   const [draft, setDraft] = useState<Draft | null>(() => (isNew ? draftOf(initialDefinition()) : null));
   const history = useDefHistory<Draft>(draft, setDraft);
   const def = draft?.def ?? null;
@@ -413,7 +416,12 @@ export function MonitorEditorPage() {
     if (found.length) return; // the summary above the tabs names them
     setSaving(true);
     try {
-      const body = { key: key.trim() || undefined, definition: d, ...(isNew ? { isTemplate } : { version: existing.data!.version }) };
+      const accessBody = isNew ? access.body() : undefined;
+      const body = {
+        key: key.trim() || undefined,
+        definition: d,
+        ...(isNew ? { isTemplate, ...(accessBody ? { access: accessBody } : {}) } : { version: existing.data!.version }),
+      };
       const r = isNew ? await post<MonitorSaveResult>('/monitors', body) : await put<MonitorSaveResult>(`/monitors/${id}`, body);
       qc.invalidateQueries({ queryKey: monitorKeys.all });
       qc.invalidateQueries({ queryKey: monitorKeys.detail(r.monitor.id) });
@@ -724,6 +732,7 @@ export function MonitorEditorPage() {
                 }}
               />
             )}
+            {isNew && <CreationAccessFields state={access} />}
           </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="states">

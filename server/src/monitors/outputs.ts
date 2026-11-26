@@ -25,6 +25,7 @@ import { evalExpr } from '../engine/expr.js';
 import { platformFor } from './platforms.js';
 import { storedKindProblem } from './kinds.js';
 import { zabbixSend } from './zabbix.js';
+import { unsubscribeUrl } from './unsubscribe.js';
 import { loadMonitor, monitorPermissions, monitorRow, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { MODULE_CHECK_TEXT, checkMessage, moduleCheckHidden, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
@@ -330,6 +331,12 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
   const everyone: MonitorVisibility = (id) => to.length > 0 && to.every((u) => views.get(u.id)!(id));
   // a check of a module a recipient does not use (ADR 0034): its status, not what it found
   const moduleHidden = new Map(to.map((u) => [u.id, moduleCheckHidden(toAuthUser(u))]));
+  // an address outside Steward (no user) reads as the most restricted recipient: a module any internal recipient does not
+  // use is redacted for it too; with no internal recipient at all, every module that is not open to everyone is
+  const externalHidden: (type: string) => boolean =
+    to.length > 0
+      ? (type) => to.some((u) => moduleHidden.get(u.id)!(type))
+      : moduleCheckHidden({ id: '', username: '', roles: [], teams: [] } as unknown as Parameters<typeof moduleCheckHidden>[0]);
   for (const e of events) {
     const where = e.level === 'monitor' ? m.name : `${m.name} › ${e.check?.name}`;
     notify({
@@ -338,7 +345,7 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       text: (locale, u) => {
         const v = eventFor(m, e, (u && views.get(u.id)) || everyone);
         const causes = v.causedBy.map((c) => (c.hidden ? t(locale, 'monitor.hiddenMonitor') : c.monitorId === m.id ? c.checkName : causeText(c))).join(', ');
-        const message = u && moduleCheckOf(m, e, moduleHidden.get(u.id)) ? MODULE_CHECK_TEXT : v.message;
+        const message = moduleCheckOf(m, e, u ? moduleHidden.get(u.id) : externalHidden) ? MODULE_CHECK_TEXT : v.message;
         return {
           title: t(locale, `monitor.${e.status}` as MessageKey, { where }),
           body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${message}`.slice(0, 800),
@@ -346,6 +353,9 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       },
       link: `/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`,
       recipients: to,
+      // people outside Steward (0.29.0): e-mail only, each with their own link to unsubscribe
+      emails: o.emails,
+      unsubscribeUrl: (address) => unsubscribeUrl(m.id, o.id, address),
       about: { kind: 'monitor', id: m.id },
       // urgent output (ADR 0012): a change to down interrupts quiet hours; one held item per subject
       urgent: !!o.urgent && e.status === 'down',

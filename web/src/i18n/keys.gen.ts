@@ -190,6 +190,20 @@ export interface Resources {
     ownerSaved: string;
     ownerNotSaved: string;
     ownerNotYours: string;
+    'create.show': string;
+    'create.hide': string;
+    'create.summaryTeams': string;
+    'create.summaryInstance': string;
+    'create.summaryRestricted': string;
+    'create.summaryShares_one': string;
+    'create.summaryShares_other': string;
+    'create.teams': string;
+    'create.teamsHint': string;
+    'create.wholeInstance': string;
+    'create.restricted': string;
+    'create.restrictedHint': string;
+    'create.shares': string;
+    'create.sharesHint': string;
   };
   applications: {
     title: string;
@@ -8178,6 +8192,7 @@ export interface Resources {
     'codes.OUTPUT_TEAMS_PLATFORM': string;
     'codes.OUTPUT_PROCESS_FORBIDDEN': string;
     'codes.OUTPUT_PROCESS_INPUT': string;
+    'codes.OUTPUT_EMAIL_INVALID': string;
     'codes.OUTPUT_SUBSCRIBER_INVALID': string;
     'codes.MAINTENANCE_NOT_FOUND': string;
     'codes.MAINTENANCE_TOO_LONG': string;
@@ -11052,6 +11067,8 @@ export interface Resources {
     'outputs.remove': string;
     'outputs.subscribers': string;
     'outputs.subscribersHint': string;
+    'outputs.emails': string;
+    'outputs.emailsHint': string;
     'outputs.hold': string;
     'outputs.holdHint': string;
     'outputs.urlHint': string;

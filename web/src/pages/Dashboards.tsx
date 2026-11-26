@@ -9,7 +9,6 @@ import {
   Card,
   Group,
   Modal,
-  MultiSelect,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -25,9 +24,10 @@ import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconChartBar, IconFlask, IconPlus, IconTemplate, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Dashboard, DashboardDefinition, DatasetMeta, NewResourceTeams, Team } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post, put } from '../api';
+import type { Dashboard, DashboardDefinition, DatasetMeta } from '@sm/shared';
+import { del, get, notifyError, notifyOk, post } from '../api';
 import { EmptyState, QueryState } from '../components/common';
+import { CreationAccessFields, useCreationAccess } from '../components/access/CreationAccess';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { StatusCounts } from '../components/dashboard/status';
@@ -310,16 +310,13 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
   const { t } = useTranslation(['dashboards', 'common']);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { isAdmin } = useMe();
   const [name, setName] = useState('');
   const [start, setStart] = useState<'blank' | 'template'>('blank');
   const [templateId, setTemplateId] = useState<string | null>(null);
-  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const access = useCreationAccess(opened);
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
   const list = useQuery({ queryKey: dashboardKeys.templates, queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
-  const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams'), enabled: opened && isAdmin });
-  const mine = useQuery({ queryKey: ['new-resource-teams'], queryFn: () => get<NewResourceTeams>('/me/new-resource-teams'), enabled: opened && !isAdmin });
   const tpl = list.data?.find((x) => x.id === templateId);
   const nameError = tried && !name.trim() ? t('common:validation.required') : undefined;
   const templateError = tried && start === 'template' && !tpl ? t('common:validation.required') : undefined;
@@ -327,7 +324,7 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
     setName('');
     setStart('blank');
     setTemplateId(null);
-    setTeamIds([]);
+    access.reset();
     setTried(false);
     onClose();
   };
@@ -337,8 +334,8 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
     setBusy(true);
     try {
       const definition = start === 'template' && tpl ? { ...structuredClone(tpl.definition), name: name.trim() } : { name: name.trim(), widgets: [] };
-      const d = await post<Dashboard>('/dashboards', { definition });
-      if (isAdmin && teamIds.length) await put(`/owning-teams/dashboard/${d.id}`, { teamIds }).catch(notifyError);
+      const accessBody = access.body();
+      const d = await post<Dashboard>('/dashboards', { definition, ...(accessBody ? { access: accessBody } : {}) });
       qc.invalidateQueries({ queryKey: dashboardKeys.all });
       close();
       // straight into edit mode
@@ -361,27 +358,7 @@ function NewDashboardModal({ opened, onClose }: { opened: boolean; onClose: () =
       >
         <Stack>
           <TextInput data-autofocus label={t('create.name')} withAsterisk value={name} onChange={(e) => setName(e.currentTarget.value)} error={nameError} />
-          {isAdmin ? (
-            <MultiSelect
-              label={t('create.teams')}
-              description={t('create.teamsHint')}
-              placeholder={teamIds.length ? undefined : t('create.wholeInstance')}
-              data={(teams.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
-              value={teamIds}
-              onChange={setTeamIds}
-              searchable
-              clearable
-            />
-          ) : (
-            <div>
-              <Text size="sm" fw={500}>
-                {t('create.teams')}
-              </Text>
-              <Text size="sm" c="dimmed">
-                {mine.data?.teams.length ? t('create.yourTeams', { teams: mine.data.teams.map((x) => x.name).join(', ') }) : t('create.wholeInstanceText')}
-              </Text>
-            </div>
-          )}
+          <CreationAccessFields state={access} />
           <div>
             <Text size="sm" fw={500} mb={4}>
               {t('create.start')}
